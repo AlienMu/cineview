@@ -354,8 +354,8 @@ export const Animate: React.FC<AnimateProps> = ({
   // IMPORTANT: Keep element in initial state (usually hidden) until animation completes
   const initialVariant = useMemo(() => {
     if (enterVariant) return enterVariant.initial;
-    // Default to hidden state if no enter animation is defined
-    return { opacity: 0 };
+    // Default to visible state if no enter animation is defined
+    return { opacity: 1 };
   }, [enterVariant]);
 
   // CSS performance optimizations
@@ -377,13 +377,17 @@ export const Animate: React.FC<AnimateProps> = ({
   );
 
   return (
-    <motion.div 
-      initial={initialVariant as never} 
-      animate={[controls, infiniteControls]} 
-      style={animateStyle}
-    >
-      {children}
-    </motion.div>
+    <>
+      <motion.div 
+        initial={initialVariant as never} 
+        animate={controls} 
+        style={animateStyle}
+      >
+        <motion.div animate={infiniteControls} style={{ display: 'inline-block' }}>
+          {children}
+        </motion.div>
+      </motion.div>
+    </>
   );
 };
 
