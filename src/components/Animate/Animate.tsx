@@ -101,18 +101,13 @@ export const Animate: React.FC<AnimateProps> = ({
       waitFor,
     };
 
+    console.log(`[Animate ${id}] Registering with delay: ${delay}ms, duration: ${enterDuration}ms`);
     sceneContext.registerAnimate(id, registrationInfo);
 
     return () => {
       sceneContext.unregisterAnimate(id);
     };
   }, [sceneContext, id, delay, enterDuration, waitFor]);
-
-  // Calculate actual delay (including waitFor chain)
-  const calculatedDelay = useMemo(() => {
-    if (!sceneContext) return delay;
-    return sceneContext.getCalculatedDelay(id);
-  }, [sceneContext, id, delay]);
 
   // Handle enter animation in snap mode
   useEffect(() => {
@@ -131,11 +126,20 @@ export const Animate: React.FC<AnimateProps> = ({
       // Reset to initial state first (synchronous)
       controls.set(enterVariant.initial as never);
       console.log(`[Animate ${id}] Set initial state:`, enterVariant.initial);
+      
+      // Get calculated delay at runtime (after registration)
+      const calculatedDelay = sceneContext.getCalculatedDelay(id);
+      console.log(`[Animate ${id}] calculatedDelay = ${calculatedDelay}ms (original delay = ${delay}ms)`);
 
       // Wait for calculated delay
       if (calculatedDelay > 0 && !cancelled) {
-        console.log(`[Animate ${id}] Waiting for delay:`, calculatedDelay);
+        console.log(`[Animate ${id}] Waiting for delay: ${calculatedDelay}ms`);
+        const startTime = Date.now();
         await new Promise((resolve) => setTimeout(resolve, calculatedDelay));
+        const actualDelay = Date.now() - startTime;
+        console.log(`[Animate ${id}] Delay completed after ${actualDelay}ms`);
+      } else {
+        console.log(`[Animate ${id}] No delay, starting immediately`);
       }
 
       if (cancelled) return;
@@ -255,6 +259,9 @@ export const Animate: React.FC<AnimateProps> = ({
 
       // Reset to initial state first
       controls.set(enterVariant.initial as never);
+
+      // Get calculated delay at runtime (after registration)
+      const calculatedDelay = sceneContext.getCalculatedDelay(id);
 
       // Wait for calculated delay
       if (calculatedDelay > 0 && !cancelled) {
