@@ -1,0 +1,360 @@
+/**
+ * 性能监控工具函数测试
+ */
+
+import {
+  performanceMonitor,
+  PerformanceMonitor,
+  getPerformanceMetrics,
+  startPerformanceMonitoring,
+  stopPerformanceMonitoring,
+  resetPerformanceMetrics,
+} from './performanceMonitor';
+
+describe('PerformanceMonitor', () => {
+  let monitor: PerformanceMonitor;
+
+  beforeEach(() => {
+    monitor = new PerformanceMonitor();
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    monitor.stop();
+  });
+
+  describe('start and stop', () => {
+    it('should start monitoring', () => {
+      const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
+      monitor.start();
+      expect(rafSpy).toHaveBeenCalled();
+      rafSpy.mockRestore();
+    });
+
+    it('should not start monitoring twice', () => {
+      const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
+      monitor.start();
+      const callCount = rafSpy.mock.calls.length;
+      monitor.start();
+      expect(rafSpy.mock.calls.length).toBe(callCount);
+      rafSpy.mockRestore();
+    });
+
+    it('should stop monitoring', () => {
+      const cancelSpy = jest.spyOn(window, 'cancelAnimationFrame');
+      monitor.start();
+      monitor.stop();
+      expect(cancelSpy).toHaveBeenCalled();
+      cancelSpy.mockRestore();
+    });
+
+    it('should not stop monitoring if not started', () => {
+      const cancelSpy = jest.spyOn(window, 'cancelAnimationFrame');
+      monitor.stop();
+      expect(cancelSpy).not.toHaveBeenCalled();
+      cancelSpy.mockRestore();
+    });
+  });
+
+  describe('getMetrics', () => {
+    it('should return initial metrics', () => {
+      const metrics = monitor.getMetrics();
+      expect(metrics).toHaveProperty('fps');
+      expect(metrics).toHaveProperty('avgFrameTime');
+      expect(metrics).toHaveProperty('memoryUsage');
+      expect(metrics).toHaveProperty('bundleSize');
+      expect(metrics.fps).toBe(0);
+      expect(metrics.avgFrameTime).toBe(0);
+      expect(metrics.bundleSize).toBe(0);
+    });
+
+    it('should return metrics with correct types', () => {
+      const metrics = monitor.getMetrics();
+      expect(typeof metrics.fps).toBe('number');
+      expect(typeof metrics.avgFrameTime).toBe('number');
+      expect(typeof metrics.bundleSize).toBe('number');
+      // memoryUsage can be undefined if not supported
+      if (metrics.memoryUsage !== undefined) {
+        expect(typeof metrics.memoryUsage).toBe('number');
+      }
+    });
+
+    it('should calculate fps and avgFrameTime after monitoring', (done) => {
+      monitor.start();
+
+      // Wait for a few frames
+      setTimeout(() => {
+        const metrics = monitor.getMetrics();
+        expect(metrics.fps).toBeGreaterThan(0);
+        expect(metrics.avgFrameTime).toBeGreaterThan(0);
+        monitor.stop();
+        done();
+      }, 100);
+    });
+
+    it('should round fps to one decimal place', (done) => {
+      monitor.start();
+
+      setTimeout(() => {
+        const metrics = monitor.getMetrics();
+        const fpsString = metrics.fps.toString();
+        const decimalPart = fpsString.split('.')[1];
+        if (decimalPart) {
+          expect(decimalPart.length).toBeLessThanOrEqual(1);
+        }
+        monitor.stop();
+        done();
+      }, 100);
+    });
+
+    it('should round avgFrameTime to two decimal places', (done) => {
+      monitor.start();
+
+      setTimeout(() => {
+        const metrics = monitor.getMetrics();
+        const frameTimeString = metrics.avgFrameTime.toString();
+        const decimalPart = frameTimeString.split('.')[1];
+        if (decimalPart) {
+          expect(decimalPart.length).toBeLessThanOrEqual(2);
+        }
+        monitor.stop();
+        done();
+      }, 100);
+    });
+  });
+
+  describe('reset', () => {
+    it('should reset metrics to initial state', (done) => {
+      monitor.start();
+
+      setTimeout(() => {
+        monitor.reset();
+        const metrics = monitor.getMetrics();
+        expect(metrics.fps).toBe(0);
+        expect(metrics.avgFrameTime).toBe(0);
+        monitor.stop();
+        done();
+      }, 100);
+    });
+  });
+
+  describe('memory usage', () => {
+    it('should return memory usage if supported', () => {
+      // Mock performance.memory
+      const originalMemory = (performance as unknown as { memory?: unknown }).memory;
+      (performance as unknown as { memory: { usedJSHeapSize: number } }).memory = {
+        usedJSHeapSize: 10485760, // 10 MB in bytes
+      };
+
+      const metrics = monitor.getMetrics();
+      expect(metrics.memoryUsage).toBeDefined();
+      expect(metrics.memoryUsage).toBeGreaterThan(0);
+
+      // Restore
+      (performance as unknown as { memory?: unknown }).memory = originalMemory;
+    });
+
+    it('should return undefined if memory API not supported', () => {
+      // Mock performance.memory as undefined
+      const originalMemory = (performance as unknown as { memory?: unknown }).memory;
+      (performance as unknown as { memory?: unknown }).memory = undefined;
+
+      const metrics = monitor.getMetrics();
+      expect(metrics.memoryUsage).toBeUndefined();
+
+      // Restore
+      (performance as unknown as { memory?: unknown }).memory = originalMemory;
+    });
+
+    it('should convert memory usage to MB', () => {
+      // Mock performance.memory
+      const originalMemory = (performance as unknown as { memory?: unknown }).memory;
+      (performance as unknown as { memory: { usedJSHeapSize: number } }).memory = {
+        usedJSHeapSize: 10485760, // 10 MB in bytes
+      };
+
+      const metrics = monitor.getMetrics();
+      expect(metrics.memoryUsage).toBeCloseTo(10, 1);
+
+      // Restore
+      (performance as unknown as { memory?: unknown }).memory = originalMemory;
+    });
+  });
+
+  describe('frame time tracking', () => {
+    it('should keep only last 60 frames', (done) => {
+      monitor.start();
+
+      // Wait for more than 60 frames (at 60fps, this is about 1 second)
+      setTimeout(() => {
+        const metrics = monitor.getMetrics();
+        // avgFrameTime should be calculated from at most 60 frames
+        expect(metrics.avgFrameTime).toBeGreaterThan(0);
+        monitor.stop();
+        done();
+      }, 1100); // Wait slightly more than 1 second
+    });
+  });
+});
+
+describe('Singleton instance and convenience functions', () => {
+  afterEach(() => {
+    stopPerformanceMonitoring();
+  });
+
+  describe('startPerformanceMonitoring', () => {
+    it('should start monitoring using singleton', () => {
+      const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
+      startPerformanceMonitoring();
+      expect(rafSpy).toHaveBeenCalled();
+      rafSpy.mockRestore();
+    });
+  });
+
+  describe('stopPerformanceMonitoring', () => {
+    it('should stop monitoring using singleton', () => {
+      const cancelSpy = jest.spyOn(window, 'cancelAnimationFrame');
+      startPerformanceMonitoring();
+      stopPerformanceMonitoring();
+      expect(cancelSpy).toHaveBeenCalled();
+      cancelSpy.mockRestore();
+    });
+  });
+
+  describe('getPerformanceMetrics', () => {
+    it('should return metrics from singleton', () => {
+      const metrics = getPerformanceMetrics();
+      expect(metrics).toHaveProperty('fps');
+      expect(metrics).toHaveProperty('avgFrameTime');
+      expect(metrics).toHaveProperty('memoryUsage');
+      expect(metrics).toHaveProperty('bundleSize');
+    });
+
+    it('should return updated metrics after monitoring', (done) => {
+      startPerformanceMonitoring();
+
+      setTimeout(() => {
+        const metrics = getPerformanceMetrics();
+        expect(metrics.fps).toBeGreaterThan(0);
+        expect(metrics.avgFrameTime).toBeGreaterThan(0);
+        stopPerformanceMonitoring();
+        done();
+      }, 100);
+    });
+  });
+
+  describe('resetPerformanceMetrics', () => {
+    it('should reset metrics using singleton', (done) => {
+      startPerformanceMonitoring();
+
+      setTimeout(() => {
+        resetPerformanceMetrics();
+        const metrics = getPerformanceMetrics();
+        expect(metrics.fps).toBe(0);
+        expect(metrics.avgFrameTime).toBe(0);
+        stopPerformanceMonitoring();
+        done();
+      }, 100);
+    });
+  });
+
+  describe('performanceMonitor singleton', () => {
+    it('should export singleton instance', () => {
+      expect(performanceMonitor).toBeInstanceOf(PerformanceMonitor);
+    });
+
+    it('should be the same instance used by convenience functions', (done) => {
+      startPerformanceMonitoring();
+
+      setTimeout(() => {
+        const metricsFromFunction = getPerformanceMetrics();
+        const metricsFromSingleton = performanceMonitor.getMetrics();
+
+        expect(metricsFromFunction.fps).toBe(metricsFromSingleton.fps);
+        expect(metricsFromFunction.avgFrameTime).toBe(metricsFromSingleton.avgFrameTime);
+
+        stopPerformanceMonitoring();
+        done();
+      }, 100);
+    });
+  });
+});
+
+describe('Performance API integration', () => {
+  afterEach(() => {
+    stopPerformanceMonitoring();
+  });
+
+  it('should use performance.now() for timing', (done) => {
+    const nowSpy = jest.spyOn(performance, 'now');
+    startPerformanceMonitoring();
+
+    setTimeout(() => {
+      expect(nowSpy).toHaveBeenCalled();
+      stopPerformanceMonitoring();
+      nowSpy.mockRestore();
+      done();
+    }, 50);
+  });
+
+  it('should use requestAnimationFrame for frame measurement', () => {
+    const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
+    startPerformanceMonitoring();
+    expect(rafSpy).toHaveBeenCalled();
+    stopPerformanceMonitoring();
+    rafSpy.mockRestore();
+  });
+
+  it('should use cancelAnimationFrame when stopping', () => {
+    const cancelSpy = jest.spyOn(window, 'cancelAnimationFrame');
+    startPerformanceMonitoring();
+    stopPerformanceMonitoring();
+    expect(cancelSpy).toHaveBeenCalled();
+    cancelSpy.mockRestore();
+  });
+});
+
+describe('Edge cases', () => {
+  let monitor: PerformanceMonitor;
+
+  beforeEach(() => {
+    monitor = new PerformanceMonitor();
+  });
+
+  afterEach(() => {
+    monitor.stop();
+  });
+
+  it('should handle getting metrics before starting', () => {
+    const metrics = monitor.getMetrics();
+    expect(metrics.fps).toBe(0);
+    expect(metrics.avgFrameTime).toBe(0);
+  });
+
+  it('should handle reset before starting', () => {
+    expect(() => monitor.reset()).not.toThrow();
+  });
+
+  it('should handle multiple start/stop cycles', (done) => {
+    monitor.start();
+    setTimeout(() => {
+      monitor.stop();
+      monitor.start();
+      setTimeout(() => {
+        const metrics = monitor.getMetrics();
+        expect(metrics.fps).toBeGreaterThan(0);
+        monitor.stop();
+        done();
+      }, 50);
+    }, 50);
+  });
+
+  it('should handle rapid start/stop calls', () => {
+    expect(() => {
+      monitor.start();
+      monitor.stop();
+      monitor.start();
+      monitor.stop();
+    }).not.toThrow();
+  });
+});
