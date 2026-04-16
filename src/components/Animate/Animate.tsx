@@ -158,6 +158,7 @@ export const Animate: React.FC<AnimateProps> = ({
       // IMPORTANT: Start infinite animation AFTER enter animation completes
       // This ensures the infinite loop doesn't interfere with the enter animation
       if (infiniteVariant && sceneContext.isActive && !cancelled) {
+        console.log(`[Animate ${id}] Starting infinite animation...`);
         const infiniteTransition = (infiniteVariant.animate as Record<string, unknown>)
           .transition as Record<string, unknown> | undefined;
 
@@ -192,6 +193,7 @@ export const Animate: React.FC<AnimateProps> = ({
       const playExitAnimation = async (): Promise<void> => {
         // IMPORTANT: Stop infinite animation immediately when exit animation starts
         // This ensures the exit animation plays cleanly without interference
+        console.log(`[Animate ${id}] Stopping infinite animation for exit...`);
         infiniteControls.stop();
 
         // Play exit animation
@@ -219,6 +221,7 @@ export const Animate: React.FC<AnimateProps> = ({
 
     // IMPORTANT: Stop infinite animation when dragging starts
     // This ensures the exit animation progress can be controlled by drag progress
+    console.log(`[Animate ${id}] Stopping infinite animation for drag...`);
     infiniteControls.stop();
 
     const progress = sceneContext.dragProgress;
@@ -276,6 +279,7 @@ export const Animate: React.FC<AnimateProps> = ({
       // IMPORTANT: Start infinite animation AFTER enter animation completes
       // This ensures the infinite loop doesn't interfere with the enter animation
       if (infiniteVariant && sceneContext.isActive && !cancelled) {
+        console.log(`[Animate ${id}] Starting infinite animation (drag mode)...`);
         const infiniteTransition = (infiniteVariant.animate as Record<string, unknown>)
           .transition as Record<string, unknown> | undefined;
 
@@ -311,29 +315,6 @@ export const Animate: React.FC<AnimateProps> = ({
       return () => clearTimeout(timer);
     }
   }, [sceneContext, hasEntered]);
-
-  // Handle infinite animation lifecycle
-  useEffect(() => {
-    if (!sceneContext || !infiniteVariant) return;
-
-    if (sceneContext.isActive && hasEntered) {
-      // Start infinite animation when scene is active
-      const infiniteTransition = (infiniteVariant.animate as Record<string, unknown>).transition as
-        | Record<string, unknown>
-        | undefined;
-
-      infiniteControls.start({
-        ...infiniteVariant.animate,
-        transition: {
-          ...(infiniteTransition || { duration: 1 }),
-          repeat: Infinity,
-        },
-      } as never);
-    } else {
-      // Stop infinite animation when scene is inactive
-      infiniteControls.stop();
-    }
-  }, [sceneContext, infiniteVariant, infiniteControls, hasEntered]);
 
   // Cleanup: Stop animations and clear timers when component unmounts
   // Validates Requirement 26.5: Clean up timers and requestAnimationFrame on unmount
