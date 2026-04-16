@@ -377,7 +377,11 @@ export const Animate: React.FC<AnimateProps> = ({
   );
 
   return (
-    <motion.div initial={initialVariant as never} animate={controls} style={animateStyle}>
+    <motion.div 
+      initial={initialVariant as never} 
+      animate={[controls, infiniteControls]} 
+      style={animateStyle}
+    >
       {children}
     </motion.div>
   );
