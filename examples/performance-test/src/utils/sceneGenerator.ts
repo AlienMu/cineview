@@ -197,10 +197,10 @@ function generateElements(sceneIndex: number): SceneElement[] {
   const elements: SceneElement[] = [];
 
   for (let i = 0; i < elementCount; i++) {
-    // 分布在屏幕不同位置
-    const x = 100 + i * 120 + ((sceneIndex * 30) % 150);
-    const y = 400 + ((i * 80) % 250);
-    const size = 50 + ((i * 15) % 70);
+    // 分布在屏幕不同位置 - 从左到右排列
+    const x = 80 + i * 100;
+    const y = 450;
+    const size = 60 + ((i * 10) % 40);
 
     // 每个场景至少有 2 个持续动画元素
     const useInfinite = i < 2 || (i === elementCount - 1 && sceneIndex % 2 === 0);
@@ -212,8 +212,9 @@ function generateElements(sceneIndex: number): SceneElement[] {
       color: colors[(sceneIndex * 3 + i) % colors.length],
       shape: i % 2 === 0 ? 'circle' : 'square',
       animation: elementAnimations[(sceneIndex + i) % elementAnimations.length],
-      duration: 500 + i * 100 + ((sceneIndex * 50) % 300),
-      delay: 400 + i * 150,
+      // 增加延迟时间，让顺序效果更明显：每个元素延迟 300ms
+      duration: 600 + i * 100,
+      delay: i * 300, // 从 0ms, 300ms, 600ms, 900ms... 依次延迟
       infiniteAnimation: useInfinite
         ? infiniteAnimations[(sceneIndex * 2 + i) % infiniteAnimations.length]
         : undefined,
