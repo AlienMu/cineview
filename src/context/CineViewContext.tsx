@@ -9,11 +9,17 @@ import { convertSize } from '../utils/sizeConverter';
 import type { SizeUnit } from '../types';
 
 export interface CineViewContextValue {
+  designWidth: number;
+  designHeight: number;
   designSize: number;
   unit: SizeUnit;
+  scaleX: number;
+  scaleY: number;
   scale: number;
   viewportWidth: number;
   viewportHeight: number;
+  convertX: (size: number) => number;
+  convertY: (size: number) => number;
   convertSize: (size: number) => number;
 }
 
@@ -23,16 +29,22 @@ const CineViewContext = createContext<CineViewContextValue | null>(null);
 export { CineViewContext };
 
 export interface CineViewProviderProps {
-  designSize?: number;
+  designWidth?: number;
+  designHeight?: number;
   unit?: SizeUnit;
   children: React.ReactNode;
 }
 
 export const CineViewProvider: React.FC<CineViewProviderProps> = ({
-  designSize = 750,
-  unit = 'px',
+  designWidth,
+  designHeight,
+  unit,
   children,
 }) => {
+  const resolvedDesignWidth = designWidth ?? 750;
+  const resolvedDesignHeight = designHeight ?? 1334;
+  const resolvedDesignSize = resolvedDesignWidth;
+  const resolvedUnit = unit ?? 'px';
   const [viewportWidth, setViewportWidth] = useState<number>(
     typeof window !== 'undefined' ? window.innerWidth : 750
   );
@@ -41,17 +53,39 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
   );
 
   // 计算换算比例
+  const scaleX = useMemo(
+    () => viewportWidth / resolvedDesignWidth,
+    [viewportWidth, resolvedDesignWidth]
+  );
+  const scaleY = useMemo(
+    () => viewportHeight / resolvedDesignHeight,
+    [viewportHeight, resolvedDesignHeight]
+  );
   const scale = useMemo(() => {
-    if (unit === 'px') return 1;
-    return viewportWidth / designSize;
-  }, [viewportWidth, designSize, unit]);
+    if (resolvedUnit === 'px') return 1;
+    return scaleX;
+  }, [resolvedUnit, scaleX]);
+
+  const convertXFn = useCallback(
+    (size: number): number => {
+      return size * scaleX;
+    },
+    [scaleX]
+  );
+
+  const convertYFn = useCallback(
+    (size: number): number => {
+      return size * scaleY;
+    },
+    [scaleY]
+  );
 
   // 尺寸换算函数
   const convertSizeFn = useCallback(
     (size: number): number => {
-      return convertSize(size, designSize, viewportWidth, unit);
+      return convertSize(size, resolvedDesignWidth, viewportWidth, resolvedUnit);
     },
-    [designSize, viewportWidth, unit]
+    [resolvedDesignWidth, viewportWidth, resolvedUnit]
   );
 
   // 处理窗口 resize 事件
@@ -72,14 +106,33 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
 
   const contextValue = useMemo<CineViewContextValue>(
     () => ({
-      designSize,
-      unit,
+      designWidth: resolvedDesignWidth,
+      designHeight: resolvedDesignHeight,
+      designSize: resolvedDesignSize,
+      unit: resolvedUnit,
+      scaleX,
+      scaleY,
       scale,
       viewportWidth,
       viewportHeight,
+      convertX: convertXFn,
+      convertY: convertYFn,
       convertSize: convertSizeFn,
     }),
-    [designSize, unit, scale, viewportWidth, viewportHeight, convertSizeFn]
+    [
+      resolvedDesignWidth,
+      resolvedDesignHeight,
+      resolvedDesignSize,
+      resolvedUnit,
+      scaleX,
+      scaleY,
+      scale,
+      viewportWidth,
+      viewportHeight,
+      convertXFn,
+      convertYFn,
+      convertSizeFn,
+    ]
   );
 
   // 设置 CSS 变量，让所有子元素可以使用响应式单位
@@ -87,10 +140,24 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
     () =>
       ({
         '--cineview-scale': scale,
-        '--cineview-design-size': `${designSize}px`,
+        '--cineview-scale-x': scaleX,
+        '--cineview-scale-y': scaleY,
+        '--cineview-design-width': `${resolvedDesignWidth}px`,
+        '--cineview-design-height': `${resolvedDesignHeight}px`,
+        '--cineview-design-size': `${resolvedDesignSize}px`,
         '--cineview-viewport-width': `${viewportWidth}px`,
+        '--cineview-viewport-height': `${viewportHeight}px`,
       }) as React.CSSProperties,
-    [scale, designSize, viewportWidth]
+    [
+      scale,
+      scaleX,
+      scaleY,
+      resolvedDesignWidth,
+      resolvedDesignHeight,
+      resolvedDesignSize,
+      viewportWidth,
+      viewportHeight,
+    ]
   );
 
   return (

@@ -490,6 +490,144 @@ describe('useSceneManager', () => {
     });
   });
 
+  describe('drag snapshot state', () => {
+    it('should commit drag scene change and persist transition snapshot', () => {
+      const onBeforeChange = jest.fn();
+      const onAfterChange = jest.fn();
+
+      const { result } = renderHook(() =>
+        useSceneManager({
+          totalScenes: 4,
+          initialScene: 1,
+          mode: 'drag',
+          onBeforeChange,
+          onAfterChange,
+        })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragProgress(0.6);
+        actions.setDragTimelineProgress(0.6);
+        actions.setRenderProgress(0.6);
+        actions.setSharedElapsedMs(480);
+        actions.setSharedTimelineDurationMs(800);
+        actions.setIsDragging(true);
+        actions.commitDragSceneChange('forward', 0.6, 480, 800);
+      });
+
+      const [state] = result.current;
+      expect(state.currentScene).toBe(2);
+      expect(state.direction).toBe('forward');
+      expect(state.isAnimating).toBe(false);
+      expect(state.dragProgress).toBe(0);
+      expect(state.renderProgress).toBe(0);
+      expect(state.isDragging).toBe(false);
+      expect(state.dragTimelineProgress).toBe(0.6);
+      expect(state.sharedElapsedMs).toBe(480);
+      expect(state.sharedTimelineDurationMs).toBe(800);
+      expect(state.dragTransitionSnapshot).toEqual({
+        fromScene: 1,
+        toScene: 2,
+        direction: 'forward',
+        progressRatio: 0.6,
+        sharedElapsedMs: 480,
+        sharedTimelineDurationMs: 800,
+      });
+      expect(onBeforeChange).toHaveBeenCalledWith(1, 2);
+      expect(onAfterChange).not.toHaveBeenCalled();
+    });
+
+    it('should clear drag transition snapshot and shared timeline state', () => {
+      const onAfterChange = jest.fn();
+      const { result } = renderHook(() =>
+        useSceneManager({
+          totalScenes: 4,
+          initialScene: 1,
+          mode: 'drag',
+          onAfterChange,
+        })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.commitDragSceneChange('forward', 0.75, 600, 800);
+      });
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.clearDragTransitionSnapshot();
+      });
+
+      const [state] = result.current;
+      expect(state.dragProgress).toBe(0);
+      expect(state.dragTimelineProgress).toBe(0);
+      expect(state.sharedElapsedMs).toBe(0);
+      expect(state.sharedTimelineDurationMs).toBe(0);
+      expect(state.dragTransitionSnapshot).toBeNull();
+      expect(onAfterChange).toHaveBeenCalledWith(2, 1);
+    });
+
+    it('should reset drag interaction state without changing the current scene', () => {
+      const { result } = renderHook(() =>
+        useSceneManager({
+          totalScenes: 4,
+          initialScene: 2,
+          mode: 'drag',
+        })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragProgress(0.4);
+        actions.setDragTimelineProgress(0.4);
+        actions.setRenderProgress(0.4);
+        actions.setSharedElapsedMs(320);
+        actions.setSharedTimelineDurationMs(800);
+        actions.setIsDragging(true);
+        actions.resetDragInteraction();
+      });
+
+      const [state] = result.current;
+      expect(state.currentScene).toBe(2);
+      expect(state.dragProgress).toBe(0);
+      expect(state.dragTimelineProgress).toBe(0);
+      expect(state.renderProgress).toBe(0);
+      expect(state.sharedElapsedMs).toBe(0);
+      expect(state.sharedTimelineDurationMs).toBe(0);
+      expect(state.isDragging).toBe(false);
+      expect(state.dragTransitionSnapshot).toBeNull();
+    });
+
+    it('should reset drag interaction when a committed target scene is out of bounds', () => {
+      const { result } = renderHook(() =>
+        useSceneManager({
+          totalScenes: 2,
+          initialScene: 1,
+          mode: 'drag',
+        })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragProgress(0.8);
+        actions.setIsDragging(true);
+        actions.commitDragSceneChange('forward', 0.8, 640, 800);
+      });
+
+      const [state] = result.current;
+      expect(state.currentScene).toBe(1);
+      expect(state.direction).toBeNull();
+      expect(state.isAnimating).toBe(false);
+      expect(state.dragProgress).toBe(0);
+      expect(state.dragTimelineProgress).toBe(0);
+      expect(state.sharedElapsedMs).toBe(0);
+      expect(state.sharedTimelineDurationMs).toBe(0);
+      expect(state.isDragging).toBe(false);
+      expect(state.dragTransitionSnapshot).toBeNull();
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle zero scenes', () => {
       const { result } = renderHook(() =>

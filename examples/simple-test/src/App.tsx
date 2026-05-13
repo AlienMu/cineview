@@ -1,73 +1,77 @@
 import React from 'react';
-import { CineView, Scene, Animate, Position } from 'cineview';
+import { Animate, CineView, Position, Scene } from 'cineview';
 
-const App: React.FC = () => {
+const sceneBaseStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: '48px',
+  fontWeight: 'bold',
+  color: '#fff',
+  textAlign: 'center',
+  transform: 'translateX(-50%)',
+  textShadow: '0 4px 20px rgba(0,0,0,0.5)',
+};
+
+const copyStyle: React.CSSProperties = {
+  fontSize: '24px',
+  color: '#fff',
+  textAlign: 'center',
+  transform: 'translateX(-50%)',
+  textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+};
+
+export default function App(): JSX.Element {
   return (
     <CineView
-      config={{
-        designSize: 750,
-        unit: 'px',
-      }}
+      mode="snap"
+      modes={{ snap: { direction: 'y', duration: 500 } }}
+      config={{ width: 750, height: 1334, unit: 'px' }}
     >
-      {/* Scene 1 */}
-      <Scene slideMode="snap" slideDuration={500}>
+      <Scene>
         <div
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
+            ...sceneBaseStyle,
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           }}
         />
-
-        <Position x={375} y={300}>
-          <Animate enterAnimation="fade-in" enterDuration={1000} delay={0} animateId="scene1-title">
-            <h1
-              style={{
-                fontSize: '48px',
-                fontWeight: 'bold',
-                color: '#fff',
-                textAlign: 'center',
-                transform: 'translateX(-50%)',
-                textShadow: '0 4px 20px rgba(0,0,0,0.5)',
-              }}
-            >
-              Scene 1
-            </h1>
-          </Animate>
-        </Position>
-
-        <Position x={375} y={400}>
+        <Position at={{ x: 375, y: 300 }}>
           <Animate
-            enterAnimation="slide-up"
-            enterDuration={800}
-            delay={500}
-            animateId="scene1-desc"
+            animateId="scene1-title"
+            enterAnimation="fade-in"
+            duration={{ enter: 1000 }}
+            timeline={{ delay: 0 }}
           >
-            <p
-              style={{
-                fontSize: '24px',
-                color: '#fff',
-                textAlign: 'center',
-                transform: 'translateX(-50%)',
-                textShadow: '0 2px 10px rgba(0,0,0,0.5)',
-              }}
-            >
-              This is the first scene
-            </p>
+            <h1 style={titleStyle}>Scene 1</h1>
           </Animate>
         </Position>
-
-        <Position x={375} y={500}>
-          <Animate enterAnimation="zoom-in" enterDuration={600} delay={1000} animateId="scene1-box">
+        <Position at={{ x: 375, y: 400 }}>
+          <Animate
+            animateId="scene1-copy"
+            enterAnimation="slide-up"
+            duration={{ enter: 800 }}
+            timeline={{ delay: 500 }}
+          >
+            <p style={copyStyle}>Root-owned snap mode with grouped timing.</p>
+          </Animate>
+        </Position>
+        <Position at={{ x: 375, y: 520 }}>
+          <Animate
+            animateId="scene1-card"
+            enterAnimation="zoom-in"
+            duration={{ enter: 600 }}
+            timeline={{ delay: 900 }}
+          >
             <div
               style={{
-                width: '100px',
-                height: '100px',
+                width: '132px',
+                height: '132px',
                 background: '#fff',
-                borderRadius: '10px',
+                borderRadius: '14px',
                 transform: 'translateX(-50%)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
               }}
@@ -76,99 +80,53 @@ const App: React.FC = () => {
         </Position>
       </Scene>
 
-      {/* Scene 2 */}
-      <Scene slideMode="snap" slideDuration={500}>
+      <Scene>
         <div
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
+            ...sceneBaseStyle,
             background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
           }}
         />
-
-        <Position x={375} y={300}>
-          <Animate enterAnimation="fade-in" enterDuration={1000} delay={0} animateId="scene2-title">
-            <h1
-              style={{
-                fontSize: '48px',
-                fontWeight: 'bold',
-                color: '#fff',
-                textAlign: 'center',
-                transform: 'translateX(-50%)',
-                textShadow: '0 4px 20px rgba(0,0,0,0.5)',
-              }}
-            >
-              Scene 2
-            </h1>
+        <Position at={{ x: 375, y: 300 }}>
+          <Animate animateId="scene2-title" enterAnimation="fade-in" duration={{ enter: 1000 }}>
+            <h1 style={titleStyle}>Scene 2</h1>
           </Animate>
         </Position>
-
-        <Position x={375} y={400}>
+        <Position at={{ x: 375, y: 400 }}>
           <Animate
+            animateId="scene2-copy"
             enterAnimation="slide-up"
-            enterDuration={800}
-            delay={500}
-            animateId="scene2-desc"
+            duration={{ enter: 800 }}
+            timeline={{ delay: 400 }}
           >
-            <p
-              style={{
-                fontSize: '24px',
-                color: '#fff',
-                textAlign: 'center',
-                transform: 'translateX(-50%)',
-                textShadow: '0 2px 10px rgba(0,0,0,0.5)',
-              }}
-            >
-              This is the second scene
-            </p>
+            <p style={copyStyle}>`Position.at` keeps the coordinates tidy.</p>
           </Animate>
         </Position>
       </Scene>
 
-      {/* Scene 3 */}
-      <Scene slideMode="snap" slideDuration={500}>
+      <Scene>
         <div
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
+            ...sceneBaseStyle,
             background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
           }}
         />
-
-        <Position x={375} y={300}>
-          <Animate enterAnimation="fade-in" enterDuration={1000} delay={0} animateId="scene3-title">
-            <h1
-              style={{
-                fontSize: '48px',
-                fontWeight: 'bold',
-                color: '#fff',
-                textAlign: 'center',
-                transform: 'translateX(-50%)',
-                textShadow: '0 4px 20px rgba(0,0,0,0.5)',
-              }}
-            >
-              Scene 3
-            </h1>
+        <Position at={{ x: 375, y: 300 }}>
+          <Animate animateId="scene3-title" enterAnimation="fade-in" duration={{ enter: 1000 }}>
+            <h1 style={titleStyle}>Scene 3</h1>
           </Animate>
         </Position>
-
-        <Position x={375} y={400}>
+        <Position at={{ x: 375, y: 420 }}>
           <Animate
+            animateId="scene3-badge"
             enterAnimation="rotate-in"
-            enterDuration={800}
-            delay={500}
-            animateId="scene3-box"
+            duration={{ enter: 800 }}
+            timeline={{ delay: 500 }}
           >
             <div
               style={{
-                width: '100px',
-                height: '100px',
+                width: '120px',
+                height: '120px',
                 background: '#fff',
                 borderRadius: '50%',
                 transform: 'translateX(-50%)',
@@ -180,6 +138,4 @@ const App: React.FC = () => {
       </Scene>
     </CineView>
   );
-};
-
-export default App;
+}

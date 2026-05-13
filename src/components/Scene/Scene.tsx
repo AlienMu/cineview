@@ -4,142 +4,290 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { motion, useAnimation } from 'framer-motion';
-import type { SceneProps } from '../../types';
-import { DEFAULT_SLIDE_DURATION } from '../../types';
+import { motion, useAnimation, useMotionValue } from 'framer-motion';
 import { SceneContext, type SceneContextType } from '../Animate/Animate';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { AnimateRegistrationInfo } from '../Animate/Animate';
 import type { PresetAnimation } from '../../animations/presets';
-import { parseAnimationSafely, interpolateVariant } from '../../utils/animationHelpers';
-import { createSnapGestureHandlers, createDragGestureHandlers } from '../../utils/gestureHandlers';
+import { parseAnimationSafely } from '../../utils/animationHelpers';
+import type { SceneInternalProps, SceneState } from './types';
+import { useSceneRuntimeState } from './useSceneRuntimeState';
+import { useScrollSceneEngine } from './useScrollSceneEngine';
+import { useSnapSceneEngine } from './useSnapSceneEngine';
+import { useDragSceneEngine } from './useDragSceneEngine';
+import { SceneFixedLayerContext } from '../Position/Position';
+import {
+  emitSceneVisibility,
+  getFixedLayerMetrics,
+  getSceneVisibilityProgress,
+  normalizeSceneProps,
+  resolveSceneAnchor,
+  resolveScrollSceneAnchor,
+} from './helpers';
 
-export interface SceneInternalProps extends SceneProps {
-  isActive?: boolean;
-  sceneIndex?: number;
-  onSceneChange?: (direction: 'forward' | 'backward') => void;
-}
+export const SceneIdentityContext = React.createContext<number | null>(null);
 
-export const Scene: React.FC<SceneInternalProps> = ({
-  slideDirection = 'y',
-  slideMode = 'snap',
-  slideDuration = DEFAULT_SLIDE_DURATION,
-  enterAnimation,
-  exitAnimation,
-  children,
-  isActive = false,
-  sceneIndex = 0,
-  onSceneChange,
-}) => {
-  // Get CineView context (may be null if not within CineViewProvider)
+const SceneImpl: React.FC<SceneInternalProps> = (props) => {
+  const { children } = props;
+  const {
+    effectiveMode,
+    effectiveDirection,
+    isActive,
+    sceneIndex,
+    totalScenes,
+    currentSceneIndex,
+    globalDirection,
+    globalIsSceneAnimating,
+    globalSharedElapsedMs,
+    globalSharedTimelineDurationMs,
+    globalViewportWidth,
+    globalViewportHeight,
+    globalDragProgress,
+    globalRenderProgress,
+    globalDragTimelineProgress,
+    globalIsDragging,
+    globalDragTransitionSnapshot,
+    globalScrollProgress,
+    globalIsScrolling,
+    globalScrollDirection,
+    globalScrollTransitionSnapshot,
+    globalScrollBackdropActive,
+    globalScrollTimelineState,
+    globalScrollActiveSceneIndex,
+    globalScrollViewportOffset,
+    resolvedSceneWidth,
+    resolvedSceneHeight,
+    resolvedSceneAnchor,
+    resolvedSceneOverflow,
+    resolvedSceneZIndex,
+    effectiveSceneStackMode,
+    resolvedSceneTransitionDuration,
+    resolvedReplayOnReenter,
+    resolvedEnterAnimation,
+    resolvedExitAnimation,
+    sceneVisibilityCallback,
+    onVisibilityChange,
+    onSceneChange,
+    dragRuntime,
+    onActivationComplete,
+    onDragProgressChange,
+    onRenderProgressChange,
+    onDragTimelineProgressChange,
+    onSharedElapsedMsChange,
+    onDraggingChange,
+    onSharedTimelineDurationChange,
+    onDragCommit,
+    onDragReset,
+    slideDuration,
+    compatFields,
+  } = normalizeSceneProps(props);
   const cineViewContext = useCineViewContext();
-
-  // Animation controls for scene-level animations
   const controls = useAnimation();
 
-  // Parsed animations
   const [enterVariant, setEnterVariant] = useState<PresetAnimation | null>(null);
   const [exitVariant, setExitVariant] = useState<PresetAnimation | null>(null);
+  const hasExternalDragRuntime = Boolean(
+    dragRuntime ||
+    props.globalDragProgress !== undefined ||
+    props.globalRenderProgress !== undefined ||
+    props.globalDragTimelineProgress !== undefined ||
+    props.globalIsDragging !== undefined ||
+    props.globalSharedElapsedMs !== undefined ||
+    props.globalSharedTimelineDurationMs !== undefined ||
+    props.globalDragTransitionSnapshot !== undefined ||
+    props.onDragProgressChange ||
+    props.onRenderProgressChange ||
+    props.onDragTimelineProgressChange ||
+    props.onSharedElapsedMsChange ||
+    props.onDraggingChange ||
+    props.onSharedTimelineDurationChange ||
+    props.onDragCommit ||
+    props.onDragReset
+  );
+  const [localDragProgress, setLocalDragProgress] = useState(globalDragProgress);
+  const [localRenderProgress, setLocalRenderProgress] = useState(globalRenderProgress);
+  const [localDragTimelineProgress, setLocalDragTimelineProgress] = useState(
+    globalDragTimelineProgress
+  );
+  const [localIsDragging, setLocalIsDragging] = useState(globalIsDragging);
+  const [localSharedElapsedMs, setLocalSharedElapsedMs] = useState(globalSharedElapsedMs);
+  const [localSharedTimelineDurationMs, setLocalSharedTimelineDurationMs] = useState(
+    globalSharedTimelineDurationMs
+  );
+  const [localDragTransitionSnapshot, setLocalDragTransitionSnapshot] = useState(
+    globalDragTransitionSnapshot
+  );
+  const currentDragProgress = hasExternalDragRuntime ? globalDragProgress : localDragProgress;
+  const currentRenderProgress = hasExternalDragRuntime ? globalRenderProgress : localRenderProgress;
+  const currentDragTimelineProgress = hasExternalDragRuntime
+    ? globalDragTimelineProgress
+    : localDragTimelineProgress;
+  const currentIsDragging = hasExternalDragRuntime ? globalIsDragging : localIsDragging;
+  const currentSharedElapsedMs = hasExternalDragRuntime
+    ? globalSharedElapsedMs
+    : localSharedElapsedMs;
+  const currentSharedTimelineDurationMs = hasExternalDragRuntime
+    ? globalSharedTimelineDurationMs
+    : localSharedTimelineDurationMs;
+  const currentDragTransitionSnapshot = hasExternalDragRuntime
+    ? globalDragTransitionSnapshot
+    : localDragTransitionSnapshot;
+  const isDragging = currentIsDragging;
 
-  // Scene state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragProgress, setDragProgress] = useState(0);
+  const dragProgressMotion = useMotionValue(currentDragProgress);
+  const sharedElapsedMotion = useMotionValue(currentSharedElapsedMs);
+
+  const [sceneEnterCompleted, setSceneEnterCompleted] = useState(false);
+  const [sceneState, setSceneState] = useState<SceneState>('initial');
+  const [activationVersion, setActivationVersion] = useState(0);
+  const [activeEpoch, setActiveEpoch] = useState(0);
+  const sceneOffset = sceneIndex - currentSceneIndex;
+  const prevIsActiveRef = useRef(isActive);
+  const prevSnapActiveRef = useRef(isActive);
+  const hasEnteredOnceRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Animate registry - stores all child Animate component IDs
   const animateRegistry = useRef<Map<string, AnimateRegistrationInfo>>(new Map());
   const animateRegistrySet = useRef<Set<string>>(new Set());
+  const delayCache = useRef<Map<string, number>>(new Map());
+  const timelineDurationRef = useRef<number>(resolvedSceneTransitionDuration);
 
-  // Gesture detection refs
   const containerRef = useRef<HTMLDivElement>(null);
+  const [fixedLayerElement, setFixedLayerElement] = useState<HTMLElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const dragStartProgressRef = useRef(0);
+  const scrollSettleTimerRef = useRef<number | null>(null);
+  const handleFixedLayerHostRef = useCallback((node: HTMLDivElement | null) => {
+    setFixedLayerElement((previous) => (previous === node ? previous : node));
+  }, []);
 
-  // Error handling: Check if component is used within CineView
+  useEffect(() => {
+    dragProgressMotion.set(currentDragProgress);
+  }, [currentDragProgress, dragProgressMotion]);
+
+  useEffect(() => {
+    sharedElapsedMotion.set(currentSharedElapsedMs);
+  }, [currentSharedElapsedMs, sharedElapsedMotion]);
+
+  useEffect(() => {
+    if (!hasExternalDragRuntime) {
+      return;
+    }
+
+    setLocalDragProgress(globalDragProgress);
+    setLocalRenderProgress(globalRenderProgress);
+    setLocalDragTimelineProgress(globalDragTimelineProgress);
+    setLocalIsDragging(globalIsDragging);
+    setLocalSharedElapsedMs(globalSharedElapsedMs);
+    setLocalSharedTimelineDurationMs(globalSharedTimelineDurationMs);
+    setLocalDragTransitionSnapshot(globalDragTransitionSnapshot);
+  }, [
+    hasExternalDragRuntime,
+    globalDragProgress,
+    globalRenderProgress,
+    globalDragTimelineProgress,
+    globalIsDragging,
+    globalSharedElapsedMs,
+    globalSharedTimelineDurationMs,
+    globalDragTransitionSnapshot,
+  ]);
+
+  useEffect(() => {
+    if (isActive && !prevIsActiveRef.current) {
+      setActiveEpoch((epoch) => epoch + 1);
+      if (resolvedReplayOnReenter || activationVersion === 0) {
+        setActivationVersion((version) => version + 1);
+      }
+    }
+    prevIsActiveRef.current = isActive;
+  }, [isActive, resolvedReplayOnReenter, activationVersion]);
+
+  const resolveDragProgress = useCallback(
+    (rawProgress: number): number => {
+      if (effectiveMode !== 'drag' || !isActive) return 0;
+
+      if (!hasExternalDragRuntime && totalScenes <= 1) {
+        return Math.max(-1, Math.min(1, rawProgress));
+      }
+
+      const isFirstScene = sceneIndex === 0;
+      const isLastScene = sceneIndex === totalScenes - 1;
+
+      if ((isFirstScene && rawProgress < 0) || (isLastScene && rawProgress > 0)) {
+        return 0;
+      }
+
+      return Math.max(-1, Math.min(1, rawProgress));
+    },
+    [effectiveMode, hasExternalDragRuntime, isActive, sceneIndex, totalScenes]
+  );
+
   useEffect(() => {
     if (!cineViewContext && process.env.NODE_ENV === 'development') {
       console.error(
         `[CineView Error] Scene component must be used within a CineView component.\n\n` +
           `Problem: Scene component at index ${sceneIndex} is not wrapped by CineView.\n` +
           `Fix: Wrap your Scene components inside a <CineView> component:\n\n` +
-          `  <CineView config={{ designSize: 750, unit: 'px' }}>\n` +
+          `  <CineView mode="snap" config={{ width: 750, height: 1334, unit: 'px' }}>\n` +
           `    <Scene>...</Scene>\n` +
           `  </CineView>\n`
       );
     }
   }, [cineViewContext, sceneIndex]);
 
-  // Parse animations on mount
   useEffect(() => {
+    if (effectiveMode !== 'scroll') {
+      setFixedLayerElement(null);
+    }
+  }, [effectiveMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const parseAnimations = async (): Promise<void> => {
       const [enter, exit] = await Promise.all([
-        parseAnimationSafely(enterAnimation, `Scene ${sceneIndex}`, 'enter'),
-        parseAnimationSafely(exitAnimation, `Scene ${sceneIndex}`, 'exit'),
+        parseAnimationSafely(resolvedEnterAnimation, `Scene ${sceneIndex}`, 'enter'),
+        parseAnimationSafely(resolvedExitAnimation, `Scene ${sceneIndex}`, 'exit'),
       ]);
 
-      if (enter) setEnterVariant(enter as PresetAnimation);
-      if (exit) setExitVariant(exit as PresetAnimation);
+      if (cancelled) {
+        return;
+      }
+
+      setEnterVariant((enter as PresetAnimation) ?? null);
+      setExitVariant((exit as PresetAnimation) ?? null);
     };
 
     parseAnimations();
-  }, [enterAnimation, exitAnimation, sceneIndex]);
 
-  // Register Animate component
-  const registerAnimate = useCallback(
-    (id: string, info: AnimateRegistrationInfo) => {
-      animateRegistry.current.set(id, info);
-      animateRegistrySet.current.add(id);
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedEnterAnimation, resolvedExitAnimation, sceneIndex]);
 
-      // Validates Requirement 26.4: Limit animateRegistry size with warnings
-      // Warn if registry size exceeds threshold (memory management)
-      const MAX_ANIMATE_COMPONENTS = 100;
-      if (
-        animateRegistry.current.size > MAX_ANIMATE_COMPONENTS &&
-        process.env.NODE_ENV === 'development'
-      ) {
-        console.warn(
-          `[CineView Warning] Scene ${sceneIndex} has ${animateRegistry.current.size} Animate components.\n\n` +
-            `Problem: Large number of Animate components may impact performance and memory usage.\n` +
-            `Recommendation: Consider reducing the number of animated elements or splitting into multiple scenes.\n` +
-            `Current limit: ${MAX_ANIMATE_COMPONENTS} components per scene.\n` +
-            `Memory Impact: Each Animate component maintains animation state and event listeners.`
-        );
-      }
-    },
-    [sceneIndex]
-  );
-
-  // Unregister Animate component
-  const unregisterAnimate = useCallback((id: string) => {
-    animateRegistry.current.delete(id);
-    animateRegistrySet.current.delete(id);
-  }, []);
-
-  // Calculate delay for Animate component (including waitFor chain)
-  const getCalculatedDelay = useCallback(
-    (animateId: string): number => {
-      const info = animateRegistry.current.get(animateId);
-      if (!info) return 0;
-
+  const calculateDelayForComponent = useCallback(
+    (id: string, info: AnimateRegistrationInfo): number => {
       let totalDelay = info.delay;
 
-      // Add waitFor delay if exists
       if (info.waitFor) {
-        const waitForInfo = animateRegistry.current.get(info.waitFor);
-        if (waitForInfo) {
-          // Recursively calculate the execution time of the waitFor component
-          const waitForDelay = getCalculatedDelay(info.waitFor);
-          totalDelay += waitForDelay + waitForInfo.duration;
-        } else if (process.env.NODE_ENV === 'development') {
-          // Warn if waitFor references non-existent component
-          console.warn(
-            `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
-              `Problem: Animate component "${animateId}" references non-existent component "${info.waitFor}" via waitFor.\n` +
-              `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop:\n\n` +
-              `  <Animate animateId="${info.waitFor}">...</Animate>\n` +
-              `  <Animate animateId="${animateId}" waitFor="${info.waitFor}">...</Animate>\n\n` +
-              `The waitFor dependency will be ignored and only the delay will be used.`
-          );
+        const cachedWaitForDelay = delayCache.current.get(info.waitFor);
+        if (cachedWaitForDelay !== undefined) {
+          const waitForInfo = animateRegistry.current.get(info.waitFor);
+          if (waitForInfo) {
+            totalDelay += cachedWaitForDelay + waitForInfo.duration;
+          }
+        } else {
+          const waitForInfo = animateRegistry.current.get(info.waitFor);
+          if (waitForInfo) {
+            const waitForDelay = calculateDelayForComponent(info.waitFor, waitForInfo);
+            delayCache.current.set(info.waitFor, waitForDelay);
+            totalDelay += waitForDelay + waitForInfo.duration;
+          } else if (process.env.NODE_ENV === 'development') {
+            console.warn(
+              `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
+                `Problem: Animate component "${id}" references non-existent component "${info.waitFor}" via waitFor.\n` +
+                `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`
+            );
+          }
         }
       }
 
@@ -148,232 +296,530 @@ export const Scene: React.FC<SceneInternalProps> = ({
     [sceneIndex]
   );
 
-  // Scene context value
-  const sceneContextValue = useMemo<SceneContextType>(
-    () => ({
-      slideMode,
-      isActive,
-      isDragging,
-      dragProgress,
-      registerAnimate,
-      unregisterAnimate,
-      getCalculatedDelay,
-    }),
-    [
-      slideMode,
-      isActive,
-      isDragging,
-      dragProgress,
-      registerAnimate,
-      unregisterAnimate,
-      getCalculatedDelay,
-    ]
-  );
+  const registerAnimate = useCallback(
+    (id: string, info: AnimateRegistrationInfo) => {
+      animateRegistry.current.set(id, info);
+      animateRegistrySet.current.add(id);
 
-  // Handle enter animation in snap mode
-  useEffect(() => {
-    if (!isActive || !enterVariant || slideMode !== 'snap') return;
+      const calculatedDelay = calculateDelayForComponent(id, info);
+      delayCache.current.set(id, calculatedDelay);
+      timelineDurationRef.current = Math.max(
+        resolvedSceneTransitionDuration,
+        calculatedDelay + info.duration
+      );
 
-    const playEnterAnimation = async (): Promise<void> => {
-      // Reset to initial state first (synchronous)
-      controls.set(enterVariant.initial as never);
-
-      // Then play enter animation
-      await controls.start(enterVariant.animate);
-    };
-
-    playEnterAnimation();
-  }, [isActive, enterVariant, slideMode, controls]);
-
-  // Handle exit animation in snap mode
-  useEffect(() => {
-    if (isActive || !exitVariant || slideMode !== 'snap') return;
-
-    const playExitAnimation = async (): Promise<void> => {
-      await controls.start(exitVariant.exit);
-    };
-
-    playExitAnimation();
-  }, [isActive, exitVariant, slideMode, controls]);
-
-  // Gesture detection for snap mode
-  useEffect(() => {
-    if (slideMode !== 'snap' || !isActive) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handlers = createSnapGestureHandlers(touchStartRef, {
-      slideDirection,
-      slideDuration,
-      isAnimating,
-      onSceneChange,
-      onAnimatingChange: setIsAnimating,
-    });
-
-    container.addEventListener('touchstart', handlers.handleTouchStart, { passive: true });
-    container.addEventListener('touchend', handlers.handleTouchEnd, { passive: true });
-    container.addEventListener('mousedown', handlers.handleMouseDown);
-    container.addEventListener('mouseup', handlers.handleMouseUp);
-    container.addEventListener('wheel', handlers.handleWheel, { passive: false });
-
-    return () => {
-      container.removeEventListener('touchstart', handlers.handleTouchStart);
-      container.removeEventListener('touchend', handlers.handleTouchEnd);
-      container.removeEventListener('mousedown', handlers.handleMouseDown);
-      container.removeEventListener('mouseup', handlers.handleMouseUp);
-      container.removeEventListener('wheel', handlers.handleWheel);
-    };
-  }, [slideMode, isActive, isAnimating, slideDirection, slideDuration, onSceneChange]);
-
-  // Drag mode handling
-  useEffect(() => {
-    if (slideMode !== 'drag' || !isActive) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleDragMove = (progress: number): void => {
-      setDragProgress(progress);
-
-      // Use requestAnimationFrame for batch updates
-      requestAnimationFrame(() => {
-        // Sync Scene's own exit animation progress
-        if (exitVariant) {
-          const enterAnimateVariant = (enterVariant?.animate as Record<string, unknown>) || {
-            opacity: 1,
-          };
-          const exitAnimateVariant = exitVariant.exit as Record<string, unknown>;
-
-          const interpolated = interpolateVariant(
-            enterAnimateVariant,
-            exitAnimateVariant,
-            progress
-          );
-          controls.set(interpolated as never);
-        }
-      });
-    };
-
-    const handleDragEnd = (finalProgress: number): void => {
-      setIsDragging(false);
-
-      // If dragged more than 50%, trigger scene change
-      if (finalProgress > 0.5) {
-        onSceneChange?.('forward');
+      if (
+        process.env.NODE_ENV === 'development' &&
+        typeof window !== 'undefined' &&
+        (window as Window & { __CINEVIEW_DRAG_DEBUG__?: boolean }).__CINEVIEW_DRAG_DEBUG__
+      ) {
+        console.log(
+          `[Scene ${sceneIndex}] Registered ${id}: delay=${info.delay}ms, calculated=${calculatedDelay}ms, duration=${info.duration}ms`
+        );
+        console.log(`[Scene ${sceneIndex}] Timeline duration: ${timelineDurationRef.current}ms`);
       }
 
-      // Reset drag progress
-      setDragProgress(0);
-      touchStartRef.current = null;
-    };
+      const MAX_ANIMATE_COMPONENTS = 100;
+      if (
+        animateRegistry.current.size > MAX_ANIMATE_COMPONENTS &&
+        process.env.NODE_ENV === 'development'
+      ) {
+        console.warn(
+          `[CineView Warning] Scene ${sceneIndex} has ${animateRegistry.current.size} Animate components.\n\n` +
+            `Recommendation: Consider reducing the number of animated elements or splitting into multiple scenes.`
+        );
+      }
+    },
+    [sceneIndex, calculateDelayForComponent, resolvedSceneTransitionDuration]
+  );
 
-    const handlers = createDragGestureHandlers(touchStartRef, dragStartProgressRef, {
-      slideDirection,
-      isDragging,
-      dragProgress,
-      onDragStart: () => setIsDragging(true),
-      onDragMove: handleDragMove,
-      onDragEnd: handleDragEnd,
-    });
+  const unregisterAnimate = useCallback(
+    (id: string) => {
+      animateRegistry.current.delete(id);
+      animateRegistrySet.current.delete(id);
+      delayCache.current.delete(id);
+      let nextTimelineDuration = resolvedSceneTransitionDuration;
+      animateRegistry.current.forEach((info, animateId) => {
+        const calculatedDelay = delayCache.current.get(animateId) ?? 0;
+        nextTimelineDuration = Math.max(nextTimelineDuration, calculatedDelay + info.duration);
+      });
+      timelineDurationRef.current = nextTimelineDuration;
+    },
+    [resolvedSceneTransitionDuration]
+  );
 
-    container.addEventListener('touchstart', handlers.handleTouchStart, { passive: true });
-    container.addEventListener('touchmove', handlers.handleTouchMove, { passive: true });
-    container.addEventListener('touchend', handlers.handleTouchEnd);
-    container.addEventListener('mousedown', handlers.handleMouseDown);
-    container.addEventListener('mousemove', handlers.handleMouseMove);
-    container.addEventListener('mouseup', handlers.handleMouseUp);
+  const getCalculatedDelay = useCallback(
+    (animateId: string): number => {
+      const cachedDelay = delayCache.current.get(animateId);
+      if (cachedDelay !== undefined) {
+        return cachedDelay;
+      }
 
-    return () => {
-      container.removeEventListener('touchstart', handlers.handleTouchStart);
-      container.removeEventListener('touchmove', handlers.handleTouchMove);
-      container.removeEventListener('touchend', handlers.handleTouchEnd);
-      container.removeEventListener('mousedown', handlers.handleMouseDown);
-      container.removeEventListener('mousemove', handlers.handleMouseMove);
-      container.removeEventListener('mouseup', handlers.handleMouseUp);
-    };
-  }, [
-    slideMode,
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `[CineView Warning] Delay cache miss for "${animateId}" in Scene ${sceneIndex}.`
+        );
+      }
+      return 0;
+    },
+    [sceneIndex]
+  );
+
+  const getTimelineDuration = useCallback((): number => {
+    return timelineDurationRef.current;
+  }, []);
+
+  const runtimeState = useSceneRuntimeState({
+    slideMode: effectiveMode,
+    sceneState,
     isActive,
-    isDragging,
-    dragProgress,
-    slideDirection,
-    exitVariant,
-    enterVariant,
-    controls,
-    onSceneChange,
+    sceneOffset,
+    globalScrollProgress,
+    globalScrollDirection,
+    globalIsScrolling,
+    globalScrollBackdropActive,
+    hasExitAnimation: !!resolvedExitAnimation,
+    scrollTimelineState: globalScrollTimelineState,
+  });
+
+  const sceneVisibilityProgress = useMemo(() => {
+    return getSceneVisibilityProgress({
+      effectiveMode,
+      isActive,
+      globalScrollTimelineState,
+      hasExitAnimation: !!resolvedExitAnimation,
+    });
+  }, [effectiveMode, isActive, globalScrollTimelineState, resolvedExitAnimation]);
+
+  const sceneIsVisible = sceneVisibilityProgress > 0.001;
+
+  useEffect(() => {
+    emitSceneVisibility({
+      onVisibilityChange,
+      sceneVisibilityCallback,
+      sceneIndex,
+      visible: sceneIsVisible,
+      progress: sceneVisibilityProgress,
+    });
+  }, [
+    onVisibilityChange,
+    sceneVisibilityCallback,
+    sceneIndex,
+    sceneIsVisible,
+    sceneVisibilityProgress,
   ]);
 
-  // Clear registry when scene becomes inactive
   useEffect(() => {
-    if (!isActive) {
-      animateRegistry.current.clear();
-      animateRegistrySet.current.clear();
+    if (effectiveMode !== 'drag' || !isActive) return;
+    (dragRuntime?.onSharedTimelineDurationChange ?? onSharedTimelineDurationChange)?.(
+      getTimelineDuration()
+    );
+    if (!hasExternalDragRuntime) {
+      setLocalSharedTimelineDurationMs(getTimelineDuration());
     }
-  }, [isActive]);
+  }, [
+    effectiveMode,
+    isActive,
+    getTimelineDuration,
+    dragRuntime,
+    onSharedTimelineDurationChange,
+    activationVersion,
+    sceneState,
+    hasExternalDragRuntime,
+  ]);
 
-  // Cleanup: Clear animation registry when component unmounts
-  // Validates Requirement 26.1: Clean up event listeners on scene transitions
+  const sceneContextValue = useMemo<SceneContextType>(() => {
+    const contextValue = {
+      mode: effectiveMode,
+      isActive,
+      isVisible: sceneIsVisible,
+      visibilityProgress: sceneVisibilityProgress,
+      runtimeState,
+      isSceneAnimating: globalIsSceneAnimating,
+      transitionDirection: globalDirection,
+      isDragging,
+      dragProgressMotion,
+      dragTimelineProgress: currentDragTimelineProgress,
+      sharedElapsedMotion,
+      renderProgress: currentRenderProgress,
+      scrollProgress: globalScrollProgress,
+      isScrolling: globalIsScrolling,
+      scrollDirection: globalScrollDirection,
+      scrollTimelineState: globalScrollTimelineState,
+      scrollActiveSceneIndex: globalScrollActiveSceneIndex,
+      sceneEnterCompleted,
+      sceneState,
+      sceneOffset,
+      activationVersion,
+      dragTransitionSnapshot: currentDragTransitionSnapshot,
+      scrollTransitionSnapshot: globalScrollTransitionSnapshot,
+      sharedElapsedMs: currentSharedElapsedMs,
+      sharedTimelineDurationMs: currentSharedTimelineDurationMs,
+      sceneTransitionDuration: resolvedSceneTransitionDuration,
+      getTimelineDuration,
+      registerAnimate,
+      unregisterAnimate,
+      getCalculatedDelay,
+      enterDuration: slideDuration,
+    };
+
+    if (
+      process.env.NODE_ENV === 'development' &&
+      typeof window !== 'undefined' &&
+      (window as Window & { __CINEVIEW_DRAG_DEBUG__?: boolean }).__CINEVIEW_DRAG_DEBUG__
+    ) {
+      console.log(`🎬 [Scene ${sceneIndex}] Context updated:`, {
+        effectiveMode,
+        isActive,
+        runtimeState,
+        isSceneAnimating: globalIsSceneAnimating,
+        transitionDirection: globalDirection,
+        isDragging,
+        isScrolling: contextValue.isScrolling,
+        sceneEnterCompleted,
+        sceneState,
+        sceneOffset: contextValue.sceneOffset,
+        sceneTransitionDuration: resolvedSceneTransitionDuration,
+        dragTransitionSnapshot: contextValue.dragTransitionSnapshot,
+        sharedElapsedMs: contextValue.sharedElapsedMs,
+        dragTimelineProgress: contextValue.dragTimelineProgress?.toFixed(3),
+        scrollProgress: contextValue.scrollProgress?.toFixed(3),
+        sharedTimelineDurationMs: contextValue.sharedTimelineDurationMs,
+        timelineDuration: contextValue.getTimelineDuration(),
+        enterDuration: slideDuration,
+        renderProgress: contextValue.renderProgress.toFixed(3),
+        sharedElapsedMsDebug: sharedElapsedMotion.get().toFixed(1),
+      });
+    }
+
+    return contextValue;
+  }, [
+    effectiveMode,
+    isActive,
+    sceneIsVisible,
+    sceneVisibilityProgress,
+    runtimeState,
+    isDragging,
+    dragProgressMotion,
+    sharedElapsedMotion,
+    currentRenderProgress,
+    currentDragTimelineProgress,
+    globalScrollProgress,
+    globalIsScrolling,
+    globalScrollDirection,
+    globalScrollTimelineState,
+    globalScrollActiveSceneIndex,
+    globalIsSceneAnimating,
+    globalDirection,
+    sceneEnterCompleted,
+    sceneState,
+    sceneOffset,
+    activationVersion,
+    currentDragTransitionSnapshot,
+    globalScrollTransitionSnapshot,
+    currentSharedElapsedMs,
+    currentSharedTimelineDurationMs,
+    resolvedSceneTransitionDuration,
+    getTimelineDuration,
+    registerAnimate,
+    unregisterAnimate,
+    getCalculatedDelay,
+    slideDuration,
+    sceneIndex,
+  ]);
+
+  // Legacy compat fields kept in the public/test surface while Phase 2 migration is in progress.
+  void compatFields;
+
+  useSnapSceneEngine({
+    slideMode: effectiveMode,
+    isActive,
+    slideDirection: effectiveDirection,
+    slideDuration,
+    isAnimating,
+    sceneIndex,
+    enterVariant,
+    exitVariant,
+    replayOnReenter: resolvedReplayOnReenter,
+    activeEpoch,
+    direction: globalDirection,
+    isSceneAnimating: globalIsSceneAnimating,
+    controls,
+    containerRef,
+    touchStartRef,
+    prevSnapActiveRef,
+    hasEnteredOnceRef,
+    setSceneEnterCompleted,
+    setSceneState,
+    setIsAnimating,
+    onSceneChange,
+  });
+
+  useScrollSceneEngine({
+    slideMode: effectiveMode,
+    isActive,
+    sceneIndex,
+    totalScenes,
+    sceneOffset,
+    slideDirection: effectiveDirection,
+    sceneStackMode: effectiveSceneStackMode,
+    controls,
+    enterVariant,
+    exitVariant,
+    globalIsScrolling,
+    globalScrollProgress,
+    globalScrollDirection,
+    globalScrollTransitionSnapshot,
+    globalScrollBackdropActive,
+    globalScrollTimelineState,
+    containerRef,
+    scrollSettleTimerRef,
+    setSceneState,
+  });
+  const { handleDragStart, handlePan, handlePanEnd } = useDragSceneEngine({
+    slideMode: effectiveMode,
+    isActive,
+    sceneIndex,
+    currentSceneIndex,
+    totalScenes,
+    slideDirection: effectiveDirection,
+    slideDuration,
+    sceneTransitionDuration: resolvedSceneTransitionDuration,
+    sceneOffset,
+    sceneState,
+    globalDirection,
+    globalRenderProgress: currentRenderProgress,
+    globalIsDragging: currentIsDragging,
+    globalDragProgress: currentDragProgress,
+    globalSharedElapsedMs: currentSharedElapsedMs,
+    globalDragTimelineProgress: currentDragTimelineProgress,
+    globalDragTransitionSnapshot: currentDragTransitionSnapshot,
+    controls,
+    dragProgressMotion,
+    sharedElapsedMotion,
+    setSceneState,
+    setIsAnimating,
+    resolveDragProgress,
+    getTimelineDuration,
+    onActivationComplete: dragRuntime?.onActivationComplete ?? onActivationComplete,
+    onDragProgressChange:
+      dragRuntime?.onProgressChange ??
+      onDragProgressChange ??
+      (hasExternalDragRuntime ? undefined : setLocalDragProgress),
+    onRenderProgressChange:
+      dragRuntime?.onRenderProgressChange ??
+      onRenderProgressChange ??
+      (hasExternalDragRuntime ? undefined : setLocalRenderProgress),
+    onDragTimelineProgressChange:
+      dragRuntime?.onTimelineProgressChange ??
+      onDragTimelineProgressChange ??
+      (hasExternalDragRuntime ? undefined : setLocalDragTimelineProgress),
+    onSharedElapsedMsChange:
+      dragRuntime?.onSharedElapsedMsChange ??
+      onSharedElapsedMsChange ??
+      (hasExternalDragRuntime ? undefined : setLocalSharedElapsedMs),
+    onDraggingChange:
+      dragRuntime?.onDraggingChange ??
+      onDraggingChange ??
+      (hasExternalDragRuntime ? undefined : setLocalIsDragging),
+    onSharedTimelineDurationChange:
+      dragRuntime?.onSharedTimelineDurationChange ??
+      onSharedTimelineDurationChange ??
+      (hasExternalDragRuntime ? undefined : setLocalSharedTimelineDurationMs),
+    completeReleaseImmediately: !hasExternalDragRuntime,
+    onDragCommit:
+      dragRuntime?.onCommit ??
+      onDragCommit ??
+      (hasExternalDragRuntime
+        ? undefined
+        : (direction, _progressRatio, _elapsedMs, timelineDuration): void => {
+            setLocalDragProgress(0);
+            setLocalRenderProgress(0);
+            setLocalDragTimelineProgress(0);
+            setLocalIsDragging(false);
+            setLocalSharedElapsedMs(0);
+            setLocalSharedTimelineDurationMs(timelineDuration ?? 0);
+            setLocalDragTransitionSnapshot(null);
+            onSceneChange?.(direction);
+          }),
+    onDragReset:
+      dragRuntime?.onReset ??
+      onDragReset ??
+      (hasExternalDragRuntime
+        ? undefined
+        : (): void => {
+            setLocalDragProgress(0);
+            setLocalRenderProgress(0);
+            setLocalDragTimelineProgress(0);
+            setLocalIsDragging(false);
+            setLocalSharedElapsedMs(0);
+            setLocalDragTransitionSnapshot(null);
+          }),
+  });
+
   useEffect(() => {
     const registry = animateRegistry.current;
     const registrySet = animateRegistrySet.current;
+    const cache = delayCache.current;
 
     return (): void => {
-      // Validates Requirement 26.1: Clear animation registry on unmount
-      // Event listeners are already cleaned up in individual useEffect hooks
       registry.clear();
       registrySet.clear();
+      cache.clear();
     };
   }, []);
 
-  // Determine initial variant
   const initialVariant = useMemo(() => {
+    if (effectiveMode === 'drag' || effectiveMode === 'scroll') {
+      return { opacity: 1 };
+    }
+
     if (enterVariant) return enterVariant.initial;
     return { opacity: 1 };
-  }, [enterVariant]);
+  }, [enterVariant, effectiveMode]);
 
-  // CSS performance optimizations
-  // Validates Requirement 14.3: CSS transform and opacity for GPU acceleration
-  // Validates Requirement 14.3: will-change hints during animations
-  // Validates Requirement 14.3: CSS contain property for render isolation
-  const sceneStyle = useMemo<React.CSSProperties>(
+  const sceneTransform = useMemo(
+    () => (effectiveMode === 'drag' ? 'none' : 'translateZ(0)'),
+    [effectiveMode]
+  );
+  const sceneAnchorStyle = useMemo(
+    () => resolveSceneAnchor(resolvedSceneAnchor),
+    [resolvedSceneAnchor]
+  );
+  const scrollSceneAnchorStyle = useMemo(
+    () => resolveScrollSceneAnchor(resolvedSceneAnchor),
+    [resolvedSceneAnchor]
+  );
+
+  const fixedLayerMetrics = useMemo(() => {
+    return getFixedLayerMetrics({
+      effectiveMode,
+      effectiveDirection,
+      globalScrollTimelineState,
+      globalScrollViewportOffset,
+      globalViewportWidth,
+      globalViewportHeight,
+    });
+  }, [
+    effectiveMode,
+    effectiveDirection,
+    globalScrollTimelineState,
+    globalScrollViewportOffset,
+    globalViewportWidth,
+    globalViewportHeight,
+  ]);
+
+  const sceneStyle = useMemo(
     () => ({
-      width: '100vw',
-      height: '100vh',
-      position: 'relative',
-      overflow: 'hidden',
-      // Use will-change to hint browser optimization (only when animating)
-      // This tells the browser to prepare for transform/opacity changes
-      // IMPORTANT: Only set will-change during animations to avoid memory overhead
-      willChange: isAnimating || isDragging ? 'transform, opacity' : 'auto',
-      // Use CSS contain for render isolation
-      // This isolates the rendering context to improve performance
-      // contain: layout, style, and paint optimizations
-      contain: 'layout style paint',
-      // Use transform and opacity for GPU-accelerated animations
-      // These properties don't trigger layout or paint, only composite
-      transform: 'translateZ(0)', // Force GPU layer creation
-      // Prevent text selection during gestures
+      width: resolvedSceneWidth,
+      height: resolvedSceneHeight,
+      position: effectiveMode === 'scroll' ? 'relative' : 'absolute',
+      overflow: resolvedSceneOverflow,
+      willChange: isAnimating || isDragging || globalIsScrolling ? 'transform, opacity' : 'auto',
+      contain: effectiveMode === 'drag' ? 'layout style' : 'layout style paint',
+      transform: sceneTransform,
       userSelect: 'none',
       WebkitUserSelect: 'none',
+      touchAction: effectiveMode === 'drag' || effectiveMode === 'scroll' ? 'none' : 'auto',
+      zIndex: resolvedSceneZIndex,
+      pointerEvents:
+        runtimeState === 'covered' || runtimeState === 'parked' || runtimeState === 'inactive'
+          ? 'none'
+          : 'auto',
+      ...(effectiveMode === 'scroll' ? scrollSceneAnchorStyle : sceneAnchorStyle),
     }),
-    [isAnimating, isDragging]
+    [
+      isAnimating,
+      isDragging,
+      globalIsScrolling,
+      sceneTransform,
+      effectiveMode,
+      resolvedSceneWidth,
+      resolvedSceneHeight,
+      resolvedSceneOverflow,
+      resolvedSceneZIndex,
+      runtimeState,
+      scrollSceneAnchorStyle,
+      sceneAnchorStyle,
+    ]
   );
 
   return (
-    <SceneContext.Provider value={sceneContextValue}>
-      <motion.div
-        ref={containerRef}
-        initial={initialVariant as never}
-        animate={controls}
-        style={sceneStyle}
-      >
-        {children}
-      </motion.div>
-    </SceneContext.Provider>
+    <SceneIdentityContext.Provider value={sceneIndex}>
+      <SceneContext.Provider value={sceneContextValue}>
+        <SceneFixedLayerContext.Provider
+          value={effectiveMode === 'scroll' ? fixedLayerElement : null}
+        >
+          <motion.div
+            ref={containerRef}
+            initial={initialVariant as never}
+            animate={controls}
+            style={sceneStyle as never}
+            onPanStart={effectiveMode === 'drag' && isActive ? handleDragStart : undefined}
+            onPan={effectiveMode === 'drag' && isActive ? handlePan : undefined}
+            onPanEnd={effectiveMode === 'drag' && isActive ? handlePanEnd : undefined}
+          >
+            {effectiveMode === 'scroll' ? (
+              <div
+                data-scene-fixed-layer={sceneIndex}
+                data-scene-fixed-role="clip"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: fixedLayerMetrics.clipWidth > 0 ? fixedLayerMetrics.clipWidth : '100%',
+                  height: fixedLayerMetrics.clipHeight > 0 ? fixedLayerMetrics.clipHeight : '100%',
+                  overflow: 'hidden',
+                  pointerEvents: 'none',
+                  opacity: fixedLayerMetrics.visible ? 1 : 0,
+                  visibility: fixedLayerMetrics.visible ? 'visible' : 'hidden',
+                  zIndex: 20,
+                }}
+              >
+                <div
+                  data-scene-fixed-layer={sceneIndex}
+                  data-scene-fixed-role="frame"
+                  style={{
+                    position: 'absolute',
+                    top: fixedLayerMetrics.isHorizontal ? 0 : fixedLayerMetrics.hostOffset,
+                    left: fixedLayerMetrics.isHorizontal ? fixedLayerMetrics.hostOffset : 0,
+                    width: fixedLayerMetrics.isHorizontal
+                      ? fixedLayerMetrics.hostSpan > 0
+                        ? fixedLayerMetrics.hostSpan
+                        : '100%'
+                      : '100%',
+                    height: fixedLayerMetrics.isHorizontal
+                      ? '100%'
+                      : fixedLayerMetrics.hostSpan > 0
+                        ? fixedLayerMetrics.hostSpan
+                        : '100%',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <div
+                    ref={handleFixedLayerHostRef}
+                    data-scene-fixed-layer={sceneIndex}
+                    data-scene-fixed-host={sceneIndex}
+                    data-scene-fixed-role="host"
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '100%',
+                      pointerEvents: 'auto',
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
+            {children}
+          </motion.div>
+        </SceneFixedLayerContext.Provider>
+      </SceneContext.Provider>
+    </SceneIdentityContext.Provider>
   );
 };
 
+export const Scene: React.FC<SceneInternalProps> = SceneImpl;
+export const SceneInternal = SceneImpl;
 Scene.displayName = 'Scene';
 
 export default Scene;

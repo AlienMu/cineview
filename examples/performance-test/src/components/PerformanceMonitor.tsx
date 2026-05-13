@@ -6,6 +6,8 @@ interface PerformanceMonitorProps {
   currentScene: number;
   totalScenes: number;
   loadProgress: number;
+  mode: 'snap' | 'drag' | 'scroll';
+  transitionDuration: number;
 }
 
 const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
@@ -13,6 +15,8 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
   currentScene,
   totalScenes,
   loadProgress,
+  mode,
+  transitionDuration,
 }) => {
   const getFpsClass = (fps: number): string => {
     if (fps >= 55) return '';
@@ -41,6 +45,13 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
         <span className="metric-label">Scene:</span>
         <span className="metric-value">
           {currentScene + 1} / {totalScenes}
+        </span>
+      </div>
+
+      <div className="metric">
+        <span className="metric-label">Mode:</span>
+        <span className="metric-value">
+          {mode === 'snap' ? 'Snap' : mode === 'drag' ? 'Drag' : 'Scroll'}
         </span>
       </div>
 
@@ -75,7 +86,19 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
         <span className="metric-value">{metrics.bundleSize.toFixed(1)}KB</span>
       </div>
 
+      <div className="metric">
+        <span className="metric-label">Transition:</span>
+        <span className="metric-value">{transitionDuration}ms</span>
+      </div>
+
       <div style={{ marginTop: '10px', fontSize: '10px', color: '#666' }}>
+        <div>
+          {mode === 'snap'
+            ? 'Wheel / touch transitions'
+            : mode === 'drag'
+              ? 'Pan-driven drag transitions'
+              : 'Virtual wheel / touch scroll transitions'}
+        </div>
         <div>Target: 60 FPS (16.67ms)</div>
         <div>🟢 Good | 🟡 Warning | 🔴 Poor</div>
       </div>

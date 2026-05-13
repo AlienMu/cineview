@@ -4,7 +4,7 @@
 
 import React, { useContext, useEffect, useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Scene } from './Scene';
+import { SceneInternal as Scene } from './Scene';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { SceneContext } from '../Animate/Animate';
 import type { SceneContextType } from '../Animate/Animate';
@@ -14,15 +14,118 @@ import type { AnimationType } from '../../types';
 jest.mock('framer-motion', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
+  const createMotionValueStub = (initial: number) => {
+    let current = initial;
+    const listeners = new Set<(value: number) => void>();
+    return {
+      set: jest.fn((value) => {
+        current = value;
+        listeners.forEach((listener) => listener(value));
+      }),
+      get: jest.fn(() => current),
+      on: jest.fn((_event: string, listener: (value: number) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }),
+    };
+  };
   const MotionDiv = React.forwardRef(
     (
-      { children, ...props }: React.HTMLAttributes<HTMLDivElement>,
+      {
+        children,
+        onPanStart,
+        onPan,
+        onPanEnd,
+        ...props
+      }: React.HTMLAttributes<HTMLDivElement> & {
+        onPanStart?: () => void;
+        onPan?: (
+          event: Event,
+          info: { offset: { x: number; y: number }; velocity: { x: number; y: number } }
+        ) => void;
+        onPanEnd?: (
+          event: Event,
+          info: { offset: { x: number; y: number }; velocity: { x: number; y: number } }
+        ) => void;
+      },
       ref: React.Ref<HTMLDivElement>
-    ) => (
-      <div ref={ref} {...props}>
-        {children}
-      </div>
-    )
+    ) => {
+      const startRef = React.useRef(null as { x: number; y: number } | null);
+      const lastRef = React.useRef(null as { x: number; y: number } | null);
+
+      const getPoint = (
+        event: React.TouchEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>
+      ) => {
+        if ('touches' in event && event.touches.length > 0) {
+          return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+        }
+        if ('changedTouches' in event && event.changedTouches.length > 0) {
+          return { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY };
+        }
+        const mouseEvent = event as React.MouseEvent<HTMLDivElement>;
+        return { x: mouseEvent.clientX, y: mouseEvent.clientY };
+      };
+
+      const buildInfo = (point: { x: number; y: number }) => {
+        const start = startRef.current ?? point;
+        const last = lastRef.current ?? start;
+        return {
+          offset: {
+            x: point.x - start.x,
+            y: point.y - start.y,
+          },
+          velocity: {
+            x: point.x - last.x,
+            y: point.y - last.y,
+          },
+        };
+      };
+
+      return (
+        <div
+          ref={ref}
+          {...props}
+          onTouchStart={(event) => {
+            const point = getPoint(event);
+            startRef.current = point;
+            lastRef.current = point;
+            onPanStart?.();
+          }}
+          onTouchMove={(event) => {
+            const point = getPoint(event);
+            onPan?.(event.nativeEvent, buildInfo(point));
+            lastRef.current = point;
+          }}
+          onTouchEnd={(event) => {
+            const point = getPoint(event);
+            onPanEnd?.(event.nativeEvent, buildInfo(point));
+            startRef.current = null;
+            lastRef.current = null;
+          }}
+          onMouseDown={(event) => {
+            const point = getPoint(event);
+            startRef.current = point;
+            lastRef.current = point;
+            onPanStart?.();
+          }}
+          onMouseMove={(event) => {
+            if (!startRef.current) return;
+            const point = getPoint(event);
+            onPan?.(event.nativeEvent, buildInfo(point));
+            lastRef.current = point;
+          }}
+          onMouseUp={(event) => {
+            if (!startRef.current) return;
+            const point = getPoint(event);
+            onPanEnd?.(event.nativeEvent, buildInfo(point));
+            startRef.current = null;
+            lastRef.current = null;
+          }}
+        >
+          {children}
+        </div>
+      );
+    }
   );
   MotionDiv.displayName = 'MotionDiv';
 
@@ -30,6 +133,7 @@ jest.mock('framer-motion', () => {
     motion: {
       div: MotionDiv,
     },
+    useMotionValue: (initial: number) => createMotionValueStub(initial),
     useAnimation: (): {
       start: jest.Mock;
       set: jest.Mock;
@@ -39,13 +143,16 @@ jest.mock('framer-motion', () => {
       set: jest.fn(),
       stop: jest.fn(),
     }),
+    animate: () => ({
+      stop: jest.fn(),
+    }),
   };
 });
 
 // Helper to wrap Scene in CineViewProvider
 const renderScene = (ui: React.ReactElement): ReturnType<typeof render> => {
   return render(
-    <CineViewProvider designSize={750} unit="px">
+    <CineViewProvider designWidth={750} designHeight={750} unit="px">
       {ui}
     </CineViewProvider>
   );
@@ -58,7 +165,7 @@ describe('Scene Component', () => {
   });
 
   describe('9.1 Basic Functionality', () => {
-    it('should render with full screen layout (100vh/100vw)', () => {
+    it('should render with full screen layout (100vh/100vw) in snap mode', () => {
       renderScene(
         <Scene>
           <div>Test Content</div>
@@ -69,7 +176,7 @@ describe('Scene Component', () => {
       expect(sceneElement).toHaveStyle({
         width: '100vw',
         height: '100vh',
-        position: 'relative',
+        position: 'absolute',
         overflow: 'hidden',
       });
     });
@@ -96,13 +203,13 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="snap">
+        <Scene mode="snap">
           <TestChild />
         </Scene>
       );
 
       expect(contextValue).not.toBeNull();
-      expect(contextValue!.slideMode).toBe('snap');
+      expect(contextValue!.mode).toBe('snap');
       expect(typeof contextValue!.registerAnimate).toBe('function');
       expect(typeof contextValue!.unregisterAnimate).toBe('function');
       expect(typeof contextValue!.getCalculatedDelay).toBe('function');
@@ -128,6 +235,91 @@ describe('Scene Component', () => {
     });
   });
 
+  describe('9.1.1 Phase 4 grouped prop bridge', () => {
+    it('should consume grouped layout and stack props in scroll mode', () => {
+      renderScene(
+        <Scene
+          runtimeMode="scroll"
+          layout={{ width: '80vw', height: 'auto', anchor: 'top-center', overflow: 'visible' }}
+          stack={{ zIndex: 7, mode: 'cover' }}
+        >
+          <div>Grouped Content</div>
+        </Scene>
+      );
+
+      const sceneElement = screen.getByText('Grouped Content').parentElement;
+      expect(sceneElement).toHaveStyle({
+        width: '80vw',
+        height: 'auto',
+        position: 'relative',
+        overflow: 'visible',
+        zIndex: '7',
+      });
+    });
+
+    it('should emit grouped visibility callbacks in scroll mode', () => {
+      const groupedVisibilityChange = jest.fn();
+
+      renderScene(
+        <Scene
+          runtimeMode="scroll"
+          isActive={true}
+          sceneIndex={2}
+          callbacks={{ onVisibilityChange: groupedVisibilityChange }}
+          globalScrollTimelineState={{
+            phase: 'hold',
+            enterProgress: 1,
+            holdProgress: 1,
+            exitProgress: 0,
+            sceneProgress: 0.5,
+            rangeStart: 0,
+            rangeEnd: 600,
+            rangeLength: 600,
+            enterLength: 100,
+            holdLength: 400,
+            exitLength: 100,
+          }}
+        >
+          <div>Visibility Content</div>
+        </Scene>
+      );
+
+      expect(groupedVisibilityChange).toHaveBeenCalledWith({
+        sceneIndex: 2,
+        visible: true,
+        progress: 1,
+      });
+    });
+
+    it('should keep a scene-scoped fixed host in scroll mode', () => {
+      const { container } = renderScene(
+        <Scene
+          runtimeMode="scroll"
+          sceneIndex={0}
+          globalViewportHeight={400}
+          globalScrollViewportOffset={120}
+          globalScrollTimelineState={{
+            phase: 'hold',
+            enterProgress: 1,
+            holdProgress: 1,
+            exitProgress: 0,
+            sceneProgress: 0.5,
+            rangeStart: 0,
+            rangeEnd: 680,
+            rangeLength: 680,
+            enterLength: 120,
+            holdLength: 440,
+            exitLength: 120,
+          }}
+        >
+          <div>Fixed Host Content</div>
+        </Scene>
+      );
+
+      expect(container.querySelector('[data-scene-fixed-host="0"]')).toBeInTheDocument();
+    });
+  });
+
   describe('9.2 Snap Mode', () => {
     it('should default to snap mode', () => {
       let contextValue: SceneContextType | null = null;
@@ -144,14 +336,14 @@ describe('Scene Component', () => {
         </Scene>
       );
 
-      expect(contextValue!.slideMode).toBe('snap');
+      expect(contextValue!.mode).toBe('snap');
     });
 
     it('should detect swipe gestures in snap mode', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -174,7 +366,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -197,7 +389,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -215,7 +407,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -250,7 +442,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -275,7 +467,7 @@ describe('Scene Component', () => {
 
       renderScene(
         <Scene
-          slideMode="snap"
+          mode="snap"
           slideDirection="y"
           isActive={true}
           slideDuration={customDuration}
@@ -312,12 +504,12 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag">
+        <Scene mode="drag">
           <TestChild />
         </Scene>
       );
 
-      expect(contextValue!.slideMode).toBe('drag');
+      expect(contextValue!.mode).toBe('drag');
     });
 
     it('should calculate drag progress in drag mode', async () => {
@@ -330,7 +522,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <TestChild />
         </Scene>
       );
@@ -350,7 +542,7 @@ describe('Scene Component', () => {
       });
 
       await waitFor(() => {
-        expect(contextValue!.dragProgress).toBeGreaterThan(0);
+        expect(contextValue!.dragProgressMotion.get()).toBeLessThan(0);
       });
 
       // End drag
@@ -373,15 +565,15 @@ describe('Scene Component', () => {
 
         useEffect(() => {
           if (context && context.isDragging) {
-            progressValues.push(context.dragProgress);
+            progressValues.push(context.dragProgressMotion.get());
           }
-        }, [context, context?.dragProgress, context?.isDragging]);
+        }, [context, context?.dragProgressMotion, context?.isDragging]);
 
         return <div>Test</div>;
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <TestChild />
         </Scene>
       );
@@ -418,7 +610,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -440,7 +632,7 @@ describe('Scene Component', () => {
         changedTouches: [{ clientX: 100, clientY: 700 }],
       });
 
-      expect(onSceneChange).toHaveBeenCalledWith('forward');
+      expect(onSceneChange).toHaveBeenCalledWith('backward');
     });
 
     it('should reset when drag progress < 50%', async () => {
@@ -453,7 +645,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y">
+        <Scene mode="drag" slideDirection="y">
           <TestChild />
         </Scene>
       );
@@ -476,7 +668,7 @@ describe('Scene Component', () => {
       });
 
       await waitFor(() => {
-        expect(contextValue!.dragProgress).toBe(0);
+        expect(contextValue!.dragProgressMotion.get()).toBe(0);
       });
     });
 
@@ -490,7 +682,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="x" isActive={true}>
+        <Scene mode="drag" slideDirection="x" isActive={true}>
           <TestChild />
         </Scene>
       );
@@ -508,7 +700,7 @@ describe('Scene Component', () => {
       });
 
       await waitFor(() => {
-        expect(contextValue!.dragProgress).toBeGreaterThan(0);
+        expect(contextValue!.dragProgressMotion.get()).toBeLessThan(0);
       });
     });
   });
@@ -535,7 +727,9 @@ describe('Scene Component', () => {
         expect.stringContaining('Fix: Wrap your Scene components inside a <CineView> component')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("<CineView config={{ designSize: 750, unit: 'px' }}>")
+        expect.stringContaining(
+          '<CineView mode="snap" config={{ width: 750, height: 1334, unit: \'px\' }}>'
+        )
       );
 
       consoleSpy.mockRestore();
@@ -1018,7 +1212,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" isActive={true}>
+        <Scene mode="drag" isActive={true}>
           <TestChild />
         </Scene>
       );
@@ -1046,7 +1240,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y">
+        <Scene mode="drag" slideDirection="y">
           <TestChild />
         </Scene>
       );
@@ -1064,8 +1258,8 @@ describe('Scene Component', () => {
       });
 
       await waitFor(() => {
-        expect(contextValue!.dragProgress).toBeLessThanOrEqual(1);
-        expect(contextValue!.dragProgress).toBeGreaterThanOrEqual(0);
+        expect(contextValue!.dragProgressMotion.get()).toBeLessThanOrEqual(1);
+        expect(contextValue!.dragProgressMotion.get()).toBeGreaterThanOrEqual(0);
       });
     });
 
@@ -1094,7 +1288,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <TestChild />
         </Scene>
       );
@@ -1110,7 +1304,7 @@ describe('Scene Component', () => {
       fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 400 });
 
       await waitFor(() => {
-        expect(contextValue!.dragProgress).toBeGreaterThan(0);
+        expect(contextValue!.dragProgressMotion.get()).toBeLessThan(0);
       });
 
       // End mouse drag
@@ -1125,7 +1319,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1141,7 +1335,7 @@ describe('Scene Component', () => {
       // End drag
       fireEvent.mouseUp(sceneElement);
 
-      expect(onSceneChange).toHaveBeenCalledWith('forward');
+      expect(onSceneChange).toHaveBeenCalledWith('backward');
     });
 
     it('should clear animate registry when scene becomes inactive', () => {
@@ -1173,7 +1367,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           <Scene isActive={false}>
             <TestChild />
           </Scene>
@@ -1186,7 +1380,7 @@ describe('Scene Component', () => {
     it('should handle enterAnimation with exitVariant in drag mode', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           slideDirection="y"
           isActive={true}
           enterAnimation="fade-in"
@@ -1227,7 +1421,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" slideDirection="x" isActive={true}>
+        <Scene mode="drag" slideDirection="x" isActive={true}>
           <TestChild />
         </Scene>
       );
@@ -1241,7 +1435,7 @@ describe('Scene Component', () => {
       fireEvent.mouseMove(sceneElement, { clientX: 400, clientY: 100 });
 
       await waitFor(() => {
-        expect(contextValue!.dragProgress).toBeGreaterThan(0);
+        expect(contextValue!.dragProgressMotion.get()).toBeLessThan(0);
       });
     });
 
@@ -1255,7 +1449,7 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene slideMode="drag" isActive={false}>
+        <Scene mode="drag" isActive={false}>
           <TestChild />
         </Scene>
       );
@@ -1275,7 +1469,7 @@ describe('Scene Component', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" isActive={false} onSceneChange={onSceneChange}>
+        <Scene mode="snap" isActive={false} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1314,7 +1508,7 @@ describe('Scene Component', () => {
     it('should handle interpolateVariant with string values', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           isActive={true}
           enterAnimation={{
             keyframes: { opacity: 1, transform: 'translateY(0px)' },
@@ -1351,7 +1545,7 @@ describe('Scene Component', () => {
     it('should handle interpolateVariant with non-numeric values', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           isActive={true}
           enterAnimation={{
             keyframes: { opacity: 1, color: 'red' },
@@ -1387,7 +1581,7 @@ describe('Scene Component', () => {
 
     it('should handle exit animation in snap mode when scene becomes inactive', async () => {
       const { rerender } = renderScene(
-        <Scene isActive={true} exitAnimation="fade-out" slideMode="snap">
+        <Scene isActive={true} exitAnimation="fade-out" mode="snap">
           <div>Test Content</div>
         </Scene>
       );
@@ -1399,8 +1593,8 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designSize={750} unit="px">
-          <Scene isActive={false} exitAnimation="fade-out" slideMode="snap">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+          <Scene isActive={false} exitAnimation="fade-out" mode="snap">
             <div>Test Content</div>
           </Scene>
         </CineViewProvider>
@@ -1414,7 +1608,7 @@ describe('Scene Component', () => {
 
     it('should handle enter animation in snap mode when scene becomes active', async () => {
       const { rerender } = renderScene(
-        <Scene isActive={false} enterAnimation="fade-in" slideMode="snap">
+        <Scene isActive={false} enterAnimation="fade-in" mode="snap">
           <div>Test Content</div>
         </Scene>
       );
@@ -1426,8 +1620,8 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designSize={750} unit="px">
-          <Scene isActive={true} enterAnimation="fade-in" slideMode="snap">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+          <Scene isActive={true} enterAnimation="fade-in" mode="snap">
             <div>Test Content</div>
           </Scene>
         </CineViewProvider>
@@ -1441,15 +1635,15 @@ describe('Scene Component', () => {
 
     it('should not play enter animation in drag mode', async () => {
       const { rerender } = renderScene(
-        <Scene isActive={false} enterAnimation="fade-in" slideMode="drag">
+        <Scene isActive={false} enterAnimation="fade-in" mode="drag">
           <div>Test Content</div>
         </Scene>
       );
 
       // Make scene active
       rerender(
-        <CineViewProvider designSize={750} unit="px">
-          <Scene isActive={true} enterAnimation="fade-in" slideMode="drag">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+          <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
         </CineViewProvider>
@@ -1461,15 +1655,15 @@ describe('Scene Component', () => {
 
     it('should not play exit animation in drag mode', async () => {
       const { rerender } = renderScene(
-        <Scene isActive={true} exitAnimation="fade-out" slideMode="drag">
+        <Scene isActive={true} exitAnimation="fade-out" mode="drag">
           <div>Test Content</div>
         </Scene>
       );
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designSize={750} unit="px">
-          <Scene isActive={false} exitAnimation="fade-out" slideMode="drag">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+          <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>
         </CineViewProvider>
@@ -1487,7 +1681,7 @@ describe('Additional Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene isActive={true} slideMode="drag" slideDirection="y" onSceneChange={onSceneChange}>
+        <Scene isActive={true} mode="drag" slideDirection="y" onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1508,7 +1702,7 @@ describe('Additional Branch Coverage Tests', () => {
       fireEvent.touchEnd(sceneElement!);
 
       await waitFor(() => {
-        expect(onSceneChange).toHaveBeenCalledWith('forward');
+        expect(onSceneChange).toHaveBeenCalledWith('backward');
       });
     });
 
@@ -1516,7 +1710,7 @@ describe('Additional Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene isActive={true} slideMode="drag" slideDirection="y" onSceneChange={onSceneChange}>
+        <Scene isActive={true} mode="drag" slideDirection="y" onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1545,7 +1739,7 @@ describe('Additional Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene isActive={true} slideMode="drag" slideDirection="y" onSceneChange={onSceneChange}>
+        <Scene isActive={true} mode="drag" slideDirection="y" onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1568,7 +1762,7 @@ describe('Additional Branch Coverage Tests', () => {
       fireEvent.mouseUp(sceneElement!);
 
       await waitFor(() => {
-        expect(onSceneChange).toHaveBeenCalledWith('forward');
+        expect(onSceneChange).toHaveBeenCalledWith('backward');
       });
     });
 
@@ -1576,7 +1770,7 @@ describe('Additional Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene isActive={true} slideMode="drag" slideDirection="y" onSceneChange={onSceneChange}>
+        <Scene isActive={true} mode="drag" slideDirection="y" onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1615,12 +1809,7 @@ describe('Additional Branch Coverage Tests', () => {
       };
 
       renderScene(
-        <Scene
-          isActive={true}
-          slideMode="drag"
-          exitAnimation={exitAnimation}
-          enterAnimation="fade-in"
-        >
+        <Scene isActive={true} mode="drag" exitAnimation={exitAnimation} enterAnimation="fade-in">
           <div>Test Content</div>
         </Scene>
       );
@@ -1646,7 +1835,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
   describe('Animation variant interpolation edge cases', () => {
     it('should handle interpolation when enterVariant is null', async () => {
       renderScene(
-        <Scene slideMode="drag" isActive={true} exitAnimation="fade-out">
+        <Scene mode="drag" isActive={true} exitAnimation="fade-out">
           <div>Test Content</div>
         </Scene>
       );
@@ -1675,7 +1864,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
     it('should handle interpolation with progress < 0.5 for non-numeric values', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           isActive={true}
           enterAnimation={{
             keyframes: { opacity: 1, visibility: 'visible' },
@@ -1710,7 +1899,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
     it('should handle interpolation with progress > 0.5 for non-numeric values', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           isActive={true}
           enterAnimation={{
             keyframes: { opacity: 1, visibility: 'visible' },
@@ -1748,7 +1937,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1771,7 +1960,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1789,7 +1978,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1812,7 +2001,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
   describe('Drag mode edge cases', () => {
     it('should handle touchMove without isDragging', () => {
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1830,7 +2019,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
     it('should handle mouseMove without isDragging', () => {
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1846,7 +2035,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
     it('should handle touchEnd without isDragging', () => {
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1862,7 +2051,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
     it('should handle mouseUp without isDragging', () => {
       renderScene(
-        <Scene slideMode="drag" slideDirection="y" isActive={true}>
+        <Scene mode="drag" slideDirection="y" isActive={true}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1968,7 +2157,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1991,7 +2180,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene slideMode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -2010,7 +2199,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
     it('should handle drag with both enter and exit variants', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           slideDirection="y"
           isActive={true}
           enterAnimation="fade-in"
@@ -2044,7 +2233,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
     it('should handle horizontal drag with variants', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           slideDirection="x"
           isActive={true}
           enterAnimation="slide-left"
@@ -2073,7 +2262,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
   describe('Animation variant edge cases', () => {
     it('should handle scene with only enterAnimation', async () => {
       renderScene(
-        <Scene isActive={true} slideMode="snap" enterAnimation="fade-in">
+        <Scene isActive={true} mode="snap" enterAnimation="fade-in">
           <div>Test Content</div>
         </Scene>
       );
@@ -2085,7 +2274,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
 
     it('should handle scene with only exitAnimation', async () => {
       renderScene(
-        <Scene isActive={false} slideMode="snap" exitAnimation="fade-out">
+        <Scene isActive={false} mode="snap" exitAnimation="fade-out">
           <div>Test Content</div>
         </Scene>
       );
@@ -2097,7 +2286,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
 
     it('should handle scene without any animations', () => {
       renderScene(
-        <Scene isActive={true} slideMode="snap">
+        <Scene isActive={true} mode="snap">
           <div>Test Content</div>
         </Scene>
       );
@@ -2118,7 +2307,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
     it('should handle interpolation with missing start values', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           isActive={true}
           exitAnimation={{
             keyframes: { opacity: 0, scale: 0.5 },
@@ -2149,7 +2338,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
     it('should handle interpolation with transition property', async () => {
       renderScene(
         <Scene
-          slideMode="drag"
+          mode="drag"
           isActive={true}
           enterAnimation={{
             keyframes: { opacity: 1 },
@@ -2257,7 +2446,7 @@ describe('Interpolation Function Coverage', () => {
     const { container } = render(
       <CineViewProvider>
         <Scene
-          slideMode="drag"
+          mode="drag"
           exitAnimation={{
             keyframes: [{ transform: 'translateY(0px)' }, { transform: 'translateY(100px)' }],
             options: { duration: 500 },
@@ -2289,7 +2478,7 @@ describe('Interpolation Function Coverage', () => {
     const { container } = render(
       <CineViewProvider>
         <Scene
-          slideMode="drag"
+          mode="drag"
           exitAnimation={{
             keyframes: [
               { opacity: 1, visibility: 'visible' },
@@ -2323,7 +2512,7 @@ describe('Interpolation Function Coverage', () => {
     const { container } = render(
       <CineViewProvider>
         <Scene
-          slideMode="drag"
+          mode="drag"
           exitAnimation={{
             keyframes: [
               { opacity: 1, transform: 'translateY(0px)' },

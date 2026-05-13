@@ -179,6 +179,52 @@ describe('PerformanceMonitor', () => {
       // Restore
       (performance as unknown as { memory?: unknown }).memory = originalMemory;
     });
+
+    it('should smooth short-term memory spikes across recent samples', () => {
+      const originalMemory = (performance as unknown as { memory?: unknown }).memory;
+      const nowSpy = jest.spyOn(performance, 'now');
+      const memoryState = { usedJSHeapSize: 16 * 1024 * 1024 };
+      (performance as unknown as { memory: { usedJSHeapSize: number } }).memory = memoryState;
+
+      nowSpy.mockReturnValue(0);
+      monitor.getMetrics();
+      // Advance enough time to allow the next memory sample window.
+      nowSpy.mockReturnValue(1100);
+      memoryState.usedJSHeapSize = 100 * 1024 * 1024;
+      const spikedMetrics = monitor.getMetrics();
+
+      expect(spikedMetrics.memoryUsage).toBeDefined();
+      expect(spikedMetrics.memoryUsage).toBeGreaterThan(16);
+      expect(spikedMetrics.memoryUsage).toBeLessThan(100);
+
+      nowSpy.mockRestore();
+      (performance as unknown as { memory?: unknown }).memory = originalMemory;
+    });
+
+    it('should not mutate memory smoothing window on every read within the sample interval', () => {
+      const originalMemory = (performance as unknown as { memory?: unknown }).memory;
+      const nowSpy = jest.spyOn(performance, 'now');
+      const memoryState = { usedJSHeapSize: 16 * 1024 * 1024 };
+      (performance as unknown as { memory: { usedJSHeapSize: number } }).memory = memoryState;
+
+      nowSpy.mockReturnValue(1000);
+      const baselineMetrics = monitor.getMetrics();
+
+      memoryState.usedJSHeapSize = 100 * 1024 * 1024;
+      nowSpy.mockReturnValue(1200);
+      const repeatedReadMetrics = monitor.getMetrics();
+
+      expect(repeatedReadMetrics.memoryUsage).toBe(baselineMetrics.memoryUsage);
+
+      nowSpy.mockReturnValue(2200);
+      const nextWindowMetrics = monitor.getMetrics();
+      expect(nextWindowMetrics.memoryUsage).toBeDefined();
+      expect(nextWindowMetrics.memoryUsage).toBeGreaterThan(16);
+      expect(nextWindowMetrics.memoryUsage).toBeLessThan(100);
+
+      nowSpy.mockRestore();
+      (performance as unknown as { memory?: unknown }).memory = originalMemory;
+    });
   });
 
   describe('frame time tracking', () => {

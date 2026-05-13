@@ -26,5 +26,6 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["src"],
+  "exclude": ["src/components/Scene/__fixtures__/scene-legacy-public-props.fixture.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

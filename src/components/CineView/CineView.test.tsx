@@ -4,7 +4,7 @@
 
 import { createRef, act } from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CineView } from './CineView';
+import { CineView, resolveRootSceneStackMode } from './CineView';
 import type { CineViewRef } from '../../types';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 
@@ -12,6 +12,9 @@ import { performanceMonitor } from '../../utils/performanceMonitor';
 interface MockSceneProps {
   children: React.ReactNode;
   preloadImages?: string[];
+  assets?: {
+    preloadImages?: string[];
+  };
 }
 
 const MockScene: React.FC<MockSceneProps> = ({ children }) => {
@@ -55,12 +58,21 @@ jest.mock('../../hooks/useImagePreloader', () => ({
 
 describe('CineView Component', () => {
   const defaultConfig = {
-    designSize: 750,
+    width: 750,
+    height: 1334,
     unit: 'px' as const,
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('stack mode resolution', () => {
+    it('defaults scroll scenes to cover when scene stack mode is omitted', () => {
+      expect(resolveRootSceneStackMode({}, 'scroll')).toBe('cover');
+      expect(resolveRootSceneStackMode({ sceneStackMode: 'replace' }, 'scroll')).toBe('cover');
+      expect(resolveRootSceneStackMode({ stack: { mode: 'replace' } }, 'scroll')).toBe('replace');
+    });
   });
 
   describe('12.1 核心功能', () => {
@@ -105,6 +117,58 @@ describe('CineView Component', () => {
       expect(actions.startPreload).toHaveBeenCalled();
     });
 
+    it('不应该因为 onLoadProgress 回调身份变化而重新启动预加载', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { useImagePreloader } = require('../../hooks/useImagePreloader');
+      const startPreload = jest.fn();
+
+      useImagePreloader.mockImplementation(() => [
+        {
+          isLoading: false,
+          progress: 100,
+          loadedCount: 1,
+          totalCount: 1,
+          results: [],
+          errors: new Map(),
+        },
+        {
+          startPreload,
+          reset: jest.fn(),
+          addUrls: jest.fn(),
+        },
+      ]);
+
+      const { rerender } = render(
+        <CineView config={defaultConfig} callbacks={{ common: { onLoadProgress: () => {} } }}>
+          <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
+        </CineView>
+      );
+
+      rerender(
+        <CineView config={defaultConfig} callbacks={{ common: { onLoadProgress: () => {} } }}>
+          <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
+        </CineView>
+      );
+
+      expect(startPreload).toHaveBeenCalledTimes(1);
+    });
+
+    it('应该兼容 grouped assets.preloadImages', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { useImagePreloader } = require('../../hooks/useImagePreloader');
+
+      render(
+        <CineView config={defaultConfig}>
+          <MockScene assets={{ preloadImages: ['grouped-first.jpg'] }}>Scene 1</MockScene>
+          <MockScene assets={{ preloadImages: ['grouped-second.jpg'] }}>Scene 2</MockScene>
+        </CineView>
+      );
+
+      const callArgs = useImagePreloader.mock.calls[0][0];
+      expect(callArgs.priorityUrls).toEqual(['grouped-first.jpg']);
+      expect(callArgs.backgroundUrls).toEqual(['grouped-second.jpg']);
+    });
+
     it('应该实现虚拟化渲染（仅渲染当前场景及前后各一个）', async () => {
       const ref = createRef<CineViewRef>();
 
@@ -144,14 +208,67 @@ describe('CineView Component', () => {
         });
       });
     });
+
+    it('应该仅在 scroll screen sizing 下为 scene wrapper 注入视口主轴下限', async () => {
+      const { container, rerender } = render(
+        <CineView
+          config={defaultConfig}
+          mode="scroll"
+          modes={{ scroll: { direction: 'y', sceneSizing: 'content' } }}
+        >
+          <MockScene>Short Scene</MockScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(container.querySelector('[data-scene-index="0"]')).toBeInTheDocument();
+      });
+
+      const contentSizedScene = container.querySelector('[data-scene-index="0"]') as HTMLDivElement;
+      expect(contentSizedScene.style.minHeight).toBe('');
+
+      rerender(
+        <CineView
+          config={defaultConfig}
+          mode="scroll"
+          modes={{ scroll: { direction: 'y', sceneSizing: 'screen' } }}
+        >
+          <MockScene>Short Scene</MockScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        const screenSizedScene = container.querySelector(
+          '[data-scene-index="0"]'
+        ) as HTMLDivElement;
+        expect(screenSizedScene.style.minHeight).not.toBe('');
+      });
+    });
+
+    it('应该在根容器注册 scrollbar 样式', () => {
+      render(
+        <CineView
+          config={defaultConfig}
+          scrollbar={{ enabled: true, width: 10, thumbColor: 'rgba(1, 2, 3, 0.5)' }}
+        >
+          <MockScene>Scene 1</MockScene>
+        </CineView>
+      );
+
+      const styleNode = document.getElementById('cineview-scrollbar-style');
+      expect(styleNode).toBeInTheDocument();
+      expect(styleNode?.textContent).toContain('10px');
+      expect(styleNode?.textContent).toContain('rgba(1, 2, 3, 0.5)');
+    });
   });
 
   describe('12.2 事件系统', () => {
     it('应该触发 onInit 回调', () => {
       const onInit = jest.fn();
+      const ref = createRef<CineViewRef>();
 
       render(
-        <CineView config={defaultConfig} onInit={onInit}>
+        <CineView ref={ref} config={defaultConfig} callbacks={{ common: { onReady: onInit } }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
@@ -165,7 +282,11 @@ describe('CineView Component', () => {
       const ref = createRef<CineViewRef>();
 
       render(
-        <CineView ref={ref} config={defaultConfig} onBeforeSceneChange={onBeforeSceneChange}>
+        <CineView
+          ref={ref}
+          config={defaultConfig}
+          callbacks={{ common: { onSceneWillChange: onBeforeSceneChange } }}
+        >
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
         </CineView>
@@ -179,7 +300,9 @@ describe('CineView Component', () => {
         ref.current?.goToScene(1);
       });
 
-      expect(onBeforeSceneChange).toHaveBeenCalledWith(0, 1);
+      expect(onBeforeSceneChange).toHaveBeenCalledWith(
+        expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+      );
     });
 
     it('应该触发 onAfterSceneChange 回调', async () => {
@@ -187,7 +310,11 @@ describe('CineView Component', () => {
       const ref = createRef<CineViewRef>();
 
       render(
-        <CineView ref={ref} config={defaultConfig} onAfterSceneChange={onAfterSceneChange}>
+        <CineView
+          ref={ref}
+          config={defaultConfig}
+          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+        >
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
         </CineView>
@@ -202,7 +329,9 @@ describe('CineView Component', () => {
       });
 
       await waitFor(() => {
-        expect(onAfterSceneChange).toHaveBeenCalledWith(1);
+        expect(onAfterSceneChange).toHaveBeenCalledWith(
+          expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+        );
       });
     });
 
@@ -210,7 +339,7 @@ describe('CineView Component', () => {
       const onLoadProgress = jest.fn();
 
       render(
-        <CineView config={defaultConfig} onLoadProgress={onLoadProgress}>
+        <CineView config={defaultConfig} callbacks={{ common: { onLoadProgress } }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
         </CineView>
       );
@@ -244,7 +373,7 @@ describe('CineView Component', () => {
       expect(ref.current?.getCurrentScene()).toBe(2);
     });
 
-    it('应该实现 triggerAnimation 方法', async () => {
+    it('应该实现 getState 方法', async () => {
       const ref = createRef<CineViewRef>();
 
       render(
@@ -255,48 +384,58 @@ describe('CineView Component', () => {
       );
 
       await waitFor(() => {
-        expect(ref.current).not.toBeNull();
+        expect(ref.current?.getState).toBeDefined();
       });
 
-      // 应该不抛出错误
-      expect(() => {
-        ref.current?.triggerAnimation(0, 'test-animate');
-      }).not.toThrow();
+      expect(ref.current?.getState?.()).toMatchObject({
+        mode: 'snap',
+        currentScene: 0,
+        totalScenes: 2,
+      });
     });
 
-    it('应该实现 reload 方法', async () => {
+    it('应该实现 refreshLayout 和 preload 方法', async () => {
       const ref = createRef<CineViewRef>();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { useImagePreloader } = require('../../hooks/useImagePreloader');
+      const startPreload = jest.fn();
+
+      useImagePreloader.mockImplementation(() => [
+        {
+          isLoading: false,
+          progress: 100,
+          loadedCount: 1,
+          totalCount: 1,
+          results: [],
+          errors: new Map(),
+        },
+        {
+          startPreload,
+          reset: jest.fn(),
+          addUrls: jest.fn(),
+        },
+      ]);
 
       render(
         <CineView ref={ref} config={defaultConfig}>
-          <MockScene>Scene 1</MockScene>
-          <MockScene>Scene 2</MockScene>
+          <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
         </CineView>
       );
 
       await waitFor(() => {
-        expect(ref.current).not.toBeNull();
+        expect(ref.current?.refreshLayout).toBeDefined();
+        expect(ref.current?.preload).toBeDefined();
       });
 
-      // 切换到场景 1
-      act(() => {
-        ref.current?.goToScene(1, false);
+      expect(() => {
+        ref.current?.refreshLayout?.();
+      }).not.toThrow();
+
+      await act(async () => {
+        await ref.current?.preload?.();
       });
 
-      expect(ref.current?.getCurrentScene()).toBe(1);
-
-      // 重新加载
-      act(() => {
-        ref.current?.reload();
-      });
-
-      // 应该重置到场景 0
-      await waitFor(() => {
-        expect(ref.current?.getCurrentScene()).toBe(0);
-      });
-
-      // reload 方法应该不抛出错误
-      expect(() => ref.current?.reload()).not.toThrow();
+      expect(startPreload).toHaveBeenCalledTimes(2);
     });
 
     it('应该实现 getCurrentScene 方法', async () => {
@@ -390,7 +529,7 @@ describe('CineView Component', () => {
 
     it('应该支持 performanceMode 开关', () => {
       render(
-        <CineView config={defaultConfig} performanceMode={true}>
+        <CineView config={defaultConfig} performance={{ monitor: true }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
@@ -400,7 +539,7 @@ describe('CineView Component', () => {
 
     it('应该在组件卸载时清理性能监控', () => {
       const { unmount } = render(
-        <CineView config={defaultConfig} performanceMode={true}>
+        <CineView config={defaultConfig} performance={{ monitor: true }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
@@ -442,30 +581,26 @@ describe('CineView Component', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       render(
-        <CineView config={{ designSize: -1, unit: 'px' }}>
+        <CineView config={{ width: 0, height: 0, unit: 'px' }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid designSize'));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid config.width/config.height')
+      );
 
       consoleErrorSpy.mockRestore();
     });
 
     it('应该提供性能调试模式', () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-
       render(
-        <CineView config={defaultConfig} performanceMode={true}>
+        <CineView config={defaultConfig} performance={{ monitor: true }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Performance mode enabled')
-      );
-
-      consoleLogSpy.mockRestore();
+      expect(performanceMonitor.start).toHaveBeenCalled();
     });
   });
 
@@ -558,8 +693,8 @@ describe('CineView Component', () => {
 
       render(
         <CineView config={defaultConfig}>
-          <MockScene preloadImages={['first1.jpg', 'first2.jpg']}>Scene 1</MockScene>
-          <MockScene preloadImages={['second1.jpg']}>Scene 2</MockScene>
+          <MockScene assets={{ preloadImages: ['first1.jpg', 'first2.jpg'] }}>Scene 1</MockScene>
+          <MockScene assets={{ preloadImages: ['second1.jpg'] }}>Scene 2</MockScene>
         </CineView>
       );
 

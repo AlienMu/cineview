@@ -1,23 +1,85 @@
 /**
- * Animate Component
- * 为子元素添加进入/离开动画，支持延迟和关联延迟机制
+ * Animate Component - 统一入口，根据 mode 选择实现
+ * snap 模式：使用 useAnimateSnap
+ * drag 模式：使用 useAnimateDrag
  */
 
-import React, { useEffect, useRef, useState, useContext, useMemo, createContext } from 'react';
-import { motion, useAnimation } from 'framer-motion';
-import type { AnimateProps, ParsedAnimationVariant } from '../../types';
+import React, { useEffect, useRef, useState, useContext, createContext } from 'react';
+import { motion, MotionValue, useAnimation } from 'framer-motion';
+import type {
+  AnimateProps,
+  ParsedAnimationVariant,
+  ScrollMode,
+  ScrollTimelineState,
+} from '../../types';
 import { DEFAULT_ANIMATION_DURATION } from '../../types';
-import { parseAnimationSafely, interpolateVariant } from '../../utils/animationHelpers';
+import { parseAnimationSafely } from '../../utils/animationHelpers';
+import { useAnimateSnap } from './useAnimateSnap';
+import { useAnimateDrag } from './useAnimateDrag';
+import { useAnimateScroll } from './useAnimateScroll';
+import type { DragTransitionSnapshot, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
+import { ScrollZoneContext, ScrollZoneRuntimeContext } from '../ScrollZone';
 
-// Scene Context (will be created when Scene component is implemented)
+interface AnimateLegacyCompatProps {
+  enterDuration?: number;
+  exitDuration?: number;
+  delay?: number;
+  waitFor?: string;
+  scrollDriven?: boolean;
+  scrollPhaseStart?: number;
+  scrollPhaseEnd?: number;
+}
+
+export type AnimateInternalProps = AnimateProps & AnimateLegacyCompatProps;
+
+export type SceneRuntimeState =
+  | 'inactive'
+  | 'entering'
+  | 'active'
+  | 'exiting'
+  | 'covered'
+  | 'parked';
+
+// Scene Context
 export interface SceneContextType {
-  slideMode: 'snap' | 'drag';
+  mode: ScrollMode;
   isActive: boolean;
+  isVisible?: boolean;
+  visibilityProgress?: number;
+  runtimeState?: SceneRuntimeState;
+  isSceneAnimating?: boolean;
+  transitionDirection?: 'forward' | 'backward' | null;
+
+  // drag 模式专用
   isDragging: boolean;
-  dragProgress: number;
+  dragProgressMotion: MotionValue<number>;
+  dragTimelineProgress?: number;
+  sharedElapsedMotion?: MotionValue<number>;
+  renderProgress?: number;
+  scrollProgress?: number;
+  isScrolling?: boolean;
+  scrollDirection?: 'forward' | 'backward' | null;
+  scrollTimelineState?: ScrollTimelineState | null;
+  scrollActiveSceneIndex?: number;
+
+  // snap 模式专用
+  sceneEnterCompleted: boolean; // Scene 入场动画是否完成
+
+  // 场景状态机
+  sceneState: 'initial' | 'entering' | 'active' | 'exiting';
+
+  sceneOffset: number;
+  activationVersion?: number;
+  dragTransitionSnapshot?: DragTransitionSnapshot | null;
+  scrollTransitionSnapshot?: ScrollTransitionSnapshot | null;
+  sharedElapsedMs?: number;
+  sharedTimelineDurationMs?: number;
+  sceneTransitionDuration: number; // 🎯 Task 1.10: 场景切换时长（ms）
+  getTimelineDuration?: () => number;
   registerAnimate: (id: string, info: AnimateRegistrationInfo) => void;
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (id: string) => number;
+  enterDuration: number;
 }
 
 export interface AnimateRegistrationInfo {
@@ -26,55 +88,138 @@ export interface AnimateRegistrationInfo {
   waitFor?: string;
 }
 
-// Create a placeholder context (will be replaced when Scene is implemented)
+export interface NormalizedAnimateTimeline {
+  driver: 'auto' | 'scene' | 'scroll' | 'visibility';
+  delay: number;
+  waitFor?: string;
+  zoneId?: string;
+  phase?: {
+    start?: number;
+    end?: number;
+  };
+}
+
+export interface NormalizedAnimateVisibility {
+  replayOnReenter: boolean;
+  enterWhen: 'fully-visible-bottom';
+  exitWhen: 'leaving-top';
+}
+
+function normalizeAnimateSemantics({
+  duration,
+  timeline,
+  visibility,
+  enterDuration,
+  exitDuration,
+  delay,
+  waitFor,
+  scrollDriven,
+  scrollPhaseStart,
+  scrollPhaseEnd,
+}: Pick<
+  AnimateInternalProps,
+  | 'duration'
+  | 'timeline'
+  | 'visibility'
+  | 'enterDuration'
+  | 'exitDuration'
+  | 'delay'
+  | 'waitFor'
+  | 'scrollDriven'
+  | 'scrollPhaseStart'
+  | 'scrollPhaseEnd'
+>): {
+  duration: {
+    enter: number;
+    exit: number;
+  };
+  timeline: NormalizedAnimateTimeline;
+  visibility: NormalizedAnimateVisibility;
+} {
+  const normalizedDriver =
+    timeline?.driver ??
+    (scrollDriven === undefined ? 'auto' : scrollDriven ? 'scroll' : 'visibility');
+
+  return {
+    duration: {
+      enter: duration?.enter ?? enterDuration ?? DEFAULT_ANIMATION_DURATION,
+      exit: duration?.exit ?? exitDuration ?? DEFAULT_ANIMATION_DURATION,
+    },
+    timeline: {
+      driver: normalizedDriver,
+      delay: timeline?.delay ?? delay ?? 0,
+      waitFor: timeline?.waitFor ?? waitFor,
+      zoneId: timeline?.zoneId,
+      phase: {
+        start: timeline?.phase?.start ?? scrollPhaseStart,
+        end: timeline?.phase?.end ?? scrollPhaseEnd,
+      },
+    },
+    visibility: {
+      replayOnReenter: visibility?.replayOnReenter ?? true,
+      enterWhen: visibility?.enterWhen ?? 'fully-visible-bottom',
+      exitWhen: visibility?.exitWhen ?? 'leaving-top',
+    },
+  };
+}
+
 export const SceneContext = createContext<SceneContextType | null>(null);
 
 let animateIdCounter = 0;
 
-export const Animate: React.FC<AnimateProps> = ({
+export const Animate: React.FC<AnimateInternalProps> = ({
   enterAnimation,
-  enterDuration = DEFAULT_ANIMATION_DURATION,
   exitAnimation,
-  exitDuration = DEFAULT_ANIMATION_DURATION,
-  delay = 0,
-  waitFor,
   infiniteAnimation,
   animateId,
+  duration,
+  timeline,
+  visibility,
+  enterDuration,
+  exitDuration,
+  delay,
+  waitFor,
+  scrollDriven,
+  scrollPhaseStart,
+  scrollPhaseEnd,
   children,
 }) => {
-  // Generate unique ID if not provided
   const componentId = useRef(animateId || `animate-${++animateIdCounter}`);
   const id = componentId.current;
-
-  // Get Scene context
   const sceneContext = useContext(SceneContext);
+  const zoneRuntime = useContext(ScrollZoneRuntimeContext);
+  const zoneId = useContext(ScrollZoneContext);
 
-  // Animation controls
-  const controls = useAnimation();
-  const infiniteControls = useAnimation();
-
-  // Parsed animations
   const [enterVariant, setEnterVariant] = useState<ParsedAnimationVariant | null>(null);
   const [exitVariant, setExitVariant] = useState<ParsedAnimationVariant | null>(null);
   const [infiniteVariant, setInfiniteVariant] = useState<ParsedAnimationVariant | null>(null);
+  const snapInfiniteControls = useAnimation();
+  const dragInfiniteControls = useAnimation();
+  const scrollInfiniteControls = useAnimation();
+  const normalizedSemantics = normalizeAnimateSemantics({
+    duration,
+    timeline,
+    visibility,
+    enterDuration,
+    exitDuration,
+    delay,
+    waitFor,
+    scrollDriven,
+    scrollPhaseStart,
+    scrollPhaseEnd,
+  });
+  const normalizedEnterDuration = normalizedSemantics.duration.enter;
+  const normalizedDelay = normalizedSemantics.timeline.delay;
+  const normalizedWaitFor = normalizedSemantics.timeline.waitFor;
 
-  // Animation state
-  const [hasEntered, setHasEntered] = useState(false);
-
-  // Drag progress ref for smooth updates
-  const dragProgressRef = useRef(0);
-
-  // Error handling: Check if component is used within Scene
   useEffect(() => {
     if (!sceneContext && process.env.NODE_ENV === 'development') {
       console.error(
-        `[CineView Error] Animate component "${id}" must be used within a Scene component. ` +
-          `Please wrap your Animate components inside a Scene.`
+        `[CineView Error] Animate component "${id}" must be used within a Scene component.`
       );
     }
   }, [sceneContext, id]);
 
-  // Parse animations on mount
   useEffect(() => {
     const parseAnimations = async (): Promise<void> => {
       const [enter, exit, infinite] = await Promise.all([
@@ -91,291 +236,171 @@ export const Animate: React.FC<AnimateProps> = ({
     parseAnimations();
   }, [enterAnimation, exitAnimation, infiniteAnimation, id]);
 
-  // Register with parent Scene
+  // 🎯 根据 mode 选择使用哪个实现
+  const mode = sceneContext?.mode || 'snap';
+
+  // snap 模式：使用 useAnimateSnap
+  const snapResult = useAnimateSnap({
+    sceneContext: mode === 'snap' ? sceneContext : null,
+    enterVariant,
+    exitVariant,
+    componentId: id,
+    delay: normalizedDelay,
+    enterDuration: normalizedEnterDuration,
+    waitFor: normalizedWaitFor,
+  });
+
+  // drag 模式：使用 useAnimateDrag
+  const dragResult = useAnimateDrag({
+    sceneContext: mode === 'drag' ? sceneContext : null,
+    enterVariant,
+    exitVariant,
+    componentId: id,
+    delay: normalizedDelay,
+    enterDuration: normalizedEnterDuration,
+    waitFor: normalizedWaitFor,
+  });
+
+  const scrollResult = useAnimateScroll({
+    sceneContext: mode === 'scroll' ? sceneContext : null,
+    zoneRuntime: mode === 'scroll' ? zoneRuntime : null,
+    zoneId,
+    enterVariant,
+    exitVariant,
+    componentId: id,
+    duration: normalizedSemantics.duration,
+    timeline: normalizedSemantics.timeline,
+    visibility: normalizedSemantics.visibility,
+  });
+
   useEffect(() => {
-    if (!sceneContext) return;
+    if (mode !== 'snap' || !infiniteVariant) return;
 
-    const registrationInfo: AnimateRegistrationInfo = {
-      delay,
-      duration: enterDuration,
-      waitFor,
-    };
-
-    console.log(`[Animate ${id}] Registering with delay: ${delay}ms, duration: ${enterDuration}ms`);
-    sceneContext.registerAnimate(id, registrationInfo);
-
-    return () => {
-      sceneContext.unregisterAnimate(id);
-    };
-  }, [sceneContext, id, delay, enterDuration, waitFor]);
-
-  // Handle enter animation in snap mode
-  useEffect(() => {
-    if (!sceneContext || !enterVariant) return;
-    if (sceneContext.slideMode !== 'snap') return;
-    if (!sceneContext.isActive) return;
-
-    console.log(`[Animate ${id}] Playing enter animation...`);
-
-    // Use a flag to prevent multiple executions
-    let cancelled = false;
-
-    const playEnterAnimation = async (): Promise<void> => {
-      if (cancelled) return;
-
-      // Reset to initial state first (synchronous)
-      controls.set(enterVariant.initial as never);
-      console.log(`[Animate ${id}] Set initial state:`, enterVariant.initial);
-      
-      // Get calculated delay at runtime (after registration)
-      const calculatedDelay = sceneContext.getCalculatedDelay(id);
-      console.log(`[Animate ${id}] calculatedDelay = ${calculatedDelay}ms (original delay = ${delay}ms)`);
-
-      // Wait for calculated delay
-      if (calculatedDelay > 0 && !cancelled) {
-        console.log(`[Animate ${id}] Waiting for delay: ${calculatedDelay}ms`);
-        const startTime = Date.now();
-        await new Promise((resolve) => setTimeout(resolve, calculatedDelay));
-        const actualDelay = Date.now() - startTime;
-        console.log(`[Animate ${id}] Delay completed after ${actualDelay}ms`);
-      } else {
-        console.log(`[Animate ${id}] No delay, starting immediately`);
-      }
-
-      if (cancelled) return;
-
-      // Play enter animation and wait for it to complete
-      console.log(`[Animate ${id}] Starting animation:`, enterVariant.animate);
-      await controls.start({
-        ...enterVariant.animate,
-        transition: {
-          duration: enterDuration / 1000, // Convert ms to seconds
-          ease: 'easeOut',
-        },
-      } as never);
-
-      if (cancelled) return;
-
-      console.log(`[Animate ${id}] Animation completed`);
-      setHasEntered(true);
-
-      // IMPORTANT: Start infinite animation AFTER enter animation completes
-      // This ensures the infinite loop doesn't interfere with the enter animation
-      if (infiniteVariant && sceneContext.isActive && !cancelled) {
-        console.log(`[Animate ${id}] Starting infinite animation...`);
-        const infiniteTransition = (infiniteVariant.animate as Record<string, unknown>)
-          .transition as Record<string, unknown> | undefined;
-
-        infiniteControls.start({
-          ...infiniteVariant.animate,
-          transition: {
-            ...(infiniteTransition || { duration: 1 }),
-            repeat: Infinity,
-          },
-        } as never);
-      }
-    };
-
-    playEnterAnimation();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneContext?.isActive, enterVariant]);
-
-  // Handle exit animation in snap mode
-  useEffect(() => {
-    if (!sceneContext || !exitVariant) return;
-    if (sceneContext.slideMode !== 'snap') return;
-
-    // Only play exit animation if:
-    // 1. Scene becomes inactive (!sceneContext.isActive)
-    // 2. Component has previously entered (hasEntered)
-    // This prevents exit animation from playing on initial mount
-    if (!sceneContext.isActive && hasEntered) {
-      const playExitAnimation = async (): Promise<void> => {
-        // IMPORTANT: Stop infinite animation immediately when exit animation starts
-        // This ensures the exit animation plays cleanly without interference
-        console.log(`[Animate ${id}] Stopping infinite animation for exit...`);
-        infiniteControls.stop();
-
-        // Play exit animation
-        await controls.start({
-          ...exitVariant.exit,
-          transition: {
-            duration: exitDuration / 1000, // Convert ms to seconds
-            ease: 'easeIn',
-          },
-        } as never);
-
-        // Reset hasEntered AFTER exit animation completes
-        setHasEntered(false);
-      };
-
-      playExitAnimation();
+    if (!snapResult.shouldRunInfinite) {
+      snapInfiniteControls.stop();
+      return;
     }
-  }, [sceneContext, exitVariant, exitDuration, controls, infiniteControls, hasEntered]);
 
-  // Reset state when scene becomes inactive (removed - now handled in exit animation)
+    snapInfiniteControls.start({
+      ...(infiniteVariant.animate as Record<string, unknown>),
+      transition: {
+        ...(((infiniteVariant.animate as Record<string, unknown>).transition as Record<
+          string,
+          unknown
+        >) || {}),
+        repeat: Infinity,
+      },
+    } as never);
+  }, [mode, infiniteVariant, snapResult.shouldRunInfinite, snapInfiniteControls]);
+
   useEffect(() => {
-    if (!sceneContext || !exitVariant) return;
-    if (sceneContext.slideMode !== 'drag') return;
-    if (!sceneContext.isDragging) return;
+    if (mode !== 'drag' || !infiniteVariant) return;
 
-    // IMPORTANT: Stop infinite animation when dragging starts
-    // This ensures the exit animation progress can be controlled by drag progress
-    console.log(`[Animate ${id}] Stopping infinite animation for drag...`);
-    infiniteControls.stop();
-
-    const progress = sceneContext.dragProgress;
-    dragProgressRef.current = progress;
-
-    // Use requestAnimationFrame for smooth updates
-    requestAnimationFrame(() => {
-      const enterAnimateVariant = (enterVariant?.animate as Record<string, unknown>) || {
-        opacity: 1,
-      };
-      const exitAnimateVariant = exitVariant.exit as Record<string, unknown>;
-
-      const interpolated = interpolateVariant(enterAnimateVariant, exitAnimateVariant, progress);
-
-      controls.set(interpolated as never);
-    });
-  }, [sceneContext, exitVariant, enterVariant, controls, infiniteControls]);
-
-  // Handle drag release and transition completion in drag mode
-  useEffect(() => {
-    if (!sceneContext || !enterVariant) return;
-    if (sceneContext.slideMode !== 'drag') return;
-    if (sceneContext.isDragging || !sceneContext.isActive) return;
-
-    // Use a flag to prevent multiple executions
-    let cancelled = false;
-
-    // When drag is released and scene becomes active, play enter animation
-    const playEnterAnimation = async (): Promise<void> => {
-      if (cancelled) return;
-
-      // Reset to initial state first
-      controls.set(enterVariant.initial as never);
-
-      // Get calculated delay at runtime (after registration)
-      const calculatedDelay = sceneContext.getCalculatedDelay(id);
-
-      // Wait for calculated delay
-      if (calculatedDelay > 0 && !cancelled) {
-        await new Promise((resolve) => setTimeout(resolve, calculatedDelay));
-      }
-
-      if (cancelled) return;
-
-      // Play enter animation and wait for it to complete
-      await controls.start({
-        ...enterVariant.animate,
-        transition: {
-          duration: enterDuration / 1000, // Convert ms to seconds
-          ease: 'easeOut',
-        },
-      } as never);
-
-      if (cancelled) return;
-
-      setHasEntered(true);
-
-      // IMPORTANT: Start infinite animation AFTER enter animation completes
-      // This ensures the infinite loop doesn't interfere with the enter animation
-      if (infiniteVariant && sceneContext.isActive && !cancelled) {
-        console.log(`[Animate ${id}] Starting infinite animation (drag mode)...`);
-        const infiniteTransition = (infiniteVariant.animate as Record<string, unknown>)
-          .transition as Record<string, unknown> | undefined;
-
-        infiniteControls.start({
-          ...infiniteVariant.animate,
-          transition: {
-            ...(infiniteTransition || { duration: 1 }),
-            repeat: Infinity,
-          },
-        } as never);
-      }
-    };
-
-    playEnterAnimation();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneContext?.isActive, sceneContext?.isDragging, enterVariant]);
-
-  // Reset hasEntered when scene becomes inactive (to allow re-entry animation)
-  useEffect(() => {
-    if (!sceneContext) return;
-
-    // When scene becomes inactive, reset hasEntered to allow re-entry animation
-    if (!sceneContext.isActive && hasEntered) {
-      // Use a small delay to ensure exit animation completes first
-      const timer = setTimeout(() => {
-        setHasEntered(false);
-      }, 100);
-
-      return () => clearTimeout(timer);
+    if (!dragResult.shouldRunInfinite) {
+      dragInfiniteControls.stop();
+      return;
     }
-  }, [sceneContext, hasEntered]);
 
-  // Cleanup: Stop animations and clear timers when component unmounts
-  // Validates Requirement 26.5: Clean up timers and requestAnimationFrame on unmount
+    dragInfiniteControls.start({
+      ...(infiniteVariant.animate as Record<string, unknown>),
+      transition: {
+        ...(((infiniteVariant.animate as Record<string, unknown>).transition as Record<
+          string,
+          unknown
+        >) || {}),
+        repeat: Infinity,
+      },
+    } as never);
+  }, [mode, infiniteVariant, dragResult.shouldRunInfinite, dragInfiniteControls]);
+
   useEffect(() => {
-    return (): void => {
-      // Stop all animation controls
-      controls.stop();
-      infiniteControls.stop();
+    if (mode !== 'scroll' || !infiniteVariant) return;
 
-      // Note: Timers created with setTimeout in async functions
-      // are automatically cleaned up when the component unmounts
-      // because the promises are abandoned and the component is no longer mounted
-      // requestAnimationFrame calls are also automatically cancelled when controls.stop() is called
-    };
-  }, [controls, infiniteControls]);
+    if (!scrollResult.shouldRunInfinite) {
+      scrollInfiniteControls.stop();
+      return;
+    }
 
-  // Determine initial variant
-  // IMPORTANT: Keep element in initial state (usually hidden) until animation completes
-  const initialVariant = useMemo(() => {
-    if (enterVariant) return enterVariant.initial;
-    // Default to visible state if no enter animation is defined
-    return { opacity: 1 };
-  }, [enterVariant]);
+    scrollInfiniteControls.start({
+      ...(infiniteVariant.animate as Record<string, unknown>),
+      transition: {
+        ...(((infiniteVariant.animate as Record<string, unknown>).transition as Record<
+          string,
+          unknown
+        >) || {}),
+        repeat: Infinity,
+      },
+    } as never);
+  }, [mode, infiniteVariant, scrollResult.shouldRunInfinite, scrollInfiniteControls]);
 
-  // CSS performance optimizations
-  // Validates Requirement 14.3: CSS transform and opacity for GPU acceleration
-  // Validates Requirement 14.3: will-change hints during animations
-  const animateStyle = useMemo<React.CSSProperties>(
-    () => ({
-      // IMPORTANT: Don't use 'display: contents' as it prevents transform/opacity from working
-      // Use inline-block to allow animations while minimizing layout impact
-      display: 'inline-block',
-      // Use will-change hint during animations for GPU optimization
-      // IMPORTANT: Only set will-change during animations to avoid memory overhead
-      willChange:
-        sceneContext?.isActive && (sceneContext.isDragging || hasEntered)
-          ? 'transform, opacity'
-          : 'auto',
-    }),
-    [sceneContext, hasEntered]
-  );
+  if (!enterVariant && !exitVariant && !infiniteVariant) {
+    return <>{children}</>;
+  }
+
+  // snap 模式渲染
+  if (mode === 'snap') {
+    if (infiniteVariant) {
+      return (
+        <motion.div animate={snapResult.controls} className="cineview-animate">
+          <motion.div data-cineview-animate-id={id}>
+            <motion.div animate={snapInfiniteControls}>{children}</motion.div>
+          </motion.div>
+        </motion.div>
+      );
+    }
+
+    return (
+      <motion.div
+        animate={snapResult.controls}
+        className="cineview-animate"
+        data-cineview-animate-id={id}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+
+  // drag 模式渲染
+  if (mode === 'scroll') {
+    if (infiniteVariant) {
+      return (
+        <motion.div
+          style={scrollResult.style}
+          className="cineview-animate"
+          data-cineview-animate-id={id}
+        >
+          <motion.div animate={scrollInfiniteControls}>{children}</motion.div>
+        </motion.div>
+      );
+    }
+
+    return (
+      <motion.div
+        style={scrollResult.style}
+        className="cineview-animate"
+        data-cineview-animate-id={id}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+
+  if (infiniteVariant) {
+    return (
+      <motion.div
+        style={dragResult.style}
+        className="cineview-animate"
+        data-cineview-animate-id={id}
+      >
+        <motion.div animate={dragInfiniteControls}>{children}</motion.div>
+      </motion.div>
+    );
+  }
 
   return (
-    <>
-      <motion.div 
-        initial={initialVariant as never} 
-        animate={controls} 
-        style={animateStyle}
-      >
-        <motion.div animate={infiniteControls} style={{ display: 'inline-block' }}>
-          {children}
-        </motion.div>
-      </motion.div>
-    </>
+    <motion.div style={dragResult.style} className="cineview-animate" data-cineview-animate-id={id}>
+      {children}
+    </motion.div>
   );
 };
 

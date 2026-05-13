@@ -4,12 +4,14 @@ interface SceneNavigationProps {
   currentScene: number;
   totalScenes: number;
   onGoToScene: (index: number) => void;
+  mode: 'snap' | 'drag' | 'scroll';
 }
 
 const SceneNavigation: React.FC<SceneNavigationProps> = ({
   currentScene,
   totalScenes,
   onGoToScene,
+  mode,
 }) => {
   const handlePrevious = () => {
     if (currentScene > 0) {
@@ -32,7 +34,23 @@ const SceneNavigation: React.FC<SceneNavigationProps> = ({
   };
 
   return (
-    <div className="scene-nav">
+    <div
+      className="scene-nav"
+      style={{
+        position: 'fixed',
+        left: '20px',
+        bottom: '20px',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '12px 14px',
+        background: 'rgba(10, 12, 18, 0.72)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        borderRadius: '10px',
+        backdropFilter: 'blur(14px)',
+      }}
+    >
       <button
         onClick={handleFirst}
         disabled={currentScene === 0}
@@ -63,8 +81,9 @@ const SceneNavigation: React.FC<SceneNavigationProps> = ({
         ⬅️ Prev
       </button>
 
-      <span style={{ margin: '0 15px', color: '#fff' }}>
-        {currentScene + 1} / {totalScenes}
+      <span style={{ margin: '0 12px', color: '#fff', minWidth: '130px', textAlign: 'center' }}>
+        {currentScene + 1} / {totalScenes} ·{' '}
+        {mode === 'snap' ? 'Snap' : mode === 'drag' ? 'Drag' : 'Scroll'}
       </span>
 
       <button

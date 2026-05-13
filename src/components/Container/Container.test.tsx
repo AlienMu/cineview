@@ -6,27 +6,40 @@ import { render } from '@testing-library/react';
 import { Container } from './Container';
 import { CineViewProvider } from '../../context/CineViewContext';
 
+const defaultProviderProps = {
+  designWidth: 750,
+  designHeight: 800,
+  unit: 'px' as 'px' | 'rem' | 'vw',
+};
+
+function renderWithCineView(
+  ui: React.ReactNode,
+  providerProps?: Partial<typeof defaultProviderProps>
+) {
+  return render(
+    <CineViewProvider {...defaultProviderProps} {...providerProps}>
+      {ui}
+    </CineViewProvider>
+  );
+}
+
 describe('Container', () => {
   describe('基础功能', () => {
     it('应该正确渲染子元素', () => {
-      const { getByText } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container>
-            <div>Test Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByText } = renderWithCineView(
+        <Container>
+          <div>Test Content</div>
+        </Container>
       );
 
       expect(getByText('Test Content')).toBeInTheDocument();
     });
 
     it('应该应用自定义 className', () => {
-      const { container } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container className="custom-class">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { container } = renderWithCineView(
+        <Container className="custom-class">
+          <div>Content</div>
+        </Container>
       );
 
       // CineViewProvider 包装了一层 div，Container 是第二层
@@ -37,12 +50,10 @@ describe('Container', () => {
 
     it('应该合并自定义样式', () => {
       const customStyle = { backgroundColor: 'red', padding: '10px' };
-      const { container } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container style={customStyle} className="test-container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { container } = renderWithCineView(
+        <Container style={customStyle} className="test-container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = container.querySelector('.test-container') as HTMLElement;
@@ -55,23 +66,24 @@ describe('Container', () => {
 
   describe('响应式尺寸换算', () => {
     it('应该在 px 单位模式下进行换算', () => {
-      // 设置 window.innerWidth 为 375
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container width={200} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container width={200} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
-      // scale = 375 / 750 = 0.5, 200 * 0.5 = 100px
       expect(containerDiv).toHaveStyle({ width: '100px' });
     });
 
@@ -81,17 +93,19 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container height={400} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container height={400} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
-      // scale = 375 / 750 = 0.5, 400 * 0.5 = 200px
       expect(containerDiv).toHaveStyle({ height: '200px' });
     });
 
@@ -101,13 +115,16 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container width={300} height={600} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container width={300} height={600} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
@@ -123,17 +140,20 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="rem">
-          <Container width={100} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container width={100} data-testid="container">
+          <div>Content</div>
+        </Container>,
+        { unit: 'rem' }
       );
 
       const containerDiv = getByTestId('container');
-      // rem 模式：scale = 375 / 750 = 0.5, 100 * 0.5 = 50px
       expect(containerDiv).toHaveStyle({ width: '50px' });
     });
   });
@@ -145,13 +165,16 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container height={200} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container height={200} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
@@ -165,13 +188,16 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container width={200} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container width={200} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
@@ -181,12 +207,10 @@ describe('Container', () => {
 
     it('应该在未指定宽高时只应用自定义样式', () => {
       const customStyle = { display: 'flex' };
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container style={customStyle} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container style={customStyle} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
@@ -219,12 +243,10 @@ describe('Container', () => {
 
   describe('边界情况', () => {
     it('应该处理宽度为 0 的情况', () => {
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container width={0} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container width={0} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
@@ -232,12 +254,10 @@ describe('Container', () => {
     });
 
     it('应该处理高度为 0 的情况', () => {
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container height={0} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container height={0} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
@@ -250,17 +270,19 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container width={10000} height={10000} data-testid="container">
-            <div>Content</div>
-          </Container>
-        </CineViewProvider>
+      const { getByTestId } = renderWithCineView(
+        <Container width={10000} height={10000} data-testid="container">
+          <div>Content</div>
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
-      // scale = 375 / 750 = 0.5, 10000 * 0.5 = 5000px
       expect(containerDiv).toHaveStyle({
         width: '5000px',
         height: '5000px',
@@ -275,21 +297,23 @@ describe('Container', () => {
         configurable: true,
         value: 375,
       });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 400,
+      });
 
-      const { getByTestId } = render(
-        <CineViewProvider designSize={750} unit="px">
-          <Container width={400} data-testid="outer">
-            <Container width={200} data-testid="inner">
-              <div>Nested Content</div>
-            </Container>
+      const { getByTestId } = renderWithCineView(
+        <Container width={400} data-testid="outer">
+          <Container width={200} data-testid="inner">
+            <div>Nested Content</div>
           </Container>
-        </CineViewProvider>
+        </Container>
       );
 
       const outerContainer = getByTestId('outer');
       const innerContainer = getByTestId('inner');
 
-      // scale = 375 / 750 = 0.5
       expect(outerContainer).toHaveStyle({ width: '200px' });
       expect(innerContainer).toHaveStyle({ width: '100px' });
     });

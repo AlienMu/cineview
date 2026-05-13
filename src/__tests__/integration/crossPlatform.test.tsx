@@ -13,6 +13,66 @@ import type { CineViewRef } from '../../types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
+  __esModule: true,
+  useMotionValue: (initial: number) => {
+    let current = initial;
+    const listeners = new Set<(value: number) => void>();
+
+    return {
+      get: () => current,
+      set: (value: number) => {
+        current = value;
+        listeners.forEach((listener) => listener(current));
+      },
+      on: (event: string, listener: (value: number) => void) => {
+        if (event !== 'change') {
+          return () => undefined;
+        }
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+  },
+  useTransform: (
+    source: {
+      get: () => number;
+      on?: (event: string, listener: (value: number) => void) => () => void;
+    },
+    transform: (value: number) => number
+  ) => {
+    let current = transform(source.get());
+    const listeners = new Set<(value: number) => void>();
+    const motionValue = {
+      get: () => current,
+      set: (value: number) => {
+        current = value;
+        listeners.forEach((listener) => listener(current));
+      },
+      on: (event: string, listener: (value: number) => void) => {
+        if (event !== 'change') {
+          return () => undefined;
+        }
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    source.on?.('change', (value) => {
+      motionValue.set(transform(value));
+    });
+    return motionValue;
+  },
+  animate: (
+    value: { set?: (next: number) => void } | number,
+    target: number,
+    options?: { onUpdate?: (value: number) => void; onComplete?: () => void }
+  ) => {
+    if (typeof value === 'object' && value?.set) {
+      value.set(target);
+    }
+    options?.onUpdate?.(target);
+    options?.onComplete?.();
+    return { stop: jest.fn() };
+  },
   motion: {
     div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
       <div {...props}>{children}</div>
@@ -50,11 +110,16 @@ describe('跨平台兼容性测试', () => {
   describe('事件监听器注册测试 (Requirements 21.1, 21.2, 21.3)', () => {
     test('应该在 snap 模式下正确渲染并准备处理触摸和鼠标事件', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap" slideDirection="y">
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <h1>场景 1</h1>
           </Scene>
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>场景 2</h1>
           </Scene>
         </CineView>
@@ -74,11 +139,16 @@ describe('跨平台兼容性测试', () => {
 
     test('应该在 drag 模式下正确渲染并准备处理拖拽事件', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="drag" slideDirection="y">
+        <CineView
+          ref={cineViewRef}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <h1>拖拽场景</h1>
           </Scene>
-          <Scene slideMode="drag" slideDirection="y">
+          <Scene>
             <h1>下一场景</h1>
           </Scene>
         </CineView>
@@ -97,25 +167,49 @@ describe('跨平台兼容性测试', () => {
     });
 
     test('应该支持横向和纵向滑动方向', async () => {
-      const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap" slideDirection="x">
+      const HorizontalApp = () => (
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'x', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <h1>横向场景</h1>
           </Scene>
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
+            <h1>横向场景 2</h1>
+          </Scene>
+        </CineView>
+      );
+      const VerticalApp = () => (
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <h1>纵向场景</h1>
+          </Scene>
+          <Scene>
+            <h1>纵向场景 2</h1>
           </Scene>
         </CineView>
       );
 
-      render(<TestApp />);
+      const { unmount } = render(<HorizontalApp />);
 
       await waitFor(() => {
         expect(screen.getByText('横向场景')).toBeInTheDocument();
       });
 
-      // 验证两种方向的场景都能正常渲染
-      expect(screen.getByText('横向场景')).toBeInTheDocument();
+      unmount();
+      render(<VerticalApp />);
+
+      await waitFor(() => {
+        expect(screen.getByText('纵向场景')).toBeInTheDocument();
+      });
     });
   });
 
@@ -126,16 +220,18 @@ describe('跨平台兼容性测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          config={{ designSize: 750, unit: 'px' }}
-          onAfterSceneChange={onAfterSceneChange}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
         >
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>场景 1</h1>
           </Scene>
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>场景 2</h1>
           </Scene>
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>场景 3</h1>
           </Scene>
         </CineView>
@@ -154,7 +250,9 @@ describe('跨平台兼容性测试', () => {
         expect(cineViewRef.current?.getCurrentScene()).toBe(1);
       });
 
-      expect(onAfterSceneChange).toHaveBeenCalledWith(1);
+      expect(onAfterSceneChange).toHaveBeenCalledWith(
+        expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+      );
 
       // 切换到场景 3
       cineViewRef.current?.goToScene(2, false);
@@ -163,7 +261,9 @@ describe('跨平台兼容性测试', () => {
         expect(cineViewRef.current?.getCurrentScene()).toBe(2);
       });
 
-      expect(onAfterSceneChange).toHaveBeenCalledWith(2);
+      expect(onAfterSceneChange).toHaveBeenCalledWith(
+        expect.objectContaining({ fromIndex: 1, toIndex: 2, direction: 'forward' })
+      );
 
       // 切换回场景 1
       cineViewRef.current?.goToScene(0, false);
@@ -172,7 +272,9 @@ describe('跨平台兼容性测试', () => {
         expect(cineViewRef.current?.getCurrentScene()).toBe(0);
       });
 
-      expect(onAfterSceneChange).toHaveBeenCalledWith(0);
+      expect(onAfterSceneChange).toHaveBeenCalledWith(
+        expect.objectContaining({ fromIndex: 2, toIndex: 0, direction: 'backward' })
+      );
     });
   });
 
@@ -186,9 +288,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
-            <Position x={750} y={100}>
+            <Position at={{ x: 750, y: 100 }}>
               <div data-testid="positioned-element">右边缘元素</div>
             </Position>
           </Scene>
@@ -221,9 +323,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
-            <Position x={375} y={100}>
+            <Position at={{ x: 375, y: 100 }}>
               <div data-testid="centered-element">居中元素</div>
             </Position>
           </Scene>
@@ -255,9 +357,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
-            <Position x={375} y={100}>
+            <Position at={{ x: 375, y: 100 }}>
               <div data-testid="desktop-element">桌面元素</div>
             </Position>
           </Scene>
@@ -289,9 +391,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
-            <Position x={375} y={100}>
+            <Position at={{ x: 375, y: 100 }}>
               <div data-testid="responsive-element">响应式元素</div>
             </Position>
           </Scene>
@@ -337,9 +439,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'rem' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'rem' }}>
           <Scene>
-            <Position x={375} y={100}>
+            <Position at={{ x: 375, y: 100 }}>
               <div data-testid="rem-element">rem 单位元素</div>
             </Position>
           </Scene>
@@ -364,9 +466,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'vw' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'vw' }}>
           <Scene>
-            <Position x={375} y={100}>
+            <Position at={{ x: 375, y: 100 }}>
               <div data-testid="vw-element">vw 单位元素</div>
             </Position>
           </Scene>
@@ -392,7 +494,7 @@ describe('跨平台兼容性测试', () => {
       delete window.IntersectionObserver;
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -411,11 +513,16 @@ describe('跨平台兼容性测试', () => {
 
     test('应该同时支持触摸和鼠标事件', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap" slideDirection="y">
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <h1>场景 1</h1>
           </Scene>
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>场景 2</h1>
           </Scene>
         </CineView>
@@ -441,13 +548,15 @@ describe('跨平台兼容性测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          config={{ designSize: 750, unit: 'px' }}
-          onAfterSceneChange={onAfterSceneChange}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
         >
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>Snap 场景 1</h1>
           </Scene>
-          <Scene slideMode="snap" slideDirection="y">
+          <Scene>
             <h1>Snap 场景 2</h1>
           </Scene>
         </CineView>
@@ -463,19 +572,26 @@ describe('跨平台兼容性测试', () => {
       cineViewRef.current?.goToScene(1, false);
 
       await waitFor(() => {
-        expect(onAfterSceneChange).toHaveBeenCalledWith(1);
+        expect(onAfterSceneChange).toHaveBeenCalledWith(
+          expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+        );
       });
     });
 
     test('应该在 drag 模式下支持拖拽', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="drag" slideDirection="y">
+        <CineView
+          ref={cineViewRef}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <Animate animateId="drag-test" exitAnimation="fade-out">
               <h1>Drag 场景</h1>
             </Animate>
           </Scene>
-          <Scene slideMode="drag" slideDirection="y">
+          <Scene>
             <h1>下一场景</h1>
           </Scene>
         </CineView>

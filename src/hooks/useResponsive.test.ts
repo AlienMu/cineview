@@ -53,12 +53,7 @@ describe('useResponsive', () => {
     });
 
     it('应该使用自定义配置', () => {
-      const { result } = renderHook(() =>
-        useResponsive({
-          designSize: 375,
-          unit: 'rem',
-        })
-      );
+      const { result } = renderHook(() => useResponsive({ width: 375, height: 375, unit: 'rem' }));
 
       expect(result.current.scale).toBe(750 / 375); // 750 / 375 = 2
     });
@@ -66,12 +61,7 @@ describe('useResponsive', () => {
 
   describe('换算比例计算', () => {
     it('unit 为 px 时，scale 应该为 1', () => {
-      const { result } = renderHook(() =>
-        useResponsive({
-          designSize: 750,
-          unit: 'px',
-        })
-      );
+      const { result } = renderHook(() => useResponsive({ width: 750, height: 750, unit: 'px' }));
 
       expect(result.current.scale).toBe(1);
     });
@@ -79,12 +69,7 @@ describe('useResponsive', () => {
     it('unit 为 rem 时，应该正确计算 scale', () => {
       window.innerWidth = 375;
 
-      const { result } = renderHook(() =>
-        useResponsive({
-          designSize: 750,
-          unit: 'rem',
-        })
-      );
+      const { result } = renderHook(() => useResponsive({ width: 750, height: 750, unit: 'rem' }));
 
       expect(result.current.scale).toBe(375 / 750); // 0.5
     });
@@ -92,12 +77,7 @@ describe('useResponsive', () => {
     it('unit 为 vw 时，应该正确计算 scale', () => {
       window.innerWidth = 1920;
 
-      const { result } = renderHook(() =>
-        useResponsive({
-          designSize: 750,
-          unit: 'vw',
-        })
-      );
+      const { result } = renderHook(() => useResponsive({ width: 750, height: 750, unit: 'vw' }));
 
       expect(result.current.scale).toBe(1920 / 750); // 2.56
     });
@@ -189,11 +169,7 @@ describe('useResponsive', () => {
 
     it('resize 后应该重新计算 scale', async () => {
       const { result } = renderHook(() =>
-        useResponsive({
-          designSize: 750,
-          unit: 'rem',
-          debounceDelay: 50,
-        })
+        useResponsive({ width: 750, height: 750, unit: 'rem', debounceDelay: 50 })
       );
 
       expect(result.current.scale).toBe(750 / 750); // 1

@@ -8,7 +8,8 @@ import { debounce } from '../utils/debounce';
 import type { SizeUnit } from '../types';
 
 export interface UseResponsiveOptions {
-  designSize?: number;
+  width?: number;
+  height?: number;
   unit?: SizeUnit;
   debounceDelay?: number;
 }
@@ -16,6 +17,8 @@ export interface UseResponsiveOptions {
 export interface ResponsiveState {
   viewportWidth: number;
   viewportHeight: number;
+  scaleX: number;
+  scaleY: number;
   scale: number;
   isMobile: boolean;
   isTablet: boolean;
@@ -23,7 +26,9 @@ export interface ResponsiveState {
 }
 
 export const useResponsive = (options: UseResponsiveOptions = {}): ResponsiveState => {
-  const { designSize = 750, unit = 'px', debounceDelay = 150 } = options;
+  const { width, height, unit = 'px', debounceDelay = 150 } = options;
+  const designWidth = width ?? 750;
+  const designHeight = height ?? 1334;
 
   const [viewportWidth, setViewportWidth] = useState<number>(
     typeof window !== 'undefined' ? window.innerWidth : 750
@@ -33,10 +38,12 @@ export const useResponsive = (options: UseResponsiveOptions = {}): ResponsiveSta
   );
 
   // 计算换算比例
+  const scaleX = useMemo(() => viewportWidth / designWidth, [viewportWidth, designWidth]);
+  const scaleY = useMemo(() => viewportHeight / designHeight, [viewportHeight, designHeight]);
   const scale = useMemo(() => {
     if (unit === 'px') return 1;
-    return viewportWidth / designSize;
-  }, [viewportWidth, designSize, unit]);
+    return scaleX;
+  }, [unit, scaleX]);
 
   // 判断设备类型
   const deviceType = useMemo(() => {
@@ -65,6 +72,8 @@ export const useResponsive = (options: UseResponsiveOptions = {}): ResponsiveSta
   return {
     viewportWidth,
     viewportHeight,
+    scaleX,
+    scaleY,
     scale,
     ...deviceType,
   };

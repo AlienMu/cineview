@@ -41,7 +41,7 @@ describe('CineViewContext', () => {
       };
 
       render(
-        <CineViewProvider designSize={1920} unit="rem">
+        <CineViewProvider designWidth={1920} designHeight={1920} unit="rem">
           <TestComponent />
         </CineViewProvider>
       );
@@ -64,7 +64,7 @@ describe('CineViewContext', () => {
       };
 
       render(
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           <TestComponent />
         </CineViewProvider>
       );
@@ -87,7 +87,7 @@ describe('CineViewContext', () => {
       });
 
       render(
-        <CineViewProvider designSize={750} unit="rem">
+        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
           <TestComponent />
         </CineViewProvider>
       );
@@ -152,7 +152,7 @@ describe('CineViewContext', () => {
       };
 
       render(
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           <TestComponent />
         </CineViewProvider>
       );
@@ -170,7 +170,7 @@ describe('CineViewContext', () => {
 
     it('should return context value when used inside CineViewProvider', (): void => {
       const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       );
@@ -242,7 +242,7 @@ describe('Unit Conversion', () => {
     };
 
     render(
-      <CineViewProvider designSize={750} unit="vw">
+      <CineViewProvider designWidth={750} designHeight={750} unit="vw">
         <TestComponent />
       </CineViewProvider>
     );
@@ -256,7 +256,7 @@ describe('Additional Branch Coverage Tests', () => {
   it('should handle rem unit with correct scale calculation', (): void => {
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="rem">
+        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
           {children}
         </CineViewProvider>
       ),
@@ -271,7 +271,7 @@ describe('Additional Branch Coverage Tests', () => {
   it('should handle vw unit with correct scale calculation', (): void => {
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="vw">
+        <CineViewProvider designWidth={750} designHeight={750} unit="vw">
           {children}
         </CineViewProvider>
       ),
@@ -288,7 +288,7 @@ describe('Additional Branch Coverage Tests', () => {
     // by checking the implementation uses typeof window !== 'undefined'
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -312,7 +312,7 @@ describe('More Branch Coverage Tests', () => {
 
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -326,7 +326,7 @@ describe('More Branch Coverage Tests', () => {
   it('should update viewport dimensions on window resize', async (): Promise<void> => {
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -365,7 +365,7 @@ describe('More Branch Coverage Tests', () => {
 
     const { unmount } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -393,7 +393,7 @@ describe('SSR and Edge Case Coverage', () => {
     units.forEach((unit): void => {
       const { result } = renderHook(() => useCineViewContext(), {
         wrapper: ({ children }) => (
-          <CineViewProvider designSize={750} unit={unit}>
+          <CineViewProvider designWidth={750} designHeight={750} unit={unit}>
             {children}
           </CineViewProvider>
         ),
@@ -409,7 +409,7 @@ describe('SSR and Edge Case Coverage', () => {
   it('should recalculate scale when viewport width changes', async (): Promise<void> => {
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="rem">
+        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
           {children}
         </CineViewProvider>
       ),
@@ -439,7 +439,7 @@ describe('SSR and Edge Case Coverage', () => {
   it('should handle convertSize function with different units', (): void => {
     const { result: pxResult } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -447,7 +447,7 @@ describe('SSR and Edge Case Coverage', () => {
 
     const { result: remResult } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="rem">
+        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
           {children}
         </CineViewProvider>
       ),
@@ -475,7 +475,7 @@ describe('SSR and Edge Case Coverage', () => {
     };
 
     render(
-      <CineViewProvider designSize={750} unit="px">
+      <CineViewProvider designWidth={750} designHeight={750} unit="px">
         <TestComponent />
       </CineViewProvider>
     );
@@ -491,7 +491,7 @@ describe('SSR and Edge Case Coverage', () => {
 
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -509,7 +509,7 @@ describe('Additional CineViewContext Coverage', () => {
   it('should handle vw unit correctly', (): void => {
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="vw">
+        <CineViewProvider designWidth={750} designHeight={750} unit="vw">
           {children}
         </CineViewProvider>
       ),
@@ -525,7 +525,7 @@ describe('Additional CineViewContext Coverage', () => {
     designSizes.forEach((designSize) => {
       const { result } = renderHook(() => useCineViewContext(), {
         wrapper: ({ children }) => (
-          <CineViewProvider designSize={designSize} unit="rem">
+          <CineViewProvider designWidth={designSize} designHeight={designSize} unit="rem">
             {children}
           </CineViewProvider>
         ),
@@ -539,7 +539,7 @@ describe('Additional CineViewContext Coverage', () => {
   it('should memoize convertSize function correctly', (): void => {
     const { result, rerender } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),
@@ -569,7 +569,7 @@ describe('SSR Environment Tests', () => {
     };
 
     render(
-      <CineViewProvider designSize={750} unit="px">
+      <CineViewProvider designWidth={750} designHeight={750} unit="px">
         <TestComponent />
       </CineViewProvider>
     );
@@ -590,7 +590,7 @@ describe('SSR Environment Tests', () => {
 
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designSize={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
           {children}
         </CineViewProvider>
       ),

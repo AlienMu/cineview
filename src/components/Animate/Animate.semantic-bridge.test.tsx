@@ -1,0 +1,133 @@
+import { render, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { Animate, SceneContext, type SceneContextType } from './Animate';
+
+jest.mock('framer-motion', () => {
+  const actualMotion = jest.requireActual('framer-motion');
+  return {
+    ...actualMotion,
+    motion: {
+      div: ({
+        children,
+        style,
+        ...props
+      }: React.HTMLAttributes<HTMLDivElement> & {
+        style?: React.CSSProperties;
+      }): JSX.Element => (
+        <div data-testid="motion-div" {...props} style={style}>
+          {children}
+        </div>
+      ),
+    },
+    useAnimation: (): {
+      start: jest.Mock;
+      set: jest.Mock;
+      stop: jest.Mock;
+    } => ({
+      start: jest.fn().mockResolvedValue(undefined),
+      set: jest.fn(),
+      stop: jest.fn(),
+    }),
+  };
+});
+
+jest.mock('../../animations/composer', () => ({
+  parseAnimationWithComposition: jest.fn(() =>
+    Promise.resolve({
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+    })
+  ),
+}));
+
+function createSceneContext(overrides?: Partial<SceneContextType>): SceneContextType {
+  const createMotionValueStub = (initialValue = 0) =>
+    ({
+      get: () => initialValue,
+      set: jest.fn(),
+      on: jest.fn(() => jest.fn()),
+    }) as never;
+
+  return {
+    mode: 'snap',
+    isActive: true,
+    isDragging: false,
+    dragProgressMotion: createMotionValueStub(),
+    sharedElapsedMotion: createMotionValueStub(),
+    sceneEnterCompleted: true,
+    sceneState: 'active',
+    sceneOffset: 0,
+    sceneTransitionDuration: 800,
+    registerAnimate: jest.fn(),
+    unregisterAnimate: jest.fn(),
+    getCalculatedDelay: jest.fn(() => 0),
+    getTimelineDuration: jest.fn(() => 800),
+    enterDuration: 600,
+    ...overrides,
+  };
+}
+
+describe('Animate semantic bridge', () => {
+  it('prefers grouped duration and timeline props over legacy flat fields in snap mode', async () => {
+    const sceneContext = createSceneContext({ mode: 'snap' });
+
+    render(
+      <SceneContext.Provider value={sceneContext}>
+        <Animate
+          animateId="grouped-priority"
+          enterAnimation="fade-in"
+          duration={{ enter: 420 }}
+          timeline={{ delay: 110, waitFor: 'grouped-anchor' }}
+          enterDuration={999}
+          delay={777}
+          waitFor="legacy-anchor"
+        >
+          <div>Grouped priority</div>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(sceneContext.registerAnimate).toHaveBeenCalledWith('grouped-priority', {
+        delay: 110,
+        duration: 420,
+        waitFor: 'grouped-anchor',
+      });
+    });
+  });
+
+  it('prefers grouped duration and timeline props over legacy flat fields in drag mode', async () => {
+    const sceneContext = createSceneContext({
+      mode: 'drag',
+      dragTimelineProgress: 0,
+      renderProgress: 0,
+      sharedTimelineDurationMs: 800,
+      sharedElapsedMs: 0,
+    });
+
+    render(
+      <SceneContext.Provider value={sceneContext}>
+        <Animate
+          animateId="grouped-drag-priority"
+          enterAnimation="fade-in"
+          duration={{ enter: 360 }}
+          timeline={{ delay: 95, waitFor: 'drag-grouped-anchor' }}
+          enterDuration={999}
+          delay={777}
+          waitFor="drag-legacy-anchor"
+        >
+          <div>Grouped drag priority</div>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(sceneContext.registerAnimate).toHaveBeenCalledWith('grouped-drag-priority', {
+        delay: 95,
+        duration: 360,
+        waitFor: 'drag-grouped-anchor',
+      });
+    });
+  });
+});

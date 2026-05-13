@@ -25,11 +25,17 @@ describe('Property: 相对定位累加性', () => {
   const createTestContext = (designSize: number, viewportWidth: number): CineViewContextValue => {
     const scale = viewportWidth / designSize;
     return {
+      designWidth: designSize,
+      designHeight: 1080,
       designSize,
       unit: 'px' as const,
       viewportWidth,
       viewportHeight: 1080,
+      scaleX: scale,
+      scaleY: 1,
       scale,
+      convertX: (size: number): number => size * scale,
+      convertY: (size: number): number => size,
       convertSize: (size: number): number => size * scale,
     };
   };
@@ -54,7 +60,6 @@ describe('Property: 相对定位累加性', () => {
       const pos = positions;
 
       const context = createTestContext(ds, vw);
-      const scale = context.scale;
 
       // 计算每个组件的期望最终位置
       // Position 组件使用百分比系统：所有坐标都是设计稿坐标
@@ -93,9 +98,7 @@ describe('Property: 相对定位累加性', () => {
 
       const { container } = render(
         <CineViewContext.Provider value={context}>
-          <div style={{ width: `${vw}px`, position: 'relative' }}>
-            {renderNestedPositions(pos)}
-          </div>
+          <div style={{ width: `${vw}px`, position: 'relative' }}>{renderNestedPositions(pos)}</div>
         </CineViewContext.Provider>
       );
 
@@ -127,7 +130,6 @@ describe('Property: 相对定位累加性', () => {
       const offsets = relativeOffsets;
 
       const context = createTestContext(ds, vw);
-      const scale = context.scale;
 
       // 计算期望位置
       const expectedPositions: number[] = [];
@@ -170,9 +172,7 @@ describe('Property: 相对定位累加性', () => {
 
       const { container } = render(
         <CineViewContext.Provider value={context}>
-          <div style={{ width: `${vw}px`, position: 'relative' }}>
-            {renderNestedPositions()}
-          </div>
+          <div style={{ width: `${vw}px`, position: 'relative' }}>{renderNestedPositions()}</div>
         </CineViewContext.Provider>
       );
 
@@ -201,7 +201,6 @@ describe('Property: 相对定位累加性', () => {
       const offs = offsets;
 
       const context = createTestContext(ds, vw);
-      const scale = context.scale;
 
       // 计算累加位置
       let cumulativeX = 0;

@@ -23,14 +23,19 @@ describe('Animation Trigger Bug Fixes', () => {
       const onAfterSceneChange = jest.fn();
 
       const { container } = render(
-        <CineView config={{ designSize: 750, unit: 'px' }} onAfterSceneChange={onAfterSceneChange}>
-          <Scene slideMode="snap" slideDuration={500}>
-            <Animate enterAnimation="fade-in" enterDuration={300} animateId="test-animate-1">
+        <CineView
+          config={{ width: 750, height: 1334, unit: 'px' }}
+          mode="snap"
+          modes={{ snap: { duration: 500 } }}
+          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+        >
+          <Scene>
+            <Animate enterAnimation="fade-in" duration={{ enter: 300 }} animateId="test-animate-1">
               <div data-testid="content-1">First Scene Content</div>
             </Animate>
           </Scene>
-          <Scene slideMode="snap" slideDuration={500}>
-            <Animate enterAnimation="fade-in" enterDuration={300} animateId="test-animate-2">
+          <Scene>
+            <Animate enterAnimation="fade-in" duration={{ enter: 300 }} animateId="test-animate-2">
               <div data-testid="content-2">Second Scene Content</div>
             </Animate>
           </Scene>
@@ -53,13 +58,13 @@ describe('Animation Trigger Bug Fixes', () => {
 
     it('should render first scene immediately without waiting for image load', async () => {
       const { container } = render(
-        <CineView config={{ designSize: 750, unit: 'px' }}>
-          <Scene
-            slideMode="snap"
-            slideDuration={500}
-            preloadImages={['https://example.com/image.jpg']}
-          >
-            <Animate enterAnimation="fade-in" enterDuration={300}>
+        <CineView
+          config={{ width: 750, height: 1334, unit: 'px' }}
+          mode="snap"
+          modes={{ snap: { duration: 500 } }}
+        >
+          <Scene assets={{ preloadImages: ['https://example.com/image.jpg'] }}>
+            <Animate enterAnimation="fade-in" duration={{ enter: 300 }}>
               <div data-testid="first-scene">First Scene</div>
             </Animate>
           </Scene>
@@ -85,14 +90,26 @@ describe('Animation Trigger Bug Fixes', () => {
             <button onClick={() => {}} data-testid="next-button">
               Next
             </button>
-            <CineView config={{ designSize: 750, unit: 'px' }}>
-              <Scene slideMode="snap" slideDuration={500}>
-                <Animate enterAnimation="fade-in" enterDuration={300} animateId="scene-0-animate">
+            <CineView
+              config={{ width: 750, height: 1334, unit: 'px' }}
+              mode="snap"
+              modes={{ snap: { duration: 500 } }}
+            >
+              <Scene>
+                <Animate
+                  enterAnimation="fade-in"
+                  duration={{ enter: 300 }}
+                  animateId="scene-0-animate"
+                >
                   <div data-testid="scene-0">Scene 0</div>
                 </Animate>
               </Scene>
-              <Scene slideMode="snap" slideDuration={500}>
-                <Animate enterAnimation="fade-in" enterDuration={300} animateId="scene-1-animate">
+              <Scene>
+                <Animate
+                  enterAnimation="fade-in"
+                  duration={{ enter: 300 }}
+                  animateId="scene-1-animate"
+                >
                   <div data-testid="scene-1">Scene 1</div>
                 </Animate>
               </Scene>
@@ -133,14 +150,26 @@ describe('Animation Trigger Bug Fixes', () => {
             <button onClick={() => {}} data-testid="go-to-0">
               Go to Scene 0
             </button>
-            <CineView config={{ designSize: 750, unit: 'px' }}>
-              <Scene slideMode="snap" slideDuration={500}>
-                <Animate enterAnimation="fade-in" enterDuration={300} animateId="scene-0-content">
+            <CineView
+              config={{ width: 750, height: 1334, unit: 'px' }}
+              mode="snap"
+              modes={{ snap: { duration: 500 } }}
+            >
+              <Scene>
+                <Animate
+                  enterAnimation="fade-in"
+                  duration={{ enter: 300 }}
+                  animateId="scene-0-content"
+                >
                   <div data-testid="scene-0-content">Scene 0 Content</div>
                 </Animate>
               </Scene>
-              <Scene slideMode="snap" slideDuration={500}>
-                <Animate enterAnimation="slide-up" enterDuration={300} animateId="scene-1-content">
+              <Scene>
+                <Animate
+                  enterAnimation="slide-up"
+                  duration={{ enter: 300 }}
+                  animateId="scene-1-content"
+                >
                   <div data-testid="scene-1-content">Scene 1 Content</div>
                 </Animate>
               </Scene>
@@ -180,25 +209,32 @@ describe('Animation Trigger Bug Fixes', () => {
   describe('Issue 3: Animation delay chain', () => {
     it('should correctly handle waitFor animation chains on scene change', async () => {
       const { container } = render(
-        <CineView config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap" slideDuration={500}>
-            <Animate enterAnimation="fade-in" enterDuration={200} delay={0} animateId="first">
+        <CineView
+          config={{ width: 750, height: 1334, unit: 'px' }}
+          mode="snap"
+          modes={{ snap: { duration: 500 } }}
+        >
+          <Scene>
+            <Animate
+              enterAnimation="fade-in"
+              duration={{ enter: 200 }}
+              timeline={{ delay: 0 }}
+              animateId="first"
+            >
               <div data-testid="first">First</div>
             </Animate>
             <Animate
               enterAnimation="fade-in"
-              enterDuration={200}
-              delay={100}
-              waitFor="first"
+              duration={{ enter: 200 }}
+              timeline={{ delay: 100, waitFor: 'first' }}
               animateId="second"
             >
               <div data-testid="second">Second</div>
             </Animate>
             <Animate
               enterAnimation="fade-in"
-              enterDuration={200}
-              delay={100}
-              waitFor="second"
+              duration={{ enter: 200 }}
+              timeline={{ delay: 100, waitFor: 'second' }}
               animateId="third"
             >
               <div data-testid="third">Third</div>

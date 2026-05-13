@@ -340,6 +340,137 @@ describe('useImagePreloader', () => {
         expect(progressUpdates[i]).toBeGreaterThanOrEqual(progressUpdates[i - 1]);
       }
     });
+
+    it('should not exceed 100 progress when URLs are added during an active preload', async () => {
+      const progressUpdates: number[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const originalImage = (global as any).Image;
+
+      class DelayedMockImage {
+        private currentSrc: string = '';
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+
+        get src(): string {
+          return this.currentSrc;
+        }
+
+        set src(value: string) {
+          this.currentSrc = value;
+          const delay = value.includes('priority') ? 25 : 5;
+          setTimeout(() => {
+            this.onload?.();
+          }, delay);
+        }
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).Image = DelayedMockImage;
+
+      const options: UseImagePreloaderOptions = {
+        priorityUrls: ['priority-image.jpg'],
+        backgroundUrls: ['background-image.jpg'],
+        onProgress: (progress) => {
+          progressUpdates.push(progress);
+        },
+      };
+
+      const { result } = renderHook(() => useImagePreloader(options));
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.startPreload();
+      });
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        const [, actions] = result.current;
+        actions.addUrls(['late-background-image.jpg'], false);
+      });
+
+      await waitFor(
+        () => {
+          const [state] = result.current;
+          expect(state.isLoading).toBe(false);
+        },
+        { timeout: 1000 }
+      );
+
+      const [state] = result.current;
+      expect(Math.max(...progressUpdates)).toBeLessThanOrEqual(100);
+      expect(progressUpdates[progressUpdates.length - 1]).toBe(100);
+      expect(state.progress).toBe(100);
+      expect(state.loadedCount).toBe(2);
+      expect(state.results).toHaveLength(2);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).Image = originalImage;
+    });
+
+    it('should ignore stale progress updates after reset starts a new preload run', async () => {
+      const progressUpdates: number[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const originalImage = (global as any).Image;
+
+      class SlowMockImage {
+        private currentSrc: string = '';
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+
+        get src(): string {
+          return this.currentSrc;
+        }
+
+        set src(value: string) {
+          this.currentSrc = value;
+          setTimeout(() => {
+            this.onload?.();
+          }, 20);
+        }
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).Image = SlowMockImage;
+
+      const options: UseImagePreloaderOptions = {
+        priorityUrls: ['image1.jpg'],
+        backgroundUrls: ['image2.jpg'],
+        onProgress: (progress) => {
+          progressUpdates.push(progress);
+        },
+      };
+
+      const { result } = renderHook(() => useImagePreloader(options));
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.startPreload();
+      });
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        const [, actions] = result.current;
+        actions.reset();
+        actions.startPreload();
+      });
+
+      await waitFor(
+        () => {
+          const [state] = result.current;
+          expect(state.isLoading).toBe(false);
+        },
+        { timeout: 1000 }
+      );
+
+      const [state] = result.current;
+      expect(progressUpdates[progressUpdates.length - 1]).toBe(100);
+      expect(Math.max(...progressUpdates)).toBeLessThanOrEqual(100);
+      expect(state.progress).toBe(100);
+      expect(state.loadedCount).toBe(2);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).Image = originalImage;
+    });
   });
 
   describe('错误处理', () => {

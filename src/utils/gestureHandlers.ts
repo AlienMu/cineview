@@ -1,6 +1,9 @@
 /**
  * Gesture Handler Utilities
  * Shared utilities for touch and mouse gesture handling
+ *
+ * Note: Drag mode is being refactored to use Framer Motion's built-in drag support.
+ * createDragGestureHandlers is deprecated and will be removed once Scene.tsx is refactored.
  */
 
 import { detectGesture } from './gestureDetector';
@@ -14,17 +17,22 @@ export interface GestureHandlerOptions {
   onAnimatingChange: (isAnimating: boolean) => void;
 }
 
+/**
+ * @deprecated This interface will be removed once Scene.tsx is refactored to use Framer Motion drag
+ */
 export interface DragHandlerOptions {
   slideDirection: 'x' | 'y';
   isDragging: boolean;
   dragProgress: number;
   onDragStart: (startPos: { x: number; y: number }, startProgress: number) => void;
   onDragMove: (progress: number) => void;
-  onDragEnd: (finalProgress: number) => void;
+  onDragEnd: (finalProgress: number, velocity: number) => void;
+  onWheel?: (progress: number) => void;
 }
 
 /**
  * Create snap mode gesture handlers
+ * Handles touch, mouse, and wheel events for snap mode scene transitions
  */
 export function createSnapGestureHandlers(
   touchStartRef: React.MutableRefObject<{ x: number; y: number } | null>,
@@ -138,6 +146,9 @@ export function createSnapGestureHandlers(
 
 /**
  * Create drag mode gesture handlers
+ * @deprecated This function will be removed once Scene.tsx is refactored to use Framer Motion drag.
+ * The drag mode refactor (tasks 1-4) is incomplete - Scene.tsx still uses manual event handlers.
+ * This function is kept temporarily to avoid breaking existing code.
  */
 export function createDragGestureHandlers(
   touchStartRef: React.MutableRefObject<{ x: number; y: number } | null>,
@@ -150,14 +161,30 @@ export function createDragGestureHandlers(
   handleMouseDown: (e: MouseEvent) => void;
   handleMouseMove: EventListener;
   handleMouseUp: () => void;
+  handleWheel: (e: WheelEvent) => void;
 } {
-  const { slideDirection, isDragging, dragProgress, onDragStart, onDragMove, onDragEnd } = options;
+  const { slideDirection, isDragging, dragProgress, onDragStart, onDragMove, onDragEnd, onWheel } =
+    options;
+
+  // 滚轮累积进度
+  let wheelProgress = 0;
+  let wheelTimeout: NodeJS.Timeout | null = null;
+
+  // 速度追踪
+  let lastMoveTime = 0;
+  let lastMoveProgress = 0;
+  let velocity = 0;
 
   const handleTouchStart = (e: TouchEvent): void => {
     const touch = e.touches[0];
     const startPos = { x: touch.clientX, y: touch.clientY };
     touchStartRef.current = startPos;
     dragStartProgressRef.current = dragProgress;
+
+    lastMoveTime = Date.now();
+    lastMoveProgress = dragProgress;
+    velocity = 0;
+
     onDragStart(startPos, dragProgress);
   };
 
@@ -171,22 +198,37 @@ export function createDragGestureHandlers(
     const delta = slideDirection === 'x' ? deltaX : deltaY;
     const viewportSize = slideDirection === 'x' ? window.innerWidth : window.innerHeight;
 
-    let progress = dragStartProgressRef.current + Math.abs(delta) / viewportSize;
-    progress = Math.max(0, Math.min(1, progress));
+    let progress = dragStartProgressRef.current + -delta / viewportSize;
+    progress = Math.max(-1.5, Math.min(1.5, progress));
+
+    const now = Date.now();
+    const timeDelta = now - lastMoveTime;
+    if (timeDelta > 0) {
+      const progressDelta = Math.abs(progress - lastMoveProgress);
+      velocity = progressDelta / timeDelta;
+      lastMoveTime = now;
+      lastMoveProgress = progress;
+    }
 
     onDragMove(progress);
   }, 16) as EventListener;
 
   const handleTouchEnd = (): void => {
     if (!isDragging) return;
-    onDragEnd(dragProgress);
+    onDragEnd(dragProgress, velocity);
     touchStartRef.current = null;
+    velocity = 0;
   };
 
   const handleMouseDown = (e: MouseEvent): void => {
     const startPos = { x: e.clientX, y: e.clientY };
     touchStartRef.current = startPos;
     dragStartProgressRef.current = dragProgress;
+
+    lastMoveTime = Date.now();
+    lastMoveProgress = dragProgress;
+    velocity = 0;
+
     onDragStart(startPos, dragProgress);
   };
 
@@ -199,16 +241,51 @@ export function createDragGestureHandlers(
     const delta = slideDirection === 'x' ? deltaX : deltaY;
     const viewportSize = slideDirection === 'x' ? window.innerWidth : window.innerHeight;
 
-    let progress = dragStartProgressRef.current + Math.abs(delta) / viewportSize;
-    progress = Math.max(0, Math.min(1, progress));
+    let progress = dragStartProgressRef.current + -delta / viewportSize;
+    progress = Math.max(-1.5, Math.min(1.5, progress));
+
+    const now = Date.now();
+    const timeDelta = now - lastMoveTime;
+    if (timeDelta > 0) {
+      const progressDelta = Math.abs(progress - lastMoveProgress);
+      velocity = progressDelta / timeDelta;
+      lastMoveTime = now;
+      lastMoveProgress = progress;
+    }
 
     onDragMove(progress);
   }, 16) as EventListener;
 
   const handleMouseUp = (): void => {
     if (!isDragging) return;
-    onDragEnd(dragProgress);
+    onDragEnd(dragProgress, velocity);
     touchStartRef.current = null;
+    velocity = 0;
+  };
+
+  const handleWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+
+    const delta = slideDirection === 'y' ? e.deltaY : e.deltaX;
+    const progressDelta = delta / 1000;
+    wheelProgress += progressDelta;
+    wheelProgress = Math.max(-1.5, Math.min(1.5, wheelProgress));
+
+    if (onWheel) {
+      onWheel(wheelProgress);
+    }
+
+    if (wheelTimeout) {
+      clearTimeout(wheelTimeout);
+    }
+
+    wheelTimeout = setTimeout(() => {
+      if (onDragEnd) {
+        onDragEnd(wheelProgress, 0);
+      }
+      wheelProgress = 0;
+      wheelTimeout = null;
+    }, 500);
   };
 
   return {
@@ -218,5 +295,6 @@ export function createDragGestureHandlers(
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
+    handleWheel,
   };
 }

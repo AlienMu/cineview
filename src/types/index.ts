@@ -17,7 +17,170 @@ export type SlideDirection = 'x' | 'y';
 /**
  * 滚动模式类型
  */
-export type ScrollMode = 'snap' | 'drag';
+export type ScrollMode = 'snap' | 'drag' | 'scroll';
+export type VirtualScrollPhase = 'before' | 'enter' | 'hold' | 'exit' | 'after';
+
+export type SceneAnchor =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'center-left'
+  | 'center'
+  | 'center-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
+export type SceneStackMode = 'replace' | 'cover';
+
+export type RuntimeState = 'inactive' | 'entering' | 'active' | 'exiting' | 'covered' | 'parked';
+
+// ============================================================================
+// Modern Public API Types
+// ============================================================================
+
+export interface CineViewDesignConfig {
+  /**
+   * Preferred modern API.
+   * Design draft width.
+   */
+  width?: number;
+  /**
+   * Preferred modern API.
+   * Design draft height.
+   */
+  height?: number;
+  unit?: SizeUnit;
+}
+
+export interface SnapModeConfig {
+  direction?: SlideDirection;
+  duration?: number;
+  replayOnReenter?: boolean;
+}
+
+export interface DragThresholdConfig {
+  minVelocity?: number;
+  maxVelocity?: number;
+  minRatio?: number;
+  maxRatio?: number;
+  reboundDuration?: number;
+}
+
+export interface DragModeConfig {
+  direction?: SlideDirection;
+  transitionDuration?: number;
+  threshold?: DragThresholdConfig;
+}
+
+export interface ScrollModeConfig {
+  direction?: SlideDirection;
+  zoneTrigger?: 'center-lock';
+  replayOnReenter?: boolean;
+  wheelStep?: number;
+  touchStep?: number;
+  sceneSizing?: 'content' | 'screen';
+}
+
+export interface ScrollbarConfig {
+  enabled?: boolean;
+  strategy?: 'native' | 'overlay';
+  width?: number;
+  radius?: number;
+  inset?: number;
+  trackColor?: string;
+  thumbColor?: string;
+  thumbHoverColor?: string;
+  autoHide?: boolean;
+}
+
+export interface SceneChangeDetail {
+  fromIndex: number;
+  toIndex: number;
+  direction?: 'forward' | 'backward' | null;
+}
+
+export interface InteractionStateDetail {
+  mode: ScrollMode;
+  dragging?: boolean;
+  scrolling?: boolean;
+  animating?: boolean;
+}
+
+export interface LayoutMeasuredDetail {
+  sceneIndex?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface CineViewErrorDetail {
+  code: string;
+  message: string;
+  context?: Record<string, unknown>;
+}
+
+export interface DragDetail {
+  sceneIndex: number;
+  progress: number;
+  direction?: 'forward' | 'backward' | null;
+}
+
+export interface DragCommitDetail extends DragDetail {
+  targetSceneIndex: number;
+  elapsedMs?: number;
+  timelineDurationMs?: number;
+}
+
+export interface ZoneDetail {
+  zoneId: string;
+  sceneIndex: number;
+}
+
+export interface ZoneProgressDetail extends ZoneDetail {
+  progress: number;
+  budget?: number;
+}
+
+export interface SceneVisibilityDetail {
+  sceneIndex?: number;
+  visible: boolean;
+  progress: number;
+}
+
+export interface CineViewCallbacks {
+  common?: {
+    onReady?: (api: CineViewRef) => void;
+    onLoadProgress?: (progress: number) => void;
+    onSceneWillChange?: (detail: SceneChangeDetail) => void;
+    onSceneDidChange?: (detail: SceneChangeDetail) => void;
+    onInteractionStateChange?: (detail: InteractionStateDetail) => void;
+    onLayoutMeasured?: (detail: LayoutMeasuredDetail) => void;
+    onError?: (detail: CineViewErrorDetail) => void;
+  };
+  snap?: {
+    onTransitionStart?: (detail: SceneChangeDetail) => void;
+    onTransitionEnd?: (detail: SceneChangeDetail) => void;
+  };
+  drag?: {
+    onDragStart?: (detail: DragDetail) => void;
+    onDragProgress?: (detail: DragDetail) => void;
+    onDragCommit?: (detail: DragCommitDetail) => void;
+    onDragCancel?: (detail: DragDetail) => void;
+  };
+  scroll?: {
+    onZoneEnter?: (detail: ZoneDetail) => void;
+    onZoneLeave?: (detail: ZoneDetail) => void;
+    onZoneProgress?: (detail: ZoneProgressDetail) => void;
+    onSceneVisibilityChange?: (detail: SceneVisibilityDetail) => void;
+  };
+}
+
+export interface CineViewPerformanceConfig {
+  preset?: 'balanced' | 'smooth' | 'strict';
+  virtualization?: 'auto' | 'off';
+  measurement?: 'observer' | 'manual';
+  monitor?: boolean;
+}
 
 // ============================================================================
 // Animation Types
@@ -123,24 +286,20 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
 // ============================================================================
 
 /**
- * CineView 组件配置
- */
-export interface CineViewConfig {
-  designSize: number; // 设计稿宽度
-  unit: 'px' | 'rem' | 'vw'; // 单位类型
-}
-
-/**
  * CineView 组件 Props
  */
 export interface CineViewProps {
-  config: CineViewConfig;
+  config: CineViewDesignConfig;
+  mode?: ScrollMode;
+  modes?: {
+    snap?: SnapModeConfig;
+    drag?: DragModeConfig;
+    scroll?: ScrollModeConfig;
+  };
+  scrollbar?: false | ScrollbarConfig;
+  callbacks?: CineViewCallbacks;
+  performance?: CineViewPerformanceConfig;
   children: ReactNode;
-  onInit?: () => void;
-  onBeforeSceneChange?: (fromIndex: number, toIndex: number) => void;
-  onAfterSceneChange?: (currentIndex: number) => void;
-  onLoadProgress?: (progress: number) => void; // 0-100
-  performanceMode?: boolean; // 性能模式
 }
 
 /**
@@ -157,50 +316,121 @@ export interface PerformanceMetrics {
  * CineView Ref 方法
  */
 export interface CineViewRef {
+  getState?: () => CineViewRuntimeSnapshot;
   goToScene: (index: number, animated?: boolean) => void;
-  triggerAnimation: (sceneIndex: number, animateId?: string) => void;
-  reload: () => void;
+  goToSceneAdvanced?: (
+    target: number | string,
+    options?: { animated?: boolean; align?: 'start' | 'center' }
+  ) => void;
+  goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
+  refreshLayout?: () => void;
+  preload?: (targets?: Array<number | string>) => Promise<void>;
   getCurrentScene: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
+}
+
+export interface CineViewRuntimeSnapshot {
+  mode: ScrollMode;
+  currentScene: number;
+  totalScenes?: number;
+  runtimeState?: RuntimeState;
 }
 
 /**
  * Scene 组件 Props
  */
 export interface SceneProps {
-  slideDirection?: 'x' | 'y'; // 滑动方向
-  slideMode?: 'snap' | 'drag'; // 滚动模式
-  slideDuration?: number; // 滑动动画时间（毫秒）
-  enterAnimation?: AnimationType; // 场景进入动画
-  exitAnimation?: AnimationType; // 场景离开动画
-  exitDuration?: number; // 离开动画时间（毫秒）
+  sceneId?: string;
+  layout?: {
+    width?: number | string;
+    height?: number | string;
+    anchor?: SceneAnchor;
+    overflow?: 'hidden' | 'visible' | 'clip';
+  };
+  stack?: {
+    mode?: SceneStackMode;
+    zIndex?: number;
+  };
+  transition?: {
+    enterAnimation?: AnimationType;
+    exitAnimation?: AnimationType;
+    exitDuration?: number;
+    replayOnReenter?: boolean;
+  };
+  assets?: {
+    preloadImages?: string[];
+  };
+  callbacks?: {
+    onVisibilityChange?: (detail: SceneVisibilityDetail) => void;
+  };
   children: ReactNode;
-  preloadImages?: string[]; // 需要预加载的图片 URL 列表
 }
 
 /**
  * Animate 组件 Props
  */
 export interface AnimateProps {
-  enterAnimation?: AnimationType; // 进入动画类型
-  enterDuration?: number; // 进入动画时间（毫秒）
-  exitAnimation?: AnimationType; // 离开动画类型
-  exitDuration?: number; // 离开动画时间（毫秒）
-  delay?: number; // 动画延迟（毫秒）
-  waitFor?: string; // 关联延迟组件 ID
-  infiniteAnimation?: AnimationType; // 无限循环动画
   animateId?: string; // 组件唯一标识
+  enterAnimation?: AnimationType; // 进入动画类型
+  exitAnimation?: AnimationType; // 离开动画类型
+  infiniteAnimation?: AnimationType; // 无限循环动画
+  duration?: {
+    enter?: number;
+    exit?: number;
+  };
+  timeline?: {
+    driver?: 'auto' | 'scene' | 'scroll' | 'visibility';
+    delay?: number;
+    waitFor?: string;
+    zoneId?: string;
+    phase?: {
+      start?: number;
+      end?: number;
+    };
+  };
+  visibility?: {
+    replayOnReenter?: boolean;
+    enterWhen?: 'fully-visible-bottom';
+    exitWhen?: 'leaving-top';
+  };
   children: ReactNode;
+}
+
+export interface ScrollZoneProps {
+  zoneId?: string;
+  trigger?: 'center-lock';
+  replayOnReenter?: boolean;
+  budget?: 'auto' | number;
+  children: ReactNode;
+}
+
+export interface ScrollTimelineState {
+  phase: VirtualScrollPhase;
+  enterProgress: number;
+  holdProgress: number;
+  exitProgress: number;
+  sceneProgress: number;
+  rangeStart: number;
+  rangeEnd: number;
+  rangeLength: number;
+  enterLength: number;
+  holdLength: number;
+  exitLength: number;
 }
 
 /**
  * Position 组件 Props
  */
 export interface PositionProps {
-  x?: number; // 绝对 X 坐标（设计稿单位）
-  y?: number; // 绝对 Y 坐标（设计稿单位）
-  offsetX?: number; // 相对 X 偏移（设计稿单位）
-  offsetY?: number; // 相对 Y 偏移（设计稿单位）
+  at?: {
+    x?: number;
+    y?: number;
+    offsetX?: number;
+    offsetY?: number;
+  };
+  layer?: {
+    fixed?: boolean;
+  };
   children: ReactNode;
   positionId?: string; // 用于相对定位计算的标识
   style?: React.CSSProperties; // 额外的样式
@@ -226,11 +456,17 @@ export interface ContainerProps {
  * CineView 上下文
  */
 export interface CineViewContext {
+  designWidth?: number;
+  designHeight?: number;
   designSize: number;
   unit: 'px' | 'rem' | 'vw';
   viewportWidth: number;
   viewportHeight: number;
+  scaleX?: number;
+  scaleY?: number;
   scale: number; // 换算比例
+  convertX?: (size: number) => number;
+  convertY?: (size: number) => number;
   convertSize: (size: number) => number; // 尺寸换算函数
   currentScene: number;
   totalScenes: number;
@@ -245,9 +481,11 @@ export interface SceneState {
   totalScenes: number; // 总场景数
   isAnimating: boolean; // 是否正在动画中（snap 模式）
   isDragging: boolean; // 是否正在拖拽中（drag 模式）
+  isScrolling: boolean; // 是否正在滚动过渡中（scroll 模式）
   dragProgress: number; // 拖拽进度 0-1（drag 模式）
+  scrollProgress: number; // 滚动推进进度 0-1（scroll 模式）
   direction: 'forward' | 'backward'; // 切换方向
-  slideMode: 'snap' | 'drag'; // 当前场景的滚动模式
+  mode: ScrollMode; // 当前场景的滚动模式
   animateRegistry: Set<string>; // 当前场景内注册的 Animate 组件 ID 集合
 }
 

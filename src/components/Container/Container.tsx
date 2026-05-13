@@ -2,7 +2,7 @@
  * Container 组件
  * 提供响应式容器，完全基于百分比系统
  * 只能在 CineView 下使用
- * 
+ *
  * 设计理念：
  * - 宽高都转换为相对于设计稿的百分比
  * - 这样可以完美适配任何屏幕尺寸
@@ -30,19 +30,16 @@ export const Container: React.FC<ContainerProps> = ({
     );
   }
 
-  // 计算响应式尺寸 - 使用百分比
+  // 计算响应式尺寸 - 使用双轴设计基准换算
   const containerStyle = useMemo(() => {
     if (!context) return style;
 
-    const { designSize } = context;
-
-    // 将设计稿尺寸转换为百分比
-    const widthPercent = width !== undefined ? (width / designSize) * 100 : undefined;
-    const heightPercent = height !== undefined ? (height / designSize) * 100 : undefined;
+    const widthPx = width !== undefined ? context.convertX(width) : undefined;
+    const heightPx = height !== undefined ? context.convertY(height) : undefined;
 
     return {
-      width: widthPercent !== undefined ? `${widthPercent}%` : undefined,
-      height: heightPercent !== undefined ? `${heightPercent}%` : undefined,
+      width: widthPx,
+      height: heightPx,
       ...style,
     };
   }, [context, width, height, style]);

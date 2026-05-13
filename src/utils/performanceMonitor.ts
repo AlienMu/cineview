@@ -16,6 +16,11 @@ export class PerformanceMonitor {
   private lastTime: number = performance.now();
   private frameTimes: number[] = [];
   private readonly maxFrameTimeSamples: number = 60;
+  private memorySamples: number[] = [];
+  private readonly maxMemorySamples: number = 8;
+  private readonly memorySampleIntervalMs: number = 1000;
+  private lastMemorySampleTime: number = 0;
+  private cachedMemoryUsage: number | undefined = undefined;
   private rafId: number | null = null;
   private isMonitoring: boolean = false;
 
@@ -29,6 +34,9 @@ export class PerformanceMonitor {
     this.frameCount = 0;
     this.lastTime = performance.now();
     this.frameTimes = [];
+    this.memorySamples = [];
+    this.lastMemorySampleTime = 0;
+    this.cachedMemoryUsage = undefined;
     this.measure();
   }
 
@@ -60,6 +68,7 @@ export class PerformanceMonitor {
       this.frameTimes.shift();
     }
 
+    this.sampleMemory(currentTime);
     this.lastTime = currentTime;
     this.rafId = requestAnimationFrame(this.measure);
   };
@@ -111,15 +120,40 @@ export class PerformanceMonitor {
    * @returns 内存使用量（MB）
    */
   private getMemoryUsage(): number | undefined {
-    // @ts-expect-error - performance.memory 不是标准 API
-    if (performance.memory) {
-      // @ts-expect-error - performance.memory.usedJSHeapSize is non-standard API
-      const usedJSHeapSize = performance.memory.usedJSHeapSize;
+    this.sampleMemory(performance.now(), this.cachedMemoryUsage === undefined);
+    return this.cachedMemoryUsage;
+  }
 
-      // 转换为 MB
-      return Math.round((usedJSHeapSize / (1024 * 1024)) * 10) / 10;
+  private sampleMemory(currentTime: number, force: boolean = false): void {
+    // @ts-expect-error - performance.memory 不是标准 API
+    if (!performance.memory) {
+      this.cachedMemoryUsage = undefined;
+      this.memorySamples = [];
+      return;
     }
-    return undefined;
+
+    if (!force && currentTime - this.lastMemorySampleTime < this.memorySampleIntervalMs) {
+      return;
+    }
+
+    // @ts-expect-error - performance.memory.usedJSHeapSize is non-standard API
+    const usedJSHeapSize = performance.memory.usedJSHeapSize;
+    const memoryInMb = usedJSHeapSize / (1024 * 1024);
+
+    this.memorySamples.push(memoryInMb);
+    if (this.memorySamples.length > this.maxMemorySamples) {
+      this.memorySamples.shift();
+    }
+
+    const sortedSamples = [...this.memorySamples].sort((a, b) => a - b);
+    const middleIndex = Math.floor(sortedSamples.length / 2);
+    const medianMemory =
+      sortedSamples.length % 2 === 0
+        ? (sortedSamples[middleIndex - 1] + sortedSamples[middleIndex]) / 2
+        : sortedSamples[middleIndex];
+
+    this.cachedMemoryUsage = Math.round(medianMemory * 10) / 10;
+    this.lastMemorySampleTime = currentTime;
   }
 
   /**
@@ -128,7 +162,10 @@ export class PerformanceMonitor {
   reset(): void {
     this.frameCount = 0;
     this.frameTimes = [];
+    this.memorySamples = [];
     this.lastTime = performance.now();
+    this.lastMemorySampleTime = 0;
+    this.cachedMemoryUsage = undefined;
   }
 
   /**

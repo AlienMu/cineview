@@ -13,6 +13,66 @@ import type { CineViewRef } from '../../types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
+  __esModule: true,
+  useMotionValue: (initial: number) => {
+    let current = initial;
+    const listeners = new Set<(value: number) => void>();
+
+    return {
+      get: () => current,
+      set: (value: number) => {
+        current = value;
+        listeners.forEach((listener) => listener(current));
+      },
+      on: (event: string, listener: (value: number) => void) => {
+        if (event !== 'change') {
+          return () => undefined;
+        }
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+  },
+  useTransform: (
+    source: {
+      get: () => number;
+      on?: (event: string, listener: (value: number) => void) => () => void;
+    },
+    transform: (value: number) => number
+  ) => {
+    let current = transform(source.get());
+    const listeners = new Set<(value: number) => void>();
+    const motionValue = {
+      get: () => current,
+      set: (value: number) => {
+        current = value;
+        listeners.forEach((listener) => listener(current));
+      },
+      on: (event: string, listener: (value: number) => void) => {
+        if (event !== 'change') {
+          return () => undefined;
+        }
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    source.on?.('change', (value) => {
+      motionValue.set(transform(value));
+    });
+    return motionValue;
+  },
+  animate: (
+    value: { set?: (next: number) => void } | number,
+    target: number,
+    options?: { onUpdate?: (value: number) => void; onComplete?: () => void }
+  ) => {
+    if (typeof value === 'object' && value?.set) {
+      value.set(target);
+    }
+    options?.onUpdate?.(target);
+    options?.onComplete?.();
+    return { stop: jest.fn() };
+  },
   motion: {
     div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
       <div {...props}>{children}</div>
@@ -74,9 +134,9 @@ describe('性能测试', () => {
     test('应该能够渲染 20+ 场景而不崩溃', async () => {
       const sceneCount = 25; // 高标准：25 个场景
       const scenes = Array.from({ length: sceneCount }, (_, i) => (
-        <Scene key={i} slideMode="snap">
-          <Position x={100} y={100}>
-            <Animate enterAnimation="fade-in" enterDuration={100}>
+        <Scene key={i}>
+          <Position at={{ x: 100, y: 100 }}>
+            <Animate enterAnimation="fade-in" duration={{ enter: 100 }}>
               <h1>场景 {i + 1}</h1>
             </Animate>
           </Position>
@@ -84,7 +144,12 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
           {scenes}
         </CineView>
       );
@@ -114,13 +179,18 @@ describe('性能测试', () => {
     test('应该能够渲染 50+ 场景（虚拟化渲染）', async () => {
       const sceneCount = 55; // 高标准：55 个场景
       const scenes = Array.from({ length: sceneCount }, (_, i) => (
-        <Scene key={i} slideMode="snap">
+        <Scene key={i}>
           <h1 data-testid={`scene-${i}`}>场景 {i + 1}</h1>
         </Scene>
       ));
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
           {scenes}
         </CineView>
       );
@@ -184,13 +254,18 @@ describe('性能测试', () => {
     test('应该能够渲染 100+ 场景并快速切换', async () => {
       const sceneCount = 105; // 高标准：105 个场景
       const scenes = Array.from({ length: sceneCount }, (_, i) => (
-        <Scene key={i} slideMode="snap" slideDuration={50}>
+        <Scene key={i}>
           <h1>场景 {i + 1}</h1>
         </Scene>
       ));
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 50 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
           {scenes}
         </CineView>
       );
@@ -239,14 +314,14 @@ describe('性能测试', () => {
       );
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene preloadImages={images.slice(0, 12)}>
+        <CineView ref={cineViewRef} config={{ width: 750, height: 750, unit: 'px' }}>
+          <Scene assets={{ preloadImages: images.slice(0, 12) }}>
             <h1>首屏场景</h1>
           </Scene>
-          <Scene preloadImages={images.slice(12, 24)}>
+          <Scene assets={{ preloadImages: images.slice(12, 24) }}>
             <h1>场景 2</h1>
           </Scene>
-          <Scene preloadImages={images.slice(24, 36)}>
+          <Scene assets={{ preloadImages: images.slice(24, 36) }}>
             <h1>场景 3</h1>
           </Scene>
         </CineView>
@@ -308,11 +383,15 @@ describe('性能测试', () => {
       } as unknown as typeof Image;
 
       const TestApp = (): JSX.Element => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
-          <Scene preloadImages={['https://example.com/priority1.jpg']}>
+        <CineView
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
             <h1>首屏</h1>
           </Scene>
-          <Scene preloadImages={['https://example.com/background1.jpg']}>
+          <Scene assets={{ preloadImages: ['https://example.com/background1.jpg'] }}>
             <h1>场景 2</h1>
           </Scene>
         </CineView>
@@ -345,8 +424,15 @@ describe('性能测试', () => {
       const onLoadProgress = jest.fn();
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }} onLoadProgress={onLoadProgress}>
-          <Scene preloadImages={['https://example.com/valid.jpg', 'https://invalid-url/image.jpg']}>
+        <CineView
+          config={{ width: 750, height: 750, unit: 'px' }}
+          callbacks={{ common: { onLoadProgress } }}
+        >
+          <Scene
+            assets={{
+              preloadImages: ['https://example.com/valid.jpg', 'https://invalid-url/image.jpg'],
+            }}
+          >
             <h1>测试场景</h1>
           </Scene>
         </CineView>
@@ -396,19 +482,21 @@ describe('性能测试', () => {
           key={i}
           animateId={`anim-${i}`}
           enterAnimation="fade-in"
-          enterDuration={200}
-          delay={i * 20}
+          duration={{ enter: 200 }}
+          timeline={{ delay: i * 20 }}
         >
           <div data-testid={`animated-element-${i}`}>元素 {i + 1}</div>
         </Animate>
       ));
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap">
-            <Position x={100} y={100}>
-              {animations}
-            </Position>
+        <CineView
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
+            <Position at={{ x: 100, y: 100 }}>{animations}</Position>
           </Scene>
         </CineView>
       );
@@ -438,19 +526,21 @@ describe('性能测试', () => {
           key={i}
           animateId={`anim-${i}`}
           enterAnimation="fade-in"
-          enterDuration={150}
-          delay={i * 10}
+          duration={{ enter: 150 }}
+          timeline={{ delay: i * 10 }}
         >
           <div data-testid={`animated-element-${i}`}>元素 {i + 1}</div>
         </Animate>
       ));
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap">
-            <Position x={100} y={100}>
-              {animations}
-            </Position>
+        <CineView
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
+            <Position at={{ x: 100, y: 100 }}>{animations}</Position>
           </Scene>
         </CineView>
       );
@@ -475,7 +565,11 @@ describe('性能测试', () => {
 
     test('应该在性能模式下启用性能监控', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }} performanceMode={true}>
+        <CineView
+          ref={cineViewRef}
+          config={{ width: 750, height: 750, unit: 'px' }}
+          performance={{ monitor: true }}
+        >
           <Scene>
             <h1>性能监控测试</h1>
           </Scene>
@@ -520,13 +614,13 @@ describe('性能测试', () => {
       const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="drag" slideDirection="y">
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
+          <Scene>
             <Animate exitAnimation="fade-out">
               <h1>拖拽性能测试</h1>
             </Animate>
           </Scene>
-          <Scene slideMode="drag" slideDirection="y">
+          <Scene>
             <h1>下一场景</h1>
           </Scene>
         </CineView>
@@ -555,15 +649,30 @@ describe('性能测试', () => {
 
     test('应该正确处理动画延迟链而不阻塞主线程', async () => {
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
-            <Animate animateId="anim1" enterAnimation="fade-in" enterDuration={50} delay={0}>
+            <Animate
+              animateId="anim1"
+              enterAnimation="fade-in"
+              duration={{ enter: 50 }}
+              timeline={{ delay: 0 }}
+            >
               <div>动画 1</div>
             </Animate>
-            <Animate animateId="anim2" enterAnimation="fade-in" enterDuration={50} waitFor="anim1">
+            <Animate
+              animateId="anim2"
+              enterAnimation="fade-in"
+              duration={{ enter: 50 }}
+              timeline={{ waitFor: 'anim1' }}
+            >
               <div>动画 2</div>
             </Animate>
-            <Animate animateId="anim3" enterAnimation="fade-in" enterDuration={50} waitFor="anim2">
+            <Animate
+              animateId="anim3"
+              enterAnimation="fade-in"
+              duration={{ enter: 50 }}
+              timeline={{ waitFor: 'anim2' }}
+            >
               <div>动画 3</div>
             </Animate>
           </Scene>
@@ -601,14 +710,19 @@ describe('性能测试', () => {
       const removeEventListenerSpy = jest.spyOn(HTMLDivElement.prototype, 'removeEventListener');
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }}>
-          <Scene slideMode="snap">
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 500 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+        >
+          <Scene>
             <h1>场景 1</h1>
           </Scene>
-          <Scene slideMode="snap">
+          <Scene>
             <h1>场景 2</h1>
           </Scene>
-          <Scene slideMode="snap">
+          <Scene>
             <h1>场景 3</h1>
           </Scene>
         </CineView>
@@ -661,7 +775,7 @@ describe('性能测试', () => {
 
     test('应该在组件卸载时清理所有资源', async () => {
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }} performanceMode={true}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }} performance={{ monitor: true }}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -698,7 +812,7 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>{animations}</Scene>
         </CineView>
       );
@@ -730,9 +844,9 @@ describe('性能测试', () => {
       const startTime = performance.now();
 
       const TestApp = () => (
-        <CineView config={{ designSize: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
           <Scene>
-            <Position x={100} y={100}>
+            <Position at={{ x: 100, y: 100 }}>
               <Animate enterAnimation="fade-in">
                 <h1>首屏内容</h1>
               </Animate>
@@ -764,11 +878,17 @@ describe('性能测试', () => {
 
     test('应该在场景切换时保持 60fps', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ designSize: 750, unit: 'px' }} performanceMode={true}>
-          <Scene slideMode="snap" slideDuration={300}>
+        <CineView
+          ref={cineViewRef}
+          mode="snap"
+          modes={{ snap: { direction: 'y', duration: 300 } }}
+          config={{ width: 750, height: 750, unit: 'px' }}
+          performance={{ monitor: true }}
+        >
+          <Scene>
             <h1>场景 1</h1>
           </Scene>
-          <Scene slideMode="snap" slideDuration={300}>
+          <Scene>
             <h1>场景 2</h1>
           </Scene>
         </CineView>

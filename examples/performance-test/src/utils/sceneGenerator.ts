@@ -92,7 +92,7 @@ const elementAnimations: PresetAnimation[] = [
   'fade-in',
   'slide-up',
   'slide-down',
-  'slide-left',
+  'zoom-in',
   'slide-right',
   'zoom-in',
   'scale-up',

@@ -5,6 +5,7 @@ import {
   parseCustomAnimation,
   parseAnimation,
   createDefaultAnimation,
+  normalizeParsedAnimationVariant,
 } from './animationParser';
 import type { CustomAnimation } from '../types';
 
@@ -22,8 +23,8 @@ jest.mock('./presets', () => ({
       return Promise.reject(new Error('Invalid animation'));
     }
     return Promise.resolve({
-      initial: { opacity: 0 },
-      animate: { opacity: 1 },
+      initial: { opacity: 0, transformOrigin: 'bottom center' },
+      animate: { opacity: 1, transformOrigin: 'bottom center' },
       exit: { opacity: 0 },
     });
   }),
@@ -206,6 +207,32 @@ describe('animationParser', () => {
         'cubic-bezier(0.4, 0, 0.2, 1)'
       );
     });
+
+    it('should normalize transformOrigin keywords in custom animations', () => {
+      const animation: CustomAnimation = {
+        keyframes: { rotate: 12, transformOrigin: 'bottom center' },
+      };
+
+      const variant = convertWebAnimationToVariant(animation);
+
+      expect(variant).toHaveProperty('transformOrigin', '50% 100%');
+    });
+  });
+
+  describe('normalizeParsedAnimationVariant', () => {
+    it('should normalize transformOrigin keywords across phases', () => {
+      const result = normalizeParsedAnimationVariant({
+        initial: { transformOrigin: 'top center' },
+        animate: { transformOrigin: 'center bottom' },
+        exit: { transformOrigin: 'top left' },
+      });
+
+      expect(result).toEqual({
+        initial: { transformOrigin: '50% 0%' },
+        animate: { transformOrigin: '50% 100%' },
+        exit: { transformOrigin: '0% 0%' },
+      });
+    });
   });
 
   describe('parsePresetAnimation', () => {
@@ -247,6 +274,19 @@ describe('animationParser', () => {
       expect(result?.animate).toMatchObject({
         opacity: 1,
         transform: 'scale(1)',
+      });
+    });
+
+    it('should normalize transformOrigin in parsed custom animations', () => {
+      const animation: CustomAnimation = {
+        keyframes: { opacity: 1, transformOrigin: 'top center' },
+      };
+
+      const result = parseCustomAnimation(animation);
+
+      expect(result?.animate).toMatchObject({
+        opacity: 1,
+        transformOrigin: '50% 0%',
       });
     });
 

@@ -1,58 +1,46 @@
-import React, { useRef, useState, useEffect } from 'react';
-import {
-  CineView,
-  Scene,
-  Animate,
-  Position,
-  Container,
-  OptimizedImage,
-  useConvertSize,
-} from 'cineview';
-import type { CineViewRef, PerformanceMetrics } from 'cineview';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animate, CineView, Container, OptimizedImage, Position, Scene } from 'cineview';
+import type { CineViewRef, PerformanceMetrics, ScrollMode } from 'cineview';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import SceneNavigation from './components/SceneNavigation';
 import { generateScenes } from './utils/sceneGenerator';
 
-// 单个场景内容组件
-const SceneContent: React.FC<{
-  scene: ReturnType<typeof generateScenes>[0];
+function SceneContent({
+  scene,
+  index,
+}: {
+  scene: ReturnType<typeof generateScenes>[number];
   index: number;
-}> = ({ scene, index }) => {
-  const convertSize = useConvertSize();
-
+}): JSX.Element {
   return (
     <>
-      {/* Background */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
+          inset: 0,
           width: '100%',
           height: '100%',
           background: scene.background,
-          zIndex: 0,
         }}
       />
 
-      {/* 使用 Container 包裹标题和描述 */}
       <Container>
-        <Position x={375} y={200}>
+        <Position at={{ x: 375, y: 200 }}>
           <Animate
-            enterAnimation="slide-down"
-            enterDuration={800}
-            delay={0}
             animateId={`scene-${index}-title`}
+            enterAnimation="slide-down"
+            exitAnimation="slide-up"
+            duration={{ enter: 800, exit: 800 }}
           >
             <h1
               style={{
-                fontSize: convertSize(80),
+                fontSize: '60px',
                 fontWeight: 'bold',
                 color: '#fff',
                 textAlign: 'center',
                 textShadow: '0 4px 20px rgba(0,0,0,0.5)',
                 transform: 'translateX(-50%)',
-                width: convertSize(600),
+                width: '600px',
               }}
             >
               Scene {index + 1}
@@ -60,20 +48,21 @@ const SceneContent: React.FC<{
           </Animate>
         </Position>
 
-        <Position x={375} y={320}>
+        <Position at={{ x: 375, y: 320 }}>
           <Animate
+            animateId={`scene-${index}-copy`}
             enterAnimation="slide-up"
-            enterDuration={800}
-            delay={300}
-            animateId={`scene-${index}-desc`}
+            exitAnimation="slide-down"
+            duration={{ enter: 800, exit: 800 }}
+            timeline={{ delay: 240 }}
           >
             <p
               style={{
-                fontSize: convertSize(24),
+                fontSize: '24px',
                 color: '#fff',
                 textAlign: 'center',
                 transform: 'translateX(-50%)',
-                width: convertSize(600),
+                width: '620px',
                 lineHeight: 1.6,
                 textShadow: '0 2px 10px rgba(0,0,0,0.5)',
               }}
@@ -84,23 +73,23 @@ const SceneContent: React.FC<{
         </Position>
       </Container>
 
-      {/* 使用 Container 包裹动画元素 */}
       <Container>
-        {scene.elements.map((element, elemIndex) => (
-          <Position key={elemIndex} x={element.x} y={element.y}>
+        {scene.elements.slice(0, 4).map((element, elementIndex) => (
+          <Position key={elementIndex} at={{ x: element.x, y: element.y }}>
             <Animate
+              animateId={`scene-${index}-element-${elementIndex}`}
               enterAnimation={element.animation}
-              enterDuration={element.duration}
-              delay={element.delay}
+              exitAnimation="fade-out"
               infiniteAnimation={element.infiniteAnimation}
-              animateId={`scene-${index}-elem-${elemIndex}`}
+              duration={{ enter: element.duration, exit: element.duration }}
+              timeline={{ delay: element.delay }}
             >
               <div
                 style={{
-                  width: convertSize(element.size),
-                  height: convertSize(element.size),
+                  width: `${element.size}px`,
+                  height: `${element.size}px`,
                   background: element.color,
-                  borderRadius: element.shape === 'circle' ? '50%' : convertSize(8),
+                  borderRadius: element.shape === 'circle' ? '50%' : '8px',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
                 }}
               />
@@ -109,196 +98,125 @@ const SceneContent: React.FC<{
         ))}
       </Container>
 
-      {/* Image Test */}
-      {scene.images.length > 0 && (
-        <Position x={375} y={650}>
+      {scene.images[0] && (
+        <Position at={{ x: 375, y: 650 }}>
           <Animate
-            enterAnimation="zoom-in"
-            enterDuration={800}
-            delay={scene.elements.length * 300 + 300}
             animateId={`scene-${index}-image`}
+            enterAnimation="zoom-in"
+            exitAnimation="zoom-out"
+            duration={{ enter: 700, exit: 700 }}
+            timeline={{ delay: 640 }}
           >
             <div style={{ transform: 'translateX(-50%)' }}>
               <OptimizedImage
                 src={scene.images[0]}
-                alt={`Scene ${index} test`}
-                width={convertSize(400)}
-                height={convertSize(300)}
+                alt={`Scene ${index + 1}`}
+                width={400}
+                height={300}
                 placeholder="rgba(255,255,255,0.1)"
-                style={{
-                  borderRadius: convertSize(12),
-                  boxShadow: '0 12px 48px rgba(0,0,0,0.4)',
-                }}
+                style={{ borderRadius: '12px', boxShadow: '0 12px 48px rgba(0,0,0,0.4)' }}
               />
             </div>
           </Animate>
         </Position>
       )}
-
-      {/* Performance Info */}
-      <Position x={375} y={scene.images.length > 0 ? 1000 : 700}>
-        <Animate 
-          enterAnimation="fade-in" 
-          enterDuration={600} 
-          delay={scene.elements.length * 300 + 600}
-        >
-          <div
-            style={{
-              fontSize: convertSize(16),
-              color: 'rgba(255,255,255,0.8)',
-              textAlign: 'center',
-              transform: 'translateX(-50%)',
-              width: convertSize(600),
-              background: 'rgba(0,0,0,0.3)',
-              padding: convertSize(16),
-              borderRadius: convertSize(8),
-              backdropFilter: 'blur(10px)',
-            }}
-          >
-            <div style={{ marginBottom: convertSize(8) }}>
-              <strong>进场:</strong> {scene.enterAnimation} | <strong>退场:</strong> {scene.exitAnimation}
-            </div>
-            <div>
-              <strong>元素数量:</strong> {scene.elements.length} | 
-              <strong>持续动画:</strong> {scene.elements.filter(e => e.infiniteAnimation).length}
-            </div>
-            {scene.images.length > 0 && (
-              <div style={{ marginTop: convertSize(8) }}>📷 图片预加载测试</div>
-            )}
-          </div>
-        </Animate>
-      </Position>
     </>
   );
-};
+}
 
-const App: React.FC = () => {
+export default function App(): JSX.Element {
   const cineViewRef = useRef<CineViewRef>(null);
   const [currentScene, setCurrentScene] = useState(0);
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
   const [loadProgress, setLoadProgress] = useState(0);
-  const [slideMode, setSlideMode] = useState<'snap' | 'drag'>('snap');
+  const [mode, setMode] = useState<Exclude<ScrollMode, 'scroll'>>('snap');
 
-  // Generate 25 scenes for performance testing
-  const scenes = generateScenes(25);
+  const scenes = useMemo(() => generateScenes(8), []);
 
-  // Update performance metrics every second
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       if (cineViewRef.current) {
-        const newMetrics = cineViewRef.current.getPerformanceMetrics();
-        setMetrics(newMetrics);
+        setMetrics(cineViewRef.current.getPerformanceMetrics());
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, []);
 
-  const handleSceneChange = (index: number): void => {
-    setCurrentScene(index);
-  };
-
-  const handleLoadProgress = (progress: number): void => {
-    setLoadProgress(progress);
-  };
-
-  const toggleSlideMode = (): void => {
-    setSlideMode((prev) => (prev === 'snap' ? 'drag' : 'snap'));
-  };
+  useEffect(() => {
+    setCurrentScene(0);
+  }, [mode]);
 
   return (
     <>
       <CineView
+        key={mode}
         ref={cineViewRef}
-        config={{
-          designSize: 750,
-          unit: 'px',
+        mode={mode}
+        modes={{
+          snap: { direction: 'y', duration: 800 },
+          drag: { direction: 'y', transitionDuration: 800 },
         }}
-        onAfterSceneChange={handleSceneChange}
-        onLoadProgress={handleLoadProgress}
-        performanceMode={true}
+        config={{ width: 750, height: 1334, unit: 'px' }}
+        callbacks={{
+          common: {
+            onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
+            onLoadProgress: (progress) => setLoadProgress(progress),
+          },
+        }}
+        performance={{ preset: 'smooth' }}
       >
         {scenes.map((scene, index) => (
           <Scene
             key={index}
-            slideDirection="y"
-            slideMode={slideMode}
-            slideDuration={800}
-            enterAnimation={scene.enterAnimation}
-            exitAnimation={scene.exitAnimation}
-            exitDuration={800}
-            preloadImages={scene.images}
+            transition={{
+              enterAnimation: scene.enterAnimation,
+              exitAnimation: scene.exitAnimation,
+              exitDuration: 800,
+            }}
+            assets={{ preloadImages: scene.images }}
           >
             <SceneContent scene={scene} index={index} />
           </Scene>
         ))}
       </CineView>
 
-      {/* Performance Monitor Overlay */}
       {metrics && (
         <PerformanceMonitor
           metrics={metrics}
           currentScene={currentScene}
           totalScenes={scenes.length}
           loadProgress={loadProgress}
+          mode={mode}
+          transitionDuration={800}
         />
       )}
 
-      {/* Scene Navigation */}
       <SceneNavigation
         currentScene={currentScene}
         totalScenes={scenes.length}
-        onGoToScene={(index) => cineViewRef.current?.goToScene(index)}
+        onGoToScene={(index) => cineViewRef.current?.goToScene(index, true)}
+        mode={mode}
       />
 
-      {/* Slide Mode Toggle Button */}
-      <div
+      <button
+        onClick={() => setMode((current) => (current === 'snap' ? 'drag' : 'snap'))}
         style={{
           position: 'fixed',
-          top: '20px',
-          right: '20px',
+          top: 24,
+          right: 24,
           zIndex: 10000,
+          padding: '10px 16px',
+          borderRadius: 10,
+          border: '1px solid rgba(255,255,255,0.18)',
+          background: 'rgba(10,12,18,0.76)',
+          color: '#fff',
+          cursor: 'pointer',
+          backdropFilter: 'blur(14px)',
         }}
       >
-        <button
-          onClick={toggleSlideMode}
-          style={{
-            padding: '12px 24px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            color: '#fff',
-            background: slideMode === 'snap' ? '#667eea' : '#f5576c',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            transition: 'all 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-          }}
-        >
-          {slideMode === 'snap' ? '📸 Snap Mode' : '👆 Drag Mode'}
-        </button>
-        <div
-          style={{
-            marginTop: '8px',
-            fontSize: '12px',
-            color: '#fff',
-            textAlign: 'center',
-            textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-          }}
-        >
-          {slideMode === 'snap' ? '滚轮/触摸切换' : '拖拽切换场景'}
-        </div>
-      </div>
+        Switch to {mode === 'snap' ? 'drag' : 'snap'}
+      </button>
     </>
   );
-};
-
-export default App;
+}

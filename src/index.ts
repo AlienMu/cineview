@@ -3,12 +3,22 @@
  * 专为 React 开发的 UI 框架，用于快速创建影院式全屏滑动页面介绍效果
  */
 
+import type { FC } from 'react';
+import { Animate as AnimateComponent } from './components/Animate';
+import { CineView } from './components/CineView';
+import { Container } from './components/Container';
+import { Position as PositionComponent } from './components/Position';
+import { Scene as SceneComponent } from './components/Scene';
+import { ScrollZone } from './components/ScrollZone';
+import type { AnimateProps, PositionProps, SceneProps } from './types';
+
 // Components
-export { CineView } from './components/CineView';
-export { Animate } from './components/Animate';
-export { Position } from './components/Position';
-export { Container } from './components/Container';
-export { Scene } from './components/Scene';
+export { CineView };
+export const Animate = AnimateComponent as FC<AnimateProps>;
+export const Position = PositionComponent as FC<PositionProps>;
+export { Container };
+export const Scene = SceneComponent as FC<SceneProps>;
+export { ScrollZone };
 export { Preloader } from './components/Preloader';
 export { OptimizedImage } from './components/Preloader';
 export type { PreloaderProps, OptimizedImageProps } from './components/Preloader';
@@ -24,19 +34,39 @@ export type {
   SizeUnit,
   SlideDirection,
   ScrollMode,
+  RuntimeState,
+  CineViewDesignConfig,
+  SnapModeConfig,
+  DragThresholdConfig,
+  DragModeConfig,
+  ScrollModeConfig,
+  ScrollbarConfig,
+  SceneChangeDetail,
+  InteractionStateDetail,
+  LayoutMeasuredDetail,
+  CineViewErrorDetail,
+  DragDetail,
+  DragCommitDetail,
+  ZoneDetail,
+  ZoneProgressDetail,
+  SceneVisibilityDetail,
+  CineViewCallbacks,
+  CineViewPerformanceConfig,
   PresetAnimation,
   CustomAnimation,
   ComposedAnimation,
   AnimationType,
-  CineViewConfig,
   CineViewProps,
   PerformanceMetrics,
   CineViewRef,
+  CineViewRuntimeSnapshot,
   AnimateProps,
+  ScrollZoneProps,
   PositionProps,
   ContainerProps,
   SceneProps,
-  CineViewContext,
+  ScrollTimelineState,
+  VirtualScrollPhase,
   SceneState,
   PreloadState,
   GestureType,

@@ -7,35 +7,100 @@ import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import type { PresetAnimation } from '../../types';
 import { parseAnimationWithComposition } from '../../animations/composer';
+import type { MotionValue } from 'framer-motion';
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: ({
-      children,
-      initial,
-      style,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement> & {
-      initial?: unknown;
-      animate?: unknown;
-      style?: React.CSSProperties;
-    }): JSX.Element => (
-      <div data-testid="motion-div" data-initial={JSON.stringify(initial)} {...props} style={style}>
-        {children}
-      </div>
-    ),
-  },
-  useAnimation: (): {
-    start: jest.Mock;
-    set: jest.Mock;
-    stop: jest.Mock;
-  } => ({
-    start: jest.fn().mockResolvedValue(undefined),
-    set: jest.fn(),
-    stop: jest.fn(),
-  }),
-}));
+jest.mock('framer-motion', () => {
+  const createMotionValueStub = (initial: number) => {
+    let current = initial;
+    const listeners = new Set<(value: number) => void>();
+
+    return {
+      get: (): number => current,
+      set: (value: number): void => {
+        current = value;
+        listeners.forEach((listener) => listener(value));
+      },
+      on: (_event: string, listener: (value: number) => void): (() => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+  };
+
+  return {
+    motion: {
+      div: ({
+        children,
+        initial,
+        style,
+        ...props
+      }: React.HTMLAttributes<HTMLDivElement> & {
+        initial?: unknown;
+        animate?: unknown;
+        style?: React.CSSProperties;
+      }): JSX.Element => (
+        <div
+          data-testid="motion-div"
+          data-initial={JSON.stringify(initial)}
+          {...props}
+          style={style}
+        >
+          {children}
+        </div>
+      ),
+    },
+    useAnimation: (): {
+      start: jest.Mock;
+      set: jest.Mock;
+      stop: jest.Mock;
+    } => ({
+      start: jest.fn().mockResolvedValue(undefined),
+      set: jest.fn(),
+      stop: jest.fn(),
+    }),
+    useMotionValue: (initial: number) => createMotionValueStub(initial),
+    useTransform: () => createMotionValueStub(0),
+    animate: () => ({
+      stop: jest.fn(),
+    }),
+  };
+});
+
+function createMotionValueStub(initial: number): MotionValue<number> {
+  let current = initial;
+  const listeners = new Set<(value: number) => void>();
+
+  return {
+    get: (): number => current,
+    set: (value: number): void => {
+      current = value;
+      listeners.forEach((listener) => listener(value));
+    },
+    on: (_event: string, listener: (value: number) => void): (() => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  } as MotionValue<number>;
+}
+
+function installDefaultParseAnimationMock(): void {
+  (parseAnimationWithComposition as jest.Mock).mockImplementation((animation) => {
+    if (typeof animation === 'string') {
+      return Promise.resolve({
+        initial: { opacity: 0 },
+        animate: { opacity: 1, transition: { duration: 0.6 } },
+        exit: { opacity: 0, transition: { duration: 0.6 } },
+      });
+    }
+
+    return Promise.resolve({
+      initial: { opacity: 0 },
+      animate: animation.keyframes || { opacity: 1 },
+      exit: { opacity: 0 },
+    });
+  });
+}
 
 // Mock animation parser
 jest.mock('../../animations/composer', () => ({
@@ -58,96 +123,131 @@ jest.mock('../../animations/composer', () => ({
 }));
 
 describe('Animate Component', () => {
-  const createMockSceneContext = (overrides?: Partial<SceneContextType>): SceneContextType => ({
-    slideMode: 'snap',
-    isActive: true,
-    isDragging: false,
-    dragProgress: 0,
-    registerAnimate: jest.fn(),
-    unregisterAnimate: jest.fn(),
-    getCalculatedDelay: jest.fn(() => 0),
-    ...overrides,
-  });
+  const createMockSceneContext = (
+    overrides?: Partial<Omit<SceneContextType, 'dragProgressMotion'>> & { dragProgress?: number }
+  ): SceneContextType => {
+    const dragProgress = overrides?.dragProgress ?? 0;
+    const dragProgressMotion = createMotionValueStub(dragProgress);
+    const sharedElapsedMotion = createMotionValueStub(0);
+    const rest = { ...(overrides || {}) };
+    delete (rest as { dragProgress?: number }).dragProgress;
+
+    return {
+      mode: 'snap',
+      isActive: true,
+      isDragging: false,
+      dragProgressMotion,
+      sharedElapsedMotion,
+      renderProgress: 0,
+      sceneEnterCompleted: true,
+      sceneState: 'active',
+      sceneOffset: 0,
+      sceneTransitionDuration: 800,
+      getTimelineDuration: jest.fn(() => 800),
+      registerAnimate: jest.fn(),
+      unregisterAnimate: jest.fn(),
+      getCalculatedDelay: jest.fn(() => 0),
+      enterDuration: 600,
+      ...rest,
+    };
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    installDefaultParseAnimationMock();
   });
 
   describe('8.1 Core Functionality', () => {
-    it('should register with parent Scene on mount', () => {
+    it('should register with parent Scene on mount', async () => {
       const mockContext = createMockSceneContext();
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-1" delay={100} enterDuration={500}>
+          <Animate animateId="test-1" delay={100} enterDuration={500} enterAnimation="fade-in">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
       );
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-1', {
-        delay: 100,
-        duration: 500,
-        waitFor: undefined,
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-1', {
+          delay: 100,
+          duration: 500,
+          waitFor: undefined,
+        });
       });
     });
 
-    it('should unregister from parent Scene on unmount', () => {
+    it('should unregister from parent Scene on unmount', async () => {
       const mockContext = createMockSceneContext();
 
       const { unmount } = render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-2">
+          <Animate animateId="test-2" enterAnimation="fade-in">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
       );
 
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-2', {
+          delay: 0,
+          duration: 600,
+          waitFor: undefined,
+        });
+      });
+
       unmount();
 
-      expect(mockContext.unregisterAnimate).toHaveBeenCalledWith('test-2');
+      await waitFor(() => {
+        expect(mockContext.unregisterAnimate).toHaveBeenCalledWith('test-2');
+      });
     });
 
-    it('should support waitFor parameter for animation chaining', () => {
+    it('should support waitFor parameter for animation chaining', async () => {
       const mockContext = createMockSceneContext();
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-3" waitFor="test-1" delay={200}>
+          <Animate animateId="test-3" waitFor="test-1" delay={200} enterAnimation="fade-in">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
       );
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-3', {
-        delay: 200,
-        duration: 600, // DEFAULT_ANIMATION_DURATION
-        waitFor: 'test-1',
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-3', {
+          delay: 200,
+          duration: 600,
+          waitFor: 'test-1',
+        });
       });
     });
 
-    it('should use calculated delay from Scene context', () => {
+    it('should use calculated delay from Scene context', async () => {
       const mockContext = createMockSceneContext({
         getCalculatedDelay: jest.fn(() => 1500), // Simulated calculated delay
       });
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-4" delay={500}>
+          <Animate animateId="test-4" delay={500} enterAnimation="fade-in">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
       );
 
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('test-4');
+      await waitFor(() => {
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('test-4');
+      });
     });
 
-    it('should generate unique ID if animateId is not provided', () => {
+    it('should generate unique ID if animateId is not provided', async () => {
       const mockContext = createMockSceneContext();
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate>
+          <Animate enterAnimation="fade-in">
             <div>Test Content 1</div>
           </Animate>
         </SceneContext.Provider>
@@ -155,14 +255,15 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate>
+          <Animate enterAnimation="fade-in">
             <div>Test Content 2</div>
           </Animate>
         </SceneContext.Provider>
       );
 
-      // Should be called twice with different IDs
-      expect(mockContext.registerAnimate).toHaveBeenCalledTimes(2);
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledTimes(2);
+      });
       const firstCall = (mockContext.registerAnimate as jest.Mock).mock.calls[0][0];
       const secondCall = (mockContext.registerAnimate as jest.Mock).mock.calls[1][0];
       expect(firstCall).not.toBe(secondCall);
@@ -182,8 +283,7 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
@@ -206,8 +306,7 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
@@ -228,14 +327,13 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
     it('should handle snap mode animation execution', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: true,
       });
 
@@ -248,14 +346,13 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
     it('should handle drag mode progress synchronization', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: true,
         dragProgress: 0.5,
       });
@@ -269,8 +366,7 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
   });
@@ -290,8 +386,7 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
 
       // Verify that the component renders correctly with both animations
@@ -300,7 +395,7 @@ describe('Animate Component', () => {
 
     it('should stop infinite animation when exit animation starts in snap mode', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: true,
       });
 
@@ -323,7 +418,7 @@ describe('Animate Component', () => {
 
       // Trigger exit animation by deactivating scene
       const inactiveContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: false,
       });
 
@@ -348,7 +443,7 @@ describe('Animate Component', () => {
 
     it('should stop infinite animation when dragging starts in drag mode', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isActive: true,
         isDragging: false,
       });
@@ -367,7 +462,7 @@ describe('Animate Component', () => {
 
       // Start dragging
       const draggingContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isActive: true,
         isDragging: true,
         dragProgress: 0.3,
@@ -414,8 +509,7 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
@@ -446,14 +540,13 @@ describe('Animate Component', () => {
       );
 
       await waitFor(() => {
-        const motionDiv = screen.getByTestId('motion-div');
-        expect(motionDiv).toBeInTheDocument();
+        expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
 
     it('should handle infinite animation with enter animation in snap mode', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: true,
       });
 
@@ -474,17 +567,18 @@ describe('Animate Component', () => {
         expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
 
-      // Verify registration includes the animation
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-infinite', {
-        delay: 0,
-        duration: 300,
-        waitFor: undefined,
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-infinite', {
+          delay: 0,
+          duration: 300,
+          waitFor: undefined,
+        });
       });
     });
 
     it('should handle complete lifecycle: enter -> infinite -> exit in snap mode', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: true,
       });
 
@@ -509,7 +603,7 @@ describe('Animate Component', () => {
 
       // Trigger exit by deactivating scene
       const inactiveContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: false,
       });
 
@@ -535,7 +629,7 @@ describe('Animate Component', () => {
 
     it('should handle complete lifecycle in drag mode: enter -> infinite -> drag -> release', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isActive: true,
         isDragging: false,
       });
@@ -554,7 +648,7 @@ describe('Animate Component', () => {
 
       // Start dragging - should stop infinite animation
       const draggingContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isActive: true,
         isDragging: true,
         dragProgress: 0.5,
@@ -574,7 +668,7 @@ describe('Animate Component', () => {
 
       // Release drag and transition to next scene
       const releasedContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isActive: false,
         isDragging: false,
         dragProgress: 1,
@@ -1023,7 +1117,7 @@ describe('Animate Component', () => {
 
     it('should support composed animations in drag mode', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: true,
         dragProgress: 0.5,
       });
@@ -1085,7 +1179,9 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('delayed');
+      await waitFor(() => {
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('delayed');
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -1129,9 +1225,11 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('first');
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('second');
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('third');
+      await waitFor(() => {
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('first');
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('second');
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('third');
+      });
 
       await waitFor(() => {
         expect(screen.getByText('First')).toBeInTheDocument();
@@ -1154,7 +1252,9 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('no-delay');
+      await waitFor(() => {
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('no-delay');
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -1184,16 +1284,18 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('first', {
-        delay: 0,
-        duration: 1000,
-        waitFor: undefined,
-      });
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('first', {
+          delay: 0,
+          duration: 1000,
+          waitFor: undefined,
+        });
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
-        delay: 0,
-        duration: 600, // DEFAULT_ANIMATION_DURATION
-        waitFor: 'first',
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
+          delay: 0,
+          duration: 600,
+          waitFor: 'first',
+        });
       });
 
       await waitFor(() => {
@@ -1231,10 +1333,12 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('a');
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('b');
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('c');
-      expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('d');
+      await waitFor(() => {
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('a');
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('b');
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('c');
+        expect(mockContext.getCalculatedDelay).toHaveBeenCalledWith('d');
+      });
 
       await waitFor(() => {
         expect(screen.getByText('A')).toBeInTheDocument();
@@ -1265,10 +1369,12 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
-        delay: 500,
-        duration: 600,
-        waitFor: 'first',
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
+          delay: 500,
+          duration: 600,
+          waitFor: 'first',
+        });
       });
 
       await waitFor(() => {
@@ -1279,7 +1385,7 @@ describe('Animate Component', () => {
   });
 
   describe('8.10 Circular Dependency Detection', () => {
-    it('should detect direct circular dependency (A -> B -> A)', () => {
+    it('should detect direct circular dependency (A -> B -> A)', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
@@ -1301,23 +1407,25 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('a', {
-        delay: 0,
-        duration: 600,
-        waitFor: 'b',
-      });
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('a', {
+          delay: 0,
+          duration: 600,
+          waitFor: 'b',
+        });
 
-      expect(mockContext.registerAnimate).toHaveBeenCalledWith('b', {
-        delay: 0,
-        duration: 600,
-        waitFor: 'a',
+        expect(mockContext.registerAnimate).toHaveBeenCalledWith('b', {
+          delay: 0,
+          duration: 600,
+          waitFor: 'a',
+        });
       });
 
       consoleSpy.mockRestore();
       process.env.NODE_ENV = originalEnv;
     });
 
-    it('should detect indirect circular dependency (A -> B -> C -> A)', () => {
+    it('should detect indirect circular dependency (A -> B -> C -> A)', async () => {
       const mockContext = createMockSceneContext({
         isActive: true,
       });
@@ -1336,15 +1444,16 @@ describe('Animate Component', () => {
         </SceneContext.Provider>
       );
 
-      // Verify all components registered
-      expect(mockContext.registerAnimate).toHaveBeenCalledTimes(3);
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenCalledTimes(3);
+      });
     });
   });
 
   describe('Integration Tests', () => {
     it('should handle complete animation lifecycle in snap mode', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: true,
       });
 
@@ -1367,7 +1476,7 @@ describe('Animate Component', () => {
 
       // Deactivate scene
       const inactiveContext = createMockSceneContext({
-        slideMode: 'snap',
+        mode: 'snap',
         isActive: false,
       });
 
@@ -1391,7 +1500,7 @@ describe('Animate Component', () => {
 
     it('should handle drag to snap transition', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: true,
         dragProgress: 0.7,
       });
@@ -1406,7 +1515,7 @@ describe('Animate Component', () => {
 
       // Release drag
       const releasedContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: false,
         dragProgress: 1,
         isActive: true,
@@ -1685,7 +1794,7 @@ describe('Animate Component', () => {
 
     it('should handle drag mode with string pixel values in interpolation', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: true,
         dragProgress: 0.5,
       });
@@ -1717,7 +1826,7 @@ describe('Animate Component', () => {
 
     it('should handle drag mode with non-numeric values in interpolation', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: true,
         dragProgress: 0.3,
       });
@@ -1749,7 +1858,7 @@ describe('Animate Component', () => {
 
     it('should handle drag release without hasEntered flag', async () => {
       const mockContext = createMockSceneContext({
-        slideMode: 'drag',
+        mode: 'drag',
         isDragging: false,
         isActive: true,
       });
@@ -1776,16 +1885,27 @@ describe('Animate Component', () => {
 });
 
 describe('Additional Animate Branch Coverage Tests', () => {
-  const createMockSceneContext = (overrides?: Partial<SceneContextType>): SceneContextType => ({
-    slideMode: 'snap',
-    isActive: true,
-    isDragging: false,
-    dragProgress: 0,
-    registerAnimate: jest.fn(),
-    unregisterAnimate: jest.fn(),
-    getCalculatedDelay: jest.fn(() => 0),
-    ...overrides,
-  });
+  const createMockSceneContext = (overrides?: Partial<SceneContextType>): SceneContextType => {
+    const dragProgressMotion = createMotionValueStub(0);
+    const sharedElapsedMotion = createMotionValueStub(0);
+
+    return {
+      mode: 'snap',
+      isActive: true,
+      isDragging: false,
+      dragProgressMotion,
+      sharedElapsedMotion,
+      sceneEnterCompleted: true,
+      sceneState: 'active',
+      sceneOffset: 0,
+      sceneTransitionDuration: 800,
+      registerAnimate: jest.fn(),
+      unregisterAnimate: jest.fn(),
+      getCalculatedDelay: jest.fn(() => 0),
+      enterDuration: 600,
+      ...overrides,
+    };
+  };
 
   describe('Infinite animation edge cases', () => {
     it('should handle infiniteAnimation without enterAnimation', async () => {
@@ -1879,14 +1999,24 @@ describe('Additional Animate Branch Coverage Tests', () => {
 
 describe('Error Handling and Edge Cases Coverage', () => {
   it('should use default initial variant when enterVariant is null', () => {
+    const sharedElapsedMotion = createMotionValueStub(0);
     const mockSceneContext = {
-      slideMode: 'snap' as const,
+      mode: 'snap' as const,
       isActive: true,
       isDragging: false,
       dragProgress: 0,
+      sceneOffset: 0,
+      dragProgressMotion: createMotionValueStub(0),
+      sharedElapsedMotion,
+      renderProgress: 0,
+      sceneEnterCompleted: true,
+      sceneState: 'active' as const,
+      sceneTransitionDuration: 800,
+      getTimelineDuration: jest.fn(() => 800),
       registerAnimate: jest.fn(),
       unregisterAnimate: jest.fn(),
       getCalculatedDelay: jest.fn().mockReturnValue(0),
+      enterDuration: 600,
     };
 
     const { container } = render(
@@ -1902,14 +2032,24 @@ describe('Error Handling and Edge Cases Coverage', () => {
   });
 
   it('should handle drag mode with string pixel values in animation variants', async () => {
+    const sharedElapsedMotion = createMotionValueStub(0);
     const mockSceneContext = {
-      slideMode: 'drag' as const,
+      mode: 'drag' as const,
       isActive: true,
       isDragging: true,
       dragProgress: 0.5,
+      sceneOffset: 0,
+      dragProgressMotion: createMotionValueStub(0.5),
+      sharedElapsedMotion,
+      renderProgress: 0.5,
+      sceneEnterCompleted: false,
+      sceneState: 'exiting' as const,
+      sceneTransitionDuration: 800,
+      getTimelineDuration: jest.fn(() => 800),
       registerAnimate: jest.fn(),
       unregisterAnimate: jest.fn(),
       getCalculatedDelay: jest.fn().mockReturnValue(0),
+      enterDuration: 600,
     };
 
     render(
@@ -1935,14 +2075,24 @@ describe('Error Handling and Edge Cases Coverage', () => {
   });
 
   it('should handle non-numeric animation values in drag mode', async () => {
+    const sharedElapsedMotion = createMotionValueStub(0);
     const mockSceneContext = {
-      slideMode: 'drag' as const,
+      mode: 'drag' as const,
       isActive: true,
       isDragging: true,
       dragProgress: 0.5,
+      sceneOffset: 0,
+      dragProgressMotion: createMotionValueStub(0.5),
+      sharedElapsedMotion,
+      renderProgress: 0.5,
+      sceneEnterCompleted: false,
+      sceneState: 'exiting' as const,
+      sceneTransitionDuration: 800,
+      getTimelineDuration: jest.fn(() => 800),
       registerAnimate: jest.fn(),
       unregisterAnimate: jest.fn(),
       getCalculatedDelay: jest.fn().mockReturnValue(0),
+      enterDuration: 600,
     };
 
     render(
