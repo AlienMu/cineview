@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CineView Scrollbar Overlay Acceptance Probe</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+
+      pre {
+        margin: 0;
+        padding: 16px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="output">booting…</pre>
+    <iframe
+      id="target"
+      src="/#/scroll"
+      style="position: fixed; inset: 0; width: 1440px; height: 1100px; border: 0; opacity: 0; pointer-events: none;"
+    ></iframe>
+    <script>
+      const output = document.getElementById('output');
+      const frame = document.getElementById('target');
+
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      function round(value) {
+        return typeof value === 'number' ? Math.round(value * 100) / 100 : value;
+      }
+
+      function rectInfo(rect) {
+        if (!rect) {
+          return null;
+        }
+
+        return {
+          top: round(rect.top),
+          right: round(rect.right),
+          bottom: round(rect.bottom),
+          left: round(rect.left),
+          width: round(rect.width),
+          height: round(rect.height),
+        };
+      }
+
+      function elementSummary(el, doc) {
+        if (!el) {
+          return null;
+        }
+
+        const style = doc.defaultView.getComputedStyle(el);
+        return {
+          tag: el.tagName,
+          rect: rectInfo(el.getBoundingClientRect()),
+          style: {
+            position: style.position,
+            display: style.display,
+            visibility: style.visibility,
+            opacity: style.opacity,
+            pointerEvents: style.pointerEvents,
+            width: style.width,
+            height: style.height,
+            top: style.top,
+            right: style.right,
+            left: style.left,
+            bottom: style.bottom,
+            overflow: style.overflow,
+          },
+        };
+      }
+
+      function railAncestorChain(rail, stopAt, doc) {
+        const chain = [];
+        let node = rail ? rail.parentElement : null;
+
+        while (node) {
+          const style = doc.defaultView.getComputedStyle(node);
+          chain.push({
+            tag: node.tagName,
+            dataAttrs: Array.from(node.attributes)
+              .filter((attr) => attr.name.startsWith('data-'))
+              .map((attr) => [attr.name, attr.value]),
+            position: style.position,
+            height: style.height,
+            width: style.width,
+            overflow: style.overflow,
+          });
+          if (node === stopAt) {
+            break;
+          }
+          node = node.parentElement;
+        }
+
+        return chain;
+      }
+
+      function sideProbe(containerRect, railRect) {
+        if (!containerRect || !railRect) {
+          return null;
+        }
+
+        const distanceToRight = Math.abs(containerRect.right - railRect.right);
+        const distanceToLeft = Math.abs(railRect.left - containerRect.left);
+
+        return {
+          distanceToRight: round(distanceToRight),
+          distanceToLeft: round(distanceToLeft),
+          railAppearsOnRightSide: distanceToRight <= distanceToLeft,
+        };
+      }
+
+      function sample(doc) {
+        const win = doc.defaultView;
+        const container = doc.querySelector('[data-cineview-container="true"]');
+        const overlay = doc.querySelector('[data-cineview-scrollbar-overlay="true"]');
+        const rail = doc.querySelector('[data-cineview-scrollbar-rail="true"]');
+        const thumb = doc.querySelector('[data-cineview-scrollbar-thumb="true"]');
+        const containerRect = container ? container.getBoundingClientRect() : null;
+        const railRect = rail ? rail.getBoundingClientRect() : null;
+        const thumbRect = thumb ? thumb.getBoundingClientRect() : null;
+
+        return {
+          href: win.location.href,
+          container: container
+            ? {
+                rect: rectInfo(containerRect),
+                scrollTop: round(container.scrollTop),
+                scrollHeight: round(container.scrollHeight),
+                clientHeight: round(container.clientHeight),
+              }
+            : null,
+          overlayPresent: Boolean(overlay),
+          overlayInsideContainer: Boolean(container && overlay && container.contains(overlay)),
+          overlayParentIsContainerParent: Boolean(
+            container && overlay && overlay.parentElement === container.parentElement
+          ),
+          railPresent: Boolean(rail),
+          thumbPresent: Boolean(thumb),
+          overlay: elementSummary(overlay, doc),
+          rail: elementSummary(rail, doc),
+          thumb: elementSummary(thumb, doc),
+          railSide: sideProbe(containerRect, railRect),
+          railAncestorChain: railAncestorChain(rail, container ? container.parentElement : null, doc),
+          thumbWithinRail: Boolean(
+            railRect &&
+              thumbRect &&
+              thumbRect.top >= railRect.top - 1 &&
+              thumbRect.bottom <= railRect.bottom + 1 &&
+              thumbRect.left >= railRect.left - 1 &&
+              thumbRect.right <= railRect.right + 1
+          ),
+        };
+      }
+
+      function observeRuntime(win) {
+        const state = {
+          consoleErrors: [],
+          runtimeErrors: [],
+          unhandledRejections: [],
+          restore() {},
+        };
+
+        const originalConsoleError = win.console.error.bind(win.console);
+        win.console.error = (...args) => {
+          state.consoleErrors.push(args.map((arg) => String(arg)));
+          originalConsoleError(...args);
+        };
+
+        const handleError = (event) => {
+          state.runtimeErrors.push({
+            message: event.message ? String(event.message) : 'unknown error',
+            filename: event.filename ? String(event.filename) : null,
+          });
+        };
+
+        const handleRejection = (event) => {
+          state.unhandledRejections.push(String(event.reason));
+        };
+
+        win.addEventListener('error', handleError);
+        win.addEventListener('unhandledrejection', handleRejection);
+
+        state.restore = () => {
+          win.console.error = originalConsoleError;
+          win.removeEventListener('error', handleError);
+          win.removeEventListener('unhandledrejection', handleRejection);
+        };
+
+        return state;
+      }
+
+      async function dragThumb(doc) {
+        const win = doc.defaultView;
+        const container = doc.querySelector('[data-cineview-container="true"]');
+        const thumb = doc.querySelector('[data-cineview-scrollbar-thumb="true"]');
+        const rail = doc.querySelector('[data-cineview-scrollbar-rail="true"]');
+
+        if (!container || !thumb || !rail) {
+          return { attempted: false, reason: 'missing container, rail, or thumb' };
+        }
+
+        const thumbRect = thumb.getBoundingClientRect();
+        const railRect = rail.getBoundingClientRect();
+        const startX = thumbRect.left + thumbRect.width / 2;
+        const startY = thumbRect.top + thumbRect.height / 2;
+        const targetY = Math.min(railRect.bottom - thumbRect.height / 2, startY + 120);
+
+        thumb.dispatchEvent(
+          new win.MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            clientX: startX,
+            clientY: startY,
+            button: 0,
+          })
+        );
+        win.dispatchEvent(
+          new win.MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            clientX: startX,
+            clientY: targetY,
+            button: 0,
+          })
+        );
+        win.dispatchEvent(
+          new win.MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            clientX: startX,
+            clientY: targetY,
+            button: 0,
+          })
+        );
+
+        await wait(120);
+
+        const nextThumbRect = thumb.getBoundingClientRect();
+        return {
+          attempted: true,
+          containerScrollTop: round(container.scrollTop),
+          thumbTopBefore: round(thumbRect.top),
+          thumbTopAfter: round(nextThumbRect.top),
+          pointerTargetY: round(targetY),
+        };
+      }
+
+      async function run() {
+        await new Promise((resolve, reject) => {
+          frame.addEventListener('load', resolve, { once: true });
+          frame.addEventListener('error', reject, { once: true });
+        });
+
+        const doc = frame.contentDocument;
+        const win = frame.contentWindow;
+
+        if (!doc || !win) {
+          output.textContent = JSON.stringify({ error: 'iframe document unavailable' }, null, 2);
+          return;
+        }
+
+        for (let i = 0; i < 60; i += 1) {
+          if (
+            doc.querySelector('[data-cineview-container="true"]') &&
+            doc.querySelector('[data-cineview-scrollbar-rail="true"]') &&
+            doc.querySelector('[data-cineview-scrollbar-thumb="true"]')
+          ) {
+            break;
+          }
+          await wait(100);
+        }
+
+        const runtime = observeRuntime(win);
+        await wait(600);
+
+        const initial = sample(doc);
+        const drag = await dragThumb(doc);
+        await wait(200);
+        const afterDrag = sample(doc);
+
+        runtime.restore();
+
+        output.textContent = JSON.stringify(
+          {
+            checkedAt: new Date().toISOString(),
+            route: win.location.href,
+            initial,
+            drag,
+            afterDrag,
+            runtime: {
+              consoleErrors: runtime.consoleErrors,
+              runtimeErrors: runtime.runtimeErrors,
+              unhandledRejections: runtime.unhandledRejections,
+            },
+          },
+          null,
+          2
+        );
+      }
+
+      run().catch((error) => {
+        output.textContent = JSON.stringify(
+          {
+            error: String(error),
+            stack: error && error.stack ? String(error.stack) : null,
+          },
+          null,
+          2
+        );
+      });
+    </script>
+  </body>
+</html>

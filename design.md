@@ -1,17 +1,5 @@
 # 设计文档：CineView React UI 框架
 
-## 开发工具说明
-
-**重要提示**: 本项目开发过程中，优先使用系统 MCP (Model Context Protocol) 工具进行开发，不使用 IDE 内置工具。
-
-MCP 工具提供了更好的：
-- 跨 IDE 一致性
-- 自动化能力
-- 集成测试支持
-- 标准化开发流程
-
-所有开发任务（包括代码编写、测试运行、构建等）应通过 MCP 工具链完成。
-
 ## 概述
 
 CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页体验与滚动驱动叙事页面。该框架提供完整的场景管理、动画系统、响应式布局和图片预加载能力，支持移动端和 PC 端跨平台使用。通过声明式组件 API，开发者可以构建全屏分页页面、真实文档流叙事页面，以及两者结合的产品展示和交互式故事页面。
@@ -20,27 +8,26 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 
 ## 当前架构裁决
 
-基于当前 `snap / drag / scroll` 三模式重构需求，CineView 的后续开发统一采用以下架构裁决：
+基于当前 `drag / scroll` 两模式重构需求，CineView 的后续开发统一采用以下架构裁决：
 
-1. `snap`、`drag`、`scroll` 是三套不同引擎，由 `CineView` 根节点统一声明模式，不再把模式挂在 `Scene` 上。
-2. `Scene` 的职责统一为内容 section、布局边界、可视信息与 scene-owned layer 宿主，不负责决定根交互模式。
-3. `snap` 模式下：
-   - 默认全屏，以真实 viewport 为参考系
-   - 不存在拖拽过程态，全程由动画接管
-   - 返回上一页默认重播，可通过 `replayOnReenter` 关闭
-4. `drag` 模式下：
+1. `drag`、`scroll` 是两套不同引擎，由 `CineView` 根节点统一声明模式，不再把模式挂在 `Scene` 上。
+2. `Scene` 的职责统一为章节级能力容器、布局边界、可视信息与 scene-owned layer 宿主，不负责决定根交互模式。
+3. `drag` 模式下：
    - `Scene` 只负责分页位移、边界判断、手势状态机、release/rollback/commit
    - `Animate` 负责全部元素级视觉动画
    - 主时间语义统一为 `dragTimelineProgress`、`sharedElapsedMs`、`sharedTimelineDurationMs`
-5. `scroll` 模式下：
+4. `scroll` 模式下：
    - 页面首先是正常文档流，`Scene` 允许小于 `100vh`
-   - 滚动优先级固定为 `动画时间轴 -> 文档滚动`，二者不是并行关系
+   - 滚动输入 ownership 固定为 `一个 Scene.scroll progress owner 或 native document flow`，二者不能并行或拆分消费同一段输入
+   - completed scene 的反向倒放不是独立重放模式，而是同一个 scene progress 从保留的 `100%` 向 `0%` 回退
    - `scrollDriven=true` 的动画必须依附局部滚动接管区，不能各自按元素 viewport 位置单独抢控制权
-   - `scrollDriven=false` 的动画才允许按可视规则自动执行
+   - 普通文档内容默认持续参与自然文档流，不允许被“进入 viewport 才显示”的门控规则接管
+   - `scrollDriven=false` 的动画才允许按可视规则自动执行，但这种可视规则只负责补充动画，不负责决定正文内容是否可见
    - `Position.fixed` 在 scroll 下是 scene-scoped fixed layer，不允许跨 scene 漂浮
-6. `renderProgress` 只用于 drag 场景位移，不作为 snap / scroll 的主语义。
-7. 每个元素必须根据所属模式消费对应时间语义，禁止跨模式复用解释。
-8. 已完成入场的元素，如果配置了 `infiniteAnimation`，只有在运行态允许时才持续运行。
+   - root 只保留真实滚动容器，不再用虚拟滚动轨道重写页面空间
+5. `renderProgress` 只用于 drag 场景位移，不作为 scroll 的主语义。
+6. 每个元素必须根据所属模式消费对应时间语义，禁止跨模式复用解释。
+7. 已完成入场的元素，如果配置了 `infiniteAnimation`，只有在运行态允许时才持续运行。
 
 这意味着：后续实现必须优先保证“语义单一、职责单一、所有权清晰”，禁止回到一个状态被多处以不同语义解释的混合模式。
 
@@ -55,17 +42,18 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 3. `Scene` 可以小于、等于或大于 `100vh`；框架不能把“一屏高”当作基础假设。
 4. public API 要先符合页面作者心智，再映射到内部 runtime；不要求用户理解内部 `Viewport` 机制。
 5. scene-scoped fixed layer 必须严格归属自己的 scene，可见、裁剪、释放都以 scene 边界为准。
+6. 正文、卡片、图片和章节主体这类阅读型内容，默认应直接出现在自然文档流里；viewport 交集只能触发补充动画，不能把内容本体先隐藏再突然显示。
 
 ### 公共语义
 
 - `CineView`: 根引擎与模式入口
-- `Scene`: 文档流 section
-- `ScrollZone`: scroll-only 的局部滚动接管区
-- `Animate scrollDriven`: 领取所属 `ScrollZone` 的滚动预算
+- `Scene`: 可选的章节级容器，用于承载框架级 chapter 能力
+- `Scene.scroll`: scroll-only 的局部滚动接管声明
+- `Animate scrollDriven`: 领取所属 scene takeover 的真实滚动距离时间轴
 - `Position.fixed`: scene-scoped fixed layer
 
-`Viewport` 只保留为内部 runtime 概念，不再作为主文档里的公共推荐组件。
-旧的 `Scene` 扁平 mode/layout props，以及 `Animate` / `Position` 的扁平 legacy authoring props，只允许留在内部 runtime 兼容桥接中，不再出现在主入口导出的公共 TypeScript 声明里。
+`Viewport` 与 `ScrollZone` 必须从 scroll 公共入口、示例和 active runtime path 中删除。
+旧的 `Scene` 扁平 mode/layout props，以及 `Animate` / `Position` 的扁平 authoring props，不再出现在主入口导出的公共 TypeScript 声明里，也不再作为主 authoring 心智保留。
 
 ### 根节点模式设计
 
@@ -77,7 +65,6 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
   scroll={{
     direction: 'y',
     zoneTrigger: 'center-lock',
-    replayOnReenter: true,
   }}
 >
   <Scene />
@@ -89,67 +76,82 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 
 1. 模式只在 `CineView` 根节点声明。
 2. `scroll` 模式参数归入 `CineView.modes.scroll` 对象，不再散落到 `Scene`。
-3. `Scene` 只保留布局、层级、内容编排相关参数。
-4. `ScrollZone` 只声明“这段内容会接管滚动”，不声明根模式。
+3. 普通文档内容不要求包裹在 `Scene` 中。
+4. `Scene` 只在需要章节级能力时出现，如 takeover、scene-scoped fixed layer、scene 生命周期与导航。
+5. `Scene.scroll` 只声明“这个 scene 会接管滚动”，不声明根模式。
 
 ### Scene 规则
 
 在 `CineView mode="scroll"` 下，`Scene` 的规则如下：
 
-1. `Scene` 是真实文档流 section，不再默认 `min-height: 100vh`。
-2. `Scene` 高度由内容布局足迹决定，而不是由动画后的视觉外接框决定。
-3. `Scene` 可以包含：
+1. `Scene` 不是 scroll 页面里所有内容的必选基础块，而是显式的章节级能力容器。
+2. `Scene` 出现时，仍然是正常文档流中的一个 section，不再默认 `min-height: 100vh`。
+3. `Scene` 高度由内容布局足迹决定，而不是由动画后的视觉外接框决定。
+4. `Scene` 可以包含：
    - 普通文档流内容
    - scene-scoped fixed layer
-   - 若干 `ScrollZone`
-4. 没有 `ScrollZone` 的 `Scene` 只是普通 section，不应产生额外滚动锁定。
-5. `Scene` 仍需对外暴露可视信号，如 `onVisibilityChange(visible, progress)`，供非 scroll-driven 动画和外部业务消费。
+   - 可选的 `scroll` takeover 声明
+5. 没有 `scroll` takeover 的 `Scene` 只是一个带章节语义的普通 section，不应产生额外滚动锁定。
+6. 普通文档 section、`article`、`div` 和自定义组件也可以直接存在于 `CineView mode="scroll"` 下，不要求 scene 化。
+7. `Scene` 仍需对外暴露可视信号，如 `onVisibilityChange(visible, progress)`，供非 scroll-driven 动画和外部业务消费。
+8. scroll 页面中的正文内容不应因为框架默认可视规则而被设置为 `opacity: 0`、`visibility: hidden`、`scale: 0` 或离开 viewport 后销毁重建。
 
-### ScrollZone 规则
+### Scene Scroll 规则
 
-`ScrollZone` 是 scroll 模式下唯一推荐的局部滚动接管语义。
+`Scene.scroll` 是 scroll 模式下唯一推荐的局部滚动接管语义。
 
 ```tsx
-<ScrollZone
-  zoneId="hero-sequence"
-  trigger="center-lock"
-  replayOnReenter={true}
-  budget="auto"
+<Scene
+  scroll={{
+    zoneId: 'hero-sequence',
+    trigger: 'center-lock',
+  }}
 >
-  <Animate timeline={{ driver: 'scroll' }} />
-  <Animate timeline={{ driver: 'scroll' }} />
-</ScrollZone>
+  <Animate />
+  <Animate />
+  <Animate timeline={{ driver: 'visibility' }} />
+</Scene>
 ```
 
 规则如下：
 
 1. `trigger='center-lock'` 为当前唯一标准触发方式。
-2. 当 zone 中心命中浏览器 viewport 中心时，zone 获得滚动接管权。
-3. 同一时刻只允许一个 zone 接管滚动输入；多个候选时，取距离 viewport 中心最近者。
-4. zone 获得接管权后，用户滚动优先推进其内部时间轴。
-5. 只有当 zone 在当前方向上已无可消费预算时，文档流才继续滚动。
-6. 反向滚动时规则完全对称：先回退 zone 时间轴，再回退文档流。
-7. `ScrollZone` 不负责视觉样式，只负责时间轴、预算和命中逻辑。
+2. 当 scene 中心命中浏览器 viewport 中心，且该 scene 存在 scroll-driven 动画时间轴时，scene 获得滚动接管权。
+3. 接管后，runtime 只维护一个公开语义：该 scene 的本地动画进度百分比 `0%..100%`。
+4. 用户正向滚动时，scene progress 从当前值向 `100%` 推进；用户反向滚动时，scene progress 从当前值向 `0%` 回退。
+5. 只要 scene progress 仍在 `0%..100%` 内可消费，用户输入优先用于 scene progress；真实 `scrollTop` 在该 scene 的真实 center-lock 滚动段内移动，普通文档内容不得越过当前 center-lock 段抢先接管。
+6. scene progress 到达 `100%` 后，runtime 释放给自然文档流，但必须保留该 scene 的 progress 与渲染终态为 `100%`。
+7. scene progress 到达 `0%` 后，runtime 释放给自然文档流，但必须保留该 scene 的 progress 与渲染起态为 `0%`。
+8. 已经完成到 `100%` 的 scene，从后方真实文档流反向滚回时，只有当该 scene 回到同一个 center-lock 触发位置，runtime 才恢复该 scene 的输入接管，并以保留的 `100%` 为起点向 `0%` 回退。
+9. 内部锁定、边界判断、防跳过标记等旧实现细节不属于 scroll 产品模型；文档、测试和公共 API 只描述 scene progress、输入方向、真实文档流和边界行为。
+10. 对于一次大输入，runtime 必须按顺序拆分输入：先消耗到 center-lock 触发点的真实文档距离，再消耗 scene progress 对应的真实滚动距离，最后只把剩余量交还自然文档流。
+11. scene progress 被消费时，Scene shell 与 scene-scoped fixed layer 必须在 viewport 内可见；如果 runtime 需要视觉补偿，该补偿只影响渲染，不改变真实 scroll metrics。
+12. scene progress 的输入速率必须与真实 px 输入一致，不得被 trigger 距离、anchor overshoot 或隐藏阻尼截短。
+13. 任何输入路径都不得让一次 scroll intent 从某个 completed center-lock 段的后方直接落到该段前方；若 delta 足以跨完整段，reducer 必须至少产生一个段内 progress frame，后续输入再继续移动。
+14. `Scene.scroll` 不负责视觉样式，只负责时间轴归属和 center-lock 命中逻辑。
+15. scene scroll-driven 动画时间轴必须表现为真实滚动容器中的 center-lock 滚动段，用来延长原生滚动距离和滚动条行程；作者不再通过 `Scene.scroll.budget` 调整速度。
+16. takeover 触发时允许 scene 视觉上锁定在 viewport 中心，但不允许把整页内容映射到另一条虚拟坐标轴。
 
 ### Animate 规则
 
-`Animate` 在 scroll 模式下只有两种明确语义：
+`Animate` 在 scroll 模式下只有两种明确语义，并且可以脱离 `Scene` 工作：
 
 1. `timeline.driver='scroll'`
-   - 必须依附 `ScrollZone`
+   - 必须依附带 `scroll` takeover 的 `Scene`
+   - 在 takeover scene 内可作为默认绑定语义存在，显式声明仅用于覆盖或强调
    - 自身进度来自所属 zone 的统一时间轴
    - 不再按自己的 `getBoundingClientRect()` 独立推导进退场
-   - 若脱离 `ScrollZone` 使用，开发环境报警告，运行时不回退为旧行为
+   - 若脱离 scene takeover 使用，开发环境报警告，运行时不回退为旧行为
 2. `timeline.driver='visibility'`
-   - 不参与 zone 预算
+   - 不参与 scene takeover 的真实滚动距离时间轴
    - 只有这类动画允许按可视规则自动执行
-   - 入场条件：元素底部完整进入 viewport
-   - 退场条件：元素顶部将要离开 viewport
-   - 离开后销毁，再次进入时默认重播
+   - viewport 交集只负责触发补充动画，不负责决定元素是否渲染、是否参与自然文档流
+   - 这种语义不应用于门控正文可见性；正文、卡片、图片、章节主体等阅读内容应默认直接显示
+   - 元素离开 viewport 后，默认不应被框架销毁、重建或硬重置为完全隐藏状态；需要重播时必须显式声明
 
-### 预算与时间轴规则
+### 时间轴与真实滚动距离规则
 
-滚动预算按 `delay + waitFor 链 + enter/exitDuration` 统一结算。
+真实滚动距离按 `delay + waitFor 链 + enter/exitDuration` 统一结算。内部固定换算为 `1ms = 1px`，即 `totalScrollDistancePx = totalTimelineMs`。scroll 模式不暴露单独的速度或预算参数，原生文档流 px 速度是唯一速度源。
 
 对单个 `Animate`：
 
@@ -157,11 +159,11 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 - `exitTotal = exitDuration`
 - `animationTotal = enterTotal + exitTotal`
 
-预算分配规则：
+滚动距离分配规则：
 
 1. 若同时存在 enter / exit：
-   - 入场预算占比 = `enterTotal / animationTotal`
-   - 退场预算占比 = `exitTotal / animationTotal`
+   - 入场滚动距离占比 = `enterTotal / animationTotal`
+   - 退场滚动距离占比 = `exitTotal / animationTotal`
 2. 若只有 enter：
    - enter 占 100%
    - 入场完成后保持最终态
@@ -171,9 +173,9 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 
 多动画规则：
 
-1. `waitFor` 链进入统一预算计算。
+1. `waitFor` 链进入统一滚动距离计算。
 2. 某动画的实际起点 = `自身 delay + 所有 waitFor 前置动画的完整 animationTotal`。
-3. 同一 zone 的总滚动预算 = 其内部所有 scroll-driven 动画链展开后的总时长。
+3. 同一 zone 的总真实滚动距离 = 其内部所有 scroll-driven 动画链展开后的总时长，按 `1ms = 1px` 映射。
 4. 动画总时长越长，滚动推进越“慢”；总时长越短，滚动推进越“快”。
 
 ### 长动画规则
@@ -181,10 +183,10 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 “出现 + 消失”的长动画在 scroll 模式下是标准组合动画。
 
 1. 例：`enterDuration=3000`、`exitDuration=3000`
-   - 前 50% 滚动预算驱动入场
-   - 后 50% 滚动预算驱动退场
+   - 前 50% 滚动距离驱动入场
+   - 后 50% 滚动距离驱动退场
 2. 例：`enterDuration=3000`、无 `exit`
-   - 整个 100% 预算用于入场
+   - 整个 100% 滚动距离用于入场
    - 入场完成后保持最终态
 
 ### Scene-Scoped Fixed Layer 规则
@@ -216,32 +218,72 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 4. 高度计算不能默认使用 `Math.max(measuredHeight, viewportHeight)` 这类一屏下限。
 5. 对于含定位元素的 scene，应以真实布局占位和需要展示的内容边界综合求得最小可展示高度。
 
+### Root Scroll 运行规则
+
+scroll 模式下的根运行规则固定如下：
+
+1. `CineView` 保留真实滚动容器，滚动条读取真实滚动指标。
+2. root 不再使用整条 scene track 的 `transform` 作为主页面位移方式。
+3. root 不再维护把文档滚动和 zone 进度混合后的全局虚拟滚动坐标；scene 时间轴只能以真实 center-lock 滚动段进入原生 scroll metrics。
+4. 文档滚动位置与 zone 进度必须分离：
+   - 文档位置决定用户正在阅读页面的哪里
+   - zone 进度只决定当前接管动画推进到哪里
+5. active scene 必须根据真实布局交集判定，而不是根据虚拟轨道映射结果判定。
+6. wheel、touch、keyboard、scrollbar 与 browser-native scroll 都必须先归一为同一种 scroll intent；reducer 先判断该输入是否到达 center-lock 触发点，再判断当前方向是否存在可消费的 `Scene.scroll` progress。
+7. scene progress 消费输入时，真实 `scrollTop` 必须沿该 scene 的真实 center-lock 滚动段移动；边界必须来自 rendered bounds、自动结算出的滚动段长度、当前方向和保留 progress，不允许来自 authored height、虚拟轨道或隐藏状态标记。
+8. `wheelStep` / `touchStep` / `budget` 不属于 scroll 主 API；像素输入、scene 时间轴滚动段和滚动条展示必须处于同一 px 速率模型。
+9. 已完成到 `100%` 的 scene 从后方真实文档流被反向滚回并重新到达 center-lock 滚动段时，视觉 shell 与 scene-scoped fixed layer 必须保持在 viewport 内；任何视觉 offset 只用于渲染补偿，不创建第二套虚拟滚动指标。
+10. 一旦某个 scene 成为 progress owner，后续输入按真实 px delta 消费剩余 progress；center-lock trigger 只决定首次获得 ownership，不能在 ownership 期间截短、节流或重算 progress。
+11. browser-native scroll 的边界修正或微小回弹不能重置当前 scene progress；只有 progress 到达 `0%` / `100%` 后，runtime 才能按方向释放给自然文档流。
+12. native scroll reconciliation 与自绘 scrollbar 也必须走同一个 center-lock segment reducer；不能只修 wheel/touch 路径。
+
+### 首屏与预加载规则
+
+scroll 模式下的首屏体验规则固定如下：
+
+1. 首屏布局、文本和非阻塞表面必须立即可见。
+2. 首屏关键媒体可以单独等待或渐入，但不允许整页 `opacity: 0` 式隐藏。
+3. 首屏进入可运行态只依赖首屏关键媒体，不依赖相邻 scene 的媒体。
+4. 相邻和后续 scene 资源继续后台预加载，不阻塞首屏呈现。
+5. preload 负责媒体准备，不负责把整个 viewport 当作遮罩门控。
+6. 同一原则适用于后续 scroll 内容：框架不能把普通正文做成“滚到视窗才出现”的门控体验。
+
+### Scrollbar 规则
+
+1. `scrollbar` 的数据源必须是真实滚动容器。
+2. 自定义滚动条可以是原生样式化，也可以是自绘视觉层。
+3. 无论哪种策略，都不能依附虚拟滚动坐标。
+4. scroll-driven scene timeline 必须写入真实 `scrollHeight` 对应的 center-lock 滚动段，使滚动条行程与 scene progress 同速。
+5. overlay 若展示 takeover 内部推进，只能读取 native scroll metrics 与 scene progress 的派生值；它不能创建或依附第二套虚拟滚动坐标。
+
 ### 产品体验裁决
 
 1. 用户不该先学“viewport runtime”才能写 scroll 页面。
 2. 用户应先写正常页面结构，再声明哪一段接管滚动。
 3. 短 scene、小 section、混合长短内容，必须是一等支持对象。
 4. 滚动接管必须是局部能力，且优先级始终是 `动画执行 -> 文档滚动`。
-5. public API 以 `CineView + Scene + ScrollZone + Animate + Position` 为主，不继续推广显式 `Viewport`。
+5. `Animate` 必须能在普通文档节点中直接工作，而不是强制依赖 `Scene`。
+6. public API 以 `CineView + Scene + Scene.scroll + Animate + Position` 为主，直接删除显式 `Viewport` 或 `ScrollZone` scroll authoring 路径。
+7. scroll 阅读体验必须优先保证内容连续可读；即使快速滚动，也不应出现正文先被隐藏、再在视窗边界突然出现的框架默认行为。
 
 ### 受影响的实现点
 
 1. `CineView` 根接口需要承接 `mode` 与 `scroll` 配置。
 2. `Scene` scroll 样式中的 `minHeight: 100vh` 需要移除为默认假设。
-3. `scrollSceneLayout` 中基于 viewport 的高度保底逻辑需要重写。
-4. `scrollActiveSceneIndex` 与 zone ownership 的判定，需要兼容短 section。
-5. `ScrollZone` 需要成为主公共 API；`Viewport` 退为内部 runtime 或 legacy。
-6. `Position.fixed` 的 host 坐标与裁剪逻辑需要与 scene 边界严格对齐。
+3. `Animate` 与 `Position` 的基础能力需要支持在普通文档节点中直接运行。
+4. scroll runtime 需要改回真实滚动容器，而不是虚拟 track + transform。
+5. `scrollActiveSceneIndex` 与 zone ownership 的判定，需要基于真实布局与交集。
+6. `Scene.scroll` 需要成为唯一主公共 takeover 语义；`Viewport` 与 `ScrollZone` 不作为 scroll runtime 兼容路径保留。
+7. `Position.fixed` 的 host 坐标与裁剪逻辑需要与 scene 边界严格对齐。
 
 ## 新模式参数原则
 
 1. 模式只在 `CineView` 根节点声明：
-   - `mode="snap" | "drag" | "scroll"`
-   - 模式参数分别归入 `snap` / `drag` / `scroll` 对象
+   - `mode="drag" | "scroll"`
+   - 模式参数分别归入 `drag` / `scroll` 对象
 2. 模式参数只在对应模式生效：
-   - `snap` 参数不影响 `drag` / `scroll`
-   - `drag` 参数不影响 `snap` / `scroll`
-   - `scroll` 参数不影响 `snap` / `drag`
+   - `drag` 参数不影响 `scroll`
+   - `scroll` 参数不影响 `drag`
 3. `Scene` 只承接布局与内容参数：
    - `sceneWidth`
    - `sceneHeight`
@@ -315,7 +357,6 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
    - `mode`
    - `children`
 2. **Level 2: 常用调优**
-   - `modes.snap`
    - `modes.drag`
    - `modes.scroll`
    - `scrollbar`
@@ -324,66 +365,51 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
    - `performance`
    - `ref methods`
 4. **Level 4: 高级动画编排**
-   - `ScrollZone`
+   - `Scene.scroll`
    - `Animate.timeline`
    - 预算覆盖、依赖链、相位窗口
 
 ### 默认值策略
 
-1. `mode` 默认 `snap`
-2. `modes.snap.direction` 默认 `y`
-3. `modes.snap.duration` 默认 `800`
-4. `modes.drag.direction` 默认 `y`
-5. `modes.drag.transitionDuration` 默认 `800`
-6. `modes.scroll.direction` 默认 `y`
-7. `modes.scroll.zoneTrigger` 默认 `center-lock`
-8. `modes.scroll.replayOnReenter` 默认 `true`
-9. `modes.scroll.wheelStep` 默认 `0.038`
-10. `modes.scroll.touchStep` 默认 `0.028`
-11. `scrollbar` 默认禁用
-12. `performance.preset` 默认 `balanced`
+1. `mode` 默认 `drag`
+2. `modes.drag.direction` 默认 `y`
+3. `modes.drag.transitionDuration` 默认 `800`
+4. `modes.scroll.direction` 默认 `y`
+5. `modes.scroll.zoneTrigger` 默认 `center-lock`
+6. `scrollbar` 默认禁用
+7. `performance.preset` 默认 `balanced`
 
-## 接口迁移计划
+## 接口切换计划
 
-本节定义从当前实现迁移到新接口体系的真实执行计划。目标不是一次性硬切，而是先统一契约、再做兼容桥、再迁移运行时、最后删除旧口径。
+本节定义 scroll 从当前实现切换到新接口体系的真实执行计划。目标是直接切换到新的 scroll 心智模型，而不是长期保留兼容桥与双轨运行时。
 
 ### 迁移目标
 
 1. 把模式入口从 `Scene` 提升到 `CineView`
 2. 把平铺参数收束成 `modes`、`callbacks`、`performance`、`scrollbar` 等对象
-3. 把 `Viewport` 从主公共 API 降级为内部 runtime / legacy
+3. 删除 scroll 模式下的 `Viewport` 公共 API 与 active runtime path
 4. 把 `Animate` 的 scroll 语义从布尔字段迁到 `timeline` 语义
 5. 把 `Position` 与 `config` 从单轴 `designSize` 迁到双轴 `width` / `height`
-6. 保持迁移过程中业务可升级、可提示、可验证
+6. 保持切换过程可验证，并在完成后只留下新口径
 
 ### 高风险断点
 
 1. `Scene.slideMode` / `slideDirection` / `slideDuration` 向 root 迁移
 2. `scrollSpeed`、`scrollEnterLength`、`scrollHoldLength`、`scrollExitLength` 等旧 scroll 参数的去场景化
-3. `<Viewport>` 向 `<ScrollZone>` 的公共语义迁移
+3. 从 `<Viewport>` / `ScrollZone` 语义收束到 `Scene.scroll`
 4. `Animate.scrollDriven`、`scrollPhaseStart`、`scrollPhaseEnd` 向 `timeline` 迁移
 5. `designSize` 向 `designWidth` / `designHeight` 迁移
 6. 平铺 callbacks / ref methods 向分组 callbacks / 精简 methods 迁移
 
-### 兼容策略
+### 直接切换策略
 
-必须先做兼容桥的项目：
+scroll 重构采用直接切换策略：
 
-1. `Scene.slideMode`、`slideDirection`、`slideDuration`
-2. `scrollSpeed`、`scrollControlled`、`scrollEnterLength`、`scrollHoldLength`、`scrollExitLength`
-3. `scrollDriven`
-4. `<Viewport>`
-5. 平铺 callbacks
-
-可优先降级为 deprecated 的项目：
-
-1. `scrollCommitThreshold`
-2. `scrollReleaseDuration`
-3. `scrollLockToSingleScene`
-4. `triggerAnimation`
-5. `reload`
-6. `scrollPhaseStart`
-7. `scrollPhaseEnd`
+1. 删除虚拟滚动轨道主路径
+2. 删除 root 级全局虚拟滚动坐标主路径
+3. 删除整页首屏 gate 主路径
+4. 删除 `ScrollZone` 作为 scroll 主公共语义
+5. 只保留必要的类型、构建、测试与浏览器验收，不保留旧心智模型、旧参数或旧 runtime 兼容路径
 
 ### Phase 1: 统一契约
 
@@ -398,7 +424,7 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 **主要动作**
 
 1. 明确 `CineView.mode` 为唯一模式入口
-2. 明确 `ScrollZone` 为 scroll 主公共语义
+2. 明确 `Scene.scroll` 为 scroll 主公共语义
 3. 明确 `Scene` 不再承载 mode-specific 配置
 4. 明确 scroll scene 可小于 `100vh`
 
@@ -407,12 +433,12 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 1. 文档内不再同时出现相互冲突的 scroll 公共语义
 2. 文档内不再把 `Scene.slideMode` 当成现行方案
 
-### Phase 2: 类型先行 + 兼容桥
+### Phase 2: 类型切换
 
 **目标**
 
 - 让新的公共接口能在类型层表达
-- 让旧接口在一段过渡期内仍可被识别和告警
+- 删除旧 scroll 主路径的公共类型心智负担
 
 **主要文件**
 
@@ -421,23 +447,23 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 **主要动作**
 
 1. 新增 root-first `CineViewProps`
-2. 新增 `modes.snap` / `modes.drag` / `modes.scroll`
+2. 新增 `modes.drag` / `modes.scroll`
 3. 新增 `scrollbar`、`callbacks`、`performance`
 4. 把 `SceneProps` 改成 `layout` / `stack` / `transition` / `assets` / `callbacks`
-5. 新增 `ScrollZoneProps`
-6. 为旧字段加 deprecated 兼容层和迁移注释
+5. 去掉 `ScrollZoneProps` 作为主入口类型要求
+6. 让 `Scene.scroll` 成为唯一主推荐 takeover 类型入口
 
 **验证**
 
 1. TypeScript 编译通过
-2. 旧示例在类型层仍可识别，或能得到明确 deprecated 提示
-3. 新接口能完整表达需求稿中的目标配置
+2. 新接口能完整表达需求稿中的目标配置
+3. scroll 主文档类型只保留新心智模型
 
 ### Phase 3: Root Runtime 接管模式
 
 **目标**
 
-- 真正把 `snap` / `drag` / `scroll` 的模式判定交给 `CineView`
+- 真正把 `drag` / `scroll` 的模式判定交给 `CineView`
 
 **主要文件**
 
@@ -453,7 +479,7 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 
 **验证**
 
-1. `snap` / `drag` / `scroll` 三模式只走自己的引擎分支
+1. `drag` / `scroll` 两模式只走自己的引擎分支
 2. scroll 下短 scene 不会被默认抬成一屏
 3. root 级 `scrollbar` 开关和默认样式生效
 
@@ -480,30 +506,30 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 2. `onVisibilityChange` / scene 可视语义不回归
 3. Scene 边界、缝隙、固定层释放逻辑稳定
 
-### Phase 5: ScrollZone Public API 落地
+### Phase 5: Scene.scroll Public API 落地
 
 **目标**
 
-- 用 `ScrollZone` 替换 `Viewport` 作为主推荐写法
+- 用 `Scene.scroll` 直接取代并删除 `Viewport` / `ScrollZone` scroll 写法
 
 **主要文件**
 
 - `src/components/Viewport/*`
-- 新的 `src/components/ScrollZone/*` 或 public export bridge
+- `src/components/Scene/*`
 - `src/components/Animate/useAnimateScroll.ts`
 
 **主要动作**
 
-1. 保留 viewport runtime
-2. 对外增加 `ScrollZone`
-3. 为 `<Viewport>` 提供 legacy bridge
-4. 迁移 orphan warning 与预算注册逻辑到新的 public 语义
+1. 收束 takeover 注册逻辑到 `Scene.scroll`
+2. 移除 `ScrollZone` 作为主公共入口和 active runtime path
+3. 迁移 orphan warning 与预算注册逻辑到新的 public 语义
+4. 让 scene-owned takeover 成为唯一主叙述
 
 **验证**
 
 1. zone 激活、预算结算、回退逻辑通过
-2. `<Viewport>` 旧写法仍能过渡运行或明确告警
-3. `<ScrollZone>` 成为文档和类型主入口
+2. `Scene.scroll` 成为文档和类型主入口
+3. scroll 主文档、示例和 active runtime 不再依赖 `Viewport` 或 `ScrollZone`
 
 ### Phase 6: Animate 语义迁移
 
@@ -516,7 +542,6 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 - `src/components/Animate/Animate.tsx`
 - `src/components/Animate/useAnimateScroll.ts`
 - `src/components/Animate/useAnimateDrag.ts`
-- `src/components/Animate/useAnimateSnap.ts`
 
 **主要动作**
 
@@ -590,12 +615,12 @@ scroll scene 的高度测量必须按“布局足迹”完成，而不是按视�
 2. 再验类型可表达性
 3. 再验 root engine 行为
 4. 再验 scroll 基础行为
-5. 最后验 legacy 兼容与删旧后的回归
+5. 最后验直接切换后的回归与例子一致性
 
 ### 本计划的执行原则
 
 1. 不先改运行时再补文档
-2. 不先删旧字段再做兼容桥
+2. scroll 不保留旧主路径与新主路径并存
 3. 不在没有阶段验收的情况下跨阶段并改
 4. 前端交互阶段必须真实验证，不能只靠代码推理结案
 
@@ -716,39 +741,6 @@ graph TD
 
 ### 数据流图
 
-#### Snap 模式数据流
-
-```mermaid
-sequenceDiagram
-    participant User as 用户交互
-    participant CV as CineView
-    participant SM as 场景管理器
-    participant SC1 as Scene 1
-    participant SC2 as Scene 2
-    participant AC as 动画控制器
-    participant PL as 预加载器
-    
-    User->>CV: 初始化组件
-    CV->>PL: 预加载首屏图片
-    PL-->>CV: 加载进度事件
-    CV->>SM: 初始化场景列表
-    SM->>SC1: 渲染首个场景
-    SC1->>AC: 触发进入动画
-    AC-->>CV: 动画完成事件
-    
-    User->>SC1: 滑动手势 (snap 模式)
-    SC1->>SM: 请求切换场景
-    
-    par 并行执行
-        SM->>SC1: 触发离开动画
-        SM->>SC2: 触发进入动画
-    end
-    
-    SC1-->>SM: 离开动画完成
-    SC2-->>SM: 进入动画完成
-    SM-->>CV: 场景切换完成事件
-```
-
 #### Drag 模式数据流（elapsed-time 驱动）
 
 ```mermaid
@@ -849,9 +841,8 @@ sequenceDiagram
 ```typescript
 interface CineViewProps {
   config: CineViewDesignConfig;
-  mode?: 'snap' | 'drag' | 'scroll'; // default: 'snap'
+  mode?: 'drag' | 'scroll'; // default: 'drag'
   modes?: {
-    snap?: SnapModeConfig;
     drag?: DragModeConfig;
     scroll?: ScrollModeConfig;
   };
@@ -865,12 +856,6 @@ interface CineViewDesignConfig {
   width: number;                     // 设计稿宽度
   height: number;                    // 设计稿高度
   unit?: 'px' | 'rem' | 'vw';        // default: 'px'
-}
-
-interface SnapModeConfig {
-  direction?: 'x' | 'y';             // default: 'y'
-  duration?: number;                 // default: 800
-  replayOnReenter?: boolean;         // default: true
 }
 
 interface DragModeConfig {
@@ -888,18 +873,14 @@ interface DragModeConfig {
 interface ScrollModeConfig {
   direction?: 'x' | 'y';             // default: 'y'
   zoneTrigger?: 'center-lock';       // default: 'center-lock'
-  replayOnReenter?: boolean;         // default: true
-  wheelStep?: number;                // default: 0.038
-  touchStep?: number;                // default: 0.028
   sceneSizing?: 'content' | 'screen'; // default: 'content'
 }
 
 interface ScrollbarConfig {
   enabled?: boolean;                 // default: false
-  strategy?: 'native' | 'overlay';   // default: 'overlay'
   width?: number;                    // default: 6
   radius?: number;                   // default: 999
-  inset?: number;                    // default: 8
+  inset?: number;                    // default: 0
   trackColor?: string;               // default: 'transparent'
   thumbColor?: string;               // default: 'rgba(255,255,255,0.28)'
   thumbHoverColor?: string;          // default: 'rgba(255,255,255,0.42)'
@@ -915,10 +896,6 @@ interface CineViewCallbacks {
     onInteractionStateChange?: (detail: InteractionStateDetail) => void;
     onLayoutMeasured?: (detail: LayoutMeasuredDetail) => void;
     onError?: (detail: CineViewErrorDetail) => void;
-  };
-  snap?: {
-    onTransitionStart?: (detail: SceneChangeDetail) => void;
-    onTransitionEnd?: (detail: SceneChangeDetail) => void;
   };
   drag?: {
     onDragStart?: (detail: DragDetail) => void;
@@ -942,25 +919,25 @@ interface CineViewPerformanceConfig {
 }
 
 interface CineViewRef {
-  getState: () => CineViewRuntimeSnapshot;
-  goToScene: (
-    target: number | string,
-    options?: { animated?: boolean; align?: 'start' | 'center' }
-  ) => void;
+  goToScene: (index: number, animated?: boolean) => void;
   goToZone?: (
     zoneId: string,
     options?: { align?: 'center'; animated?: boolean }
   ) => void;
-  refreshLayout: () => void;
-  preload: (targets?: Array<number | string>) => Promise<void>;
+  refreshLayout?: () => void;
+  preload?: (targets?: Array<number | string>) => Promise<void>;
+  getCurrentScene: () => number;
+  getPerformanceMetrics: () => PerformanceMetrics;
 }
 ```
 
 **职责**:
 - 创建响应式尺寸换算上下文
-- 作为 `snap / drag / scroll` 的唯一模式入口
+- 作为 `drag / scroll` 的唯一模式入口
 - 统一托管 mode-specific 默认值
 - 注入和托管 scrollbar 样式
+- scroll 模式启用框架滚动条时，浏览器原生滚动条必须默认视觉隐藏；框架只保留真实 native scroll 指标，不提供 native/overlay 多策略分支。
+- 框架自绘 scrollbar 默认贴合视口边缘；只有显式配置 `inset` 时才向内收缩。
 - 管理场景注册、布局测量、事件分发和预加载
 - 暴露以“导航 / 刷新 / 观测”为主的稳定 API
 
@@ -997,7 +974,6 @@ interface SceneProps {
     enterAnimation?: AnimationType;
     exitAnimation?: AnimationType;
     exitDuration?: number;
-    replayOnReenter?: boolean;
   };
   assets?: {
     preloadImages?: string[];
@@ -1104,55 +1080,53 @@ type FramerMotionVariant = {
 
 **职责**:
 
-- 承载布局与内容
+- 承载章节级布局与内容
 - 提供 scene-scoped fixed layer 宿主
 - 暴露 scene 可视与边界信息
+- 在需要时承载 scene 级导航、生命周期与 takeover 所有权
 - 不再负责声明根模式
 
 **产品裁决**:
 
 1. `Scene` 不再接受 `slideMode`、`slideDirection`、`scrollSpeed`、`scrollEnterLength`、`scrollHoldLength`、`scrollExitLength` 等 mode 配置。
-2. `Scene` 只保留布局、堆叠、资源和可视回调。
-3. `Scene` 的 transition 只描述 scene 自身动画，不再背负 scroll engine 参数。
+2. `Scene` 不是 scroll 页面普通内容的必选容器。
+3. `Scene` 只保留布局、堆叠、资源和可视回调。
+4. `Scene` 的 transition 只描述 scene 自身动画，不再背负 scroll engine 参数。
 
-### 组件 2.5: ScrollZone（局部滚动接管区）
+### 组件 2.5: Scene.scroll（局部滚动接管声明）
 
-**目的**: 声明一段内容在 scroll 模式下会接管滚动，并为内部 scroll-driven 动画提供统一时间轴
+**目的**: 在 `Scene` 上声明该 scene 会在 scroll 模式下接管局部滚动，并为内部 scroll-driven 动画提供统一时间轴
 
 **接口**:
 ```typescript
-interface ScrollZoneProps {
+interface SceneScrollConfig {
   zoneId?: string;
   trigger?: 'center-lock';             // default: 'center-lock'
-  replayOnReenter?: boolean;           // default: true
-  budget?: 'auto' | number;            // default: 'auto'
-  children: React.ReactNode;
 }
 ```
 
 **职责**:
 
-- 提供 scroll 模式下的局部时间轴入口
-- 负责 zone 激活、预算消费和回退
-- 作为 `Animate.timeline.driver='scroll'` 的归属容器
+- 提供 scroll 模式下的 scene-owned 局部时间轴入口
+- 负责 takeover 激活、真实滚动距离消费和回退
+- 正向接管时发布 `0% -> 100%` 进度，完成后释放给自然文档流
+- 从后方真实文档流反向回到同一个 center-lock 触发位置时，以保留的 `100%` 状态继续发布 `100% -> 0%` 进度
+- 在 scene progress 到达 `0%` 或 `100%` 前阻止 native document flow 越过当前 ownership 边界
+- 作为 `Animate.timeline.driver='scroll'` 的归属声明
 
 ### 模式说明
 
-1. **整屏滚动模式 (snap)**:
-   - 由 `CineView mode="snap"` 启用
-   - 所有主要调优放在 `modes.snap`
-   - 场景切换由 root 引擎统一驱动
-
-2. **拖拽模式 (drag)**:
+1. **拖拽模式 (drag)**:
    - 由 `CineView mode="drag"` 启用
    - 阈值、回弹、方向、时长全部进入 `modes.drag`
    - `Scene` 与 `Animate` 只消费 drag 时间语义，不再持有 drag 配置
 
-3. **滚动模式 (scroll)**:
+2. **滚动模式 (scroll)**:
    - 由 `CineView mode="scroll"` 启用
-   - 场景是真实文档流 section
-   - 动画优先级固定为 `ScrollZone 时间轴 -> 文档滚动`
-   - `ScrollZone` 是唯一推荐的局部滚动接管语义
+   - 页面首先是真实文档流
+   - `Scene` 只在需要章节级能力时出现
+   - 输入 ownership 固定为 `可消费 Scene.scroll progress -> 文档滚动`
+   - `Scene.scroll` 是唯一推荐的局部滚动接管语义
 
 ### 组件 3: Animate（动画组件）
 
@@ -1325,9 +1299,10 @@ interface AnimateProps {
 **职责**:
 - 统一消费当前 mode 的时间语义
 - 默认以“最少声明”工作：
-  - snap / drag 下默认跟随 scene
-  - scroll 下默认按 visibility 自动执行
-- 只有显式声明 `timeline.driver='scroll'` 时，才进入 `ScrollZone` 预算系统
+  - drag 下默认跟随 scene
+  - scroll 下若处于 takeover scene 内则默认绑定该 scene 的 takeover 时间轴，否则默认按 visibility 自动执行
+- 在普通文档节点、普通 React 组件和 `Scene` 内都必须可用
+- 在 takeover scene 外只有显式声明 `timeline.driver='scroll'` 时，才会触发归属校验并报警
 - 负责 delay / waitFor / infinite / replay 等高级动画编排
 
 **产品裁决**:
@@ -1335,7 +1310,7 @@ interface AnimateProps {
 1. `scrollDriven`、`scrollPhaseStart`、`scrollPhaseEnd` 不再继续作为顶层字段推荐，统一归入 `timeline`。
 2. `Animate` 不应默认抢占 scroll 时间轴；scroll 高级能力必须显式声明。
 3. 默认值要偏向普通用户：
-   - 没写 `timeline.driver` 时，不应该意外把元素卷入 scroll budget。
+   - 没写 `timeline.driver` 时，不应该意外把元素卷入 scroll takeover 时间轴。
 
 ### 组件 4: Position（定位组件）
 
@@ -1378,7 +1353,7 @@ interface CineViewContext {
   designWidth: number;
   designHeight: number;
   unit: 'px' | 'rem' | 'vw';
-  mode: 'snap' | 'drag' | 'scroll';
+  mode: 'drag' | 'scroll';
   viewportWidth: number;
   viewportHeight: number;
   scaleX: number;
@@ -1400,8 +1375,8 @@ interface CineViewContext {
 interface SceneState {
   currentIndex: number;                 // 当前场景索引
   totalScenes: number;                  // 总场景数
-  mode: 'snap' | 'drag' | 'scroll';     // 当前根模式
-  isAnimating: boolean;                 // 是否正在动画中（snap 模式）
+  mode: 'drag' | 'scroll';              // 当前根模式
+  isAnimating: boolean;                 // 是否正在 release / settle 动画中
   isDragging: boolean;                  // 是否正在拖拽中（drag 模式）
   dragProgress: number;                 // 拖拽进度 0-1（drag 模式）
   direction: 'forward' | 'backward';    // 切换方向
@@ -1426,16 +1401,14 @@ initial → entering → active → exiting → initial
 - initial: 场景初始状态或已离开状态
 - entering: 场景正在播放入场动画
 - active: 场景入场动画完成，处于活跃状态
-- exiting: 场景正在播放离开动画（snap 模式）或正在被拖拽（drag 模式）
+- exiting: 场景正在被拖拽或处于释放过渡中（drag 模式）
 - 场景离开后必须重置为 initial，保证可重复播放
 ```
 
 **验证规则**:
 - currentIndex 范围: 0 <= currentIndex < totalScenes
-- isAnimating 为 true 时禁止新的场景切换（snap 模式）
 - isDragging 为 true 时允许拖拽进度更新（drag 模式）
 - dragProgress 范围: 0 <= dragProgress <= 1
-- snap 模式下 isDragging 始终为 false
 - drag 模式下 isAnimating 仅在松手后切换时为 true
 - animateRegistry 在场景切换时清空并重新注册
 - sceneStatus 必须遵循状态机转换规则
@@ -1475,14 +1448,14 @@ interface PreloadState {
 
 **验证规则**:
 - progress = (loadedImages / totalImages) * 100
-- firstSceneLoaded 为 true 后才渲染首屏
+- firstSceneLoaded 为 true 后，首屏关键媒体进入可运行态；首屏布局本身不依赖该标记才渲染
 - loadedImages <= totalImages
 
 ## 错误处理
 
 ### 错误场景 1: 组件层级错误
 
-**条件**: Scene 不在 CineView 下使用，或 Animate/Position 不在 Scene 下使用
+**条件**: Scene 不在 CineView 下使用，或 Position 的 scene-scoped 能力在没有 Scene 归属时被请求
 **响应**: 开发环境抛出 console.error 警告，生产环境静默失败
 **恢复**: 提供清晰的错误信息指导开发者修正组件层级
 
@@ -1525,8 +1498,6 @@ interface PreloadState {
 
 2. **Scene 组件测试**
    - 验证场景布局渲染（含小于一屏、等于一屏、大于一屏）
-   - 验证 snap 模式：整屏滑动手势检测和自动切换
-   - 验证 snap 模式：离开动画和进入动画并行执行
    - **验证 drag 模式（全新改造设计）**：
      - 验证 dragProgress MotionValue 创建和更新
      - 验证拖拽进度计算（0-1 范围）
@@ -1553,7 +1524,6 @@ interface PreloadState {
    - 验证 waitFor 关联机制
    - 验证循环依赖检测
    - 验证无限动画循环
-   - 验证在 snap 模式下的完整动画播放
    - **验证在 drag 模式下（全新改造设计）**：
      - 验证 useTransform 三点映射 `[0, startPoint, 1] → [initial, initial, target]`
      - 验证 startPoint 计算：`Math.min(delay / sceneTransitionDuration, 1)`
@@ -1708,18 +1678,19 @@ module.exports = {
 
 ### 虚拟化渲染
 
-- 仅渲染当前场景及前后各一个场景（共 3 个）
-- 减少 DOM 节点数量，提升滑动性能
-- 使用 `content-visibility: auto` CSS 属性优化非可见场景
+- scroll 模式默认保持所有 scene 连续挂载，优先保证真实文档流和 takeover 连续性
+- 仅在远离 viewport 的场景上允许后续引入保守型卸载策略
+- 不允许通过近邻 placeholder shell 改写 scene 布局连续性或 takeover 命中逻辑
 
-### 图片懒加载策略
+### 图片加载策略
 
-- 首屏图片优先加载（阻塞渲染）
-- 后续场景图片静默加载（不阻塞交互）
-- 使用 IntersectionObserver 优化加载时机
-- 支持 WebP 格式，提供 fallback
-- 使用 `loading="lazy"` 属性
-- 实现图片尺寸占位，避免布局偏移（CLS）
+- 公共图片组件统一为 `Image`，内部预加载统一由 `useImagePreloader` 管理
+- `Image` 默认 `preload = true`，可通过 `preload={false}` 使用浏览器 lazy loading
+- `Image` 支持原生 `img` props、`style`、`width` 与 `height`
+- `Image` 的数字 `width`、`height` 与数字 style 长度值通过 CineView 双轴上下文换算
+- drag 模式预加载当前场景及相邻场景声明的 `assets.preloadImages`
+- scroll 模式全局预加载所有 scene 声明的 `assets.preloadImages`
+- 图片预加载不阻塞首屏整体布局，也不隐藏普通 scroll 内容
 
 ### 动画性能优化
 
@@ -1771,7 +1742,7 @@ module.exports = {
 - 首屏关键 CSS 内联
 - 避免阻塞渲染的 JavaScript
 - 使用骨架屏或加载指示器
-- 首屏图片预加载完成前显示占位符
+- 首屏媒体在预加载完成前显示占位符或渐入态，但不隐藏整个首屏 viewport
 
 ### 累积布局偏移（CLS）优化
 
@@ -1862,8 +1833,8 @@ useAnimationRegistry()
 // 拖拽进度
 useDragProgress(slideDirection)
 
-// 图片预加载
-useImagePreloader(imageUrls)
+// 图片组件
+<Image src="/hero.png" alt="Hero" width={640} height={360} preload />
 ```
 
 **工具函数复用**:
@@ -2422,19 +2393,18 @@ pnpm run test:coverage
   Ci.offsetX 存在 ⟹ Ci.finalX = Σ(Cj.x + Cj.offsetX) for j ∈ [1, i]
 ```
 
-### 属性 6: 场景切换动画并行性
+### 属性 6: Drag Release 连续性
 
-*对于任意*在 snap 模式下的场景切换，上一个场景的离开动画和下一个场景的进入动画必须同时开始
+*对于任意*在 drag 模式下的成功释放，目标场景必须从释放时共享时间轴进度继续 settle，而不是从 0 重新开始。
 
 **验证需求**: 需求 3.2
 
 **形式化表达**:
 ```
 ∀ time t, scene S1, S2:
-  mode = 'snap' ∧ transitionTriggered(t)
-  ⟹ S1.exitAnimationStartTime = t
-    ∧ S2.enterAnimationStartTime = t
-    ∧ S1.exitAnimationStartTime = S2.enterAnimationStartTime
+  mode = 'drag' ∧ releaseCommitted(t)
+  ⟹ S2.settleStartProgress >= S1.releaseProgress
+    ∧ S2.settleStartTime = t
 ```
 
 ### 属性 7: 场景切换互斥性

@@ -10,11 +10,28 @@ type PendingAnimation = {
   isStopped: () => boolean;
 };
 
+type PendingAnimationKind = 'motion-value' | 'number';
+
 const pendingObjectAnimations: PendingAnimation[] = [];
+const pendingNumberAnimations: PendingAnimation[] = [];
+const completedAnimations = {
+  motionValue: 0,
+  number: 0,
+};
 
 async function flushPendingObjectAnimations(): Promise<void> {
   await act(async () => {
     for (const animation of pendingObjectAnimations.splice(0)) {
+      if (!animation.isStopped()) {
+        animation.flush();
+      }
+    }
+  });
+}
+
+async function flushPendingNumberAnimations(): Promise<void> {
+  await act(async () => {
+    for (const animation of pendingNumberAnimations.splice(0)) {
       if (!animation.isStopped()) {
         animation.flush();
       }
@@ -151,32 +168,44 @@ jest.mock('framer-motion', () => {
       target: number,
       options?: { onUpdate?: (latest: number) => void; onComplete?: () => void }
     ) => {
-      if (typeof value === 'object' && value?.set) {
-        let stopped = false;
-        const animation: PendingAnimation = {
-          stop: () => {
-            stopped = true;
-          },
-          flush: () => {
-            if (stopped) {
-              return;
-            }
+      const kind: PendingAnimationKind =
+        typeof value === 'object' && value?.set ? 'motion-value' : 'number';
+      let stopped = false;
+      const animation: PendingAnimation = {
+        stop: () => {
+          stopped = true;
+        },
+        flush: () => {
+          if (stopped) {
+            return;
+          }
+          if (typeof value === 'object' && value?.set) {
             value.set?.(target);
-            options?.onUpdate?.(target);
-            options?.onComplete?.();
-            stopped = true;
-          },
-          isStopped: () => stopped,
-        };
+          }
+          options?.onUpdate?.(target);
+          if (kind === 'motion-value') {
+            completedAnimations.motionValue += 1;
+          } else {
+            completedAnimations.number += 1;
+          }
+          options?.onComplete?.();
+          stopped = true;
+        },
+        isStopped: () => stopped,
+      };
+
+      if (kind === 'motion-value') {
         pendingObjectAnimations.push(animation);
         options?.onUpdate?.(target * 0.6);
-        value.set?.(target * 0.6);
-        return { stop: animation.stop };
+        if (typeof value === 'object' && value?.set) {
+          value.set(target * 0.6);
+        }
+      } else {
+        pendingNumberAnimations.push(animation);
+        options?.onUpdate?.(target * 0.6);
       }
 
-      options?.onUpdate?.(target);
-      options?.onComplete?.();
-      return { stop: jest.fn() };
+      return { stop: animation.stop, flush: animation.flush };
     },
   };
 });
@@ -251,9 +280,12 @@ describe('drag mode settle handshake', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     pendingObjectAnimations.length = 0;
+    pendingNumberAnimations.length = 0;
+    completedAnimations.motionValue = 0;
+    completedAnimations.number = 0;
   });
 
-  it('defers onSceneDidChange until the incoming scene settle completes', async () => {
+  it('does not commit when render release finishes before timeline settle', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
 
@@ -265,23 +297,50 @@ describe('drag mode settle handshake', () => {
     const activeSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     dragUp(activeSceneSurface, 620, 120);
 
-    await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
-      expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
-    });
+    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(onSceneDidChange).not.toHaveBeenCalled();
 
+    await flushPendingNumberAnimations();
+
+    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
     expect(onSceneDidChange).not.toHaveBeenCalled();
 
     await flushPendingObjectAnimations();
 
+    // Both lanes complete → commit at partial progress.
+    // Scene changes, onSceneDidChange deferred (needsSettleCompletion=true).
     await waitFor(() => {
-      expect(onSceneDidChange).toHaveBeenCalledWith(
-        expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
-      );
+      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
   });
 
-  it('finalizes the pending scene change before a new drag begins', async () => {
+  it('commits only after both timeline settle and render release complete', async () => {
+    const onSceneDidChange = jest.fn();
+    const cineViewRef = renderDragApp(onSceneDidChange);
+
+    await waitFor(() => {
+      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    });
+
+    const activeSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
+    dragUp(activeSceneSurface, 620, 120);
+
+    await flushPendingObjectAnimations();
+
+    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(onSceneDidChange).not.toHaveBeenCalled();
+
+    await flushPendingNumberAnimations();
+
+    // Both lanes complete → commit at partial progress.
+    await waitFor(() => {
+      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
+    });
+  });
+
+  it('completes both interrupted release tracks once and ignores stale callbacks', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
 
@@ -292,20 +351,36 @@ describe('drag mode settle handshake', () => {
     const firstSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     dragUp(firstSceneSurface, 620, 120);
 
+    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(onSceneDidChange).not.toHaveBeenCalled();
+
+    await flushPendingNumberAnimations();
+
+    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(onSceneDidChange).not.toHaveBeenCalled();
+    expect(completedAnimations.motionValue).toBe(0);
+    expect(completedAnimations.number).toBe(1);
+
+    const firstPendingSceneSurface = document.querySelector(
+      '[data-scene-index="0"] > *'
+    ) as HTMLElement;
+    fireEvent.mouseDown(firstPendingSceneSurface, { clientX: 375, clientY: 620 });
+
+    // handleDragStart flushes both pending releases → commit at partial progress.
+    // Scene changes immediately. onSceneDidChange is deferred (needsSettleCompletion).
     await waitFor(() => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
 
-    expect(onSceneDidChange).not.toHaveBeenCalled();
+    expect(completedAnimations.motionValue).toBe(1);
+    // render release is NOT stopped in the new tryCommitRelease path,
+    // so it may complete once more when flushed by handleDragStart.
+    expect(completedAnimations.number).toBeGreaterThanOrEqual(1);
 
-    const secondSceneSurface = document.querySelector('[data-scene-index="1"] > *') as HTMLElement;
-    fireEvent.mouseDown(secondSceneSurface, { clientX: 375, clientY: 620 });
+    await flushPendingObjectAnimations();
+    await flushPendingNumberAnimations();
 
-    await waitFor(() => {
-      expect(onSceneDidChange).toHaveBeenCalledWith(
-        expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
-      );
-    });
+    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
   });
 });

@@ -1,8 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      cineview: path.resolve(__dirname, '../../src/index.ts'),
+    },
+    dedupe: ['react', 'react-dom', 'framer-motion'],
+  },
+  optimizeDeps: {
+    exclude: ['cineview'],
+  },
   server: {
     port: 3000,
     open: true,

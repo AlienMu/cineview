@@ -10,6 +10,7 @@ interface UseAnimateDragParams {
   componentId: string;
   delay: number;
   enterDuration: number;
+  exitDuration: number;
   waitFor?: string;
 }
 
@@ -212,17 +213,44 @@ function resolveEnterLocalProgress(
   return clamp((sharedElapsedMs - calculatedDelay) / enterDuration, 0, 1);
 }
 
+function easeOutQuad(progress: number): number {
+  const normalizedProgress = clamp(progress, 0, 1);
+  return 1 - (1 - normalizedProgress) * (1 - normalizedProgress);
+}
+
+function resolveVisualTimelineProgress(
+  sceneContext: SceneContextType,
+  transitionProgress: number,
+  renderProgress: number
+): number {
+  const timelineProgress = clamp(transitionProgress, 0, 1);
+  const renderTimelineProgress = easeOutQuad(Math.abs(renderProgress));
+
+  if (sceneContext.isDragging) {
+    return Math.max(timelineProgress, renderTimelineProgress);
+  }
+
+  return timelineProgress;
+}
+
 function resolveVisualState(
   sceneContext: SceneContextType,
   calculatedDelay: number,
-  enterDuration: number
+  enterDuration: number,
+  exitDuration: number
 ): DragVisualState {
   const direction = resolveDirection(sceneContext);
   const sharedElapsedMs = resolveSharedElapsed(sceneContext);
   const transitionProgress = resolveTransitionProgress(sceneContext);
   const sharedTimelineDurationMs = resolveSharedTimelineDuration(sceneContext);
   const sceneTimelineDurationMs = resolveSceneTimelineDuration(sceneContext);
-  const projectedSceneElapsedMs = transitionProgress * sceneTimelineDurationMs;
+  const renderProgress = Math.abs(resolveRenderProgress(sceneContext));
+  const visualTimelineProgress = resolveVisualTimelineProgress(
+    sceneContext,
+    transitionProgress,
+    renderProgress
+  );
+  const projectedSceneElapsedMs = visualTimelineProgress * sceneTimelineDurationMs;
   const dragLocalProgress = resolveEnterLocalProgress(
     projectedSceneElapsedMs,
     calculatedDelay,
@@ -237,7 +265,9 @@ function resolveVisualState(
     transitionProgress < 1 - EPSILON;
 
   if (sceneContext.sceneOffset === 0 && sceneContext.isActive) {
-    if (sceneContext.isDragging || Math.abs(resolveRenderProgress(sceneContext)) > EPSILON) {
+    if (sceneContext.isDragging || renderProgress > EPSILON) {
+      const outgoingDuration = Math.max(exitDuration, 1);
+      const renderElapsedMs = renderProgress * sceneContext.sceneTransitionDuration;
       return {
         mode: 'outgoing',
         direction,
@@ -246,7 +276,7 @@ function resolveVisualState(
         projectedSceneElapsedMs,
         sharedTimelineDurationMs,
         sceneTimelineDurationMs,
-        localProgress: transitionProgress,
+        localProgress: clamp(renderElapsedMs / outgoingDuration, 0, 1),
         sceneOffset: sceneContext.sceneOffset,
       };
     }
@@ -364,6 +394,7 @@ function useNumericValue(
   variantsRef: React.MutableRefObject<CachedVariants>,
   calculatedDelayRef: React.MutableRefObject<number>,
   enterDuration: number,
+  exitDuration: number,
   property: DragProperty
 ): MotionValue<number> {
   return useTransform(visualMotion, () => {
@@ -371,7 +402,7 @@ function useNumericValue(
     const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
     const resolved = sceneContext
       ? resolvePropertyValue(
-          resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration),
+          resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration, exitDuration),
           variants,
           property
         )
@@ -387,6 +418,7 @@ function useMixedValue(
   variantsRef: React.MutableRefObject<CachedVariants>,
   calculatedDelayRef: React.MutableRefObject<number>,
   enterDuration: number,
+  exitDuration: number,
   property: DragProperty
 ): MotionValue<number | string> {
   return useTransform(visualMotion, () => {
@@ -396,7 +428,7 @@ function useMixedValue(
     }
 
     return resolvePropertyValue(
-      resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration),
+      resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration, exitDuration),
       variants,
       property
     );
@@ -410,6 +442,7 @@ export function useAnimateDrag({
   componentId,
   delay,
   enterDuration,
+  exitDuration,
   waitFor,
 }: UseAnimateDragParams): UseAnimateDragReturn {
   const calculatedDelayRef = useRef(0);
@@ -418,6 +451,13 @@ export function useAnimateDrag({
     enterAnimate: {},
     exitTarget: {},
   });
+
+  // Compute the initial visual motion value synchronously during render
+  // to prevent a one-frame flash where Animate elements show initial (0%)
+  // state before the useEffect-based updateVisualMotion runs after paint.
+  // This is critical for drag mode scene transitions where a newly-activated
+  // scene's Animate elements must appear at their correct visual position
+  // on the very first frame.
   const visualMotion = useMotionValue(0);
   const [shouldRunInfiniteState, setShouldRunInfiniteState] = useState(false);
   const lastDebugBucketRef = useRef<string | null>(null);
@@ -428,7 +468,15 @@ export function useAnimateDrag({
     variantsRef.current = {
       enterInitial: (enterVariant?.initial as VariantRecord) || {},
       enterAnimate: (enterVariant?.animate as VariantRecord) || {},
-      exitTarget: (exitVariant?.exit as VariantRecord) || {},
+      // When no explicit exitAnimation is authored, derive exit from the same
+      // preset. The preset definitions include exit keyframes (e.g. slide-up
+      // exits to y: '-100%'). Without this, exitTarget is {} and position
+      // properties fall back to numeric 0, causing lerpStringValue to produce
+      // '0%' — freezing the position while only opacity animates during exit.
+      exitTarget:
+        (exitVariant?.exit as VariantRecord) ||
+        (enterVariant?.exit as VariantRecord) ||
+        {},
     };
   }, [enterVariant, exitVariant]);
 
@@ -469,7 +517,12 @@ export function useAnimateDrag({
     if (!sceneContext) return;
 
     const updateVisualMotion = (): void => {
-      const state = resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration);
+      const state = resolveVisualState(
+        sceneContext,
+        calculatedDelayRef.current,
+        enterDuration,
+        exitDuration
+      );
       const nextValue =
         state.mode === 'outgoing'
           ? (state.direction === 'forward' ? 1 : -1) * state.localProgress
@@ -501,6 +554,7 @@ export function useAnimateDrag({
           localProgress: state.localProgress.toFixed(3),
           calculatedDelay: calculatedDelayRef.current,
           enterDuration,
+          exitDuration,
         });
         lastModeRef.current = modeKey;
       }
@@ -525,6 +579,7 @@ export function useAnimateDrag({
             transitionProgress: state.transitionProgress.toFixed(3),
             calculatedDelay: calculatedDelayRef.current,
             enterDuration,
+            exitDuration,
             localProgress: state.localProgress.toFixed(3),
             renderProgress: resolveRenderProgress(sceneContext).toFixed(3),
             sceneOffset: sceneContext.sceneOffset,
@@ -549,6 +604,7 @@ export function useAnimateDrag({
             renderProgress: resolveRenderProgress(sceneContext).toFixed(3),
             calculatedDelay: calculatedDelayRef.current,
             enterDuration,
+            exitDuration,
             isActive: sceneContext.isActive,
             isDragging: sceneContext.isDragging,
             sceneOffset: sceneContext.sceneOffset,
@@ -563,7 +619,7 @@ export function useAnimateDrag({
       return;
     }
 
-    const unsubscribe = sceneContext.sharedElapsedMotion.on('change', updateVisualMotion);
+    const unsubscribe = sceneContext.sharedElapsedMotion.on('change', () => updateVisualMotion());
     return () => {
       unsubscribe();
     };
@@ -572,6 +628,7 @@ export function useAnimateDrag({
     visualMotion,
     componentId,
     enterDuration,
+    exitDuration,
     sceneContext?.renderProgress,
     sceneContext?.isDragging,
     sceneContext?.isActive,
@@ -586,6 +643,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'opacity'
   );
   const x = useMixedValue(
@@ -594,6 +652,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'x'
   );
   const y = useMixedValue(
@@ -602,6 +661,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'y'
   );
   const scale = useNumericValue(
@@ -610,6 +670,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'scale'
   );
   const rotate = useMixedValue(
@@ -618,6 +679,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'rotate'
   );
   const rotateX = useMixedValue(
@@ -626,6 +688,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'rotateX'
   );
   const rotateY = useMixedValue(
@@ -634,6 +697,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'rotateY'
   );
   const skewX = useMixedValue(
@@ -642,6 +706,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'skewX'
   );
   const skewY = useMixedValue(
@@ -650,6 +715,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'skewY'
   );
   const filter = useMixedValue(
@@ -658,6 +724,7 @@ export function useAnimateDrag({
     variantsRef,
     calculatedDelayRef,
     enterDuration,
+    exitDuration,
     'filter'
   );
 
@@ -668,7 +735,12 @@ export function useAnimateDrag({
     }
 
     const update = (): void => {
-      const state = resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration);
+      const state = resolveVisualState(
+        sceneContext,
+        calculatedDelayRef.current,
+        enterDuration,
+        exitDuration
+      );
       const shouldRun =
         sceneContext.isActive &&
         sceneContext.sceneOffset === 0 &&
@@ -690,6 +762,7 @@ export function useAnimateDrag({
   }, [
     sceneContext,
     enterDuration,
+    exitDuration,
     sceneContext?.isActive,
     sceneContext?.sceneOffset,
     sceneContext?.isDragging,

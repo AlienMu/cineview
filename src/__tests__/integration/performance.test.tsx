@@ -146,8 +146,8 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           {scenes}
@@ -187,8 +187,8 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           {scenes}
@@ -262,8 +262,8 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 50 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 50 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           {scenes}
@@ -384,8 +384,8 @@ describe('性能测试', () => {
 
       const TestApp = (): JSX.Element => (
         <CineView
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
@@ -491,8 +491,8 @@ describe('性能测试', () => {
 
       const TestApp = () => (
         <CineView
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene>
@@ -712,8 +712,8 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene>
@@ -880,8 +880,8 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 300 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 300 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
           performance={{ monitor: true }}
         >

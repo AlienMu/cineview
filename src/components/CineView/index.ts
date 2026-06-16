@@ -3,4 +3,4 @@
  */
 
 export { CineView } from './CineView';
-export type { CineViewProps, CineViewRef } from '../../types';
+export type { CineViewPreloadTarget, CineViewProps, CineViewRef } from '../../types';

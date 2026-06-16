@@ -1,11 +1,29 @@
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
-import { ScrollZoneRuntimeContext, ScrollZoneContext } from '../ScrollZone';
-import type { ScrollZoneRuntimeContextValue } from '../ScrollZone';
+import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
+import { CineViewRuntimeContext } from '../CineView/runtimeContext';
 
 jest.mock('framer-motion', () => {
   const actualMotion = jest.requireActual('framer-motion');
+  const React = jest.requireActual('react');
+
+  const isMotionValue = (
+    value: unknown
+  ): value is {
+    get: () => unknown;
+    on: (event: string, listener: () => void) => () => void;
+  } =>
+    Boolean(
+      value &&
+        typeof value === 'object' &&
+        'get' in value &&
+        typeof value.get === 'function' &&
+        'on' in value &&
+        typeof value.on === 'function'
+    );
+
   return {
     ...actualMotion,
     motion: {
@@ -15,11 +33,43 @@ jest.mock('framer-motion', () => {
         ...props
       }: React.HTMLAttributes<HTMLDivElement> & {
         style?: React.CSSProperties;
-      }): JSX.Element => (
-        <div data-testid="motion-div" {...props} style={style}>
-          {children}
-        </div>
-      ),
+      }): JSX.Element => {
+        const [, forceRender] = React.useState(0);
+
+        React.useEffect(() => {
+          const unsubscribes = Object.values(style ?? {})
+            .filter(isMotionValue)
+            .map((value) =>
+              value.on('change', () => {
+                queueMicrotask(() => {
+                  forceRender((count: number) => count + 1);
+                });
+              })
+            );
+
+          return () => {
+            unsubscribes.forEach((unsubscribe) => unsubscribe());
+          };
+        }, [style]);
+
+        const resolvedStyle = Object.fromEntries(
+          Object.entries(style ?? {}).map(([key, value]) => [
+            key,
+            isMotionValue(value) ? value.get() : value,
+          ])
+        );
+
+        return (
+          <div
+            data-testid="motion-div"
+            data-opacity={String(resolvedStyle.opacity ?? '')}
+            {...props}
+            style={resolvedStyle as React.CSSProperties}
+          >
+            {children}
+          </div>
+        );
+      },
     },
     useAnimation: (): {
       start: jest.Mock;
@@ -30,6 +80,7 @@ jest.mock('framer-motion', () => {
       set: jest.fn(),
       stop: jest.fn(),
     }),
+    animate: jest.fn(() => ({ stop: jest.fn() })),
   };
 });
 
@@ -45,6 +96,14 @@ jest.mock('../../animations/composer', () => ({
 
 describe('useAnimateScroll orphan warning', () => {
   const originalNodeEnv = process.env.NODE_ENV;
+
+  function screenOpacity(animateId: string): string {
+    return (
+      document
+        .querySelector(`[data-cineview-animate-id="${animateId}"]`)
+        ?.getAttribute('data-opacity') ?? ''
+    );
+  }
 
   beforeEach(() => {
     process.env.NODE_ENV = 'development';
@@ -63,7 +122,6 @@ describe('useAnimateScroll orphan warning', () => {
       isDragging: false,
       dragProgressMotion: { get: () => 0, set: jest.fn() } as never,
       sharedElapsedMotion: { get: () => 0, set: jest.fn() } as never,
-      sceneEnterCompleted: true,
       sceneState: 'active',
       sceneOffset: 0,
       sceneTransitionDuration: 800,
@@ -75,7 +133,137 @@ describe('useAnimateScroll orphan warning', () => {
     };
   }
 
-  it('points orphan scroll-driven animations to ScrollZone as the primary API', async () => {
+  it('runs ordinary document Animate as visibility-driven in scroll mode without a Scene', async () => {
+    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    const originalInnerHeight = window.innerHeight;
+
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 1000,
+    });
+
+    try {
+      render(
+        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+          <article>
+            <Animate animateId="doc-animate" enterAnimation="fade-in">
+              <div>Document animate</div>
+            </Animate>
+          </article>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      const host = await waitFor(() => {
+        const node = document.querySelector('[data-cineview-animate-host="doc-animate"]');
+        expect(node).not.toBeNull();
+        return node as HTMLElement;
+      });
+      host.getBoundingClientRect = () =>
+        ({
+          top: 200,
+          bottom: 600,
+          left: 0,
+          right: 100,
+          width: 100,
+          height: 400,
+          x: 0,
+          y: 200,
+          toJSON: () => undefined,
+        }) as DOMRect;
+      fireEvent.scroll(window);
+
+      await waitFor(() => {
+        expect(screenOpacity('doc-animate')).toBe('1');
+        expect(consoleWarnSpy).not.toHaveBeenCalled();
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+      consoleWarnSpy.mockRestore();
+    }
+  });
+
+  it('starts ordinary document Animate after real scroll brings it into the viewport', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    const originalInnerHeight = window.innerHeight;
+    let isInViewport = false;
+
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 1000,
+    });
+
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
+      if (this.getAttribute('data-cineview-animate-host') === 'doc-scroll-animate') {
+        return {
+          top: isInViewport ? 200 : 1100,
+          bottom: isInViewport ? 600 : 1500,
+          left: 0,
+          right: 100,
+          width: 100,
+          height: 400,
+          x: 0,
+          y: isInViewport ? 200 : 1100,
+          toJSON: () => undefined,
+        } as DOMRect;
+      }
+
+      if (this.getAttribute('data-cineview-animate-id') === 'doc-scroll-animate') {
+        return {
+          top: isInViewport ? 200 : 1100,
+          bottom: isInViewport ? 200 : 1100,
+          left: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: isInViewport ? 200 : 1100,
+          toJSON: () => undefined,
+        } as DOMRect;
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    try {
+      const { container } = render(
+        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+          <main data-cineview-container="true">
+            <Animate animateId="doc-scroll-animate" enterAnimation="fade-in">
+              <div>Document scroll animate</div>
+            </Animate>
+          </main>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          container.querySelector('[data-cineview-animate-id="doc-scroll-animate"]')
+        ).not.toBeNull();
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(screenOpacity('doc-scroll-animate')).toBe('0');
+
+      isInViewport = true;
+      container
+        .querySelector('[data-cineview-container="true"]')
+        ?.dispatchEvent(new Event('scroll'));
+
+      await waitFor(() => {
+        expect(screenOpacity('doc-scroll-animate')).toBe('1');
+      });
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('points orphan scroll-driven animations to Scene scroll takeover as the primary API', async () => {
     const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
     render(
@@ -88,7 +276,7 @@ describe('useAnimateScroll orphan warning', () => {
 
     await waitFor(() => {
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[CineView Warning] scroll-driven Animate "scroll-orphan" must be wrapped by <ScrollZone>.'
+        '[CineView Warning] scroll-driven Animate "scroll-orphan" must be placed inside a Scene with a scroll takeover config.'
       );
     });
 
@@ -112,7 +300,7 @@ describe('useAnimateScroll orphan warning', () => {
 
     await waitFor(() => {
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[CineView Warning] scroll-driven Animate "timeline-scroll" must be wrapped by <ScrollZone>.'
+        '[CineView Warning] scroll-driven Animate "timeline-scroll" must be placed inside a Scene with a scroll takeover config.'
       );
     });
 
@@ -120,7 +308,7 @@ describe('useAnimateScroll orphan warning', () => {
   });
 
   it('registers grouped timeline and duration fields with the zone runtime', async () => {
-    const zoneRuntime: ScrollZoneRuntimeContextValue = {
+    const zoneRuntime: SceneScrollRuntimeContextValue = {
       version: 1,
       zoneStates: {},
       registerZone: jest.fn(),
@@ -132,8 +320,8 @@ describe('useAnimateScroll orphan warning', () => {
 
     render(
       <SceneContext.Provider value={createScrollSceneContext()}>
-        <ScrollZoneRuntimeContext.Provider value={zoneRuntime}>
-          <ScrollZoneContext.Provider value="zone-1">
+        <SceneScrollRuntimeContext.Provider value={zoneRuntime}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
             <Animate
               animateId="timeline-registration"
               enterAnimation="fade-in"
@@ -151,8 +339,8 @@ describe('useAnimateScroll orphan warning', () => {
             >
               <div>Timeline registration</div>
             </Animate>
-          </ScrollZoneContext.Provider>
-        </ScrollZoneRuntimeContext.Provider>
+          </SceneScrollTakeoverContext.Provider>
+        </SceneScrollRuntimeContext.Provider>
       </SceneContext.Provider>
     );
 
@@ -167,9 +355,89 @@ describe('useAnimateScroll orphan warning', () => {
     });
   });
 
-  it('keeps omitted timeline.driver out of the scroll budget by default', async () => {
+  it('does not re-register scroll budgets when only runtime state/version changes', async () => {
+    const registerZoneAnimation = jest.fn();
+    const unregisterZoneAnimation = jest.fn();
+
+    const { rerender } = render(
+      <SceneContext.Provider value={createScrollSceneContext()}>
+        <SceneScrollRuntimeContext.Provider
+          value={{
+            version: 1,
+            zoneStates: {},
+            registerZone: jest.fn(),
+            unregisterZone: jest.fn(),
+            setZoneElement: jest.fn(),
+            registerZoneAnimation,
+            unregisterZoneAnimation,
+          }}
+        >
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate
+              animateId="stable-registration"
+              enterAnimation="fade-in"
+              duration={{ enter: 320, exit: 180 }}
+              timeline={{ driver: 'scroll', delay: 90, waitFor: 'intro' }}
+            >
+              <div>Stable registration</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </SceneScrollRuntimeContext.Provider>
+      </SceneContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(registerZoneAnimation).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <SceneContext.Provider value={createScrollSceneContext()}>
+        <SceneScrollRuntimeContext.Provider
+          value={{
+            version: 2,
+            zoneStates: {
+              'zone-1': {
+                zoneId: 'zone-1',
+                sceneIndex: 0,
+                progressPx: 120,
+                totalBudgetPx: 320,
+                active: true,
+                direction: 'forward',
+                sequence: {
+                  totalBudgetPx: 320,
+                  totalDurationMs: 320,
+                  budgets: {},
+                },
+              },
+            },
+            registerZone: jest.fn(),
+            unregisterZone: jest.fn(),
+            setZoneElement: jest.fn(),
+            registerZoneAnimation,
+            unregisterZoneAnimation,
+          }}
+        >
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate
+              animateId="stable-registration"
+              enterAnimation="fade-in"
+              duration={{ enter: 320, exit: 180 }}
+              timeline={{ driver: 'scroll', delay: 90, waitFor: 'intro' }}
+            >
+              <div>Stable registration</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </SceneScrollRuntimeContext.Provider>
+      </SceneContext.Provider>
+    );
+
+    expect(registerZoneAnimation).toHaveBeenCalledTimes(1);
+    expect(unregisterZoneAnimation).not.toHaveBeenCalled();
+  });
+
+  it('defaults omitted timeline.driver to the takeover scroll budget inside a scroll Scene', async () => {
     const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-    const zoneRuntime: ScrollZoneRuntimeContextValue = {
+    const zoneRuntime: SceneScrollRuntimeContextValue = {
       version: 1,
       zoneStates: {},
       registerZone: jest.fn(),
@@ -181,43 +449,63 @@ describe('useAnimateScroll orphan warning', () => {
 
     render(
       <SceneContext.Provider value={createScrollSceneContext()}>
-        <ScrollZoneRuntimeContext.Provider value={zoneRuntime}>
-          <ScrollZoneContext.Provider value="zone-1">
+        <SceneScrollRuntimeContext.Provider value={zoneRuntime}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
             <Animate animateId="default-auto" enterAnimation="fade-in">
               <div>Default auto</div>
             </Animate>
-          </ScrollZoneContext.Provider>
-        </ScrollZoneRuntimeContext.Provider>
+          </SceneScrollTakeoverContext.Provider>
+        </SceneScrollRuntimeContext.Provider>
       </SceneContext.Provider>
     );
 
     await waitFor(() => {
-      expect(zoneRuntime.registerZoneAnimation).not.toHaveBeenCalled();
+      expect(zoneRuntime.registerZoneAnimation).toHaveBeenCalledWith('zone-1', {
+        animateId: 'default-auto',
+        delay: 0,
+        enterDuration: 600,
+        exitDuration: 0,
+        waitFor: undefined,
+      });
       expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
 
     consoleWarnSpy.mockRestore();
   });
 
-  it('prefers grouped timeline.driver="visibility" over legacy scrollDriven={true}', async () => {
+  it('lets explicit visibility semantics opt out of takeover scroll registration', async () => {
     const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    const zoneRuntime: SceneScrollRuntimeContextValue = {
+      version: 1,
+      zoneStates: {},
+      registerZone: jest.fn(),
+      unregisterZone: jest.fn(),
+      setZoneElement: jest.fn(),
+      registerZoneAnimation: jest.fn(),
+      unregisterZoneAnimation: jest.fn(),
+    };
 
     render(
       <SceneContext.Provider value={createScrollSceneContext()}>
-        <Animate
-          animateId="visibility-driver"
-          enterAnimation="fade-in"
-          timeline={{ driver: 'visibility' }}
-          visibility={{ replayOnReenter: false }}
-          scrollDriven={true}
-        >
-          <div>Visibility driver</div>
-        </Animate>
+        <SceneScrollRuntimeContext.Provider value={zoneRuntime}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate
+              animateId="visibility-driver"
+              enterAnimation="fade-in"
+              timeline={{ driver: 'visibility' }}
+              visibility={{ replayOnReenter: false }}
+              scrollDriven={true}
+            >
+              <div>Visibility driver</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </SceneScrollRuntimeContext.Provider>
       </SceneContext.Provider>
     );
 
     await waitFor(() => {
       expect(consoleWarnSpy).not.toHaveBeenCalled();
+      expect(zoneRuntime.registerZoneAnimation).not.toHaveBeenCalled();
     });
 
     consoleWarnSpy.mockRestore();

@@ -11,6 +11,7 @@ import { performanceMonitor } from '../../utils/performanceMonitor';
 // Mock Scene component
 interface MockSceneProps {
   children: React.ReactNode;
+  sceneId?: string;
   preloadImages?: string[];
   assets?: {
     preloadImages?: string[];
@@ -165,8 +166,38 @@ describe('CineView Component', () => {
       );
 
       const callArgs = useImagePreloader.mock.calls[0][0];
-      expect(callArgs.priorityUrls).toEqual(['grouped-first.jpg']);
-      expect(callArgs.backgroundUrls).toEqual(['grouped-second.jpg']);
+      expect(callArgs.priorityUrls).toEqual(['grouped-first.jpg', 'grouped-second.jpg']);
+      expect(callArgs.backgroundUrls).toEqual([]);
+    });
+
+    it('应该在首屏优先图片未完成时仍然展示场景视口', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { useImagePreloader } = require('../../hooks/useImagePreloader');
+
+      useImagePreloader.mockImplementation(() => [
+        {
+          isLoading: true,
+          progress: 0,
+          loadedCount: 0,
+          totalCount: 1,
+          results: [],
+          errors: new Map(),
+        },
+        {
+          startPreload: jest.fn(),
+          reset: jest.fn(),
+          addUrls: jest.fn(),
+        },
+      ]);
+
+      const { container } = render(
+        <CineView config={defaultConfig}>
+          <MockScene assets={{ preloadImages: ['hero.jpg'] }}>Scene 1</MockScene>
+        </CineView>
+      );
+
+      const viewport = container.querySelector('.cineview-container > div');
+      expect(viewport).toHaveStyle({ opacity: '1', pointerEvents: 'auto' });
     });
 
     it('应该实现虚拟化渲染（仅渲染当前场景及前后各一个）', async () => {
@@ -245,7 +276,7 @@ describe('CineView Component', () => {
       });
     });
 
-    it('应该在根容器注册 scrollbar 样式', () => {
+    it('应该在根容器注册隐藏浏览器原生 scrollbar 的样式', () => {
       render(
         <CineView
           config={defaultConfig}
@@ -257,8 +288,11 @@ describe('CineView Component', () => {
 
       const styleNode = document.getElementById('cineview-scrollbar-style');
       expect(styleNode).toBeInTheDocument();
-      expect(styleNode?.textContent).toContain('10px');
-      expect(styleNode?.textContent).toContain('rgba(1, 2, 3, 0.5)');
+      expect(styleNode?.textContent).toContain('scrollbar-width: none');
+      expect(styleNode?.textContent).toContain('-ms-overflow-style: none');
+      expect(styleNode?.textContent).toContain('display: none');
+      expect(styleNode?.textContent).not.toContain('scrollbar-width: thin');
+      expect(styleNode?.textContent).not.toContain('scrollbar-color');
     });
   });
 
@@ -373,7 +407,7 @@ describe('CineView Component', () => {
       expect(ref.current?.getCurrentScene()).toBe(2);
     });
 
-    it('应该实现 getState 方法', async () => {
+    it('不应该通过 ref 暴露内部 runtime 快照', async () => {
       const ref = createRef<CineViewRef>();
 
       render(
@@ -384,14 +418,10 @@ describe('CineView Component', () => {
       );
 
       await waitFor(() => {
-        expect(ref.current?.getState).toBeDefined();
+        expect(ref.current).not.toBeNull();
       });
 
-      expect(ref.current?.getState?.()).toMatchObject({
-        mode: 'snap',
-        currentScene: 0,
-        totalScenes: 2,
-      });
+      expect('getState' in (ref.current as object)).toBe(false);
     });
 
     it('应该实现 refreshLayout 和 preload 方法', async () => {
@@ -436,6 +466,55 @@ describe('CineView Component', () => {
       });
 
       expect(startPreload).toHaveBeenCalledTimes(2);
+    });
+
+    it('preload(targets) 只按场景索引和 sceneId 追加优先图片', async () => {
+      const ref = createRef<CineViewRef>();
+      const startPreload = jest.fn().mockResolvedValue(undefined);
+      const addUrls = jest.fn();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { useImagePreloader } = require('../../hooks/useImagePreloader');
+
+      useImagePreloader.mockImplementation(() => [
+        {
+          isLoading: false,
+          progress: 100,
+          loadedCount: 0,
+          totalCount: 0,
+          results: [],
+          errors: new Map(),
+        },
+        {
+          startPreload,
+          reset: jest.fn(),
+          addUrls,
+        },
+      ]);
+
+      render(
+        <CineView ref={ref} config={defaultConfig}>
+          <MockScene sceneId="intro" assets={{ preloadImages: ['intro.jpg'] }}>
+            Scene 1
+          </MockScene>
+          <MockScene sceneId="details" assets={{ preloadImages: ['details.jpg'] }}>
+            Scene 2
+          </MockScene>
+          <MockScene sceneId="cta" assets={{ preloadImages: ['cta.jpg'] }}>
+            Scene 3
+          </MockScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(ref.current).not.toBeNull();
+      });
+
+      await act(async () => {
+        await ref.current?.preload?.([2, 'details']);
+      });
+
+      expect(addUrls).toHaveBeenCalledWith(['cta.jpg', 'details.jpg'], true);
+      expect(startPreload).toHaveBeenCalled();
     });
 
     it('应该实现 getCurrentScene 方法', async () => {
@@ -687,7 +766,7 @@ describe('CineView Component', () => {
   });
 
   describe('图片预加载流程', () => {
-    it('应该优先加载首屏图片', () => {
+    it('应该优先加载当前场景及相邻场景图片', () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
@@ -695,12 +774,60 @@ describe('CineView Component', () => {
         <CineView config={defaultConfig}>
           <MockScene assets={{ preloadImages: ['first1.jpg', 'first2.jpg'] }}>Scene 1</MockScene>
           <MockScene assets={{ preloadImages: ['second1.jpg'] }}>Scene 2</MockScene>
+          <MockScene assets={{ preloadImages: ['third1.jpg'] }}>Scene 3</MockScene>
         </CineView>
       );
 
       const callArgs = useImagePreloader.mock.calls[0][0];
-      expect(callArgs.priorityUrls).toEqual(['first1.jpg', 'first2.jpg']);
-      expect(callArgs.backgroundUrls).toEqual(['second1.jpg']);
+      expect(callArgs.priorityUrls).toEqual(['first1.jpg', 'first2.jpg', 'second1.jpg']);
+      expect(callArgs.backgroundUrls).toEqual([]);
+    });
+
+    it('应该在翻页后追加预加载新的相邻场景图片', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { useImagePreloader } = require('../../hooks/useImagePreloader');
+      const startPreload = jest.fn();
+      const addUrls = jest.fn();
+      const ref = createRef<CineViewRef>();
+
+      useImagePreloader.mockImplementation(() => [
+        {
+          isLoading: false,
+          progress: 100,
+          loadedCount: 0,
+          totalCount: 0,
+          results: [],
+          errors: new Map(),
+        },
+        {
+          startPreload,
+          reset: jest.fn(),
+          addUrls,
+        },
+      ]);
+
+      render(
+        <CineView ref={ref} config={defaultConfig}>
+          <MockScene assets={{ preloadImages: ['scene-1.jpg'] }}>Scene 1</MockScene>
+          <MockScene assets={{ preloadImages: ['scene-2.jpg'] }}>Scene 2</MockScene>
+          <MockScene assets={{ preloadImages: ['scene-3.jpg'] }}>Scene 3</MockScene>
+          <MockScene assets={{ preloadImages: ['scene-4.jpg'] }}>Scene 4</MockScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(ref.current).not.toBeNull();
+      });
+
+      act(() => {
+        ref.current?.goToScene(2, false);
+      });
+
+      await waitFor(() => {
+        expect(addUrls).toHaveBeenCalledWith(['scene-2.jpg', 'scene-3.jpg', 'scene-4.jpg'], true);
+      });
+
+      expect(startPreload).toHaveBeenCalled();
     });
 
     it('应该在首屏图片加载完成后渲染首屏内容', async () => {

@@ -1,122 +1,101 @@
-import React from 'react';
+import type { CSSProperties } from 'react';
+import type { ModeId } from '../routing';
+import { buildModeHref, MODE_ROUTES } from '../routing';
 
 interface SceneNavigationProps {
   currentScene: number;
-  totalScenes: number;
+  mode: ModeId;
   onGoToScene: (index: number) => void;
-  mode: 'snap' | 'drag' | 'scroll';
+  totalScenes: number;
 }
 
-const SceneNavigation: React.FC<SceneNavigationProps> = ({
+export default function SceneNavigation({
   currentScene,
-  totalScenes,
-  onGoToScene,
   mode,
-}) => {
-  const handlePrevious = () => {
-    if (currentScene > 0) {
-      onGoToScene(currentScene - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentScene < totalScenes - 1) {
-      onGoToScene(currentScene + 1);
-    }
-  };
-
-  const handleFirst = () => {
-    onGoToScene(0);
-  };
-
-  const handleLast = () => {
-    onGoToScene(totalScenes - 1);
-  };
-
+  onGoToScene,
+  totalScenes,
+}: SceneNavigationProps): JSX.Element {
   return (
     <div
-      className="scene-nav"
       style={{
         position: 'fixed',
-        left: '20px',
-        bottom: '20px',
-        zIndex: 10000,
+        left: '50%',
+        bottom: 18,
+        transform: 'translateX(-50%)',
+        zIndex: 12000,
         display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: '8px',
+        gap: 16,
         padding: '12px 14px',
-        background: 'rgba(10, 12, 18, 0.72)',
-        border: '1px solid rgba(255,255,255,0.14)',
-        borderRadius: '10px',
-        backdropFilter: 'blur(14px)',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.82)',
+        border: '1px solid rgba(100, 124, 170, 0.16)',
+        backdropFilter: 'blur(18px)',
+        boxShadow: '0 18px 42px rgba(139, 165, 209, 0.18)',
+        width: 'min(960px, calc(100vw - 36px))',
       }}
     >
-      <button
-        onClick={handleFirst}
-        disabled={currentScene === 0}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: currentScene === 0 ? '#666' : '#fff',
-          cursor: currentScene === 0 ? 'not-allowed' : 'pointer',
-          padding: '5px 10px',
-          fontSize: '14px',
-        }}
-      >
-        ⏮️ First
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <a href="#/" style={linkStyle}>
+          Hub
+        </a>
+        {MODE_ROUTES.map((route) => (
+          <a
+            key={route.id}
+            href={buildModeHref(route.id)}
+            style={{
+              ...linkStyle,
+              background: route.id === mode ? 'rgba(112, 168, 255, 0.18)' : 'transparent',
+              borderColor: route.id === mode ? 'rgba(112, 168, 255, 0.34)' : 'rgba(100, 124, 170, 0.16)',
+              color: route.id === mode ? '#2F60C9' : '#4C5E84',
+            }}
+          >
+            {route.label}
+          </a>
+        ))}
+      </div>
 
-      <button
-        onClick={handlePrevious}
-        disabled={currentScene === 0}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: currentScene === 0 ? '#666' : '#fff',
-          cursor: currentScene === 0 ? 'not-allowed' : 'pointer',
-          padding: '5px 10px',
-          fontSize: '14px',
-        }}
-      >
-        ⬅️ Prev
-      </button>
-
-      <span style={{ margin: '0 12px', color: '#fff', minWidth: '130px', textAlign: 'center' }}>
-        {currentScene + 1} / {totalScenes} ·{' '}
-        {mode === 'snap' ? 'Snap' : mode === 'drag' ? 'Drag' : 'Scroll'}
-      </span>
-
-      <button
-        onClick={handleNext}
-        disabled={currentScene === totalScenes - 1}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: currentScene === totalScenes - 1 ? '#666' : '#fff',
-          cursor: currentScene === totalScenes - 1 ? 'not-allowed' : 'pointer',
-          padding: '5px 10px',
-          fontSize: '14px',
-        }}
-      >
-        Next ➡️
-      </button>
-
-      <button
-        onClick={handleLast}
-        disabled={currentScene === totalScenes - 1}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: currentScene === totalScenes - 1 ? '#666' : '#fff',
-          cursor: currentScene === totalScenes - 1 ? 'not-allowed' : 'pointer',
-          padding: '5px 10px',
-          fontSize: '14px',
-        }}
-      >
-        Last ⏭️
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={() => onGoToScene(Math.max(currentScene - 1, 0))}
+          disabled={currentScene === 0}
+          style={buttonStyle(currentScene === 0)}
+        >
+          Previous
+        </button>
+        <div style={{ minWidth: 108, textAlign: 'center', color: '#40527A', fontSize: 13 }}>
+          {currentScene + 1} / {totalScenes}
+        </div>
+        <button
+          onClick={() => onGoToScene(Math.min(currentScene + 1, totalScenes - 1))}
+          disabled={currentScene === totalScenes - 1}
+          style={buttonStyle(currentScene === totalScenes - 1)}
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
+}
+
+const linkStyle: CSSProperties = {
+  border: '1px solid rgba(100, 124, 170, 0.16)',
+  borderRadius: 999,
+  padding: '8px 12px',
+  color: '#4C5E84',
+  fontSize: 13,
+  textDecoration: 'none',
 };
 
-export default SceneNavigation;
+function buttonStyle(disabled: boolean): CSSProperties {
+  return {
+    border: '1px solid rgba(100, 124, 170, 0.16)',
+    borderRadius: 999,
+    padding: '8px 14px',
+    background: disabled ? 'rgba(228, 236, 248, 0.72)' : 'rgba(255,255,255,0.92)',
+    color: disabled ? '#A3B1CC' : '#3A4D76',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontSize: 13,
+  };
+}

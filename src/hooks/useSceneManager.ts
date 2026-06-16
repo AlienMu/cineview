@@ -111,7 +111,7 @@ export interface SceneManagerActions {
 export const useSceneManager = (
   options: UseSceneManagerOptions
 ): [SceneManagerState, SceneManagerActions] => {
-  const { totalScenes, initialScene = 0, mode = 'snap', onBeforeChange, onAfterChange } = options;
+  const { totalScenes, initialScene = 0, onBeforeChange, onAfterChange } = options;
 
   const [currentScene, setCurrentScene] = useState<number>(
     Math.max(0, Math.min(initialScene, totalScenes - 1))
@@ -162,13 +162,6 @@ export const useSceneManager = (
         return;
       }
 
-      // 在 snap 模式下，如果正在动画中，阻止新的切换
-      // 在 drag 模式下，允许连续切换（因为拖拽释放后的动画可能还在进行）
-      if (mode === 'snap' && animatingRef.current) {
-        debugSceneManager('goToScene blocked while animating in snap mode');
-        return;
-      }
-
       // 如果已经在目标场景，不执行切换
       if (index === currentScene) {
         debugSceneManager('goToScene skipped because scene is already active', {
@@ -200,7 +193,7 @@ export const useSceneManager = (
         onAfterChange?.(index);
       }
     },
-    [currentScene, totalScenes, mode, onBeforeChange, onAfterChange]
+    [currentScene, totalScenes, onBeforeChange, onAfterChange]
   );
 
   // 下一个场景

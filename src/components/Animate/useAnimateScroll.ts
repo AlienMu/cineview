@@ -1,20 +1,22 @@
 import type { MutableRefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { MotionValue, animate, useMotionValue, useTransform } from 'framer-motion';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MotionValue, useMotionValue, useTransform } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
 import type {
   NormalizedAnimateTimeline,
   NormalizedAnimateVisibility,
   SceneContextType,
 } from './Animate';
-import type { ScrollZoneRuntimeContextValue } from '../ScrollZone';
+import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
 
 interface UseAnimateScrollParams {
   sceneContext: SceneContextType | null;
-  zoneRuntime: ScrollZoneRuntimeContextValue | null;
+  zoneRuntime: SceneScrollRuntimeContextValue | null;
   zoneId: string | null;
   enterVariant: ParsedAnimationVariant | null;
   exitVariant: ParsedAnimationVariant | null;
+  hasAuthoredEnterAnimation?: boolean;
+  hasAuthoredExitAnimation?: boolean;
   componentId: string;
   duration: {
     enter: number;
@@ -43,6 +45,8 @@ type AnimatedProperty =
 
 type VariantRecord = Record<string, unknown>;
 type TransformValue = number | string;
+const DEFAULT_VISIBILITY_PX_PER_MS = 0.18;
+const VISIBILITY_EXIT_EPSILON = 1e-6;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -132,37 +136,13 @@ function hasExitAnimation(
   );
 }
 
-function resolveWarmupProgress(
-  hostElement: HTMLElement | null,
-  sceneContext: SceneContextType | null,
-  hasExplicitEnter: boolean
+function resolveVisibilityDelayPx(
+  delayMs: number,
+  waitFor: string | undefined,
+  calculatedDelayMs: number
 ): number {
-  if (
-    !hostElement ||
-    !sceneContext?.isVisible ||
-    !hasExplicitEnter ||
-    typeof window === 'undefined'
-  ) {
-    return 0;
-  }
-
-  const rect = hostElement.getBoundingClientRect();
-  const viewportHeight = Math.max(window.innerHeight || 0, 1);
-  const overlap = Math.max(Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0), 0);
-  const visibleRatio = clamp(
-    overlap / Math.max(Math.min(rect.height || viewportHeight, viewportHeight), 1),
-    0,
-    1
-  );
-  const sceneVisibility = clamp(
-    sceneContext.visibilityProgress ?? (sceneContext.isVisible ? 1 : 0),
-    0,
-    1
-  );
-  const activeWeight = sceneContext.isActive ? 1 : 0.72;
-  const warmup = Math.max(visibleRatio * 0.5, sceneVisibility * 0.35) * activeWeight;
-
-  return clamp(warmup * 0.18, 0, 0.18);
+  const sourceMs = waitFor ? calculatedDelayMs : delayMs;
+  return Math.max(sourceMs, 0) * DEFAULT_VISIBILITY_PX_PER_MS;
 }
 
 function useMixedValue(
@@ -239,6 +219,8 @@ export function useAnimateScroll({
   zoneId,
   enterVariant,
   exitVariant,
+  hasAuthoredEnterAnimation,
+  hasAuthoredExitAnimation,
   componentId,
   duration,
   timeline,
@@ -251,7 +233,6 @@ export function useAnimateScroll({
   const isScrollDriven = timeline.driver === 'scroll';
   const phaseStart = timeline.phase?.start;
   const phaseEnd = timeline.phase?.end;
-  const enterWhen = visibility.enterWhen;
   const exitWhen = visibility.exitWhen;
   const replayOnReenter = visibility.replayOnReenter;
   const calculatedDelayRef = useRef(0);
@@ -265,15 +246,15 @@ export function useAnimateScroll({
   const hostRef = useRef<HTMLElement | null>(null);
   const [hostVersion, setHostVersion] = useState(0);
   const hasWarnedOrphanRef = useRef(false);
-  const previousRectTopRef = useRef<number | null>(null);
-  const autoLifecycleRef = useRef({
-    hasEntered: false,
-    hasExited: false,
-  });
-  const hasExplicitEnter = Boolean(
+  const registerZoneAnimation = zoneRuntime?.registerZoneAnimation;
+  const unregisterZoneAnimation = zoneRuntime?.unregisterZoneAnimation;
+  const zoneRuntimeVersion = zoneRuntime?.version;
+  const hasParsedEnter = Boolean(
     enterVariant?.animate && Object.keys(enterVariant.animate as Record<string, unknown>).length > 0
   );
-  const hasExplicitExit = hasExitAnimation(exitVariant, exitDuration);
+  const hasExplicitEnter = hasParsedEnter || Boolean(hasAuthoredEnterAnimation);
+  const hasExplicitExit =
+    hasExitAnimation(exitVariant, exitDuration) || Boolean(hasAuthoredExitAnimation);
 
   useEffect(() => {
     variantsRef.current = {
@@ -283,12 +264,90 @@ export function useAnimateScroll({
     };
   }, [enterVariant, exitVariant]);
 
+  const runVisibilityUpdate = useCallback(() => {
+    if (isScrollDriven) {
+      return;
+    }
+
+    const hostElement = hostRef.current;
+    if (!(hostElement instanceof HTMLElement)) {
+      return;
+    }
+
+    const rect = hostElement.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || 1;
+    const hasMeasurableBox = rect.width > 0 || rect.height > 0 || rect.bottom !== rect.top;
+    const aboveViewport = rect.bottom <= 0;
+    const belowViewport = rect.top >= viewportHeight;
+    const isIntersecting = !hasMeasurableBox || (rect.bottom > 0 && rect.top < viewportHeight);
+
+    if (belowViewport) {
+      visualMotion.set(0);
+      setShouldRunInfiniteState(false);
+      return;
+    }
+
+    const measurableHeight = Math.max(rect.height, rect.bottom - rect.top, 1);
+    const viewportCenter = viewportHeight / 2;
+    const centerTop = viewportCenter - measurableHeight / 2;
+    const enterWindowPx = Math.max(viewportHeight - centerTop, 1);
+    const exitEndTop = exitWhen === 'leaving-top' ? -measurableHeight : 0;
+    const exitWindowPx = Math.max(centerTop - exitEndTop, 1);
+    const travelPx = Math.max(viewportHeight - rect.top, 0);
+    const delayPx = resolveVisibilityDelayPx(delay, waitFor, calculatedDelayRef.current);
+    const clampedDelayPx = Math.min(delayPx, Math.max(enterWindowPx - 1, 0));
+    const enterStartTravelPx = waitFor ? delayPx : clampedDelayPx;
+    const enterEndTravelPx = waitFor ? delayPx + enterWindowPx : enterWindowPx;
+    const enterProgress = hasExplicitEnter
+      ? clamp(
+          (travelPx - enterStartTravelPx) /
+            Math.max(enterEndTravelPx - enterStartTravelPx, 1),
+          0,
+          1
+        )
+      : isIntersecting || aboveViewport
+        ? 1
+        : 0;
+
+    if (!hasExplicitExit) {
+      const nextMotion =
+        aboveViewport && replayOnReenter ? 0 : isIntersecting || aboveViewport ? enterProgress : 0;
+      visualMotion.set(nextMotion);
+      setShouldRunInfiniteState(nextMotion >= 1);
+      return;
+    }
+
+    const exitStartTravelPx = Math.max(enterWindowPx, waitFor ? enterEndTravelPx : enterWindowPx);
+    if (travelPx <= exitStartTravelPx) {
+      visualMotion.set(enterProgress);
+      setShouldRunInfiniteState(enterProgress >= 1);
+      return;
+    }
+
+    const exitProgress = clamp(
+      (travelPx - exitStartTravelPx) / Math.max(exitWindowPx, 1),
+      0,
+      1
+    );
+    visualMotion.set(exitProgress > 0 ? -exitProgress : -VISIBILITY_EXIT_EPSILON);
+    setShouldRunInfiniteState(false);
+  }, [
+    delay,
+    exitWhen,
+    hasExplicitEnter,
+    hasExplicitExit,
+    isScrollDriven,
+    replayOnReenter,
+    waitFor,
+    visualMotion,
+  ]);
+
   useEffect(() => {
     if (
       !sceneContext?.registerAnimate ||
       !sceneContext?.unregisterAnimate ||
       !sceneContext?.getCalculatedDelay ||
-      (!enterVariant && !exitVariant)
+      (!hasExplicitEnter && !hasExplicitExit)
     ) {
       return;
     }
@@ -308,73 +367,82 @@ export function useAnimateScroll({
     sceneContext?.registerAnimate,
     sceneContext?.unregisterAnimate,
     sceneContext?.getCalculatedDelay,
-    enterVariant,
-    exitVariant,
     componentId,
     delay,
     enterDuration,
     exitDuration,
     waitFor,
     hasExplicitEnter,
+    hasExplicitExit,
   ]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    if (hostRef.current?.isConnected) return;
 
-    const element = document.querySelector(`[data-cineview-animate-id="${componentId}"]`);
+    const element =
+      document.querySelector(`[data-cineview-animate-host="${componentId}"]`) ??
+      document.querySelector(`[data-cineview-animate-id="${componentId}"]`);
     if (element instanceof HTMLElement) {
       if (hostRef.current !== element) {
         hostRef.current = element;
         setHostVersion((version) => version + 1);
       }
     }
-  }, [
-    componentId,
-    zoneRuntime?.version,
-    sceneContext?.scrollProgress,
-    sceneContext?.scrollTimelineState,
-  ]);
+  }, [componentId, enterVariant, exitVariant]);
 
   useEffect(() => {
-    if (!isScrollDriven || !zoneRuntime || !zoneId || (!enterVariant && !exitVariant)) {
+    if (
+      !isScrollDriven ||
+      !registerZoneAnimation ||
+      !unregisterZoneAnimation ||
+      !zoneId ||
+      (!hasExplicitEnter && !hasExplicitExit)
+    ) {
       return;
     }
 
-    zoneRuntime.registerZoneAnimation(zoneId, {
+    registerZoneAnimation(zoneId, {
       animateId: componentId,
       delay,
       enterDuration,
       exitDuration: hasExplicitExit ? exitDuration : 0,
       waitFor,
+      ...(phaseStart !== undefined || phaseEnd !== undefined
+        ? {
+            phase: {
+              start: phaseStart,
+              end: phaseEnd,
+            },
+          }
+        : {}),
     });
 
     return () => {
-      zoneRuntime.unregisterZoneAnimation(zoneId, componentId);
+      unregisterZoneAnimation(zoneId, componentId);
     };
   }, [
-    zoneRuntime,
     componentId,
     delay,
     enterDuration,
-    enterVariant,
-    exitVariant,
     exitDuration,
     hasExplicitExit,
+    hasExplicitEnter,
     isScrollDriven,
+    phaseEnd,
+    phaseStart,
     zoneId,
     waitFor,
-    zoneRuntime?.registerZoneAnimation,
-    zoneRuntime?.unregisterZoneAnimation,
+    registerZoneAnimation,
+    unregisterZoneAnimation,
   ]);
 
   useEffect(() => {
-    if (!sceneContext) return;
-
     if (isScrollDriven) {
       if (!zoneRuntime || !zoneId) {
         if (!hasWarnedOrphanRef.current && process.env.NODE_ENV === 'development') {
           console.warn(
-            `[CineView Warning] scroll-driven Animate "${componentId}" must be wrapped by <ScrollZone>.`
+            `[CineView Warning] scroll-driven Animate "${componentId}" must be placed inside a Scene with a scroll takeover config.`
           );
           hasWarnedOrphanRef.current = true;
         }
@@ -384,29 +452,27 @@ export function useAnimateScroll({
 
       const zoneState = zoneRuntime.zoneStates[zoneId];
       const budget = zoneState?.sequence.budgets[componentId];
-      const warmupProgress = resolveWarmupProgress(hostRef.current, sceneContext, hasExplicitEnter);
-
       if (!zoneState || !budget) {
-        visualMotion.set(warmupProgress);
+        visualMotion.set(0);
         return;
       }
 
       const progressPx = clamp(zoneState.progressPx, 0, zoneState.totalBudgetPx);
       const fallbackStartPx = budget.enterStartPx;
       const fallbackEndPx = Math.max(budget.enterEndPx, budget.enterStartPx + 1);
-      const phaseStartPx = resolvePhaseBoundaryPx(
-        phaseStart,
-        fallbackStartPx,
-        fallbackStartPx,
-        fallbackEndPx
-      );
+      const phaseStartPx =
+        typeof budget.phaseStartPx === 'number'
+          ? budget.phaseStartPx
+          : resolvePhaseBoundaryPx(phaseStart, fallbackStartPx, fallbackStartPx, fallbackEndPx);
       const phaseEndPx = Math.max(
-        resolvePhaseBoundaryPx(phaseEnd, fallbackEndPx, fallbackStartPx, fallbackEndPx),
+        typeof budget.phaseEndPx === 'number'
+          ? budget.phaseEndPx
+          : resolvePhaseBoundaryPx(phaseEnd, fallbackEndPx, fallbackStartPx, fallbackEndPx),
         phaseStartPx + 1
       );
 
       if (progressPx <= phaseStartPx) {
-        visualMotion.set(warmupProgress);
+        visualMotion.set(0);
         return;
       }
 
@@ -448,110 +514,70 @@ export function useAnimateScroll({
       return;
     }
 
-    const hostElement = hostRef.current;
-    if (!(hostElement instanceof HTMLElement)) {
-      return;
-    }
-
-    const rect = hostElement.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || 1;
-    const previousTop = previousRectTopRef.current;
-    previousRectTopRef.current = rect.top;
-    const movingForward =
-      sceneContext.scrollDirection === 'forward' || previousTop === null || rect.top < previousTop;
-    const fullyOutOfView = rect.bottom <= 0 || rect.top >= viewportHeight;
-    const fullyVisible =
-      enterWhen === 'fully-visible-bottom'
-        ? rect.top >= 0 && rect.bottom <= viewportHeight
-        : rect.top < viewportHeight;
-    const leavingFromTop = exitWhen === 'leaving-top' ? rect.top <= 0 : rect.bottom <= 0;
-
-    if (fullyOutOfView) {
-      autoLifecycleRef.current = replayOnReenter
-        ? { hasEntered: false, hasExited: false }
-        : { ...autoLifecycleRef.current, hasExited: true };
-      visualMotion.set(0);
-      return;
-    }
-
-    if (!hasExplicitEnter) {
-      if (
-        hasExplicitExit &&
-        !autoLifecycleRef.current.hasExited &&
-        leavingFromTop &&
-        movingForward
-      ) {
-        autoLifecycleRef.current.hasEntered = true;
-        autoLifecycleRef.current.hasExited = true;
-        const controls = animate(visualMotion, -1, {
-          duration: Math.max(exitDuration, 1) / 1000,
-          ease: 'easeOut',
-        });
-        return () => controls.stop();
-      }
-
-      autoLifecycleRef.current.hasEntered = true;
-      autoLifecycleRef.current.hasExited = false;
-      visualMotion.set(1);
-      return;
-    }
-
-    if (!autoLifecycleRef.current.hasEntered && fullyVisible) {
-      autoLifecycleRef.current.hasEntered = true;
-      autoLifecycleRef.current.hasExited = false;
-      const controls = animate(visualMotion, 1, {
-        duration: Math.max(enterDuration, 1) / 1000,
-        ease: 'easeOut',
-      });
-      return () => controls.stop();
-    }
-
-    if (
-      autoLifecycleRef.current.hasEntered &&
-      !autoLifecycleRef.current.hasExited &&
-      hasExplicitExit &&
-      leavingFromTop &&
-      movingForward
-    ) {
-      autoLifecycleRef.current.hasExited = true;
-      const controls = animate(visualMotion, -1, {
-        duration: Math.max(exitDuration, 1) / 1000,
-        ease: 'easeOut',
-      });
-      return () => controls.stop();
-    }
-
-    if (autoLifecycleRef.current.hasEntered && !autoLifecycleRef.current.hasExited) {
-      visualMotion.set(1);
-    }
+    runVisibilityUpdate();
   }, [
-    sceneContext,
     zoneRuntime,
     zoneId,
     componentId,
     isScrollDriven,
     visualMotion,
     enterDuration,
-    exitDuration,
     phaseStart,
     phaseEnd,
     hasExplicitEnter,
     hasExplicitExit,
-    enterWhen,
     exitWhen,
     replayOnReenter,
     sceneContext?.scrollProgress,
     sceneContext?.scrollTimelineState,
-    zoneRuntime?.version,
+    zoneRuntimeVersion,
     hostVersion,
+    runVisibilityUpdate,
   ]);
 
   useEffect(() => {
-    if (!sceneContext) {
-      setShouldRunInfiniteState(false);
+    if (isScrollDriven) {
       return;
     }
 
+    const hostElement = hostRef.current;
+    if (!(hostElement instanceof HTMLElement) || typeof window === 'undefined') {
+      return;
+    }
+
+    const scrollRoot =
+      hostElement.closest<HTMLElement>('[data-cineview-container="true"]') ?? window;
+    let animationFrame: number | null = null;
+    const requestFrame =
+      window.requestAnimationFrame?.bind(window) ??
+      ((callback: FrameRequestCallback): number => window.setTimeout(() => callback(Date.now()), 16));
+    const cancelFrame =
+      window.cancelAnimationFrame?.bind(window) ??
+      ((handle: number): void => window.clearTimeout(handle));
+    const scheduleVisibilityUpdate = (): void => {
+      if (animationFrame !== null) {
+        return;
+      }
+
+      animationFrame = requestFrame(() => {
+        animationFrame = null;
+        runVisibilityUpdate();
+      });
+    };
+
+    scrollRoot.addEventListener('scroll', scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener('resize', scheduleVisibilityUpdate, { passive: true });
+
+    return () => {
+      if (animationFrame !== null) {
+        cancelFrame(animationFrame);
+      }
+      scrollRoot.removeEventListener('scroll', scheduleVisibilityUpdate);
+      window.removeEventListener('resize', scheduleVisibilityUpdate);
+    };
+  }, [hostVersion, isScrollDriven, runVisibilityUpdate]);
+
+  useEffect(() => {
     if (isScrollDriven) {
       if (!zoneRuntime || !zoneId) {
         setShouldRunInfiniteState(false);
@@ -559,14 +585,53 @@ export function useAnimateScroll({
       }
 
       const zoneState = zoneRuntime.zoneStates[zoneId];
-      setShouldRunInfiniteState(Boolean(zoneState?.active));
+      const budget = zoneState?.sequence.budgets[componentId];
+      const runtimeState = sceneContext?.runtimeState;
+      const runtimeAllowsInfinite =
+        runtimeState === undefined ||
+        (runtimeState !== 'covered' &&
+          runtimeState !== 'inactive' &&
+          runtimeState !== 'parked' &&
+          runtimeState !== 'exiting');
+
+      if (!zoneState || !budget || !runtimeAllowsInfinite) {
+        setShouldRunInfiniteState(false);
+        return;
+      }
+
+      const progressPx = clamp(zoneState.progressPx, 0, zoneState.totalBudgetPx);
+      const fallbackStartPx = budget.enterStartPx;
+      const fallbackEndPx = Math.max(budget.enterEndPx, budget.enterStartPx + 1);
+      const phaseStartPx =
+        typeof budget.phaseStartPx === 'number'
+          ? budget.phaseStartPx
+          : resolvePhaseBoundaryPx(phaseStart, fallbackStartPx, fallbackStartPx, fallbackEndPx);
+      const phaseEndPx = Math.max(
+        typeof budget.phaseEndPx === 'number'
+          ? budget.phaseEndPx
+          : resolvePhaseBoundaryPx(phaseEnd, fallbackEndPx, fallbackStartPx, fallbackEndPx),
+        phaseStartPx + 1
+      );
+      const hasEntered = hasExplicitEnter ? progressPx >= phaseEndPx - 0.5 : progressPx > 0.5;
+      const beforeExit =
+        !budget.hasExit ||
+        budget.exitStartPx === null ||
+        progressPx <= budget.exitStartPx + 0.5;
+
+      setShouldRunInfiniteState(hasEntered && beforeExit);
       return;
     }
-
-    setShouldRunInfiniteState(
-      autoLifecycleRef.current.hasEntered && !autoLifecycleRef.current.hasExited
-    );
-  }, [sceneContext, isScrollDriven, zoneId, zoneRuntime, zoneRuntime?.version]);
+  }, [
+    componentId,
+    hasExplicitEnter,
+    isScrollDriven,
+    phaseEnd,
+    phaseStart,
+    sceneContext?.runtimeState,
+    zoneId,
+    zoneRuntime,
+    zoneRuntime?.version,
+  ]);
 
   const opacity = useNumericValue(visualMotion, variantsRef, 'opacity');
   const x = useMixedValue(visualMotion, variantsRef, 'x');

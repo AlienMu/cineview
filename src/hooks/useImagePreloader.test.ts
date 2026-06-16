@@ -6,6 +6,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useImagePreloader, UseImagePreloaderOptions } from './useImagePreloader';
+import { isImagePreloaded, resetPreloadedImageCache } from './imagePreloadCache';
 
 // Mock Image constructor
 class MockImage {
@@ -32,6 +33,7 @@ class MockImage {
 describe('useImagePreloader', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetPreloadedImageCache();
   });
 
   describe('初始状态', () => {
@@ -86,13 +88,16 @@ describe('useImagePreloader', () => {
       expect(state.loadedCount).toBe(3);
       expect(state.results).toHaveLength(3);
       expect(state.progress).toBe(100);
+      expect(isImagePreloaded('image1.jpg')).toBe(true);
     });
 
     it('should handle empty queue', async () => {
       const onComplete = jest.fn();
+      const onProgress = jest.fn();
       const options: UseImagePreloaderOptions = {
         priorityUrls: [],
         backgroundUrls: [],
+        onProgress,
         onComplete,
       };
 
@@ -109,7 +114,8 @@ describe('useImagePreloader', () => {
 
       const [state] = result.current;
       expect(state.isLoading).toBe(false);
-      expect(state.progress).toBe(0);
+      expect(state.progress).toBe(100);
+      expect(onProgress).toHaveBeenCalledWith(100);
     });
 
     it('should add URLs dynamically', async () => {
@@ -341,7 +347,7 @@ describe('useImagePreloader', () => {
       }
     });
 
-    it('should not exceed 100 progress when URLs are added during an active preload', async () => {
+    it('should continue the active preload run when URLs are added mid-flight', async () => {
       const progressUpdates: number[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const originalImage = (global as any).Image;
@@ -400,8 +406,13 @@ describe('useImagePreloader', () => {
       expect(Math.max(...progressUpdates)).toBeLessThanOrEqual(100);
       expect(progressUpdates[progressUpdates.length - 1]).toBe(100);
       expect(state.progress).toBe(100);
-      expect(state.loadedCount).toBe(2);
-      expect(state.results).toHaveLength(2);
+      expect(state.loadedCount).toBe(3);
+      expect(state.results).toHaveLength(3);
+      expect(state.results.map((item) => item.url)).toEqual([
+        'priority-image.jpg',
+        'background-image.jpg',
+        'late-background-image.jpg',
+      ]);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = originalImage;
@@ -867,7 +878,7 @@ describe('useImagePreloader', () => {
       );
 
       const [state] = result.current;
-      expect(state.loadedCount).toBe(3); // 所有 URL 都会被加载，即使重复
+      expect(state.loadedCount).toBe(1); // 重复 URL 只预热一次
     });
 
     it('should handle special characters in URLs', async () => {

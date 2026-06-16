@@ -2,15 +2,28 @@
  * Animate Component Tests
  */
 
+import { act } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
-import type { PresetAnimation } from '../../types';
+import type { ParsedAnimationVariant, PresetAnimation } from '../../types';
 import { parseAnimationWithComposition } from '../../animations/composer';
 import type { MotionValue } from 'framer-motion';
+import {
+  type SceneScrollRuntimeContextValue,
+  type SceneScrollTimelineState,
+} from '../Scene/sceneScrollRuntime';
+import { useAnimateScroll } from './useAnimateScroll';
+
+const animationControlsRegistry: Array<{
+  start: jest.Mock;
+  set: jest.Mock;
+  stop: jest.Mock;
+}> = [];
 
 // Mock framer-motion
 jest.mock('framer-motion', () => {
+  const React = jest.requireActual('react');
   const createMotionValueStub = (initial: number) => {
     let current = initial;
     const listeners = new Set<(value: number) => void>();
@@ -54,11 +67,24 @@ jest.mock('framer-motion', () => {
       start: jest.Mock;
       set: jest.Mock;
       stop: jest.Mock;
-    } => ({
-      start: jest.fn().mockResolvedValue(undefined),
-      set: jest.fn(),
-      stop: jest.fn(),
-    }),
+    } => {
+      const controlsRef: React.MutableRefObject<{
+        start: jest.Mock;
+        set: jest.Mock;
+        stop: jest.Mock;
+      } | null> = React.useRef(null);
+
+      if (!controlsRef.current) {
+        controlsRef.current = {
+          start: jest.fn().mockResolvedValue(undefined),
+          set: jest.fn(),
+          stop: jest.fn(),
+        };
+        animationControlsRegistry.push(controlsRef.current);
+      }
+
+      return controlsRef.current;
+    },
     useMotionValue: (initial: number) => createMotionValueStub(initial),
     useTransform: () => createMotionValueStub(0),
     animate: () => ({
@@ -83,6 +109,13 @@ function createMotionValueStub(initial: number): MotionValue<number> {
     },
   } as MotionValue<number>;
 }
+
+const flushAnimationParsing = async (): Promise<void> => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
 
 function installDefaultParseAnimationMock(): void {
   (parseAnimationWithComposition as jest.Mock).mockImplementation((animation) => {
@@ -133,13 +166,12 @@ describe('Animate Component', () => {
     delete (rest as { dragProgress?: number }).dragProgress;
 
     return {
-      mode: 'snap',
+      mode: 'drag',
       isActive: true,
       isDragging: false,
       dragProgressMotion,
       sharedElapsedMotion,
       renderProgress: 0,
-      sceneEnterCompleted: true,
       sceneState: 'active',
       sceneOffset: 0,
       sceneTransitionDuration: 800,
@@ -154,8 +186,92 @@ describe('Animate Component', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    animationControlsRegistry.length = 0;
     installDefaultParseAnimationMock();
   });
+
+  const createScrollZoneState = (
+    overrides?: Partial<SceneScrollTimelineState>
+  ): SceneScrollTimelineState => ({
+    zoneId: 'zone-1',
+    sceneIndex: 0,
+    progressPx: 100,
+    totalBudgetPx: 100,
+    active: false,
+    direction: null,
+    sequence: {
+      budgets: {
+        'scroll-infinite': {
+          animateId: 'scroll-infinite',
+          startMs: 0,
+          enterStartMs: 0,
+          enterEndMs: 100,
+          exitStartMs: null,
+          exitEndMs: null,
+          totalEndMs: 100,
+          startPx: 0,
+          enterStartPx: 0,
+          enterEndPx: 100,
+          exitStartPx: null,
+          exitEndPx: null,
+          totalEndPx: 100,
+          hasExit: false,
+        },
+      },
+      totalDurationMs: 100,
+      totalBudgetPx: 100,
+    },
+    ...overrides,
+  });
+
+  const renderScrollInfiniteProbe = (zoneState: SceneScrollTimelineState) => {
+    const scrollRuntime: SceneScrollRuntimeContextValue = {
+      version: 1,
+      zoneStates: { 'zone-1': zoneState },
+      registerZone: jest.fn(),
+      unregisterZone: jest.fn(),
+      setZoneElement: jest.fn(),
+      registerZoneAnimation: jest.fn(),
+      unregisterZoneAnimation: jest.fn(),
+    };
+    const scrollSceneContext = createMockSceneContext({
+      mode: 'scroll',
+      runtimeState: 'active',
+      isSceneAnimating: false,
+      scrollDirection: 'forward',
+      scrollProgress: 1,
+      scrollTimelineState: null,
+      scrollActiveSceneIndex: 0,
+    });
+    const enterVariant: ParsedAnimationVariant = {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+    };
+    const ScrollInfiniteProbe = (): JSX.Element => {
+      const result = useAnimateScroll({
+        sceneContext: scrollSceneContext,
+        zoneRuntime: scrollRuntime,
+        zoneId: 'zone-1',
+        enterVariant,
+        exitVariant: null,
+        componentId: 'scroll-infinite',
+        duration: { enter: 100, exit: 0 },
+        timeline: { driver: 'scroll', delay: 0, phase: {} },
+        visibility: {
+          replayOnReenter: true,
+          enterWhen: 'fully-visible-bottom',
+          exitWhen: 'leaving-top',
+        },
+      });
+
+      return <output data-testid="should-run-infinite">{String(result.shouldRunInfinite)}</output>;
+    };
+
+    return render(
+      <ScrollInfiniteProbe />
+    );
+  };
 
   describe('8.1 Core Functionality', () => {
     it('should register with parent Scene on mount', async () => {
@@ -270,6 +386,22 @@ describe('Animate Component', () => {
     });
   });
 
+  describe('scroll mode infinite animation', () => {
+    it('keeps the infinite loop running once scroll-driven enter has completed, even after takeover stops being the active input owner', async () => {
+      renderScrollInfiniteProbe(
+        createScrollZoneState({
+          progressPx: 100,
+          totalBudgetPx: 100,
+          active: false,
+        })
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('should-run-infinite')).toHaveTextContent('true');
+      });
+    });
+  });
+
   describe('8.2 Animation Execution', () => {
     it('should parse and apply preset enter animation', async () => {
       const mockContext = createMockSceneContext();
@@ -331,9 +463,9 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should handle snap mode animation execution', async () => {
+    it('should handle drag mode animation execution', async () => {
       const mockContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: true,
       });
 
@@ -393,9 +525,9 @@ describe('Animate Component', () => {
       expect(screen.getByText('Test Content')).toBeInTheDocument();
     });
 
-    it('should stop infinite animation when exit animation starts in snap mode', async () => {
+    it('should stop infinite animation when exit animation starts in drag mode', async () => {
       const mockContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: true,
       });
 
@@ -418,7 +550,7 @@ describe('Animate Component', () => {
 
       // Trigger exit animation by deactivating scene
       const inactiveContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: false,
       });
 
@@ -544,9 +676,9 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should handle infinite animation with enter animation in snap mode', async () => {
+    it('should handle infinite animation with enter animation in drag mode', async () => {
       const mockContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: true,
       });
 
@@ -576,9 +708,9 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should handle complete lifecycle: enter -> infinite -> exit in snap mode', async () => {
+    it('should handle complete lifecycle: enter -> infinite -> exit in drag mode', async () => {
       const mockContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: true,
       });
 
@@ -603,7 +735,7 @@ describe('Animate Component', () => {
 
       // Trigger exit by deactivating scene
       const inactiveContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: false,
       });
 
@@ -689,7 +821,7 @@ describe('Animate Component', () => {
   });
 
   describe('8.4 Error Handling', () => {
-    it('should warn when used outside Scene component in development', () => {
+    it('should still render outside Scene in development without requiring a Scene wrapper', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
@@ -700,9 +832,8 @@ describe('Animate Component', () => {
         </Animate>
       );
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('must be used within a Scene component')
-      );
+      expect(screen.getByText('Test Content')).toBeInTheDocument();
+      expect(consoleSpy).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
       process.env.NODE_ENV = originalEnv;
@@ -1451,9 +1582,9 @@ describe('Animate Component', () => {
   });
 
   describe('Integration Tests', () => {
-    it('should handle complete animation lifecycle in snap mode', async () => {
+    it('should handle complete animation lifecycle in drag mode', async () => {
       const mockContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: true,
       });
 
@@ -1476,7 +1607,7 @@ describe('Animate Component', () => {
 
       // Deactivate scene
       const inactiveContext = createMockSceneContext({
-        mode: 'snap',
+        mode: 'drag',
         isActive: false,
       });
 
@@ -1498,7 +1629,7 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should handle drag to snap transition', async () => {
+    it('should handle drag release transition', async () => {
       const mockContext = createMockSceneContext({
         mode: 'drag',
         isDragging: true,
@@ -1890,12 +2021,11 @@ describe('Additional Animate Branch Coverage Tests', () => {
     const sharedElapsedMotion = createMotionValueStub(0);
 
     return {
-      mode: 'snap',
+      mode: 'drag',
       isActive: true,
       isDragging: false,
       dragProgressMotion,
       sharedElapsedMotion,
-      sceneEnterCompleted: true,
       sceneState: 'active',
       sceneOffset: 0,
       sceneTransitionDuration: 800,
@@ -1983,13 +2113,15 @@ describe('Additional Animate Branch Coverage Tests', () => {
   });
 
   describe('Scene context interactions', () => {
-    it('should handle missing scene context gracefully', () => {
+    it('should handle missing scene context gracefully', async () => {
       // Render without Scene context
       render(
         <Animate animateId="test-animate" enterAnimation="fade-in">
           <div>Test Content</div>
         </Animate>
       );
+
+      await flushAnimationParsing();
 
       // Should still render
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -2001,7 +2133,7 @@ describe('Error Handling and Edge Cases Coverage', () => {
   it('should use default initial variant when enterVariant is null', () => {
     const sharedElapsedMotion = createMotionValueStub(0);
     const mockSceneContext = {
-      mode: 'snap' as const,
+      mode: 'drag' as const,
       isActive: true,
       isDragging: false,
       dragProgress: 0,
@@ -2009,7 +2141,6 @@ describe('Error Handling and Edge Cases Coverage', () => {
       dragProgressMotion: createMotionValueStub(0),
       sharedElapsedMotion,
       renderProgress: 0,
-      sceneEnterCompleted: true,
       sceneState: 'active' as const,
       sceneTransitionDuration: 800,
       getTimelineDuration: jest.fn(() => 800),
@@ -2042,7 +2173,6 @@ describe('Error Handling and Edge Cases Coverage', () => {
       dragProgressMotion: createMotionValueStub(0.5),
       sharedElapsedMotion,
       renderProgress: 0.5,
-      sceneEnterCompleted: false,
       sceneState: 'exiting' as const,
       sceneTransitionDuration: 800,
       getTimelineDuration: jest.fn(() => 800),
@@ -2085,7 +2215,6 @@ describe('Error Handling and Edge Cases Coverage', () => {
       dragProgressMotion: createMotionValueStub(0.5),
       sharedElapsedMotion,
       renderProgress: 0.5,
-      sceneEnterCompleted: false,
       sceneState: 'exiting' as const,
       sceneTransitionDuration: 800,
       getTimelineDuration: jest.fn(() => 800),

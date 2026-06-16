@@ -26,7 +26,7 @@ describe('Property: 场景索引边界安全', () => {
     (totalScenes: number, operations: Array<'next' | 'prev' | number>) => {
       const ts = totalScenes;
       const ops = operations;
-      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'snap' }));
+      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'drag' }));
 
       // 初始状态验证
       const [state] = result.current;
@@ -61,7 +61,7 @@ describe('Property: 场景索引边界安全', () => {
     (totalScenes: number, targetIndex: number) => {
       const ts = totalScenes;
       const ti = targetIndex;
-      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'snap' }));
+      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'drag' }));
 
       const [initialState] = result.current;
       const initialScene = initialState.currentScene;
@@ -99,7 +99,7 @@ describe('Property: 场景索引边界安全', () => {
     '边界情况：在第一个场景时向前切换，索引应保持为 0',
     (totalScenes: number) => {
       const ts = totalScenes;
-      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'snap' }));
+      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'drag' }));
 
       // 确保在第一个场景
       act(() => {
@@ -126,7 +126,7 @@ describe('Property: 场景索引边界安全', () => {
     '边界情况：在最后一个场景时向后切换，索引应保持为 totalScenes - 1',
     (totalScenes: number) => {
       const ts = totalScenes;
-      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'snap' }));
+      const { result } = renderHook(() => useSceneManager({ totalScenes: ts, mode: 'drag' }));
 
       // 跳转到最后一个场景
       act(() => {

@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { markImageAsPreloaded } from './imagePreloadCache';
 
 export interface ImageLoadResult {
   url: string;
@@ -19,7 +20,7 @@ export interface UseImagePreloaderOptions {
   onError?: (url: string, error: Error) => void;
 }
 
-export interface ImagePreloaderState {
+export interface UseImagePreloaderState {
   isLoading: boolean;
   progress: number;
   loadedCount: number;
@@ -28,15 +29,36 @@ export interface ImagePreloaderState {
   errors: Map<string, Error>;
 }
 
-export interface ImagePreloaderActions {
-  startPreload: () => void;
+export interface UseImagePreloaderActions {
+  startPreload: () => Promise<void>;
   reset: () => void;
   addUrls: (urls: string[], priority?: boolean) => void;
 }
 
+function uniqueUrls(urls: string[]): string[] {
+  return Array.from(new Set(urls.filter((url) => url.length > 0)));
+}
+
+function resolvePendingBatches(
+  priorityQueue: string[],
+  backgroundQueue: string[],
+  loadedUrls: Set<string>,
+  processedUrls: Set<string>
+): { priorityBatch: string[]; backgroundBatch: string[] } {
+  const priorityBatch = uniqueUrls(priorityQueue).filter(
+    (url) => !loadedUrls.has(url) && !processedUrls.has(url)
+  );
+  const prioritySet = new Set(priorityBatch);
+  const backgroundBatch = uniqueUrls(backgroundQueue).filter(
+    (url) => !loadedUrls.has(url) && !processedUrls.has(url) && !prioritySet.has(url)
+  );
+
+  return { priorityBatch, backgroundBatch };
+}
+
 export const useImagePreloader = (
   options: UseImagePreloaderOptions = {}
-): [ImagePreloaderState, ImagePreloaderActions] => {
+): [UseImagePreloaderState, UseImagePreloaderActions] => {
   const { priorityUrls = [], backgroundUrls = [], onProgress, onComplete, onError } = options;
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -51,6 +73,11 @@ export const useImagePreloader = (
   const loadingRef = useRef<boolean>(false);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const activeRunIdRef = useRef(0);
+  const currentRunPromiseRef = useRef<Promise<void> | null>(null);
+  const loadedUrlsRef = useRef<Set<string>>(new Set());
+  const processedRunUrlsRef = useRef<Set<string>>(new Set());
+  const runLoadedCountRef = useRef(0);
+  const runTotalCountRef = useRef(0);
   const onProgressRef = useRef(onProgress);
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
@@ -60,6 +87,35 @@ export const useImagePreloader = (
     onCompleteRef.current = onComplete;
     onErrorRef.current = onError;
   }, [onProgress, onComplete, onError]);
+
+  const enqueueUrls = useCallback((urls: string[], priority: boolean) => {
+    const incoming = uniqueUrls(urls).filter((url) => !loadedUrlsRef.current.has(url));
+    if (incoming.length === 0) {
+      return;
+    }
+
+    const currentPriority = new Set(priorityQueueRef.current);
+    const currentBackground = new Set(backgroundQueueRef.current);
+    const filtered = incoming.filter((url) => !currentPriority.has(url) && !currentBackground.has(url));
+
+    if (filtered.length === 0) {
+      return;
+    }
+
+    if (priority) {
+      priorityQueueRef.current = [...priorityQueueRef.current, ...filtered];
+    } else {
+      backgroundQueueRef.current = [...backgroundQueueRef.current, ...filtered];
+    }
+  }, []);
+
+  useEffect(() => {
+    enqueueUrls(priorityUrls, true);
+    enqueueUrls(backgroundUrls, false);
+    if (!loadingRef.current) {
+      setTotalCount(priorityQueueRef.current.length + backgroundQueueRef.current.length);
+    }
+  }, [priorityUrls, backgroundUrls, enqueueUrls]);
 
   // 加载单张图片
   // Validates Requirement 26.3: Cancel pending image loads on unmount
@@ -75,6 +131,7 @@ export const useImagePreloader = (
 
       img.onload = (): void => {
         cleanup();
+        markImageAsPreloaded(url);
         resolve({ url, success: true });
       };
 
@@ -102,91 +159,129 @@ export const useImagePreloader = (
   const updateProgress = useCallback((loaded: number, total: number) => {
     const safeTotal = Math.max(total, 0);
     const safeLoaded = safeTotal > 0 ? Math.min(Math.max(loaded, 0), safeTotal) : 0;
-    const newProgress = safeTotal > 0 ? Math.round((safeLoaded / safeTotal) * 100) : 0;
+    const newProgress = safeTotal > 0 ? Math.round((safeLoaded / safeTotal) * 100) : 100;
     setProgress(newProgress);
     setLoadedCount(safeLoaded);
     onProgressRef.current?.(newProgress);
   }, []);
 
   // 开始预加载
-  const startPreload = useCallback(async () => {
-    if (loadingRef.current) return;
-
-    const runId = activeRunIdRef.current + 1;
-    activeRunIdRef.current = runId;
-    loadingRef.current = true;
-    setIsLoading(true);
-    setProgress(0);
-    setLoadedCount(0);
-    setResults([]);
-    setErrors(new Map());
-
-    const priorityBatch = [...priorityQueueRef.current];
-    const backgroundBatch = [...backgroundQueueRef.current];
-    const allUrls = [...priorityBatch, ...backgroundBatch];
-    const total = allUrls.length;
-    setTotalCount(total);
-
-    if (total === 0) {
-      if (activeRunIdRef.current === runId) {
-        setIsLoading(false);
-      }
-      loadingRef.current = false;
-      onCompleteRef.current?.([]);
-      return;
+  const startPreload = useCallback((): Promise<void> => {
+    if (loadingRef.current) {
+      return currentRunPromiseRef.current ?? Promise.resolve();
     }
 
-    const loadResults: ImageLoadResult[] = [];
-    const errorMap = new Map<string, Error>();
+    const runPromise = (async (): Promise<void> => {
+      const runId = activeRunIdRef.current + 1;
+      activeRunIdRef.current = runId;
+      loadingRef.current = true;
+      setIsLoading(true);
+      setProgress(0);
+      setLoadedCount(0);
+      setResults([]);
+      setErrors(new Map());
+      processedRunUrlsRef.current = new Set();
+      runLoadedCountRef.current = 0;
+      runTotalCountRef.current = 0;
 
-    // 优先加载首屏图片
-    for (let i = 0; i < priorityBatch.length; i++) {
-      const url = priorityBatch[i];
-      const result = await loadImage(url);
+      const initialBatches = resolvePendingBatches(
+        priorityQueueRef.current,
+        backgroundQueueRef.current,
+        loadedUrlsRef.current,
+        processedRunUrlsRef.current
+      );
+      const initialTotal = initialBatches.priorityBatch.length + initialBatches.backgroundBatch.length;
+      runTotalCountRef.current = initialTotal;
+      setTotalCount(initialTotal);
 
-      if (activeRunIdRef.current !== runId) {
+      if (initialTotal === 0) {
+        updateProgress(0, 0);
+        if (activeRunIdRef.current === runId) {
+          setIsLoading(false);
+        }
+        loadingRef.current = false;
+        onCompleteRef.current?.([]);
         return;
       }
 
-      loadResults.push(result);
+      const loadResults: ImageLoadResult[] = [];
+      const errorMap = new Map<string, Error>();
 
-      if (!result.success && result.error) {
-        errorMap.set(url, result.error);
-      }
+      const syncRunTotals = (): { priorityBatch: string[]; backgroundBatch: string[] } => {
+        const batches = resolvePendingBatches(
+          priorityQueueRef.current,
+          backgroundQueueRef.current,
+          loadedUrlsRef.current,
+          processedRunUrlsRef.current
+        );
+        runTotalCountRef.current =
+          runLoadedCountRef.current + batches.priorityBatch.length + batches.backgroundBatch.length;
+        setTotalCount(runTotalCountRef.current);
+        return batches;
+      };
 
-      updateProgress(loadResults.length, total);
-    }
-
-    // 后台加载后续图片
-    const backgroundPromises = backgroundBatch.map((url) =>
-      loadImage(url).then((result) => {
-        if (activeRunIdRef.current !== runId) {
-          return result;
-        }
-
+      const commitResult = (url: string, result: ImageLoadResult): void => {
         loadResults.push(result);
+        processedRunUrlsRef.current.add(url);
+        runLoadedCountRef.current += 1;
 
         if (!result.success && result.error) {
           errorMap.set(url, result.error);
+        } else if (result.success) {
+          loadedUrlsRef.current.add(url);
         }
 
-        updateProgress(loadResults.length, total);
-        return result;
-      })
-    );
+        updateProgress(runLoadedCountRef.current, runTotalCountRef.current);
+      };
 
-    await Promise.all(backgroundPromises);
+      while (true) {
+        const { priorityBatch, backgroundBatch } = syncRunTotals();
+        if (priorityBatch.length === 0 && backgroundBatch.length === 0) {
+          break;
+        }
 
-    if (activeRunIdRef.current !== runId) {
-      return;
-    }
+        for (let i = 0; i < priorityBatch.length; i++) {
+          const url = priorityBatch[i];
+          const result = await loadImage(url);
 
-    setResults(loadResults);
-    setErrors(errorMap);
-    setIsLoading(false);
-    loadingRef.current = false;
-    setTotalCount(priorityQueueRef.current.length + backgroundQueueRef.current.length);
-    onCompleteRef.current?.(loadResults);
+          if (activeRunIdRef.current !== runId) {
+            return;
+          }
+
+          commitResult(url, result);
+        }
+
+        const backgroundResults = await Promise.all(
+          backgroundBatch.map(async (url) => ({
+            url,
+            result: await loadImage(url),
+          }))
+        );
+
+        if (activeRunIdRef.current !== runId) {
+          return;
+        }
+
+        backgroundResults.forEach(({ url, result }) => {
+          commitResult(url, result);
+        });
+      }
+
+      setResults(loadResults);
+      setErrors(errorMap);
+      setIsLoading(false);
+      loadingRef.current = false;
+      setTotalCount(priorityQueueRef.current.length + backgroundQueueRef.current.length);
+      onCompleteRef.current?.(loadResults);
+    })();
+
+    currentRunPromiseRef.current = runPromise.finally(() => {
+      if (currentRunPromiseRef.current === runPromise) {
+        currentRunPromiseRef.current = null;
+      }
+    });
+
+    return currentRunPromiseRef.current;
   }, [loadImage, updateProgress]);
 
   // 重置状态
@@ -207,21 +302,34 @@ export const useImagePreloader = (
     setTotalCount(priorityQueueRef.current.length + backgroundQueueRef.current.length);
     setResults([]);
     setErrors(new Map());
+    loadedUrlsRef.current.clear();
+    processedRunUrlsRef.current.clear();
+    runLoadedCountRef.current = 0;
+    runTotalCountRef.current = 0;
     loadingRef.current = false;
+    currentRunPromiseRef.current = null;
   }, []);
 
   // 添加新的 URL
   const addUrls = useCallback((urls: string[], priority: boolean = false) => {
-    if (priority) {
-      priorityQueueRef.current = [...priorityQueueRef.current, ...urls];
-    } else {
-      backgroundQueueRef.current = [...backgroundQueueRef.current, ...urls];
-    }
+    enqueueUrls(urls, priority);
 
-    if (!loadingRef.current) {
-      setTotalCount(priorityQueueRef.current.length + backgroundQueueRef.current.length);
+    const { priorityBatch, backgroundBatch } = resolvePendingBatches(
+      priorityQueueRef.current,
+      backgroundQueueRef.current,
+      loadedUrlsRef.current,
+      processedRunUrlsRef.current
+    );
+    const nextTotal =
+      loadingRef.current
+        ? runLoadedCountRef.current + priorityBatch.length + backgroundBatch.length
+        : priorityBatch.length + backgroundBatch.length;
+
+    if (loadingRef.current) {
+      runTotalCountRef.current = nextTotal;
     }
-  }, []);
+    setTotalCount(nextTotal);
+  }, [enqueueUrls]);
 
   // 组件卸载时清理
   useEffect(() => {
@@ -229,6 +337,7 @@ export const useImagePreloader = (
     return (): void => {
       activeRunIdRef.current += 1;
       loadingRef.current = false;
+      currentRunPromiseRef.current = null;
       controllers.forEach((controller) => {
         controller.abort();
       });
@@ -236,7 +345,7 @@ export const useImagePreloader = (
     };
   }, []);
 
-  const state: ImagePreloaderState = {
+  const state: UseImagePreloaderState = {
     isLoading,
     progress,
     loadedCount,
@@ -245,7 +354,7 @@ export const useImagePreloader = (
     errors,
   };
 
-  const actions: ImagePreloaderActions = {
+  const actions: UseImagePreloaderActions = {
     startPreload,
     reset,
     addUrls,

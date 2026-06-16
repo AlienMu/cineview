@@ -12,7 +12,6 @@ export function LegacyScenePublicPropsFixture(): JSX.Element {
       sceneZIndex={3}
       sceneOverflow="visible"
       sceneStackMode="cover"
-      replayOnReenter={false}
       scrollSpeed={1.25}
       scrollControlled={true}
       scrollCommitThreshold={0.35}

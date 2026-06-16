@@ -1,6 +1,6 @@
 import type React from 'react';
 import { DEFAULT_SLIDE_DURATION } from '../../types';
-import type { SceneAnchor, SceneVisibilityDetail } from '../../types';
+import type { SceneAnchor, SceneVisibilityDetail, ScrollMode } from '../../types';
 import type { SceneInternalProps } from './types';
 
 function clamp(value: number, min: number, max: number): number {
@@ -60,7 +60,7 @@ export function resolveScrollSceneAnchor(anchor: SceneAnchor): React.CSSProperti
 }
 
 export interface NormalizedSceneProps {
-  effectiveMode: 'snap' | 'drag' | 'scroll';
+  effectiveMode: ScrollMode;
   effectiveDirection: 'x' | 'y';
   isActive: boolean;
   sceneIndex: number;
@@ -104,7 +104,6 @@ export interface NormalizedSceneProps {
   resolvedSceneZIndex: number | undefined;
   effectiveSceneStackMode: 'replace' | 'cover';
   resolvedSceneTransitionDuration: number;
-  resolvedReplayOnReenter: boolean;
   resolvedEnterAnimation: SceneInternalProps['enterAnimation'];
   resolvedExitAnimation: SceneInternalProps['exitAnimation'];
   sceneVisibilityCallback?: NonNullable<
@@ -136,7 +135,7 @@ export interface NormalizedSceneProps {
 }
 
 export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneProps {
-  const effectiveMode = props.sceneRuntime?.mode ?? props.runtimeMode ?? props.mode ?? 'snap';
+  const effectiveMode = props.sceneRuntime?.mode ?? props.runtimeMode ?? props.mode ?? 'drag';
   const effectiveDirection =
     props.sceneRuntime?.direction ?? props.runtimeDirection ?? props.slideDirection ?? 'y';
   const resolvedSceneTransitionDuration =
@@ -188,7 +187,6 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
       props.sceneStackMode ??
       (effectiveMode === 'scroll' ? 'cover' : 'replace'),
     resolvedSceneTransitionDuration,
-    resolvedReplayOnReenter: props.transition?.replayOnReenter ?? props.replayOnReenter ?? true,
     resolvedEnterAnimation: props.transition?.enterAnimation ?? props.enterAnimation,
     resolvedExitAnimation: props.transition?.exitAnimation ?? props.exitAnimation,
     sceneVisibilityCallback: props.callbacks?.onVisibilityChange,
@@ -274,7 +272,7 @@ export function getSceneVisibilityProgress({
   globalScrollTimelineState,
   hasExitAnimation,
 }: {
-  effectiveMode: 'snap' | 'drag' | 'scroll';
+  effectiveMode: ScrollMode;
   isActive: boolean;
   globalScrollTimelineState: NormalizedSceneProps['globalScrollTimelineState'];
   hasExitAnimation: boolean;
@@ -337,7 +335,7 @@ export function getFixedLayerMetrics({
   globalViewportWidth,
   globalViewportHeight,
 }: {
-  effectiveMode: 'snap' | 'drag' | 'scroll';
+  effectiveMode: ScrollMode;
   effectiveDirection: 'x' | 'y';
   globalScrollTimelineState: NormalizedSceneProps['globalScrollTimelineState'];
   globalScrollViewportOffset: number;

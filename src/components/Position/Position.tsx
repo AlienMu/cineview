@@ -13,6 +13,7 @@ import React, { useMemo, useContext, createContext } from 'react';
 import { createPortal } from 'react-dom';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { PositionProps } from '../../types';
+import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 
 interface PositionLegacyCompatProps {
   x?: number;
@@ -45,6 +46,7 @@ export const Position: React.FC<PositionInternalProps> = ({
   className,
 }) => {
   const context = useCineViewContext();
+  const cineViewRuntime = useCineViewRuntimeContext();
   const parentPosition = useContext(PositionContext);
   const fixedLayer = useContext(SceneFixedLayerContext);
   const resolvedX = at?.x ?? x;
@@ -52,6 +54,8 @@ export const Position: React.FC<PositionInternalProps> = ({
   const resolvedOffsetX = at?.offsetX ?? offsetX;
   const resolvedOffsetY = at?.offsetY ?? offsetY;
   const resolvedFixed = layer?.fixed ?? fixed;
+  const shouldUseStickyLayer =
+    resolvedFixed && cineViewRuntime?.mode === 'scroll' && !fixedLayer;
 
   // 计算最终位置 - 使用双轴设计基准换算到实际像素坐标
   const { finalLeft, finalTop, finalX, finalY } = useMemo(() => {
@@ -105,7 +109,7 @@ export const Position: React.FC<PositionInternalProps> = ({
   // 构建样式
   const positionStyle = useMemo(
     () => ({
-      position: 'absolute' as React.CSSProperties['position'],
+      position: (shouldUseStickyLayer ? 'sticky' : 'absolute') as React.CSSProperties['position'],
       left: finalLeft,
       top: finalTop,
       pointerEvents: resolvedFixed
@@ -113,7 +117,7 @@ export const Position: React.FC<PositionInternalProps> = ({
         : style?.pointerEvents,
       ...style,
     }),
-    [resolvedFixed, finalLeft, finalTop, style]
+    [shouldUseStickyLayer, resolvedFixed, finalLeft, finalTop, style]
   );
   const node = (
     <PositionContext.Provider value={contextValue}>
@@ -123,12 +127,8 @@ export const Position: React.FC<PositionInternalProps> = ({
     </PositionContext.Provider>
   );
 
-  if (resolvedFixed && fixedLayer) {
+  if (resolvedFixed && fixedLayer && !shouldUseStickyLayer) {
     return createPortal(node, fixedLayer);
-  }
-
-  if (resolvedFixed) {
-    return null;
   }
 
   return node;

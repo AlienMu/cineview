@@ -65,7 +65,7 @@ describe('PerformanceMonitor', () => {
       expect(metrics).toHaveProperty('bundleSize');
       expect(metrics.fps).toBe(0);
       expect(metrics.avgFrameTime).toBe(0);
-      expect(metrics.bundleSize).toBe(0);
+      expect(metrics.bundleSize).toBeGreaterThanOrEqual(0);
     });
 
     it('should return metrics with correct types', () => {
@@ -178,6 +178,53 @@ describe('PerformanceMonitor', () => {
 
       // Restore
       (performance as unknown as { memory?: unknown }).memory = originalMemory;
+    });
+
+    it('should estimate bundle size from loaded code resources', () => {
+      const originalGetEntriesByType = (
+        performance as Performance & {
+          getEntriesByType?: (type: string) => PerformanceEntry[];
+        }
+      ).getEntriesByType;
+
+      Object.defineProperty(performance, 'getEntriesByType', {
+        configurable: true,
+        value: (type: string) => {
+          if (type !== 'resource') {
+            return [];
+          }
+
+          return [
+            {
+              name: 'http://localhost:3000/assets/index.js',
+              decodedBodySize: 153600,
+              transferSize: 0,
+            },
+            {
+              name: 'http://localhost:3000/assets/index.css',
+              decodedBodySize: 10240,
+              transferSize: 0,
+            },
+            {
+              name: 'http://localhost:3000/assets/hero.jpg',
+              decodedBodySize: 500000,
+              transferSize: 0,
+            },
+          ] as unknown as PerformanceEntry[];
+        },
+      });
+
+      const metrics = monitor.getMetrics();
+      expect(metrics.bundleSize).toBeCloseTo(160, 1);
+
+      if (originalGetEntriesByType) {
+        Object.defineProperty(performance, 'getEntriesByType', {
+          configurable: true,
+          value: originalGetEntriesByType,
+        });
+      } else {
+        delete (performance as { getEntriesByType?: unknown }).getEntriesByType;
+      }
     });
 
     it('should smooth short-term memory spikes across recent samples', () => {

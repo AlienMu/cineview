@@ -17,7 +17,7 @@ export type SlideDirection = 'x' | 'y';
 /**
  * 滚动模式类型
  */
-export type ScrollMode = 'snap' | 'drag' | 'scroll';
+export type ScrollMode = 'drag' | 'scroll';
 export type VirtualScrollPhase = 'before' | 'enter' | 'hold' | 'exit' | 'after';
 
 export type SceneAnchor =
@@ -32,8 +32,6 @@ export type SceneAnchor =
   | 'bottom-right';
 
 export type SceneStackMode = 'replace' | 'cover';
-
-export type RuntimeState = 'inactive' | 'entering' | 'active' | 'exiting' | 'covered' | 'parked';
 
 // ============================================================================
 // Modern Public API Types
@@ -53,12 +51,6 @@ export interface CineViewDesignConfig {
   unit?: SizeUnit;
 }
 
-export interface SnapModeConfig {
-  direction?: SlideDirection;
-  duration?: number;
-  replayOnReenter?: boolean;
-}
-
 export interface DragThresholdConfig {
   minVelocity?: number;
   maxVelocity?: number;
@@ -76,15 +68,11 @@ export interface DragModeConfig {
 export interface ScrollModeConfig {
   direction?: SlideDirection;
   zoneTrigger?: 'center-lock';
-  replayOnReenter?: boolean;
-  wheelStep?: number;
-  touchStep?: number;
   sceneSizing?: 'content' | 'screen';
 }
 
 export interface ScrollbarConfig {
   enabled?: boolean;
-  strategy?: 'native' | 'overlay';
   width?: number;
   radius?: number;
   inset?: number;
@@ -138,7 +126,6 @@ export interface ZoneDetail {
 
 export interface ZoneProgressDetail extends ZoneDetail {
   progress: number;
-  budget?: number;
 }
 
 export interface SceneVisibilityDetail {
@@ -156,10 +143,6 @@ export interface CineViewCallbacks {
     onInteractionStateChange?: (detail: InteractionStateDetail) => void;
     onLayoutMeasured?: (detail: LayoutMeasuredDetail) => void;
     onError?: (detail: CineViewErrorDetail) => void;
-  };
-  snap?: {
-    onTransitionStart?: (detail: SceneChangeDetail) => void;
-    onTransitionEnd?: (detail: SceneChangeDetail) => void;
   };
   drag?: {
     onDragStart?: (detail: DragDetail) => void;
@@ -292,7 +275,6 @@ export interface CineViewProps {
   config: CineViewDesignConfig;
   mode?: ScrollMode;
   modes?: {
-    snap?: SnapModeConfig;
     drag?: DragModeConfig;
     scroll?: ScrollModeConfig;
   };
@@ -313,10 +295,16 @@ export interface PerformanceMetrics {
 }
 
 /**
+ * Scene asset preload target.
+ * - number: zero-based scene index
+ * - string: Scene.sceneId; in scroll mode it can also match Scene.scroll.zoneId
+ */
+export type CineViewPreloadTarget = number | string;
+
+/**
  * CineView Ref 方法
  */
 export interface CineViewRef {
-  getState?: () => CineViewRuntimeSnapshot;
   goToScene: (index: number, animated?: boolean) => void;
   goToSceneAdvanced?: (
     target: number | string,
@@ -324,16 +312,9 @@ export interface CineViewRef {
   ) => void;
   goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
   refreshLayout?: () => void;
-  preload?: (targets?: Array<number | string>) => Promise<void>;
+  preload?: (targets?: CineViewPreloadTarget[]) => Promise<void>;
   getCurrentScene: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
-}
-
-export interface CineViewRuntimeSnapshot {
-  mode: ScrollMode;
-  currentScene: number;
-  totalScenes?: number;
-  runtimeState?: RuntimeState;
 }
 
 /**
@@ -355,10 +336,13 @@ export interface SceneProps {
     enterAnimation?: AnimationType;
     exitAnimation?: AnimationType;
     exitDuration?: number;
-    replayOnReenter?: boolean;
   };
   assets?: {
     preloadImages?: string[];
+  };
+  scroll?: {
+    zoneId?: string;
+    trigger?: 'center-lock';
   };
   callbacks?: {
     onVisibilityChange?: (detail: SceneVisibilityDetail) => void;
@@ -393,14 +377,6 @@ export interface AnimateProps {
     enterWhen?: 'fully-visible-bottom';
     exitWhen?: 'leaving-top';
   };
-  children: ReactNode;
-}
-
-export interface ScrollZoneProps {
-  zoneId?: string;
-  trigger?: 'center-lock';
-  replayOnReenter?: boolean;
-  budget?: 'auto' | number;
   children: ReactNode;
 }
 
@@ -479,7 +455,7 @@ export interface CineViewContext {
 export interface SceneState {
   currentIndex: number; // 当前场景索引
   totalScenes: number; // 总场景数
-  isAnimating: boolean; // 是否正在动画中（snap 模式）
+  isAnimating: boolean; // 是否正在动画中
   isDragging: boolean; // 是否正在拖拽中（drag 模式）
   isScrolling: boolean; // 是否正在滚动过渡中（scroll 模式）
   dragProgress: number; // 拖拽进度 0-1（drag 模式）

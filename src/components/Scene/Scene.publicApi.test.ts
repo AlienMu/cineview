@@ -50,7 +50,7 @@ describe('Scene public API typing', () => {
     };
   }
 
-  it('accepts the grouped root-first Scene and ScrollZone path', () => {
+  it('accepts the grouped root-first Scene scroll takeover path', () => {
     const result = compileFixture('scene-grouped-public-path.fixture.tsx');
 
     expect(result).toEqual({ success: true });

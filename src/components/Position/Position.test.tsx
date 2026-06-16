@@ -6,6 +6,8 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { Position } from './Position';
 import { CineViewProvider } from '../../context/CineViewContext';
+import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { SceneFixedLayerContext } from './Position';
 
 // 测试辅助函数：创建带 Context 的包装器
 const renderWithContext = (
@@ -536,6 +538,73 @@ describe('Position Component', () => {
   });
 
   describe('错误处理', () => {
+    it('应该在 scroll 模式下优先把 scene 内 fixed 图层 portal 到 scene host', () => {
+      const fixedHost = document.createElement('div');
+      document.body.appendChild(fixedHost);
+      const { container } = renderWithContext(
+        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+          <SceneFixedLayerContext.Provider value={fixedHost}>
+            <Position x={100} y={200} layer={{ fixed: true }}>
+              <div data-testid="sticky-child">Content</div>
+            </Position>
+          </SceneFixedLayerContext.Provider>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      const child = screen.getByTestId('sticky-child');
+      const parent = child.parentElement;
+
+      expect(parent).toHaveStyle({
+        position: 'absolute',
+        left: '100px',
+        top: '200px',
+      });
+      expect(fixedHost).toContainElement(child);
+      expect(container).not.toContainElement(child);
+
+      fixedHost.remove();
+    });
+
+    it('应该在 scroll 模式下把没有 scene host 的 fixed 图层保留为 sticky', () => {
+      renderWithContext(
+        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+          <section data-testid="ordinary-region">
+            <Position x={64} y={128} layer={{ fixed: true }}>
+              <div data-testid="ordinary-sticky-child">Content</div>
+            </Position>
+          </section>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      const region = screen.getByTestId('ordinary-region');
+      const child = screen.getByTestId('ordinary-sticky-child');
+      const parent = child.parentElement;
+
+      expect(parent).toHaveStyle({
+        position: 'sticky',
+        left: '64px',
+        top: '128px',
+      });
+      expect(region).toContainElement(child);
+    });
+
+    it('应该在没有 scene host 时保留 fixed 内容，而不是直接消失', () => {
+      renderWithContext(
+        <Position x={100} y={200} layer={{ fixed: true }}>
+          <div data-testid="inline-fixed-child">Content</div>
+        </Position>
+      );
+
+      const child = screen.getByTestId('inline-fixed-child');
+      const parent = child.parentElement;
+
+      expect(parent).toHaveStyle({
+        position: 'absolute',
+        left: '100px',
+        top: '200px',
+      });
+    });
+
     it('应该在没有 CineViewProvider 时正常渲染（静默失败）', () => {
       // Position 组件应该在没有 context 时静默失败，使用默认的 convertSize
       const { container } = render(

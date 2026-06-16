@@ -2,27 +2,26 @@
 
 ## 简介
 
-CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景体验与滚动驱动内容体验。框架支持 `snap`、`drag`、`scroll` 三套模式引擎，并以 root-first 的方式统一管理模式、布局、动画、滚动条、性能策略和公共事件。
+CineView 是一款面向 React 的叙事型 UI 框架，用于构建拖拽分页场景体验与滚动驱动内容体验。框架支持 `drag`、`scroll` 两套模式引擎，并以 root-first 的方式统一管理模式、布局、动画、滚动条、性能策略和公共事件。
 
 本需求文档以最新设计稿为准，不再保留旧的 scene-level `slideMode`、旧版 `Viewport` 公共 API、以及 scroll 模式下默认 `100vh` 的历史口径。
 
 ## 术语表
 
 - **CineView**: 顶级容器组件，唯一模式入口
-- **Scene**: 文档 section / 场景容器，负责布局和 scene-owned layer
+- **Scene**: 可选的章节级容器，负责 chapter 级布局、scene-owned layer 与 takeover 所有权
 - **Animate**: 动画组件，负责元素级时间语义消费
-- **Position**: 定位组件，负责 scene 内定位与 fixed layer 定位
-- **ScrollZone**: scroll 模式下的局部滚动接管区
-- **Snap Mode**: 离散分页切换模式
+- **Position**: 定位组件，负责普通内容定位与 scene-scoped fixed layer 定位
+- **Scene Scroll Takeover**: scroll 模式下由 `Scene.scroll` 声明的局部滚动接管区
 - **Drag Mode**: 拖拽驱动分页与元素时间轴模式
 - **Scroll Mode**: 文档流优先、局部时间轴接管的滚动模式
 - **Scene-Scoped Fixed Layer**: 只归属于当前 scene 的 fixed layer
 - **Design Width / Design Height**: 设计稿宽高双轴基准
-- **Preloader**: 图片预加载器
+- **Image Preload Pipeline**: 框架内部图片预加载管线；公共图片组件统一为 `Image`
 
 ## 需求
 
-最终推荐写法统一为：`CineView mode + modes.*`、`ScrollZone`、`Animate.timeline`、`Position.at/layer`。兼容字段可以过渡运行，但不再作为文档主路径，也不再进入主入口导出的公共 TypeScript authoring 声明。
+最终推荐写法统一为：`CineView mode + modes.*`、`Scene.scroll`、`Animate.timeline`、`Position.at/layer`。其中 `Scene` 是章节级能力容器，不要求包裹所有普通文档内容。旧字段不再作为文档主路径，也不再进入主入口导出的公共 TypeScript authoring 声明。
 
 ### 需求 1: Root-First 模式架构
 
@@ -30,9 +29,9 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 
 #### 验收标准
 
-1. THE CineView SHALL 作为 `snap`、`drag`、`scroll` 的唯一模式入口
+1. THE CineView SHALL 作为 `drag`、`scroll` 的唯一模式入口
 2. THE 模式 SHALL 通过 `CineView.mode` 声明，而不是通过 `Scene` 声明
-3. THE mode-specific 配置 SHALL 通过 `CineView.modes.snap`、`CineView.modes.drag`、`CineView.modes.scroll` 分组传入
+3. THE mode-specific 配置 SHALL 通过 `CineView.modes.drag`、`CineView.modes.scroll` 分组传入
 4. THE Scene SHALL NOT 承担根模式配置职责
 5. THE public API SHALL 比内部 runtime 少一层复杂度，不要求业务作者理解内部时间轴容器实现
 
@@ -50,32 +49,31 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 
 ### 需求 3: Scene 布局模型
 
-**用户故事**: 作为开发者，我希望 Scene 只负责布局和内容边界，而不是背负模式和滚动引擎职责。
+**用户故事**: 作为开发者，我希望 Scene 只负责章节级布局和内容边界，而不是背负模式和滚动引擎职责，也不强迫普通文档内容 scene 化。
 
 #### 验收标准
 
-1. THE Scene SHALL 作为文档 section / 场景容器存在
+1. THE Scene SHALL 作为可选的章节级容器存在，而不是所有内容的强制基础节点
 2. THE Scene SHALL 支持通过 `layout` 对象传入宽度、高度、锚点和 overflow
 3. THE Scene SHALL 支持通过 `stack` 对象传入 `mode` 与 `zIndex`
 4. THE Scene SHALL 支持通过 `transition` 对象声明 scene 自身 enter / exit 动画
 5. THE Scene SHALL 支持通过 `assets.preloadImages` 提供预加载图片
 6. THE Scene SHALL 支持通过 `callbacks.onVisibilityChange` 暴露可视状态
 7. THE Scene SHALL NOT 接收 `slideMode`、`slideDirection`、`scrollSpeed`、`scrollEnterLength`、`scrollHoldLength`、`scrollExitLength` 这类 mode-specific 字段
-8. THE exported Scene authoring declaration SHALL 只暴露 `layout`、`stack`、`transition`、`assets`、`callbacks` 等 grouped props；legacy scene-level props 仅可保留在内部 runtime bridge
+8. THE exported Scene authoring declaration SHALL 只暴露 `layout`、`stack`、`transition`、`assets`、`scroll`、`callbacks` 等 grouped props；legacy scene-level props SHALL NOT 继续作为主 authoring 声明存在
 
-### 需求 4: Snap Mode
+### 需求 3.5: Animate 在普通文档中的可用性
 
-**用户故事**: 作为开发者，我希望实现离散分页切换体验，用户触发后能够平滑切到下一屏或上一屏。
+**用户故事**: 作为开发者，我希望 `Animate` 能直接用于普通文档节点和自定义组件，而不是必须嵌在 `Scene` 里面才能工作。
 
 #### 验收标准
 
-1. WHERE `CineView.mode = 'snap'`，THE root engine SHALL 负责分页切换
-2. THE snap 参数 SHALL 通过 `modes.snap` 传入
-3. THE `modes.snap.direction` SHALL 支持 `x` 与 `y`
-4. THE `modes.snap.duration` SHALL 控制分页切换时长
-5. WHEN snap 切换开始时，THE 当前场景 exit 与目标场景 enter SHALL 可并行开始
-6. WHILE snap 动画执行中，THE engine SHALL 阻止新的分页切换
-7. WHERE `modes.snap.replayOnReenter = false`，THE 返回上一场景时 SHALL 恢复完成态而不是默认重播
+1. THE Animate SHALL 在 `Scene` 外部正常工作
+2. WHERE 当前上下文不是 takeover scene，THE Animate default behavior SHALL 使用普通可视驱动或 auto driver
+3. THE framework SHALL NOT 要求 scroll 页面中的普通 section 必须包装为 `Scene`
+4. WHERE `timeline.driver = 'scroll'` 被显式声明，THE Animate SHALL 仍然要求存在带 `Scene.scroll` 的归属 scene
+5. WHERE Animate 位于带 `Scene.scroll` 的 scene 内且未显式声明 driver，THE default behavior SHALL 绑定所属 takeover 时间轴
+6. THE framework SHALL NOT 把普通文档内容默认做成“进入 viewport 才显示”的门控体验
 
 ### 需求 5: Drag Mode
 
@@ -102,23 +100,46 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 2. THE scroll 参数 SHALL 通过 `modes.scroll` 传入
 3. THE scroll 模式下 Scene SHALL 允许小于、等于或大于 `100vh`
 4. THE scroll 模式 SHALL NOT 默认把 Scene 高度钳制为最小 `100vh`
-5. THE 滚动优先级 SHALL 固定为 `动画时间轴 -> 文档滚动`
-6. THE animation timeline 与 document scroll SHALL NOT 并行消费同一段输入
-7. THE scroll 模式 SHALL 允许 scene 真实内容先布局，再按需声明局部滚动接管区
+5. THE scroll runtime SHALL maintain exactly one scroll owner at a time: either native document flow or one `Scene.scroll` progress owner
+6. THE animation timeline 与 document scroll SHALL NOT 并行消费或拆分消费同一段输入
+7. THE root runtime SHALL normalize wheel / touch / keyboard / scrollbar / native scroll into one scroll intent pipeline before deciding whether document flow or scene progress consumes the input
+8. THE scroll 模式 SHALL 允许 scene 真实内容先布局，再按需声明局部滚动接管区
+9. THE root scroll implementation SHALL 使用真实滚动容器，而不是虚拟滚动轨道
+10. THE framework SHALL represent each scroll-driven scene timeline as real scrollable distance in the native scroll metrics, so scrollbar movement, document px input, and scene progress use the same px model
+11. THE framework SHALL NOT encode completed-scene reverse behavior as a separate public mode; it is the same scene progress model moving from preserved `100%` toward `0%`
+12. THE scroll page SHALL 允许普通文档节点与显式 `Scene` 章节混合存在
+13. THE framework SHALL 默认保证正文、卡片、图片与章节主体持续参与自然文档流，而不是在进入 viewport 前被框架隐藏
 
-### 需求 7: ScrollZone 局部滚动接管
+### 需求 7: Scene Scroll 局部滚动接管
 
 **用户故事**: 作为开发者，我希望只声明“哪一段内容接管滚动”，而不是直接理解底层时间轴容器。
 
 #### 验收标准
 
-1. THE framework SHALL 提供 `ScrollZone` 作为 scroll 模式下的主推荐公共语义
-2. THE `ScrollZone` SHALL 支持 `zoneId`、`trigger`、`replayOnReenter`、`budget`
-3. THE `trigger` 当前 SHALL 支持 `center-lock`
-4. WHEN `ScrollZone` 命中触发条件时，THE zone SHALL 获得滚动输入接管权
-5. WHEN zone 在当前方向仍有预算可消费时，THE 文档滚动 SHALL 暂停推进
-6. WHEN zone 在当前方向预算耗尽时，THE 文档滚动 SHALL 恢复推进
-7. THE framework MAY 保留内部 `Viewport` runtime，但 SHALL NOT 继续把它作为主推荐公共 API
+1. THE framework SHALL 提供 `Scene.scroll` 作为 scroll 模式下的主推荐公共语义
+2. THE `Scene.scroll` SHALL expose a simple scene progress model: each scroll scene owns one local animation percentage from `0%` to `100%`
+3. THE `Scene.scroll` SHALL support `zoneId` and `trigger`; it SHALL NOT expose a scroll speed or budget override in the primary scroll authoring API
+4. THE `trigger` 当前 SHALL 支持 `center-lock`
+5. THE scroll authoring API and runtime SHALL NOT expose or accept `replayOnReenter`, `wheelStep`, `touchStep`, or `budget` on scroll takeover paths
+6. THE scroll reverse playback SHALL be mandatory behavior derived from scene progress and input direction
+7. WHEN a scene that has scroll animations reaches the trigger point, THE scene SHALL obtain scroll ownership and SHALL map user input to its local progress percentage
+8. WHEN the user scrolls forward while the scene owns input, THE scene progress SHALL increase toward `100%`
+9. WHEN the user scrolls backward while the scene owns input, THE scene progress SHALL decrease toward `0%`
+10. WHEN scene progress is between `0%` and `100%`, THE native document flow SHALL pause and all scroll input SHALL first be offered to the scene progress model
+11. WHEN scene progress reaches `100%` through forward input, THE scene SHALL release ownership to natural document flow while preserving progress and rendered animation state at `100%`
+12. WHEN scene progress reaches `0%` through backward input, THE scene SHALL release ownership to natural document flow while preserving progress and rendered animation state at `0%`
+13. AFTER a scene has completed to `100%`, backward scrolling from the following document flow SHALL restore scene ownership when the scene reaches the same center-lock trigger point, then move the preserved progress from `100%` toward `0%`
+14. THE framework SHALL NOT require authors or users to understand internal locking, boundary detection, replay flags, or owner markers; those are implementation details only
+15. THE runtime MAY use internal boundaries to prevent native document flow from skipping a scene, but those boundaries SHALL only serve the public percentage model and SHALL NOT become public API semantics
+16. THE rendered scene and scene-scoped fixed layer SHALL stay visually available whenever scene progress is being consumed, including backward movement from `100%` to `0%`
+17. THE center-lock animation segment SHALL intentionally contribute to native `scrollHeight`; visual pinning or compensation SHALL NOT create a second virtual scroll metric
+18. THE scene progress SHALL spend input at the same px rate as document scroll and SHALL NOT be clipped by unrelated trigger-distance math
+19. THE same owner/progress reducer SHALL handle wheel, touch, keyboard, custom scrollbar, and browser-native scroll reconciliation
+20. THE takeover progress SHALL 作为 scene 局部状态存在，而不是 root 级全局滚动坐标的一部分
+21. THE scroll intent reducer SHALL NOT allow one wheel / touch / keyboard / scrollbar / native reconciliation input to jump from after a completed center-lock segment to before that same segment without producing an in-segment progress frame
+22. THE framework SHALL delete old `ScrollZone` / `Viewport` / virtual-track scroll runtime paths instead of keeping them as compatibility layers
+23. THE framework SHALL NOT 要求普通内容为了参与 scroll 页面而包装进 `Scene`
+24. THE takeover 机制 SHALL 只改变输入消费优先级，而 SHALL NOT 把普通阅读内容改造成 viewport 门控显示
 
 ### 需求 8: Scroll Driven 与 Visibility Driven 动画
 
@@ -127,31 +148,35 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 #### 验收标准
 
 1. THE Animate SHALL 支持 `timeline.driver = 'scroll' | 'visibility' | 'scene' | 'auto'`
-2. WHERE `timeline.driver = 'scroll'`，THE Animate SHALL 依附所属 `ScrollZone` 的统一预算时间轴
+2. WHERE `timeline.driver = 'scroll'`，THE Animate SHALL 依附所属 `Scene.scroll` 的统一真实滚动距离时间轴
 3. WHERE `timeline.driver = 'scroll'`，THE Animate SHALL NOT 再按自身 `getBoundingClientRect()` 独立计算进退场
 4. WHERE `timeline.driver = 'visibility'`，THE Animate SHALL 基于可视规则自动执行
-5. WHERE `timeline.driver = 'visibility'`，THE enter 触发条件 SHALL 为“元素底部完整进入 viewport”
-6. WHERE `timeline.driver = 'visibility'`，THE exit 触发条件 SHALL 为“元素顶部将要离开 viewport”
-7. WHERE `timeline.driver = 'visibility'`，THE Animate SHALL 在离开后销毁，并在重新进入时默认重播
-8. WHERE scroll 元素未处于 `ScrollZone` 内，THE framework SHALL 在开发环境报警告
+5. WHERE `timeline.driver = 'visibility'`，THE 可视规则 SHALL 只决定补充动画何时触发，而 SHALL NOT 决定元素是否渲染、是否参与自然文档流
+6. THE framework SHALL NOT 把正文、卡片、图片、章节主体等阅读型内容默认隐藏到进入 viewport 才显示
+7. WHERE 元素离开 viewport，THE framework SHALL NOT 默认销毁、重建或将其硬重置为完全隐藏；需要重播或重置时必须显式声明
+8. WHERE scroll 元素未处于带 `scroll` takeover 配置的 `Scene` 内，THE framework SHALL 在开发环境报警告
 9. THE exported Animate authoring declaration SHALL 优先暴露 `duration`、`timeline`、`visibility`，而不是 `enterDuration`、`delay`、`waitFor`、`scrollDriven` 这类扁平 legacy props
+10. WHERE Animate 位于带 `Scene.scroll` 的 scene 内且未显式声明 driver，THE framework SHALL 默认将其视为 scroll-driven
 
-### 需求 9: Scroll 预算与长动画
+### 需求 9: Scroll 时间轴与真实滚动距离
 
-**用户故事**: 作为开发者，我希望多个动画的滚动预算能够按时长、延迟和依赖关系统一换算，避免手调进度窗口。
+**用户故事**: 作为开发者，我希望多个动画的真实滚动距离能够按时长、延迟和依赖关系统一自动换算，避免手调滚动速度或预算。
 
 #### 验收标准
 
-1. THE ScrollZone 总预算 SHALL 基于内部所有 scroll-driven 动画的 `delay + waitFor + enter/exitDuration` 自动结算
+1. THE scene takeover zone total real scroll distance SHALL be derived from all internal scroll-driven animations' `delay + waitFor + enter/exitDuration`
 2. FOR EACH scroll-driven Animate:
    - `enterTotal = delayChain + enterDuration`
    - `exitTotal = exitDuration`
    - `animationTotal = enterTotal + exitTotal`
-3. WHERE 同时存在 enter / exit，THE zone SHALL 按两段时长比例分配滚动预算
-4. WHERE 只有 enter，THE enter SHALL 占 100% 滚动预算，完成后保持终态
+3. WHERE 同时存在 enter / exit，THE zone SHALL 按两段时长比例分配滚动距离
+4. WHERE 只有 enter，THE enter SHALL 占 100% 滚动距离，完成后保持终态
 5. WHERE 只有 exit，THE framework SHALL 在开发环境报警告，而不是把它当作独立 scroll-driven 动画主路径
 6. WHERE `waitFor` 存在，THE 后置动画起点 SHALL 基于前置动画完整总时长推导
 7. THE 动画总时长越长，单位滚动输入对应的时间推进 SHALL 越慢
+8. THE direct scroll takeover path SHALL NOT expose `wheelStep` / `touchStep` / `budget` speed knobs in the primary scroll API; native document scroll speed SHALL be the only speed source
+9. THE longer a scene's scroll-driven animation timeline is, THE longer its real center-lock scroll segment SHALL be
+10. THE internal timeline-to-distance mapping SHALL be fixed at `1ms = 1px`; this mapping SHALL NOT be exposed as a public scroll speed configuration
 
 ### 需求 10: Scene-Scoped Fixed Layer
 
@@ -186,11 +211,17 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 #### 验收标准
 
 1. THE CineView SHALL 收集所有 Scene 的 `assets.preloadImages`
-2. THE Preloader SHALL 优先加载首屏关键图片
-3. WHEN 首屏关键图片加载完成后，THE CineView SHALL 允许首屏进入可运行态
-4. THE Preloader SHALL 在后台静默加载后续场景图片
-5. WHEN 加载进度更新时，THE framework SHALL 触发 `callbacks.common.onLoadProgress`
-6. IF 图片加载失败，THEN THE Preloader SHALL 记录失败 URL 并继续其他任务
+2. WHERE 当前模式为 `drag`，THE framework SHALL 优先预加载当前场景及相邻场景图片
+3. WHERE 当前模式为 `scroll`，THE framework SHALL 全局预加载所有声明的 `assets.preloadImages`
+4. THE framework SHALL 仅提供 `Image` 作为公共图片 authoring API，内部预加载 SHALL 统一由 `useImagePreloader` 管理
+5. THE `Image` component SHALL 默认 `preload = true`，并允许作者通过 `preload={false}` 选择浏览器 lazy loading
+6. THE `Image` component SHALL 支持原生 `img` props、`style`、`width` 与 `height`
+7. THE `Image` component SHALL 通过 CineView 上下文转换数字 `width`、`height` 和数字 style 长度值
+8. WHEN 加载进度更新时，THE framework SHALL 触发 `callbacks.common.onLoadProgress`
+9. IF 图片加载失败，THEN THE internal image preload pipeline SHALL 记录失败 URL 并继续其他任务
+10. THE framework SHALL NOT 因为 preload 而隐藏整个首屏 viewport
+11. THE 首屏布局与文案 SHALL 在关键媒体未完成时仍可先渲染
+12. THE same non-gating principle SHALL 适用于后续 scroll 内容；框架 SHALL NOT 因为 viewport 进入时机而延后普通内容的可见性
 
 ### 需求 13: 回调系统
 
@@ -199,7 +230,7 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 #### 验收标准
 
 1. THE framework SHALL 提供 `callbacks.common`
-2. THE framework SHALL 提供 `callbacks.snap`、`callbacks.drag`、`callbacks.scroll`
+2. THE framework SHALL 提供 `callbacks.drag`、`callbacks.scroll`
 3. `callbacks.common` 至少 SHALL 包含：
    - `onReady`
    - `onLoadProgress`
@@ -225,17 +256,18 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 
 #### 验收标准
 
-1. THE CineView SHALL 通过 ref 暴露 `getState`
-2. THE CineView SHALL 通过 ref 暴露 `goToScene`
-3. WHERE 当前模式为 scroll，THE CineView MAY 通过 ref 暴露 `goToZone`
-4. THE CineView SHALL 通过 ref 暴露 `refreshLayout`
-5. THE CineView SHALL 通过 ref 暴露 `preload`
-6. THE framework SHALL NOT 继续把 `triggerAnimation` 作为主推荐公共 API
-7. THE framework SHALL NOT 继续把 `reload` 作为主推荐公共 API
+1. THE CineView SHALL 通过 ref 暴露 `goToScene`
+2. WHERE 当前模式为 scroll，THE CineView MAY 通过 ref 暴露 `goToZone`
+3. THE CineView SHALL 通过 ref 暴露 `refreshLayout`
+4. THE CineView SHALL 通过 ref 暴露 `preload`
+5. THE CineView SHALL 通过 ref 暴露 `getCurrentScene`
+6. THE framework SHALL NOT 通过 ref 暴露内部 runtime snapshot 或 debug state
+7. THE framework SHALL NOT 继续把 `triggerAnimation` 作为主推荐公共 API
+8. THE framework SHALL NOT 继续把 `reload` 作为主推荐公共 API
 
 ### 需求 15: Scrollbar 根级配置
 
-**用户故事**: 作为开发者，我希望在 root 层统一配置滚动条策略和样式，以便保持全局体验一致。
+**用户故事**: 作为开发者，我希望在 root 层统一配置框架自绘滚动条样式，以便保持全局体验一致。
 
 #### 验收标准
 
@@ -243,7 +275,6 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 2. WHERE `scrollbar = false` 或 `scrollbar.enabled = false`，THE framework SHALL 不启用自定义滚动条
 3. WHERE `scrollbar.enabled = true`，THE framework SHALL 在 root 注册滚动条样式
 4. THE `scrollbar` 配置 SHALL 支持：
-   - `strategy`
    - `width`
    - `radius`
    - `inset`
@@ -251,7 +282,10 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
    - `thumbColor`
    - `thumbHoverColor`
    - `autoHide`
-5. THE 默认滚动条样式 SHALL 为细条、圆角、低对比度、自动隐藏
+5. WHERE `scrollbar.enabled = true`，THE framework SHALL 默认隐藏浏览器原生滚动条，只显示框架自绘滚动条
+6. THE 默认框架滚动条 SHALL 贴合视口边缘；只有显式配置 `inset` 时才向内收缩
+7. THE 默认框架滚动条样式 SHALL 为细条、圆角、低对比度、自动隐藏
+8. THE scrollbar SHALL 读取真实滚动容器的滚动指标，而不是虚拟滚动坐标
 
 ### 需求 16: 性能配置
 
@@ -288,7 +322,7 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 
 #### 验收标准
 
-1. WHERE 当前模式为 `snap` 或 `drag`，THE framework SHALL 支持虚拟化渲染当前场景及其相邻场景
+1. WHERE 当前模式为 `drag`，THE framework SHALL 支持虚拟化渲染当前场景及其相邻场景
 2. WHERE 当前模式为 `scroll`，THE framework SHALL 根据内容连续性决定是否关闭或调整分页式虚拟化策略
 3. THE 未渲染场景 SHALL 不占用不必要的 DOM 节点
 4. THE framework SHALL 使用合适的可见性优化策略减少非活跃内容开销
@@ -300,8 +334,8 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 #### 验收标准
 
 1. IF Scene 不在 CineView 下使用，THEN THE framework SHALL 在开发环境输出清晰错误
-2. IF Animate 或 Position 不在 Scene 下使用，THEN THE framework SHALL 在开发环境输出清晰错误
-3. IF scroll-driven Animate 不在 ScrollZone 中使用，THEN THE framework SHALL 在开发环境输出警告
+2. IF scene-scoped Position behavior is requested without a Scene owner, THEN THE framework SHALL 在开发环境输出清晰错误
+3. IF scroll-driven Animate 不在带 `Scene.scroll` 的 Scene 中使用，THEN THE framework SHALL 在开发环境输出警告
 4. IF 检测到动画循环依赖，THEN THE framework SHALL 阻止执行并输出依赖错误
 5. IF `goToScene` 传入无效目标，THEN THE framework SHALL 输出警告并忽略请求
 6. WHERE 环境为生产环境，THE framework SHALL 以稳健降级为主，而不是直接崩溃
@@ -313,7 +347,7 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 #### 验收标准
 
 1. THE framework SHALL 导出所有公共接口的 TypeScript 类型定义
-2. THE 类型定义 SHALL 包含 `CineViewProps`、`SceneProps`、`ScrollZoneProps`、`AnimateProps`、`PositionProps`
+2. THE 类型定义 SHALL 包含 `CineViewProps`、`SceneProps`、`AnimateProps`、`PositionProps`
 3. THE 类型定义 SHALL 包含所有公共回调和 ref 方法签名
 4. THE 类型定义 SHALL 与 root-first 模式设计保持一致
 5. THE 类型定义文件 SHALL 随 npm 包一起发布
@@ -342,7 +376,7 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 4. THE 函数覆盖率 SHALL 达到 90% 以上
 5. THE 行覆盖率 SHALL 达到 90% 以上
 6. WHERE 覆盖率低于 90%，THE CI/CD 构建 SHALL 失败
-7. THE 测试 SHALL 覆盖 root mode、ScrollZone、scene-scoped fixed layer、scroll budget、callbacks、scrollbar 配置
+7. THE 测试 SHALL 覆盖 root mode、Scene.scroll takeover、scene-scoped fixed layer、scroll timeline distance、callbacks、scrollbar 配置
 
 ### 需求 23: 跨平台兼容性
 
@@ -374,38 +408,21 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建分页场景
 
 #### 验收标准
 
-1. THE Preloader SHALL 验证图片 URL 协议为 `http` 或 `https`
+1. THE internal image preload pipeline SHALL 验证图片 URL 协议为 `http` 或 `https`
 2. THE framework SHALL 避免直接渲染不可信 HTML
 3. THE 框架维护者 SHALL 定期更新依赖并检查漏洞
 4. THE 文档 SHALL 建议开发者配置 CSP 约束资源来源
 
-### 需求 26: 接口迁移与兼容发布
+### 需求 26: Scroll Runtime 直接切换
 
-**用户故事**: 作为框架维护者，我希望在迁移到新接口体系时保留可控的兼容路径，以便用户能够逐步升级，而不是一次性断裂。
+**用户故事**: 作为框架维护者，我希望 scroll 模式直接切换到新的真实文档流架构，而不是长期维护一套兼容旧模型的双轨系统。
 
 #### 验收标准
 
-1. THE framework SHALL 采用分阶段接口迁移，而不是一次性硬切
-2. THE migration SHALL 优先顺序为：
-   - 契约统一
-   - 类型兼容桥
-   - root runtime 接管
-   - Scene 降载
-   - ScrollZone 落地
-   - Animate 语义迁移
-   - Position 双轴迁移
-   - 删除旧口径
-3. THE framework SHALL 为以下旧字段提供过渡期兼容或明确 deprecated 提示：
-   - `Scene.slideMode`
-   - `slideDirection`
-   - `slideDuration`
-   - `scrollSpeed`
-   - `scrollControlled`
-   - `scrollEnterLength`
-   - `scrollHoldLength`
-   - `scrollExitLength`
-   - `scrollDriven`
-4. THE framework SHALL 将 `<Viewport>` 降级为 legacy / compatibility API，而将 `ScrollZone` 作为主推荐公共语义
-5. THE framework SHALL 将 `triggerAnimation` 与 `reload` 视为待淘汰接口，而不是新体系的主推荐方法
-6. EACH migration phase SHALL 具备对应的类型、构建、测试或浏览器验收检查
-7. THE framework SHALL NOT 删除旧主接口，直到兼容桥、迁移提示和阶段验收已完成
+1. THE framework SHALL 对 scroll runtime 采用直接切换，而不是兼容桥长期并存
+2. THE framework SHALL 删除虚拟滚动轨道作为 scroll 主路径
+3. THE framework SHALL 删除把 takeover 滚动距离编码进虚拟 root 全局坐标的主路径; takeover distance SHALL be represented only as real center-lock scroll distance in the native document metrics
+4. THE framework SHALL 以 `Scene.scroll` 作为唯一主推荐 takeover 公共语义
+5. THE framework SHALL delete `<Viewport>` / `ScrollZone` from the scroll public authoring path, examples, and active runtime path
+6. THE rewrite SHALL 具备对应的类型、构建、测试和浏览器验收检查
+7. THE framework SHALL 在完成直接切换后只保留新的 scroll 心智模型作为主文档口径

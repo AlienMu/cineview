@@ -190,21 +190,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
       expect(container.firstChild).toBeInTheDocument();
     });
 
-    it('should not enable drag when slideMode is snap', () => {
-      const { container } = render(
-        <CineViewProvider
-          designWidth={mockConfig.designWidth}
-          designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
-        >
-          <Scene mode="snap" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
-            <div>Test Content</div>
-          </Scene>
-        </CineViewProvider>
-      );
-
-      expect(container.firstChild).toBeInTheDocument();
-    });
   });
 
   describe('Task 20.4: Smart Threshold Algorithm (Linear Interpolation)', () => {

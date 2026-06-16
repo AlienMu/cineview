@@ -18,13 +18,24 @@ import { CineViewProvider } from '../../context/CineViewContext';
 import { useSceneManager } from '../../hooks/useSceneManager';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { performanceMonitor } from '../../utils/performanceMonitor';
-import { ScrollZoneRuntimeContext, type ScrollZoneTimelineState } from '../ScrollZone';
+import { DirectScrollCineView } from './DirectScrollCineView';
 import {
-  resolveScrollZoneAnimationBudgets,
-  type ScrollZoneAnimationRegistration,
-} from '../ScrollZone/scrollZoneBudget';
+  getScenePreloadImages,
+  resolveScenePreloadTargetImages,
+} from './preloadTargets';
+import { CineViewRuntimeContext } from './runtimeContext';
+import {
+  SceneScrollRuntimeContext,
+  type SceneScrollTimelineState,
+} from '../Scene/sceneScrollRuntime';
+import {
+  areResolvedSceneScrollSequencesEqual,
+  resolveSceneScrollAnimationBudgets,
+  type SceneScrollAnimationRegistration,
+} from '../Scene/sceneScrollBudget';
 import type {
   AnimationType,
+  CineViewPreloadTarget,
   CineViewProps,
   CineViewRef,
   CineViewCallbacks,
@@ -35,7 +46,6 @@ import type {
   SceneVisibilityDetail,
   ScrollMode,
   ScrollModeConfig,
-  ScrollbarConfig,
   ScrollTimelineState,
 } from '../../types';
 
@@ -69,6 +79,35 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeWheelDeltaPx(
+  delta: number,
+  deltaMode: number,
+  viewportSpan: number
+): number {
+  if (!Number.isFinite(delta) || delta === 0) {
+    return 0;
+  }
+
+  const safeViewportSpan = Math.max(viewportSpan, 1);
+  if (deltaMode === 1) {
+    return delta * 18;
+  }
+
+  if (deltaMode === 2) {
+    return delta * safeViewportSpan;
+  }
+
+  return delta;
+}
+
+function normalizeTouchDeltaPx(delta: number): number {
+  if (!Number.isFinite(delta) || delta === 0) {
+    return 0;
+  }
+
+  return delta;
+}
+
 function resolveDesignDimensions(config: CineViewProps['config']): {
   designWidth: number;
   designHeight: number;
@@ -84,67 +123,22 @@ function resolveDesignDimensions(config: CineViewProps['config']): {
   };
 }
 
-function createScrollbarCss(config: ScrollbarConfig): string {
-  const width = Math.max(config.width ?? 6, 1);
-  const radius = Math.max(config.radius ?? width, 0);
-  const inset = Math.max(config.inset ?? 4, 0);
-  const trackColor = config.trackColor ?? 'rgba(255,255,255,0.08)';
-  const thumbColor = config.thumbColor ?? 'rgba(255,255,255,0.28)';
-  const thumbHoverColor = config.thumbHoverColor ?? 'rgba(255,255,255,0.42)';
-  const autoHide = config.autoHide ?? true;
-  const opacity = autoHide ? 0 : 1;
-
+function createScrollbarCss(): string {
   return `
     [data-cineview-container="true"] {
-      scrollbar-width: thin;
-      scrollbar-color: ${thumbColor} ${trackColor};
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
     [data-cineview-container="true"]::-webkit-scrollbar {
-      width: ${width}px;
-      height: ${width}px;
-    }
-    [data-cineview-container="true"]::-webkit-scrollbar-track {
-      background: ${trackColor};
-      border-radius: ${radius}px;
-      margin: ${inset}px;
-      opacity: ${opacity};
-    }
-    [data-cineview-container="true"]::-webkit-scrollbar-thumb {
-      background: ${thumbColor};
-      border-radius: ${radius}px;
-      border: ${Math.max(Math.floor(inset / 2), 0)}px solid transparent;
-      background-clip: padding-box;
-    }
-    [data-cineview-container="true"]:hover::-webkit-scrollbar-track,
-    [data-cineview-container="true"]:hover::-webkit-scrollbar-thumb {
-      opacity: 1;
-    }
-    [data-cineview-container="true"]::-webkit-scrollbar-thumb:hover {
-      background: ${thumbHoverColor};
+      width: 0;
+      height: 0;
+      display: none;
     }
   `;
 }
 
-function createRect(left: number, top: number, width: number, height: number): DOMRect {
-  if (typeof DOMRect !== 'undefined') {
-    return new DOMRect(left, top, width, height);
-  }
-
-  return {
-    x: left,
-    y: top,
-    left,
-    top,
-    width,
-    height,
-    right: left + width,
-    bottom: top + height,
-    toJSON: () => ({ left, top, width, height }),
-  } as DOMRect;
-}
-
 export function resolveRootMode(mode: ScrollMode | undefined): ScrollMode {
-  return mode ?? 'snap';
+  return mode ?? 'drag';
 }
 
 function getSceneSettleDuration(
@@ -152,10 +146,6 @@ function getSceneSettleDuration(
   rootMode: ScrollMode,
   modes: CineViewProps['modes'] | undefined
 ): number {
-  if (rootMode === 'snap') {
-    return Math.max(modes?.snap?.duration ?? sceneProps.sceneTransitionDuration ?? 500, 0);
-  }
-
   if (rootMode === 'drag') {
     return Math.max(
       modes?.drag?.transitionDuration ?? sceneProps.sceneTransitionDuration ?? 500,
@@ -166,8 +156,50 @@ function getSceneSettleDuration(
   return Math.max(sceneProps.sceneTransitionDuration ?? 500, 0);
 }
 
-function getScenePreloadImages(sceneProps: SceneAuthoringCompatProps): string[] {
-  return sceneProps.assets?.preloadImages ?? [];
+function collectScenePreloadPlan(
+  scenes: JSX.Element[],
+  activeSceneIndex: number,
+  mode: ScrollMode
+): { priorityImages: string[]; backgroundImages: string[] } {
+  if (mode === 'scroll') {
+    return {
+      priorityImages: Array.from(
+        new Set(
+          scenes.flatMap((scene) =>
+            getScenePreloadImages(scene.props as SceneAuthoringCompatProps)
+          )
+        )
+      ),
+      backgroundImages: [],
+    };
+  }
+
+  const prioritySceneIndices = new Set<number>();
+  const normalizedActiveScene = clamp(activeSceneIndex, 0, Math.max(scenes.length - 1, 0));
+
+  prioritySceneIndices.add(normalizedActiveScene);
+  if (normalizedActiveScene > 0) {
+    prioritySceneIndices.add(normalizedActiveScene - 1);
+  }
+  if (normalizedActiveScene < scenes.length - 1) {
+    prioritySceneIndices.add(normalizedActiveScene + 1);
+  }
+
+  const priority: string[] = [];
+  scenes.forEach((scene, index) => {
+    const sceneProps = scene.props as SceneAuthoringCompatProps;
+    const images = getScenePreloadImages(sceneProps);
+    if (images.length === 0 || !prioritySceneIndices.has(index)) {
+      return;
+    }
+
+    priority.push(...images);
+  });
+
+  return {
+    priorityImages: Array.from(new Set(priority)),
+    backgroundImages: [],
+  };
 }
 
 function getSceneTransitionConfig(sceneProps: SceneAuthoringCompatProps): {
@@ -204,12 +236,16 @@ function shouldIgnoreSceneMeasurementNode(element: HTMLElement): boolean {
   );
 }
 
-function getRelativeLayoutTop(element: HTMLElement, ancestor: HTMLElement): number {
+function getRelativeLayoutOffset(
+  element: HTMLElement,
+  ancestor: HTMLElement,
+  direction: 'x' | 'y'
+): number {
   let offset = 0;
   let current: HTMLElement | null = element;
 
   while (current && current !== ancestor) {
-    offset += current.offsetTop;
+    offset += direction === 'x' ? current.offsetLeft : current.offsetTop;
     const next: Element | null = current.offsetParent;
     current = next instanceof HTMLElement ? next : null;
   }
@@ -220,11 +256,21 @@ function getRelativeLayoutTop(element: HTMLElement, ancestor: HTMLElement): numb
 
   const ancestorRect = ancestor.getBoundingClientRect();
   const elementRect = element.getBoundingClientRect();
-  return elementRect.top - ancestorRect.top;
+  return direction === 'x'
+    ? elementRect.left - ancestorRect.left
+    : elementRect.top - ancestorRect.top;
 }
 
 function measureSceneContentHeight(node: HTMLDivElement): number {
-  let maxBottom = Math.max(node.offsetHeight, node.scrollHeight, 1);
+  const nodeStyle =
+    typeof window !== 'undefined' ? window.getComputedStyle(node) : null;
+  const isViewportFillSceneWrapper =
+    nodeStyle?.position === 'absolute' &&
+    nodeStyle.top === '0px' &&
+    nodeStyle.right === '0px' &&
+    nodeStyle.bottom === '0px' &&
+    nodeStyle.left === '0px';
+  let maxBottom = isViewportFillSceneWrapper ? 1 : Math.max(node.offsetHeight, node.scrollHeight, 1);
   const descendants = node.querySelectorAll<HTMLElement>('*');
 
   descendants.forEach((element) => {
@@ -232,14 +278,38 @@ function measureSceneContentHeight(node: HTMLDivElement): number {
       return;
     }
 
-    const relativeTop = getRelativeLayoutTop(element, node);
-    const relativeBottom = relativeTop + Math.max(element.offsetHeight, element.scrollHeight, 0);
+    const relativeLeft = getRelativeLayoutOffset(element, node, 'x');
+    const relativeTop = getRelativeLayoutOffset(element, node, 'y');
+    const isFillScaffold =
+      relativeLeft === 0 &&
+      relativeTop === 0 &&
+      Math.abs(element.offsetWidth - node.offsetWidth) <= 1 &&
+      Math.abs(element.offsetHeight - node.offsetHeight) <= 1;
+    if (isFillScaffold) {
+      return;
+    }
+
+    const relativeBottom = relativeTop + Math.max(element.offsetHeight, element.clientHeight, 0);
     if (Number.isFinite(relativeBottom)) {
       maxBottom = Math.max(maxBottom, relativeBottom);
     }
   });
 
   return Math.max(maxBottom, 1);
+}
+
+function getSceneMeasurementTargets(node: HTMLDivElement): HTMLElement[] {
+  const targets: HTMLElement[] = [node];
+
+  Array.from(node.children).forEach((child) => {
+    if (!(child instanceof HTMLElement) || shouldIgnoreSceneMeasurementNode(child)) {
+      return;
+    }
+
+    targets.push(child);
+  });
+
+  return targets;
 }
 
 function resolveScrollSceneDeclaredSpan(
@@ -292,15 +362,13 @@ export function resolveActiveViewportId(
     {
       sceneIndex: number;
       trigger: 'center-lock';
-      budget: 'auto' | number;
-      replayOnReenter: boolean;
       element: HTMLElement | null;
     }
   >,
   activeSceneIndex: number,
   rootRect: DOMRect,
   viewportHeight: number,
-  zoneStates?: Record<string, ScrollZoneTimelineState>,
+  zoneStates?: Record<string, SceneScrollTimelineState>,
   previousActiveZoneId?: string | null,
   direction: 'x' | 'y' = 'y'
 ): string | null {
@@ -378,6 +446,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   const scenesRef = useRef<React.ReactElement[]>([]);
   const measureViewportRef = useRef<(() => void) | null>(null);
   const measureSceneHeightsRef = useRef<(() => void) | null>(null);
+  const nativeScrollOffsetRef = useRef(0);
 
   // Track cleanup timers to clear on unmount
   // Validates Requirement 26.5: Clean up timers on unmount
@@ -401,17 +470,15 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
   const totalScenes = scenes.length;
   const resolvedRootMode = useMemo<ScrollMode>(() => resolveRootMode(mode), [mode]);
-  const isRootScrollMode = resolvedRootMode === 'scroll';
-  const resolvedScrollConfig = useMemo<
-    Required<Pick<ScrollModeConfig, 'wheelStep' | 'touchStep'>> & ScrollModeConfig
-  >(
+  if (resolvedRootMode === 'scroll') {
+    return <DirectScrollCineView {...props} ref={ref} />;
+  }
+  const isRootScrollMode = false;
+  const resolvedScrollConfig = useMemo<ScrollModeConfig>(
     () => ({
       direction: modes?.scroll?.direction,
       zoneTrigger: modes?.scroll?.zoneTrigger ?? 'center-lock',
-      replayOnReenter: modes?.scroll?.replayOnReenter,
       sceneSizing: modes?.scroll?.sceneSizing ?? 'content',
-      wheelStep: modes?.scroll?.wheelStep ?? 0.038,
-      touchStep: modes?.scroll?.touchStep ?? 0.028,
     }),
     [modes?.scroll]
   );
@@ -431,9 +498,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   const lastInteractionStateRef = useRef<string | null>(null);
   const dragSessionActiveRef = useRef(false);
   const lastDragProgressRef = useRef(0);
-  const lastZoneStatesRef = useRef<Record<string, ScrollZoneTimelineState>>({});
+  const lastZoneStatesRef = useRef<Record<string, SceneScrollTimelineState>>({});
   const lastMeasuredLayoutRef = useRef<{ width: number; height: number } | null>(null);
   const previousRootModeRef = useRef<ScrollMode | null>(null);
+  const hasSyncedAdjacentPreloadRef = useRef(false);
+  const lastAdjacentPreloadSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     resolvedCallbacksRef.current = resolvedCallbacks;
@@ -477,7 +546,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   const [viewportWidth, setViewportWidth] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [sceneHeights, setSceneHeights] = useState<number[]>([]);
-  const [zoneStates, setZoneStates] = useState<Record<string, ScrollZoneTimelineState>>({});
+  const [zoneStates, setZoneStates] = useState<Record<string, SceneScrollTimelineState>>({});
   const [zoneStateVersion, setZoneStateVersion] = useState(0);
   const virtualScrollRef = useRef(initialVirtualScroll);
   const hasInitializedScrollRef = useRef(false);
@@ -488,16 +557,14 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       {
         sceneIndex: number;
         trigger: 'center-lock';
-        budget: 'auto' | number;
-        replayOnReenter: boolean;
         element: HTMLElement | null;
       }
     >
   >(new Map());
-  const zoneAnimationsRef = useRef<Map<string, Map<string, ScrollZoneAnimationRegistration>>>(
+  const zoneAnimationsRef = useRef<Map<string, Map<string, SceneScrollAnimationRegistration>>>(
     new Map()
   );
-  const zoneStatesRef = useRef<Record<string, ScrollZoneTimelineState>>({});
+  const zoneStatesRef = useRef<Record<string, SceneScrollTimelineState>>({});
 
   const scrollViewportSpan = resolvedScrollDirection === 'x' ? viewportWidth : viewportHeight;
 
@@ -570,6 +637,234 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     return Math.max((lastLayout?.sceneEnd ?? 0) - Math.max(scrollViewportSpan, 1), 0);
   }, [scrollSceneLayout, scrollViewportSpan]);
   const minVirtualScroll = 0;
+  const updateZoneStatesRef = useCallback(
+    (nextStates: Record<string, SceneScrollTimelineState>): void => {
+      const previousEntries = Object.entries(zoneStatesRef.current);
+      const nextEntries = Object.entries(nextStates);
+      const isSame =
+        previousEntries.length === nextEntries.length &&
+        nextEntries.every(([zoneId, nextState]) => {
+          const previousState = zoneStatesRef.current[zoneId];
+          return (
+            previousState &&
+            previousState.progressPx === nextState.progressPx &&
+            previousState.totalBudgetPx === nextState.totalBudgetPx &&
+            previousState.active === nextState.active &&
+            previousState.direction === nextState.direction &&
+            previousState.sceneIndex === nextState.sceneIndex &&
+            areResolvedSceneScrollSequencesEqual(
+              previousState.sequence,
+              nextState.sequence
+            )
+          );
+        });
+
+      if (isSame) {
+        return;
+      }
+
+      zoneStatesRef.current = nextStates;
+      setZoneStates(nextStates);
+      setZoneStateVersion((version) => version + 1);
+    },
+    []
+  );
+
+  const resolveZoneGlobalSegments = useCallback(() => {
+    if (!isRootScrollMode) {
+      return [];
+    }
+
+    const viewportSpan = Math.max(scrollViewportSpan, 1);
+
+    const segments = Object.values(zoneStatesRef.current)
+      .map((state) => {
+        const meta = zoneRegistryRef.current.get(state.zoneId);
+        const sceneLayout = scrollSceneLayout[state.sceneIndex];
+        const sceneWrapper = sceneWrapperRefs.current[state.sceneIndex];
+        if (!meta?.element || !sceneLayout || !sceneWrapper || state.totalBudgetPx <= 0) {
+          return null;
+        }
+
+        const zoneOffsetWithinScene = getRelativeLayoutOffset(
+          meta.element,
+          sceneWrapper,
+          resolvedScrollDirection
+        );
+        const zoneSpan =
+          resolvedScrollDirection === 'x'
+            ? Math.max(meta.element.offsetWidth, meta.element.clientWidth, 0)
+            : Math.max(meta.element.offsetHeight, meta.element.clientHeight, 0);
+        const rawAnchor =
+          sceneLayout.sceneStart + zoneOffsetWithinScene + zoneSpan / 2 - viewportSpan / 2;
+        const anchorFloor = sceneLayout.sceneStart;
+        const anchorCeiling = Math.max(
+          Math.min(sceneLayout.sceneEnd - viewportSpan, maxVirtualScroll),
+          anchorFloor
+        );
+        const anchorOffset = clamp(rawAnchor, anchorFloor, anchorCeiling);
+
+        return {
+          zoneId: state.zoneId,
+          sceneIndex: state.sceneIndex,
+          anchorOffset,
+          budget: state.totalBudgetPx,
+        };
+      })
+      .filter(
+        (
+          segment
+        ): segment is {
+          zoneId: string;
+          sceneIndex: number;
+          anchorOffset: number;
+          budget: number;
+        } => segment !== null
+      )
+      .sort((left, right) => left.anchorOffset - right.anchorOffset);
+
+    let consumedBudget = 0;
+
+    return segments.map((segment) => {
+      const globalStart = clamp(segment.anchorOffset + consumedBudget, minVirtualScroll, Number.MAX_SAFE_INTEGER);
+      const globalEnd = globalStart + segment.budget;
+      consumedBudget += segment.budget;
+
+      return {
+        ...segment,
+        globalStart,
+        globalEnd,
+      };
+    });
+  }, [
+    isRootScrollMode,
+    maxVirtualScroll,
+    minVirtualScroll,
+    resolvedScrollDirection,
+    scrollSceneLayout,
+    scrollViewportSpan,
+  ]);
+
+  const resolveUnclampedGlobalOffsetForVisualOffset = useCallback(
+    (visualOffset: number): number => {
+      const clampedVisualOffset = clamp(visualOffset, minVirtualScroll, maxVirtualScroll);
+      const consumedBudget = resolveZoneGlobalSegments().reduce((total, segment) => {
+        if (segment.anchorOffset <= clampedVisualOffset) {
+          return total + segment.budget;
+        }
+
+        return total;
+      }, 0);
+
+      return clampedVisualOffset + consumedBudget;
+    },
+    [maxVirtualScroll, minVirtualScroll, resolveZoneGlobalSegments]
+  );
+  const maxGlobalScroll = useMemo(
+    () =>
+      Math.max(
+        clamp(
+          resolveUnclampedGlobalOffsetForVisualOffset(maxVirtualScroll),
+          minVirtualScroll,
+          Number.MAX_SAFE_INTEGER
+        ),
+        0
+      ),
+    [maxVirtualScroll, minVirtualScroll, resolveUnclampedGlobalOffsetForVisualOffset]
+  );
+  const nativeScrollSpan = useMemo(
+    () => Math.max(maxGlobalScroll + Math.max(scrollViewportSpan, 1), scrollViewportSpan),
+    [maxGlobalScroll, scrollViewportSpan]
+  );
+  const resolveGlobalOffsetForVisualOffset = useCallback(
+    (visualOffset: number): number =>
+      clamp(
+        resolveUnclampedGlobalOffsetForVisualOffset(visualOffset),
+        minVirtualScroll,
+        maxGlobalScroll
+      ),
+    [
+      maxGlobalScroll,
+      minVirtualScroll,
+      resolveUnclampedGlobalOffsetForVisualOffset,
+    ]
+  );
+
+  const syncScrollTimelineFromGlobalOffset = useCallback(
+    (globalOffset: number, directionHint?: 'forward' | 'backward' | null): void => {
+      if (!isRootScrollMode) {
+        return;
+      }
+
+      const segments = resolveZoneGlobalSegments();
+      const clampedGlobalOffset = clamp(globalOffset, minVirtualScroll, maxGlobalScroll);
+      let consumedBudget = 0;
+      let activeZoneId: string | null = null;
+      let activeZoneProgress = 0;
+      let visualOffset = clampedGlobalOffset;
+
+      for (const segment of segments) {
+        if (clampedGlobalOffset < segment.globalStart) {
+          break;
+        }
+
+        if (clampedGlobalOffset <= segment.globalEnd) {
+          activeZoneId = segment.zoneId;
+          activeZoneProgress = clampedGlobalOffset - segment.globalStart;
+          visualOffset = segment.anchorOffset;
+          break;
+        }
+
+        consumedBudget += segment.budget;
+      }
+
+      if (!activeZoneId) {
+        visualOffset = clamp(clampedGlobalOffset - consumedBudget, minVirtualScroll, maxVirtualScroll);
+      }
+
+      const previousStates = zoneStatesRef.current;
+      const nextStates: Record<string, SceneScrollTimelineState> = {};
+
+      Object.entries(previousStates).forEach(([zoneId, state]) => {
+        const segment = segments.find((candidate) => candidate.zoneId === zoneId);
+        let progressPx = 0;
+        let active = false;
+
+        if (segment) {
+          if (clampedGlobalOffset < segment.globalStart) {
+            progressPx = 0;
+          } else if (clampedGlobalOffset > segment.globalEnd) {
+            progressPx = segment.budget;
+          } else {
+            progressPx = activeZoneId === zoneId ? activeZoneProgress : 0;
+            active = activeZoneId === zoneId;
+          }
+        }
+
+        nextStates[zoneId] = {
+          ...state,
+          progressPx,
+          active,
+          direction:
+            active || progressPx !== state.progressPx
+              ? directionHint ?? state.direction
+              : state.direction,
+        };
+      });
+
+      virtualScrollRef.current = visualOffset;
+      setVirtualScroll(visualOffset);
+      updateZoneStatesRef(nextStates);
+    },
+    [
+      isRootScrollMode,
+      maxGlobalScroll,
+      maxVirtualScroll,
+      minVirtualScroll,
+      resolveZoneGlobalSegments,
+      updateZoneStatesRef,
+    ]
+  );
 
   const getScrollTimelineState = useCallback(
     (sceneIndex: number, position: number): ScrollTimelineState => {
@@ -688,48 +983,18 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     return scrollSceneLayout.length - 1;
   }, [scrollSceneLayout, scrollViewportOffset, scrollViewportSpan]);
 
-  const updateZoneStatesRef = useCallback(
-    (nextStates: Record<string, ScrollZoneTimelineState>): void => {
-      const previousEntries = Object.entries(zoneStatesRef.current);
-      const nextEntries = Object.entries(nextStates);
-      const isSame =
-        previousEntries.length === nextEntries.length &&
-        nextEntries.every(([zoneId, nextState]) => {
-          const previousState = zoneStatesRef.current[zoneId];
-          return (
-            previousState &&
-            previousState.progressPx === nextState.progressPx &&
-            previousState.totalBudgetPx === nextState.totalBudgetPx &&
-            previousState.active === nextState.active &&
-            previousState.direction === nextState.direction &&
-            previousState.sceneIndex === nextState.sceneIndex &&
-            previousState.sequence.totalDurationMs === nextState.sequence.totalDurationMs
-          );
-        });
-
-      if (isSame) {
-        return;
-      }
-
-      zoneStatesRef.current = nextStates;
-      setZoneStates(nextStates);
-      setZoneStateVersion((version) => version + 1);
-    },
-    []
-  );
-
   const syncZoneStates = useCallback((): void => {
     if (!isRootScrollMode) {
       updateZoneStatesRef({});
       return;
     }
 
-    const nextStates: Record<string, ScrollZoneTimelineState> = {};
+    const nextStates: Record<string, SceneScrollTimelineState> = {};
 
     zoneRegistryRef.current.forEach((meta, zoneId) => {
       const registrations =
-        zoneAnimationsRef.current.get(zoneId) ?? new Map<string, ScrollZoneAnimationRegistration>();
-      const sequence = resolveScrollZoneAnimationBudgets(registrations, meta.budget);
+        zoneAnimationsRef.current.get(zoneId) ?? new Map<string, SceneScrollAnimationRegistration>();
+      const sequence = resolveSceneScrollAnimationBudgets(registrations);
       const previous = zoneStatesRef.current[zoneId];
       nextStates[zoneId] = {
         zoneId,
@@ -749,52 +1014,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     if (!isRootScrollMode) {
       return;
     }
-
-    const root = containerRef.current;
-    if (!root) {
-      return;
-    }
-
-    const measuredRootRect = root.getBoundingClientRect();
-    const rootRect = isRootScrollMode
-      ? createRect(
-          measuredRootRect.left,
-          measuredRootRect.top,
-          viewportWidth || measuredRootRect.width,
-          viewportHeight || measuredRootRect.height
-        )
-      : measuredRootRect;
-    const previousActiveZoneId =
-      Object.values(zoneStatesRef.current).find(
-        (state) => state.active && state.sceneIndex === scrollActiveSceneIndex
-      )?.zoneId ?? null;
-    const activeZoneId = resolveActiveViewportId(
-      zoneRegistryRef.current,
-      scrollActiveSceneIndex,
-      rootRect,
-      scrollViewportSpan,
-      zoneStatesRef.current,
-      previousActiveZoneId,
-      resolvedScrollDirection
-    );
-
-    const nextStates: Record<string, ScrollZoneTimelineState> = {};
-    Object.entries(zoneStatesRef.current).forEach(([zoneId, state]) => {
-      nextStates[zoneId] = {
-        ...state,
-        active: zoneId === activeZoneId,
-      };
-    });
-
-    updateZoneStatesRef(nextStates);
+    syncScrollTimelineFromGlobalOffset(nativeScrollOffsetRef.current, virtualScrollDirection);
   }, [
     isRootScrollMode,
-    scrollActiveSceneIndex,
-    updateZoneStatesRef,
-    scrollViewportSpan,
-    viewportHeight,
-    viewportWidth,
-    resolvedScrollDirection,
+    syncScrollTimelineFromGlobalOffset,
+    virtualScrollDirection,
   ]);
 
   const registerZone = useCallback(
@@ -803,8 +1027,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       config: {
         sceneIndex: number;
         trigger: 'center-lock';
-        budget: 'auto' | number;
-        replayOnReenter: boolean;
       }
     ) => {
       const existing = zoneRegistryRef.current.get(zoneId);
@@ -842,9 +1064,9 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   );
 
   const registerZoneAnimation = useCallback(
-    (zoneId: string, animation: ScrollZoneAnimationRegistration) => {
+    (zoneId: string, animation: SceneScrollAnimationRegistration) => {
       const zoneAnimations =
-        zoneAnimationsRef.current.get(zoneId) ?? new Map<string, ScrollZoneAnimationRegistration>();
+        zoneAnimationsRef.current.get(zoneId) ?? new Map<string, SceneScrollAnimationRegistration>();
       zoneAnimations.set(animation.animateId, animation);
       zoneAnimationsRef.current.set(zoneId, zoneAnimations);
       syncZoneStates();
@@ -892,11 +1114,8 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         direction: toIndex > fromIndex ? 'forward' : toIndex < fromIndex ? 'backward' : null,
       } satisfies SceneChangeDetail;
       resolvedCallbacks.common?.onSceneWillChange?.(detail);
-      if (resolvedRootMode === 'snap') {
-        resolvedCallbacks.snap?.onTransitionStart?.(detail);
-      }
     },
-    [resolvedCallbacks, resolvedRootMode]
+    [resolvedCallbacks]
   );
 
   const emitSceneDidChange = useCallback(
@@ -917,11 +1136,8 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
                 : null,
       } satisfies SceneChangeDetail;
       resolvedCallbacks.common?.onSceneDidChange?.(detail);
-      if (resolvedRootMode === 'snap') {
-        resolvedCallbacks.snap?.onTransitionEnd?.(detail);
-      }
     },
-    [resolvedCallbacks, resolvedRootMode]
+    [resolvedCallbacks]
   );
 
   // 场景管理
@@ -1113,7 +1329,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
           zoneId: zoneState.zoneId,
           sceneIndex: zoneState.sceneIndex,
           progress,
-          budget: zoneState.totalBudgetPx,
         });
       }
 
@@ -1185,6 +1400,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
     const wrappers = sceneWrapperRefs.current;
     let measureFrame: number | null = null;
+    const observedTargets = new Set<HTMLElement>();
 
     const scheduleMeasureHeights = (): void => {
       if (typeof window === 'undefined') {
@@ -1207,14 +1423,23 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         return;
       }
 
-      resizeObserver.observe(root);
-      root.querySelectorAll<HTMLElement>('*').forEach((element) => {
-        if (shouldIgnoreSceneMeasurementNode(element)) {
+      getSceneMeasurementTargets(root as HTMLDivElement).forEach((element) => {
+        if (observedTargets.has(element)) {
           return;
         }
 
+        observedTargets.add(element);
         resizeObserver.observe(element);
       });
+    };
+
+    const handleSubtreeLoad = (event: Event): void => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || shouldIgnoreSceneMeasurementNode(target)) {
+        return;
+      }
+
+      scheduleMeasureHeights();
     };
 
     const measureHeights = (): void => {
@@ -1255,13 +1480,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
           scheduleMeasureHeights();
         })
       : null;
-    const mutationObserver = new MutationObserver(() => {
-      wrappers.forEach((wrapper) => {
-        if (!wrapper) return;
-        observeMeasureTargets(wrapper);
-      });
-      scheduleMeasureHeights();
-    });
 
     wrappers.forEach((wrapper) => {
       if (!wrapper) return;
@@ -1269,10 +1487,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       if (resizeObserver) {
         observeMeasureTargets(wrapper);
       }
-      mutationObserver.observe(wrapper, {
-        childList: true,
-        subtree: true,
-      });
+      wrapper.addEventListener('load', handleSubtreeLoad, true);
     });
 
     return (): void => {
@@ -1281,7 +1496,10 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         window.cancelAnimationFrame(measureFrame);
       }
       resizeObserver?.disconnect();
-      mutationObserver.disconnect();
+      observedTargets.clear();
+      wrappers.forEach((wrapper) => {
+        wrapper?.removeEventListener('load', handleSubtreeLoad, true);
+      });
     };
   }, [isRootScrollMode, scenes]);
 
@@ -1305,7 +1523,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       ownerDocument.head.appendChild(styleNode);
     }
 
-    styleNode.textContent = createScrollbarCss(scrollbar);
+    styleNode.textContent = createScrollbarCss();
 
     return (): void => {
       if (styleNode && styleNode.parentNode) {
@@ -1320,19 +1538,23 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     if (hasInitializedScrollRef.current) return;
 
     const initialValue = 0;
+    const root = containerRef.current;
     hasInitializedScrollRef.current = true;
+    nativeScrollOffsetRef.current = initialValue;
+    if (root) {
+      if (resolvedScrollDirection === 'x') {
+        root.scrollLeft = initialValue;
+      } else {
+        root.scrollTop = initialValue;
+      }
+    }
     if (virtualScrollRef.current === initialValue) return;
 
     virtualScrollRef.current = initialValue;
     setVirtualScroll(initialValue);
     setVirtualScrollDirection(null);
     setVirtualScrolling(false);
-  }, [isRootScrollMode]);
-
-  useEffect(() => {
-    if (!isRootScrollMode) return;
-    lastReportedScrollSceneRef.current = scrollActiveSceneIndex;
-  }, [isRootScrollMode, scrollActiveSceneIndex]);
+  }, [isRootScrollMode, resolvedScrollDirection]);
 
   useEffect(() => {
     syncZoneStates();
@@ -1340,7 +1562,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
   useEffect(() => {
     updateZoneActiveState();
-  }, [updateZoneActiveState, virtualScroll, viewportHeight, scrollActiveSceneIndex]);
+  }, [updateZoneActiveState, viewportHeight, scrollActiveSceneIndex, zoneStateVersion]);
 
   useEffect(() => {
     if (!isRootScrollMode) return;
@@ -1358,8 +1580,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     if (!root || !isRootScrollMode) return;
 
     const ownerWindow = root.ownerDocument?.defaultView ?? window;
-    const wheelScale = Math.max(resolvedScrollConfig.wheelStep, 0.01);
-    const touchScale = Math.max(resolvedScrollConfig.touchStep, 0.01);
 
     const clearIdleTimer = (): void => {
       if (virtualScrollIdleTimerRef.current !== null) {
@@ -1377,141 +1597,151 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       }, 120);
     };
 
-    const applyScrollDelta = (rawDelta: number, source: 'wheel' | 'touch'): boolean => {
-      if (Math.abs(rawDelta) <= 0.001) return false;
+    const readRootOffset = (): number =>
+      resolvedScrollDirection === 'x' ? root.scrollLeft : root.scrollTop;
 
-      const scale = source === 'wheel' ? wheelScale : touchScale;
-      let remainingDelta = rawDelta * scale;
-      const direction = remainingDelta >= 0 ? 'forward' : 'backward';
-      const activeZoneState = Object.values(zoneStatesRef.current).find(
-        (state) => state.active && state.sceneIndex === scrollActiveSceneIndex
-      );
+    nativeScrollOffsetRef.current = readRootOffset();
 
-      if (activeZoneState) {
-        const nextZoneProgress = clamp(
-          activeZoneState.progressPx + remainingDelta,
-          0,
-          activeZoneState.totalBudgetPx
-        );
-        const consumedDelta = nextZoneProgress - activeZoneState.progressPx;
-
-        if (Math.abs(consumedDelta) > 0.001) {
-          updateZoneStatesRef({
-            ...zoneStatesRef.current,
-            [activeZoneState.zoneId]: {
-              ...activeZoneState,
-              progressPx: nextZoneProgress,
-              direction,
-              active: true,
-            },
-          });
-          remainingDelta -= consumedDelta;
-          markScrolling();
-        }
-      }
-
-      const nextValue = Math.max(
-        minVirtualScroll,
-        Math.min(virtualScrollRef.current + remainingDelta, maxVirtualScroll)
-      );
-
-      if (Math.abs(nextValue - virtualScrollRef.current) <= 0.001) {
-        return Math.abs(remainingDelta) !== Math.abs(rawDelta * scale);
-      }
-
-      setVirtualScrollDirection(nextValue > virtualScrollRef.current ? 'forward' : 'backward');
-      virtualScrollRef.current = nextValue;
-      setVirtualScroll(nextValue);
+    const handleScroll = (): void => {
+      const nextOffset = readRootOffset();
+      const delta = nextOffset - nativeScrollOffsetRef.current;
+      const resolvedDirection =
+        Math.abs(delta) <= 0.001 ? virtualScrollDirection : delta > 0 ? 'forward' : 'backward';
+      nativeScrollOffsetRef.current = nextOffset;
+      setVirtualScrollDirection(resolvedDirection);
+      syncScrollTimelineFromGlobalOffset(nextOffset, resolvedDirection);
       markScrolling();
 
       if (isScrollDebugEnabled()) {
         console.log('[CineViewScroll]', {
-          source,
-          rawDelta: rawDelta.toFixed(3),
-          remainingDelta: remainingDelta.toFixed(3),
-          nextValue: nextValue.toFixed(3),
-          activeScene: scrollActiveSceneIndex,
+          globalOffset: nextOffset.toFixed(3),
+          delta: delta.toFixed(3),
+          direction: resolvedDirection,
         });
       }
+    };
 
-      return true;
+    root.addEventListener('scroll', handleScroll, { passive: true });
+
+    return (): void => {
+      root.removeEventListener('scroll', handleScroll);
+      clearIdleTimer();
+    };
+  }, [
+    isRootScrollMode,
+    resolvedScrollDirection,
+    syncScrollTimelineFromGlobalOffset,
+    virtualScrollDirection,
+  ]);
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !isRootScrollMode) return;
+
+    const readRootOffset = (): number =>
+      resolvedScrollDirection === 'x' ? root.scrollLeft : root.scrollTop;
+    const writeRootOffset = (nextOffset: number): void => {
+      if (resolvedScrollDirection === 'x') {
+        root.scrollLeft = nextOffset;
+      } else {
+        root.scrollTop = nextOffset;
+      }
+    };
+
+    const applyInputDelta = (deltaPx: number): void => {
+      if (Math.abs(deltaPx) <= 0.001) {
+        return;
+      }
+
+      const currentOffset = readRootOffset();
+      const nextOffset = clamp(currentOffset + deltaPx, minVirtualScroll, maxGlobalScroll);
+      if (Math.abs(nextOffset - currentOffset) <= 0.001) {
+        return;
+      }
+
+      writeRootOffset(nextOffset);
     };
 
     const handleWheel = (event: WheelEvent): void => {
-      const wheelDelta = resolvedScrollDirection === 'x' ? event.deltaX : event.deltaY;
-      if (applyScrollDelta(wheelDelta, 'wheel')) {
-        event.preventDefault();
+      const axisDelta =
+        resolvedScrollDirection === 'x'
+          ? Math.abs(event.deltaX) > Math.abs(event.deltaY)
+            ? event.deltaX
+            : event.deltaY
+          : event.deltaY;
+      const deltaPx = normalizeWheelDeltaPx(axisDelta, event.deltaMode, scrollViewportSpan);
+      if (Math.abs(deltaPx) <= 0.001) {
+        return;
       }
+
+      event.preventDefault();
+      applyInputDelta(deltaPx);
     };
 
     const handleTouchStart = (event: TouchEvent): void => {
       const touch = event.touches[0];
+      if (!touch) {
+        scrollTouchRef.current = null;
+        return;
+      }
+
       scrollTouchRef.current = { x: touch.clientX, y: touch.clientY };
     };
 
     const handleTouchMove = (event: TouchEvent): void => {
-      if (!scrollTouchRef.current) return;
       const touch = event.touches[0];
-      const delta =
-        resolvedScrollDirection === 'x'
-          ? scrollTouchRef.current.x - touch.clientX
-          : scrollTouchRef.current.y - touch.clientY;
-      scrollTouchRef.current = { x: touch.clientX, y: touch.clientY };
-      if (applyScrollDelta(delta, 'touch')) {
-        event.preventDefault();
+      const previousTouch = scrollTouchRef.current;
+      if (!touch || !previousTouch) {
+        return;
       }
+
+      const rawDelta =
+        resolvedScrollDirection === 'x'
+          ? previousTouch.x - touch.clientX
+          : previousTouch.y - touch.clientY;
+      scrollTouchRef.current = { x: touch.clientX, y: touch.clientY };
+
+      const deltaPx = normalizeTouchDeltaPx(rawDelta);
+      if (Math.abs(deltaPx) <= 0.001) {
+        return;
+      }
+
+      event.preventDefault();
+      applyInputDelta(deltaPx);
     };
 
-    const handleTouchEnd = (): void => {
+    const clearTouch = (): void => {
       scrollTouchRef.current = null;
     };
 
     root.addEventListener('wheel', handleWheel, { passive: false });
     root.addEventListener('touchstart', handleTouchStart, { passive: true });
     root.addEventListener('touchmove', handleTouchMove, { passive: false });
-    root.addEventListener('touchend', handleTouchEnd, { passive: true });
+    root.addEventListener('touchend', clearTouch);
+    root.addEventListener('touchcancel', clearTouch);
 
     return (): void => {
       root.removeEventListener('wheel', handleWheel);
       root.removeEventListener('touchstart', handleTouchStart);
       root.removeEventListener('touchmove', handleTouchMove);
-      root.removeEventListener('touchend', handleTouchEnd);
-      clearIdleTimer();
+      root.removeEventListener('touchend', clearTouch);
+      root.removeEventListener('touchcancel', clearTouch);
     };
   }, [
     isRootScrollMode,
+    maxGlobalScroll,
     minVirtualScroll,
-    maxVirtualScroll,
-    scrollActiveSceneIndex,
     resolvedScrollDirection,
-    resolvedScrollConfig.touchStep,
-    resolvedScrollConfig.wheelStep,
-    updateZoneStatesRef,
+    scrollViewportSpan,
   ]);
 
-  // 收集所有场景的预加载图片
-  const { priorityImages, backgroundImages } = useMemo((): {
-    priorityImages: string[];
-    backgroundImages: string[];
-  } => {
-    const priority: string[] = [];
-    const background: string[] = [];
+  const preloadActiveSceneIndex = isRootScrollMode ? scrollActiveSceneIndex : currentScene;
 
-    scenes.forEach((scene, index) => {
-      const sceneProps = scene.props as SceneAuthoringCompatProps;
-      const images = getScenePreloadImages(sceneProps);
-
-      if (index === 0) {
-        // 首屏图片优先加载
-        priority.push(...images);
-      } else {
-        // 后续场景图片后台加载
-        background.push(...images);
-      }
-    });
-
-    return { priorityImages: priority, backgroundImages: background };
-  }, [scenes]);
+  // drag 模式预热当前和相邻场景；scroll 模式使用全局预热计划。
+  const { priorityImages, backgroundImages } = useMemo(
+    () => collectScenePreloadPlan(scenes, preloadActiveSceneIndex, resolvedRootMode),
+    [scenes, preloadActiveSceneIndex, resolvedRootMode]
+  );
 
   // 图片预加载
   const [preloadState, preloadActions] = useImagePreloader({
@@ -1520,8 +1750,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     onProgress: handlePreloadProgress,
   });
 
-  // 首屏加载完成标志
-  const [firstSceneLoaded, setFirstSceneLoaded] = useState(false);
   const [scrollBackdropSceneIndex, setScrollBackdropSceneIndex] = useState<number | null>(null);
 
   // 初始化
@@ -1530,7 +1758,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     const timersRef = cleanupTimersRef.current;
 
     // 开始预加载
-    preloadActions.startPreload();
+    void preloadActions.startPreload();
 
     // 性能模式下启动性能监控
     if (resolvedPerformance.monitor) {
@@ -1557,24 +1785,51 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, resolvedPerformance.monitor]); // 只在组件挂载时执行一次
 
-  // 监听首屏图片加载完成
   useEffect(() => {
-    // 如果没有优先图片，立即标记为已加载
-    if (priorityImages.length === 0) {
-      setFirstSceneLoaded(true);
+    const signature = `${priorityImages.join('|')}::${backgroundImages.join('|')}`;
+    if (lastAdjacentPreloadSignatureRef.current === signature) {
+      return;
+    }
+    lastAdjacentPreloadSignatureRef.current = signature;
+
+    preloadActions.addUrls(priorityImages, true);
+    preloadActions.addUrls(backgroundImages, false);
+
+    if (!hasSyncedAdjacentPreloadRef.current) {
+      hasSyncedAdjacentPreloadRef.current = true;
       return;
     }
 
-    // 如果有优先图片，等待加载完成
-    if (preloadState.loadedCount >= priorityImages.length && !firstSceneLoaded) {
-      setFirstSceneLoaded(true);
+    if (!preloadState.isLoading) {
+      void preloadActions.startPreload();
     }
-  }, [preloadState.loadedCount, priorityImages.length, firstSceneLoaded]);
+  }, [priorityImages, backgroundImages, preloadActions, preloadState.isLoading]);
 
   // 虚拟化渲染：仅渲染当前场景及前后各一个
   const visibleSceneIndices = useMemo(() => {
     if (isRootScrollMode) {
-      return new Set(scenes.map((_, index) => index));
+      const hasMeasuredScrollLayout =
+        sceneHeights.length === totalScenes && sceneHeights.every((height) => height > 1);
+
+      if (!hasMeasuredScrollLayout) {
+        return new Set(scenes.map((_, index) => index));
+      }
+
+      const indices = new Set<number>();
+      const anchorIndex = scrollActiveSceneIndex;
+
+      for (let offset = -1; offset <= 1; offset += 1) {
+        const candidate = anchorIndex + offset;
+        if (candidate >= 0 && candidate < totalScenes) {
+          indices.add(candidate);
+        }
+      }
+
+      if (scrollBackdropSceneIndex !== null) {
+        indices.add(scrollBackdropSceneIndex);
+      }
+
+      return indices;
     }
 
     const indices = new Set<number>();
@@ -1583,20 +1838,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     indices.add(currentScene);
 
     // 在非 scroll 的交互模式下，保留相邻场景，兼容动画触发和虚拟化预热。
-    if (resolvedRootMode === 'drag' || resolvedRootMode === 'snap') {
+    if (resolvedRootMode === 'drag') {
       if (currentScene > 0) {
         indices.add(currentScene - 1);
       }
       if (currentScene < totalScenes - 1) {
-        indices.add(currentScene + 1);
-      }
-    }
-
-    if (resolvedRootMode === 'snap' && isAnimating) {
-      if (direction === 'forward' && currentScene > 0) {
-        indices.add(currentScene - 1);
-      }
-      if (direction === 'backward' && currentScene < totalScenes - 1) {
         indices.add(currentScene + 1);
       }
     }
@@ -1606,6 +1852,9 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     isRootScrollMode,
     resolvedRootMode,
     currentScene,
+    sceneHeights,
+    scrollActiveSceneIndex,
+    scrollBackdropSceneIndex,
     totalScenes,
     scenes,
     isAnimating,
@@ -1618,18 +1867,35 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       if (isRootScrollMode) {
         const layout = scrollSceneLayout[index];
         if (!layout) return;
-        const nextValue = layout.sceneStart;
-        setVirtualScrollDirection(nextValue >= virtualScrollRef.current ? 'forward' : 'backward');
-        virtualScrollRef.current = nextValue;
-        setVirtualScroll(nextValue);
+        const nextValue = resolveGlobalOffsetForVisualOffset(layout.sceneStart);
+        const root = containerRef.current;
+        const directionHint = nextValue >= nativeScrollOffsetRef.current ? 'forward' : 'backward';
+        setVirtualScrollDirection(directionHint);
+        syncScrollTimelineFromGlobalOffset(nextValue, directionHint);
         setVirtualScrolling(false);
+        if (root) {
+          if (resolvedScrollDirection === 'x') {
+            root.scrollLeft = nextValue;
+            nativeScrollOffsetRef.current = root.scrollLeft;
+          } else {
+            root.scrollTop = nextValue;
+            nativeScrollOffsetRef.current = root.scrollTop;
+          }
+        }
         void animated;
         return;
       }
 
       sceneActions.goToScene(index, animated);
     },
-    [isRootScrollMode, scrollSceneLayout, sceneActions]
+    [
+      isRootScrollMode,
+      resolvedScrollDirection,
+      resolveGlobalOffsetForVisualOffset,
+      sceneActions,
+      scrollSceneLayout,
+      syncScrollTimelineFromGlobalOffset,
+    ]
   );
 
   const goToZone = useCallback(
@@ -1648,32 +1914,50 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         return;
       }
 
-      let nextValue = layout.sceneStart;
+      let nextValue = resolveGlobalOffsetForVisualOffset(layout.sceneStart);
 
       if (options?.align === 'center' && meta.element && containerRef.current) {
-        const rootRect = containerRef.current.getBoundingClientRect();
-        const elementRect = meta.element.getBoundingClientRect();
-        const elementCenter =
-          resolvedScrollDirection === 'x'
-            ? elementRect.left - rootRect.left + scrollViewportOffset + elementRect.width / 2
-            : elementRect.top - rootRect.top + scrollViewportOffset + elementRect.height / 2;
-        nextValue = elementCenter - scrollViewportSpan / 2;
+        const segment = resolveZoneGlobalSegments().find((candidate) => candidate.zoneId === zoneId);
+        if (segment) {
+          nextValue = segment.globalStart;
+        } else {
+          const rootRect = containerRef.current.getBoundingClientRect();
+          const elementRect = meta.element.getBoundingClientRect();
+          const elementCenter =
+            resolvedScrollDirection === 'x'
+              ? elementRect.left - rootRect.left + scrollViewportOffset + elementRect.width / 2
+              : elementRect.top - rootRect.top + scrollViewportOffset + elementRect.height / 2;
+          nextValue = resolveGlobalOffsetForVisualOffset(elementCenter - scrollViewportSpan / 2);
+        }
       }
 
-      const clampedValue = clamp(nextValue, minVirtualScroll, maxVirtualScroll);
-      setVirtualScrollDirection(clampedValue >= virtualScrollRef.current ? 'forward' : 'backward');
-      virtualScrollRef.current = clampedValue;
-      setVirtualScroll(clampedValue);
+      const clampedValue = clamp(nextValue, minVirtualScroll, maxGlobalScroll);
+      const root = containerRef.current;
+      const directionHint = clampedValue >= nativeScrollOffsetRef.current ? 'forward' : 'backward';
+      setVirtualScrollDirection(directionHint);
+      syncScrollTimelineFromGlobalOffset(clampedValue, directionHint);
       setVirtualScrolling(Boolean(options?.animated));
+      if (root) {
+        if (resolvedScrollDirection === 'x') {
+          root.scrollLeft = clampedValue;
+          nativeScrollOffsetRef.current = root.scrollLeft;
+        } else {
+          root.scrollTop = clampedValue;
+          nativeScrollOffsetRef.current = root.scrollTop;
+        }
+      }
     },
     [
       isRootScrollMode,
-      maxVirtualScroll,
+      maxGlobalScroll,
       minVirtualScroll,
       resolvedScrollDirection,
+      resolveGlobalOffsetForVisualOffset,
+      resolveZoneGlobalSegments,
       scrollSceneLayout,
       scrollViewportOffset,
       scrollViewportSpan,
+      syncScrollTimelineFromGlobalOffset,
     ]
   );
 
@@ -1685,48 +1969,20 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   }, [syncZoneStates, updateZoneActiveState]);
 
   const preload = useCallback(
-    async (_targets?: Array<number | string>): Promise<void> => {
-      preloadActions.startPreload();
+    async (targets?: CineViewPreloadTarget[]): Promise<void> => {
+      const targetImages = resolveScenePreloadTargetImages(scenes, targets);
+      if (targetImages.length > 0) {
+        preloadActions.addUrls(targetImages, true);
+      }
+
+      await preloadActions.startPreload();
     },
-    [preloadActions]
+    [preloadActions, scenes]
   );
 
   const getCurrentScene = useCallback((): number => {
     return isRootScrollMode ? scrollActiveSceneIndex : currentScene;
   }, [isRootScrollMode, currentScene, scrollActiveSceneIndex]);
-
-  const getState = useCallback(() => {
-    const runtimeState: 'inactive' | 'entering' | 'active' | 'exiting' | 'covered' | 'parked' =
-      resolvedRootMode === 'drag'
-        ? isDragging
-          ? 'entering'
-          : isAnimating
-            ? 'exiting'
-            : 'active'
-        : resolvedRootMode === 'scroll'
-          ? virtualScrolling
-            ? 'entering'
-            : 'active'
-          : isAnimating
-            ? 'entering'
-            : 'active';
-
-    return {
-      mode: resolvedRootMode,
-      currentScene: isRootScrollMode ? scrollActiveSceneIndex : currentScene,
-      totalScenes,
-      runtimeState,
-    };
-  }, [
-    resolvedRootMode,
-    isRootScrollMode,
-    scrollActiveSceneIndex,
-    currentScene,
-    totalScenes,
-    isDragging,
-    isAnimating,
-    virtualScrolling,
-  ]);
 
   const getPerformanceMetrics = useCallback((): PerformanceMetrics => {
     const metrics = performanceMonitor.getMetrics();
@@ -1742,7 +1998,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   useImperativeHandle(
     ref,
     () => ({
-      getState,
       goToScene,
       goToZone,
       refreshLayout,
@@ -1750,7 +2005,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       getCurrentScene,
       getPerformanceMetrics,
     }),
-    [getState, goToScene, goToZone, refreshLayout, preload, getCurrentScene, getPerformanceMetrics]
+    [goToScene, goToZone, refreshLayout, preload, getCurrentScene, getPerformanceMetrics]
   );
 
   // 场景切换处理
@@ -1765,13 +2020,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       const elapsedMs = Math.max(0, committedElapsedMs ?? sharedElapsedMs);
       const targetSceneIndex =
         direction === 'forward' ? activeSceneIndex + 1 : activeSceneIndex - 1;
-      const targetSceneElement = scenes[targetSceneIndex];
-      const targetSceneProps = targetSceneElement?.props as SceneAuthoringCompatProps | undefined;
       const normalizedDragProgress = Math.max(
         0,
         Math.min(progressRatio ?? dragTimelineProgress, 1)
       );
-      const normalizedScrollProgress = Math.max(0, Math.min(progressRatio ?? scrollProgress, 1));
+      void progressRatio;
 
       if (direction === 'forward') {
         if (resolvedRootMode === 'drag') {
@@ -1791,12 +2044,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
             elapsedMs,
             timelineDuration
           );
-        } else if (resolvedRootMode === 'scroll') {
-          const targetStackMode = targetSceneProps
-            ? resolveRootSceneStackMode(targetSceneProps, resolvedRootMode)
-            : 'cover';
-          setScrollBackdropSceneIndex(targetStackMode === 'cover' ? activeSceneIndex : null);
-          sceneActions.commitScrollSceneChange('forward', normalizedScrollProgress);
         } else {
           sceneActions.nextScene();
         }
@@ -1818,12 +2065,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
             elapsedMs,
             timelineDuration
           );
-        } else if (resolvedRootMode === 'scroll') {
-          const targetStackMode = targetSceneProps
-            ? resolveRootSceneStackMode(targetSceneProps, resolvedRootMode)
-            : 'cover';
-          setScrollBackdropSceneIndex(targetStackMode === 'cover' ? activeSceneIndex : null);
-          sceneActions.commitScrollSceneChange('backward', normalizedScrollProgress);
         } else {
           sceneActions.prevScene();
         }
@@ -1850,33 +2091,13 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       const isCurrent = index === effectiveCurrentScene;
       const sceneProps = scene.props as SceneAuthoringCompatProps;
       const effectiveMode = resolvedRootMode;
-      const scrollLayout = isRootScrollMode ? scrollSceneLayout[index] : null;
-      const slideDirection =
-        effectiveMode === 'scroll'
-          ? resolvedScrollDirection
-          : effectiveMode === 'drag'
-            ? (modes?.drag?.direction ?? sceneProps.slideDirection ?? 'y')
-            : (modes?.snap?.direction ?? sceneProps.slideDirection ?? 'y');
-      const currentSceneProps = scenes[effectiveCurrentScene]?.props as
-        | SceneAuthoringCompatProps
-        | undefined;
+      const slideDirection = modes?.drag?.direction ?? sceneProps.slideDirection ?? 'y';
       const scrollTimelineState = isRootScrollMode ? scrollSceneStates[index] : null;
-      const isScrollBackdropActive =
-        effectiveMode === 'scroll' &&
-        currentSceneProps !== undefined &&
-        resolveRootSceneStackMode(currentSceneProps, effectiveMode) === 'cover' &&
-        scrollBackdropSceneIndex === index &&
-        index !== effectiveCurrentScene;
+      const isScrollBackdropActive = false;
 
-      // 虚拟化：不可见的场景不渲染
-      if (!isVisible) {
-        return null;
-      }
-
-      // 计算场景位置
       const scenePosition: React.CSSProperties = {
         width: '100%',
-        height: effectiveMode === 'scroll' ? 'auto' : '100%',
+        height: '100%',
       };
 
       if (effectiveMode === 'drag') {
@@ -1907,24 +2128,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         scenePosition.contentVisibility = 'visible';
         scenePosition.transition = 'none';
         scenePosition.zIndex = isCurrent ? 10 : 1;
-      } else if (effectiveMode === 'scroll') {
-        scenePosition.position = 'relative';
-        scenePosition.height = 'auto';
-        if (resolvedScrollConfig.sceneSizing === 'screen' && scrollLayout) {
-          if (resolvedScrollDirection === 'x') {
-            scenePosition.minWidth = scrollLayout.height;
-          } else {
-            scenePosition.minHeight = scrollLayout.height;
-          }
-        }
-        scenePosition.top = undefined;
-        scenePosition.left = undefined;
-        scenePosition.visibility = 'visible';
-        scenePosition.opacity = 1;
-        scenePosition.pointerEvents = 'auto';
-        scenePosition.contentVisibility = 'visible';
-        scenePosition.transition = 'none';
-        scenePosition.zIndex = sceneProps.stack?.zIndex ?? sceneProps.sceneZIndex ?? index + 1;
       } else {
         scenePosition.position = 'absolute';
         scenePosition.inset = 0;
@@ -1950,6 +2153,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         } else {
           scenePosition.zIndex = isCurrent ? 1 : 0;
         }
+      }
+
+      // 虚拟化：scroll 模式保留布局高度，其它模式直接跳过不可见场景
+      if (!isVisible) {
+        return null;
       }
 
       // Clone scene element and inject props
@@ -2027,7 +2235,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     resolvedRootMode,
     resolvedScrollDirection,
     resolvedScrollConfig.sceneSizing,
-    modes?.snap?.direction,
     modes?.drag?.direction,
     scenes,
     visibleSceneIndices,
@@ -2085,11 +2292,30 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   const containerStyle: React.CSSProperties = {
     position: 'relative',
     width: '100%',
-    height: isRootScrollMode ? 'auto' : '100vh',
+    height: '100vh',
     minHeight: '100vh',
-    overflow: isRootScrollMode ? 'visible' : 'hidden',
+    overflowX: isRootScrollMode && resolvedScrollDirection === 'x' ? 'auto' : 'hidden',
+    overflowY: isRootScrollMode && resolvedScrollDirection !== 'x' ? 'auto' : 'hidden',
+    overscrollBehavior: isRootScrollMode ? 'contain' : undefined,
+    WebkitOverflowScrolling: isRootScrollMode ? 'touch' : undefined,
     background: '#0d1624',
   };
+
+  const sceneViewportStyle: React.CSSProperties = {
+    opacity: 1,
+    pointerEvents: 'auto',
+  };
+
+  const scrollViewportShellStyle: React.CSSProperties | undefined = isRootScrollMode
+    ? {
+        position: 'sticky',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100vh',
+        overflow: 'hidden',
+      }
+    : undefined;
 
   const scrollTrackStyle: React.CSSProperties | undefined = isRootScrollMode
     ? {
@@ -2116,16 +2342,32 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
   return (
     <CineViewProvider designWidth={designWidth} designHeight={designHeight} unit={unit}>
-      <ScrollZoneRuntimeContext.Provider value={zoneRuntimeValue}>
+      <CineViewRuntimeContext.Provider value={{ mode: resolvedRootMode }}>
+      <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
         <div
           ref={containerRef}
           style={containerStyle}
           className="cineview-container"
           data-cineview-container="true"
         >
-          {isRootScrollMode ? <div style={scrollTrackStyle}>{renderScenes()}</div> : renderScenes()}
+          {isRootScrollMode ? (
+            <div
+              style={{
+                position: 'relative',
+                width: resolvedScrollDirection === 'x' ? nativeScrollSpan : '100%',
+                height: resolvedScrollDirection === 'x' ? '100%' : nativeScrollSpan,
+              }}
+            >
+              <div style={{ ...scrollViewportShellStyle, ...sceneViewportStyle }}>
+                <div style={scrollTrackStyle}>{renderScenes()}</div>
+              </div>
+            </div>
+          ) : (
+            <div style={sceneViewportStyle}>{renderScenes()}</div>
+          )}
         </div>
-      </ScrollZoneRuntimeContext.Provider>
+      </SceneScrollRuntimeContext.Provider>
+      </CineViewRuntimeContext.Provider>
     </CineViewProvider>
   );
 });

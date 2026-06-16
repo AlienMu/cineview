@@ -24,7 +24,6 @@ export interface SceneLegacyCompatProps {
   sceneZIndex?: number;
   sceneOverflow?: 'hidden' | 'visible';
   sceneStackMode?: SceneStackMode;
-  replayOnReenter?: boolean;
   scrollSpeed?: number;
   scrollControlled?: boolean;
   scrollCommitThreshold?: number;

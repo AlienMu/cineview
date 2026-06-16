@@ -13,9 +13,10 @@ import { parseAnimationSafely } from '../../utils/animationHelpers';
 import type { SceneInternalProps, SceneState } from './types';
 import { useSceneRuntimeState } from './useSceneRuntimeState';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
-import { useSnapSceneEngine } from './useSnapSceneEngine';
 import { useDragSceneEngine } from './useDragSceneEngine';
 import { SceneFixedLayerContext } from '../Position/Position';
+import { SceneScrollTakeoverContext } from './sceneScrollRuntime';
+import { useSceneScrollTakeover } from './useSceneScrollTakeover';
 import {
   emitSceneVisibility,
   getFixedLayerMetrics,
@@ -62,7 +63,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     resolvedSceneZIndex,
     effectiveSceneStackMode,
     resolvedSceneTransitionDuration,
-    resolvedReplayOnReenter,
     resolvedEnterAnimation,
     resolvedExitAnimation,
     sceneVisibilityCallback,
@@ -137,14 +137,8 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
   const dragProgressMotion = useMotionValue(currentDragProgress);
   const sharedElapsedMotion = useMotionValue(currentSharedElapsedMs);
 
-  const [sceneEnterCompleted, setSceneEnterCompleted] = useState(false);
   const [sceneState, setSceneState] = useState<SceneState>('initial');
-  const [activationVersion, setActivationVersion] = useState(0);
-  const [activeEpoch, setActiveEpoch] = useState(0);
   const sceneOffset = sceneIndex - currentSceneIndex;
-  const prevIsActiveRef = useRef(isActive);
-  const prevSnapActiveRef = useRef(isActive);
-  const hasEnteredOnceRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
   const animateRegistry = useRef<Map<string, AnimateRegistrationInfo>>(new Map());
@@ -154,11 +148,17 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [fixedLayerElement, setFixedLayerElement] = useState<HTMLElement | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const scrollSettleTimerRef = useRef<number | null>(null);
   const handleFixedLayerHostRef = useCallback((node: HTMLDivElement | null) => {
     setFixedLayerElement((previous) => (previous === node ? previous : node));
   }, []);
+  const sceneZoneId = useSceneScrollTakeover({
+    sceneId: props.sceneId,
+    sceneIndex,
+    mode: effectiveMode,
+    scroll: props.scroll,
+    elementRef: containerRef,
+  });
 
   useEffect(() => {
     dragProgressMotion.set(currentDragProgress);
@@ -191,16 +191,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalDragTransitionSnapshot,
   ]);
 
-  useEffect(() => {
-    if (isActive && !prevIsActiveRef.current) {
-      setActiveEpoch((epoch) => epoch + 1);
-      if (resolvedReplayOnReenter || activationVersion === 0) {
-        setActivationVersion((version) => version + 1);
-      }
-    }
-    prevIsActiveRef.current = isActive;
-  }, [isActive, resolvedReplayOnReenter, activationVersion]);
-
   const resolveDragProgress = useCallback(
     (rawProgress: number): number => {
       if (effectiveMode !== 'drag' || !isActive) return 0;
@@ -227,7 +217,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         `[CineView Error] Scene component must be used within a CineView component.\n\n` +
           `Problem: Scene component at index ${sceneIndex} is not wrapped by CineView.\n` +
           `Fix: Wrap your Scene components inside a <CineView> component:\n\n` +
-          `  <CineView mode="snap" config={{ width: 750, height: 1334, unit: 'px' }}>\n` +
+          `  <CineView mode="drag" config={{ width: 750, height: 1334, unit: 'px' }}>\n` +
           `    <Scene>...</Scene>\n` +
           `  </CineView>\n`
       );
@@ -241,6 +231,12 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
   }, [effectiveMode]);
 
   useEffect(() => {
+    if (!resolvedEnterAnimation && !resolvedExitAnimation) {
+      setEnterVariant((current) => (current === null ? current : null));
+      setExitVariant((current) => (current === null ? current : null));
+      return;
+    }
+
     let cancelled = false;
 
     const parseAnimations = async (): Promise<void> => {
@@ -423,7 +419,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     getTimelineDuration,
     dragRuntime,
     onSharedTimelineDurationChange,
-    activationVersion,
     sceneState,
     hasExternalDragRuntime,
   ]);
@@ -447,10 +442,8 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       scrollDirection: globalScrollDirection,
       scrollTimelineState: globalScrollTimelineState,
       scrollActiveSceneIndex: globalScrollActiveSceneIndex,
-      sceneEnterCompleted,
       sceneState,
       sceneOffset,
-      activationVersion,
       dragTransitionSnapshot: currentDragTransitionSnapshot,
       scrollTransitionSnapshot: globalScrollTransitionSnapshot,
       sharedElapsedMs: currentSharedElapsedMs,
@@ -476,7 +469,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         transitionDirection: globalDirection,
         isDragging,
         isScrolling: contextValue.isScrolling,
-        sceneEnterCompleted,
         sceneState,
         sceneOffset: contextValue.sceneOffset,
         sceneTransitionDuration: resolvedSceneTransitionDuration,
@@ -511,10 +503,8 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalScrollActiveSceneIndex,
     globalIsSceneAnimating,
     globalDirection,
-    sceneEnterCompleted,
     sceneState,
     sceneOffset,
-    activationVersion,
     currentDragTransitionSnapshot,
     globalScrollTransitionSnapshot,
     currentSharedElapsedMs,
@@ -530,30 +520,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
 
   // Legacy compat fields kept in the public/test surface while Phase 2 migration is in progress.
   void compatFields;
-
-  useSnapSceneEngine({
-    slideMode: effectiveMode,
-    isActive,
-    slideDirection: effectiveDirection,
-    slideDuration,
-    isAnimating,
-    sceneIndex,
-    enterVariant,
-    exitVariant,
-    replayOnReenter: resolvedReplayOnReenter,
-    activeEpoch,
-    direction: globalDirection,
-    isSceneAnimating: globalIsSceneAnimating,
-    controls,
-    containerRef,
-    touchStartRef,
-    prevSnapActiveRef,
-    hasEnteredOnceRef,
-    setSceneEnterCompleted,
-    setSceneState,
-    setIsAnimating,
-    onSceneChange,
-  });
 
   useScrollSceneEngine({
     slideMode: effectiveMode,
@@ -670,7 +636,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
   }, []);
 
   const initialVariant = useMemo(() => {
-    if (effectiveMode === 'drag' || effectiveMode === 'scroll') {
+    if (effectiveMode === 'drag') {
       return { opacity: 1 };
     }
 
@@ -750,68 +716,75 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         <SceneFixedLayerContext.Provider
           value={effectiveMode === 'scroll' ? fixedLayerElement : null}
         >
-          <motion.div
-            ref={containerRef}
-            initial={initialVariant as never}
-            animate={controls}
-            style={sceneStyle as never}
-            onPanStart={effectiveMode === 'drag' && isActive ? handleDragStart : undefined}
-            onPan={effectiveMode === 'drag' && isActive ? handlePan : undefined}
-            onPanEnd={effectiveMode === 'drag' && isActive ? handlePanEnd : undefined}
+          <SceneScrollTakeoverContext.Provider
+            value={effectiveMode === 'scroll' ? sceneZoneId : null}
           >
-            {effectiveMode === 'scroll' ? (
-              <div
-                data-scene-fixed-layer={sceneIndex}
-                data-scene-fixed-role="clip"
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: fixedLayerMetrics.clipWidth > 0 ? fixedLayerMetrics.clipWidth : '100%',
-                  height: fixedLayerMetrics.clipHeight > 0 ? fixedLayerMetrics.clipHeight : '100%',
-                  overflow: 'hidden',
-                  pointerEvents: 'none',
-                  opacity: fixedLayerMetrics.visible ? 1 : 0,
-                  visibility: fixedLayerMetrics.visible ? 'visible' : 'hidden',
-                  zIndex: 20,
-                }}
-              >
+            <motion.div
+              ref={containerRef}
+              data-cineview-scroll-zone={
+                effectiveMode === 'scroll' ? sceneZoneId ?? props.sceneId ?? undefined : undefined
+              }
+              initial={initialVariant as never}
+              animate={controls}
+              style={sceneStyle as never}
+              onPanStart={effectiveMode === 'drag' && isActive ? handleDragStart : undefined}
+              onPan={effectiveMode === 'drag' && isActive ? handlePan : undefined}
+              onPanEnd={effectiveMode === 'drag' && isActive ? handlePanEnd : undefined}
+            >
+              {effectiveMode === 'scroll' ? (
                 <div
                   data-scene-fixed-layer={sceneIndex}
-                  data-scene-fixed-role="frame"
+                  data-scene-fixed-role="clip"
                   style={{
                     position: 'absolute',
-                    top: fixedLayerMetrics.isHorizontal ? 0 : fixedLayerMetrics.hostOffset,
-                    left: fixedLayerMetrics.isHorizontal ? fixedLayerMetrics.hostOffset : 0,
-                    width: fixedLayerMetrics.isHorizontal
-                      ? fixedLayerMetrics.hostSpan > 0
-                        ? fixedLayerMetrics.hostSpan
-                        : '100%'
-                      : '100%',
-                    height: fixedLayerMetrics.isHorizontal
-                      ? '100%'
-                      : fixedLayerMetrics.hostSpan > 0
-                        ? fixedLayerMetrics.hostSpan
-                        : '100%',
+                    inset: 0,
+                    width: fixedLayerMetrics.clipWidth > 0 ? fixedLayerMetrics.clipWidth : '100%',
+                    height: fixedLayerMetrics.clipHeight > 0 ? fixedLayerMetrics.clipHeight : '100%',
+                    overflow: 'hidden',
                     pointerEvents: 'none',
+                    opacity: fixedLayerMetrics.visible ? 1 : 0,
+                    visibility: fixedLayerMetrics.visible ? 'visible' : 'hidden',
+                    zIndex: 20,
                   }}
                 >
                   <div
-                    ref={handleFixedLayerHostRef}
                     data-scene-fixed-layer={sceneIndex}
-                    data-scene-fixed-host={sceneIndex}
-                    data-scene-fixed-role="host"
+                    data-scene-fixed-role="frame"
                     style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: '100%',
-                      pointerEvents: 'auto',
+                      position: 'absolute',
+                      top: fixedLayerMetrics.isHorizontal ? 0 : fixedLayerMetrics.hostOffset,
+                      left: fixedLayerMetrics.isHorizontal ? fixedLayerMetrics.hostOffset : 0,
+                      width: fixedLayerMetrics.isHorizontal
+                        ? fixedLayerMetrics.hostSpan > 0
+                          ? fixedLayerMetrics.hostSpan
+                          : '100%'
+                        : '100%',
+                      height: fixedLayerMetrics.isHorizontal
+                        ? '100%'
+                        : fixedLayerMetrics.hostSpan > 0
+                          ? fixedLayerMetrics.hostSpan
+                          : '100%',
+                      pointerEvents: 'none',
                     }}
-                  />
+                  >
+                    <div
+                      ref={handleFixedLayerHostRef}
+                      data-scene-fixed-layer={sceneIndex}
+                      data-scene-fixed-host={sceneIndex}
+                      data-scene-fixed-role="host"
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'auto',
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            {children}
-          </motion.div>
+              ) : null}
+              {children}
+            </motion.div>
+          </SceneScrollTakeoverContext.Provider>
         </SceneFixedLayerContext.Provider>
       </SceneContext.Provider>
     </SceneIdentityContext.Provider>

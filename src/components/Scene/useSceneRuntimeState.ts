@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import type { SceneRuntimeState } from '../Animate/Animate';
-import type { ScrollTimelineState } from '../../types';
+import type { ScrollMode, ScrollTimelineState } from '../../types';
 import type { SceneState } from './types';
 
 interface UseSceneRuntimeStateParams {
-  slideMode: 'snap' | 'drag' | 'scroll';
+  slideMode: ScrollMode;
   sceneState: SceneState;
   isActive: boolean;
   sceneOffset: number;
@@ -65,10 +65,7 @@ export function useSceneRuntimeState({
       return sceneOffset === 0 ? 'inactive' : 'parked';
     }
 
-    if (sceneState === 'entering') return 'entering';
-    if (sceneState === 'exiting') return 'exiting';
-    if (isActive) return 'active';
-    return 'inactive';
+    return isActive ? 'active' : 'inactive';
   }, [
     slideMode,
     sceneState,

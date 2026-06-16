@@ -50,12 +50,11 @@ function createSceneContext(overrides?: Partial<SceneContextType>): SceneContext
     }) as never;
 
   return {
-    mode: 'snap',
+    mode: 'drag',
     isActive: true,
     isDragging: false,
     dragProgressMotion: createMotionValueStub(),
     sharedElapsedMotion: createMotionValueStub(),
-    sceneEnterCompleted: true,
     sceneState: 'active',
     sceneOffset: 0,
     sceneTransitionDuration: 800,
@@ -69,8 +68,8 @@ function createSceneContext(overrides?: Partial<SceneContextType>): SceneContext
 }
 
 describe('Animate semantic bridge', () => {
-  it('prefers grouped duration and timeline props over legacy flat fields in snap mode', async () => {
-    const sceneContext = createSceneContext({ mode: 'snap' });
+  it('prefers grouped duration and timeline props over legacy flat fields in drag mode', async () => {
+    const sceneContext = createSceneContext({ mode: 'drag' });
 
     render(
       <SceneContext.Provider value={sceneContext}>

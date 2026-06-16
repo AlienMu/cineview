@@ -1,10 +1,10 @@
 /**
  * Animate Component - 统一入口，根据 mode 选择实现
- * snap 模式：使用 useAnimateSnap
  * drag 模式：使用 useAnimateDrag
+ * scroll 模式：使用 useAnimateScroll
  */
 
-import React, { useEffect, useRef, useState, useContext, createContext } from 'react';
+import React, { useEffect, useRef, useState, useContext, createContext, useMemo } from 'react';
 import { motion, MotionValue, useAnimation } from 'framer-motion';
 import type {
   AnimateProps,
@@ -14,11 +14,15 @@ import type {
 } from '../../types';
 import { DEFAULT_ANIMATION_DURATION } from '../../types';
 import { parseAnimationSafely } from '../../utils/animationHelpers';
-import { useAnimateSnap } from './useAnimateSnap';
 import { useAnimateDrag } from './useAnimateDrag';
 import { useAnimateScroll } from './useAnimateScroll';
 import type { DragTransitionSnapshot, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
-import { ScrollZoneContext, ScrollZoneRuntimeContext } from '../ScrollZone';
+import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
+import {
+  SceneScrollRuntimeContext,
+  SceneScrollTimelineContext,
+  SceneScrollTakeoverContext,
+} from '../Scene/sceneScrollRuntime';
 
 interface AnimateLegacyCompatProps {
   enterDuration?: number;
@@ -62,14 +66,10 @@ export interface SceneContextType {
   scrollTimelineState?: ScrollTimelineState | null;
   scrollActiveSceneIndex?: number;
 
-  // snap 模式专用
-  sceneEnterCompleted: boolean; // Scene 入场动画是否完成
-
   // 场景状态机
   sceneState: 'initial' | 'entering' | 'active' | 'exiting';
 
   sceneOffset: number;
-  activationVersion?: number;
   dragTransitionSnapshot?: DragTransitionSnapshot | null;
   scrollTransitionSnapshot?: ScrollTransitionSnapshot | null;
   sharedElapsedMs?: number;
@@ -187,13 +187,14 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const componentId = useRef(animateId || `animate-${++animateIdCounter}`);
   const id = componentId.current;
   const sceneContext = useContext(SceneContext);
-  const zoneRuntime = useContext(ScrollZoneRuntimeContext);
-  const zoneId = useContext(ScrollZoneContext);
+  const cineViewRuntime = useCineViewRuntimeContext();
+  const zoneRuntime = useContext(SceneScrollRuntimeContext);
+  const zoneTimeline = useContext(SceneScrollTimelineContext);
+  const inheritedZoneId = useContext(SceneScrollTakeoverContext);
 
   const [enterVariant, setEnterVariant] = useState<ParsedAnimationVariant | null>(null);
   const [exitVariant, setExitVariant] = useState<ParsedAnimationVariant | null>(null);
   const [infiniteVariant, setInfiniteVariant] = useState<ParsedAnimationVariant | null>(null);
-  const snapInfiniteControls = useAnimation();
   const dragInfiniteControls = useAnimation();
   const scrollInfiniteControls = useAnimation();
   const normalizedSemantics = normalizeAnimateSemantics({
@@ -208,19 +209,44 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     scrollPhaseStart,
     scrollPhaseEnd,
   });
-  const normalizedEnterDuration = normalizedSemantics.duration.enter;
-  const normalizedDelay = normalizedSemantics.timeline.delay;
-  const normalizedWaitFor = normalizedSemantics.timeline.waitFor;
-
-  useEffect(() => {
-    if (!sceneContext && process.env.NODE_ENV === 'development') {
-      console.error(
-        `[CineView Error] Animate component "${id}" must be used within a Scene component.`
-      );
+  const mode = sceneContext?.mode ?? cineViewRuntime?.mode ?? 'drag';
+  const resolvedTimeline = useMemo<NormalizedAnimateTimeline>(() => {
+    if (mode !== 'scroll' || normalizedSemantics.timeline.driver !== 'auto') {
+      return normalizedSemantics.timeline;
     }
-  }, [sceneContext, id]);
+
+    return {
+      ...normalizedSemantics.timeline,
+      driver: inheritedZoneId ? 'scroll' : 'visibility',
+    };
+  }, [inheritedZoneId, mode, normalizedSemantics.timeline]);
+  const normalizedEnterDuration = normalizedSemantics.duration.enter;
+  const normalizedExitDuration = normalizedSemantics.duration.exit;
+  const normalizedDelay = resolvedTimeline.delay;
+  const normalizedWaitFor = resolvedTimeline.waitFor;
+  const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
+  const scrollZoneRuntime = useMemo(
+    () =>
+      zoneRuntime
+        ? {
+            ...zoneRuntime,
+            version: zoneTimeline?.version ?? zoneRuntime.version,
+            zoneStates: zoneTimeline?.zoneStates ?? zoneRuntime.zoneStates,
+          }
+        : null,
+    [zoneRuntime, zoneTimeline]
+  );
 
   useEffect(() => {
+    if (!enterAnimation && !exitAnimation && !infiniteAnimation) {
+      setEnterVariant((current) => (current === null ? current : null));
+      setExitVariant((current) => (current === null ? current : null));
+      setInfiniteVariant((current) => (current === null ? current : null));
+      return;
+    }
+
+    let cancelled = false;
+
     const parseAnimations = async (): Promise<void> => {
       const [enter, exit, infinite] = await Promise.all([
         parseAnimationSafely(enterAnimation, id, 'enter'),
@@ -228,27 +254,21 @@ export const Animate: React.FC<AnimateInternalProps> = ({
         parseAnimationSafely(infiniteAnimation, id, 'infinite'),
       ]);
 
+      if (cancelled) {
+        return;
+      }
+
       if (enter) setEnterVariant(enter as ParsedAnimationVariant);
       if (exit) setExitVariant(exit as ParsedAnimationVariant);
       if (infinite) setInfiniteVariant(infinite as ParsedAnimationVariant);
     };
 
     parseAnimations();
+
+    return () => {
+      cancelled = true;
+    };
   }, [enterAnimation, exitAnimation, infiniteAnimation, id]);
-
-  // 🎯 根据 mode 选择使用哪个实现
-  const mode = sceneContext?.mode || 'snap';
-
-  // snap 模式：使用 useAnimateSnap
-  const snapResult = useAnimateSnap({
-    sceneContext: mode === 'snap' ? sceneContext : null,
-    enterVariant,
-    exitVariant,
-    componentId: id,
-    delay: normalizedDelay,
-    enterDuration: normalizedEnterDuration,
-    waitFor: normalizedWaitFor,
-  });
 
   // drag 模式：使用 useAnimateDrag
   const dragResult = useAnimateDrag({
@@ -258,40 +278,23 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     componentId: id,
     delay: normalizedDelay,
     enterDuration: normalizedEnterDuration,
+    exitDuration: normalizedExitDuration,
     waitFor: normalizedWaitFor,
   });
 
   const scrollResult = useAnimateScroll({
     sceneContext: mode === 'scroll' ? sceneContext : null,
-    zoneRuntime: mode === 'scroll' ? zoneRuntime : null,
-    zoneId,
+    zoneRuntime: mode === 'scroll' ? scrollZoneRuntime : null,
+    zoneId: resolvedZoneId,
     enterVariant,
     exitVariant,
+    hasAuthoredEnterAnimation: Boolean(enterAnimation),
+    hasAuthoredExitAnimation: Boolean(exitAnimation),
     componentId: id,
     duration: normalizedSemantics.duration,
-    timeline: normalizedSemantics.timeline,
+    timeline: resolvedTimeline,
     visibility: normalizedSemantics.visibility,
   });
-
-  useEffect(() => {
-    if (mode !== 'snap' || !infiniteVariant) return;
-
-    if (!snapResult.shouldRunInfinite) {
-      snapInfiniteControls.stop();
-      return;
-    }
-
-    snapInfiniteControls.start({
-      ...(infiniteVariant.animate as Record<string, unknown>),
-      transition: {
-        ...(((infiniteVariant.animate as Record<string, unknown>).transition as Record<
-          string,
-          unknown
-        >) || {}),
-        repeat: Infinity,
-      },
-    } as never);
-  }, [mode, infiniteVariant, snapResult.shouldRunInfinite, snapInfiniteControls]);
 
   useEffect(() => {
     if (mode !== 'drag' || !infiniteVariant) return;
@@ -337,51 +340,31 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     return <>{children}</>;
   }
 
-  // snap 模式渲染
-  if (mode === 'snap') {
+  if (mode === 'scroll') {
     if (infiniteVariant) {
       return (
-        <motion.div animate={snapResult.controls} className="cineview-animate">
-          <motion.div data-cineview-animate-id={id}>
-            <motion.div animate={snapInfiniteControls}>{children}</motion.div>
+        <div data-cineview-animate-host={id}>
+          <motion.div
+            style={scrollResult.style}
+            className="cineview-animate"
+            data-cineview-animate-id={id}
+          >
+            <motion.div animate={scrollInfiniteControls}>{children}</motion.div>
           </motion.div>
-        </motion.div>
+        </div>
       );
     }
 
     return (
-      <motion.div
-        animate={snapResult.controls}
-        className="cineview-animate"
-        data-cineview-animate-id={id}
-      >
-        {children}
-      </motion.div>
-    );
-  }
-
-  // drag 模式渲染
-  if (mode === 'scroll') {
-    if (infiniteVariant) {
-      return (
+      <div data-cineview-animate-host={id}>
         <motion.div
           style={scrollResult.style}
           className="cineview-animate"
           data-cineview-animate-id={id}
         >
-          <motion.div animate={scrollInfiniteControls}>{children}</motion.div>
+          {children}
         </motion.div>
-      );
-    }
-
-    return (
-      <motion.div
-        style={scrollResult.style}
-        className="cineview-animate"
-        data-cineview-animate-id={id}
-      >
-        {children}
-      </motion.div>
+      </div>
     );
   }
 

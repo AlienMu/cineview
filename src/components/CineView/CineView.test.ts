@@ -28,8 +28,6 @@ describe('resolveActiveViewportId', () => {
         {
           sceneIndex: 0,
           trigger: 'center-lock' as const,
-          budget: 'auto' as const,
-          replayOnReenter: true,
           element: createViewportElement(120, 120),
         },
       ],
@@ -38,8 +36,6 @@ describe('resolveActiveViewportId', () => {
         {
           sceneIndex: 0,
           trigger: 'center-lock' as const,
-          budget: 'auto' as const,
-          replayOnReenter: true,
           element: createViewportElement(390, 180),
         },
       ],
@@ -48,8 +44,6 @@ describe('resolveActiveViewportId', () => {
         {
           sceneIndex: 1,
           trigger: 'center-lock' as const,
-          budget: 'auto' as const,
-          replayOnReenter: true,
           element: createViewportElement(420, 120),
         },
       ],
@@ -67,8 +61,6 @@ describe('resolveActiveViewportId', () => {
         {
           sceneIndex: 0,
           trigger: 'center-lock' as const,
-          budget: 'auto' as const,
-          replayOnReenter: true,
           element: createViewportElement(120, 120),
         },
       ],
@@ -107,8 +99,6 @@ describe('resolveActiveViewportId', () => {
         {
           sceneIndex: 0,
           trigger: 'center-lock' as const,
-          budget: 'auto' as const,
-          replayOnReenter: true,
           element: createViewportElement(-300, 120),
         },
       ],

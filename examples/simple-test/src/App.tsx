@@ -28,8 +28,8 @@ const copyStyle: React.CSSProperties = {
 export default function App(): JSX.Element {
   return (
     <CineView
-      mode="snap"
-      modes={{ snap: { direction: 'y', duration: 500 } }}
+      mode="drag"
+      modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
       config={{ width: 750, height: 1334, unit: 'px' }}
     >
       <Scene>
@@ -56,7 +56,7 @@ export default function App(): JSX.Element {
             duration={{ enter: 800 }}
             timeline={{ delay: 500 }}
           >
-            <p style={copyStyle}>Root-owned snap mode with grouped timing.</p>
+            <p style={copyStyle}>Root-owned drag mode with grouped timing.</p>
           </Animate>
         </Position>
         <Position at={{ x: 375, y: 520 }}>

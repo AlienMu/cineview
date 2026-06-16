@@ -287,34 +287,6 @@ describe('useSceneManager', () => {
       expect(onBeforeChange).not.toHaveBeenCalled();
     });
 
-    it('should block new transitions in snap mode while animating', () => {
-      const { result } = renderHook(() =>
-        useSceneManager({
-          totalScenes: 5,
-          mode: 'snap',
-        })
-      );
-
-      act(() => {
-        const [, actions] = result.current;
-        actions.goToScene(1, true);
-      });
-
-      const [state1] = result.current;
-      expect(state1.currentScene).toBe(1);
-      expect(state1.isAnimating).toBe(true);
-
-      // Try to navigate while animating
-      act(() => {
-        const [, actions] = result.current;
-        actions.goToScene(3, true);
-      });
-
-      const [state2] = result.current;
-      // Should still be at scene 1
-      expect(state2.currentScene).toBe(1);
-    });
-
     it('should allow transitions in drag mode while animating', () => {
       const { result } = renderHook(() =>
         useSceneManager({

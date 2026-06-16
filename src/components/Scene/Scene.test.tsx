@@ -2,7 +2,7 @@
  * Scene Component Tests
  */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { act, useContext, useEffect, useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SceneInternal as Scene } from './Scene';
 import { CineViewProvider } from '../../context/CineViewContext';
@@ -158,6 +158,13 @@ const renderScene = (ui: React.ReactElement): ReturnType<typeof render> => {
   );
 };
 
+const flushAnimationParsing = async (): Promise<void> => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
 describe('Scene Component', () => {
   // Reset mocks before each test
   beforeEach(() => {
@@ -165,7 +172,7 @@ describe('Scene Component', () => {
   });
 
   describe('9.1 Basic Functionality', () => {
-    it('should render with full screen layout (100vh/100vw) in snap mode', () => {
+    it('should render with full screen layout (100vh/100vw) in drag mode', () => {
       renderScene(
         <Scene>
           <div>Test Content</div>
@@ -203,13 +210,13 @@ describe('Scene Component', () => {
       };
 
       renderScene(
-        <Scene mode="snap">
+        <Scene mode="drag">
           <TestChild />
         </Scene>
       );
 
       expect(contextValue).not.toBeNull();
-      expect(contextValue!.mode).toBe('snap');
+      expect(contextValue!.mode).toBe('drag');
       expect(typeof contextValue!.registerAnimate).toBe('function');
       expect(typeof contextValue!.unregisterAnimate).toBe('function');
       expect(typeof contextValue!.getCalculatedDelay).toBe('function');
@@ -320,8 +327,8 @@ describe('Scene Component', () => {
     });
   });
 
-  describe('9.2 Snap Mode', () => {
-    it('should default to snap mode', () => {
+  describe('9.2 Default Drag Mode', () => {
+    it('should default to drag mode', () => {
       let contextValue: SceneContextType | null = null;
 
       const TestChild = (): JSX.Element => {
@@ -336,160 +343,7 @@ describe('Scene Component', () => {
         </Scene>
       );
 
-      expect(contextValue!.mode).toBe('snap');
-    });
-
-    it('should detect swipe gestures in snap mode', () => {
-      const onSceneChange = jest.fn();
-
-      renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
-          <div>Test Content</div>
-        </Scene>
-      );
-
-      const sceneElement = screen.getByText('Test Content').parentElement!;
-
-      // Simulate swipe up gesture
-      fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 300 }],
-      });
-
-      fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 100 }],
-      });
-
-      expect(onSceneChange).toHaveBeenCalledWith('forward');
-    });
-
-    it('should detect horizontal swipe gestures', () => {
-      const onSceneChange = jest.fn();
-
-      renderScene(
-        <Scene mode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
-          <div>Test Content</div>
-        </Scene>
-      );
-
-      const sceneElement = screen.getByText('Test Content').parentElement!;
-
-      // Simulate swipe left gesture
-      fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 300, clientY: 100 }],
-      });
-
-      fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 100 }],
-      });
-
-      expect(onSceneChange).toHaveBeenCalledWith('forward');
-    });
-
-    it('should support mouse events in snap mode', () => {
-      const onSceneChange = jest.fn();
-
-      renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
-          <div>Test Content</div>
-        </Scene>
-      );
-
-      const sceneElement = screen.getByText('Test Content').parentElement!;
-
-      // Simulate mouse swipe
-      fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 300 });
-      fireEvent.mouseUp(sceneElement, { clientX: 100, clientY: 100 });
-
-      expect(onSceneChange).toHaveBeenCalledWith('forward');
-    });
-
-    it('should block new transitions while animating in snap mode', () => {
-      const onSceneChange = jest.fn();
-
-      renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
-          <div>Test Content</div>
-        </Scene>
-      );
-
-      const sceneElement = screen.getByText('Test Content').parentElement!;
-
-      // First swipe
-      fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 300 }],
-      });
-
-      fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 100 }],
-      });
-
-      expect(onSceneChange).toHaveBeenCalledTimes(1);
-
-      // Try second swipe immediately (should be blocked)
-      fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 300 }],
-      });
-
-      fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 100 }],
-      });
-
-      // Should still be 1 call (second was blocked)
-      expect(onSceneChange).toHaveBeenCalledTimes(1);
-    });
-
-    it('should detect backward swipe gestures', () => {
-      const onSceneChange = jest.fn();
-
-      renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
-          <div>Test Content</div>
-        </Scene>
-      );
-
-      const sceneElement = screen.getByText('Test Content').parentElement!;
-
-      // Simulate swipe down gesture (backward)
-      fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 100 }],
-      });
-
-      fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 300 }],
-      });
-
-      expect(onSceneChange).toHaveBeenCalledWith('backward');
-    });
-
-    it('should use slideDuration to control animation timing', () => {
-      const onSceneChange = jest.fn();
-      const customDuration = 1200;
-
-      renderScene(
-        <Scene
-          mode="snap"
-          slideDirection="y"
-          isActive={true}
-          slideDuration={customDuration}
-          onSceneChange={onSceneChange}
-        >
-          <div>Test Content</div>
-        </Scene>
-      );
-
-      const sceneElement = screen.getByText('Test Content').parentElement!;
-
-      // Trigger swipe
-      fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 300 }],
-      });
-
-      fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 100 }],
-      });
-
-      expect(onSceneChange).toHaveBeenCalledWith('forward');
-      // Animation blocking should last for slideDuration
+      expect(contextValue!.mode).toBe('drag');
     });
   });
 
@@ -728,7 +582,7 @@ describe('Scene Component', () => {
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          '<CineView mode="snap" config={{ width: 750, height: 1334, unit: \'px\' }}>'
+          '<CineView mode="drag" config={{ width: 750, height: 1334, unit: \'px\' }}>'
         )
       );
 
@@ -1392,10 +1246,7 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Wait for animations to parse
-      await waitFor(() => {
-        expect(sceneElement).toBeInTheDocument();
-      });
+      await flushAnimationParsing();
 
       // Start drag
       fireEvent.touchStart(sceneElement, {
@@ -1465,11 +1316,11 @@ describe('Scene Component', () => {
       expect(contextValue!.isDragging).toBe(false);
     });
 
-    it('should handle snap mode when not active', () => {
+    it('should not trigger scene change while drag mode is inactive', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene mode="snap" isActive={false} onSceneChange={onSceneChange}>
+        <Scene mode="drag" isActive={false} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1523,10 +1374,7 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Wait for animations to parse
-      await waitFor(() => {
-        expect(sceneElement).toBeInTheDocument();
-      });
+      await flushAnimationParsing();
 
       // Start drag
       fireEvent.touchStart(sceneElement, {
@@ -1579,9 +1427,9 @@ describe('Scene Component', () => {
       expect(sceneElement).toBeInTheDocument();
     });
 
-    it('should handle exit animation in snap mode when scene becomes inactive', async () => {
+    it('should keep exit animation available when a drag scene becomes inactive', async () => {
       const { rerender } = renderScene(
-        <Scene isActive={true} exitAnimation="fade-out" mode="snap">
+        <Scene isActive={true} exitAnimation="fade-out" mode="drag">
           <div>Test Content</div>
         </Scene>
       );
@@ -1594,7 +1442,7 @@ describe('Scene Component', () => {
       // Make scene inactive
       rerender(
         <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          <Scene isActive={false} exitAnimation="fade-out" mode="snap">
+          <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>
         </CineViewProvider>
@@ -1606,9 +1454,9 @@ describe('Scene Component', () => {
       });
     });
 
-    it('should handle enter animation in snap mode when scene becomes active', async () => {
+    it('should keep enter animation available when a drag scene becomes active', async () => {
       const { rerender } = renderScene(
-        <Scene isActive={false} enterAnimation="fade-in" mode="snap">
+        <Scene isActive={false} enterAnimation="fade-in" mode="drag">
           <div>Test Content</div>
         </Scene>
       );
@@ -1621,7 +1469,7 @@ describe('Scene Component', () => {
       // Make scene active
       rerender(
         <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          <Scene isActive={true} enterAnimation="fade-in" mode="snap">
+          <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
         </CineViewProvider>
@@ -1640,6 +1488,8 @@ describe('Scene Component', () => {
         </Scene>
       );
 
+      await flushAnimationParsing();
+
       // Make scene active
       rerender(
         <CineViewProvider designWidth={750} designHeight={750} unit="px">
@@ -1648,6 +1498,8 @@ describe('Scene Component', () => {
           </Scene>
         </CineViewProvider>
       );
+
+      await flushAnimationParsing();
 
       // Should render but not play animation automatically
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -1660,6 +1512,8 @@ describe('Scene Component', () => {
         </Scene>
       );
 
+      await flushAnimationParsing();
+
       // Make scene inactive
       rerender(
         <CineViewProvider designWidth={750} designHeight={750} unit="px">
@@ -1668,6 +1522,8 @@ describe('Scene Component', () => {
           </Scene>
         </CineViewProvider>
       );
+
+      await flushAnimationParsing();
 
       // Should render but not play animation automatically
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -1816,6 +1672,8 @@ describe('Additional Branch Coverage Tests', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement;
 
+      await flushAnimationParsing();
+
       // Simulate drag to trigger interpolation
       fireEvent.touchStart(sceneElement!, {
         touches: [{ clientX: 0, clientY: 0 }],
@@ -1933,52 +1791,65 @@ describe('Additional Scene Branch Coverage Tests', () => {
   });
 
   describe('Gesture detection edge cases', () => {
-    it('should handle swipe-right gesture in snap mode', () => {
+    it('should handle rightward horizontal drag release', async () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene mode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Simulate swipe right gesture (backward)
+      const dragDistance = window.innerWidth * 0.6;
+
+      // Simulate rightward horizontal drag (backward)
       fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 100 }],
+        touches: [{ clientX: 0, clientY: 100 }],
+      });
+
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: dragDistance, clientY: 100 }],
       });
 
       fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 300, clientY: 100 }],
+        changedTouches: [{ clientX: dragDistance, clientY: 100 }],
       });
 
-      expect(onSceneChange).toHaveBeenCalledWith('backward');
+      await waitFor(() => {
+        expect(onSceneChange).toHaveBeenCalledWith('backward');
+      });
     });
 
-    it('should handle mouse swipe-right gesture in snap mode', () => {
+    it('should handle rightward mouse drag release', async () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene mode="snap" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="x" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Simulate mouse swipe right
-      fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 100 });
-      fireEvent.mouseUp(sceneElement, { clientX: 300, clientY: 100 });
+      const dragDistance = window.innerWidth * 0.6;
 
-      expect(onSceneChange).toHaveBeenCalledWith('backward');
+      // Simulate rightward mouse drag (backward)
+      fireEvent.mouseDown(sceneElement, { clientX: 0, clientY: 100 });
+      fireEvent.mouseMove(sceneElement, { clientX: dragDistance, clientY: 100 });
+      fireEvent.mouseUp(sceneElement, { clientX: dragDistance, clientY: 100 });
+
+      await waitFor(() => {
+        expect(onSceneChange).toHaveBeenCalledWith('backward');
+      });
     });
 
     it('should not trigger scene change when gesture is not recognized', () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
@@ -2152,46 +2023,59 @@ describe('Additional Scene Branch Coverage Tests', () => {
 });
 
 describe('Comprehensive Branch Coverage Tests', () => {
-  describe('Snap mode gesture variations', () => {
-    it('should handle swipe-down gesture in vertical snap mode', () => {
+  describe('Drag mode gesture variations', () => {
+    it('should handle downward vertical drag release', async () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Simulate swipe down (backward)
+      const dragDistance = window.innerHeight * 0.6;
+
+      // Simulate downward vertical drag (backward)
       fireEvent.touchStart(sceneElement, {
-        touches: [{ clientX: 100, clientY: 100 }],
+        touches: [{ clientX: 100, clientY: 0 }],
+      });
+
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: 100, clientY: dragDistance }],
       });
 
       fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: 300 }],
+        changedTouches: [{ clientX: 100, clientY: dragDistance }],
       });
 
-      expect(onSceneChange).toHaveBeenCalledWith('backward');
+      await waitFor(() => {
+        expect(onSceneChange).toHaveBeenCalledWith('backward');
+      });
     });
 
-    it('should handle mouse swipe-down gesture in vertical snap mode', () => {
+    it('should handle downward mouse drag release', async () => {
       const onSceneChange = jest.fn();
 
       renderScene(
-        <Scene mode="snap" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
+        <Scene mode="drag" slideDirection="y" isActive={true} onSceneChange={onSceneChange}>
           <div>Test Content</div>
         </Scene>
       );
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Simulate mouse swipe down
-      fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 100 });
-      fireEvent.mouseUp(sceneElement, { clientX: 100, clientY: 300 });
+      const dragDistance = window.innerHeight * 0.6;
 
-      expect(onSceneChange).toHaveBeenCalledWith('backward');
+      // Simulate downward mouse drag (backward)
+      fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 0 });
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: dragDistance });
+      fireEvent.mouseUp(sceneElement, { clientX: 100, clientY: dragDistance });
+
+      await waitFor(() => {
+        expect(onSceneChange).toHaveBeenCalledWith('backward');
+      });
     });
   });
 
@@ -2262,7 +2146,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
   describe('Animation variant edge cases', () => {
     it('should handle scene with only enterAnimation', async () => {
       renderScene(
-        <Scene isActive={true} mode="snap" enterAnimation="fade-in">
+        <Scene isActive={true} mode="drag" enterAnimation="fade-in">
           <div>Test Content</div>
         </Scene>
       );
@@ -2274,7 +2158,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
 
     it('should handle scene with only exitAnimation', async () => {
       renderScene(
-        <Scene isActive={false} mode="snap" exitAnimation="fade-out">
+        <Scene isActive={false} mode="drag" exitAnimation="fade-out">
           <div>Test Content</div>
         </Scene>
       );
@@ -2286,7 +2170,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
 
     it('should handle scene without any animations', () => {
       renderScene(
-        <Scene isActive={true} mode="snap">
+        <Scene isActive={true} mode="drag">
           <div>Test Content</div>
         </Scene>
       );

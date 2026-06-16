@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import { animate, type AnimationControls, type MotionValue, type PanInfo } from 'framer-motion';
 import type { DragTransitionSnapshot } from '../../hooks/useSceneManager';
+import type { ScrollMode } from '../../types';
 import type { SceneState } from './types';
 
 function isVerboseDragDebug(): boolean {
@@ -46,7 +47,7 @@ function resolveProgressVelocity(slideDirection: 'x' | 'y', info: PanInfo): numb
 }
 
 interface UseDragSceneEngineParams {
-  slideMode: 'snap' | 'drag' | 'scroll';
+  slideMode: ScrollMode;
   isActive: boolean;
   sceneIndex: number;
   currentSceneIndex: number;
@@ -133,8 +134,18 @@ export function useDragSceneEngine({
   const lastRenderReleaseBucketRef = useRef<number | null>(null);
   const lastTimelineReleaseBucketRef = useRef<number | null>(null);
   const releaseTokenRef = useRef(0);
-  const timelineReleaseControlsRef = useRef<{ stop: () => void } | null>(null);
-  const renderReleaseControlsRef = useRef<{ stop: () => void } | null>(null);
+  const timelineReleaseControlsRef = useRef<{ stop: () => void; flush?: () => void } | null>(null);
+  const renderReleaseControlsRef = useRef<{ stop: () => void; flush?: () => void } | null>(null);
+  const pendingReleaseRef = useRef<{
+    token: number;
+    direction: 'forward' | 'backward';
+    timelineDuration: number;
+    targetProgress: number;
+    timelineComplete: boolean;
+    renderComplete: boolean;
+    completeTimeline: () => void;
+    completeRender: () => void;
+  } | null>(null);
   const activationSettleControlsRef = useRef<{ stop: () => void } | null>(null);
   const activeSettleKeyRef = useRef<string | null>(null);
   const latestReleaseElapsedRef = useRef(0);
@@ -302,6 +313,29 @@ export function useDragSceneEngine({
   const handleDragStart = useCallback(() => {
     if (slideMode !== 'drag' || !isActive) return;
 
+    const pendingRelease = pendingReleaseRef.current;
+    if (pendingRelease) {
+      const timelineControls = timelineReleaseControlsRef.current;
+      const renderControls = renderReleaseControlsRef.current;
+      if (timelineControls?.flush) {
+        timelineControls.flush();
+      } else {
+        pendingRelease.completeTimeline();
+      }
+      if (renderControls?.flush) {
+        renderControls.flush();
+      } else {
+        pendingRelease.completeRender();
+      }
+
+      debugDrag(`🧹 [Scene ${sceneIndex}] finalize pending release before new drag`, {
+        direction: pendingRelease.direction,
+        timelineDuration: pendingRelease.timelineDuration,
+        targetProgress: pendingRelease.targetProgress.toFixed(3),
+      });
+      return;
+    }
+
     const hasPendingSnapshot = !!globalDragTransitionSnapshot;
     const hasResidualElapsed = globalSharedElapsedMs > 0.001;
 
@@ -354,6 +388,7 @@ export function useDragSceneEngine({
     onRenderProgressChange,
     onSharedElapsedMsChange,
     onActivationComplete,
+    onDragCommit,
     dragProgressMotion,
     sharedElapsedMotion,
     getTimelineDuration,
@@ -515,12 +550,88 @@ export function useDragSceneEngine({
         const targetElapsedMs = timelineDuration;
         const remainingElapsedMs = Math.max(targetElapsedMs - currentElapsedMs, 0);
         const timelineRemainingDuration = remainingElapsedMs / 1000;
+        const renderReleaseDuration = Math.max(sceneTravelDuration, timelineRemainingDuration);
+
+        const tryCommitRelease = (completedBy: 'timeline' | 'render') => {
+          const pendingRelease = pendingReleaseRef.current;
+          if (!pendingRelease || pendingRelease.token !== releaseTokenRef.current) {
+            return;
+          }
+
+          if (completedBy === 'timeline') {
+            pendingRelease.timelineComplete = true;
+          } else {
+            pendingRelease.renderComplete = true;
+          }
+
+          if (!pendingRelease.timelineComplete || !pendingRelease.renderComplete) {
+            return;
+          }
+
+          timelineReleaseControlsRef.current?.stop();
+          renderReleaseControlsRef.current?.stop();
+          pendingReleaseRef.current = null;
+          activationSettleControlsRef.current?.stop();
+          activationSettleControlsRef.current = null;
+          activeSettleKeyRef.current = null;
+          const committedElapsedMs = Math.max(
+            0,
+            Math.min(latestReleaseElapsedRef.current, timelineDuration)
+          );
+          const committedProgress =
+            timelineDuration > 0 ? committedElapsedMs / timelineDuration : 0;
+          dragProgressMotion.set(targetProgress);
+          sharedElapsedMotion.set(committedElapsedMs);
+          debugDrag(`🫳 [Scene ${sceneIndex}] release handshake complete -> commit`, {
+            releaseToken,
+            completedBy,
+            committedElapsedMs: committedElapsedMs.toFixed(1),
+            committedProgress: committedProgress.toFixed(3),
+            direction,
+            timelineDuration,
+            renderProgressAtCommit: targetProgress.toFixed(3),
+            latestTimelineElapsedMs: latestReleaseElapsedRef.current.toFixed(1),
+            snapshotWillTransferToScene:
+              direction === 'forward' ? sceneIndex + 1 : sceneIndex - 1,
+          });
+          onDragCommit?.(direction, committedProgress, committedElapsedMs, timelineDuration);
+          onRenderProgressChange?.(0);
+          setIsAnimating(false);
+        };
+
+        const completeTimelineRelease = () => {
+          if (releaseTokenRef.current !== releaseToken) return;
+          latestReleaseElapsedRef.current = targetElapsedMs;
+          onDragProgressChange?.(targetProgress);
+          onDragTimelineProgressChange?.(1);
+          onSharedElapsedMsChange?.(targetElapsedMs);
+          dragProgressMotion.set(targetProgress);
+          sharedElapsedMotion.set(targetElapsedMs);
+          tryCommitRelease('timeline');
+        };
+
+        const completeRenderRelease = () => {
+          if (releaseTokenRef.current !== releaseToken) return;
+          onRenderProgressChange?.(targetProgress);
+          tryCommitRelease('render');
+        };
+
+        pendingReleaseRef.current = {
+          token: releaseToken,
+          direction,
+          timelineDuration,
+          targetProgress,
+          timelineComplete: false,
+          renderComplete: false,
+          completeTimeline: completeTimelineRelease,
+          completeRender: completeRenderRelease,
+        };
 
         debugDrag(`🫳 [Scene ${sceneIndex}] release scene-travel`, {
           releaseToken,
           fromProgress: currentProgress.toFixed(3),
           fromElapsedMs: currentElapsedMs.toFixed(1),
-          sceneTravelDurationMs: (sceneTravelDuration * 1000).toFixed(1),
+          sceneTravelDurationMs: (renderReleaseDuration * 1000).toFixed(1),
           timelineDuration,
           timelineRemainingDurationMs: (timelineRemainingDuration * 1000).toFixed(1),
         });
@@ -553,10 +664,13 @@ export function useDragSceneEngine({
               }
             }
           },
+          onComplete: () => {
+            completeTimelineRelease();
+          },
         });
 
         renderReleaseControlsRef.current = animate(currentProgress, targetProgress, {
-          duration: sceneTravelDuration,
+          duration: renderReleaseDuration,
           ease: 'easeOut',
           onUpdate: (latest) => {
             if (releaseTokenRef.current !== releaseToken) return;
@@ -575,34 +689,7 @@ export function useDragSceneEngine({
             }
           },
           onComplete: () => {
-            if (releaseTokenRef.current !== releaseToken) return;
-            timelineReleaseControlsRef.current?.stop();
-            renderReleaseControlsRef.current?.stop();
-            activationSettleControlsRef.current?.stop();
-            activationSettleControlsRef.current = null;
-            activeSettleKeyRef.current = null;
-            const committedElapsedMs = Math.max(
-              0,
-              Math.min(latestReleaseElapsedRef.current, timelineDuration)
-            );
-            const committedProgress =
-              timelineDuration > 0 ? committedElapsedMs / timelineDuration : 0;
-            dragProgressMotion.set(targetProgress);
-            sharedElapsedMotion.set(committedElapsedMs);
-            debugDrag(`🫳 [Scene ${sceneIndex}] scene travel complete -> commit`, {
-              releaseToken,
-              committedElapsedMs: committedElapsedMs.toFixed(1),
-              committedProgress: committedProgress.toFixed(3),
-              direction,
-              timelineDuration,
-              renderProgressAtCommit: targetProgress.toFixed(3),
-              latestTimelineElapsedMs: latestReleaseElapsedRef.current.toFixed(1),
-              snapshotWillTransferToScene:
-                direction === 'forward' ? sceneIndex + 1 : sceneIndex - 1,
-            });
-            onDragCommit?.(direction, committedProgress, committedElapsedMs, timelineDuration);
-            onRenderProgressChange?.(0);
-            setIsAnimating(false);
+            completeRenderRelease();
           },
         });
       } else {

@@ -5,11 +5,24 @@
  * **Validates: Requirements 21.1, 21.2, 21.3, 21.4, 21.5, 22.1**
  */
 
-import React from 'react';
+import React, { act } from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CineView, Scene, Animate, Position } from '../../index';
 import type { CineViewRef } from '../../types';
+
+type MockMotionDivProps = React.HTMLAttributes<HTMLDivElement> & {
+  animate?: unknown;
+  drag?: unknown;
+  dragConstraints?: unknown;
+  dragElastic?: unknown;
+  dragMomentum?: unknown;
+  initial?: unknown;
+  onPan?: unknown;
+  onPanEnd?: unknown;
+  onPanStart?: unknown;
+  transition?: unknown;
+};
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
@@ -74,8 +87,28 @@ jest.mock('framer-motion', () => ({
     return { stop: jest.fn() };
   },
   motion: {
-    div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
-      <div {...props}>{children}</div>
+    div: React.forwardRef<HTMLDivElement, MockMotionDivProps>(
+      (
+        {
+          children,
+          animate: _animate,
+          drag: _drag,
+          dragConstraints: _dragConstraints,
+          dragElastic: _dragElastic,
+          dragMomentum: _dragMomentum,
+          initial: _initial,
+          onPan: _onPan,
+          onPanEnd: _onPanEnd,
+          onPanStart: _onPanStart,
+          transition: _transition,
+          ...props
+        },
+        ref
+      ) => (
+        <div ref={ref} {...props}>
+          {children}
+        </div>
+      )
     ),
   },
   AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
@@ -108,12 +141,12 @@ describe('跨平台兼容性测试', () => {
   });
 
   describe('事件监听器注册测试 (Requirements 21.1, 21.2, 21.3)', () => {
-    test('应该在 snap 模式下正确渲染并准备处理触摸和鼠标事件', async () => {
+    test('应该在 drag 模式下正确渲染并准备处理触摸和鼠标事件', async () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene>
@@ -170,8 +203,8 @@ describe('跨平台兼容性测试', () => {
       const HorizontalApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'x', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'x', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene>
@@ -185,8 +218,8 @@ describe('跨平台兼容性测试', () => {
       const VerticalApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene>
@@ -220,8 +253,8 @@ describe('跨平台兼容性测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
           callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
         >
@@ -244,7 +277,9 @@ describe('跨平台兼容性测试', () => {
       });
 
       // 切换到场景 2
-      cineViewRef.current?.goToScene(1, false);
+      act(() => {
+        cineViewRef.current?.goToScene(1, false);
+      });
 
       await waitFor(() => {
         expect(cineViewRef.current?.getCurrentScene()).toBe(1);
@@ -255,7 +290,9 @@ describe('跨平台兼容性测试', () => {
       );
 
       // 切换到场景 3
-      cineViewRef.current?.goToScene(2, false);
+      act(() => {
+        cineViewRef.current?.goToScene(2, false);
+      });
 
       await waitFor(() => {
         expect(cineViewRef.current?.getCurrentScene()).toBe(2);
@@ -266,7 +303,9 @@ describe('跨平台兼容性测试', () => {
       );
 
       // 切换回场景 1
-      cineViewRef.current?.goToScene(0, false);
+      act(() => {
+        cineViewRef.current?.goToScene(0, false);
+      });
 
       await waitFor(() => {
         expect(cineViewRef.current?.getCurrentScene()).toBe(0);
@@ -515,8 +554,8 @@ describe('跨平台兼容性测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene>
@@ -542,22 +581,22 @@ describe('跨平台兼容性测试', () => {
   });
 
   describe('滑动模式兼容性测试', () => {
-    test('应该在 snap 模式下支持场景切换', async () => {
+    test('应该在 drag 模式下支持场景切换', async () => {
       const onAfterSceneChange = jest.fn();
 
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
           callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
         >
           <Scene>
-            <h1>Snap 场景 1</h1>
+            <h1>Drag 场景 1</h1>
           </Scene>
           <Scene>
-            <h1>Snap 场景 2</h1>
+            <h1>Drag 场景 2</h1>
           </Scene>
         </CineView>
       );
@@ -565,11 +604,13 @@ describe('跨平台兼容性测试', () => {
       render(<TestApp />);
 
       await waitFor(() => {
-        expect(screen.getByText('Snap 场景 1')).toBeInTheDocument();
+        expect(screen.getByText('Drag 场景 1')).toBeInTheDocument();
       });
 
       // 使用 API 切换场景
-      cineViewRef.current?.goToScene(1, false);
+      act(() => {
+        cineViewRef.current?.goToScene(1, false);
+      });
 
       await waitFor(() => {
         expect(onAfterSceneChange).toHaveBeenCalledWith(

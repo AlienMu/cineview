@@ -115,8 +115,8 @@ describe('完整滑动流程集成测试', () => {
       return (
         <CineView
           ref={cineViewRef}
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
           callbacks={{
             common: {
@@ -294,8 +294,8 @@ describe('完整滑动流程集成测试', () => {
     const TestApp = () => {
       return (
         <CineView
-          mode="snap"
-          modes={{ snap: { direction: 'y', duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
         >
           <Scene transition={{ enterAnimation: 'fade-in' }}>

@@ -1,13 +1,14 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import { useEffect } from 'react';
 import type { AnimationControls } from 'framer-motion';
-import type { ScrollTimelineState } from '../../types';
+import type { ScrollMode, ScrollTimelineState } from '../../types';
 import type { PresetAnimation } from '../../animations/presets';
+import { interpolateVariant } from '../../utils/animationHelpers';
 import type { ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
 import type { SceneState } from './types';
 
 interface UseScrollSceneEngineParams {
-  slideMode: 'snap' | 'drag' | 'scroll';
+  slideMode: ScrollMode;
   isActive: boolean;
   sceneIndex: number;
   totalScenes: number;
@@ -26,6 +27,29 @@ interface UseScrollSceneEngineParams {
   containerRef: RefObject<HTMLDivElement>;
   scrollSettleTimerRef: MutableRefObject<number | null>;
   setSceneState: Dispatch<SetStateAction<SceneState>>;
+}
+
+const DEFAULT_SCENE_VISUAL_STATE: Record<string, unknown> = {
+  opacity: 1,
+  x: 0,
+  y: 0,
+  scale: 1,
+  rotate: 0,
+};
+
+function isVariantRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function resolveVariantState(
+  variant: unknown,
+  fallback: Record<string, unknown>
+): Record<string, unknown> {
+  return isVariantRecord(variant) ? { ...fallback, ...variant } : fallback;
+}
+
+function clampProgress(value: number): number {
+  return Math.max(0, Math.min(value, 1));
 }
 
 export function useScrollSceneEngine({
@@ -52,7 +76,6 @@ export function useScrollSceneEngine({
   useEffect(() => {
     if (slideMode !== 'scroll') return;
 
-    const stableSceneState = { opacity: 1, x: 0, y: 0, scale: 1 };
     const timelineState = globalScrollTimelineState;
     const transitionDirection = globalScrollTransitionSnapshot?.direction ?? globalScrollDirection;
     const incomingScene =
@@ -64,6 +87,13 @@ export function useScrollSceneEngine({
       sceneStackMode === 'cover' &&
       globalScrollBackdropActive &&
       (sceneOffset === 0 || sceneOffset === -1);
+    const activeSceneState = resolveVariantState(
+      enterVariant?.animate,
+      DEFAULT_SCENE_VISUAL_STATE
+    );
+    const initialSceneState = resolveVariantState(enterVariant?.initial, activeSceneState);
+    const exitedSceneState = resolveVariantState(exitVariant?.exit, activeSceneState);
+    const transitionProgress = clampProgress(globalScrollProgress);
 
     void enterVariant;
     void exitVariant;
@@ -76,36 +106,56 @@ export function useScrollSceneEngine({
     if (!timelineState) {
       if (incomingScene) {
         setSceneState('entering');
+        controls.set(interpolateVariant(initialSceneState, activeSceneState, transitionProgress) as never);
       } else if (outgoingScene || backdropCoveredScene) {
         setSceneState(exitVariant?.exit ? 'exiting' : 'active');
+        controls.set(
+          (exitVariant?.exit
+            ? interpolateVariant(activeSceneState, exitedSceneState, transitionProgress)
+            : activeSceneState) as never
+        );
       } else {
         setSceneState(isActive ? 'active' : 'initial');
+        controls.set((isActive ? activeSceneState : initialSceneState) as never);
       }
-      controls.set(stableSceneState as never);
       return;
     }
 
     if (timelineState.phase === 'before') {
       setSceneState('initial');
-      controls.set(stableSceneState as never);
+      controls.set(initialSceneState as never);
       return;
     }
 
     if (timelineState.phase === 'enter') {
       setSceneState('entering');
-      controls.set(stableSceneState as never);
+      controls.set(
+        interpolateVariant(
+          initialSceneState,
+          activeSceneState,
+          clampProgress(timelineState.enterProgress)
+        ) as never
+      );
       return;
     }
 
     if (timelineState.phase === 'hold') {
       setSceneState('active');
-      controls.set(stableSceneState as never);
+      controls.set(activeSceneState as never);
       return;
     }
 
     if (timelineState.phase === 'exit') {
       setSceneState(exitVariant?.exit ? 'exiting' : 'active');
-      controls.set(stableSceneState as never);
+      controls.set(
+        (exitVariant?.exit
+          ? interpolateVariant(
+              activeSceneState,
+              exitedSceneState,
+              clampProgress(timelineState.exitProgress)
+            )
+          : activeSceneState) as never
+      );
       return;
     }
 
@@ -114,7 +164,7 @@ export function useScrollSceneEngine({
     } else {
       setSceneState(exitVariant?.exit ? 'exiting' : isActive ? 'active' : 'initial');
     }
-    controls.set(stableSceneState as never);
+    controls.set((exitVariant?.exit ? exitedSceneState : activeSceneState) as never);
   }, [
     slideMode,
     isActive,

@@ -21,6 +21,7 @@ export class PerformanceMonitor {
   private readonly memorySampleIntervalMs: number = 1000;
   private lastMemorySampleTime: number = 0;
   private cachedMemoryUsage: number | undefined = undefined;
+  private cachedBundleSizeKb: number = 0;
   private rafId: number | null = null;
   private isMonitoring: boolean = false;
 
@@ -37,6 +38,7 @@ export class PerformanceMonitor {
     this.memorySamples = [];
     this.lastMemorySampleTime = 0;
     this.cachedMemoryUsage = undefined;
+    this.cachedBundleSizeKb = this.estimateBundleSizeKb();
     this.measure();
   }
 
@@ -85,7 +87,7 @@ export class PerformanceMonitor {
         fps: 0,
         avgFrameTime: 0,
         memoryUsage: this.getMemoryUsage(),
-        bundleSize: 0,
+        bundleSize: this.getBundleSizeKb(),
         timestamp: Date.now(),
       };
     }
@@ -100,7 +102,7 @@ export class PerformanceMonitor {
       fps: Math.round(clampedFps * 10) / 10,
       avgFrameTime: Math.round(avgFrameTime * 100) / 100,
       memoryUsage: this.getMemoryUsage(),
-      bundleSize: 0, // Bundle size is determined at build time, not runtime
+      bundleSize: this.getBundleSizeKb(),
       timestamp: Date.now(),
     };
   }
@@ -156,6 +158,46 @@ export class PerformanceMonitor {
     this.lastMemorySampleTime = currentTime;
   }
 
+  private getBundleSizeKb(): number {
+    if (this.cachedBundleSizeKb > 0) {
+      return this.cachedBundleSizeKb;
+    }
+
+    this.cachedBundleSizeKb = this.estimateBundleSizeKb();
+    return this.cachedBundleSizeKb;
+  }
+
+  private estimateBundleSizeKb(): number {
+    if (typeof performance === 'undefined' || typeof performance.getEntriesByType !== 'function') {
+      return 0;
+    }
+
+    const resourceEntries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+    if (resourceEntries.length === 0) {
+      return 0;
+    }
+
+    const bundleBytes = resourceEntries.reduce((total, entry) => {
+      const normalizedName = entry.name.toLowerCase();
+      const isCodeAsset =
+        normalizedName.endsWith('.js') ||
+        normalizedName.endsWith('.mjs') ||
+        normalizedName.endsWith('.css') ||
+        normalizedName.includes('.js?') ||
+        normalizedName.includes('.mjs?') ||
+        normalizedName.includes('.css?');
+
+      if (!isCodeAsset) {
+        return total;
+      }
+
+      const entryBytes = Math.max(entry.decodedBodySize || 0, entry.transferSize || 0);
+      return total + entryBytes;
+    }, 0);
+
+    return Math.round((bundleBytes / 1024) * 10) / 10;
+  }
+
   /**
    * 重置监控数据
    */
@@ -166,6 +208,7 @@ export class PerformanceMonitor {
     this.lastTime = performance.now();
     this.lastMemorySampleTime = 0;
     this.cachedMemoryUsage = undefined;
+    this.cachedBundleSizeKb = this.estimateBundleSizeKb();
   }
 
   /**
