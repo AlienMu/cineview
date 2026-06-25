@@ -9,7 +9,6 @@ export default function App(): JSX.Element {
   if (route === 'drag') {
     return <DragModePage />;
   }
-
   if (route === 'scroll') {
     return <ScrollModePage />;
   }

@@ -19,10 +19,7 @@ import { useSceneManager } from '../../hooks/useSceneManager';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 import { DirectScrollCineView } from './DirectScrollCineView';
-import {
-  getScenePreloadImages,
-  resolveScenePreloadTargetImages,
-} from './preloadTargets';
+import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
 import { CineViewRuntimeContext } from './runtimeContext';
 import {
   SceneScrollRuntimeContext,
@@ -79,11 +76,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function normalizeWheelDeltaPx(
-  delta: number,
-  deltaMode: number,
-  viewportSpan: number
-): number {
+function normalizeWheelDeltaPx(delta: number, deltaMode: number, viewportSpan: number): number {
   if (!Number.isFinite(delta) || delta === 0) {
     return 0;
   }
@@ -165,9 +158,7 @@ function collectScenePreloadPlan(
     return {
       priorityImages: Array.from(
         new Set(
-          scenes.flatMap((scene) =>
-            getScenePreloadImages(scene.props as SceneAuthoringCompatProps)
-          )
+          scenes.flatMap((scene) => getScenePreloadImages(scene.props as SceneAuthoringCompatProps))
         )
       ),
       backgroundImages: [],
@@ -262,15 +253,16 @@ function getRelativeLayoutOffset(
 }
 
 function measureSceneContentHeight(node: HTMLDivElement): number {
-  const nodeStyle =
-    typeof window !== 'undefined' ? window.getComputedStyle(node) : null;
+  const nodeStyle = typeof window !== 'undefined' ? window.getComputedStyle(node) : null;
   const isViewportFillSceneWrapper =
     nodeStyle?.position === 'absolute' &&
     nodeStyle.top === '0px' &&
     nodeStyle.right === '0px' &&
     nodeStyle.bottom === '0px' &&
     nodeStyle.left === '0px';
-  let maxBottom = isViewportFillSceneWrapper ? 1 : Math.max(node.offsetHeight, node.scrollHeight, 1);
+  let maxBottom = isViewportFillSceneWrapper
+    ? 1
+    : Math.max(node.offsetHeight, node.scrollHeight, 1);
   const descendants = node.querySelectorAll<HTMLElement>('*');
 
   descendants.forEach((element) => {
@@ -430,7 +422,7 @@ export function resolveActiveViewportId(
 /**
  * CineView 组件实现
  */
-const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
+const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
   const { config, mode, modes, scrollbar, callbacks, performance, children } = props;
 
   const { designWidth, designHeight, unit } = resolveDesignDimensions(config);
@@ -470,9 +462,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
   const totalScenes = scenes.length;
   const resolvedRootMode = useMemo<ScrollMode>(() => resolveRootMode(mode), [mode]);
-  if (resolvedRootMode === 'scroll') {
-    return <DirectScrollCineView {...props} ref={ref} />;
-  }
   const isRootScrollMode = false;
   const resolvedScrollConfig = useMemo<ScrollModeConfig>(
     () => ({
@@ -515,6 +504,25 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         message,
         context,
       });
+    },
+    []
+  );
+
+  // Like emitError, but the detail carries preventDefault(). Returns true when
+  // the consumer called it (i.e. took over handling), so the caller can skip
+  // its default fallback. Used by the first-scene timeout path.
+  const emitRecoverableError = useCallback(
+    (code: string, message: string, context?: Record<string, unknown>): boolean => {
+      let defaultPrevented = false;
+      resolvedCallbacksRef.current.common?.onError?.({
+        code,
+        message,
+        context,
+        preventDefault: () => {
+          defaultPrevented = true;
+        },
+      });
+      return defaultPrevented;
     },
     []
   );
@@ -652,10 +660,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
             previousState.active === nextState.active &&
             previousState.direction === nextState.direction &&
             previousState.sceneIndex === nextState.sceneIndex &&
-            areResolvedSceneScrollSequencesEqual(
-              previousState.sequence,
-              nextState.sequence
-            )
+            areResolvedSceneScrollSequencesEqual(previousState.sequence, nextState.sequence)
           );
         });
 
@@ -726,7 +731,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     let consumedBudget = 0;
 
     return segments.map((segment) => {
-      const globalStart = clamp(segment.anchorOffset + consumedBudget, minVirtualScroll, Number.MAX_SAFE_INTEGER);
+      const globalStart = clamp(
+        segment.anchorOffset + consumedBudget,
+        minVirtualScroll,
+        Number.MAX_SAFE_INTEGER
+      );
       const globalEnd = globalStart + segment.budget;
       consumedBudget += segment.budget;
 
@@ -783,11 +792,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
         minVirtualScroll,
         maxGlobalScroll
       ),
-    [
-      maxGlobalScroll,
-      minVirtualScroll,
-      resolveUnclampedGlobalOffsetForVisualOffset,
-    ]
+    [maxGlobalScroll, minVirtualScroll, resolveUnclampedGlobalOffsetForVisualOffset]
   );
 
   const syncScrollTimelineFromGlobalOffset = useCallback(
@@ -819,7 +824,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       }
 
       if (!activeZoneId) {
-        visualOffset = clamp(clampedGlobalOffset - consumedBudget, minVirtualScroll, maxVirtualScroll);
+        visualOffset = clamp(
+          clampedGlobalOffset - consumedBudget,
+          minVirtualScroll,
+          maxVirtualScroll
+        );
       }
 
       const previousStates = zoneStatesRef.current;
@@ -847,7 +856,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
           active,
           direction:
             active || progressPx !== state.progressPx
-              ? directionHint ?? state.direction
+              ? (directionHint ?? state.direction)
               : state.direction,
         };
       });
@@ -993,7 +1002,8 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
     zoneRegistryRef.current.forEach((meta, zoneId) => {
       const registrations =
-        zoneAnimationsRef.current.get(zoneId) ?? new Map<string, SceneScrollAnimationRegistration>();
+        zoneAnimationsRef.current.get(zoneId) ??
+        new Map<string, SceneScrollAnimationRegistration>();
       const sequence = resolveSceneScrollAnimationBudgets(registrations);
       const previous = zoneStatesRef.current[zoneId];
       nextStates[zoneId] = {
@@ -1015,11 +1025,7 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       return;
     }
     syncScrollTimelineFromGlobalOffset(nativeScrollOffsetRef.current, virtualScrollDirection);
-  }, [
-    isRootScrollMode,
-    syncScrollTimelineFromGlobalOffset,
-    virtualScrollDirection,
-  ]);
+  }, [isRootScrollMode, syncScrollTimelineFromGlobalOffset, virtualScrollDirection]);
 
   const registerZone = useCallback(
     (
@@ -1066,7 +1072,8 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   const registerZoneAnimation = useCallback(
     (zoneId: string, animation: SceneScrollAnimationRegistration) => {
       const zoneAnimations =
-        zoneAnimationsRef.current.get(zoneId) ?? new Map<string, SceneScrollAnimationRegistration>();
+        zoneAnimationsRef.current.get(zoneId) ??
+        new Map<string, SceneScrollAnimationRegistration>();
       zoneAnimations.set(animation.animateId, animation);
       zoneAnimationsRef.current.set(zoneId, zoneAnimations);
       syncZoneStates();
@@ -1162,9 +1169,8 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     renderProgress,
     isDragging,
     isScrolling,
-    sharedElapsedMs,
     sharedTimelineDurationMs,
-    dragTransitionSnapshot,
+    dragRelease,
     scrollTransitionSnapshot,
   } = sceneState;
 
@@ -1752,6 +1758,34 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
 
   const [scrollBackdropSceneIndex, setScrollBackdropSceneIndex] = useState<number | null>(null);
 
+  // Mirror live preload counts into a ref so the first-scene enter driver can
+  // read them for the timeout error context WITHOUT depending on them — they
+  // keep changing as background images load, and depending on them would
+  // re-run the driver effect and stop() an in-flight enter animation.
+  const preloadCountsRef = useRef({ loadedCount: 0, totalCount: 0 });
+  preloadCountsRef.current = {
+    loadedCount: preloadState.loadedCount,
+    totalCount: preloadState.totalCount,
+  };
+
+  // First-screen cold-start enter (two-track model). In drag mode the first
+  // scene holds at its initial (pre-enter) visual until its priority assets are
+  // ready, then plays a single enter pass. The ANIMATE now lives in scene 0's
+  // own useElementTrack (single writer of its element track); CineView only
+  // coordinates the GATING: it owns `firstSceneEnterActive` (the window flag
+  // read by useAnimateDrag to keep the scene at its enter lerp instead of
+  // snapping to rest) and `firstSceneEnterReady` (the trigger that tells scene
+  // 0's driver to start 0->T). Extend-on-growth + the warm-cache race are gone
+  // here — they are now scene-local (the driver reads its own always-current
+  // getTimelineDuration()).
+  const [firstSceneEnterActive, setFirstSceneEnterActive] = useState<boolean>(
+    () => resolvedRootMode === 'drag'
+  );
+  const [firstSceneEnterReady, setFirstSceneEnterReady] = useState<boolean>(false);
+  const firstSceneEnterRanRef = useRef(false);
+  const firstSceneTimeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstSceneTimeoutMs = Math.max(0, modes?.drag?.firstSceneTimeout ?? 3000);
+
   // 初始化
   useEffect(() => {
     // Validates Requirement 26.5: Capture ref value before cleanup function
@@ -1784,6 +1818,116 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, resolvedPerformance.monitor]); // 只在组件挂载时执行一次
+
+  // First-screen cold-start enter driver. Runs once: when the first scene's
+  // priority assets settle (preloadState.priorityComplete), drive the shared
+  // timeline 0->duration so the first scene plays a single enter pass via the
+  // firstSceneEnterActive window in useAnimateDrag. If the assets do not settle
+  // within firstSceneTimeoutMs, emit a recoverable FIRST_SCENE_TIMEOUT error;
+  // unless the consumer calls preventDefault(), fall back to a static reveal
+  // (clear firstSceneEnterActive so the scene rests at its final visual).
+  useEffect(() => {
+    if (resolvedRootMode !== 'drag') return;
+    if (firstSceneEnterRanRef.current) return;
+
+    const firstSceneElement = scenes[0];
+    if (!firstSceneElement) return;
+
+    // Two-track model: CineView no longer owns the cold-start tween. It only
+    // GATES it. Scene 0's own useElementTrack runs the 0->T enter (and the
+    // extend-on-growth re-target) once `firstSceneEnterReady` turns on — the
+    // single-writer rule means the scene drives its own element track. CineView's
+    // job here is: detect ready (priority assets) / timeout / preventDefault /
+    // static reveal, flip the window flag + the ready trigger, and fire the
+    // public onFirstSceneReady signal. No animate() lives here anymore.
+    const startEnter = (fromPreload: boolean): void => {
+      firstSceneEnterRanRef.current = true;
+      if (firstSceneTimeoutTimerRef.current) {
+        clearTimeout(firstSceneTimeoutTimerRef.current);
+        firstSceneTimeoutTimerRef.current = null;
+      }
+      resolvedCallbacksRef.current.common?.onFirstSceneReady?.({
+        sceneIndex: 0,
+        fromPreload,
+      });
+      // Turn on the ready trigger — scene 0's useElementTrack starts its 0->T
+      // enter. The window flag stays on until that enter completes
+      // (onColdStartComplete -> handleFirstSceneEnterComplete).
+      setFirstSceneEnterReady(true);
+    };
+
+    const settleStatically = (): void => {
+      // Default timeout fallback: no enter animation, just reveal the scene at
+      // its terminal (rest) visual. Clear the window so useAnimateDrag rests.
+      firstSceneEnterRanRef.current = true;
+      setFirstSceneEnterReady(false);
+      setFirstSceneEnterActive(false);
+    };
+
+    if (preloadState.priorityComplete) {
+      startEnter(true);
+      return;
+    }
+
+    if (firstSceneTimeoutTimerRef.current === null) {
+      firstSceneTimeoutTimerRef.current = setTimeout(() => {
+        firstSceneTimeoutTimerRef.current = null;
+        if (firstSceneEnterRanRef.current) return;
+        firstSceneEnterRanRef.current = true;
+        const handled = emitRecoverableError(
+          'FIRST_SCENE_TIMEOUT',
+          `First scene priority assets did not load within ${firstSceneTimeoutMs}ms.`,
+          {
+            sceneIndex: 0,
+            timeoutMs: firstSceneTimeoutMs,
+            loadedCount: preloadCountsRef.current.loadedCount,
+            totalCount: preloadCountsRef.current.totalCount,
+          }
+        );
+        // Consumer took over (e.g. retry UI): leave the first scene at its
+        // initial visual (window stays on, ready stays off) and let them drive
+        // recovery. Otherwise fall back to a static reveal so the page is usable.
+        if (!handled) {
+          settleStatically();
+        }
+      }, firstSceneTimeoutMs);
+    }
+
+    return (): void => {
+      if (firstSceneTimeoutTimerRef.current) {
+        clearTimeout(firstSceneTimeoutTimerRef.current);
+        firstSceneTimeoutTimerRef.current = null;
+      }
+    };
+  }, [
+    resolvedRootMode,
+    preloadState.priorityComplete,
+    scenes,
+    firstSceneTimeoutMs,
+    emitRecoverableError,
+  ]);
+
+  // Scene 0's cold-start enter reached T: clear the window so useAnimateDrag
+  // resolves the scene to rest. Wired to scene 0's onColdStartComplete via the
+  // dragRuntime.onActivationComplete path.
+  const handleFirstSceneEnterComplete = useCallback(() => {
+    setFirstSceneEnterActive(false);
+  }, []);
+
+  // If the user grabs the first scene while its cold-start enter is still
+  // playing, the scene's own useElementTrack already stops its in-flight enter
+  // animate (single writer reacting to the drag). CineView just clears the
+  // window + ready trigger so the gesture fully owns the element track.
+  useEffect(() => {
+    if (!isDragging) return;
+    firstSceneEnterRanRef.current = true;
+    if (firstSceneTimeoutTimerRef.current) {
+      clearTimeout(firstSceneTimeoutTimerRef.current);
+      firstSceneTimeoutTimerRef.current = null;
+    }
+    setFirstSceneEnterReady(false);
+    setFirstSceneEnterActive(false);
+  }, [isDragging]);
 
   useEffect(() => {
     const signature = `${priorityImages.join('|')}::${backgroundImages.join('|')}`;
@@ -1917,7 +2061,9 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       let nextValue = resolveGlobalOffsetForVisualOffset(layout.sceneStart);
 
       if (options?.align === 'center' && meta.element && containerRef.current) {
-        const segment = resolveZoneGlobalSegments().find((candidate) => candidate.zoneId === zoneId);
+        const segment = resolveZoneGlobalSegments().find(
+          (candidate) => candidate.zoneId === zoneId
+        );
         if (segment) {
           nextValue = segment.globalStart;
         } else {
@@ -2017,7 +2163,10 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       timelineDuration?: number
     ) => {
       const activeSceneIndex = isRootScrollMode ? scrollActiveSceneIndex : currentScene;
-      const elapsedMs = Math.max(0, committedElapsedMs ?? sharedElapsedMs);
+      // Two-track model: there is no global element scalar to read. The engine
+      // passes the committed elapsed (for the public onDragCommit callback only);
+      // the element timeline itself lives on each scene's own track.
+      const elapsedMs = Math.max(0, committedElapsedMs ?? 0);
       const targetSceneIndex =
         direction === 'forward' ? activeSceneIndex + 1 : activeSceneIndex - 1;
       const normalizedDragProgress = Math.max(
@@ -2077,7 +2226,6 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
       resolvedRootMode,
       scenes,
       scrollActiveSceneIndex,
-      sharedElapsedMs,
       dragTimelineProgress,
       scrollProgress,
     ]
@@ -2178,25 +2326,34 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
           currentSceneIndex: effectiveCurrentScene,
           transitionDirection: direction,
           isSceneAnimating: isAnimating,
-          sharedElapsedMs,
           sharedTimelineDurationMs,
           viewportWidth,
           viewportHeight,
         },
+        globalFirstSceneEnterActive: firstSceneEnterActive && index === 0,
+        globalFirstSceneEnterReady: firstSceneEnterReady && index === 0,
         dragRuntime: {
           progress: dragProgress,
           renderProgress,
           timelineProgress: dragTimelineProgress,
           isDragging,
-          transitionSnapshot: dragTransitionSnapshot,
+          release: dragRelease,
           onCommit: handleSceneChange,
           onReset: sceneActions.resetDragInteraction,
-          onActivationComplete: sceneActions.clearDragTransitionSnapshot,
+          // Both the incoming scene's release-settle completion AND scene 0's
+          // cold-start completion fire onActivationComplete. For a scene-change
+          // settle this defers onSceneDidChange via completeDragTransition; for
+          // the cold-start it clears the first-scene window. The two are
+          // mutually exclusive per scene instance, so route by which one this is.
+          onActivationComplete:
+            index === 0 && firstSceneEnterActive
+              ? handleFirstSceneEnterComplete
+              : sceneActions.completeDragTransition,
           onProgressChange: sceneActions.setDragProgress,
           onRenderProgressChange: sceneActions.setRenderProgress,
           onTimelineProgressChange: sceneActions.setDragTimelineProgress,
-          onSharedElapsedMsChange: sceneActions.setSharedElapsedMs,
           onDraggingChange: sceneActions.setIsDragging,
+          onRelease: sceneActions.setDragRelease,
           onSharedTimelineDurationChange: sceneActions.setSharedTimelineDurationMs,
         },
         scrollRuntime: {
@@ -2252,9 +2409,11 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
     isScrolling,
     virtualScrolling,
     virtualScrollDirection,
-    sharedElapsedMs,
     sharedTimelineDurationMs,
-    dragTransitionSnapshot,
+    dragRelease,
+    firstSceneEnterActive,
+    firstSceneEnterReady,
+    handleFirstSceneEnterComplete,
     scrollTransitionSnapshot,
     direction,
     isAnimating,
@@ -2343,33 +2502,42 @@ const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) =>
   return (
     <CineViewProvider designWidth={designWidth} designHeight={designHeight} unit={unit}>
       <CineViewRuntimeContext.Provider value={{ mode: resolvedRootMode }}>
-      <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
-        <div
-          ref={containerRef}
-          style={containerStyle}
-          className="cineview-container"
-          data-cineview-container="true"
-        >
-          {isRootScrollMode ? (
-            <div
-              style={{
-                position: 'relative',
-                width: resolvedScrollDirection === 'x' ? nativeScrollSpan : '100%',
-                height: resolvedScrollDirection === 'x' ? '100%' : nativeScrollSpan,
-              }}
-            >
-              <div style={{ ...scrollViewportShellStyle, ...sceneViewportStyle }}>
-                <div style={scrollTrackStyle}>{renderScenes()}</div>
+        <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
+          <div
+            ref={containerRef}
+            style={containerStyle}
+            className="cineview-container"
+            data-cineview-container="true"
+          >
+            {isRootScrollMode ? (
+              <div
+                style={{
+                  position: 'relative',
+                  width: resolvedScrollDirection === 'x' ? nativeScrollSpan : '100%',
+                  height: resolvedScrollDirection === 'x' ? '100%' : nativeScrollSpan,
+                }}
+              >
+                <div style={{ ...scrollViewportShellStyle, ...sceneViewportStyle }}>
+                  <div style={scrollTrackStyle}>{renderScenes()}</div>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div style={sceneViewportStyle}>{renderScenes()}</div>
-          )}
-        </div>
-      </SceneScrollRuntimeContext.Provider>
+            ) : (
+              <div style={sceneViewportStyle}>{renderScenes()}</div>
+            )}
+          </div>
+        </SceneScrollRuntimeContext.Provider>
       </CineViewRuntimeContext.Provider>
     </CineViewProvider>
   );
+});
+
+DragCineViewComponent.displayName = 'CineViewDrag';
+
+const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
+  if (resolveRootMode(props.mode) === 'scroll') {
+    return <DirectScrollCineView {...props} ref={ref} />;
+  }
+  return <DragCineViewComponent {...props} ref={ref} />;
 });
 
 CineViewComponent.displayName = 'CineView';

@@ -6,35 +6,23 @@
 
 import React, { useEffect, useRef, useState, useContext, createContext, useMemo } from 'react';
 import { motion, MotionValue, useAnimation } from 'framer-motion';
-import type {
-  AnimateProps,
-  ParsedAnimationVariant,
-  ScrollMode,
-  ScrollTimelineState,
-} from '../../types';
-import { DEFAULT_ANIMATION_DURATION } from '../../types';
+import type { ParsedAnimationVariant, ScrollMode, ScrollTimelineState } from '../../types';
+import type { AnimateRegistrationInfo } from '../../animations/registry';
 import { parseAnimationSafely } from '../../utils/animationHelpers';
 import { useAnimateDrag } from './useAnimateDrag';
 import { useAnimateScroll } from './useAnimateScroll';
-import type { DragTransitionSnapshot, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
+import {
+  normalizeAnimateSemantics,
+  type AnimateInternalProps,
+  type NormalizedAnimateTimeline,
+} from './animateSemantics';
+import type { DragRelease, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
 import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTimelineContext,
   SceneScrollTakeoverContext,
 } from '../Scene/sceneScrollRuntime';
-
-interface AnimateLegacyCompatProps {
-  enterDuration?: number;
-  exitDuration?: number;
-  delay?: number;
-  waitFor?: string;
-  scrollDriven?: boolean;
-  scrollPhaseStart?: number;
-  scrollPhaseEnd?: number;
-}
-
-export type AnimateInternalProps = AnimateProps & AnimateLegacyCompatProps;
 
 export type SceneRuntimeState =
   | 'inactive'
@@ -45,7 +33,7 @@ export type SceneRuntimeState =
   | 'parked';
 
 // Scene Context
-export interface SceneContextType {
+export interface SceneBaseRuntimeContext {
   mode: ScrollMode;
   isActive: boolean;
   isVisible?: boolean;
@@ -53,115 +41,52 @@ export interface SceneContextType {
   runtimeState?: SceneRuntimeState;
   isSceneAnimating?: boolean;
   transitionDirection?: 'forward' | 'backward' | null;
+  sceneState: 'initial' | 'entering' | 'active' | 'exiting';
+  sceneOffset: number;
+  sceneTransitionDuration: number;
+  getTimelineDuration?: () => number;
+  enterDuration: number;
+}
 
-  // drag 模式专用
+export interface SceneDragRuntimeContext {
   isDragging: boolean;
   dragProgressMotion: MotionValue<number>;
   dragTimelineProgress?: number;
+  // The per-scene element track (elapsed ms of THIS scene's enter timeline),
+  // owned and driven by the scene's own useElementTrack. This is the UNIFIED
+  // enter source read by useAnimateDrag (incoming / active-settle / cold-start).
   sharedElapsedMotion?: MotionValue<number>;
   renderProgress?: number;
+  // Read-only release directive (two-track model). useAnimateDrag reads only its
+  // `mode` to decide whether the post-commit active scene is still entering.
+  dragRelease?: DragRelease | null;
+  sharedTimelineDurationMs?: number;
+  // True only while the first mounted scene is playing its one-shot cold-start
+  // enter animation, driven by the scene's own element track once first-screen
+  // priority images are ready. Lets the active offset-0 scene resolve through the
+  // enter lerp path instead of snapping straight to rest.
+  firstSceneEnterActive?: boolean;
+}
+
+export interface SceneScrollRuntimeBridgeContext {
   scrollProgress?: number;
   isScrolling?: boolean;
   scrollDirection?: 'forward' | 'backward' | null;
   scrollTimelineState?: ScrollTimelineState | null;
   scrollActiveSceneIndex?: number;
-
-  // 场景状态机
-  sceneState: 'initial' | 'entering' | 'active' | 'exiting';
-
-  sceneOffset: number;
-  dragTransitionSnapshot?: DragTransitionSnapshot | null;
   scrollTransitionSnapshot?: ScrollTransitionSnapshot | null;
-  sharedElapsedMs?: number;
-  sharedTimelineDurationMs?: number;
-  sceneTransitionDuration: number; // 🎯 Task 1.10: 场景切换时长（ms）
-  getTimelineDuration?: () => number;
+}
+
+export interface SceneAnimationRegistryContext {
   registerAnimate: (id: string, info: AnimateRegistrationInfo) => void;
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (id: string) => number;
-  enterDuration: number;
 }
 
-export interface AnimateRegistrationInfo {
-  delay: number;
-  duration: number;
-  waitFor?: string;
-}
-
-export interface NormalizedAnimateTimeline {
-  driver: 'auto' | 'scene' | 'scroll' | 'visibility';
-  delay: number;
-  waitFor?: string;
-  zoneId?: string;
-  phase?: {
-    start?: number;
-    end?: number;
-  };
-}
-
-export interface NormalizedAnimateVisibility {
-  replayOnReenter: boolean;
-  enterWhen: 'fully-visible-bottom';
-  exitWhen: 'leaving-top';
-}
-
-function normalizeAnimateSemantics({
-  duration,
-  timeline,
-  visibility,
-  enterDuration,
-  exitDuration,
-  delay,
-  waitFor,
-  scrollDriven,
-  scrollPhaseStart,
-  scrollPhaseEnd,
-}: Pick<
-  AnimateInternalProps,
-  | 'duration'
-  | 'timeline'
-  | 'visibility'
-  | 'enterDuration'
-  | 'exitDuration'
-  | 'delay'
-  | 'waitFor'
-  | 'scrollDriven'
-  | 'scrollPhaseStart'
-  | 'scrollPhaseEnd'
->): {
-  duration: {
-    enter: number;
-    exit: number;
-  };
-  timeline: NormalizedAnimateTimeline;
-  visibility: NormalizedAnimateVisibility;
-} {
-  const normalizedDriver =
-    timeline?.driver ??
-    (scrollDriven === undefined ? 'auto' : scrollDriven ? 'scroll' : 'visibility');
-
-  return {
-    duration: {
-      enter: duration?.enter ?? enterDuration ?? DEFAULT_ANIMATION_DURATION,
-      exit: duration?.exit ?? exitDuration ?? DEFAULT_ANIMATION_DURATION,
-    },
-    timeline: {
-      driver: normalizedDriver,
-      delay: timeline?.delay ?? delay ?? 0,
-      waitFor: timeline?.waitFor ?? waitFor,
-      zoneId: timeline?.zoneId,
-      phase: {
-        start: timeline?.phase?.start ?? scrollPhaseStart,
-        end: timeline?.phase?.end ?? scrollPhaseEnd,
-      },
-    },
-    visibility: {
-      replayOnReenter: visibility?.replayOnReenter ?? true,
-      enterWhen: visibility?.enterWhen ?? 'fully-visible-bottom',
-      exitWhen: visibility?.exitWhen ?? 'leaving-top',
-    },
-  };
-}
+export type SceneContextType = SceneBaseRuntimeContext &
+  SceneDragRuntimeContext &
+  SceneScrollRuntimeBridgeContext &
+  SceneAnimationRegistryContext;
 
 export const SceneContext = createContext<SceneContextType | null>(null);
 

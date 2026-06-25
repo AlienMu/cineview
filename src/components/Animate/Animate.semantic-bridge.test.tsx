@@ -102,7 +102,6 @@ describe('Animate semantic bridge', () => {
       dragTimelineProgress: 0,
       renderProgress: 0,
       sharedTimelineDurationMs: 800,
-      sharedElapsedMs: 0,
     });
 
     render(

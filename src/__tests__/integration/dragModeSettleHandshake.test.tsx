@@ -285,7 +285,14 @@ describe('drag mode settle handshake', () => {
     completedAnimations.number = 0;
   });
 
-  it('does not commit when render release finishes before timeline settle', async () => {
+  // The release now has a SINGLE lane: the page-slide (render lane, a plain
+  // number animation). It is the sole commit trigger and runs on the
+  // scene-transition timescale, decoupled from the element timeline (delay +
+  // duration). When it completes, the scene commits at the release ratio and the
+  // incoming scene's activation-settle continues the element timeline to 100% at
+  // natural rate (continuous cross-commit completion). See task-flow
+  // 2026-06-24-drag-delay-page-decoupling.
+  it('commits the scene change when the page-slide (render) lane completes', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
 
@@ -297,25 +304,19 @@ describe('drag mode settle handshake', () => {
     const activeSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     dragUp(activeSceneSurface, 620, 120);
 
+    // Before the page-slide finishes, the scene has not changed.
     expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    expect(onSceneDidChange).not.toHaveBeenCalled();
 
+    // Completing the render (page-slide) lane alone commits the scene change.
     await flushPendingNumberAnimations();
 
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    expect(onSceneDidChange).not.toHaveBeenCalled();
-
-    await flushPendingObjectAnimations();
-
-    // Both lanes complete → commit at partial progress.
-    // Scene changes, onSceneDidChange deferred (needsSettleCompletion=true).
     await waitFor(() => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
   });
 
-  it('commits only after both timeline settle and render release complete', async () => {
+  it('defers onSceneDidChange until the incoming element timeline continuation settles', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
 
@@ -326,21 +327,28 @@ describe('drag mode settle handshake', () => {
     const activeSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     dragUp(activeSceneSurface, 620, 120);
 
-    await flushPendingObjectAnimations();
-
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    expect(onSceneDidChange).not.toHaveBeenCalled();
-
+    // Page-slide completes -> scene index advances at the partial release ratio.
     await flushPendingNumberAnimations();
-
-    // Both lanes complete → commit at partial progress.
     await waitFor(() => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
-      expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
+
+    // ...but the partial release created a settle snapshot, so onSceneDidChange
+    // is deferred until the incoming scene's activation-settle continuation
+    // (a motion-value animation) finishes the element timeline to 100%.
+    expect(onSceneDidChange).not.toHaveBeenCalled();
+
+    await flushPendingObjectAnimations();
+
+    await waitFor(() => {
+      expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+    });
+    expect(onSceneDidChange).toHaveBeenCalledWith(
+      expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+    );
   });
 
-  it('completes both interrupted release tracks once and ignores stale callbacks', async () => {
+  it('finalizes a pending release on a new drag start and commits once', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
 
@@ -348,39 +356,37 @@ describe('drag mode settle handshake', () => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(0);
     });
 
+    // Drain the spec-mandated first-screen cold-start enter (a SEPARATE lane —
+    // now the scene-0 element track, a motion-value animation — unrelated to the
+    // release path) so the counters below measure only the release lanes.
+    await flushPendingObjectAnimations();
+    await flushPendingNumberAnimations();
+    completedAnimations.number = 0;
+    completedAnimations.motionValue = 0;
+
     const firstSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     dragUp(firstSceneSurface, 620, 120);
 
+    // Release in flight: page-slide not yet complete, scene unchanged.
     expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    expect(onSceneDidChange).not.toHaveBeenCalled();
 
-    await flushPendingNumberAnimations();
+    // Start a new drag before the page-slide finishes -> handleDragStart
+    // finalizes the pending release (flushes the render lane) and commits once.
+    const pendingSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
+    fireEvent.mouseDown(pendingSurface, { clientX: 375, clientY: 620 });
 
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    expect(onSceneDidChange).not.toHaveBeenCalled();
-    expect(completedAnimations.motionValue).toBe(0);
-    expect(completedAnimations.number).toBe(1);
-
-    const firstPendingSceneSurface = document.querySelector(
-      '[data-scene-index="0"] > *'
-    ) as HTMLElement;
-    fireEvent.mouseDown(firstPendingSceneSurface, { clientX: 375, clientY: 620 });
-
-    // handleDragStart flushes both pending releases → commit at partial progress.
-    // Scene changes immediately. onSceneDidChange is deferred (needsSettleCompletion).
     await waitFor(() => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
 
-    expect(completedAnimations.motionValue).toBe(1);
-    // render release is NOT stopped in the new tryCommitRelease path,
-    // so it may complete once more when flushed by handleDragStart.
-    expect(completedAnimations.number).toBeGreaterThanOrEqual(1);
-
+    // Finish the incoming continuation; the change callback fires exactly once.
     await flushPendingObjectAnimations();
     await flushPendingNumberAnimations();
 
     expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    await waitFor(() => {
+      expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+    });
   });
 });

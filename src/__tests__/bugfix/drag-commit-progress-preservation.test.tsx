@@ -1,20 +1,20 @@
 /**
- * Drag Settle Progress Continuity — Targeted Progress Assertion Tests
+ * Two-track commit contract (2026-06-25, supersedes the single-scalar settle
+ * snapshot model).
  *
- * Task flow: 2026-06-11-drag-release-progress-settle
- *
- * These tests verify that:
- * 1. commitDragSceneChange preserves dragTimelineProgress and sharedElapsedMs
- *    instead of resetting to 0 (production path through useSceneManager).
- * 2. The settle animation (dragTransitionSnapshot) conveys the correct progress
- *    to the target scene so it can continue from the drag-end position.
+ * commitDragSceneChange advances the scene index ONLY — it does not build a
+ * snapshot, does not carry an elapsed/timeline scalar, and DEFERS onAfterChange.
+ * The incoming scene drives its own element track and calls
+ * completeDragTransition when that track reaches T, which fires the deferred
+ * onAfterChange. These tests exercise that production path through
+ * useSceneManager directly.
  */
 
 import { act, renderHook } from '@testing-library/react';
 import { useSceneManager } from '../../hooks/useSceneManager';
 
-describe('commitDragSceneChange progress continuity', () => {
-  it('preserves dragTimelineProgress after partial commit (0.6 → settle needed)', () => {
+describe('commitDragSceneChange two-track behaviour', () => {
+  it('advances the scene index and defers onAfterChange after a partial commit', () => {
     const onBeforeChange = jest.fn();
     const onAfterChange = jest.fn();
 
@@ -30,49 +30,64 @@ describe('commitDragSceneChange progress continuity', () => {
 
     act(() => {
       const [, actions] = result.current;
-      // Simulate drag to 60% and commit. The settle should continue from 60%.
       actions.setDragProgress(0.6);
       actions.setDragTimelineProgress(0.6);
       actions.setRenderProgress(0.6);
-      actions.setSharedElapsedMs(480);
-      actions.setSharedTimelineDurationMs(800);
       actions.setIsDragging(true);
-      actions.commitDragSceneChange('forward', 0.6, 480, 800);
+      actions.commitDragSceneChange('forward', 0.6);
     });
 
     const [state] = result.current;
 
-    // Scene changed to target
+    // Scene advanced to target.
     expect(state.currentScene).toBe(2);
     expect(state.direction).toBe('forward');
 
-    // Drag/reset state is cleared
+    // Drag/render state is cleared at commit.
     expect(state.dragProgress).toBe(0);
     expect(state.renderProgress).toBe(0);
     expect(state.isDragging).toBe(false);
 
-    // KEY: Timeline progress and shared elapsed MUST be preserved
-    expect(state.dragTimelineProgress).toBe(0.6);
-    expect(state.sharedElapsedMs).toBe(480);
-    expect(state.sharedTimelineDurationMs).toBe(800);
+    // No global element-timeline scalar / snapshot exists in the two-track model.
+    expect(state.dragRelease).toBeNull();
 
-    // KEY: Snapshot must exist so the target scene can settle from 60% → 100%
-    expect(state.dragTransitionSnapshot).not.toBeNull();
-    expect(state.dragTransitionSnapshot).toEqual({
-      fromScene: 1,
-      toScene: 2,
-      direction: 'forward',
-      progressRatio: 0.6,
-      sharedElapsedMs: 480,
-      sharedTimelineDurationMs: 800,
-    });
-
-    // onAfterChange should NOT be called yet (settle is pending)
+    // onAfterChange is DEFERRED until the incoming scene's element track settles.
+    expect(onBeforeChange).toHaveBeenCalledWith(1, 2);
     expect(onAfterChange).not.toHaveBeenCalled();
   });
 
-  it('does NOT create snapshot when commit is at full progress (100% → no settle needed)', () => {
-    const onBeforeChange = jest.fn();
+  it('fires onAfterChange exactly once when completeDragTransition runs', () => {
+    const onAfterChange = jest.fn();
+
+    const { result } = renderHook(() =>
+      useSceneManager({
+        totalScenes: 3,
+        initialScene: 1,
+        mode: 'drag',
+        onAfterChange,
+      })
+    );
+
+    act(() => {
+      const [, actions] = result.current;
+      actions.commitDragSceneChange('forward', 0.6);
+    });
+
+    expect(onAfterChange).not.toHaveBeenCalled();
+
+    act(() => {
+      const [, actions] = result.current;
+      actions.completeDragTransition();
+    });
+
+    const [state] = result.current;
+    expect(state.dragRelease).toBeNull();
+    expect(state.dragTimelineProgress).toBe(0);
+    expect(onAfterChange).toHaveBeenCalledTimes(1);
+    expect(onAfterChange).toHaveBeenCalledWith(2, 1);
+  });
+
+  it('does not fire onAfterChange at commit for a full-progress release either (always deferred)', () => {
     const onAfterChange = jest.fn();
 
     const { result } = renderHook(() =>
@@ -80,52 +95,28 @@ describe('commitDragSceneChange progress continuity', () => {
         totalScenes: 3,
         initialScene: 0,
         mode: 'drag',
-        onBeforeChange,
         onAfterChange,
       })
     );
 
     act(() => {
       const [, actions] = result.current;
-      actions.commitDragSceneChange('forward', 1, 800, 800);
+      actions.commitDragSceneChange('forward', 1);
     });
 
     const [state] = result.current;
-
     expect(state.currentScene).toBe(1);
-    expect(state.dragTimelineProgress).toBe(1);
-    expect(state.sharedElapsedMs).toBe(800);
-    // No settle needed: snapshot is null
-    expect(state.dragTransitionSnapshot).toBeNull();
-    // onAfterChange should be called immediately (no settle pending)
-    expect(onAfterChange).toHaveBeenCalledWith(1, 0);
-  });
-
-  it('creates snapshot at 0% progress so target scene can settle from beginning', () => {
-    const { result } = renderHook(() =>
-      useSceneManager({
-        totalScenes: 3,
-        initialScene: 0,
-        mode: 'drag',
-      })
-    );
+    // Deferred regardless of release ratio: the incoming scene owns completion.
+    expect(onAfterChange).not.toHaveBeenCalled();
 
     act(() => {
       const [, actions] = result.current;
-      actions.commitDragSceneChange('forward', 0, 0, 800);
+      actions.completeDragTransition();
     });
-
-    const [state] = result.current;
-    // 0% progress means settle starts from beginning — snapshot is still created
-    // to convey the clean handoff to the target scene.
-    expect(state.dragTransitionSnapshot).not.toBeNull();
-    expect(state.dragTransitionSnapshot?.progressRatio).toBe(0);
-    expect(state.dragTransitionSnapshot?.sharedElapsedMs).toBe(0);
-    expect(state.dragTimelineProgress).toBe(0);
-    expect(state.sharedElapsedMs).toBe(0);
+    expect(onAfterChange).toHaveBeenCalledWith(1, 0);
   });
 
-  it('preserves backward commit progress (reverse drag settle)', () => {
+  it('preserves backward commit direction', () => {
     const onBeforeChange = jest.fn();
 
     const { result } = renderHook(() =>
@@ -139,51 +130,13 @@ describe('commitDragSceneChange progress continuity', () => {
 
     act(() => {
       const [, actions] = result.current;
-      actions.commitDragSceneChange('backward', 0.4, 320, 800);
+      actions.commitDragSceneChange('backward', 0.4);
     });
 
     const [state] = result.current;
-
     expect(state.currentScene).toBe(1);
     expect(state.direction).toBe('backward');
     expect(state.dragTimelineProgress).toBe(0.4);
-    expect(state.sharedElapsedMs).toBe(320);
-    expect(state.dragTransitionSnapshot).not.toBeNull();
-    expect(state.dragTransitionSnapshot?.progressRatio).toBe(0.4);
-    expect(state.dragTransitionSnapshot?.direction).toBe('backward');
-  });
-
-  it('clears snapshot and calls onAfterChange when settle completes (clearDragTransitionSnapshot)', () => {
-    const onAfterChange = jest.fn();
-
-    const { result } = renderHook(() =>
-      useSceneManager({
-        totalScenes: 3,
-        initialScene: 1,
-        mode: 'drag',
-        onAfterChange,
-      })
-    );
-
-    // First commit (creates snapshot)
-    act(() => {
-      const [, actions] = result.current;
-      actions.commitDragSceneChange('forward', 0.6, 480, 800);
-    });
-
-    let [state] = result.current;
-    expect(state.dragTransitionSnapshot).not.toBeNull();
-
-    // Then clear the snapshot (settle complete)
-    act(() => {
-      const [, actions] = result.current;
-      actions.clearDragTransitionSnapshot();
-    });
-
-    [state] = result.current;
-    expect(state.dragTransitionSnapshot).toBeNull();
-    expect(state.dragTimelineProgress).toBe(0);
-    expect(state.sharedElapsedMs).toBe(0);
-    expect(onAfterChange).toHaveBeenCalledWith(2, 1);
+    expect(onBeforeChange).toHaveBeenCalledWith(2, 1);
   });
 });

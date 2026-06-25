@@ -2,11 +2,8 @@ import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MotionValue, useMotionValue, useTransform } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
-import type {
-  NormalizedAnimateTimeline,
-  NormalizedAnimateVisibility,
-  SceneContextType,
-} from './Animate';
+import type { SceneContextType } from './Animate';
+import type { NormalizedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
 import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
 
 interface UseAnimateScrollParams {
@@ -300,8 +297,7 @@ export function useAnimateScroll({
     const enterEndTravelPx = waitFor ? delayPx + enterWindowPx : enterWindowPx;
     const enterProgress = hasExplicitEnter
       ? clamp(
-          (travelPx - enterStartTravelPx) /
-            Math.max(enterEndTravelPx - enterStartTravelPx, 1),
+          (travelPx - enterStartTravelPx) / Math.max(enterEndTravelPx - enterStartTravelPx, 1),
           0,
           1
         )
@@ -324,11 +320,7 @@ export function useAnimateScroll({
       return;
     }
 
-    const exitProgress = clamp(
-      (travelPx - exitStartTravelPx) / Math.max(exitWindowPx, 1),
-      0,
-      1
-    );
+    const exitProgress = clamp((travelPx - exitStartTravelPx) / Math.max(exitWindowPx, 1), 0, 1);
     visualMotion.set(exitProgress > 0 ? -exitProgress : -VISIBILITY_EXIT_EPSILON);
     setShouldRunInfiniteState(false);
   }, [
@@ -550,7 +542,8 @@ export function useAnimateScroll({
     let animationFrame: number | null = null;
     const requestFrame =
       window.requestAnimationFrame?.bind(window) ??
-      ((callback: FrameRequestCallback): number => window.setTimeout(() => callback(Date.now()), 16));
+      ((callback: FrameRequestCallback): number =>
+        window.setTimeout(() => callback(Date.now()), 16));
     const cancelFrame =
       window.cancelAnimationFrame?.bind(window) ??
       ((handle: number): void => window.clearTimeout(handle));
@@ -614,9 +607,7 @@ export function useAnimateScroll({
       );
       const hasEntered = hasExplicitEnter ? progressPx >= phaseEndPx - 0.5 : progressPx > 0.5;
       const beforeExit =
-        !budget.hasExit ||
-        budget.exitStartPx === null ||
-        progressPx <= budget.exitStartPx + 0.5;
+        !budget.hasExit || budget.exitStartPx === null || progressPx <= budget.exitStartPx + 0.5;
 
       setShouldRunInfiniteState(hasEntered && beforeExit);
       return;

@@ -462,8 +462,8 @@ describe('useSceneManager', () => {
     });
   });
 
-  describe('drag snapshot state', () => {
-    it('should commit drag scene change and persist transition snapshot', () => {
+  describe('drag release state (two-track model)', () => {
+    it('should commit drag scene change and DEFER onAfterChange until the transition completes', () => {
       const onBeforeChange = jest.fn();
       const onAfterChange = jest.fn();
 
@@ -482,10 +482,10 @@ describe('useSceneManager', () => {
         actions.setDragProgress(0.6);
         actions.setDragTimelineProgress(0.6);
         actions.setRenderProgress(0.6);
-        actions.setSharedElapsedMs(480);
-        actions.setSharedTimelineDurationMs(800);
         actions.setIsDragging(true);
-        actions.commitDragSceneChange('forward', 0.6, 480, 800);
+        // Two-track commit advances the scene index only; the incoming scene's
+        // element track continues independently. No elapsed/snapshot is built.
+        actions.commitDragSceneChange('forward', 0.6);
       });
 
       const [state] = result.current;
@@ -495,22 +495,14 @@ describe('useSceneManager', () => {
       expect(state.dragProgress).toBe(0);
       expect(state.renderProgress).toBe(0);
       expect(state.isDragging).toBe(false);
-      expect(state.dragTimelineProgress).toBe(0.6);
-      expect(state.sharedElapsedMs).toBe(480);
-      expect(state.sharedTimelineDurationMs).toBe(800);
-      expect(state.dragTransitionSnapshot).toEqual({
-        fromScene: 1,
-        toScene: 2,
-        direction: 'forward',
-        progressRatio: 0.6,
-        sharedElapsedMs: 480,
-        sharedTimelineDurationMs: 800,
-      });
+      // No global element-timeline scalar / snapshot exists anymore.
+      expect(state.dragRelease).toBeNull();
       expect(onBeforeChange).toHaveBeenCalledWith(1, 2);
+      // Deferred: onAfterChange fires later via completeDragTransition.
       expect(onAfterChange).not.toHaveBeenCalled();
     });
 
-    it('should clear drag transition snapshot and shared timeline state', () => {
+    it('should fire onAfterChange when completeDragTransition is called by the incoming scene', () => {
       const onAfterChange = jest.fn();
       const { result } = renderHook(() =>
         useSceneManager({
@@ -523,21 +515,105 @@ describe('useSceneManager', () => {
 
       act(() => {
         const [, actions] = result.current;
-        actions.commitDragSceneChange('forward', 0.75, 600, 800);
+        actions.commitDragSceneChange('forward', 0.75);
       });
+
+      // Deferred until the incoming scene's element track reaches T.
+      expect(onAfterChange).not.toHaveBeenCalled();
 
       act(() => {
         const [, actions] = result.current;
-        actions.clearDragTransitionSnapshot();
+        actions.completeDragTransition();
       });
 
       const [state] = result.current;
       expect(state.dragProgress).toBe(0);
       expect(state.dragTimelineProgress).toBe(0);
-      expect(state.sharedElapsedMs).toBe(0);
-      expect(state.sharedTimelineDurationMs).toBe(0);
-      expect(state.dragTransitionSnapshot).toBeNull();
+      expect(state.dragRelease).toBeNull();
+      expect(state.direction).toBeNull();
       expect(onAfterChange).toHaveBeenCalledWith(2, 1);
+    });
+
+    it('fires onAfterChange once when the element settle completes BEFORE the render commit (order-independent join)', () => {
+      // Regression: in the CineView path the page-slide (render lane) runs on a
+      // fixed slideDuration (~800ms) while the incoming scene's element settle
+      // runs on its own T_self. When T_self < slideDuration the element track
+      // reaches T — and fires completeDragTransition — BEFORE the render lane
+      // commits. The deferred onSceneDidChange must still fire exactly once; the
+      // two arms form an order-independent join, not a settle-arrives-second
+      // assumption.
+      const onAfterChange = jest.fn();
+      const { result } = renderHook(() =>
+        useSceneManager({ totalScenes: 4, initialScene: 1, mode: 'drag', onAfterChange })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        // Outgoing scene publishes the settle directive at release (before commit).
+        actions.setDragRelease({ mode: 'settle', direction: 'forward', targetSceneIndex: 2 });
+      });
+
+      act(() => {
+        const [, actions] = result.current;
+        // Incoming scene's element track reaches T FIRST → settle arm arrives
+        // before the render-lane commit arm.
+        actions.completeDragTransition();
+      });
+
+      // Render commit has not happened yet → the deferred callback waits.
+      expect(onAfterChange).not.toHaveBeenCalled();
+
+      act(() => {
+        const [, actions] = result.current;
+        // Render lane finishes → commit advances the scene index and closes the join.
+        actions.commitDragSceneChange('forward', 0.6);
+      });
+
+      const [state] = result.current;
+      expect(state.currentScene).toBe(2);
+      // direction / dragRelease are cleared at the JOIN, not prematurely by the
+      // settle arm while the page was still sliding.
+      expect(state.direction).toBeNull();
+      expect(state.dragRelease).toBeNull();
+      expect(onAfterChange).toHaveBeenCalledTimes(1);
+      expect(onAfterChange).toHaveBeenCalledWith(2, 1);
+    });
+
+    it('should publish a tokenized release directive via setDragRelease', () => {
+      const { result } = renderHook(() =>
+        useSceneManager({ totalScenes: 4, initialScene: 1, mode: 'drag' })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragRelease({ mode: 'settle', direction: 'forward', targetSceneIndex: 2 });
+      });
+
+      let [state] = result.current;
+      expect(state.dragRelease).not.toBeNull();
+      expect(state.dragRelease).toMatchObject({
+        mode: 'settle',
+        direction: 'forward',
+        targetSceneIndex: 2,
+      });
+      const firstToken = state.dragRelease?.token;
+      expect(typeof firstToken).toBe('number');
+
+      // A second publish gets a higher token (monotonic, StrictMode-safe).
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragRelease({ mode: 'bounce', direction: 'forward', targetSceneIndex: 2 });
+      });
+      [state] = result.current;
+      expect(state.dragRelease?.token).toBeGreaterThan(firstToken as number);
+
+      // Clearing sets it back to null.
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragRelease(null);
+      });
+      [state] = result.current;
+      expect(state.dragRelease).toBeNull();
     });
 
     it('should reset drag interaction state without changing the current scene', () => {
@@ -554,9 +630,8 @@ describe('useSceneManager', () => {
         actions.setDragProgress(0.4);
         actions.setDragTimelineProgress(0.4);
         actions.setRenderProgress(0.4);
-        actions.setSharedElapsedMs(320);
-        actions.setSharedTimelineDurationMs(800);
         actions.setIsDragging(true);
+        actions.setDragRelease({ mode: 'settle', direction: 'forward', targetSceneIndex: 3 });
         actions.resetDragInteraction();
       });
 
@@ -565,10 +640,8 @@ describe('useSceneManager', () => {
       expect(state.dragProgress).toBe(0);
       expect(state.dragTimelineProgress).toBe(0);
       expect(state.renderProgress).toBe(0);
-      expect(state.sharedElapsedMs).toBe(0);
-      expect(state.sharedTimelineDurationMs).toBe(0);
       expect(state.isDragging).toBe(false);
-      expect(state.dragTransitionSnapshot).toBeNull();
+      expect(state.dragRelease).toBeNull();
     });
 
     it('should reset drag interaction when a committed target scene is out of bounds', () => {
@@ -584,7 +657,7 @@ describe('useSceneManager', () => {
         const [, actions] = result.current;
         actions.setDragProgress(0.8);
         actions.setIsDragging(true);
-        actions.commitDragSceneChange('forward', 0.8, 640, 800);
+        actions.commitDragSceneChange('forward', 0.8);
       });
 
       const [state] = result.current;
@@ -593,10 +666,8 @@ describe('useSceneManager', () => {
       expect(state.isAnimating).toBe(false);
       expect(state.dragProgress).toBe(0);
       expect(state.dragTimelineProgress).toBe(0);
-      expect(state.sharedElapsedMs).toBe(0);
-      expect(state.sharedTimelineDurationMs).toBe(0);
       expect(state.isDragging).toBe(false);
-      expect(state.dragTransitionSnapshot).toBeNull();
+      expect(state.dragRelease).toBeNull();
     });
   });
 

@@ -1362,10 +1362,10 @@ describe('Scene Component', () => {
           mode="drag"
           isActive={true}
           enterAnimation={{
-            keyframes: { opacity: 1, transform: 'translateY(0px)' },
+            animate: { opacity: 1, transform: 'translateY(0px)' },
           }}
           exitAnimation={{
-            keyframes: { opacity: 0, transform: 'translateY(100px)' },
+            exit: { opacity: 0, transform: 'translateY(100px)' },
           }}
         >
           <div>Test Content</div>
@@ -1396,10 +1396,10 @@ describe('Scene Component', () => {
           mode="drag"
           isActive={true}
           enterAnimation={{
-            keyframes: { opacity: 1, color: 'red' },
+            animate: { opacity: 1, color: 'red' },
           }}
           exitAnimation={{
-            keyframes: { opacity: 0, color: 'blue' },
+            exit: { opacity: 0, color: 'blue' },
           }}
         >
           <div>Test Content</div>
@@ -1657,11 +1657,7 @@ describe('Additional Branch Coverage Tests', () => {
   describe('interpolateVariant string handling', () => {
     it('should handle string values with px units in drag mode', async () => {
       const exitAnimation: AnimationType = {
-        keyframes: [
-          { transform: 'translateY(0px)', opacity: 1 },
-          { transform: 'translateY(-100px)', opacity: 0 },
-        ],
-        options: { duration: 1000 },
+        exit: { transform: 'translateY(-100px)', opacity: 0, transition: { duration: 1 } },
       };
 
       renderScene(
@@ -1725,10 +1721,10 @@ describe('Additional Scene Branch Coverage Tests', () => {
           mode="drag"
           isActive={true}
           enterAnimation={{
-            keyframes: { opacity: 1, visibility: 'visible' },
+            animate: { opacity: 1, visibility: 'visible' },
           }}
           exitAnimation={{
-            keyframes: { opacity: 0, visibility: 'hidden' },
+            exit: { opacity: 0, visibility: 'hidden' },
           }}
         >
           <div>Test Content</div>
@@ -1760,10 +1756,10 @@ describe('Additional Scene Branch Coverage Tests', () => {
           mode="drag"
           isActive={true}
           enterAnimation={{
-            keyframes: { opacity: 1, visibility: 'visible' },
+            animate: { opacity: 1, visibility: 'visible' },
           }}
           exitAnimation={{
-            keyframes: { opacity: 0, visibility: 'hidden' },
+            exit: { opacity: 0, visibility: 'hidden' },
           }}
         >
           <div>Test Content</div>
@@ -2194,7 +2190,7 @@ describe('Comprehensive Branch Coverage Tests', () => {
           mode="drag"
           isActive={true}
           exitAnimation={{
-            keyframes: { opacity: 0, scale: 0.5 },
+            exit: { opacity: 0, scale: 0.5 },
           }}
         >
           <div>Test Content</div>
@@ -2225,12 +2221,10 @@ describe('Comprehensive Branch Coverage Tests', () => {
           mode="drag"
           isActive={true}
           enterAnimation={{
-            keyframes: { opacity: 1 },
-            options: { duration: 500 },
+            animate: { opacity: 1, transition: { duration: 0.5 } },
           }}
           exitAnimation={{
-            keyframes: { opacity: 0 },
-            options: { duration: 500 },
+            exit: { opacity: 0, transition: { duration: 0.5 } },
           }}
         >
           <div>Test Content</div>
@@ -2332,8 +2326,7 @@ describe('Interpolation Function Coverage', () => {
         <Scene
           mode="drag"
           exitAnimation={{
-            keyframes: [{ transform: 'translateY(0px)' }, { transform: 'translateY(100px)' }],
-            options: { duration: 500 },
+            exit: { transform: 'translateY(100px)', transition: { duration: 0.5 } },
           }}
           isActive={true}
           sceneIndex={0}
@@ -2364,11 +2357,7 @@ describe('Interpolation Function Coverage', () => {
         <Scene
           mode="drag"
           exitAnimation={{
-            keyframes: [
-              { opacity: 1, visibility: 'visible' },
-              { opacity: 0, visibility: 'hidden' },
-            ],
-            options: { duration: 500 },
+            exit: { opacity: 0, visibility: 'hidden', transition: { duration: 0.5 } },
           }}
           isActive={true}
           sceneIndex={0}
@@ -2398,11 +2387,7 @@ describe('Interpolation Function Coverage', () => {
         <Scene
           mode="drag"
           exitAnimation={{
-            keyframes: [
-              { opacity: 1, transform: 'translateY(0px)' },
-              { opacity: 0, transform: 'translateY(100px)' },
-            ],
-            options: { duration: 500 },
+            exit: { opacity: 0, transform: 'translateY(100px)', transition: { duration: 0.5 } },
           }}
           isActive={true}
           sceneIndex={0}

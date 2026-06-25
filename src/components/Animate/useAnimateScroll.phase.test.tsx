@@ -2,7 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
-import type { SceneScrollRuntimeContextValue, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
+import type {
+  SceneScrollRuntimeContextValue,
+  SceneScrollTimelineState,
+} from '../Scene/sceneScrollRuntime';
 import { CineViewRuntimeContext } from '../CineView/runtimeContext';
 
 const animationControlsRegistry: Array<{
@@ -266,7 +269,10 @@ function createReplayZoneRuntime(
   };
 }
 
-function createSharedPhaseRuntime(progressPx: number, version: number): SceneScrollRuntimeContextValue {
+function createSharedPhaseRuntime(
+  progressPx: number,
+  version: number
+): SceneScrollRuntimeContextValue {
   return {
     version,
     zoneStates: {
@@ -457,7 +463,9 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       expect(screen.getByTestId('motion-div')).toBeInTheDocument();
     });
 
-    const host = document.querySelector('[data-cineview-animate-host="visibility-probe"]') as HTMLElement;
+    const host = document.querySelector(
+      '[data-cineview-animate-host="visibility-probe"]'
+    ) as HTMLElement;
     Object.defineProperty(window, 'innerHeight', {
       configurable: true,
       value: 1000,
@@ -929,10 +937,12 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         expect(
           animationControlsRegistry.some((controls) =>
             controls.start.mock.calls.some(([payload]) =>
-              expect.objectContaining({
-                opacity: expect.anything(),
-                transition: expect.objectContaining({ repeat: Infinity }),
-              }).asymmetricMatch(payload)
+              expect
+                .objectContaining({
+                  opacity: expect.anything(),
+                  transition: expect.objectContaining({ repeat: Infinity }),
+                })
+                .asymmetricMatch(payload)
             )
           )
         ).toBe(true);
@@ -962,9 +972,9 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       await waitFor(() => {
         expect(readMotionOpacity()).toBeGreaterThan(0);
         expect(readMotionOpacity()).toBeLessThan(1);
-        expect(animationControlsRegistry.some((controls) => controls.stop.mock.calls.length > 0)).toBe(
-          true
-        );
+        expect(
+          animationControlsRegistry.some((controls) => controls.stop.mock.calls.length > 0)
+        ).toBe(true);
       });
     } finally {
       Object.defineProperty(window, 'innerHeight', {
@@ -976,7 +986,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
   it('lets waitFor-derived delay override the default center-complete visibility timing', async () => {
     const originalInnerHeight = window.innerHeight;
-    let hostRect = createHostRect(300, 700);
+    const hostRect = createHostRect(300, 700);
     const sceneContext = createScrollSceneContext();
     sceneContext.getCalculatedDelay = jest.fn(() => 5000);
 

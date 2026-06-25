@@ -27,6 +27,9 @@ export interface UseImagePreloaderState {
   totalCount: number;
   results: ImageLoadResult[];
   errors: Map<string, Error>;
+  // True once every first-screen priority image has settled (loaded or errored).
+  // Drives the first-scene enter animation independently of background images.
+  priorityComplete: boolean;
 }
 
 export interface UseImagePreloaderActions {
@@ -67,6 +70,7 @@ export const useImagePreloader = (
   const [totalCount, setTotalCount] = useState<number>(priorityUrls.length + backgroundUrls.length);
   const [results, setResults] = useState<ImageLoadResult[]>([]);
   const [errors, setErrors] = useState<Map<string, Error>>(new Map());
+  const [priorityComplete, setPriorityComplete] = useState<boolean>(false);
 
   const priorityQueueRef = useRef<string[]>([...priorityUrls]);
   const backgroundQueueRef = useRef<string[]>([...backgroundUrls]);
@@ -96,7 +100,9 @@ export const useImagePreloader = (
 
     const currentPriority = new Set(priorityQueueRef.current);
     const currentBackground = new Set(backgroundQueueRef.current);
-    const filtered = incoming.filter((url) => !currentPriority.has(url) && !currentBackground.has(url));
+    const filtered = incoming.filter(
+      (url) => !currentPriority.has(url) && !currentBackground.has(url)
+    );
 
     if (filtered.length === 0) {
       return;
@@ -180,6 +186,7 @@ export const useImagePreloader = (
       setLoadedCount(0);
       setResults([]);
       setErrors(new Map());
+      setPriorityComplete(false);
       processedRunUrlsRef.current = new Set();
       runLoadedCountRef.current = 0;
       runTotalCountRef.current = 0;
@@ -190,7 +197,8 @@ export const useImagePreloader = (
         loadedUrlsRef.current,
         processedRunUrlsRef.current
       );
-      const initialTotal = initialBatches.priorityBatch.length + initialBatches.backgroundBatch.length;
+      const initialTotal =
+        initialBatches.priorityBatch.length + initialBatches.backgroundBatch.length;
       runTotalCountRef.current = initialTotal;
       setTotalCount(initialTotal);
 
@@ -198,10 +206,21 @@ export const useImagePreloader = (
         updateProgress(0, 0);
         if (activeRunIdRef.current === runId) {
           setIsLoading(false);
+          setPriorityComplete(true);
         }
         loadingRef.current = false;
         onCompleteRef.current?.([]);
         return;
+      }
+
+      // First-screen priority URLs captured at run start. priorityComplete
+      // fires once every one of these has settled (loaded or errored), which
+      // gates the first-scene enter animation independently of background
+      // images. URLs added later via addUrls do not affect this signal.
+      const initialPriorityUrls = new Set(initialBatches.priorityBatch);
+      let priorityCompleteFired = initialPriorityUrls.size === 0;
+      if (priorityCompleteFired) {
+        setPriorityComplete(true);
       }
 
       const loadResults: ImageLoadResult[] = [];
@@ -232,9 +251,17 @@ export const useImagePreloader = (
         }
 
         updateProgress(runLoadedCountRef.current, runTotalCountRef.current);
+
+        if (!priorityCompleteFired) {
+          initialPriorityUrls.delete(url);
+          if (initialPriorityUrls.size === 0) {
+            priorityCompleteFired = true;
+            setPriorityComplete(true);
+          }
+        }
       };
 
-      while (true) {
+      for (;;) {
         const { priorityBatch, backgroundBatch } = syncRunTotals();
         if (priorityBatch.length === 0 && backgroundBatch.length === 0) {
           break;
@@ -302,6 +329,7 @@ export const useImagePreloader = (
     setTotalCount(priorityQueueRef.current.length + backgroundQueueRef.current.length);
     setResults([]);
     setErrors(new Map());
+    setPriorityComplete(false);
     loadedUrlsRef.current.clear();
     processedRunUrlsRef.current.clear();
     runLoadedCountRef.current = 0;
@@ -311,25 +339,27 @@ export const useImagePreloader = (
   }, []);
 
   // 添加新的 URL
-  const addUrls = useCallback((urls: string[], priority: boolean = false) => {
-    enqueueUrls(urls, priority);
+  const addUrls = useCallback(
+    (urls: string[], priority: boolean = false) => {
+      enqueueUrls(urls, priority);
 
-    const { priorityBatch, backgroundBatch } = resolvePendingBatches(
-      priorityQueueRef.current,
-      backgroundQueueRef.current,
-      loadedUrlsRef.current,
-      processedRunUrlsRef.current
-    );
-    const nextTotal =
-      loadingRef.current
+      const { priorityBatch, backgroundBatch } = resolvePendingBatches(
+        priorityQueueRef.current,
+        backgroundQueueRef.current,
+        loadedUrlsRef.current,
+        processedRunUrlsRef.current
+      );
+      const nextTotal = loadingRef.current
         ? runLoadedCountRef.current + priorityBatch.length + backgroundBatch.length
         : priorityBatch.length + backgroundBatch.length;
 
-    if (loadingRef.current) {
-      runTotalCountRef.current = nextTotal;
-    }
-    setTotalCount(nextTotal);
-  }, [enqueueUrls]);
+      if (loadingRef.current) {
+        runTotalCountRef.current = nextTotal;
+      }
+      setTotalCount(nextTotal);
+    },
+    [enqueueUrls]
+  );
 
   // 组件卸载时清理
   useEffect(() => {
@@ -352,6 +382,7 @@ export const useImagePreloader = (
     totalCount,
     results,
     errors,
+    priorityComplete,
   };
 
   const actions: UseImagePreloaderActions = {

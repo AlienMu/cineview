@@ -25,8 +25,8 @@ describe('Animation Trigger Bug Fixes', () => {
       const { container } = render(
         <CineView
           config={{ width: 750, height: 1334, unit: 'px' }}
-          mode="snap"
-          modes={{ snap: { duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { transitionDuration: 500 } }}
           callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
         >
           <Scene>
@@ -60,8 +60,8 @@ describe('Animation Trigger Bug Fixes', () => {
       const { container } = render(
         <CineView
           config={{ width: 750, height: 1334, unit: 'px' }}
-          mode="snap"
-          modes={{ snap: { duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { transitionDuration: 500 } }}
         >
           <Scene assets={{ preloadImages: ['https://example.com/image.jpg'] }}>
             <Animate enterAnimation="fade-in" duration={{ enter: 300 }}>
@@ -92,8 +92,8 @@ describe('Animation Trigger Bug Fixes', () => {
             </button>
             <CineView
               config={{ width: 750, height: 1334, unit: 'px' }}
-              mode="snap"
-              modes={{ snap: { duration: 500 } }}
+              mode="drag"
+              modes={{ drag: { transitionDuration: 500 } }}
             >
               <Scene>
                 <Animate
@@ -152,8 +152,8 @@ describe('Animation Trigger Bug Fixes', () => {
             </button>
             <CineView
               config={{ width: 750, height: 1334, unit: 'px' }}
-              mode="snap"
-              modes={{ snap: { duration: 500 } }}
+              mode="drag"
+              modes={{ drag: { transitionDuration: 500 } }}
             >
               <Scene>
                 <Animate
@@ -211,8 +211,8 @@ describe('Animation Trigger Bug Fixes', () => {
       const { container } = render(
         <CineView
           config={{ width: 750, height: 1334, unit: 'px' }}
-          mode="snap"
-          modes={{ snap: { duration: 500 } }}
+          mode="drag"
+          modes={{ drag: { transitionDuration: 500 } }}
         >
           <Scene>
             <Animate

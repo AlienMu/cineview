@@ -157,6 +157,8 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建拖拽分页
 8. WHERE scroll 元素未处于带 `scroll` takeover 配置的 `Scene` 内，THE framework SHALL 在开发环境报警告
 9. THE exported Animate authoring declaration SHALL 优先暴露 `duration`、`timeline`、`visibility`，而不是 `enterDuration`、`delay`、`waitFor`、`scrollDriven` 这类扁平 legacy props
 10. WHERE Animate 位于带 `Scene.scroll` 的 scene 内且未显式声明 driver，THE framework SHALL 默认将其视为 scroll-driven
+11. THE CustomAnimation SHALL use a Framer Motion variant subset with optional `initial`、`animate`、`exit` fields
+12. THE CustomAnimation SHALL NOT accept Web Animations API `keyframes/options` as the public custom animation shape
 
 ### 需求 9: Scroll 时间轴与真实滚动距离
 
@@ -363,6 +365,9 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建拖拽分页
 3. THE public API 层 SHALL 与 runtime 层分离
 4. THE 同一业务逻辑字段 SHALL 聚合到同一个对象中，而不是在多个组件顶层平铺
 5. THE 代码 SHALL 通过 ESLint、Prettier 和 TypeScript 严格模式检查
+6. THE Animate legacy flat props SHALL be normalized in an internal adapter layer rather than inside the render component body
+7. THE animation runtime context SHALL separate base scene state, drag timeline state, scroll bridge state, and animation registry ownership at the type/module boundary
+8. THE animation registry SHALL be testable as a pure module and SHALL report missing dependencies, duplicate ids, and circular waitFor chains deterministically
 
 ### 需求 22: 测试覆盖率
 

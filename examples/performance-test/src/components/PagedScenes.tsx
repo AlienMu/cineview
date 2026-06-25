@@ -52,8 +52,18 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
           <StagePill index={index} section={section} />
         </Position>
         <Position at={{ x: 104, y: 190 }}>
-          <Animate animateId={`drag-${section.id}-copy`} enterAnimation="slide-up" duration={{ enter: 760, exit: 360 }}>
-            <SectionCopy maxWidth={540} section={section} titleSize={index === 0 ? 'hero' : 'large'} />
+          <Animate
+            exitAnimation="zoom-out"
+            animateId={`drag-${section.id}-copy`}
+            enterAnimation="slide-up"
+            timeline={{ delay: 2000 }}
+            duration={{ enter: 760, exit: 360 }}
+          >
+            <SectionCopy
+              maxWidth={540}
+              section={section}
+              titleSize={index === 0 ? 'hero' : 'large'}
+            />
           </Animate>
         </Position>
         <Position at={{ x: 820, y: 154 }}>
@@ -89,7 +99,12 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
           <StagePill index={index} section={section} />
         </Position>
         <Position at={{ x: 96, y: 194 }}>
-          <Animate animateId={`drag-${section.id}-copy`} enterAnimation="slide-right" duration={{ enter: 720, exit: 340 }}>
+          <Animate
+            animateId={`drag-${section.id}-copy`}
+            timeline={{ delay: 100, waitFor: `drag-${section.id}-media` }}
+            enterAnimation="slide-right"
+            duration={{ enter: 720, exit: 340 }}
+          >
             <div style={{ width: 430 }}>
               <SectionCopy maxWidth={430} section={section} titleSize="medium" />
             </div>
@@ -110,10 +125,14 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
             animateId={`drag-${section.id}-details`}
             enterAnimation="rotate-in"
             duration={{ enter: 720, exit: 340 }}
-            timeline={{ delay: 180 }}
+            timeline={{ delay: 0, waitFor: `drag-${section.id}-copy` }}
           >
             <div style={{ width: 260 }}>
-              <DetailList accent={section.accent} items={section.secondaryPoints} title="Crew notes" />
+              <DetailList
+                accent={section.accent}
+                items={section.secondaryPoints}
+                title="Crew notes"
+              />
             </div>
           </Animate>
         </Position>
@@ -139,7 +158,11 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
         <StagePill index={index} section={section} />
       </Position>
       <Position at={{ x: 364, y: 160 }}>
-        <Animate animateId={`drag-${section.id}-copy`} enterAnimation="zoom-in" duration={{ enter: 700, exit: 320 }}>
+        <Animate
+          animateId={`drag-${section.id}-copy`}
+          enterAnimation="zoom-in"
+          duration={{ enter: 700, exit: 320 }}
+        >
           <SectionCopy align="center" maxWidth={720} section={section} titleSize="large" />
         </Animate>
       </Position>
@@ -181,12 +204,6 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
   );
 }
 
-function StagePill({
-  index,
-  section,
-}: {
-  index: number;
-  section: ExperienceSection;
-}): JSX.Element {
+function StagePill({ index, section }: { index: number; section: ExperienceSection }): JSX.Element {
   return <LabPill>{`${String(index + 1).padStart(2, '0')} / ${section.eyebrow}`}</LabPill>;
 }

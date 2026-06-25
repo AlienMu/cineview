@@ -33,14 +33,19 @@ function warnSceneManager(message: string): void {
   console.warn(`[useSceneManager] ${message}`);
 }
 
-export interface DragTransitionSnapshot {
-  fromScene: number;
-  toScene: number;
+// Two-track model (2026-06-25): the element timeline no longer lives in a single
+// global scalar handed across the commit. Instead the outgoing scene's release
+// publishes ONE read-only release directive; each incoming Scene instance owns
+// and drives its own element track in response. `dragRelease` is that directive
+// — a single-writer input, NOT a shared timeline value.
+export interface DragRelease {
+  token: number;
+  mode: 'settle' | 'bounce';
   direction: 'forward' | 'backward';
-  progressRatio: number;
-  sharedElapsedMs: number;
-  sharedTimelineDurationMs: number;
+  targetSceneIndex: number;
 }
+
+export type DragReleaseInput = Omit<DragRelease, 'token'>;
 
 export interface ScrollTransitionSnapshot {
   fromScene: number;
@@ -72,9 +77,8 @@ export interface SceneManagerState {
   renderProgress: number;
   isDragging: boolean; // 新增：是否正在拖拽
   isScrolling: boolean;
-  sharedElapsedMs: number;
   sharedTimelineDurationMs: number;
-  dragTransitionSnapshot: DragTransitionSnapshot | null;
+  dragRelease: DragRelease | null;
   scrollTransitionSnapshot: ScrollTransitionSnapshot | null;
 }
 
@@ -91,19 +95,19 @@ export interface SceneManagerActions {
   setScrollDirection: (direction: 'forward' | 'backward' | null) => void;
   setScrollTransitionSnapshot: (snapshot: ScrollTransitionSnapshot | null) => void;
   setRenderProgress: (progress: number) => void;
-  setSharedElapsedMs: (elapsedMs: number) => void;
   setIsDragging: (dragging: boolean) => void; // 新增：设置拖拽状态
   setIsScrolling: (scrolling: boolean) => void;
   setSharedTimelineDurationMs: (duration: number) => void;
+  setDragRelease: (release: DragReleaseInput | null) => void;
   resetDragInteraction: () => void;
   resetScrollInteraction: () => void;
   commitDragSceneChange: (
     direction: 'forward' | 'backward',
     progressRatio: number,
-    elapsedMs: number,
+    elapsedMs?: number,
     timelineDuration?: number
   ) => void;
-  clearDragTransitionSnapshot: () => void;
+  completeDragTransition: () => void;
   commitScrollSceneChange: (direction: 'forward' | 'backward', progressRatio: number) => void;
   clearScrollTransitionSnapshot: () => void;
 }
@@ -125,17 +129,80 @@ export const useSceneManager = (
   const [renderProgress, setRenderProgress] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isScrolling, setIsScrolling] = useState<boolean>(false);
-  const [sharedElapsedMs, setSharedElapsedMs] = useState<number>(0);
+  // KEEP: still reported up to CineView (harmless) so cold-start/registry growth
+  // diagnostics keep working. It is NOT the element timeline value anymore — each
+  // Scene owns its own element track via useElementTrack.
   const [sharedTimelineDurationMs, setSharedTimelineDurationMs] = useState<number>(0);
-  const [dragTransitionSnapshot, setDragTransitionSnapshot] =
-    useState<DragTransitionSnapshot | null>(null);
+  // Two-track model: the single read-only release directive published by the
+  // outgoing scene's release. Replaces the deleted `dragTransitionSnapshot`.
+  const [dragRelease, setDragRelease] = useState<DragRelease | null>(null);
+  const dragReleaseTokenRef = useRef<number>(0);
   const [scrollTransitionSnapshot, setScrollTransitionSnapshot] =
     useState<ScrollTransitionSnapshot | null>(null);
 
   const animatingRef = useRef<boolean>(false);
   const currentSceneRef = useRef<number>(currentScene);
+  // A drag transition completes when BOTH arms arrive, in EITHER order:
+  //  - render arm: the page-slide reaches the target -> commitDragSceneChange
+  //    advances the index and records `pendingTransitionFromRef` (the from index).
+  //  - element arm: the incoming scene's element track reaches T ->
+  //    completeDragTransition.
+  // The page-slide runs on a fixed slideDuration while the element track runs on
+  // the incoming scene's own T_self, so when T_self < slideDuration the element
+  // arm arrives FIRST (before the index has even advanced). The deferred
+  // onAfterChange must still fire exactly once, so the two arms form an
+  // order-independent join: whichever arrives second closes it. `from`/`to` are
+  // only knowable after the render arm has committed, so onAfterChange always
+  // fires at the join close (never lost, never early).
+  const pendingTransitionFromRef = useRef<number | null>(null);
+  // Set by the element arm when it arrives before the render commit. The render
+  // arm closes the join when it sees this.
+  const settleArrivedRef = useRef<boolean>(false);
+  // True only while a settle release is outstanding. Gates the element arm so a
+  // stray completion (e.g. a cold-start extend re-firing onActivationComplete
+  // after its window closed) cannot record a phantom early-settle and pollute the
+  // next transition's join.
+  const expectedSettleRef = useRef<boolean>(false);
 
   currentSceneRef.current = currentScene;
+
+  // Closes the drag-transition join: clears the lingering drag scalars, the
+  // direction, and the release directive, then fires the deferred onAfterChange.
+  // Direction/release are cleared HERE (at the join, when both arms are done) and
+  // never by a single arm — clearing them while the page is still sliding would
+  // strand the outgoing scene mid-transition.
+  const finalizeTransition = useCallback(
+    (toScene: number, fromScene: number | null) => {
+      pendingTransitionFromRef.current = null;
+      settleArrivedRef.current = false;
+      expectedSettleRef.current = false;
+      setDragProgress(0);
+      setDragTimelineProgress(0);
+      setSharedTimelineDurationMs(0);
+      setDragRelease(null);
+      setDirection(null);
+      if (fromScene !== null && fromScene !== toScene) {
+        onAfterChange?.(toScene, fromScene);
+      }
+    },
+    [onAfterChange]
+  );
+
+  // Publishes the single read-only release directive. The token is injected here
+  // (monotonic) so each release is uniquely identifiable and every scene's
+  // useElementTrack can react exactly once per release (StrictMode-safe).
+  const publishDragRelease = useCallback((release: DragReleaseInput | null) => {
+    if (release === null) {
+      expectedSettleRef.current = false;
+      setDragRelease(null);
+      return;
+    }
+    // Only a settle release feeds the deferred-completion join; a bounce/boundary
+    // release does not commit a scene change. A superseding bounce clears the flag.
+    expectedSettleRef.current = release.mode === 'settle';
+    dragReleaseTokenRef.current += 1;
+    setDragRelease({ ...release, token: dragReleaseTokenRef.current });
+  }, []);
 
   // 检查是否可以前进
   const canGoNext = useCallback((): boolean => {
@@ -247,13 +314,17 @@ export const useSceneManager = (
     debugSceneManager('resetDragInteraction', {
       currentScene: currentSceneRef.current,
     });
+    // Abort path (bounce / reset): no transition is pending, so tear down the
+    // join state too or a stale early-settle flag would leak into the next one.
+    pendingTransitionFromRef.current = null;
+    settleArrivedRef.current = false;
+    expectedSettleRef.current = false;
     setDragProgress(0);
     setDragTimelineProgress(0);
     setRenderProgress(0);
     setIsDragging(false);
-    setSharedElapsedMs(0);
     setSharedTimelineDurationMs(0);
-    setDragTransitionSnapshot(null);
+    setDragRelease(null);
   }, []);
 
   const resetScrollInteraction = useCallback(() => {
@@ -270,22 +341,20 @@ export const useSceneManager = (
     (
       direction: 'forward' | 'backward',
       progressRatio: number,
-      elapsedMs: number,
-      timelineDuration: number = 0
+      _elapsedMs?: number,
+      _timelineDuration?: number
     ) => {
+      void _elapsedMs;
+      void _timelineDuration;
       const fromScene = currentSceneRef.current;
       const targetScene = direction === 'forward' ? fromScene + 1 : fromScene - 1;
       const normalizedProgressRatio = Math.max(0, Math.min(progressRatio, 1));
-      const normalizedElapsedMs = Math.max(0, elapsedMs);
-      const normalizedTimelineDuration = Math.max(0, timelineDuration);
 
       debugSceneManager('commitDragSceneChange:start', {
         fromScene,
         targetScene,
         direction,
         progressRatio: normalizedProgressRatio.toFixed(3),
-        sharedElapsedMs: normalizedElapsedMs.toFixed(1),
-        sharedTimelineDurationMs: normalizedTimelineDuration,
       });
 
       if (targetScene < 0 || targetScene >= totalScenes) {
@@ -296,70 +365,67 @@ export const useSceneManager = (
         return;
       }
 
+      // Two-track commit: the page-slide (render lane) reached the target, so the
+      // ONLY job here is to advance the scene index. We do NOT build a snapshot,
+      // do NOT touch any element timeline value (each Scene owns its own track),
+      // and do NOT fire onAfterChange — that is DEFERRED to completeDragTransition,
+      // fired by the incoming scene once ITS element track reaches T. We remember
+      // the fromScene so the deferred callback can report the correct previous
+      // index even after `direction` is cleared.
       onBeforeChange?.(fromScene, targetScene);
       setDirection(direction);
       setDragTimelineProgress(normalizedProgressRatio);
-      setSharedElapsedMs(normalizedElapsedMs);
-      setSharedTimelineDurationMs(normalizedTimelineDuration);
-      const needsSettleCompletion =
-        normalizedTimelineDuration > 0 &&
-        normalizedElapsedMs < normalizedTimelineDuration - 0.001 &&
-        normalizedProgressRatio < 1 - 0.001;
-
-      setDragTransitionSnapshot(
-        needsSettleCompletion
-          ? {
-              fromScene,
-              toScene: targetScene,
-              direction,
-              progressRatio: normalizedProgressRatio,
-              sharedElapsedMs: normalizedElapsedMs,
-              sharedTimelineDurationMs: normalizedTimelineDuration,
-            }
-          : null
-      );
+      pendingTransitionFromRef.current = fromScene;
       setCurrentScene(targetScene);
       setDragProgress(0);
       setRenderProgress(0);
       setIsDragging(false);
       setIsAnimating(false);
       animatingRef.current = false;
-      if (!needsSettleCompletion) {
-        onAfterChange?.(targetScene, fromScene);
-      }
 
       debugSceneManager('commitDragSceneChange:done', {
         currentSceneWillBe: targetScene,
-        dragProgressResetTo: 0,
-        isDraggingResetTo: false,
         dragTimelineProgress: normalizedProgressRatio.toFixed(3),
-        sharedElapsedMs: normalizedElapsedMs.toFixed(1),
-        sharedTimelineDurationMs: normalizedTimelineDuration,
-        needsSettleCompletion,
+        settleAlreadyArrived: settleArrivedRef.current,
       });
+
+      // Render arm of the join. If the element arm already arrived (the incoming
+      // scene's T_self was shorter than the page slide), close the join now.
+      // Otherwise leave the join open for the element arm to close.
+      if (settleArrivedRef.current) {
+        finalizeTransition(targetScene, fromScene);
+      }
     },
-    [onAfterChange, onBeforeChange, resetDragInteraction, totalScenes]
+    [finalizeTransition, onBeforeChange, resetDragInteraction, totalScenes]
   );
 
-  const clearDragTransitionSnapshot = useCallback(() => {
-    const completedScene = currentSceneRef.current;
-    const completedFromScene = dragTransitionSnapshot?.fromScene;
-    const hadSnapshot = dragTransitionSnapshot !== null;
+  // Element arm of the join. Called by the incoming scene (via
+  // onActivationComplete) when ITS element track reaches T. If the render arm has
+  // already committed (pendingTransitionFromRef set), close the join and fire the
+  // deferred onAfterChange. If it arrives FIRST (T_self < slideDuration), only
+  // record the arrival — the from/to indices aren't known until the render arm
+  // commits, and direction/release must stay live while the page is still sliding.
+  // A stray completion with no outstanding settle and no pending commit (e.g. a
+  // cold-start extend re-firing after its window closed) is ignored, so it cannot
+  // record a phantom early-settle that would corrupt the next transition's join.
+  const completeDragTransition = useCallback(() => {
+    const completedFromScene = pendingTransitionFromRef.current;
 
-    debugSceneManager('clearDragTransitionSnapshot', {
-      currentScene: completedScene,
-      previousSharedElapsedMs: sharedElapsedMs.toFixed(1),
-      hadSnapshot,
+    debugSceneManager('completeDragTransition', {
+      currentScene: currentSceneRef.current,
+      fromScene: completedFromScene,
+      renderArmCommitted: completedFromScene !== null,
     });
-    setDragProgress(0);
-    setDragTimelineProgress(0);
-    setSharedElapsedMs(0);
-    setSharedTimelineDurationMs(0);
-    setDragTransitionSnapshot(null);
-    if (hadSnapshot) {
-      onAfterChange?.(completedScene, completedFromScene);
+
+    if (completedFromScene !== null) {
+      finalizeTransition(currentSceneRef.current, completedFromScene);
+      return;
     }
-  }, [dragTransitionSnapshot, onAfterChange, sharedElapsedMs]);
+
+    if (expectedSettleRef.current) {
+      settleArrivedRef.current = true;
+    }
+  }, [finalizeTransition]);
 
   const commitScrollSceneChange = useCallback(
     (direction: 'forward' | 'backward', progressRatio: number) => {
@@ -448,9 +514,8 @@ export const useSceneManager = (
     renderProgress,
     isDragging,
     isScrolling,
-    sharedElapsedMs,
     sharedTimelineDurationMs,
-    dragTransitionSnapshot,
+    dragRelease,
     scrollTransitionSnapshot,
   };
 
@@ -467,14 +532,14 @@ export const useSceneManager = (
     setScrollDirection,
     setScrollTransitionSnapshot,
     setRenderProgress,
-    setSharedElapsedMs,
     setIsDragging,
     setIsScrolling,
     setSharedTimelineDurationMs,
+    setDragRelease: publishDragRelease,
     resetDragInteraction,
     resetScrollInteraction,
     commitDragSceneChange,
-    clearDragTransitionSnapshot,
+    completeDragTransition,
     commitScrollSceneChange,
     clearScrollTransitionSnapshot,
   };

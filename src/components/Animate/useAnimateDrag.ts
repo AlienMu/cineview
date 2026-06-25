@@ -47,7 +47,11 @@ interface CachedVariants {
 }
 
 interface DragVisualState {
-  mode: 'rest' | 'outgoing' | 'incoming' | 'settling' | 'hidden';
+  // Two-track model (2026-06-25): the enter source is unified to ONE per-scene
+  // element track (sceneContext.sharedElapsedMotion). incoming, active-settle and
+  // cold-start all read the same track via the `enter` mode. Outgoing follows the
+  // render position for exit. The old `settling`/snapshot/cold-start split is gone.
+  mode: 'rest' | 'outgoing' | 'enter' | 'hidden';
   direction: 'forward' | 'backward';
   transitionProgress: number;
   sharedElapsedMs: number;
@@ -162,14 +166,15 @@ function debugDrag(message: string, details?: Record<string, unknown>): void {
 }
 
 function resolveDirection(sceneContext: SceneContextType): 'forward' | 'backward' {
-  if (sceneContext.dragTransitionSnapshot?.direction) {
-    return sceneContext.dragTransitionSnapshot.direction;
-  }
+  // Direction is only needed for the outgoing/exit lerp. The enter source is the
+  // element track (elapsed ms) which is direction-agnostic, so we derive from the
+  // render position sign. (The old snapshot-direction read is deleted — the global
+  // snapshot no longer exists.)
   return (sceneContext.renderProgress ?? 0) >= 0 ? 'forward' : 'backward';
 }
 
-function resolveSharedElapsed(sceneContext: SceneContextType): number {
-  return Math.max(0, sceneContext.sharedElapsedMotion?.get() ?? sceneContext.sharedElapsedMs ?? 0);
+function resolveElementElapsed(sceneContext: SceneContextType): number {
+  return Math.max(0, sceneContext.sharedElapsedMotion?.get() ?? 0);
 }
 
 function resolveRenderProgress(sceneContext: SceneContextType): number {
@@ -184,10 +189,6 @@ function resolveTransitionProgress(sceneContext: SceneContextType): number {
   const fromContext = sceneContext.dragTimelineProgress;
   if (typeof fromContext === 'number') {
     return clamp(fromContext, 0, 1);
-  }
-
-  if (sceneContext.dragTransitionSnapshot) {
-    return clamp(sceneContext.dragTransitionSnapshot.progressRatio, 0, 1);
   }
 
   return clamp(Math.abs(resolveRenderProgress(sceneContext)), 0, 1);
@@ -213,26 +214,6 @@ function resolveEnterLocalProgress(
   return clamp((sharedElapsedMs - calculatedDelay) / enterDuration, 0, 1);
 }
 
-function easeOutQuad(progress: number): number {
-  const normalizedProgress = clamp(progress, 0, 1);
-  return 1 - (1 - normalizedProgress) * (1 - normalizedProgress);
-}
-
-function resolveVisualTimelineProgress(
-  sceneContext: SceneContextType,
-  transitionProgress: number,
-  renderProgress: number
-): number {
-  const timelineProgress = clamp(transitionProgress, 0, 1);
-  const renderTimelineProgress = easeOutQuad(Math.abs(renderProgress));
-
-  if (sceneContext.isDragging) {
-    return Math.max(timelineProgress, renderTimelineProgress);
-  }
-
-  return timelineProgress;
-}
-
 function resolveVisualState(
   sceneContext: SceneContextType,
   calculatedDelay: number,
@@ -240,77 +221,69 @@ function resolveVisualState(
   exitDuration: number
 ): DragVisualState {
   const direction = resolveDirection(sceneContext);
-  const sharedElapsedMs = resolveSharedElapsed(sceneContext);
+  // UNIFIED enter source (two-track model): the element track elapsed ms, owned
+  // and driven by THIS scene's useElementTrack. incoming, active-settle and
+  // cold-start all read this one value — no snapshot, no projected-from-ratio.
+  const elementElapsedMs = resolveElementElapsed(sceneContext);
   const transitionProgress = resolveTransitionProgress(sceneContext);
   const sharedTimelineDurationMs = resolveSharedTimelineDuration(sceneContext);
   const sceneTimelineDurationMs = resolveSceneTimelineDuration(sceneContext);
   const renderProgress = Math.abs(resolveRenderProgress(sceneContext));
-  const visualTimelineProgress = resolveVisualTimelineProgress(
-    sceneContext,
-    transitionProgress,
-    renderProgress
-  );
-  const projectedSceneElapsedMs = visualTimelineProgress * sceneTimelineDurationMs;
-  const dragLocalProgress = resolveEnterLocalProgress(
-    projectedSceneElapsedMs,
+  // Element enter progress: a pure function of the per-scene track elapsed,
+  // gated by the element's own (calculated) delay. Direction-agnostic — the
+  // lerp is always initial -> animate.
+  const enterLocalProgress = resolveEnterLocalProgress(
+    elementElapsedMs,
     calculatedDelay,
     enterDuration
   );
-  const isSettlingIncoming =
-    sceneContext.isActive &&
-    !sceneContext.isDragging &&
-    !!sceneContext.dragTransitionSnapshot &&
-    sceneContext.sceneOffset === 0 &&
-    transitionProgress > EPSILON &&
-    transitionProgress < 1 - EPSILON;
+
+  const baseState = {
+    direction,
+    transitionProgress,
+    sharedElapsedMs: elementElapsedMs,
+    projectedSceneElapsedMs: elementElapsedMs,
+    sharedTimelineDurationMs,
+    sceneTimelineDurationMs,
+    sceneOffset: sceneContext.sceneOffset,
+  };
 
   if (sceneContext.sceneOffset === 0 && sceneContext.isActive) {
+    // Active scene that is sliding away (drag or release render travel): exit
+    // follows the render position, unchanged from the prior model.
     if (sceneContext.isDragging || renderProgress > EPSILON) {
       const outgoingDuration = Math.max(exitDuration, 1);
       const renderElapsedMs = renderProgress * sceneContext.sceneTransitionDuration;
       return {
+        ...baseState,
         mode: 'outgoing',
-        direction,
-        transitionProgress,
-        sharedElapsedMs,
-        projectedSceneElapsedMs,
-        sharedTimelineDurationMs,
-        sceneTimelineDurationMs,
         localProgress: clamp(renderElapsedMs / outgoingDuration, 0, 1),
-        sceneOffset: sceneContext.sceneOffset,
       };
     }
 
-    if (isSettlingIncoming) {
-      const settlingElapsedMs = Math.max(sharedElapsedMs, projectedSceneElapsedMs);
-      const settlingLocalProgress = resolveEnterLocalProgress(
-        settlingElapsedMs,
-        calculatedDelay,
-        enterDuration
-      );
+    // Idle active scene. Read the element track ONLY while an enter is genuinely
+    // in flight for this scene: the first-screen cold-start window, or a settle
+    // continuation that crossed the commit and is still running on this (now
+    // active) scene. Otherwise the scene is at rest. The track value itself stays
+    // continuous across the commit (same per-scene MotionValue), so this is the
+    // continuous-completion read — never a replay. settlePending is reachable in
+    // this idle-active state only for the post-commit target scene (the sole
+    // offset-0 scene), so a mode check is sufficient.
+    const coldStartActive = sceneContext.firstSceneEnterActive === true;
+    const settlePending = sceneContext.dragRelease?.mode === 'settle';
+    if (coldStartActive || settlePending) {
       return {
-        mode: 'settling',
-        direction,
-        transitionProgress,
-        sharedElapsedMs: settlingElapsedMs,
-        projectedSceneElapsedMs: settlingElapsedMs,
-        sharedTimelineDurationMs,
-        sceneTimelineDurationMs,
-        localProgress: settlingLocalProgress,
-        sceneOffset: sceneContext.sceneOffset,
+        ...baseState,
+        mode: 'enter',
+        localProgress: enterLocalProgress,
       };
     }
 
     return {
+      ...baseState,
       mode: 'rest',
-      direction,
-      transitionProgress,
-      sharedElapsedMs,
       projectedSceneElapsedMs: sceneTimelineDurationMs,
-      sharedTimelineDurationMs,
-      sceneTimelineDurationMs,
       localProgress: 1,
-      sceneOffset: sceneContext.sceneOffset,
     };
   }
 
@@ -318,33 +291,19 @@ function resolveVisualState(
     (direction === 'forward' && sceneContext.sceneOffset === 1) ||
     (direction === 'backward' && sceneContext.sceneOffset === -1);
 
-  if (
-    isIncoming &&
-    (sceneContext.isDragging || Math.abs(resolveRenderProgress(sceneContext)) > EPSILON)
-  ) {
+  if (isIncoming && (sceneContext.isDragging || renderProgress > EPSILON)) {
     return {
-      mode: 'incoming',
-      direction,
-      transitionProgress,
-      sharedElapsedMs,
-      projectedSceneElapsedMs,
-      sharedTimelineDurationMs,
-      sceneTimelineDurationMs,
-      localProgress: dragLocalProgress,
-      sceneOffset: sceneContext.sceneOffset,
+      ...baseState,
+      mode: 'enter',
+      localProgress: enterLocalProgress,
     };
   }
 
   return {
+    ...baseState,
     mode: 'hidden',
-    direction,
-    transitionProgress,
-    sharedElapsedMs,
     projectedSceneElapsedMs: 0,
-    sharedTimelineDurationMs,
-    sceneTimelineDurationMs,
     localProgress: 0,
-    sceneOffset: sceneContext.sceneOffset,
   };
 }
 
@@ -374,10 +333,14 @@ function resolvePropertyValue(
       return animateValue;
     case 'hidden':
       return initialValue;
-    case 'incoming':
-    case 'settling':
+    case 'enter':
       return lerpStringValue(initialValue, animateValue, state.localProgress);
     case 'outgoing':
+      // When no exitAnimation is authored, exitTarget is {} — skip all
+      // exit animation and keep the element at its animate state.
+      if (Object.keys(variants.exitTarget).length === 0) {
+        return animateValue;
+      }
       return lerpStringValue(
         animateValue,
         state.direction === 'forward' ? exitValue : initialValue,
@@ -400,15 +363,19 @@ function useNumericValue(
   return useTransform(visualMotion, () => {
     const variants = variantsRef.current;
     const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
-    const resolved = sceneContext
-      ? resolvePropertyValue(
-          resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration, exitDuration),
-          variants,
-          property
-        )
-      : getVariantValue(variants.enterAnimate, property, fallback);
-
-    return parseNumericValue(resolved, fallback);
+    if (!sceneContext) {
+      return parseNumericValue(
+        getVariantValue(variants.enterAnimate, property, fallback),
+        fallback
+      );
+    }
+    const vs = resolveVisualState(
+      sceneContext,
+      calculatedDelayRef.current,
+      enterDuration,
+      exitDuration
+    );
+    return parseNumericValue(resolvePropertyValue(vs, variants, property), fallback);
   });
 }
 
@@ -426,12 +393,13 @@ function useMixedValue(
     if (!sceneContext) {
       return getVariantValue(variants.enterAnimate, property, getDefaultValue(property, 'animate'));
     }
-
-    return resolvePropertyValue(
-      resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration, exitDuration),
-      variants,
-      property
+    const vs = resolveVisualState(
+      sceneContext,
+      calculatedDelayRef.current,
+      enterDuration,
+      exitDuration
     );
+    return resolvePropertyValue(vs, variants, property);
   });
 }
 
@@ -457,8 +425,25 @@ export function useAnimateDrag({
   // state before the useEffect-based updateVisualMotion runs after paint.
   // This is critical for drag mode scene transitions where a newly-activated
   // scene's Animate elements must appear at their correct visual position
-  // on the very first frame.
-  const visualMotion = useMotionValue(0);
+  // on the very first frame. The seed replicates updateVisualMotion's own
+  // first-frame derivation so the very first commit matches the post-effect
+  // value (rest -> localProgress 1, settling/incoming -> in-progress
+  // localProgress, outgoing -> signed localProgress). When sceneContext is
+  // null the effect early-returns and the transforms ignore visualMotion, so
+  // a seed of 0 is correct in that case.
+  const initialVisualMotion = (() => {
+    if (!sceneContext) return 0;
+    const state = resolveVisualState(
+      sceneContext,
+      calculatedDelayRef.current,
+      enterDuration,
+      exitDuration
+    );
+    return state.mode === 'outgoing'
+      ? (state.direction === 'forward' ? 1 : -1) * state.localProgress
+      : state.localProgress;
+  })();
+  const visualMotion = useMotionValue(initialVisualMotion);
   const [shouldRunInfiniteState, setShouldRunInfiniteState] = useState(false);
   const lastDebugBucketRef = useRef<string | null>(null);
   const lastModeRef = useRef<string | null>(null);
@@ -469,14 +454,7 @@ export function useAnimateDrag({
       enterInitial: (enterVariant?.initial as VariantRecord) || {},
       enterAnimate: (enterVariant?.animate as VariantRecord) || {},
       // When no explicit exitAnimation is authored, derive exit from the same
-      // preset. The preset definitions include exit keyframes (e.g. slide-up
-      // exits to y: '-100%'). Without this, exitTarget is {} and position
-      // properties fall back to numeric 0, causing lerpStringValue to produce
-      // '0%' — freezing the position while only opacity animates during exit.
-      exitTarget:
-        (exitVariant?.exit as VariantRecord) ||
-        (enterVariant?.exit as VariantRecord) ||
-        {},
+      exitTarget: (exitVariant?.exit as VariantRecord) || {},
     };
   }, [enterVariant, exitVariant]);
 
@@ -517,6 +495,17 @@ export function useAnimateDrag({
     if (!sceneContext) return;
 
     const updateVisualMotion = (): void => {
+      // Live-refresh the cascaded delay. The registration effect seeds this once,
+      // but the registry recomputes whenever ANOTHER Animate registers — and a
+      // waitFor target commonly registers AFTER its dependent (async variant parse
+      // order is non-deterministic). The first read can therefore be a stale
+      // pre-dependency value (the missing-dependency branch in registry.ts drops
+      // the cascade, leaving only the element's own delay). Re-reading here, on
+      // every element-track change, lets the gate use the final cascaded delay.
+      const liveDelay = sceneContext.getCalculatedDelay?.(componentId);
+      if (typeof liveDelay === 'number') {
+        calculatedDelayRef.current = liveDelay;
+      }
       const state = resolveVisualState(
         sceneContext,
         calculatedDelayRef.current,
@@ -527,7 +516,6 @@ export function useAnimateDrag({
         state.mode === 'outgoing'
           ? (state.direction === 'forward' ? 1 : -1) * state.localProgress
           : state.localProgress;
-      visualMotion.set(nextValue);
 
       const modeKey = [
         state.mode,
@@ -536,8 +524,12 @@ export function useAnimateDrag({
         sceneContext.isActive ? 'active' : 'inactive',
         sceneContext.isDragging ? 'dragging' : 'idle',
       ].join(':');
+      const modeChanged = lastModeRef.current !== modeKey;
 
-      if (lastModeRef.current !== modeKey) {
+      visualMotion.set(nextValue);
+      lastModeRef.current = modeKey;
+
+      if (modeChanged) {
         debugDrag(`🧭 [Animate ${componentId}] mode handoff`, {
           mode: state.mode,
           direction: state.direction,
@@ -556,10 +548,9 @@ export function useAnimateDrag({
           enterDuration,
           exitDuration,
         });
-        lastModeRef.current = modeKey;
       }
 
-      const shouldTraceDelay = state.mode === 'incoming' || state.mode === 'settling';
+      const shouldTraceDelay = state.mode === 'enter';
       if (shouldTraceDelay) {
         const delayPhase =
           state.localProgress <= EPSILON
@@ -634,7 +625,8 @@ export function useAnimateDrag({
     sceneContext?.isActive,
     sceneContext?.sceneOffset,
     sceneContext?.sceneState,
-    sceneContext?.dragTransitionSnapshot,
+    sceneContext?.dragRelease,
+    sceneContext?.firstSceneEnterActive,
   ]);
 
   const opacity = useNumericValue(
@@ -745,7 +737,7 @@ export function useAnimateDrag({
         sceneContext.isActive &&
         sceneContext.sceneOffset === 0 &&
         !sceneContext.isDragging &&
-        (state.mode === 'rest' || state.mode === 'settling') &&
+        (state.mode === 'rest' || state.mode === 'enter') &&
         state.localProgress >= 1 - EPSILON;
       setShouldRunInfiniteState(shouldRun);
     };
@@ -767,7 +759,8 @@ export function useAnimateDrag({
     sceneContext?.sceneOffset,
     sceneContext?.isDragging,
     sceneContext?.renderProgress,
-    sceneContext?.dragTransitionSnapshot,
+    sceneContext?.dragRelease,
+    sceneContext?.firstSceneEnterActive,
   ]);
 
   return {

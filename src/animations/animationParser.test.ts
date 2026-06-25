@@ -1,5 +1,6 @@
 import {
   validateCustomAnimation,
+  normalizeCustomAnimationVariant,
   convertWebAnimationToVariant,
   parsePresetAnimation,
   parseCustomAnimation,
@@ -9,7 +10,6 @@ import {
 } from './animationParser';
 import type { CustomAnimation } from '../types';
 
-// Mock getPresetAnimation
 jest.mock('./presets', () => ({
   getPresetAnimation: jest.fn((name: string) => {
     if (name === 'fade') {
@@ -32,195 +32,78 @@ jest.mock('./presets', () => ({
 
 describe('animationParser', () => {
   describe('validateCustomAnimation', () => {
-    it('should validate correct custom animation', () => {
+    it('validates Framer Motion variant subset animations', () => {
       const animation: CustomAnimation = {
-        keyframes: { opacity: 1, transform: 'scale(1)' },
-        duration: 1000,
-        easing: 'ease-out',
+        initial: { opacity: 0, scale: 0.8 },
+        animate: { opacity: 1, scale: 1, transition: { duration: 0.4 } },
+        exit: { opacity: 0 },
       };
 
       expect(validateCustomAnimation(animation)).toBe(true);
     });
 
-    it('should reject null or undefined animation', () => {
+    it('accepts a single non-empty phase', () => {
+      expect(validateCustomAnimation({ animate: { opacity: 1 } })).toBe(true);
+    });
+
+    it('rejects null or undefined animation', () => {
       expect(validateCustomAnimation(null as unknown as CustomAnimation)).toBe(false);
       expect(validateCustomAnimation(undefined as unknown as CustomAnimation)).toBe(false);
     });
 
-    it('should reject animation without keyframes', () => {
-      const animation = {
-        duration: 1000,
-      } as unknown as CustomAnimation;
-
-      expect(validateCustomAnimation(animation)).toBe(false);
+    it('rejects unknown legacy keys', () => {
+      expect(
+        validateCustomAnimation({
+          keyframes: { opacity: 1 },
+        } as unknown as CustomAnimation)
+      ).toBe(false);
     });
 
-    it('should reject animation with invalid keyframes type', () => {
-      const animation = {
-        keyframes: 'invalid',
-        duration: 1000,
-      } as unknown as CustomAnimation;
-
-      expect(validateCustomAnimation(animation)).toBe(false);
+    it('rejects empty phase objects', () => {
+      expect(validateCustomAnimation({ animate: {} })).toBe(false);
     });
 
-    it('should reject animation with empty keyframes', () => {
-      const animation: CustomAnimation = {
-        keyframes: {},
-        duration: 1000,
-      };
-
-      expect(validateCustomAnimation(animation)).toBe(false);
-    });
-
-    it('should reject animation with invalid duration type', () => {
-      const animation = {
-        keyframes: { opacity: 1 },
-        duration: 'invalid',
-      } as unknown as CustomAnimation;
-
-      expect(validateCustomAnimation(animation)).toBe(false);
-    });
-
-    it('should reject animation with invalid easing type', () => {
-      const animation = {
-        keyframes: { opacity: 1 },
-        easing: 123,
-      } as unknown as CustomAnimation;
-
-      expect(validateCustomAnimation(animation)).toBe(false);
-    });
-
-    it('should accept animation without duration', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-      };
-
-      expect(validateCustomAnimation(animation)).toBe(true);
-    });
-
-    it('should accept animation without easing', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-        duration: 1000,
-      };
-
-      expect(validateCustomAnimation(animation)).toBe(true);
+    it('rejects non-object phase values', () => {
+      expect(
+        validateCustomAnimation({ animate: 'fade' as unknown as Record<string, unknown> })
+      ).toBe(false);
     });
   });
 
-  describe('convertWebAnimationToVariant', () => {
-    it('should convert animation with default values', () => {
+  describe('normalizeCustomAnimationVariant', () => {
+    it('normalizes custom variant phases', () => {
       const animation: CustomAnimation = {
-        keyframes: { opacity: 1, transform: 'scale(1)' },
+        initial: { opacity: 0, transformOrigin: 'top center' },
+        animate: { opacity: 1, transformOrigin: 'center bottom' },
+        exit: { opacity: 0, transformOrigin: 'left center' },
       };
 
-      const variant = convertWebAnimationToVariant(animation);
-
-      expect(variant).toEqual({
-        opacity: 1,
-        transform: 'scale(1)',
-        transition: {
-          duration: 1,
-          ease: 'easeInOut',
-          delay: 0,
-        },
+      expect(normalizeCustomAnimationVariant(animation)).toEqual({
+        initial: { opacity: 0, transformOrigin: '50% 0%' },
+        animate: { opacity: 1, transformOrigin: '50% 100%' },
+        exit: { opacity: 0, transformOrigin: '0% 50%' },
       });
     });
 
-    it('should convert animation with custom duration', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-        duration: 2000,
-      };
-
-      const variant = convertWebAnimationToVariant(animation);
-
-      // convertWebAnimationToVariant returns a Variant with keyframes and transition
-      expect(variant).toHaveProperty('opacity', 1);
-      expect(variant).toHaveProperty('transition');
-      expect((variant as { transition: { duration: number } }).transition.duration).toBe(2);
-    });
-
-    it('should convert animation with custom easing', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-        easing: 'ease-in',
-      };
-
-      const variant = convertWebAnimationToVariant(animation);
-
-      // convertWebAnimationToVariant returns a Variant with keyframes and transition
-      expect(variant).toHaveProperty('opacity', 1);
-      expect(variant).toHaveProperty('transition');
-      expect((variant as { transition: { ease: string } }).transition.ease).toBe('easeIn');
-    });
-
-    it('should convert animation with custom delay', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-        delay: 500,
-      };
-
-      const variant = convertWebAnimationToVariant(animation);
-
-      // convertWebAnimationToVariant returns a Variant with keyframes and transition
-      expect(variant).toHaveProperty('opacity', 1);
-      expect(variant).toHaveProperty('transition');
-      expect((variant as { transition: { delay: number } }).transition.delay).toBe(0.5);
-    });
-
-    it('should map easing values correctly', () => {
-      const easingMap = {
-        linear: 'linear',
-        ease: 'easeInOut',
-        'ease-in': 'easeIn',
-        'ease-out': 'easeOut',
-        'ease-in-out': 'easeInOut',
-      };
-
-      Object.entries(easingMap).forEach(([input, expected]) => {
-        const animation: CustomAnimation = {
-          keyframes: { opacity: 1 },
-          easing: input,
-        };
-
-        const variant = convertWebAnimationToVariant(animation);
-        expect(variant).toHaveProperty('opacity', 1);
-        expect(variant).toHaveProperty('transition');
-        expect((variant as { transition: { ease: string } }).transition.ease).toBe(expected);
+    it('keeps omitted phases as empty variants', () => {
+      expect(normalizeCustomAnimationVariant({ animate: { opacity: 1 } })).toEqual({
+        initial: {},
+        animate: { opacity: 1 },
+        exit: {},
       });
     });
 
-    it('should preserve unknown easing values', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-      };
-
-      const variant = convertWebAnimationToVariant(animation);
-
-      // convertWebAnimationToVariant returns a Variant with keyframes and transition
-      expect(variant).toHaveProperty('opacity', 1);
-      expect(variant).toHaveProperty('transition');
-      expect((variant as { transition: { ease: string } }).transition.ease).toBe(
-        'cubic-bezier(0.4, 0, 0.2, 1)'
-      );
-    });
-
-    it('should normalize transformOrigin keywords in custom animations', () => {
-      const animation: CustomAnimation = {
-        keyframes: { rotate: 12, transformOrigin: 'bottom center' },
-      };
-
-      const variant = convertWebAnimationToVariant(animation);
-
-      expect(variant).toHaveProperty('transformOrigin', '50% 100%');
+    it('keeps deprecated conversion export as an alias', () => {
+      expect(convertWebAnimationToVariant({ animate: { opacity: 1 } })).toEqual({
+        initial: {},
+        animate: { opacity: 1 },
+        exit: {},
+      });
     });
   });
 
   describe('normalizeParsedAnimationVariant', () => {
-    it('should normalize transformOrigin keywords across phases', () => {
+    it('normalizes transformOrigin keywords across phases', () => {
       const result = normalizeParsedAnimationVariant({
         initial: { transformOrigin: 'top center' },
         animate: { transformOrigin: 'center bottom' },
@@ -236,7 +119,7 @@ describe('animationParser', () => {
   });
 
   describe('parsePresetAnimation', () => {
-    it('should parse valid preset animation', async () => {
+    it('parses valid preset animation', async () => {
       const result = await parsePresetAnimation('fade');
 
       expect(result).toEqual({
@@ -246,7 +129,7 @@ describe('animationParser', () => {
       });
     });
 
-    it('should return null for invalid preset animation', async () => {
+    it('returns null for invalid preset animation', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
       const result = await parsePresetAnimation('invalid');
@@ -259,30 +142,22 @@ describe('animationParser', () => {
   });
 
   describe('parseCustomAnimation', () => {
-    it('should parse valid custom animation', () => {
+    it('parses valid custom animation', () => {
       const animation: CustomAnimation = {
-        keyframes: { opacity: 1, transform: 'scale(1)' },
-        duration: 1000,
-        easing: 'ease-out',
+        initial: { opacity: 0 },
+        animate: { opacity: 1, scale: 1 },
+        exit: { opacity: 0 },
       };
 
       const result = parseCustomAnimation(animation);
 
-      expect(result).toHaveProperty('initial');
-      expect(result).toHaveProperty('animate');
-      expect(result).toHaveProperty('exit');
-      expect(result?.animate).toMatchObject({
-        opacity: 1,
-        transform: 'scale(1)',
-      });
+      expect(result).toEqual(animation);
     });
 
-    it('should normalize transformOrigin in parsed custom animations', () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1, transformOrigin: 'top center' },
-      };
-
-      const result = parseCustomAnimation(animation);
+    it('normalizes transformOrigin in parsed custom animations', () => {
+      const result = parseCustomAnimation({
+        animate: { opacity: 1, transformOrigin: 'top center' },
+      });
 
       expect(result?.animate).toMatchObject({
         opacity: 1,
@@ -290,14 +165,10 @@ describe('animationParser', () => {
       });
     });
 
-    it('should return null for invalid custom animation', () => {
+    it('returns null for invalid custom animation', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
-      const animation = {
-        keyframes: {},
-      } as CustomAnimation;
-
-      const result = parseCustomAnimation(animation);
+      const result = parseCustomAnimation({ animate: {} });
 
       expect(result).toBeNull();
       expect(consoleSpy).toHaveBeenCalled();
@@ -305,12 +176,10 @@ describe('animationParser', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should handle parsing errors gracefully', () => {
+    it('handles parsing errors gracefully', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
-      const animation = null as unknown as CustomAnimation;
-
-      const result = parseCustomAnimation(animation);
+      const result = parseCustomAnimation(null as unknown as CustomAnimation);
 
       expect(result).toBeNull();
       expect(consoleSpy).toHaveBeenCalled();
@@ -320,7 +189,7 @@ describe('animationParser', () => {
   });
 
   describe('parseAnimation', () => {
-    it('should parse preset animation from string', async () => {
+    it('parses preset animation from string', async () => {
       const result = await parseAnimation('fade');
 
       expect(result).toEqual({
@@ -330,20 +199,17 @@ describe('animationParser', () => {
       });
     });
 
-    it('should parse custom animation from object', async () => {
-      const animation: CustomAnimation = {
-        keyframes: { opacity: 1 },
-        duration: 1000,
-      };
+    it('parses custom animation from object', async () => {
+      const result = await parseAnimation({ animate: { opacity: 1 } });
 
-      const result = await parseAnimation(animation);
-
-      expect(result).toHaveProperty('initial');
-      expect(result).toHaveProperty('animate');
-      expect(result).toHaveProperty('exit');
+      expect(result).toEqual({
+        initial: {},
+        animate: { opacity: 1 },
+        exit: {},
+      });
     });
 
-    it('should return null for invalid animation format', async () => {
+    it('returns null for invalid animation format', async () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       const result = await parseAnimation(123 as unknown as string);
@@ -356,10 +222,8 @@ describe('animationParser', () => {
   });
 
   describe('createDefaultAnimation', () => {
-    it('should create default animation', () => {
-      const result = createDefaultAnimation();
-
-      expect(result).toEqual({
+    it('creates default animation', () => {
+      expect(createDefaultAnimation()).toEqual({
         initial: { opacity: 0 },
         animate: { opacity: 1 },
         exit: { opacity: 0 },

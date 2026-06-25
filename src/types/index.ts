@@ -63,6 +63,12 @@ export interface DragModeConfig {
   direction?: SlideDirection;
   transitionDuration?: number;
   threshold?: DragThresholdConfig;
+  // Max time to wait for first-screen priority images before the first-scene
+  // enter animation is allowed to start. On timeout a FIRST_SCENE_TIMEOUT error
+  // is emitted; if the consumer does not call preventDefault() the framework
+  // falls back to statically placing the first scene at its rest state.
+  // Defaults to 3000ms.
+  firstSceneTimeout?: number;
 }
 
 export interface ScrollModeConfig {
@@ -105,6 +111,18 @@ export interface CineViewErrorDetail {
   code: string;
   message: string;
   context?: Record<string, unknown>;
+  // Present on recoverable errors that have a default framework fallback
+  // (e.g. FIRST_SCENE_TIMEOUT). Call it to suppress the default behavior and
+  // take over handling in the consumer (e.g. render a retry UI). When not
+  // called, the framework proceeds with its default fallback.
+  preventDefault?: () => void;
+}
+
+export interface FirstSceneReadyDetail {
+  sceneIndex: number;
+  // True when the first scene's priority images all settled before the
+  // timeout; false when the enter was allowed to start by some other path.
+  fromPreload: boolean;
 }
 
 export interface DragDetail {
@@ -140,6 +158,7 @@ export interface CineViewCallbacks {
     onLoadProgress?: (progress: number) => void;
     onSceneWillChange?: (detail: SceneChangeDetail) => void;
     onSceneDidChange?: (detail: SceneChangeDetail) => void;
+    onFirstSceneReady?: (detail: FirstSceneReadyDetail) => void;
     onInteractionStateChange?: (detail: InteractionStateDetail) => void;
     onLayoutMeasured?: (detail: LayoutMeasuredDetail) => void;
     onError?: (detail: CineViewErrorDetail) => void;
@@ -240,14 +259,12 @@ export interface ParsedAnimationVariant {
 }
 
 /**
- * 自定义动画（Web Animations API 格式）
+ * 自定义动画（Framer Motion variant subset）
  */
 export interface CustomAnimation {
-  keyframes: Keyframe[] | PropertyIndexedKeyframes;
-  options?: KeyframeAnimationOptions;
-  duration?: number;
-  easing?: string;
-  delay?: number;
+  initial?: Record<string, unknown>;
+  animate?: Record<string, unknown>;
+  exit?: Record<string, unknown>;
 }
 
 /**

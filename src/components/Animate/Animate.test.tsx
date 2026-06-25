@@ -128,9 +128,9 @@ function installDefaultParseAnimationMock(): void {
     }
 
     return Promise.resolve({
-      initial: { opacity: 0 },
-      animate: animation.keyframes || { opacity: 1 },
-      exit: { opacity: 0 },
+      initial: animation.initial ?? {},
+      animate: animation.animate ?? { opacity: 1 },
+      exit: animation.exit ?? {},
     });
   });
 }
@@ -148,9 +148,9 @@ jest.mock('../../animations/composer', () => ({
     }
     // Return mock custom animation
     return Promise.resolve({
-      initial: { opacity: 0 },
-      animate: animation.keyframes || { opacity: 1 },
-      exit: { opacity: 0 },
+      initial: animation.initial ?? {},
+      animate: animation.animate ?? { opacity: 1 },
+      exit: animation.exit ?? {},
     });
   }),
 }));
@@ -268,9 +268,7 @@ describe('Animate Component', () => {
       return <output data-testid="should-run-infinite">{String(result.shouldRunInfinite)}</output>;
     };
 
-    return render(
-      <ScrollInfiniteProbe />
-    );
+    return render(<ScrollInfiniteProbe />);
   };
 
   describe('8.1 Core Functionality', () => {
@@ -422,11 +420,8 @@ describe('Animate Component', () => {
     it('should parse and apply custom animation', async () => {
       const mockContext = createMockSceneContext();
       const customAnimation = {
-        keyframes: [
-          { opacity: 0, transform: 'scale(0.5)' },
-          { opacity: 1, transform: 'scale(1)' },
-        ],
-        options: { duration: 1000 },
+        initial: { opacity: 0, transform: 'scale(0.5)' },
+        animate: { opacity: 1, transform: 'scale(1)', transition: { duration: 1 } },
       };
 
       render(
@@ -1026,20 +1021,17 @@ describe('Animate Component', () => {
   });
 
   describe('8.6 Custom Animations', () => {
-    it('should support Web Animations API keyframes format', async () => {
+    it('should support Framer Motion variant subset format', async () => {
       const mockContext = createMockSceneContext({
         isActive: true,
       });
 
       const customAnimation = {
-        keyframes: [
-          { opacity: 0, transform: 'scale(0.5) rotate(0deg)' },
-          { opacity: 0.5, transform: 'scale(0.75) rotate(180deg)' },
-          { opacity: 1, transform: 'scale(1) rotate(360deg)' },
-        ],
-        options: {
-          duration: 1000,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        initial: { opacity: 0, transform: 'scale(0.5) rotate(0deg)' },
+        animate: {
+          opacity: [0.5, 1],
+          transform: ['scale(0.75) rotate(180deg)', 'scale(1) rotate(360deg)'],
+          transition: { duration: 1, ease: 'cubic-bezier(0.4, 0, 0.2, 1)' },
         },
       };
 
@@ -1056,19 +1048,17 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should support PropertyIndexedKeyframes format', async () => {
+    it('should support array-valued variant properties', async () => {
       const mockContext = createMockSceneContext({
         isActive: true,
       });
 
       const customAnimation = {
-        keyframes: {
-          opacity: [0, 0.5, 1],
-          transform: ['translateY(100px)', 'translateY(50px)', 'translateY(0)'],
-        },
-        options: {
-          duration: 800,
-          easing: 'ease-out',
+        initial: { opacity: 0, transform: 'translateY(100px)' },
+        animate: {
+          opacity: [0.5, 1],
+          transform: ['translateY(50px)', 'translateY(0)'],
+          transition: { duration: 0.8, ease: 'easeOut' },
         },
       };
 
@@ -1091,14 +1081,11 @@ describe('Animate Component', () => {
       });
 
       const customAnimation = {
-        keyframes: [
-          { opacity: 0, transform: 'translateX(-100px)' },
-          { opacity: 1, transform: 'translateX(0)' },
-        ],
-        options: {
-          duration: 500,
-          delay: 200,
-          easing: 'ease-in-out',
+        initial: { opacity: 0, transform: 'translateX(-100px)' },
+        animate: {
+          opacity: 1,
+          transform: 'translateX(0)',
+          transition: { duration: 0.5, delay: 0.2, ease: 'easeInOut' },
         },
       };
 
@@ -1121,13 +1108,7 @@ describe('Animate Component', () => {
       });
 
       const customExitAnimation = {
-        keyframes: [
-          { opacity: 1, transform: 'scale(1)' },
-          { opacity: 0, transform: 'scale(0.5)' },
-        ],
-        options: {
-          duration: 400,
-        },
+        exit: { opacity: 0, transform: 'scale(0.5)', transition: { duration: 0.4 } },
       };
 
       const { rerender } = render(
@@ -1219,12 +1200,10 @@ describe('Animate Component', () => {
       });
 
       const customAnimation = {
-        keyframes: [
-          { transform: 'translateY(0)' },
-          { transform: 'translateY(-10px)' },
-          { transform: 'translateY(0)' },
-        ],
-        options: { duration: 500 },
+        animate: {
+          transform: ['translateY(-10px)', 'translateY(0)'],
+          transition: { duration: 0.5 },
+        },
       };
 
       const composedAnimation = {
@@ -2187,11 +2166,7 @@ describe('Error Handling and Edge Cases Coverage', () => {
         <Animate
           enterAnimation="fade-in"
           exitAnimation={{
-            keyframes: [
-              { opacity: 1, transform: 'translateY(0px)' },
-              { opacity: 0, transform: 'translateY(100px)' },
-            ],
-            options: { duration: 500 },
+            exit: { opacity: 0, transform: 'translateY(100px)', transition: { duration: 0.5 } },
           }}
         >
           <div>Test</div>
@@ -2229,11 +2204,7 @@ describe('Error Handling and Edge Cases Coverage', () => {
         <Animate
           enterAnimation="fade-in"
           exitAnimation={{
-            keyframes: [
-              { opacity: 1, visibility: 'visible' },
-              { opacity: 0, visibility: 'hidden' },
-            ],
-            options: { duration: 500 },
+            exit: { opacity: 0, visibility: 'hidden', transition: { duration: 0.5 } },
           }}
         >
           <div>Test</div>

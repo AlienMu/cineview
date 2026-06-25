@@ -28,6 +28,8 @@ CineView 是一款专为 React 开发的 UI 框架，用于创建影院式分页
 5. `renderProgress` 只用于 drag 场景位移，不作为 scroll 的主语义。
 6. 每个元素必须根据所属模式消费对应时间语义，禁止跨模式复用解释。
 7. 已完成入场的元素，如果配置了 `infiniteAnimation`，只有在运行态允许时才持续运行。
+8. `Animate` 的运行时上下文按职责拆分为 base runtime、drag timeline、scroll bridge 与 animation registry 四类类型；当前可由一个 Provider 组合承载，但新增字段必须先归入明确子上下文。
+9. `waitFor`、delay 累加、重复 `animateId`、缺失依赖和循环依赖由纯 animation registry 模块计算和校验，`Scene` 只负责持有注册表并输出开发环境诊断。
 
 这意味着：后续实现必须优先保证“语义单一、职责单一、所有权清晰”，禁止回到一个状态被多处以不同语义解释的混合模式。
 
@@ -622,7 +624,7 @@ scroll 重构采用直接切换策略：
 1. 不先改运行时再补文档
 2. scroll 不保留旧主路径与新主路径并存
 3. 不在没有阶段验收的情况下跨阶段并改
-4. 前端交互阶段必须真实验证，不能只靠代码推理结案
+4. 前端交互阶段必须由独立 agent 在真实环境（浏览器 lane）实测验收，不能只靠代码推理或单测结案；实现 agent 与验收 agent 分离，验收必须是真实环境测试而非自检
 
 ## 开发原则
 
@@ -637,16 +639,20 @@ drag 链路的所有问题排查必须优先依赖：
 
 禁止通过“多试几个判断分支”或“猜测某个 progress 应该是多少”来修复问题。
 
-### 2. 关键状态必须有唯一所有者
+### 2. 关键状态必须有唯一所有者（双轨模型，2026-06-25 起）
 
-在 `drag` 模式下，关键状态的所有权如下：
+drag 模式不再用「单一全局 `sharedElapsedMs` 标量在 commit 时从旧场景交给新场景」的模型——那条交接缝被反复改错 ≥4 次。现拆成**两条独立轨道**：
 
-- `renderProgress`: 只由 drag 手势与 release 位移动画维护
-- `dragTimelineProgress`: 只由 drag 时间轴推进链维护，表示当前切场比例
-- `sharedElapsedMs`: 只表示“当前拥有时间轴所有权的 scene”的局部 elapsed 快照
-- `dragTransitionSnapshot`: 只由 commit 阶段创建，只能在目标场景 settle 完成后清理
+- **render 轨（全局）`renderProgress`**：只由 drag 手势与 release 位移动画维护。驱动页面 translate。**它是 commit 的唯一触发器**（页面滑到位即 `commitDragSceneChange`，`currentScene` 切换）。
+- **element 轨（每个 Scene 实例自持，单写者=该 scene）`elementElapsedMotion`**：每个 Scene 持有**自己**的 `MotionValue<number>` = 本场景入场时间轴 `T = delay+duration` 的 elapsed ms（`T` 由该场景自己的 `getTimelineDuration()` 算得）。**只有该 scene 的 `useElementTrack` 写它**，跨 scene 零共享写。
+  - 拖拽跟手：incoming scene `elapsed = r × T_self`。
+  - release 续跑：outgoing 在释放瞬间发布只读指令 `dragRelease`，incoming scene 据此 `animate(current → T_self)`，与 render 轨**各自时钟并行**。
+  - 跨 commit：scene 实例 `key={index}` 稳定不重挂，in-flight `animate()` 不被打断 → **连续补完，非重播、非冻结**。
+- **`dragRelease`（全局只读指令，非多写者标量）**：`{ token, mode:'settle'|'bounce', direction, targetSceneIndex }`，取代已删除的 `dragTransitionSnapshot`。outgoing 的 `handlePanEnd` 发布；incoming 单向消费。
 
-任何一个状态都不允许由“旧场景 release 链”和“新场景 settle 链”同时持续写入。
+单写者不变式：`renderProgress` 仅 render lane 写；每个 scene 的 `elementElapsedMotion` 仅该 scene 自己写。**若发现任何新增的跨 scene 共享写路径，立即停手——那正是反复回归的根因。**
+
+> ⚠️ 已删除的旧机制（不要恢复）：`useSceneManager.sharedElapsedMs`、`dragTransitionSnapshot`、`needsSettleCompletion`、`clearDragTransitionSnapshot`、`useDragSceneEngine` 的 activation-settle effect、`useAnimateDrag` 的 `settling`/`firstSceneEnterActive` 分支、CineView 全局 cold-start tween。scroll 模式的 `scrollTransitionSnapshot` 与本次无关，**不触碰**。
 
 ### 3. 关键日志必须覆盖 ownership handoff
 
@@ -655,16 +661,15 @@ drag 链路的所有问题排查必须优先依赖：
 - drag start
 - drag progress sample
 - threshold decision
-- release render tick
-- release timeline tick
+- release render tick（render 轨）
+- element track tick（element 轨：跟手 / release 续跑 / cold-start）
 - commit start / commit done
-- snapshot settle start / settle skip / settle complete / snapshot clear
-- 元素级 `localProgress` 关键节点（仅针对问题元素定向开启）
+- element-track settle complete（incoming 轨到 T → `completeDragTransition` 触发 deferred `onSceneDidChange`）
 
-日志的目标不是“多”，而是能回答这三个问题：
+日志的目标不是“多”，而是能回答这几个问题：
 
-1. 当前是谁在写 `sharedElapsedMs`
-2. 当前 `dragTimelineProgress` 被投影到哪个 scene 的 own timeline
+1. 某个 scene 的 `elementElapsedMotion` 此刻是谁在写（必须只有该 scene 自己）
+2. 当前 `renderProgress` 是否已滑到位（commit 是否该触发）
 3. 当前场景和目标场景谁应该处于可动画状态
 4. 某个具体元素为什么没有开始、为什么被跳过、为什么直接到终态
 
@@ -754,26 +759,25 @@ sequenceDiagram
     participant TH as 智能阈值判断器
     
     Note over SC1: Drag 模式下 Scene 不执行 enter/exit 视觉动画
-    Note over A1,A2: 所有元素统一消费 sharedElapsedMs
+    Note over A1,A2: 每个 Scene 持有自己的 element 轨（elementElapsedMotion），元素只读本场景的轨
     
     User->>SC1: 开始拖拽 (onDragStart)
-    SC1->>SC1: 创建 renderProgress / sharedElapsedMs
+    SC1->>SC1: 创建/维护全局 renderProgress（render 轨）
     SC1->>A1: 注册到 animateRegistry
-    SC2->>A2: 注册到 animateRegistry，计算 delay
+    SC2->>A2: 注册到 animateRegistry，计算 delay；SC2 持有自己的 element 轨
     
     loop 拖拽过程中
         User->>SC1: 拖拽移动 (onDrag)
-        SC1->>DE: 计算 renderProgress
-        SC1->>DE: 按位移换算 sharedElapsedMs
+        SC1->>DE: 计算全局 renderProgress（render 轨，驱动页面位移）
+        SC2->>SC2: useElementTrack 跟手写 element 轨 elapsed = r × T_self
         
         par 实时动画同步
-            DE->>A1: 当前场景元素按 sharedElapsedMs 映射退场进度
-            Note over A1: 当前场景仅负责元素退场，不做 Scene 级补间
+            DE->>A1: 当前场景元素按 render 位移映射退场进度
+            Note over A1: 当前场景仅负责元素退场（读 render 位移），不做 Scene 级补间
             
-            DE->>A2: 相邻场景元素按 sharedElapsedMs 计算 localProgress
-            Note over A2: localProgress = f(sharedElapsedMs, delay, duration)
+            A2->>A2: incoming 元素读 SC2 自己的 element 轨算 localProgress
+            Note over A2: localProgress = f(element轨.elapsed, delay, duration)
             Note over A2: 元素未到 delay 前保持 initial
-            Note over A2: 元素到达自身完成点后可立即接续 infiniteAnimation
         end
     end
     
@@ -782,21 +786,23 @@ sequenceDiagram
     TH->>TH: 综合累计位移方向 + 末端反向速度判定
     
     alt 进度 > 阈值 (切换)
-        TH->>SC1: commit 切换
-        SC1->>DE: renderProgress 补到目标页
-        SC1->>DE: sharedElapsedMs 补到来源时间轴末尾
-        DE->>A1: 补完当前场景元素退场
-        DE->>A2: 新场景接管 sharedElapsedMs 继续补完本地入场
-        Note over A2: release 后不是重新触发 enter，而是继续补完本地时间轴
+        SC1->>DE: 发布 dragRelease{mode:settle}（释放瞬间，并行）
+        par 两条独立时钟并行
+            DE->>SC1: render 轨 renderProgress → 目标页（∝ slideDuration，唯一 commit 触发器）
+            SC2->>SC2: element 轨 animate(current → T_self)（∝ T−elapsed，真实速率，自驱）
+        end
+        Note over SC1: render 轨滑到位 → commitDragSceneChange，currentScene++（deferred onSceneDidChange）
+        Note over SC2: element 轨跨 commit 不重挂、不打断、连续补完到 T_self
+        SC2->>SC1: element 轨到 T_self → completeDragTransition 触发 deferred onSceneDidChange
         SC1-->>User: 场景切换完成
         
     else 进度 <= 阈值 (回弹)
-        TH->>SC1: 回弹到初始位置
-        SC1->>DE: renderProgress / sharedElapsedMs 回到 0
-        
-        DE->>A1: 当前场景元素回退
-        DE->>A2: 相邻场景元素按各自 localProgress 回退
-        SC1-->>User: 回弹完成
+        SC1->>DE: 发布 dragRelease{mode:bounce}
+        par 一起平滑回 0
+            DE->>SC1: render 轨 renderProgress → 0
+            SC2->>SC2: element 轨 animate(current → 0)
+        end
+        SC1-->>User: 回弹完成（incoming 内容连同被推回未入场态）
     end
 ```
 
@@ -814,11 +820,11 @@ sequenceDiagram
     Note over SC1: sceneOffset = -1
     
     User->>SC2: 向后拖拽 (向下滑动)
-    SC2->>DE: 计算负向 renderProgress 与 sharedElapsedMs
+    SC2->>DE: 计算负向 renderProgress（render 轨）
     
     par 双向动画同步
-        DE->>SC2: 当前场景元素执行退场或回退
-        DE->>SC1: 上一场景元素按 sharedElapsedMs 重新进入
+        DE->>SC2: 当前场景元素按 render 位移执行退场或回退
+        SC1->>SC1: 上一场景（incoming）读自己的 element 轨重新进入
     end
     
     User->>SC2: 释放拖拽
@@ -1058,8 +1064,9 @@ type PresetAnimation =
 
 // 自定义动画
 interface CustomAnimation {
-  keyframes: Keyframe[] | PropertyIndexedKeyframes;
-  options?: KeyframeAnimationOptions;
+  initial?: Record<string, unknown>;
+  animate?: Record<string, unknown>;
+  exit?: Record<string, unknown>;
 }
 
 // 组合动画
@@ -1173,17 +1180,19 @@ interface AnimateProps {
 </Animate>
 ```
 
-2. **Web Animations API 自定义动画**:
+2. **Framer Motion variant subset 自定义动画**:
 ```tsx
 <Animate
   enterAnimation={{
-    keyframes: [
-      { opacity: 0, transform: 'scale(0.5) rotate(0deg)' },
-      { opacity: 1, transform: 'scale(1) rotate(360deg)' }
-    ],
-    options: {
-      duration: 1000,
-      easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+    initial: { opacity: 0, scale: 0.5, rotate: 0 },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      rotate: 360,
+      transition: {
+        duration: 1,
+        ease: 'cubic-bezier(0.4, 0, 0.2, 1)'
+      }
     }
   }}
 >
@@ -1220,12 +1229,10 @@ interface AnimateProps {
     animations: [
       'blur-in',
       {
-        keyframes: [
-          { transform: 'translateY(0)' },
-          { transform: 'translateY(-10px)' },
-          { transform: 'translateY(0)' }
-        ],
-        options: { duration: 500 }
+        animate: {
+          y: [-10, 0],
+          transition: { duration: 0.5 }
+        }
       }
     ],
     mode: 'sequential'
@@ -1304,6 +1311,8 @@ interface AnimateProps {
 - 在普通文档节点、普通 React 组件和 `Scene` 内都必须可用
 - 在 takeover scene 外只有显式声明 `timeline.driver='scroll'` 时，才会触发归属校验并报警
 - 负责 delay / waitFor / infinite / replay 等高级动画编排
+- `CustomAnimation` 只接受 Framer Motion variant subset，不再接收 Web Animations API `keyframes/options` 格式；动画时长、缓动、延迟写入各 phase 的 `transition`
+- legacy 扁平字段只允许在内部 adapter 层归一化，不得重新进入 public authoring 声明
 
 **产品裁决**:
 
@@ -1525,22 +1534,22 @@ interface PreloadState {
    - 验证循环依赖检测
    - 验证无限动画循环
    - **验证在 drag 模式下（全新改造设计）**：
-     - 验证 useTransform 三点映射 `[0, startPoint, 1] → [initial, initial, target]`
-     - 验证 startPoint 计算：`Math.min(delay / sceneTransitionDuration, 1)`
-     - 验证 waitFor 累加计算：`actualDelay = delay + (waitForDelay || 0)`
-     - 验证未过 startPoint 时保持 initial 状态
-     - 验证已过 startPoint 时播放动画
-     - 验证智能回退：已过延迟阶段执行回退动画
-     - 验证智能回退：未过延迟阶段直接重置 initial
-     - 验证离开动画使用 useTransform 映射 dragProgress
-     - 验证入场动画使用 animate() API 触发
+     - 验证 `useTransform(visualMotion, () => resolveVisualState(...))` 单输入映射：每帧由 `resolveVisualState` 解析出 `{mode, localProgress}`，再 lerp `initial → animate`/`exit`
+     - 验证延迟门控：`resolveEnterLocalProgress(sharedElapsedMs, calculatedDelay, enterDuration)`——`sharedElapsedMs ≤ calculatedDelay` 时 localProgress 保持 0
+     - 验证 waitFor 累加计算：`calculatedDelay = delay + (waitForChain 时长)`
+     - 验证未过延迟（`sharedElapsedMs ≤ calculatedDelay`）时保持 initial 状态
+     - 验证已过延迟时按 `(sharedElapsedMs − calculatedDelay) / enterDuration` 播放动画
+     - 验证智能回退：已过延迟阶段随 sharedElapsedMs 递减对称倒放
+     - 验证智能回退：未过延迟阶段保持 initial
+     - 验证离开动画由 `mode='outgoing'` 经 `resolveVisualState` 映射 renderProgress
+     - 验证入场/续播由 `sharedElapsedMotion` 变化驱动 `updateVisualMotion`
      - 验证场景离开后重置为 initial 状态
-     - 验证从 Context 获取 dragProgress 和场景状态
+     - 验证从 Context 获取 sharedElapsedMs / renderProgress / 场景状态
      - 验证双向拖拽时的动画行为
    - 验证向父级 Scene 注册和注销机制
    - 验证进入/离开动画时间参数
    - 验证所有预设动画类型（40+ 种）
-   - 验证自定义动画（Web Animations API）
+   - 验证自定义动画（Framer Motion variant subset）
    - 验证组合动画（顺序执行）
    - 验证组合动画（并行执行）
    - 验证混合预设和自定义的组合动画
@@ -1585,7 +1594,7 @@ interface PreloadState {
    - throttle: 验证节流函数行为
    - debounce: 验证防抖函数行为
    - performanceMonitor: 验证性能指标收集
-   - animationParser: 验证自定义动画解析、Web Animations API 转换
+   - animationParser: 验证自定义动画解析与 variant subset 归一化
 
 7. **动画组合器测试**
    - 验证顺序执行组合动画
@@ -1699,11 +1708,10 @@ module.exports = {
 - 使用 `will-change` 提示浏览器优化（谨慎使用，仅在动画期间）
 - **Drag 模式性能优化（全新改造设计）**：
   - 使用 Framer Motion 的 `useMotionValue` + `useTransform` 替代手动插值
-  - `useTransform` 自动优化性能，避免每帧重新计算
   - 拖拽进度更新使用 MotionValue，无需触发 React 重渲染
-  - 三点映射 `[0, startPoint, 1]` 实现延迟和智能回退，无需额外逻辑
-  - 减少代码量约 60%，性能提升约 40%
-  - 所有动画属性（opacity, y, scale, rotate 等）通过 `useTransform` 映射
+  - 单输入 `useTransform(visualMotion, () => resolveVisualState(...))`：每帧解析 `{mode, localProgress}` 后 lerp，延迟门控与智能回退由 `resolveEnterLocalProgress` 统一处理，无需额外逻辑
+  - `visualMotion` 初始值在 render 阶段由 `resolveVisualState` 同步求得，避免首帧闪烁
+  - 所有动画属性（opacity, y, scale, rotate 等）通过同一 `useTransform` 映射
   - 避免使用 Web Animations API 手动控制进度（旧方案）
 - 动画帧率控制在 60fps
 - 使用 CSS `contain` 属性隔离渲染层
@@ -2024,12 +2032,12 @@ const handleDrag = useCallback((progress: number) => {
 **集成方式**:
 - 预设动画使用 Framer Motion 的内置变体
 - 自定义动画支持 Framer Motion 变体语法
-- 同时支持原生 Web Animations API 作为备选方案
+- 不再支持原生 Web Animations API `keyframes/options` 作为公共自定义动画输入；需要使用 `initial`、`animate`、`exit` 和 `transition`
 
 **替代方案**:
 - **react-spring**: 基于物理的动画，更自然
 - **GSAP**: 功能强大，但体积较大
-- **Web Animations API**: 原生支持，无需额外依赖
+- **Web Animations API**: 可由业务侧自行使用，但不作为 CineView 公共 `CustomAnimation` 输入格式
 
 ### 开发依赖
 
@@ -2393,19 +2401,31 @@ pnpm run test:coverage
   Ci.offsetX 存在 ⟹ Ci.finalX = Σ(Cj.x + Cj.offsetX) for j ∈ [1, i]
 ```
 
-### 属性 6: Drag Release 连续性
+### 属性 6: Drag Release 连续性（释放期并行补完，单程）
 
-*对于任意*在 drag 模式下的成功释放，目标场景必须从释放时共享时间轴进度继续 settle，而不是从 0 重新开始。
+*对于任意*在 drag 模式下的成功释放：**render 轨**（页面位移，全局）按 `slideDuration` 跑 `releaseProgress→target`，跑到位即 commit（切 `currentScene` 索引）——render 轨是**唯一 commit 触发器**。**element 轨**（incoming scene 自持的入场时间轴 elapsed）在**同一释放瞬间**独立启动，从 `releaseProgress×T` 按真实创作速率续跑到 `T`（`T = delay + duration`）。两轨**同时启动、各自时钟并行**，谁先完成都行——不是「先过渡完再播动画」的串行两段。
+
+element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene` 索引，scene 实例 `key` 稳定（不重挂），in-flight `animate()` 不被打断、不冻结、不重播、不从 0 重启（连续补完）。`onSceneDidChange` 被**延迟**到 element 轨抵达 `T` 时由 incoming scene 自己触发（`completeDragTransition`）。
+
+换言之：**不再有「commit 时把单一 `sharedElapsedMs` 标量从旧场景 release 链交给新场景 activation-settle」的交接缝**。element 轨从拖拽跟手到补完全程归 incoming scene 单写者所有，没有第二段、没有 snapshot。
 
 **验证需求**: 需求 3.2
 
 **形式化表达**:
 ```
-∀ time t, scene S1, S2:
-  mode = 'drag' ∧ releaseCommitted(t)
-  ⟹ S2.settleStartProgress >= S1.releaseProgress
-    ∧ S2.settleStartTime = t
+∀ time t, scene S_out (outgoing), S_in (incoming):
+  mode = 'drag' ∧ releaseInProgress(t)
+  ⟹ renderTrack: animate(renderProgress → target, dur ∝ slideDuration)
+   ∧ S_in.elementTrack: animate(elapsed → T, dur ∝ (T − releaseProgress×T))   // 同帧并行启动，各自时钟
+   ∧ renderTrack.dur ⊥ elementTrack.dur                                      // 两时钟独立
+∧ commit(t) ⟺ renderTrack.done(t)                                            // render 轨是唯一 commit 触发器
+  ⟹ currentScene 自增；S_in.elementTrack 不中断（同一 animate 继续）
+∧ ∀ t' across commit: S_in.elementTrack.elapsed(t') 单调不减            // 无归零、无重播、无冻结
+∧ onSceneDidChange 仅在 S_in.elementTrack.elapsed 抵达 T 时触发一次       // 延迟提交
+∧ ¬∃ 任何跨 scene 共享的 element elapsed 标量                            // 单写者：每 scene 自持自驱
 ```
+
+**实现锚点**: 释放链（`useDragSceneEngine.handlePanEnd`）在释放瞬间发布全局只读指令 `dragRelease = {token, mode:'settle', direction, targetSceneIndex}`，并启动 render lane（`renderProgress→target`，`dur ∝ slideDuration`）；render lane 完成即 `onDragCommit`（commit）。incoming scene 的 `useElementTrack` 监听 `dragRelease.token`，对**自己持有的** `elementElapsedMotion` 启动 `animate(current→T_self, dur=(T_self−current)/1000, ease:'linear')`，与 render lane 并行、各自时钟；抵达 `T_self` 时调 `onSettleComplete`→`completeDragTransition`（触发延迟的 `onSceneDidChange`）。`T_self = getTimelineDuration() = max(baseDuration, calculatedDelay + duration)`，故补完时长天然含 delay。**单写者不变式**：`renderProgress` 仅 render lane 写；每个 scene 的 `elementElapsedMotion` 仅该 scene 的 `useElementTrack` 写——跨 scene 零共享写（取代被删的 `sharedElapsedMs` 单标量 + `dragTransitionSnapshot` + activation-settle 交接机制）。
 
 ### 属性 7: 场景切换互斥性
 
@@ -2501,21 +2521,21 @@ size(mainBundle.gzip) ≤ 50KB
 ```
 
 
-### 属性 14: Drag 模式延迟计算正确性
+### 属性 14: Drag 模式延迟门控正确性
 
-*对于任意*在 drag 模式下的 Animate 组件，其开始时机必须等于延迟与场景切换时长的比值
+*对于任意*在 drag 模式下的 Animate 组件，其 enter 本地进度必须以共享时间轴 `sharedElapsedMs` 扣除自身延迟后归一
 
 **验证需求**: 需求 4.7, 4.8
 
 **形式化表达**:
 ```
-∀ animate A, delay d, sceneTransitionDuration t:
+∀ animate A, calculatedDelay d, enterDuration e, sharedElapsedMs m:
   mode = 'drag'
-  ⟹ startPoint(A) = Math.min(d / t, 1)
-  
+  ⟹ localProgress(A) = clamp((m - d) / e, 0, 1)        (m > d, e > 0)
+     localProgress(A) = 0                                (m ≤ d)
+
   waitFor 存在时:
-  actualDelay = d + executionTime(waitForTarget)
-  startPoint(A) = Math.min(actualDelay / t, 1)
+  calculatedDelay = delay + executionTime(waitForTarget)
 ```
 
 ### 属性 15: Drag 模式智能阈值单调性
@@ -2545,15 +2565,15 @@ size(mainBundle.gzip) ≤ 50KB
 
 **形式化表达**:
 ```
-∀ animate A, dragProgress p, startPoint s:
-  mode = 'drag' ∧ p > s (已过延迟阶段)
-  ⟹ animationProgress(p) = (p - s) / (1 - s)
-  
-  回弹时:
-  p' < p ∧ p' > s ⟹ animationProgress(p') = (p' - s) / (1 - s)
-  
-  对称性:
-  animationProgress(p) - animationProgress(p') = (p - p') / (1 - s)
+∀ animate A, calculatedDelay d, enterDuration e, sharedElapsedMs m:
+  mode = 'drag' ∧ m > d (已过延迟阶段)
+  ⟹ localProgress(m) = clamp((m - d) / e, 0, 1)
+
+  回弹时（共享时间轴回退 m' < m）:
+  m' > d ⟹ localProgress(m') = clamp((m' - d) / e, 0, 1)
+
+  对称性（同一 enter 窗口内）:
+  localProgress(m) - localProgress(m') = (m - m') / e
 ```
 
 ### 属性 17: Drag 模式场景状态机正确性
@@ -2615,8 +2635,8 @@ size(mainBundle.gzip) ≤ 50KB
 
 **形式化表达**:
 ```
-∀ dragProgress p1, p2, ε > 0:
-  |p1 - p2| < δ ⟹ |transform(p1) - transform(p2)| < ε
-  
-  其中 transform 为 useTransform 映射函数
+∀ visualMotion v1, v2, ε > 0:
+  |v1 - v2| < δ ⟹ |transform(v1) - transform(v2)| < ε
+
+  其中 transform 为 useTransform(visualMotion, () => resolveVisualState(...)) 映射函数
 ```

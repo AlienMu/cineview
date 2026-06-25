@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import { animate, type AnimationControls, type MotionValue, type PanInfo } from 'framer-motion';
-import type { DragTransitionSnapshot } from '../../hooks/useSceneManager';
+import type { DragReleaseInput } from '../../hooks/useSceneManager';
 import type { ScrollMode } from '../../types';
 import type { SceneState } from './types';
 
@@ -61,23 +61,21 @@ interface UseDragSceneEngineParams {
   globalRenderProgress: number;
   globalIsDragging: boolean;
   globalDragProgress: number;
-  globalSharedElapsedMs: number;
   globalDragTimelineProgress: number;
-  globalDragTransitionSnapshot: DragTransitionSnapshot | null;
   controls: AnimationControls;
   dragProgressMotion: MotionValue<number>;
-  sharedElapsedMotion: MotionValue<number>;
   setSceneState: Dispatch<SetStateAction<SceneState>>;
   setIsAnimating: Dispatch<SetStateAction<boolean>>;
   resolveDragProgress: (rawProgress: number) => number;
   getTimelineDuration: () => number;
-  onActivationComplete?: () => void;
   onDragProgressChange?: (progress: number) => void;
   onRenderProgressChange?: (progress: number) => void;
   onDragTimelineProgressChange?: (progress: number) => void;
-  onSharedElapsedMsChange?: (elapsedMs: number) => void;
   onDraggingChange?: (dragging: boolean) => void;
   onSharedTimelineDurationChange?: (duration: number) => void;
+  // Two-track model: the outgoing scene's release publishes ONE read-only release
+  // directive. Each incoming Scene's useElementTrack reacts to it.
+  onDragRelease?: (release: DragReleaseInput | null) => void;
   completeReleaseImmediately?: boolean;
   onDragCommit?: (
     direction: 'forward' | 'backward',
@@ -109,47 +107,37 @@ export function useDragSceneEngine({
   globalRenderProgress,
   globalIsDragging,
   globalDragProgress,
-  globalSharedElapsedMs,
   globalDragTimelineProgress,
-  globalDragTransitionSnapshot,
   controls,
   dragProgressMotion,
-  sharedElapsedMotion,
   setSceneState,
   setIsAnimating,
   resolveDragProgress,
   getTimelineDuration,
-  onActivationComplete,
   onDragProgressChange,
   onRenderProgressChange,
   onDragTimelineProgressChange,
-  onSharedElapsedMsChange,
   onDraggingChange,
   onSharedTimelineDurationChange,
+  onDragRelease,
   completeReleaseImmediately = false,
   onDragCommit,
   onDragReset,
 }: UseDragSceneEngineParams): UseDragSceneEngineResult {
   const lastPanBucketRef = useRef<number | null>(null);
   const lastRenderReleaseBucketRef = useRef<number | null>(null);
-  const lastTimelineReleaseBucketRef = useRef<number | null>(null);
   const releaseTokenRef = useRef(0);
-  const timelineReleaseControlsRef = useRef<{ stop: () => void; flush?: () => void } | null>(null);
   const renderReleaseControlsRef = useRef<{ stop: () => void; flush?: () => void } | null>(null);
   const pendingReleaseRef = useRef<{
     token: number;
     direction: 'forward' | 'backward';
-    timelineDuration: number;
-    targetProgress: number;
-    timelineComplete: boolean;
-    renderComplete: boolean;
-    completeTimeline: () => void;
-    completeRender: () => void;
+    commit: () => void;
   } | null>(null);
-  const activationSettleControlsRef = useRef<{ stop: () => void } | null>(null);
-  const activeSettleKeyRef = useRef<string | null>(null);
-  const latestReleaseElapsedRef = useRef(0);
 
+  // Scene-state sync. Two-track model: the element timeline no longer feeds this;
+  // sceneState now only distinguishes outgoing (exit) vs incoming/active for
+  // pointer-events / willChange / runtimeState. The element-track enter progress
+  // is resolved independently by useAnimateDrag off the per-scene element track.
   useEffect(() => {
     if (slideMode !== 'drag') return;
 
@@ -163,19 +151,6 @@ export function useDragSceneEngine({
 
     const progress = globalRenderProgress;
     const absProgress = Math.abs(progress);
-    const ownTimelineDuration = getTimelineDuration();
-    const pendingActivationProgress =
-      globalDragTransitionSnapshot?.toScene === sceneIndex
-        ? Math.max(0, Math.min(globalDragTransitionSnapshot.progressRatio, 1))
-        : ownTimelineDuration > 0
-          ? Math.max(0, Math.min(globalSharedElapsedMs / ownTimelineDuration, 1))
-          : 0;
-    const hasPendingActivation =
-      isActive &&
-      !globalIsDragging &&
-      globalDragTransitionSnapshot?.toScene === sceneIndex &&
-      pendingActivationProgress > 0.001 &&
-      pendingActivationProgress < 0.999;
     const isTransitioning = globalIsDragging || absProgress > 0.001;
     const dragDirection = progress > 0 ? 'forward' : progress < 0 ? 'backward' : globalDirection;
     const isIncomingScene =
@@ -185,9 +160,7 @@ export function useDragSceneEngine({
     const nextSceneState: SceneState = isActive
       ? isTransitioning
         ? 'exiting'
-        : hasPendingActivation
-          ? 'entering'
-          : 'active'
+        : 'active'
       : isIncomingScene
         ? 'entering'
         : 'initial';
@@ -206,168 +179,37 @@ export function useDragSceneEngine({
     sceneIndex,
     globalRenderProgress,
     globalIsDragging,
-    globalDragTransitionSnapshot,
-    globalSharedElapsedMs,
     sceneOffset,
-    getTimelineDuration,
     globalDirection,
     setSceneState,
-  ]);
-
-  useEffect(() => {
-    if (slideMode !== 'drag' || !isActive || globalIsDragging) return;
-    const snapshot = globalDragTransitionSnapshot;
-    if (!snapshot || snapshot.toScene !== sceneIndex) return;
-
-    const timelineDuration = getTimelineDuration();
-    const progressRatio = Math.max(0, Math.min(snapshot.progressRatio, 1));
-    const sharedElapsedMs = Math.max(0, progressRatio * timelineDuration);
-    if (sharedElapsedMs <= 0.001 || sharedElapsedMs >= timelineDuration - 0.001) return;
-    const settleKey = [
-      snapshot.fromScene,
-      snapshot.toScene,
-      snapshot.direction,
-      Math.round(snapshot.sharedElapsedMs),
-      Math.round(snapshot.sharedTimelineDurationMs),
-      timelineDuration,
-    ].join(':');
-
-    if (activeSettleKeyRef.current === settleKey && activationSettleControlsRef.current) {
-      if (isVerboseDragDebug()) {
-        console.log(`🎬 [Scene ${sceneIndex}] activation settle skip (already owned)`, {
-          settleKey,
-          sharedElapsedMs: sharedElapsedMs.toFixed(1),
-          timelineDuration,
-          ownerScene: snapshot.toScene,
-        });
-      }
-      return;
-    }
-
-    const remainingDuration = Math.max(timelineDuration - sharedElapsedMs, 0);
-
-    activationSettleControlsRef.current?.stop();
-    activeSettleKeyRef.current = settleKey;
-    sharedElapsedMotion.set(sharedElapsedMs);
-    onSharedElapsedMsChange?.(sharedElapsedMs);
-
-    debugDrag(`🎬 [Scene ${sceneIndex}] activation settle timer`, {
-      settleKey,
-      snapshotFromScene: snapshot.fromScene,
-      snapshotToScene: snapshot.toScene,
-      snapshotElapsedMs: snapshot.sharedElapsedMs.toFixed(1),
-      snapshotTimelineDurationMs: snapshot.sharedTimelineDurationMs,
-      snapshotProgressRatio: progressRatio.toFixed(3),
-      projectedSceneElapsedMs: sharedElapsedMs.toFixed(1),
-      sharedElapsedMs: sharedElapsedMs.toFixed(1),
-      remainingDurationMs: remainingDuration.toFixed(1),
-      timelineDuration,
-      sceneState,
-    });
-
-    activationSettleControlsRef.current = animate(sharedElapsedMotion, timelineDuration, {
-      duration: remainingDuration / 1000,
-      ease: 'linear',
-      onUpdate: (latest) => {
-        onSharedElapsedMsChange?.(latest);
-      },
-      onComplete: () => {
-        debugDrag(`🎬 [Scene ${sceneIndex}] activation settle complete`, {
-          settleKey,
-          finalElapsedMs: timelineDuration.toFixed(1),
-          timelineDuration,
-        });
-        activationSettleControlsRef.current = null;
-        activeSettleKeyRef.current = null;
-        onSharedElapsedMsChange?.(timelineDuration);
-        onActivationComplete?.();
-      },
-    });
-
-    return () => {
-      if (globalDragTransitionSnapshot?.toScene !== sceneIndex) {
-        debugDrag(`🎬 [Scene ${sceneIndex}] activation settle cleanup (ownership lost)`, {
-          settleKey,
-          latestSharedElapsedMs: globalSharedElapsedMs.toFixed(1),
-          currentSnapshotToScene: globalDragTransitionSnapshot?.toScene ?? null,
-        });
-        activationSettleControlsRef.current?.stop();
-        activationSettleControlsRef.current = null;
-        activeSettleKeyRef.current = null;
-      }
-    };
-  }, [
-    slideMode,
-    isActive,
-    globalIsDragging,
-    globalDragTransitionSnapshot,
-    globalSharedElapsedMs,
-    getTimelineDuration,
-    onActivationComplete,
-    onSharedElapsedMsChange,
-    sceneIndex,
-    sceneState,
-    sharedElapsedMotion,
   ]);
 
   const handleDragStart = useCallback(() => {
     if (slideMode !== 'drag' || !isActive) return;
 
+    // A new drag starts while a previous release is still sliding the page.
+    // Finalize it immediately: flush the render lane so the previous scene
+    // commits at its release ratio (its incoming scene's element track keeps
+    // running on its own). The OLD incoming scene's in-flight element track is
+    // stopped IN PLACE by that scene's own useElementTrack reacting to the new
+    // drag (single writer) — NOT here.
     const pendingRelease = pendingReleaseRef.current;
     if (pendingRelease) {
-      const timelineControls = timelineReleaseControlsRef.current;
       const renderControls = renderReleaseControlsRef.current;
-      if (timelineControls?.flush) {
-        timelineControls.flush();
-      } else {
-        pendingRelease.completeTimeline();
-      }
       if (renderControls?.flush) {
         renderControls.flush();
       } else {
-        pendingRelease.completeRender();
+        pendingRelease.commit();
       }
 
       debugDrag(`🧹 [Scene ${sceneIndex}] finalize pending release before new drag`, {
         direction: pendingRelease.direction,
-        timelineDuration: pendingRelease.timelineDuration,
-        targetProgress: pendingRelease.targetProgress.toFixed(3),
-      });
-      return;
-    }
-
-    const hasPendingSnapshot = !!globalDragTransitionSnapshot;
-    const hasResidualElapsed = globalSharedElapsedMs > 0.001;
-
-    if (hasPendingSnapshot || hasResidualElapsed) {
-      const timelineDuration = getTimelineDuration();
-      const completedElapsedMs =
-        timelineDuration > 0 ? timelineDuration : Math.max(globalSharedElapsedMs, 0);
-
-      activationSettleControlsRef.current?.stop();
-      activationSettleControlsRef.current = null;
-      activeSettleKeyRef.current = null;
-      dragProgressMotion.set(0);
-      sharedElapsedMotion.set(completedElapsedMs);
-      onDragProgressChange?.(0);
-      onDragTimelineProgressChange?.(0);
-      onRenderProgressChange?.(0);
-      onSharedElapsedMsChange?.(completedElapsedMs);
-      onActivationComplete?.();
-
-      debugDrag(`🧹 [Scene ${sceneIndex}] interrupt pending drag transition on new drag start`, {
-        hadSnapshot: hasPendingSnapshot,
-        residualElapsedMs: globalSharedElapsedMs.toFixed(1),
-        completedElapsedMs: completedElapsedMs.toFixed(1),
-        snapshotFromScene: globalDragTransitionSnapshot?.fromScene ?? null,
-        snapshotToScene: globalDragTransitionSnapshot?.toScene ?? null,
       });
     }
 
     debugDrag(`🫳 [Scene ${sceneIndex}] drag start`, {
       currentSceneIndex,
       totalScenes,
-      sharedElapsedMs: globalSharedElapsedMs.toFixed(1),
       dragProgress: globalDragProgress.toFixed(3),
       dragTimelineProgress: globalDragTimelineProgress.toFixed(3),
     });
@@ -379,19 +221,8 @@ export function useDragSceneEngine({
     sceneIndex,
     currentSceneIndex,
     totalScenes,
-    globalSharedElapsedMs,
     globalDragProgress,
     globalDragTimelineProgress,
-    globalDragTransitionSnapshot,
-    onDragProgressChange,
-    onDragTimelineProgressChange,
-    onRenderProgressChange,
-    onSharedElapsedMsChange,
-    onActivationComplete,
-    onDragCommit,
-    dragProgressMotion,
-    sharedElapsedMotion,
-    getTimelineDuration,
   ]);
 
   const handlePan = useCallback(
@@ -402,16 +233,16 @@ export function useDragSceneEngine({
       const viewportSize = slideDirection === 'y' ? window.innerHeight : window.innerWidth;
       const progress = resolveDragProgress(-offset / viewportSize);
       const timelineDuration = getTimelineDuration();
-      const sharedElapsedMs = Math.abs(progress) * timelineDuration;
       const timelineProgress = Math.abs(progress);
 
+      // Render lane only: page translate + the drag ratio. The element timeline is
+      // NOT written here — the incoming scene's useElementTrack pegs its own track
+      // to r * T_self off `dragTimelineProgress`. Single writer per track.
       onDragProgressChange?.(progress);
       onDragTimelineProgressChange?.(timelineProgress);
       onRenderProgressChange?.(progress);
-      onSharedElapsedMsChange?.(sharedElapsedMs);
       onSharedTimelineDurationChange?.(timelineDuration);
       dragProgressMotion.set(progress);
-      sharedElapsedMotion.set(sharedElapsedMs);
 
       if (isVerboseDragDebug()) {
         const bucket = Math.round(Math.abs(progress) * 10) / 10;
@@ -420,7 +251,6 @@ export function useDragSceneEngine({
           console.log(`🫳 [Scene ${sceneIndex}] drag progress`, {
             progress: progress.toFixed(3),
             timelineProgress: timelineProgress.toFixed(3),
-            sharedElapsedMs: sharedElapsedMs.toFixed(1),
             offset: offset.toFixed(1),
             velocityX: info.velocity.x.toFixed(1),
             velocityY: info.velocity.y.toFixed(1),
@@ -437,10 +267,8 @@ export function useDragSceneEngine({
       onDragProgressChange,
       onDragTimelineProgressChange,
       onRenderProgressChange,
-      onSharedElapsedMsChange,
       onSharedTimelineDurationChange,
       dragProgressMotion,
-      sharedElapsedMotion,
       resolveDragProgress,
       getTimelineDuration,
     ]
@@ -451,12 +279,10 @@ export function useDragSceneEngine({
       if (slideMode !== 'drag' || !isActive) return;
 
       releaseTokenRef.current += 1;
-      timelineReleaseControlsRef.current?.stop();
       renderReleaseControlsRef.current?.stop();
 
       const currentProgress = dragProgressMotion.get();
       const timelineDuration = getTimelineDuration();
-      const currentElapsedMs = Math.abs(currentProgress) * timelineDuration;
       const signedProgressVelocity = resolveProgressVelocity(slideDirection, info);
       const velocity = Math.abs(signedProgressVelocity);
       const absFinalProgress = Math.abs(currentProgress);
@@ -471,6 +297,10 @@ export function useDragSceneEngine({
         return;
       }
 
+      const direction: 'forward' | 'backward' = currentProgress > 0 ? 'forward' : 'backward';
+      const targetSceneIndex =
+        direction === 'forward' ? currentSceneIndex + 1 : currentSceneIndex - 1;
+
       if (resolveDragProgress(currentProgress) === 0 && currentProgress !== 0) {
         setIsAnimating(true);
 
@@ -479,24 +309,23 @@ export function useDragSceneEngine({
           velocity: velocity.toFixed(1),
         });
 
+        // Bounce both tracks back to 0 in parallel (I1). The render lane returns
+        // via dragProgressMotion; the (would-be) incoming scene's element track
+        // returns via the bounce release directive.
+        onDragRelease?.({ mode: 'bounce', direction, targetSceneIndex });
         animate(dragProgressMotion, 0, {
           duration: 0.15,
           ease: 'easeOut',
           onUpdate: (latest) => {
-            const elapsedMs = Math.abs(latest) * timelineDuration;
             onDragProgressChange?.(latest);
             onDragTimelineProgressChange?.(Math.abs(latest));
             onRenderProgressChange?.(latest);
-            onSharedElapsedMsChange?.(elapsedMs);
-            sharedElapsedMotion.set(elapsedMs);
           },
           onComplete: () => {
             onDragProgressChange?.(0);
             onDragTimelineProgressChange?.(0);
             onRenderProgressChange?.(0);
-            onSharedElapsedMsChange?.(0);
             dragProgressMotion.set(0);
-            sharedElapsedMotion.set(0);
             onDragReset?.();
             onDraggingChange?.(false);
             setSceneState('active');
@@ -506,7 +335,6 @@ export function useDragSceneEngine({
         return;
       }
 
-      const direction: 'forward' | 'backward' = currentProgress > 0 ? 'forward' : 'backward';
       const threshold = completeReleaseImmediately ? 0.5 : calculateThreshold(velocity);
 
       debugDrag(`🎯 [Scene ${sceneIndex}] Threshold:`, {
@@ -523,7 +351,6 @@ export function useDragSceneEngine({
 
       debugDrag(`🫳 [Scene ${sceneIndex}] drag end decision`, {
         currentProgress: currentProgress.toFixed(3),
-        currentElapsedMs: currentElapsedMs.toFixed(1),
         absFinalProgress: absFinalProgress.toFixed(3),
         direction,
         threshold: threshold.toFixed(3),
@@ -538,6 +365,8 @@ export function useDragSceneEngine({
         setIsAnimating(true);
         onDraggingChange?.(false);
         if (completeReleaseImmediately) {
+          // Standalone mode: no incoming-scene coordination. Commit at 100%
+          // immediately (the local onDragCommit closure rests the element track).
           onDragCommit?.(direction, 1, timelineDuration, timelineDuration);
           setIsAnimating(false);
           return;
@@ -546,131 +375,64 @@ export function useDragSceneEngine({
         const releaseToken = ++releaseTokenRef.current;
         const targetProgress = direction === 'forward' ? 1 : -1;
         const remainingProgress = Math.abs(targetProgress - currentProgress);
-        const sceneTravelDuration = remainingProgress * (slideDuration / 1000);
-        const targetElapsedMs = timelineDuration;
-        const remainingElapsedMs = Math.max(targetElapsedMs - currentElapsedMs, 0);
-        const timelineRemainingDuration = remainingElapsedMs / 1000;
-        const renderReleaseDuration = Math.max(sceneTravelDuration, timelineRemainingDuration);
+        // The page-slide (render lane) runs on the SCENE-TRANSITION timescale only.
+        // It is the SOLE commit trigger. The element timeline continuation runs in
+        // PARALLEL on the incoming scene's own track via the release directive set
+        // below — created at THIS instant (before the commit), at NATURAL rate.
+        const sceneTravelDuration = Math.max(remainingProgress * (slideDuration / 1000), 0);
+        const committedProgress = Math.min(absFinalProgress, 1);
 
-        const tryCommitRelease = (completedBy: 'timeline' | 'render') => {
+        // Publish the release directive NOW (in parallel with the render lane, BEFORE
+        // the commit). The incoming scene's useElementTrack continues its element
+        // track from the release elapsed to T at natural rate. F1: direction is
+        // captured in the directive at creation — the incoming scene never re-reads
+        // the global direction (which gets cleared at completeDragTransition).
+        onDragRelease?.({ mode: 'settle', direction, targetSceneIndex });
+
+        const commitRelease = () => {
           const pendingRelease = pendingReleaseRef.current;
           if (!pendingRelease || pendingRelease.token !== releaseTokenRef.current) {
             return;
           }
-
-          if (completedBy === 'timeline') {
-            pendingRelease.timelineComplete = true;
-          } else {
-            pendingRelease.renderComplete = true;
-          }
-
-          if (!pendingRelease.timelineComplete || !pendingRelease.renderComplete) {
-            return;
-          }
-
-          timelineReleaseControlsRef.current?.stop();
           renderReleaseControlsRef.current?.stop();
           pendingReleaseRef.current = null;
-          activationSettleControlsRef.current?.stop();
-          activationSettleControlsRef.current = null;
-          activeSettleKeyRef.current = null;
-          const committedElapsedMs = Math.max(
-            0,
-            Math.min(latestReleaseElapsedRef.current, timelineDuration)
-          );
-          const committedProgress =
-            timelineDuration > 0 ? committedElapsedMs / timelineDuration : 0;
+
           dragProgressMotion.set(targetProgress);
-          sharedElapsedMotion.set(committedElapsedMs);
-          debugDrag(`🫳 [Scene ${sceneIndex}] release handshake complete -> commit`, {
+          debugDrag(`🫳 [Scene ${sceneIndex}] release page-slide complete -> commit`, {
             releaseToken,
-            completedBy,
-            committedElapsedMs: committedElapsedMs.toFixed(1),
             committedProgress: committedProgress.toFixed(3),
             direction,
-            timelineDuration,
-            renderProgressAtCommit: targetProgress.toFixed(3),
-            latestTimelineElapsedMs: latestReleaseElapsedRef.current.toFixed(1),
-            snapshotWillTransferToScene:
-              direction === 'forward' ? sceneIndex + 1 : sceneIndex - 1,
+            sceneTravelDurationMs: (sceneTravelDuration * 1000).toFixed(1),
           });
-          onDragCommit?.(direction, committedProgress, committedElapsedMs, timelineDuration);
+          // Commit advances the scene index only. onSceneDidChange is DEFERRED to
+          // the incoming scene's completeDragTransition (when its element track
+          // reaches T).
+          onDragCommit?.(
+            direction,
+            committedProgress,
+            committedProgress * timelineDuration,
+            timelineDuration
+          );
           onRenderProgressChange?.(0);
           setIsAnimating(false);
-        };
-
-        const completeTimelineRelease = () => {
-          if (releaseTokenRef.current !== releaseToken) return;
-          latestReleaseElapsedRef.current = targetElapsedMs;
-          onDragProgressChange?.(targetProgress);
-          onDragTimelineProgressChange?.(1);
-          onSharedElapsedMsChange?.(targetElapsedMs);
-          dragProgressMotion.set(targetProgress);
-          sharedElapsedMotion.set(targetElapsedMs);
-          tryCommitRelease('timeline');
-        };
-
-        const completeRenderRelease = () => {
-          if (releaseTokenRef.current !== releaseToken) return;
-          onRenderProgressChange?.(targetProgress);
-          tryCommitRelease('render');
         };
 
         pendingReleaseRef.current = {
           token: releaseToken,
           direction,
-          timelineDuration,
-          targetProgress,
-          timelineComplete: false,
-          renderComplete: false,
-          completeTimeline: completeTimelineRelease,
-          completeRender: completeRenderRelease,
+          commit: commitRelease,
         };
 
         debugDrag(`🫳 [Scene ${sceneIndex}] release scene-travel`, {
           releaseToken,
           fromProgress: currentProgress.toFixed(3),
-          fromElapsedMs: currentElapsedMs.toFixed(1),
-          sceneTravelDurationMs: (renderReleaseDuration * 1000).toFixed(1),
+          sceneTravelDurationMs: (sceneTravelDuration * 1000).toFixed(1),
+          committedProgress: committedProgress.toFixed(3),
           timelineDuration,
-          timelineRemainingDurationMs: (timelineRemainingDuration * 1000).toFixed(1),
-        });
-
-        latestReleaseElapsedRef.current = currentElapsedMs;
-        timelineReleaseControlsRef.current = animate(sharedElapsedMotion, targetElapsedMs, {
-          duration: timelineRemainingDuration,
-          ease: 'linear',
-          onUpdate: (latest) => {
-            if (releaseTokenRef.current !== releaseToken) return;
-            const normalizedProgress = timelineDuration > 0 ? latest / timelineDuration : 0;
-            const signedTimelineProgress =
-              direction === 'forward' ? normalizedProgress : -normalizedProgress;
-            latestReleaseElapsedRef.current = latest;
-            onDragProgressChange?.(signedTimelineProgress);
-            onDragTimelineProgressChange?.(normalizedProgress);
-            onSharedElapsedMsChange?.(latest);
-            dragProgressMotion.set(signedTimelineProgress);
-            if (isVerboseDragDebug()) {
-              const bucket = Math.round(Math.abs(normalizedProgress) * 10) / 10;
-              if (lastTimelineReleaseBucketRef.current !== bucket) {
-                lastTimelineReleaseBucketRef.current = bucket;
-                console.log(`🧵 [Scene ${sceneIndex}] release timeline tick`, {
-                  releaseToken,
-                  progress: normalizedProgress.toFixed(3),
-                  sharedElapsedMs: latest.toFixed(1),
-                  bucket: bucket.toFixed(1),
-                  direction,
-                });
-              }
-            }
-          },
-          onComplete: () => {
-            completeTimelineRelease();
-          },
         });
 
         renderReleaseControlsRef.current = animate(currentProgress, targetProgress, {
-          duration: renderReleaseDuration,
+          duration: sceneTravelDuration,
           ease: 'easeOut',
           onUpdate: (latest) => {
             if (releaseTokenRef.current !== releaseToken) return;
@@ -689,7 +451,7 @@ export function useDragSceneEngine({
             }
           },
           onComplete: () => {
-            completeRenderRelease();
+            commitRelease();
           },
         });
       } else {
@@ -698,29 +460,25 @@ export function useDragSceneEngine({
 
         debugDrag(`🫳 [Scene ${sceneIndex}] release bounce-back`, {
           fromProgress: currentProgress.toFixed(3),
-          fromElapsedMs: currentElapsedMs.toFixed(1),
           timelineDuration,
           durationMs: (duration * 1000).toFixed(1),
         });
 
+        // Bounce both tracks back to 0 in parallel (I1).
+        onDragRelease?.({ mode: 'bounce', direction, targetSceneIndex });
         animate(dragProgressMotion, 0, {
           duration,
           ease: 'easeOut',
           onUpdate: (latest) => {
-            const elapsedMs = Math.abs(latest) * timelineDuration;
             onDragProgressChange?.(latest);
             onDragTimelineProgressChange?.(Math.abs(latest));
             onRenderProgressChange?.(latest);
-            onSharedElapsedMsChange?.(elapsedMs);
-            sharedElapsedMotion.set(elapsedMs);
           },
           onComplete: () => {
             onDragProgressChange?.(0);
             onDragTimelineProgressChange?.(0);
             onRenderProgressChange?.(0);
-            onSharedElapsedMsChange?.(0);
             dragProgressMotion.set(0);
-            sharedElapsedMotion.set(0);
             onDragReset?.();
             onDraggingChange?.(false);
             setIsAnimating(false);
@@ -733,13 +491,13 @@ export function useDragSceneEngine({
       isActive,
       slideDirection,
       sceneIndex,
+      currentSceneIndex,
       slideDuration,
       dragProgressMotion,
-      sharedElapsedMotion,
       onDragProgressChange,
       onDragTimelineProgressChange,
       onRenderProgressChange,
-      onSharedElapsedMsChange,
+      onDragRelease,
       onDragCommit,
       onDragReset,
       onDraggingChange,

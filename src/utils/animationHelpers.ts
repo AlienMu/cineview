@@ -27,7 +27,7 @@ export async function parseAnimationSafely(
           `Problem: The ${animationType}Animation configuration is invalid or malformed.\n` +
           `Fix: Ensure your animation is one of:\n` +
           `  1. A valid preset animation name (e.g., 'fade-in', 'slide-up')\n` +
-          `  2. A custom animation with valid keyframes and options\n` +
+          `  2. A custom animation with valid initial/animate/exit variant fields\n` +
           `  3. A composed animation with valid structure`
       );
     }

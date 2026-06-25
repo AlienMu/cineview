@@ -1,148 +1,132 @@
 /**
- * Verifies partial-progress commit creates settle snapshot for target scene.
- * Task flow: 2026-06-11-drag-release-progress-settle
+ * Drag Settle Progress Continuity — two-track contract (2026-06-25).
+ *
+ * Supersedes the single-scalar snapshot model. commitDragSceneChange advances
+ * the scene index and DEFERS onAfterChange; it does not carry an elapsed/timeline
+ * scalar nor build a snapshot. completeDragTransition (called by the incoming
+ * scene when its element track reaches T) fires the deferred onAfterChange.
  */
 
-import React, { act, createRef } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { act, renderHook } from '@testing-library/react';
+import { useSceneManager } from '../../hooks/useSceneManager';
 
-// ---------------------------------------------------------------------------
-// same framer-motion mock as dragModeSettleHandshake.test.tsx
-// ---------------------------------------------------------------------------
+describe('commitDragSceneChange progress continuity (two-track)', () => {
+  it('advances the index and defers onAfterChange on a partial commit', () => {
+    const onBeforeChange = jest.fn();
+    const onAfterChange = jest.fn();
 
-type PendingAnimation = {
-  stop: () => void;
-  flush: () => void;
-  isStopped: () => boolean;
-};
-
-const pendingObjectAnimations: PendingAnimation[] = [];
-const pendingNumberAnimations: PendingAnimation[] = [];
-
-async function flushPendingObjectAnimations(): Promise<void> {
-  await act(async () => {
-    for (const animation of pendingObjectAnimations.splice(0)) {
-      if (!animation.isStopped()) animation.flush();
-    }
-  });
-}
-
-async function flushPendingNumberAnimations(): Promise<void> {
-  await act(async () => {
-    for (const animation of pendingNumberAnimations.splice(0)) {
-      if (!animation.isStopped()) animation.flush();
-    }
-  });
-}
-
-jest.mock('framer-motion', () => {
-  const React = require('react');
-  const createMotionValueStub = (initial: number) => {
-    let current = initial;
-    const listeners = new Set<(value: number) => void>();
-    return {
-      get: () => current,
-      set: (value: number) => { current = value; listeners.forEach((l) => l(current)); },
-      on: (event: string, listener: (value: number) => void) => {
-        if (event !== 'change') return () => undefined;
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      },
-    };
-  };
-  const MotionDiv = React.forwardRef(({ children, onPanStart, onPan, onPanEnd, ...props }: any, ref: any) => {
-    const startRef = React.useRef(null as { x: number; y: number } | null);
-    const lastRef = React.useRef(null as { x: number; y: number } | null);
-    const getPoint = (event: React.MouseEvent<HTMLDivElement>) => ({ x: event.clientX, y: event.clientY });
-    const buildInfo = (point: { x: number; y: number }) => {
-      const start = startRef.current ?? point;
-      const last = lastRef.current ?? start;
-      return { offset: { x: point.x - start.x, y: point.y - start.y }, velocity: { x: point.x - last.x, y: point.y - last.y } };
-    };
-    return (
-      <div ref={ref} {...props}
-        onMouseDown={(event) => { const p = getPoint(event); startRef.current = p; lastRef.current = p; onPanStart?.(); }}
-        onMouseMove={(event) => { if (!startRef.current) return; const p = getPoint(event); onPan?.(event.nativeEvent, buildInfo(p)); lastRef.current = p; }}
-        onMouseUp={(event) => { if (!startRef.current) return; const p = getPoint(event); onPanEnd?.(event.nativeEvent, buildInfo(p)); startRef.current = null; lastRef.current = null; }}
-      >{children}</div>
+    const { result } = renderHook(() =>
+      useSceneManager({
+        totalScenes: 3,
+        initialScene: 1,
+        mode: 'drag',
+        onBeforeChange,
+        onAfterChange,
+      })
     );
+
+    act(() => {
+      const [, actions] = result.current;
+      actions.setDragProgress(0.6);
+      actions.setDragTimelineProgress(0.6);
+      actions.setRenderProgress(0.6);
+      actions.setIsDragging(true);
+      actions.commitDragSceneChange('forward', 0.6);
+    });
+
+    const [state] = result.current;
+
+    expect(state.currentScene).toBe(2);
+    expect(state.direction).toBe('forward');
+    expect(state.dragProgress).toBe(0);
+    expect(state.renderProgress).toBe(0);
+    expect(state.isDragging).toBe(false);
+    // Timeline ratio is reported for diagnostics; the element timeline itself
+    // lives on the incoming scene, not in a global scalar here.
+    expect(state.dragTimelineProgress).toBe(0.6);
+    expect(state.dragRelease).toBeNull();
+    // Deferred: the incoming scene owns completion.
+    expect(onAfterChange).not.toHaveBeenCalled();
   });
-  MotionDiv.displayName = 'MotionDiv';
-  return {
-    __esModule: true, motion: { div: MotionDiv },
-    AnimatePresence: ({ children }: any) => <>{children}</>,
-    useAnimation: () => ({ start: jest.fn().mockResolvedValue(undefined), stop: jest.fn(), set: jest.fn() }),
-    useMotionValue: (initial: number) => createMotionValueStub(initial),
-    useTransform: (source: any, transform: (value: number) => number) => {
-      const motionValue = createMotionValueStub(transform(source.get()));
-      source.on?.('change', (value: number) => { motionValue.set(transform(value)); });
-      return motionValue;
-    },
-    animate: (value: any, target: number, options?: any) => {
-      const kind = typeof value === 'object' && value?.set ? 'motion-value' : 'number';
-      let stopped = false;
-      const animation: PendingAnimation = {
-        stop: () => { stopped = true; },
-        flush: () => {
-          if (stopped) return;
-          if (typeof value === 'object' && value?.set) value.set?.(target);
-          options?.onUpdate?.(target);
-          options?.onComplete?.();
-          stopped = true;
-        },
-        isStopped: () => stopped,
-      };
-      if (kind === 'motion-value') { pendingObjectAnimations.push(animation); options?.onUpdate?.(target * 0.6); if (typeof value === 'object' && value?.set) value.set(target * 0.6); }
-      else { pendingNumberAnimations.push(animation); options?.onUpdate?.(target * 0.6); }
-      return { stop: animation.stop, flush: animation.flush };
-    },
-  };
-});
 
-(window as any).IntersectionObserver = jest.fn(() => ({ observe: () => null, unobserve: () => null, disconnect: () => null }));
+  it('defers onAfterChange even at full progress (incoming scene owns completion)', () => {
+    const onAfterChange = jest.fn();
 
-// ---------------------------------------------------------------------------
-function renderDragApp(onSceneDidChange: jest.Mock) {
-  const cineViewRef = createRef<CineViewRef>();
-  render(
-    <CineView ref={cineViewRef} mode="drag" modes={{ drag: { direction: 'y', transitionDuration: 800 } }} config={{ width: 750, height: 1334, unit: 'px' }} callbacks={{ common: { onSceneDidChange } }}>
-      <Scene transition={{ exitDuration: 800 }}>
-        <Position at={{ x: 375, y: 220 }}><Animate animateId="drag-scene-1-title" enterAnimation="fade-in" duration={{ enter: 600 }}><h1>Drag Scene 1</h1></Animate></Position>
-      </Scene>
-      <Scene transition={{ exitDuration: 800 }}>
-        <Position at={{ x: 375, y: 220 }}><Animate animateId="drag-scene-2-title" enterAnimation="fade-in" duration={{ enter: 1400 }}><h1>Drag Scene 2</h1></Animate></Position>
-      </Scene>
-    </CineView>
-  );
-  return cineViewRef;
-}
+    const { result } = renderHook(() =>
+      useSceneManager({
+        totalScenes: 3,
+        initialScene: 0,
+        mode: 'drag',
+        onAfterChange,
+      })
+    );
 
-function dragUp(surface: HTMLElement, fromY: number, toY: number) {
-  fireEvent.mouseDown(surface, { clientX: 375, clientY: fromY });
-  fireEvent.mouseMove(surface, { clientX: 375, clientY: toY });
-  fireEvent.mouseUp(surface, { clientX: 375, clientY: toY });
-}
+    act(() => {
+      const [, actions] = result.current;
+      actions.commitDragSceneChange('forward', 1);
+    });
 
-// ---------------------------------------------------------------------------
-describe('partial progress commit', () => {
-  beforeEach(() => { jest.clearAllMocks(); pendingObjectAnimations.length = 0; pendingNumberAnimations.length = 0; });
+    const [state] = result.current;
+    expect(state.currentScene).toBe(1);
+    expect(state.dragTimelineProgress).toBe(1);
+    expect(onAfterChange).not.toHaveBeenCalled();
 
-  it('scene changes only after both release lanes complete (dual gate still guards)', async () => {
-    const onSceneDidChange = jest.fn();
-    const cineViewRef = renderDragApp(onSceneDidChange);
-    await waitFor(() => { expect(cineViewRef.current?.getCurrentScene()).toBe(0); });
-    const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
-    dragUp(surface, 620, 120);
-    // Neither lane complete yet
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    // Flush one lane
-    await flushPendingNumberAnimations();
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
-    // Flush other lane → commit
-    await flushPendingObjectAnimations();
-    await waitFor(() => { expect(cineViewRef.current?.getCurrentScene()).toBe(1); });
+    act(() => {
+      const [, actions] = result.current;
+      actions.completeDragTransition();
+    });
+    expect(onAfterChange).toHaveBeenCalledWith(1, 0);
+  });
+
+  it('preserves backward commit progress (reverse drag)', () => {
+    const onBeforeChange = jest.fn();
+
+    const { result } = renderHook(() =>
+      useSceneManager({
+        totalScenes: 3,
+        initialScene: 2,
+        mode: 'drag',
+        onBeforeChange,
+      })
+    );
+
+    act(() => {
+      const [, actions] = result.current;
+      actions.commitDragSceneChange('backward', 0.4);
+    });
+
+    const [state] = result.current;
+
+    expect(state.currentScene).toBe(1);
+    expect(state.direction).toBe('backward');
+    expect(state.dragTimelineProgress).toBe(0.4);
+  });
+
+  it('clears state and calls onAfterChange when completeDragTransition runs', () => {
+    const onAfterChange = jest.fn();
+
+    const { result } = renderHook(() =>
+      useSceneManager({
+        totalScenes: 3,
+        initialScene: 1,
+        mode: 'drag',
+        onAfterChange,
+      })
+    );
+
+    act(() => {
+      const [, actions] = result.current;
+      actions.commitDragSceneChange('forward', 0.6);
+    });
+
+    act(() => {
+      const [, actions] = result.current;
+      actions.completeDragTransition();
+    });
+
+    const [state] = result.current;
+    expect(state.dragRelease).toBeNull();
+    expect(state.dragTimelineProgress).toBe(0);
+    expect(onAfterChange).toHaveBeenCalledWith(2, 1);
   });
 });

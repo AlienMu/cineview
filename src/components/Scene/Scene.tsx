@@ -7,13 +7,19 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { motion, useAnimation, useMotionValue } from 'framer-motion';
 import { SceneContext, type SceneContextType } from '../Animate/Animate';
 import { useCineViewContext } from '../../context/CineViewContext';
-import type { AnimateRegistrationInfo } from '../Animate/Animate';
+import {
+  buildAnimationRegistrySnapshot,
+  type AnimateRegistrationInfo,
+  type AnimationRegistryIssue,
+  type AnimationRegistrySnapshot,
+} from '../../animations/registry';
 import type { PresetAnimation } from '../../animations/presets';
 import { parseAnimationSafely } from '../../utils/animationHelpers';
 import type { SceneInternalProps, SceneState } from './types';
 import { useSceneRuntimeState } from './useSceneRuntimeState';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
 import { useDragSceneEngine } from './useDragSceneEngine';
+import { useElementTrack } from './useElementTrack';
 import { SceneFixedLayerContext } from '../Position/Position';
 import { SceneScrollTakeoverContext } from './sceneScrollRuntime';
 import { useSceneScrollTakeover } from './useSceneScrollTakeover';
@@ -39,15 +45,16 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     currentSceneIndex,
     globalDirection,
     globalIsSceneAnimating,
-    globalSharedElapsedMs,
     globalSharedTimelineDurationMs,
+    globalFirstSceneEnterActive,
+    globalFirstSceneEnterReady,
     globalViewportWidth,
     globalViewportHeight,
     globalDragProgress,
     globalRenderProgress,
     globalDragTimelineProgress,
     globalIsDragging,
-    globalDragTransitionSnapshot,
+    globalDragRelease,
     globalScrollProgress,
     globalIsScrolling,
     globalScrollDirection,
@@ -73,9 +80,9 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     onDragProgressChange,
     onRenderProgressChange,
     onDragTimelineProgressChange,
-    onSharedElapsedMsChange,
     onDraggingChange,
     onSharedTimelineDurationChange,
+    onDragRelease,
     onDragCommit,
     onDragReset,
     slideDuration,
@@ -92,13 +99,11 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     props.globalRenderProgress !== undefined ||
     props.globalDragTimelineProgress !== undefined ||
     props.globalIsDragging !== undefined ||
-    props.globalSharedElapsedMs !== undefined ||
     props.globalSharedTimelineDurationMs !== undefined ||
-    props.globalDragTransitionSnapshot !== undefined ||
+    props.globalDragRelease !== undefined ||
     props.onDragProgressChange ||
     props.onRenderProgressChange ||
     props.onDragTimelineProgressChange ||
-    props.onSharedElapsedMsChange ||
     props.onDraggingChange ||
     props.onSharedTimelineDurationChange ||
     props.onDragCommit ||
@@ -110,12 +115,29 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalDragTimelineProgress
   );
   const [localIsDragging, setLocalIsDragging] = useState(globalIsDragging);
-  const [localSharedElapsedMs, setLocalSharedElapsedMs] = useState(globalSharedElapsedMs);
   const [localSharedTimelineDurationMs, setLocalSharedTimelineDurationMs] = useState(
     globalSharedTimelineDurationMs
   );
-  const [localDragTransitionSnapshot, setLocalDragTransitionSnapshot] = useState(
-    globalDragTransitionSnapshot
+  const [localDragRelease, setLocalDragRelease] = useState(globalDragRelease);
+  const localDragReleaseTokenRef = useRef(0);
+  // Standalone (no CineView) release sink: injects a monotonic token so the
+  // shape matches the global DragRelease the element track reacts to.
+  const setLocalDragReleaseInput = useCallback(
+    (
+      release: {
+        mode: 'settle' | 'bounce';
+        direction: 'forward' | 'backward';
+        targetSceneIndex: number;
+      } | null
+    ) => {
+      if (release === null) {
+        setLocalDragRelease(null);
+        return;
+      }
+      localDragReleaseTokenRef.current += 1;
+      setLocalDragRelease({ ...release, token: localDragReleaseTokenRef.current });
+    },
+    []
   );
   const currentDragProgress = hasExternalDragRuntime ? globalDragProgress : localDragProgress;
   const currentRenderProgress = hasExternalDragRuntime ? globalRenderProgress : localRenderProgress;
@@ -123,28 +145,42 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     ? globalDragTimelineProgress
     : localDragTimelineProgress;
   const currentIsDragging = hasExternalDragRuntime ? globalIsDragging : localIsDragging;
-  const currentSharedElapsedMs = hasExternalDragRuntime
-    ? globalSharedElapsedMs
-    : localSharedElapsedMs;
   const currentSharedTimelineDurationMs = hasExternalDragRuntime
     ? globalSharedTimelineDurationMs
     : localSharedTimelineDurationMs;
-  const currentDragTransitionSnapshot = hasExternalDragRuntime
-    ? globalDragTransitionSnapshot
-    : localDragTransitionSnapshot;
+  const currentDragRelease = hasExternalDragRuntime ? globalDragRelease : localDragRelease;
   const isDragging = currentIsDragging;
 
   const dragProgressMotion = useMotionValue(currentDragProgress);
-  const sharedElapsedMotion = useMotionValue(currentSharedElapsedMs);
+  // Two-track model: the element track is scene-OWNED. It starts at 0 (never
+  // seeded from a global scalar) and is written ONLY by this scene's
+  // useElementTrack. The old global-sync effect is deleted.
+  const elementElapsedMotion = useMotionValue(0);
 
   const [sceneState, setSceneState] = useState<SceneState>('initial');
   const sceneOffset = sceneIndex - currentSceneIndex;
   const [isAnimating, setIsAnimating] = useState(false);
 
   const animateRegistry = useRef<Map<string, AnimateRegistrationInfo>>(new Map());
-  const animateRegistrySet = useRef<Set<string>>(new Set());
-  const delayCache = useRef<Map<string, number>>(new Map());
+  const duplicateAnimateIds = useRef<Set<string>>(new Set());
+  const registrySnapshot = useRef<AnimationRegistrySnapshot>(
+    buildAnimationRegistrySnapshot({
+      baseDuration: resolvedSceneTransitionDuration,
+      registrations: animateRegistry.current,
+    })
+  );
+  const reportedRegistryIssues = useRef<Set<string>>(new Set());
   const timelineDurationRef = useRef<number>(resolvedSceneTransitionDuration);
+  // State mirror of the registry-computed timeline duration. The ref above is
+  // read synchronously by the drag/release lanes, but the duration only grows
+  // once Animate children register (after their async variant parse), which
+  // mutates a ref and does NOT re-render. Without a state bump the report
+  // effect below keeps publishing the stale base duration to CineView, so the
+  // first-scene cold-start driver under-drives the timeline (delay+duration is
+  // never reached). Bumping this on every rebuild re-fires the report.
+  const [timelineDurationState, setTimelineDurationState] = useState<number>(
+    resolvedSceneTransitionDuration
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [fixedLayerElement, setFixedLayerElement] = useState<HTMLElement | null>(null);
@@ -164,9 +200,9 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     dragProgressMotion.set(currentDragProgress);
   }, [currentDragProgress, dragProgressMotion]);
 
-  useEffect(() => {
-    sharedElapsedMotion.set(currentSharedElapsedMs);
-  }, [currentSharedElapsedMs, sharedElapsedMotion]);
+  // NOTE: the element track (elementElapsedMotion) is NOT synced from any global
+  // value — it is owned and driven solely by this scene's useElementTrack
+  // (single-writer). Only dragProgressMotion mirrors the render-side drag value.
 
   useEffect(() => {
     if (!hasExternalDragRuntime) {
@@ -177,18 +213,16 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     setLocalRenderProgress(globalRenderProgress);
     setLocalDragTimelineProgress(globalDragTimelineProgress);
     setLocalIsDragging(globalIsDragging);
-    setLocalSharedElapsedMs(globalSharedElapsedMs);
     setLocalSharedTimelineDurationMs(globalSharedTimelineDurationMs);
-    setLocalDragTransitionSnapshot(globalDragTransitionSnapshot);
+    setLocalDragRelease(globalDragRelease);
   }, [
     hasExternalDragRuntime,
     globalDragProgress,
     globalRenderProgress,
     globalDragTimelineProgress,
     globalIsDragging,
-    globalSharedElapsedMs,
     globalSharedTimelineDurationMs,
-    globalDragTransitionSnapshot,
+    globalDragRelease,
   ]);
 
   const resolveDragProgress = useCallback(
@@ -260,49 +294,82 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     };
   }, [resolvedEnterAnimation, resolvedExitAnimation, sceneIndex]);
 
-  const calculateDelayForComponent = useCallback(
-    (id: string, info: AnimateRegistrationInfo): number => {
-      let totalDelay = info.delay;
+  const getIssueKey = useCallback((issue: AnimationRegistryIssue): string => {
+    switch (issue.type) {
+      case 'missing-dependency':
+        return `${issue.type}:${issue.animateId}:${issue.waitFor}`;
+      case 'circular-dependency':
+        return `${issue.type}:${issue.animateId}:${issue.cycle.join('>')}`;
+      case 'duplicate-id':
+        return `${issue.type}:${issue.animateId}`;
+    }
+  }, []);
 
-      if (info.waitFor) {
-        const cachedWaitForDelay = delayCache.current.get(info.waitFor);
-        if (cachedWaitForDelay !== undefined) {
-          const waitForInfo = animateRegistry.current.get(info.waitFor);
-          if (waitForInfo) {
-            totalDelay += cachedWaitForDelay + waitForInfo.duration;
-          }
-        } else {
-          const waitForInfo = animateRegistry.current.get(info.waitFor);
-          if (waitForInfo) {
-            const waitForDelay = calculateDelayForComponent(info.waitFor, waitForInfo);
-            delayCache.current.set(info.waitFor, waitForDelay);
-            totalDelay += waitForDelay + waitForInfo.duration;
-          } else if (process.env.NODE_ENV === 'development') {
-            console.warn(
-              `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
-                `Problem: Animate component "${id}" references non-existent component "${info.waitFor}" via waitFor.\n` +
-                `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`
-            );
-          }
-        }
+  const reportRegistryIssues = useCallback(
+    (issues: AnimationRegistryIssue[]): void => {
+      if (process.env.NODE_ENV !== 'development') {
+        return;
       }
 
-      return totalDelay;
+      issues.forEach((issue) => {
+        const key = getIssueKey(issue);
+        if (reportedRegistryIssues.current.has(key)) {
+          return;
+        }
+        reportedRegistryIssues.current.add(key);
+
+        if (issue.type === 'missing-dependency') {
+          console.warn(
+            `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
+              `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor.\n` +
+              `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`
+          );
+          return;
+        }
+
+        if (issue.type === 'circular-dependency') {
+          console.warn(
+            `[CineView Warning] Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
+              `Problem: Animate waitFor chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
+              `Fix: Remove the circular waitFor reference so each Animate starts after an earlier independent animation.\n`
+          );
+          return;
+        }
+
+        console.warn(
+          `[CineView Warning] Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
+            `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
+            `Fix: Give each Animate component in a Scene a unique animateId.\n`
+        );
+      });
     },
-    [sceneIndex]
+    [getIssueKey, sceneIndex]
   );
+
+  const rebuildRegistrySnapshot = useCallback((): AnimationRegistrySnapshot => {
+    const snapshot = buildAnimationRegistrySnapshot({
+      baseDuration: resolvedSceneTransitionDuration,
+      registrations: animateRegistry.current,
+      duplicateIds: duplicateAnimateIds.current,
+    });
+    registrySnapshot.current = snapshot;
+    timelineDurationRef.current = snapshot.timelineDuration;
+    setTimelineDurationState((previous) =>
+      previous === snapshot.timelineDuration ? previous : snapshot.timelineDuration
+    );
+    reportRegistryIssues(snapshot.issues);
+    return snapshot;
+  }, [reportRegistryIssues, resolvedSceneTransitionDuration]);
 
   const registerAnimate = useCallback(
     (id: string, info: AnimateRegistrationInfo) => {
+      if (animateRegistry.current.has(id)) {
+        duplicateAnimateIds.current.add(id);
+      }
       animateRegistry.current.set(id, info);
-      animateRegistrySet.current.add(id);
 
-      const calculatedDelay = calculateDelayForComponent(id, info);
-      delayCache.current.set(id, calculatedDelay);
-      timelineDurationRef.current = Math.max(
-        resolvedSceneTransitionDuration,
-        calculatedDelay + info.duration
-      );
+      const snapshot = rebuildRegistrySnapshot();
+      const calculatedDelay = snapshot.calculatedDelays.get(id) ?? info.delay;
 
       if (
         process.env.NODE_ENV === 'development' &&
@@ -326,27 +393,21 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         );
       }
     },
-    [sceneIndex, calculateDelayForComponent, resolvedSceneTransitionDuration]
+    [sceneIndex, rebuildRegistrySnapshot]
   );
 
   const unregisterAnimate = useCallback(
     (id: string) => {
       animateRegistry.current.delete(id);
-      animateRegistrySet.current.delete(id);
-      delayCache.current.delete(id);
-      let nextTimelineDuration = resolvedSceneTransitionDuration;
-      animateRegistry.current.forEach((info, animateId) => {
-        const calculatedDelay = delayCache.current.get(animateId) ?? 0;
-        nextTimelineDuration = Math.max(nextTimelineDuration, calculatedDelay + info.duration);
-      });
-      timelineDurationRef.current = nextTimelineDuration;
+      duplicateAnimateIds.current.delete(id);
+      rebuildRegistrySnapshot();
     },
-    [resolvedSceneTransitionDuration]
+    [rebuildRegistrySnapshot]
   );
 
   const getCalculatedDelay = useCallback(
     (animateId: string): number => {
-      const cachedDelay = delayCache.current.get(animateId);
+      const cachedDelay = registrySnapshot.current.calculatedDelays.get(animateId);
       if (cachedDelay !== undefined) {
         return cachedDelay;
       }
@@ -417,6 +478,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     effectiveMode,
     isActive,
     getTimelineDuration,
+    timelineDurationState,
     dragRuntime,
     onSharedTimelineDurationChange,
     sceneState,
@@ -435,7 +497,9 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       isDragging,
       dragProgressMotion,
       dragTimelineProgress: currentDragTimelineProgress,
-      sharedElapsedMotion,
+      // Context FIELD name stays `sharedElapsedMotion` (useAnimateDrag reads it);
+      // the local var is the scene-owned element track.
+      sharedElapsedMotion: elementElapsedMotion,
       renderProgress: currentRenderProgress,
       scrollProgress: globalScrollProgress,
       isScrolling: globalIsScrolling,
@@ -444,10 +508,10 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       scrollActiveSceneIndex: globalScrollActiveSceneIndex,
       sceneState,
       sceneOffset,
-      dragTransitionSnapshot: currentDragTransitionSnapshot,
+      dragRelease: currentDragRelease,
       scrollTransitionSnapshot: globalScrollTransitionSnapshot,
-      sharedElapsedMs: currentSharedElapsedMs,
       sharedTimelineDurationMs: currentSharedTimelineDurationMs,
+      firstSceneEnterActive: globalFirstSceneEnterActive,
       sceneTransitionDuration: resolvedSceneTransitionDuration,
       getTimelineDuration,
       registerAnimate,
@@ -472,15 +536,14 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         sceneState,
         sceneOffset: contextValue.sceneOffset,
         sceneTransitionDuration: resolvedSceneTransitionDuration,
-        dragTransitionSnapshot: contextValue.dragTransitionSnapshot,
-        sharedElapsedMs: contextValue.sharedElapsedMs,
+        dragRelease: contextValue.dragRelease,
         dragTimelineProgress: contextValue.dragTimelineProgress?.toFixed(3),
         scrollProgress: contextValue.scrollProgress?.toFixed(3),
         sharedTimelineDurationMs: contextValue.sharedTimelineDurationMs,
         timelineDuration: contextValue.getTimelineDuration(),
         enterDuration: slideDuration,
         renderProgress: contextValue.renderProgress.toFixed(3),
-        sharedElapsedMsDebug: sharedElapsedMotion.get().toFixed(1),
+        elementElapsedMsDebug: elementElapsedMotion.get().toFixed(1),
       });
     }
 
@@ -493,7 +556,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     runtimeState,
     isDragging,
     dragProgressMotion,
-    sharedElapsedMotion,
+    elementElapsedMotion,
     currentRenderProgress,
     currentDragTimelineProgress,
     globalScrollProgress,
@@ -505,10 +568,10 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalDirection,
     sceneState,
     sceneOffset,
-    currentDragTransitionSnapshot,
+    currentDragRelease,
     globalScrollTransitionSnapshot,
-    currentSharedElapsedMs,
     currentSharedTimelineDurationMs,
+    globalFirstSceneEnterActive,
     resolvedSceneTransitionDuration,
     getTimelineDuration,
     registerAnimate,
@@ -542,6 +605,29 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     scrollSettleTimerRef,
     setSceneState,
   });
+  // Two-track element driver (single writer = this scene). Owns
+  // elementElapsedMotion across follow-finger, release continuation, H2 preempt
+  // and the scene-0 cold-start. onSettleComplete / onColdStartComplete both wire
+  // to completeDragTransition (via onActivationComplete) — fired when this
+  // scene's element track reaches T.
+  useElementTrack({
+    slideMode: effectiveMode,
+    isActive,
+    sceneIndex,
+    sceneOffset,
+    globalDirection,
+    globalRenderProgress: currentRenderProgress,
+    globalIsDragging: currentIsDragging,
+    globalDragTimelineProgress: currentDragTimelineProgress,
+    dragRelease: currentDragRelease,
+    firstSceneEnterReady: globalFirstSceneEnterReady,
+    elementElapsedMotion,
+    getTimelineDuration,
+    timelineDurationState,
+    onSettleComplete: dragRuntime?.onActivationComplete ?? onActivationComplete,
+    onColdStartComplete: dragRuntime?.onActivationComplete ?? onActivationComplete,
+  });
+
   const { handleDragStart, handlePan, handlePanEnd } = useDragSceneEngine({
     slideMode: effectiveMode,
     isActive,
@@ -557,17 +643,13 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalRenderProgress: currentRenderProgress,
     globalIsDragging: currentIsDragging,
     globalDragProgress: currentDragProgress,
-    globalSharedElapsedMs: currentSharedElapsedMs,
     globalDragTimelineProgress: currentDragTimelineProgress,
-    globalDragTransitionSnapshot: currentDragTransitionSnapshot,
     controls,
     dragProgressMotion,
-    sharedElapsedMotion,
     setSceneState,
     setIsAnimating,
     resolveDragProgress,
     getTimelineDuration,
-    onActivationComplete: dragRuntime?.onActivationComplete ?? onActivationComplete,
     onDragProgressChange:
       dragRuntime?.onProgressChange ??
       onDragProgressChange ??
@@ -580,10 +662,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       dragRuntime?.onTimelineProgressChange ??
       onDragTimelineProgressChange ??
       (hasExternalDragRuntime ? undefined : setLocalDragTimelineProgress),
-    onSharedElapsedMsChange:
-      dragRuntime?.onSharedElapsedMsChange ??
-      onSharedElapsedMsChange ??
-      (hasExternalDragRuntime ? undefined : setLocalSharedElapsedMs),
     onDraggingChange:
       dragRuntime?.onDraggingChange ??
       onDraggingChange ??
@@ -592,6 +670,10 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       dragRuntime?.onSharedTimelineDurationChange ??
       onSharedTimelineDurationChange ??
       (hasExternalDragRuntime ? undefined : setLocalSharedTimelineDurationMs),
+    onDragRelease:
+      dragRuntime?.onRelease ??
+      onDragRelease ??
+      (hasExternalDragRuntime ? undefined : setLocalDragReleaseInput),
     completeReleaseImmediately: !hasExternalDragRuntime,
     onDragCommit:
       dragRuntime?.onCommit ??
@@ -599,13 +681,16 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       (hasExternalDragRuntime
         ? undefined
         : (direction, _progressRatio, _elapsedMs, timelineDuration): void => {
+            // Standalone (no CineView): commit at 100% immediately. There is no
+            // incoming-scene coordination, so just rest the element track at T
+            // and clear the drag interaction.
             setLocalDragProgress(0);
             setLocalRenderProgress(0);
             setLocalDragTimelineProgress(0);
             setLocalIsDragging(false);
-            setLocalSharedElapsedMs(0);
             setLocalSharedTimelineDurationMs(timelineDuration ?? 0);
-            setLocalDragTransitionSnapshot(null);
+            setLocalDragRelease(null);
+            elementElapsedMotion.set(getTimelineDuration());
             onSceneChange?.(direction);
           }),
     onDragReset:
@@ -618,20 +703,20 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
             setLocalRenderProgress(0);
             setLocalDragTimelineProgress(0);
             setLocalIsDragging(false);
-            setLocalSharedElapsedMs(0);
-            setLocalDragTransitionSnapshot(null);
+            setLocalDragRelease(null);
+            elementElapsedMotion.set(0);
           }),
   });
 
   useEffect(() => {
     const registry = animateRegistry.current;
-    const registrySet = animateRegistrySet.current;
-    const cache = delayCache.current;
+    const duplicates = duplicateAnimateIds.current;
+    const reportedIssues = reportedRegistryIssues.current;
 
     return (): void => {
       registry.clear();
-      registrySet.clear();
-      cache.clear();
+      duplicates.clear();
+      reportedIssues.clear();
     };
   }, []);
 
@@ -722,7 +807,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
             <motion.div
               ref={containerRef}
               data-cineview-scroll-zone={
-                effectiveMode === 'scroll' ? sceneZoneId ?? props.sceneId ?? undefined : undefined
+                effectiveMode === 'scroll' ? (sceneZoneId ?? props.sceneId ?? undefined) : undefined
               }
               initial={initialVariant as never}
               animate={controls}
@@ -739,7 +824,8 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
                     position: 'absolute',
                     inset: 0,
                     width: fixedLayerMetrics.clipWidth > 0 ? fixedLayerMetrics.clipWidth : '100%',
-                    height: fixedLayerMetrics.clipHeight > 0 ? fixedLayerMetrics.clipHeight : '100%',
+                    height:
+                      fixedLayerMetrics.clipHeight > 0 ? fixedLayerMetrics.clipHeight : '100%',
                     overflow: 'hidden',
                     pointerEvents: 'none',
                     opacity: fixedLayerMetrics.visible ? 1 : 0,

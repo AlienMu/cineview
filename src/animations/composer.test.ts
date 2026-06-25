@@ -24,11 +24,11 @@ jest.mock('./animationParser', () => ({
         });
       }
     }
-    if (typeof animation === 'object' && 'keyframes' in animation) {
+    if (typeof animation === 'object' && 'animate' in animation) {
       return Promise.resolve({
-        initial: { opacity: 0 },
-        animate: { ...animation.keyframes, transition: { duration: 1 } },
-        exit: { opacity: 0 },
+        initial: animation.initial ?? {},
+        animate: { ...animation.animate, transition: { duration: 1 } },
+        exit: animation.exit ?? {},
       });
     }
     return Promise.resolve(null);
@@ -271,8 +271,7 @@ describe('composer', () => {
 
     it('should parse custom animation object', async () => {
       const animation: CustomAnimation = {
-        keyframes: { opacity: 1, transform: 'scale(1)' },
-        duration: 1000,
+        animate: { opacity: 1, transform: 'scale(1)' },
       };
 
       const result = await parseAnimationWithComposition(animation);
@@ -289,8 +288,7 @@ describe('composer', () => {
         animations: [
           'fade',
           {
-            keyframes: { scale: 1.2 },
-            duration: 500,
+            animate: { scale: 1.2 },
           } as CustomAnimation,
         ],
       };

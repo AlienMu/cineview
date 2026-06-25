@@ -5,7 +5,6 @@
 
 import { getPresetAnimation, type PresetAnimationName } from './presets';
 import type { CustomAnimation, ParsedAnimationVariant } from '../types';
-import type { Variant } from 'framer-motion';
 
 const TRANSFORM_ORIGIN_X_MAP: Record<string, string> = {
   left: '0%',
@@ -112,66 +111,46 @@ export function normalizeParsedAnimationVariant(
   };
 }
 
-/**
- * 验证自定义动画配置
- */
 export const validateCustomAnimation = (animation: CustomAnimation): boolean => {
   if (!animation || typeof animation !== 'object') {
     return false;
   }
 
-  // 检查必需的 keyframes 字段
-  if (!animation.keyframes || typeof animation.keyframes !== 'object') {
+  const allowedKeys = new Set(['initial', 'animate', 'exit']);
+  const entries = Object.entries(animation);
+  if (entries.length === 0) {
     return false;
   }
 
-  // 检查 keyframes 至少有一个属性
-  if (Object.keys(animation.keyframes).length === 0) {
+  if (entries.some(([key]) => !allowedKeys.has(key))) {
     return false;
   }
 
-  // 验证 duration（如果存在）
-  if (animation.duration !== undefined && typeof animation.duration !== 'number') {
-    return false;
-  }
-
-  // 验证 easing（如果存在）
-  if (animation.easing !== undefined && typeof animation.easing !== 'string') {
-    return false;
-  }
-
-  return true;
+  return entries.some(([, value]) => {
+    return (
+      value !== undefined &&
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      Object.keys(value as Record<string, unknown>).length > 0
+    );
+  });
 };
 
 /**
- * 将 Web Animations API 格式转换为 Framer Motion Variant
+ * Normalize a CustomAnimation into a Framer Motion variant subset.
  */
-export const convertWebAnimationToVariant = (animation: CustomAnimation): Variant => {
-  const { keyframes, duration = 1000, easing = 'ease', delay = 0 } = animation;
-
-  // 转换 easing 名称
-  const easingMap: Record<string, string> = {
-    linear: 'linear',
-    ease: 'easeInOut',
-    'ease-in': 'easeIn',
-    'ease-out': 'easeOut',
-    'ease-in-out': 'easeInOut',
-  };
-
-  const framerEasing = easingMap[easing] || easing;
-
-  // 构建 Framer Motion variant
-  const variant: Record<string, unknown> = {
-    ...keyframes,
-    transition: {
-      duration: duration / 1000, // 转换为秒
-      ease: framerEasing,
-      delay: delay / 1000,
-    },
-  };
-
-  return normalizeVariantRecord(variant) as Variant;
+export const normalizeCustomAnimationVariant = (
+  animation: CustomAnimation
+): ParsedAnimationVariant => {
+  return normalizeParsedAnimationVariant({
+    initial: animation.initial ?? {},
+    animate: animation.animate ?? {},
+    exit: animation.exit ?? {},
+  });
 };
+
+export const convertWebAnimationToVariant = normalizeCustomAnimationVariant;
 
 /**
  * 解析预设动画名称
@@ -200,13 +179,7 @@ export const parseCustomAnimation = (animation: CustomAnimation): ParsedAnimatio
   }
 
   try {
-    const variant = convertWebAnimationToVariant(animation);
-
-    return normalizeParsedAnimationVariant({
-      initial: { opacity: 0 },
-      animate: variant as Record<string, unknown>,
-      exit: { opacity: 0 },
-    });
+    return normalizeCustomAnimationVariant(animation);
   } catch (error) {
     console.error('Failed to parse custom animation:', error);
     return null;

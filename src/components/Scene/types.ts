@@ -6,7 +6,11 @@ import type {
   ScrollMode,
   ScrollTimelineState,
 } from '../../types';
-import type { DragTransitionSnapshot, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
+import type {
+  DragRelease,
+  DragReleaseInput,
+  ScrollTransitionSnapshot,
+} from '../../hooks/useSceneManager';
 
 export type SceneState = 'initial' | 'entering' | 'active' | 'exiting';
 
@@ -62,7 +66,7 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     renderProgress?: number;
     timelineProgress?: number;
     isDragging?: boolean;
-    transitionSnapshot?: DragTransitionSnapshot | null;
+    release?: DragRelease | null;
     onCommit?: (
       direction: 'forward' | 'backward',
       progressRatio: number,
@@ -77,6 +81,7 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     onSharedElapsedMsChange?: (elapsedMs: number) => void;
     onDraggingChange?: (dragging: boolean) => void;
     onSharedTimelineDurationChange?: (duration: number) => void;
+    onRelease?: (release: DragReleaseInput | null) => void;
   };
   scrollRuntime?: {
     progress?: number;
@@ -114,9 +119,18 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
   globalScrollViewportOffset?: number;
   globalViewportWidth?: number;
   globalViewportHeight?: number;
-  globalSharedElapsedMs?: number;
   globalSharedTimelineDurationMs?: number;
-  globalDragTransitionSnapshot?: DragTransitionSnapshot | null;
+  // Two-track model: the single read-only release directive (settle / bounce)
+  // published by the outgoing scene's release. Replaces globalDragTransitionSnapshot.
+  globalDragRelease?: DragRelease | null;
+  // CineView-owned signal: the initial active scene is playing its one-shot
+  // first-screen enter animation (driven by its own element track once first-screen
+  // priority assets settle). Distinct from the scene-switch release path.
+  globalFirstSceneEnterActive?: boolean;
+  // CineView-owned trigger: first-screen priority assets are ready (or forced
+  // ready). Turns on the scene-0 cold-start element-track driver. Distinct from
+  // the window flag above (which holds the scene at its initial frame until then).
+  globalFirstSceneEnterReady?: boolean;
   globalDirection?: 'forward' | 'backward' | null;
   globalIsSceneAnimating?: boolean;
   onActivationComplete?: () => void;
@@ -126,6 +140,8 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
   onSharedElapsedMsChange?: (elapsedMs: number) => void;
   onDraggingChange?: (dragging: boolean) => void;
   onSharedTimelineDurationChange?: (duration: number) => void;
+  // Two-track model: the outgoing scene's release publishes the release directive.
+  onDragRelease?: (release: DragReleaseInput | null) => void;
   onScrollProgressChange?: (progress: number) => void;
   onScrollDirectionChange?: (direction: 'forward' | 'backward' | null) => void;
   onScrollingChange?: (scrolling: boolean) => void;

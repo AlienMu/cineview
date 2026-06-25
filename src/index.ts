@@ -31,6 +31,7 @@ export type {
   ScrollModeConfig,
   ScrollbarConfig,
   SceneChangeDetail,
+  FirstSceneReadyDetail,
   InteractionStateDetail,
   LayoutMeasuredDetail,
   CineViewErrorDetail,

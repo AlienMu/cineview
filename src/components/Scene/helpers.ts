@@ -68,16 +68,17 @@ export interface NormalizedSceneProps {
   currentSceneIndex: number;
   globalDirection: 'forward' | 'backward' | null;
   globalIsSceneAnimating: boolean;
-  globalSharedElapsedMs: number;
   globalSharedTimelineDurationMs: number;
+  globalFirstSceneEnterActive: boolean;
+  globalFirstSceneEnterReady: boolean;
   globalViewportWidth: number;
   globalViewportHeight: number;
   globalDragProgress: number;
   globalRenderProgress: number;
   globalDragTimelineProgress: number;
   globalIsDragging: boolean;
-  globalDragTransitionSnapshot: Exclude<
-    NonNullable<SceneInternalProps['dragRuntime']>['transitionSnapshot'],
+  globalDragRelease: Exclude<
+    NonNullable<SceneInternalProps['dragRuntime']>['release'],
     undefined
   > | null;
   globalScrollProgress: number;
@@ -123,6 +124,7 @@ export interface NormalizedSceneProps {
   onSharedElapsedMsChange: SceneInternalProps['onSharedElapsedMsChange'];
   onDraggingChange: SceneInternalProps['onDraggingChange'];
   onSharedTimelineDurationChange: SceneInternalProps['onSharedTimelineDurationChange'];
+  onDragRelease: SceneInternalProps['onDragRelease'];
   onDragCommit: SceneInternalProps['onDragCommit'];
   onDragReset: SceneInternalProps['onDragReset'];
   onScrollProgressChange: SceneInternalProps['onScrollProgressChange'];
@@ -151,9 +153,10 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
     globalDirection: props.sceneRuntime?.transitionDirection ?? props.globalDirection ?? null,
     globalIsSceneAnimating:
       props.sceneRuntime?.isSceneAnimating ?? props.globalIsSceneAnimating ?? false,
-    globalSharedElapsedMs: props.sceneRuntime?.sharedElapsedMs ?? props.globalSharedElapsedMs ?? 0,
     globalSharedTimelineDurationMs:
       props.sceneRuntime?.sharedTimelineDurationMs ?? props.globalSharedTimelineDurationMs ?? 0,
+    globalFirstSceneEnterActive: props.globalFirstSceneEnterActive ?? false,
+    globalFirstSceneEnterReady: props.globalFirstSceneEnterReady ?? false,
     globalViewportWidth: props.sceneRuntime?.viewportWidth ?? props.globalViewportWidth ?? 0,
     globalViewportHeight: props.sceneRuntime?.viewportHeight ?? props.globalViewportHeight ?? 0,
     globalDragProgress: props.dragRuntime?.progress ?? props.globalDragProgress ?? 0,
@@ -161,8 +164,7 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
     globalDragTimelineProgress:
       props.dragRuntime?.timelineProgress ?? props.globalDragTimelineProgress ?? 0,
     globalIsDragging: props.dragRuntime?.isDragging ?? props.globalIsDragging ?? false,
-    globalDragTransitionSnapshot:
-      props.dragRuntime?.transitionSnapshot ?? props.globalDragTransitionSnapshot ?? null,
+    globalDragRelease: props.dragRuntime?.release ?? props.globalDragRelease ?? null,
     globalScrollProgress: props.scrollRuntime?.progress ?? props.globalScrollProgress ?? 0,
     globalIsScrolling: props.scrollRuntime?.isScrolling ?? props.globalIsScrolling ?? false,
     globalScrollDirection: props.scrollRuntime?.direction ?? props.globalScrollDirection ?? null,
@@ -204,6 +206,7 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
     onSharedElapsedMsChange: props.onSharedElapsedMsChange,
     onDraggingChange: props.onDraggingChange,
     onSharedTimelineDurationChange: props.onSharedTimelineDurationChange,
+    onDragRelease: props.onDragRelease,
     onDragCommit: props.onDragCommit,
     onDragReset: props.onDragReset,
     onScrollProgressChange: props.onScrollProgressChange,
@@ -240,9 +243,9 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
       props.globalScrollViewportOffset,
       props.globalViewportWidth,
       props.globalViewportHeight,
-      props.globalSharedElapsedMs,
       props.globalSharedTimelineDurationMs,
-      props.globalDragTransitionSnapshot,
+      props.globalDragRelease,
+      props.globalFirstSceneEnterReady,
       props.globalDirection,
       props.globalIsSceneAnimating,
       props.onActivationComplete,
