@@ -113,7 +113,7 @@ jest.mock('../../hooks/useImagePreloader', () => ({
   }),
 }));
 
-const defaultConfig = { width: 750, height: 1334, unit: 'px' as const };
+const defaultConfig = { width: 750, height: 1334 };
 
 // ResizeObserver capture so the viewport-measure effect's RO branch is exercised.
 class MockResizeObserver {

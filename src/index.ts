@@ -19,10 +19,11 @@ export { Container };
 export const Scene = SceneComponent as FC<SceneProps>;
 export { Image } from './components/Image';
 export type { ImageProps } from './components/Image';
+export { AnimateVideo } from './components/Animate/AnimateVideo';
+export type { AnimateVideoProps } from './components/Animate/AnimateVideo';
 
 // Types
 export type {
-  SizeUnit,
   SlideDirection,
   ScrollMode,
   SceneAnchor,
@@ -57,6 +58,7 @@ export type {
   CineViewScrollRef,
   CineViewPreloadTarget,
   AnimateProps,
+  AnimateRenderState,
   PositionProps,
   ContainerProps,
   SceneProps,

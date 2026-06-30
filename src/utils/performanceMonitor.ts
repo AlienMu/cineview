@@ -3,13 +3,11 @@
  * 性能监控工具，用于收集和分析应用性能指标
  */
 
-export interface PerformanceMetrics {
-  fps: number;
-  avgFrameTime: number;
-  memoryUsage?: number;
-  bundleSize: number;
-  timestamp: number;
-}
+// 单一真源：公共 PerformanceMetrics（types/index.ts）。运行时监控不再自定义副本，
+// 避免两份定义漂移（历史上内部曾多一个从不被读取的 `timestamp` 字段，已删除）。
+import type { PerformanceMetrics } from '../types';
+
+export type { PerformanceMetrics };
 
 export class PerformanceMonitor {
   private frameCount: number = 0;
@@ -88,7 +86,6 @@ export class PerformanceMonitor {
         avgFrameTime: 0,
         memoryUsage: this.getMemoryUsage(),
         bundleSize: this.getBundleSizeKb(),
-        timestamp: Date.now(),
       };
     }
 
@@ -103,7 +100,6 @@ export class PerformanceMonitor {
       avgFrameTime: Math.round(avgFrameTime * 100) / 100,
       memoryUsage: this.getMemoryUsage(),
       bundleSize: this.getBundleSizeKb(),
-      timestamp: Date.now(),
     };
   }
 

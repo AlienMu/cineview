@@ -1,5 +1,8 @@
 /**
- * CineViewContext 测试
+ * CineViewContext 测试（px2vw 单尺子模型）
+ *
+ * 换算内核只认宽度：`scale = viewportWidth / designWidth`，`convert(size) = size * scale`。
+ * `designHeight` / `viewportHeight` 不参与 `scale`（见 CineViewContext.tsx 头注）。
  */
 
 import { act, render, screen, waitFor } from '@testing-library/react';
@@ -8,50 +11,42 @@ import { CineViewProvider, useCineViewContext } from './CineViewContext';
 
 describe('CineViewContext', () => {
   describe('CineViewProvider', () => {
-    it('should provide default values when no props are passed', (): void => {
-      const TestComponent = (): JSX.Element => {
-        const context = useCineViewContext();
-        return (
-          <div>
-            <div data-testid="designWidth">{context?.designWidth}</div>
-            <div data-testid="unit">{context?.unit}</div>
-          </div>
-        );
-      };
+    it('should default to designWidth 750 when no props are passed (scale reflects it)', (): void => {
+      // context 不再暴露 designWidth；默认 750 通过 scale = viewportWidth/750 间接验证。
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 750,
+      });
 
-      render(
-        <CineViewProvider>
-          <TestComponent />
-        </CineViewProvider>
-      );
+      const { result } = renderHook(() => useCineViewContext(), {
+        wrapper: ({ children }) => <CineViewProvider>{children}</CineViewProvider>,
+      });
 
-      expect(screen.getByTestId('designWidth')).toHaveTextContent('750');
-      expect(screen.getByTestId('unit')).toHaveTextContent('px');
+      // 默认 designWidth=750，viewport=750 → scale=1
+      expect(result.current!.scale).toBe(1);
     });
 
-    it('should use custom designWidth and unit', (): void => {
-      const TestComponent = (): JSX.Element => {
-        const context = useCineViewContext();
-        return (
-          <div>
-            <div data-testid="designWidth">{context?.designWidth}</div>
-            <div data-testid="unit">{context?.unit}</div>
-          </div>
-        );
-      };
+    it('should honor a custom designWidth (scale = viewport / designWidth)', (): void => {
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 960,
+      });
 
-      render(
-        <CineViewProvider designWidth={1920} designHeight={1920} unit="rem">
-          <TestComponent />
-        </CineViewProvider>
-      );
+      const { result } = renderHook(() => useCineViewContext(), {
+        wrapper: ({ children }) => (
+          <CineViewProvider designWidth={1920} designHeight={1080}>
+            {children}
+          </CineViewProvider>
+        ),
+      });
 
-      expect(screen.getByTestId('designWidth')).toHaveTextContent('1920');
-      expect(screen.getByTestId('unit')).toHaveTextContent('rem');
+      // scale = 960 / 1920 = 0.5；designHeight 传入但不影响换算
+      expect(result.current!.scale).toBe(0.5);
     });
 
-    it('should calculate scale correctly for px unit', (): void => {
-      // 设置 window.innerWidth 为 750
+    it('should calculate scale from viewport width only (px2vw)', (): void => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -60,11 +55,11 @@ describe('CineViewContext', () => {
 
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        return <div data-testid="scale">{context?.scaleX}</div>;
+        return <div data-testid="scale">{context?.scale}</div>;
       };
 
       render(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <TestComponent />
         </CineViewProvider>
       );
@@ -73,13 +68,12 @@ describe('CineViewContext', () => {
       expect(screen.getByTestId('scale')).toHaveTextContent('1');
     });
 
-    it('should calculate scale correctly for non-px unit', (): void => {
+    it('should scale down when viewport is narrower than design width', (): void => {
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        return <div data-testid="scale">{context?.scaleX}</div>;
+        return <div data-testid="scale">{context?.scale}</div>;
       };
 
-      // Mock window.innerWidth
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -87,7 +81,7 @@ describe('CineViewContext', () => {
       });
 
       render(
-        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <TestComponent />
         </CineViewProvider>
       );
@@ -96,29 +90,57 @@ describe('CineViewContext', () => {
       expect(parseFloat(scale || '0')).toBe(0.5);
     });
 
-    it('should update viewport dimensions on window resize', async (): Promise<void> => {
+    it('should NOT let designHeight/viewportHeight affect scale', (): void => {
+      // px2vw 认宽不认高：即使设计高与视口高比例悬殊，scale 只由宽度决定。
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 750,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 100,
+      });
+
+      const { result } = renderHook(() => useCineViewContext(), {
+        wrapper: ({ children }) => (
+          <CineViewProvider designWidth={750} designHeight={9999}>
+            {children}
+          </CineViewProvider>
+        ),
+      });
+
+      // scale = 750 / 750 = 1，与 designHeight(9999) / viewportHeight(100) 无关。
+      expect(result.current!.scale).toBe(1);
+    });
+
+    it('should recompute scale on window resize (width-driven)', async (): Promise<void> => {
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 750,
+      });
+
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        return (
-          <div>
-            <div data-testid="viewportWidth">{context?.viewportWidth}</div>
-            <div data-testid="viewportHeight">{context?.viewportHeight}</div>
-          </div>
-        );
+        return <div data-testid="scale">{context?.scale}</div>;
       };
 
       render(
-        <CineViewProvider>
+        <CineViewProvider designWidth={750} designHeight={750}>
           <TestComponent />
         </CineViewProvider>
       );
 
-      // Trigger resize event
+      expect(screen.getByTestId('scale')).toHaveTextContent('1');
+
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
-        value: 1024,
+        value: 1500,
       });
+      // 高度变化不应影响 scale（认宽不认高）——一并派发验证只有宽度生效。
       Object.defineProperty(window, 'innerHeight', {
         writable: true,
         configurable: true,
@@ -128,17 +150,15 @@ describe('CineViewContext', () => {
         window.dispatchEvent(new Event('resize'));
       });
 
-      // The resize handler is debounced (150ms) and updates state; poll until
-      // the debounced commit flushes to the DOM rather than asserting after a
-      // fixed delay (a fixed setTimeout races the debounce + act flush).
+      // The resize handler is debounced (150ms); poll until the debounced commit
+      // flushes to the DOM rather than asserting after a fixed delay.
       await waitFor(() => {
-        expect(screen.getByTestId('viewportWidth')).toHaveTextContent('1024');
-        expect(screen.getByTestId('viewportHeight')).toHaveTextContent('768');
+        // scale = 1500 / 750 = 2
+        expect(screen.getByTestId('scale')).toHaveTextContent('2');
       });
     });
 
-    it('should provide convertSize function', (): void => {
-      // 设置 window.innerWidth 为 750，使 scale = 1
+    it('should provide a convert function (single scale)', (): void => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -147,12 +167,12 @@ describe('CineViewContext', () => {
 
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        const converted = context?.convertX(100);
+        const converted = context?.convert(100);
         return <div data-testid="converted">{converted}</div>;
       };
 
       render(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <TestComponent />
         </CineViewProvider>
       );
@@ -170,7 +190,7 @@ describe('CineViewContext', () => {
 
     it('should return context value when used inside CineViewProvider', (): void => {
       const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           {children}
         </CineViewProvider>
       );
@@ -178,19 +198,18 @@ describe('CineViewContext', () => {
       const { result } = renderHook(() => useCineViewContext(), { wrapper });
 
       expect(result.current).not.toBeNull();
-      expect(result.current?.designWidth).toBe(750);
-      expect(result.current?.unit).toBe('px');
+      // context 只暴露换算内核 { scale, convert }；designWidth 是 provider 私有输入。
+      expect(typeof result.current?.scale).toBe('number');
+      expect(typeof result.current?.convert).toBe('function');
     });
   });
 });
 
 describe('SSR Support', () => {
-  it('should not add resize listener in SSR environment', (): void => {
-    // This test verifies SSR compatibility by checking that the code
-    // doesn't crash when window is undefined
+  it('should not crash when window is present (SSR-safe guard)', (): void => {
     const TestComponent = (): JSX.Element => {
       const context = useCineViewContext();
-      return <div data-testid="viewportWidth">{context?.viewportWidth}</div>;
+      return <div data-testid="scale">{context?.scale}</div>;
     };
 
     render(
@@ -199,165 +218,68 @@ describe('SSR Support', () => {
       </CineViewProvider>
     );
 
-    // Should render without errors
-    expect(screen.getByTestId('viewportWidth')).toBeInTheDocument();
+    expect(screen.getByTestId('scale')).toBeInTheDocument();
   });
 });
 
-describe('Unit Conversion', () => {
-  it('should calculate scale based on viewport width for px unit', (): void => {
-    // 设置 window.innerWidth 为 750
+describe('Scale recalculation', () => {
+  it('should recalculate scale when viewport width changes', async (): Promise<void> => {
+    const { result } = renderHook(() => useCineViewContext(), {
+      wrapper: ({ children }) => (
+        <CineViewProvider designWidth={750} designHeight={750}>
+          {children}
+        </CineViewProvider>
+      ),
+    });
+
+    const initialScale = result.current!.scale;
+
     Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 750,
-    });
-
-    const TestComponent = (): JSX.Element => {
-      const context = useCineViewContext();
-      return <div data-testid="scale">{context?.scaleX}</div>;
-    };
-
-    render(
-      <CineViewProvider unit="px">
-        <TestComponent />
-      </CineViewProvider>
-    );
-
-    // scale = 750 / 750 = 1
-    expect(screen.getByTestId('scale')).toHaveTextContent('1');
-  });
-
-  it('should calculate scale based on viewport width when unit is not px', (): void => {
-    // Set viewport width to 375
-    Object.defineProperty(window, 'innerWidth', {
-      value: 375,
-      writable: true,
-      configurable: true,
-    });
-
-    const TestComponent = (): JSX.Element => {
-      const context = useCineViewContext();
-      return <div data-testid="scale">{context?.scaleX}</div>;
-    };
-
-    render(
-      <CineViewProvider designWidth={750} designHeight={750} unit="vw">
-        <TestComponent />
-      </CineViewProvider>
-    );
-
-    // Scale should be 375 / 750 = 0.5
-    expect(screen.getByTestId('scale')).toHaveTextContent('0.5');
-  });
-});
-
-describe('Additional Branch Coverage Tests', () => {
-  it('should handle rem unit with correct scale calculation', (): void => {
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // For rem unit, scale should be viewportWidth / designSize
-    const expectedScale = result.current!.viewportWidth / 750;
-    expect(result.current!.scaleX).toBe(expectedScale);
-    expect(result.current!.unit).toBe('rem');
-  });
-
-  it('should handle vw unit with correct scale calculation', (): void => {
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="vw">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // For vw unit, scale should be viewportWidth / designSize
-    const expectedScale = result.current!.viewportWidth / 750;
-    expect(result.current!.scaleX).toBe(expectedScale);
-    expect(result.current!.unit).toBe('vw');
-  });
-
-  it('should handle SSR environment (window undefined) by checking typeof window', (): void => {
-    // We can't actually delete window in jsdom, but we can verify the code handles it
-    // by checking the implementation uses typeof window !== 'undefined'
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // In jsdom environment, window is defined, so we get actual window dimensions
-    // The SSR check is in the implementation: typeof window !== 'undefined' ? window.innerWidth : 750
-    expect(result.current!.viewportWidth).toBeGreaterThan(0);
-    expect(result.current!.viewportHeight).toBeGreaterThan(0);
-  });
-});
-
-describe('More Branch Coverage Tests', () => {
-  it('should handle px unit with scale based on viewport', (): void => {
-    // 设置 window.innerWidth 为 750
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 750,
-    });
-
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // For px unit, scale = viewportWidth / designSize = 750 / 750 = 1
-    expect(result.current!.scaleX).toBe(1);
-    expect(result.current!.unit).toBe('px');
-  });
-
-  it('should update viewport dimensions on window resize', async (): Promise<void> => {
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // Get initial width for comparison
-    const initialWidth = result.current!.viewportWidth;
-
-    // Simulate window resize
-    Object.defineProperty(window, 'innerWidth', {
-      value: 1024,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(window, 'innerHeight', {
-      value: 768,
+      value: 1500,
       writable: true,
       configurable: true,
     });
     window.dispatchEvent(new Event('resize'));
 
-    // Wait for debounce to settle
     await waitFor(
       () => {
-        expect(result.current!.viewportWidth).not.toBe(initialWidth);
+        expect(result.current!.scale).not.toBe(initialScale);
       },
       { timeout: 300 }
     );
 
-    expect(result.current!.viewportWidth).toBe(1024);
-    expect(result.current!.viewportHeight).toBe(768);
+    expect(result.current!.scale).toBe(1500 / 750);
+  });
+
+  it('should compute scale = viewportWidth / designWidth for varied design widths', (): void => {
+    const designWidths = [375, 750, 1920];
+
+    designWidths.forEach((designWidth) => {
+      const { result } = renderHook(() => useCineViewContext(), {
+        wrapper: ({ children }) => (
+          <CineViewProvider designWidth={designWidth} designHeight={designWidth}>
+            {children}
+          </CineViewProvider>
+        ),
+      });
+
+      // scale = window.innerWidth / designWidth (jsdom innerWidth is the viewport)
+      expect(result.current!.scale).toBe(window.innerWidth / designWidth);
+    });
+  });
+
+  it('should memoize convert function across rerenders without prop change', (): void => {
+    const { result, rerender } = renderHook(() => useCineViewContext(), {
+      wrapper: ({ children }) => (
+        <CineViewProvider designWidth={750} designHeight={750}>
+          {children}
+        </CineViewProvider>
+      ),
+    });
+
+    const firstConvert = result.current!.convert;
+    rerender();
+    expect(result.current!.convert).toBe(firstConvert);
   });
 
   it('should cleanup resize listener on unmount', (): void => {
@@ -365,7 +287,7 @@ describe('More Branch Coverage Tests', () => {
 
     const { unmount } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           {children}
         </CineViewProvider>
       ),
@@ -377,226 +299,18 @@ describe('More Branch Coverage Tests', () => {
 
     removeEventListenerSpy.mockRestore();
   });
-});
 
-describe('SSR and Edge Case Coverage', () => {
-  it('should handle different unit types correctly', (): void => {
-    const units: Array<'px' | 'rem' | 'vw'> = ['px', 'rem', 'vw'];
-
-    // 设置 window.innerWidth 为 750
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 750,
-    });
-
-    units.forEach((unit): void => {
-      const { result } = renderHook(() => useCineViewContext(), {
-        wrapper: ({ children }) => (
-          <CineViewProvider designWidth={750} designHeight={750} unit={unit}>
-            {children}
-          </CineViewProvider>
-        ),
-      });
-
-      expect(result.current!.unit).toBe(unit);
-
-      // All units now use scale = viewportWidth / designSize
-      expect(result.current!.scaleX).toBe(result.current!.viewportWidth / 750);
-    });
-  });
-
-  it('should recalculate scale when viewport width changes', async (): Promise<void> => {
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    const initialScale = result.current!.scaleX;
-
-    // Change viewport width
-    Object.defineProperty(window, 'innerWidth', {
-      value: 1500,
-      writable: true,
-      configurable: true,
-    });
-    window.dispatchEvent(new Event('resize'));
-
-    await waitFor(
-      () => {
-        expect(result.current!.scaleX).not.toBe(initialScale);
-      },
-      { timeout: 300 }
-    );
-
-    // Scale should be recalculated
-    expect(result.current!.scaleX).toBe(1500 / 750);
-  });
-
-  it('should handle convertSize function with different units', (): void => {
-    const { result: pxResult } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    const { result: remResult } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="rem">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // Test convertSize function
-    const size = 100;
-    const pxConverted = pxResult.current!.convertX(size);
-    const remConverted = remResult.current!.convertX(size);
-
-    expect(typeof pxConverted).toBe('number');
-    expect(typeof remConverted).toBe('number');
-  });
-
-  it('should handle SSR environment where window is undefined', (): void => {
-    // Test that the code handles typeof window !== 'undefined' check
-    const TestComponent = (): JSX.Element => {
-      const context = useCineViewContext();
-      return (
-        <div>
-          <div data-testid="viewportWidth">{context?.viewportWidth}</div>
-          <div data-testid="viewportHeight">{context?.viewportHeight}</div>
-        </div>
-      );
-    };
-
-    render(
-      <CineViewProvider designWidth={750} designHeight={750} unit="px">
-        <TestComponent />
-      </CineViewProvider>
-    );
-
-    // Should render without errors even in SSR-like conditions
-    expect(screen.getByTestId('viewportWidth')).toBeInTheDocument();
-    expect(screen.getByTestId('viewportHeight')).toBeInTheDocument();
-  });
-
-  it('should not add resize listener when window is undefined (SSR)', (): void => {
-    // This test verifies the typeof window !== 'undefined' check in useEffect
+  it('should add resize listener in browser environment', (): void => {
     const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
 
     const { result } = renderHook(() => useCineViewContext(), {
       wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           {children}
         </CineViewProvider>
       ),
     });
 
-    // In browser environment, addEventListener should be called
-    expect(addEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
-    expect(result.current).not.toBeNull();
-
-    addEventListenerSpy.mockRestore();
-  });
-});
-
-describe('Additional CineViewContext Coverage', () => {
-  it('should handle vw unit correctly', (): void => {
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="vw">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    expect(result.current!.unit).toBe('vw');
-    expect(result.current!.scaleX).toBe(result.current!.viewportWidth / 750);
-  });
-
-  it('should handle different designSize values', (): void => {
-    const designSizes = [375, 750, 1920];
-
-    designSizes.forEach((designSize) => {
-      const { result } = renderHook(() => useCineViewContext(), {
-        wrapper: ({ children }) => (
-          <CineViewProvider designWidth={designSize} designHeight={designSize} unit="rem">
-            {children}
-          </CineViewProvider>
-        ),
-      });
-
-      expect(result.current!.designWidth).toBe(designSize);
-      expect(result.current!.scaleX).toBe(result.current!.viewportWidth / designSize);
-    });
-  });
-
-  it('should memoize convertSize function correctly', (): void => {
-    const { result, rerender } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    const firstConvertSize = result.current!.convertX;
-
-    // Rerender without changing props
-    rerender();
-
-    // convertSize function should be the same reference
-    expect(result.current!.convertX).toBe(firstConvertSize);
-  });
-});
-
-describe('SSR Environment Tests', () => {
-  it('should handle SSR environment by using default viewport values', (): void => {
-    // Test that the component handles SSR-like conditions gracefully
-    const TestComponent = (): JSX.Element => {
-      const context = useCineViewContext();
-      return (
-        <div>
-          <div data-testid="viewportWidth">{context?.viewportWidth}</div>
-          <div data-testid="viewportHeight">{context?.viewportHeight}</div>
-        </div>
-      );
-    };
-
-    render(
-      <CineViewProvider designWidth={750} designHeight={750} unit="px">
-        <TestComponent />
-      </CineViewProvider>
-    );
-
-    // Should render with some viewport dimensions (either window or defaults)
-    const widthElement = screen.getByTestId('viewportWidth');
-    const heightElement = screen.getByTestId('viewportHeight');
-
-    expect(widthElement).toBeInTheDocument();
-    expect(heightElement).toBeInTheDocument();
-    expect(parseInt(widthElement.textContent || '0')).toBeGreaterThan(0);
-    expect(parseInt(heightElement.textContent || '0')).toBeGreaterThan(0);
-  });
-
-  it('should not add resize listener when window is undefined (SSR)', (): void => {
-    // This test verifies the early return in useEffect when window is undefined
-    const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
-
-    const { result } = renderHook(() => useCineViewContext(), {
-      wrapper: ({ children }) => (
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
-          {children}
-        </CineViewProvider>
-      ),
-    });
-
-    // In browser environment, addEventListener should be called
     expect(addEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
     expect(result.current).not.toBeNull();
 

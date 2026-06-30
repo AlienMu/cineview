@@ -1,0 +1,352 @@
+/* ============================================================================
+ * CineView 官网全局样式 — 组件层
+ * 依赖 tokens.css 的 CSS 变量。导入顺序:tokens.css → global.css(见 main.tsx)
+ * ========================================================================== */
+
+/* — 背景 LUT 色带层:position:fixed 全屏,置于所有内容之下 — */
+.bg-ribbon {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, var(--bg-grad-top), var(--bg-grad-bot));
+  transition: background 0.18s linear;
+  pointer-events: none;
+}
+
+/* CineView scroll 容器硬编码 #fff 内联背景,会盖住身后色带 → 透明覆盖(见 task-flow A5) */
+.cineview-container {
+  background: transparent !important;
+}
+
+/* 滚动条「未滚动时隐藏、滚动时淡入」现由框架 autoHide 原生接管
+ * (DirectScrollCineView overlay opacity 由 isScrolling 驱动,见 task-flow A6/A7),
+ * site 侧不再需要 useScrollbarAutoHide hook + body.is-scrolling CSS。 */
+
+/* ── 右上角浮动语言切换(地球图标)──────────────────────────────────
+ * 取代原 fixed 顶栏。导航/GitHub 入口改由各页面内承载(见 task-flow A6)。 */
+.lang-toggle {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: var(--ink-mute);
+  background: rgba(250, 248, 244, 0.5);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+
+  box-shadow:
+    0 0 50px 10px transparent,
+    0 0 50px 10px  transparent;
+  transition:
+    color 0.35s var(--ease-out),
+    border-color 0.35s var(--ease-out),
+    box-shadow 1s var(--ease-out);
+}
+
+/* hover:加深色 + accent 柔光晕环(与按钮同款,风格统一),不动位移/边框 */
+.lang-toggle:hover {
+  color: var(--accent-ink);
+  box-shadow:
+    0 0 10px 2px rgba(201, 138, 106, 0.12),
+    0 0 14px 0 rgba(201, 138, 106, 0.26);
+}
+
+.lang-toggle__globe {
+  width: 16px;
+  height: 16px;
+  display: block;
+  transition: transform 0.5s var(--ease-out);
+}
+
+.lang-toggle:hover .lang-toggle__globe {
+  transform: rotate(28deg);
+}
+
+.lang-toggle__code {
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .lang-toggle {
+    top: var(--space-2);
+    right: var(--space-4);
+  }
+}
+
+/* ── 第一幕 Hero ─────────────────────────────────────────────────────
+ * 四排由框架 <Position anchor:'center'> 垂直居中排版(见 HeroScene),各排以自身中心
+ * 对齐屏幕中心 + at.y 偏移。入场时序全部由 <Animate> 驱动,故此处不再有布局/入场规则,
+ * 只留每排的排版样式。 */
+
+/* 四排纵向堆叠:flex column,gap 自动留距,水平居中。整块由 Position 锚到屏幕中心,
+ * 故这里不设定位,只管内部排布。间距用 gap 而非各排 margin,slogan 高度随字号/语言
+ * 变化时不会重叠。 */
+.hero__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* 1. title — 提升字号,等宽小标,克制。入场由 Animate slide-up 驱动。 */
+.hero__title {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  padding-left: 0.3em;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 2. slogan — 最大字号,视觉主角,持续流光 */
+.hero__slogan {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 7vw, var(--text-6xl));
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin: 0;
+  text-align: center;
+}
+
+/* 每行 block 独占一行;入场(slide-right/left 视差)由 Animate 驱动。
+ * 中文 ±44 非对称静态偏移作为 inline transform 挂在 span 上(HeroScene)。 */
+.hero__slogan-line {
+  display: block;
+}
+
+/* 流光:一束光接力式往返。共享时间轴上的四段扫掠 + 停顿:
+ *   A 行1 L→R → B 行2 L→R(A 完接棒) → 停顿 → C 行2 R→L → D 行1 R→L(C 完接棒) → 循环。
+ * pos 语义:100%=屏外左待入,0%=屏外右已出,50%=居中可见。L→R=100→0,R→L=0→100。
+ * 非扫掠时光束停屏外(0/100%),文字回落纯 --ink 可见。两行同时长、错峰关键帧编排先后。 */
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .hero__slogan-line {
+    background-image: linear-gradient(
+      100deg,
+      var(--ink) 0%,
+      var(--ink) 40%,
+      var(--accent-ink) 46%,
+      var(--accent) 50%,
+      var(--accent-ink) 54%,
+      var(--ink) 60%,
+      var(--ink) 100%
+    );
+    background-size: 300% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  /* 光束默认 paused:未入场时不空转。HeroScene 用框架 phase 门控——入场完成后
+   * 挂 data-beam='true' 才 running,起点对齐框架入场完成时刻。 */
+  .hero__slogan-line[data-row='0'] {
+    background-position: 100% 0;
+    animation: hero-beam-row0 16s linear infinite;
+    animation-play-state: paused;
+  }
+  .hero__slogan-line[data-row='1'] {
+    background-position: 100% 0;
+    animation: hero-beam-row1 16s linear infinite;
+    animation-play-state: paused;
+  }
+  .hero__slogan-line[data-beam='true'] {
+    animation-play-state: running;
+  }
+}
+
+/* 行1:A(0→18% L→R)→ 停屏外右(0%)待 → D(68→86% R→L)→ 停屏外左(100%)循环。
+ * 每段扫掠 ease-in-out(减速滑入、加速滑出),停顿段不动,交棒更顺。 */
+@keyframes hero-beam-row0 {
+  0% {
+    background-position: 100% 0;
+    animation-timing-function: linear;
+  }
+  25% {
+    background-position: 0 0;
+    animation-timing-function: linear;
+  }
+  65% {
+    background-position: 0 0;
+    animation-timing-function: linear;
+  }
+  90% {
+    background-position: 100% 0;
+    animation-timing-function: linear;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+/* 行2:停屏外左(100%)待 → B(18→36% L→R)→ 停屏外右(0%)待 → C(50→68% R→L)→ 停屏外左循环 */
+@keyframes hero-beam-row1 {
+  0% {
+    background-position: 100% 0;
+  }
+  14% {
+    background-position: 100% 0;
+    animation-timing-function: linear;
+  }
+  39% {
+    background-position: 0 0;
+    animation-timing-function: linear;
+  }
+  50% {
+    background-position: 0 0;
+    animation-timing-function: linear;
+  }
+  75% {
+    background-position: 100% 0;
+    animation-timing-function: linear;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+/* 3. intro — 小,柔墨。逐字揭示由框架 Tier 2 stagger 驱动:每个字符 span 是 stagger
+ * 的直接子元素,被包成 motion 元素、按 INTRO_CHAR_VARIANT 错峰入场。故此处不再设
+ * opacity/transform 入场态(由 framer 变体接管),只留布局。字符 flex-wrap 流式排布,
+ * 换行处的 break span 用 flex-basis:100% 强制折行。 */
+.hero__intro {
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 1.5vw, var(--text-xl));
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 42ch;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+}
+
+/* 字符占位:inline-block 锁定布局,white-space:pre 保留空格。入场态由 stagger 变体设。 */
+.hero__intro-char {
+  display: inline-block;
+  white-space: pre;
+}
+
+/* 换行:整宽零高的 flex 断点,强制后续字符落到下一行(替代 <br>,因字符已是 flex 项)。 */
+.hero__intro-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+/* 4. 按钮组 */
+.hero__cta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* 按钮:hover 用 accent 光晕环(双层 box-shadow:内圈柔环 + 外圈光晕),
+ * 有"打光"电影感,不动盒模型/位移。gap 给图标与文字留距;图标随按钮色。 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 500;
+  padding: 12px 24px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  /* 两层零阴影,与 hover 的双层结构对齐——box-shadow 只能在层数相同时插值,
+   * 层数不等会瞬变(无过渡)。故基础态也写两层(透明、0 扩散)。 */
+  box-shadow:
+    0 0 50px 10px rgba(201, 138, 106, 0),
+    0 0 50px 10px rgba(201, 138, 106, 0);
+  transition:
+    box-shadow 1s var(--ease-out),
+    border-color 0.35s var(--ease-out),
+    color 0.35s var(--ease-out);
+}
+
+.btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.btn--primary {
+  position: relative;
+  overflow: hidden;
+  background-color:var(--accent-ink) ;
+  color: var(--film-white);
+}
+
+.btn--primary:hover {
+  box-shadow:
+    0 0 10px 3px rgba(201, 138, 106, 0.22),
+    0 0 22px 0 rgba(201, 138, 106, 0.5);
+}
+
+.btn--ghost {
+  color: var(--ink);
+  border-color: var(--frame-line);
+}
+
+.btn--ghost:hover {
+  color: var(--accent-ink);
+  box-shadow:
+    0 0 10px 3px rgba(201, 138, 106, 0.14),
+    0 0 18px 0 rgba(201, 138, 106, 0.3);
+}
+
+/* 滚动提示:缓慢上下浮动。定位交给 Position(center-x + y),此处不设 position/left。 */
+.hero__scroll-hint {
+  font-size: var(--text-xs);
+  letter-spacing: 0.16em;
+  color: var(--ink-mute);
+}
+
+@keyframes hero-hint-float {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(6px);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    gap: var(--space-4);
+  }
+  .hero__intro {
+    max-width: 90vw;
+  }
+  .hero__cta {
+    gap: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 光束定义在 .hero__slogan-line[data-row]（特异性 0,2,0），覆盖须带属性选择器
+     匹配同等特异性，否则关不掉。 */
+  .hero__slogan-line[data-row='0'],
+  .hero__slogan-line[data-row='1'],
+  .hero__scroll-hint {
+    animation: none;
+  }
+}

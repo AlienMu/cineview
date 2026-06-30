@@ -4,6 +4,7 @@
  */
 
 import { getPresetAnimation, type PresetAnimationName } from './presets';
+import { devError, devWarn } from '../utils/devLog';
 import type { CustomAnimation, ParsedAnimationVariant } from '../types';
 
 const TRANSFORM_ORIGIN_X_MAP: Record<string, string> = {
@@ -164,7 +165,7 @@ export const parsePresetAnimation = async (
     // 需要转换为 ParsedAnimationVariant
     return normalizeParsedAnimationVariant(presetAnim as unknown as ParsedAnimationVariant);
   } catch (error) {
-    console.error(`Failed to parse preset animation "${name}":`, error);
+    devError(`Failed to parse preset animation "${name}":`, error);
     return null;
   }
 };
@@ -174,14 +175,14 @@ export const parsePresetAnimation = async (
  */
 export const parseCustomAnimation = (animation: CustomAnimation): ParsedAnimationVariant | null => {
   if (!validateCustomAnimation(animation)) {
-    console.error('Invalid custom animation configuration:', animation);
+    devError('Invalid custom animation configuration:', animation);
     return null;
   }
 
   try {
     return normalizeCustomAnimationVariant(animation);
   } catch (error) {
-    console.error('Failed to parse custom animation:', error);
+    devError('Failed to parse custom animation:', error);
     return null;
   }
 };
@@ -202,7 +203,7 @@ export const parseAnimation = async (
     return parseCustomAnimation(animation);
   }
 
-  console.warn('Invalid animation format:', animation);
+  devWarn('Invalid animation format:', animation);
   return null;
 };
 

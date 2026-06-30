@@ -61,7 +61,6 @@ describe('CineView Component', () => {
   const defaultConfig = {
     width: 750,
     height: 1334,
-    unit: 'px' as const,
   };
 
   beforeEach(() => {
@@ -714,7 +713,7 @@ describe('CineView Component', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       render(
-        <CineView config={{ width: 0, height: 0, unit: 'px' }}>
+        <CineView config={{ width: 0, height: 0 }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );

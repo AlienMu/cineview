@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-CineView 是一个面向 React 的叙事型 UI 框架，支持 `drag`（拖拽分页）和 `scroll`（真实文档流滚动接管）两套模式引擎。它提供场景管理、动画编排、响应式双轴换算、图片预加载和 scene-scoped fixed layer 能力。
+CineView 是一个面向 React 的叙事型 UI 框架，支持 `drag`（拖拽分页）和 `scroll`（真实文档流滚动接管）两套模式引擎。它提供场景管理、动画编排、px2vw 单轴响应式换算（认宽不认高，绝不形变）、图片预加载和 scene-scoped fixed layer 能力。
 
 - **工作目录**: `cineview/` （所有代码操作均在此目录内完成）
 - **包管理器**: pnpm
@@ -16,14 +16,32 @@ CineView 是一个面向 React 的叙事型 UI 框架，支持 `drag`（拖拽�
 
 每次开始**实质性工作**前，必须按顺序：
 
-1. 读 `design.md` 和 `requirements.md`（理解当前有效规格）
-2. 读 `AGENT_SELF_REVIEW.md`（了解历史失误，避免重蹈覆辙）
-3. 创建或读取当次任务的 `task-flows/YYYY-MM-DD-<short-slug>.md` 文件
-4. 在开始实现前在 task-flow 文件中明确列出节点并逐一打勾推进
+1. 读 `DESIGN.md`（唯一有效规格）
+2. 创建或读取当次任务的 `task-flows/YYYY-MM-DD-<short-slug>.md` 文件
+3. 在开始实现前在 task-flow 文件中明确列出节点并逐一打勾推进
 
 **禁止**：在没有 task-flow 的情况下跨多文件重构。
 
 **强制**：scroll / drag 交互路径的验收，必须由独立的 agent 在真实环境（浏览器 lane，`localhost:3000/#/drag` 或 `#/scroll`）完成实测——实现 agent 与验收 agent 分开，验收不能只跑单测/type-check 就收口。单测全绿 ≠ 视觉正确。
+
+---
+
+## 完成后自检
+
+每个 task-flow 节点收口后（不只是全流程末尾），必须回头审查刚改动的代码，逐条确认，不通过就不算完成：
+
+1. **整改是否真的完成**：改动是否解决了原问题本身，而非只让测试/type-check 变绿。回读相关逻辑代码，确认行为符合意图，没有留下半程状态（TODO 占位、被注释掉的旧逻辑、只改一半的分支）。
+2. **是否引入冗余**：本次是否留下死代码、重复实现、零消费的字段/导出/参数、与现有工具重叠的新工具。改动应让代码**净减负**或至少不增熵——尤其重构类任务，收口时全仓 grep 确认删净（旧字段、旧命名、旧文件的残留引用）。
+3. **整体项目是否仍可控**：单文件行数、单函数职责、上下文/props 的可选字段是否因本次改动膨胀。触碰大文件时优先抽离而非追加；发现职责焊死的巨石，记录到 task-flow 待专项拆分，不放任继续生长。
+4. **运行时性能是否依旧利落（重点）**：这是自检的核心。本框架是叙事型动画引擎，性能瓶颈永远在**运行时的每帧热路径**，不在构建体积或冷启动。收口时必须问：
+
+   - **滚动 / 拖拽并发下的每帧代价**：本次改动是否让 scroll/drag 的每一帧多做了运算？高动画运算（多个 `Animate` 元素同时 scrub、`AnimateVideo` 逐帧 seek、stagger 级联）集中在滚动并发时最吃紧——这里任何一处 `useState` 每帧 setState、每帧换引用的 `useMemo`、读 layout 紧接写 style 的同步布局抖动（layout thrashing），都会放大成全场景子树重渲染或掉帧。
+   - **优先 motionValue，而非 React state**：每帧变化的量（progress / elapsedMs / scroll offset）应走 `useMotionValue` + `motion.*` style 单输入映射，让位移绕过 React 渲染管线。新增每帧驱动路径时，默认用 motionValue；只有真正需要触发结构性重渲染时才用 state，并说明理由。
+   - **memo 是否真的生效**：给热路径组件加/改 `useMemo`/`memo` 时，确认依赖数组里没有每帧变化的量——否则 memo 每帧失效，是纯开销。
+   - **单一所有者不变量**：progress / elementElapsedMotion / dragRelease 各自唯一写者（见「关键状态唯一所有者」）。改动不得引入第二个写者或跨 scene 的共享可变状态。
+   - **验证方式**：性能回归无法靠单测发现。触及 scroll/drag 热路径的改动，交由真机验收 agent 时须显式要求观测「并发滚动 + 多元素动画」场景下的掉帧 / 长任务，而非只看功能正确。
+
+**原则**：宁可在收口时多花一轮回读，也不把"绿了就是好了"当完成标准。运行时的每帧效率是本框架的生命线。
 
 ---
 
@@ -48,16 +66,17 @@ pnpm format                  # Prettier
 
 | 组件 | 职责 | 不负责 |
 |---|---|---|
-| `CineView` | 唯一模式入口、双轴换算上下文、scrollbar 注入、预加载调度 | 具体场景布局 |
+| `CineView` | 唯一模式入口、px2vw 单轴换算上下文、scrollbar 注入、预加载调度 | 具体场景布局 |
 | `Scene` | 章节级布局边界、scene-scoped fixed layer 宿主、可视信号 | 根模式配置、drag/scroll 参数 |
 | `Animate` | 消费当前 mode 时间语义（drag/scroll/visibility/auto） | 声明根模式 |
-| `Position` | 双轴响应式定位、scene-scoped fixed layer 挂载 | 跨 scene 漂浮 |
+| `Position` | px2vw 单轴响应式坐标定位、scene-scoped fixed layer 挂载 | 跨 scene 漂浮、尺寸换算（归 `Container`） |
 | `Image` | 统一图片预加载接口 | 阻塞首屏可见性 |
-| `Container` | 双轴换算容器 | — |
+| `AnimateVideo` | 视频进度驱动帧擦除（`Animate` 薄封装，复用 render-prop 拿 `enterProgress`） | 声明模式、拥有 progress（仍是 `Animate` 所有） |
+| `Container` | px2vw 盒模型换算容器（width/height + 整块 style 长度量按设计 px 换算） | 坐标定位（归 `Position`） |
 
 ### 关键上下文/运行时文件
 
-- `src/context/CineViewContext.tsx` — 双轴换算上下文 Provider
+- `src/context/CineViewContext.tsx` — px2vw 单轴换算上下文 Provider（`scale`/`convert`，认宽不认高）
 - `src/components/CineView/runtimeContext.tsx` — CineView 运行时上下文（模式、drag/scroll 全局状态）
 - `src/components/Scene/sceneScrollRuntime.tsx` — scroll takeover Context（`SceneScrollRuntimeContext`、`SceneScrollTimelineContext`、`SceneScrollTakeoverContext`）
 - `src/components/Scene/sceneScrollBudget.ts` — scroll 动画时长 → 真实滚动距离换算（1ms=1px）
@@ -66,7 +85,7 @@ pnpm format                  # Prettier
 
 ### 数据流原则
 
-- **Drag 模式**: `renderProgress`（位移）、`sharedElapsedMs`（时间轴）各有唯一所有者；Animate 通过 `useAnimateDrag` 用 `useTransform(visualMotion, () => resolveVisualState(...))` 单输入映射，按 scene 状态（rest/incoming/settling/outgoing/hidden）解析视觉态；delay 经 `resolveEnterLocalProgress(sharedElapsedMs, delay, enterDuration)` 门控
+- **Drag 模式**: 双轨模型——**render 轨** `renderProgress`（全局位移，仅 render lane 写，是 commit 唯一触发器）与 **element 轨** `elementElapsedMotion`（每个 Scene 实例自持的 `MotionValue`，仅该 scene 的 `useElementTrack` 写，跨 scene 零共享）各有唯一所有者；Animate 通过 `useAnimateDrag` 用 `useTransform(visualMotion, () => resolveVisualState(...))` 单输入映射，按 scene 状态（rest/outgoing/enter/hidden）解析视觉态；delay 经 `resolveEnterLocalProgress(sceneElapsedMs, calculatedDelay, enterDuration)` 门控（`sceneElapsedMs` 即本场景 element 轨的 elapsed）
 - **Scroll 模式**: 唯一 scroll owner 原则（`Scene.scroll` progress owner 或 native document flow，二者不并行）；scene progress 用真实 px（1ms=1px）表示；center-lock reducer 统一处理 wheel/touch/keyboard/scrollbar/native 路径
 - **禁止**: 同一输入在两个消费者之间拆分；cross-mode 状态复用；跨 scene 的 fixed layer 漂浮
 
@@ -106,6 +125,21 @@ pnpm format                  # Prettier
   callbacks={{ onVisibilityChange: ({ visible, progress }) => {} }}
 >
 ```
+
+### AnimateVideo（帧擦除，2026-07-13）
+
+```tsx
+<AnimateVideo
+  src="/clip.mp4"
+  duration={{ enter: 2000 }}       // scrub 跨度（scroll 下即真实滚动 px）
+  timeline={{ delay: 100, waitFor: 'intro' }}
+  visibility={{ replayOnReenter: true }}
+/>
+```
+
+drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库。首屏媒体经预加载管线纳入
+`priorityComplete` 冷启动门控。（注：GIF 抽帧曾一并实现，后因与 video 功能重合 + 需第三方依赖
+而砍除；如需丝滑逐帧，考虑图片序列而非 GIF。）
 
 ### Animate
 
@@ -189,7 +223,7 @@ pnpm format                  # Prettier
 ## 开发规则（摘自 design.md）
 
 1. **不靠猜测修问题**：drag/scroll 链路排查必须依赖状态所有权 + 时间轴语义 + 关键节点日志
-2. **关键状态唯一所有者**：`renderProgress` / `sharedElapsedMs` / `dragTransitionSnapshot` 各自只有一个写入方
+2. **关键状态唯一所有者**：`renderProgress`（render 轨，仅 render lane 写）/ 每个 scene 自持的 `elementElapsedMotion`（element 轨，仅该 scene 的 `useElementTrack` 写）/ `dragRelease`（全局只读指令，仅 `useSceneManager` 写）各自只有一个写入方。（历史：旧的单一全局 `sharedElapsedMs` 标量 + `dragTransitionSnapshot` 交接机制已删除，见 DESIGN.md 双轨模型）
 3. **先恢复行为基线，再做架构迁移**：重构引发行为回归时，先修回归再继续拆分
 4. **验收必须多 agent 真实环境实测**：scroll/drag 交互路径不能只靠实现者自跑单测收口；必须由独立 agent 在真实浏览器环境（独立 lane）跑通用户描述的完整手势/输入路径后才算验收通过
 5. **每节点完成后立即读 task-flow**：不停在已通过节点上，检查下一个可执行节点
@@ -207,21 +241,20 @@ cineview/
 │   │   ├── Animate/           # 动画组件，含 useAnimateDrag / useAnimateScroll / animateSemantics
 │   │   ├── Position/          # 定位组件
 │   │   ├── Image/             # 统一图片组件
-│   │   └── Container/         # 双轴换算容器
+│   │   └── Container/         # px2vw 盒模型换算容器
 │   ├── animations/
 │   │   ├── presets/           # 40+ 预设动画（fade/slide/zoom/rotate/flip/bounce/blink/shake/blur/elastic/special）
 │   │   ├── registry.ts        # 纯模块：waitFor 链计算 + 循环依赖检测
 │   │   ├── composer.ts        # 组合动画（sequential/parallel）处理器
 │   │   └── animationParser.ts # 动画解析（string → variant）
 │   ├── hooks/
-│   │   ├── useResponsive.ts   # 双轴换算 + resize 监听
 │   │   ├── useSceneManager.ts # 场景索引 + drag/scroll transition snapshot
 │   │   ├── useImagePreloader.ts
 │   │   └── imagePreloadCache.ts
 │   ├── context/
 │   │   └── CineViewContext.tsx
 │   ├── utils/
-│   │   ├── sizeConverter.ts / gestureDetector.ts / dependencyChecker.ts
+│   │   ├── gestureDetector.ts / dependencyChecker.ts / styleConvert.ts
 │   │   ├── throttle.ts / debounce.ts / performanceMonitor.ts / animationHelpers.ts
 │   │   └── gestureHandlers.ts
 │   ├── types/index.ts         # 所有公共类型（注意：含待清理旧字段，见已知问题）

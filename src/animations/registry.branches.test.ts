@@ -46,6 +46,45 @@ describe('animation registry branch coverage', () => {
     expect(snapshot.timelineDuration).toBe(9000);
   });
 
+  it('reuses the visited cache for a diamond dependency (A→C, B→C, top→A/B)', () => {
+    // Diamond: both 'a' and 'b' waitFor 'c'; 'top' waitFor both 'a' and 'b' is
+    // not expressible (single waitFor), so model the diamond as the registry
+    // forEach resolving 'a' first (which resolves+caches 'c'), then 'b' — whose
+    // waitFor 'c' is already fully resolved AND marked visited. Requesting it
+    // again hits the `visited.has(animateId)` branch (line 88) returning the
+    // cached delay rather than re-walking the chain.
+    const snapshot = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map([
+        ['c', { delay: 10, duration: 100 }],
+        ['a', { delay: 5, duration: 50, waitFor: 'c' }],
+        ['b', { delay: 7, duration: 50, waitFor: 'c' }],
+      ]),
+    });
+
+    // c resolved once (delay 10). a = 5 + (10 + 100) = 115. b = 7 + (10 + 100) = 117.
+    // The second dependant reaching 'c' finds it already cached/visited.
+    expect(snapshot.calculatedDelays.get('c')).toBe(10);
+    expect(snapshot.calculatedDelays.get('a')).toBe(115);
+    expect(snapshot.calculatedDelays.get('b')).toBe(117);
+    expect(snapshot.issues).toEqual([]);
+  });
+
+  it('records a missing-dependency issue when waitFor targets an unregistered id', () => {
+    // 'a' waitFor 'ghost' which is not registered -> the `!waitForInfo` branch
+    // (line 97) fires, recording a missing-dependency issue; 'a' keeps its own
+    // delay (5) with no chain contribution.
+    const snapshot = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map([['a', { delay: 5, duration: 50, waitFor: 'ghost' }]]),
+    });
+
+    expect(snapshot.calculatedDelays.get('a')).toBe(5);
+    expect(snapshot.issues).toEqual([
+      { type: 'missing-dependency', animateId: 'a', waitFor: 'ghost' },
+    ]);
+  });
+
   it('clamps a negative baseDuration to zero', () => {
     // Math.max(baseDuration, 0) -> 0 branch when baseDuration is negative.
     const snapshot = buildAnimationRegistrySnapshot({

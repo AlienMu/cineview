@@ -148,7 +148,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           {scenes}
         </CineView>
@@ -189,7 +189,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           {scenes}
         </CineView>
@@ -264,7 +264,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 50 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           {scenes}
         </CineView>
@@ -314,7 +314,7 @@ describe('性能测试', () => {
       );
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ width: 750, height: 750, unit: 'px' }}>
+        <CineView ref={cineViewRef} config={{ width: 750, height: 750 }}>
           <Scene assets={{ preloadImages: images.slice(0, 12) }}>
             <h1>首屏场景</h1>
           </Scene>
@@ -386,7 +386,7 @@ describe('性能测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
             <h1>首屏</h1>
@@ -424,7 +424,7 @@ describe('性能测试', () => {
       const onLoadProgress = jest.fn();
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750, unit: 'px' }} callbacks={{ onLoadProgress }}>
+        <CineView config={{ width: 750, height: 750 }} callbacks={{ onLoadProgress }}>
           <Scene
             assets={{
               preloadImages: ['https://example.com/valid.jpg', 'https://invalid-url/image.jpg'],
@@ -490,7 +490,7 @@ describe('性能测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
@@ -534,7 +534,7 @@ describe('性能测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
@@ -564,7 +564,7 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView
           ref={cineViewRef}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
           performance={{ monitor: true }}
         >
           <Scene>
@@ -611,7 +611,7 @@ describe('性能测试', () => {
       const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750 }}>
           <Scene>
             <Animate exitAnimation="fade-out">
               <h1>拖拽性能测试</h1>
@@ -646,7 +646,7 @@ describe('性能测试', () => {
 
     test('应该正确处理动画延迟链而不阻塞主线程', async () => {
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750 }}>
           <Scene>
             <Animate
               animateId="anim1"
@@ -711,7 +711,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -772,7 +772,7 @@ describe('性能测试', () => {
 
     test('应该在组件卸载时清理所有资源', async () => {
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750, unit: 'px' }} performance={{ monitor: true }}>
+        <CineView config={{ width: 750, height: 750 }} performance={{ monitor: true }}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -809,7 +809,7 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750 }}>
           <Scene>{animations}</Scene>
         </CineView>
       );
@@ -841,7 +841,7 @@ describe('性能测试', () => {
       const startTime = performance.now();
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750, unit: 'px' }}>
+        <CineView config={{ width: 750, height: 750 }}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>
               <Animate enterAnimation="fade-in">
@@ -879,7 +879,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 300 } }}
-          config={{ width: 750, height: 750, unit: 'px' }}
+          config={{ width: 750, height: 750 }}
           performance={{ monitor: true }}
         >
           <Scene>

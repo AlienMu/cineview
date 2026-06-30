@@ -168,7 +168,7 @@ function renderDragApp() {
       ref={cineViewRef}
       mode="drag"
       modes={{ drag: { direction: 'y', transitionDuration: 600 } }}
-      config={{ width: 750, height: 1334, unit: 'px' }}
+      config={{ width: 750, height: 1334 }}
     >
       <Scene
         transition={{ enterAnimation: 'slide-up', exitAnimation: 'fade-out', exitDuration: 600 }}

@@ -1,0 +1,877 @@
+/* ===================================================================
+   Act 2 · Capability Showcase — 胶片带 + 舞台抽屉（v3 重做，2026-07-09）
+
+   设计契约（task-flow 2026-07-09-act2-cinema-rewrite.md，规格冻结）：
+   - 贯穿签名「时间码胶囊」：左上角小胶囊，REC 红点纯 CSS 呼吸（不受编排暂停）。
+   - SHOT01 胶片带：1140×260 居中、上下齿孔条，帧格预设定格，活跃帧 scale+双层光晕。
+   - SHOT02 舞台抽屉：640×480 中央舞台，面板播完飞入左侧堆叠抽屉，右侧标题+总结。
+   - 视觉延续 Act1 暖白胶片质感，全走 tokens.css 变量；1440×900 画布 + overflow:hidden。
+   =================================================================== */
+
+.capability-full {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* 网格点底：技术感视差底，不抢主体 */
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--frame-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* render-prop 探针容器：只承载进度同步，不可见不占位 */
+.cap-probes {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+
+/* ===================================================================
+   贯穿签名：时间码胶囊（左上角）
+   =================================================================== */
+
+.tc-capsule {
+  position: absolute;
+  top: 40px;
+  left: 80px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(250, 248, 244, 0.72);
+  backdrop-filter: saturate(160%) blur(10px);
+  -webkit-backdrop-filter: saturate(160%) blur(10px);
+  border: 1px solid var(--frame-line);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--ink-mute);
+  z-index: 10;
+}
+.tc-capsule__no {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tc-capsule__divider {
+  width: 1px;
+  height: 14px;
+  background: var(--frame-line);
+}
+/* REC 红点：常驻呼吸 + 光晕。纯 CSS keyframes，挂载即播，贯穿全镜不因编排暂停。 */
+.tc-capsule__rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rec);
+  box-shadow: 0 0 0 3px var(--rec-glow);
+  animation: rec-breathe 1.6s ease-in-out infinite;
+}
+@keyframes rec-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--rec-glow);
+  }
+  50% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 6px rgba(196, 69, 63, 0.08);
+  }
+}
+.tc-capsule__rec-label {
+  color: var(--rec);
+  font-weight: 600;
+}
+.tc-capsule__readout {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+/* 镜号 eyebrow（胶囊下方） */
+.cap-slate {
+  position: absolute;
+  top: 92px;
+  left: 80px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  z-index: 10;
+}
+
+/* 共享：标题 */
+.cap-title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin: 0;
+  text-align: center;
+}
+.cap-title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--accent-ink);
+}
+.cap-title--side {
+  font-size: var(--text-2xl);
+  text-align: left;
+  max-width: 340px;
+}
+/* 顶部标题块:hero 风格 evocative slogan + 引介副标题 */
+.cap-title--header {
+  font-size: var(--text-3xl);
+  text-align: center;
+}
+.film-titleblock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.film-intro {
+  max-width: 640px;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 300;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ===================================================================
+   SHOT 01 · 胶片带镜
+   =================================================================== */
+
+/* 可视窗 gate：100vw 全宽、overflow 裁剪(胶带从窗外平移进来) */
+.film-gate {
+  position: relative;
+  width: 100vw;
+  height: 204px;
+  overflow: hidden;
+}
+/* film track：单份满宽(100%)。铺入阶段内联 translateX(-100%→0) 从左铺满。
+   铺满后帧静止,只有齿孔条的「点」滚动(见 .film-track.is-rolling .film-track__perf)。 */
+.film-track {
+  position: relative;
+  width: 100%;
+  height: 204px;
+  background: rgba(250, 248, 244, 0.4);
+  backdrop-filter: saturate(140%) blur(4px);
+  -webkit-backdrop-filter: saturate(140%) blur(4px);
+  will-change: transform;
+}
+/* 铺满后 loop:仅齿孔条的方孔横向滚动(background-position),帧内容不动 —— 表示胶卷在转。
+   40px 是齿孔 pattern 周期(见 .film-track__perf background-size),滚一个周期无缝循环。 */
+@keyframes film-perf-roll {
+  to {
+    background-position: -40px center, 0 center, 0 center;
+  }
+}
+.film-track.is-rolling .film-track__perf {
+  animation: film-perf-roll 1s linear infinite;
+}
+.film-track.is-paused .film-track__perf {
+  animation-play-state: paused;
+}
+/* 齿孔条：暖陶土基边 + 一道随滚动平移的流光高光 + 亮方孔。三层叠放:
+   方孔(最上) / 流光高光(中,--film-flow 定位) / 陶土基底渐变(底)。不再深黑。 */
+.film-track__perf {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 26px;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0 13px,
+      rgba(252, 248, 243, 0.92) 13px 27px,
+      transparent 27px 40px
+    ),
+    linear-gradient(
+      100deg,
+      transparent calc(var(--film-flow, 0%) - 26%),
+      rgba(232, 190, 165, 0.85) var(--film-flow, 0%),
+      transparent calc(var(--film-flow, 0%) + 26%)
+    ),
+    linear-gradient(100deg, #c98a6a, #b0764f);
+  background-size: 40px 13px, 100% 100%, 100% 100%;
+  background-repeat: repeat-x, no-repeat, no-repeat;
+  background-position: 0 center, 0 center, 0 center;
+}
+.film-track__perf--top {
+  top: 0;
+}
+.film-track__perf--bottom {
+  bottom: 0;
+}
+/* 帧格排：满宽 9 格等分；竖直分隔线用陶土色(与齿孔边框同调,缩小色差,不再深黑) */
+.film-track__frames {
+  position: absolute;
+  top: 26px;
+  left: 0;
+  width: 100%;
+  height: 152px;
+  display: flex;
+  align-items: stretch;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(100% / 9 - 2px),
+    rgba(176, 118, 79, 0.5) calc(100% / 9 - 2px) calc(100% / 9)
+  );
+}
+/* 9 格等分：Animate host 直接作 flex 子元素 + overflow 裁剪每格动画边界 */
+.film-track__frames > [data-cineview-animate-host] {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+.film-track__frames .cineview-animate {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+.film-frame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+/* 无框：分隔线已在容器上，格子只承载图标+文字，无卡片背景/边框 */
+.film-frame__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+/* 图标：深墨，活跃时反白填充陶土圆（无框，活跃靠图标+文字变色区分） */
+.film-frame__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  transition:
+    background 0.4s var(--ease-out),
+    color 0.4s var(--ease-out),
+    transform 0.4s var(--ease-out);
+}
+.film-frame__icon svg {
+  width: 24px;
+  height: 24px;
+}
+.film-frame.is-active .film-frame__icon {
+  background: var(--accent);
+  color: #fff;
+  transform: scale(1.06);
+}
+.film-frame__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.film-frame.is-active .film-frame__name {
+  color: var(--accent-ink);
+}
+.film-frame__no {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+}
+.film-frame.is-active .film-frame__no {
+  color: var(--accent);
+}
+
+/* 胶带上方：活跃帧描述性标题 + 预设名标签（blur 交叉淡出，悬停可切换） */
+.film-caption-slot {
+  position: relative;
+  width: 560px;
+  height: 68px;
+}
+.film-caption {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  opacity: 0;
+  filter: blur(12px);
+  transform: scale(0.98);
+  transition:
+    opacity 0.7s var(--ease-out),
+    filter 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+  pointer-events: none;
+}
+.film-caption.is-active {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+.film-caption__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.film-caption__tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--accent-ink);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* 胶带下方：代码编辑器卡（窗口条 + code 行 + 描述行；切换用淡入上滑，非 blur） */
+.film-codecard {
+  width: 600px;
+  border-radius: 14px;
+  background: rgba(252, 247, 241, 0.94);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(201, 138, 106, 0.28);
+  box-shadow: 0 20px 48px rgba(168, 102, 63, 0.16);
+  overflow: hidden;
+}
+.film-codecard__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  background: rgba(201, 138, 106, 0.1);
+  border-bottom: 1px solid rgba(201, 138, 106, 0.18);
+}
+.film-codecard__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(176, 118, 79, 0.3);
+}
+.film-codecard__dot:nth-child(1) {
+  background: #d98a6a;
+}
+.film-codecard__dot:nth-child(2) {
+  background: #dcab6e;
+}
+.film-codecard__dot:nth-child(3) {
+  background: #b0764f;
+}
+.film-codecard__file {
+  margin-left: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+.film-codecard__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px 22px;
+}
+.film-codecard__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.film-codecard__prompt {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--text-base);
+}
+.film-codecard__code-slot {
+  position: relative;
+  flex: 1;
+  height: 24px;
+}
+.film-codecard__code {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--ink);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(9px);
+  transition:
+    opacity 0.5s var(--ease-out),
+    transform 0.5s var(--ease-out);
+}
+.film-codecard__code.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+.film-codecard__desc-slot {
+  position: relative;
+  height: 22px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(201, 138, 106, 0.18);
+}
+.film-codecard__desc {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 300;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(9px);
+  transition:
+    opacity 0.5s var(--ease-out),
+    transform 0.5s var(--ease-out);
+}
+.film-codecard__desc.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===================================================================
+   SHOT 02 · 舞台抽屉镜
+   =================================================================== */
+
+/* 中央舞台：720×520。无占位框——面板飞入抽屉后不留空框。 */
+.stage-frame {
+  position: relative;
+  width: 720px;
+  height: 520px;
+}
+.stage-panel {
+  /* 显式 720×520 而非 inset:0：父级 Animate 的 motion.div 一旦拿到
+     x/y/scale/rotate 就会带 transform，成为绝对定位子元素的 containing
+     block；该 motion.div 唯一子元素即为绝对定位，auto 高度会塌成 0，
+     inset:0 会随之塌成 0 高并被 overflow:hidden 裁掉。显式宽高不依赖
+     containing block 尺寸解析，绕开这个塌陷。 */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 720px;
+  height: 520px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: rgba(250, 248, 244, 0.9);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border: 1px solid var(--frame-line);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+/* 露出条：抽屉堆叠时可见的头条 —— 标签字号放大，缩到 0.42 仍可读 */
+.stage-panel__bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--frame-line-soft);
+  background: rgba(201, 138, 106, 0.1);
+}
+.stage-panel__icon {
+  display: inline-flex;
+  color: var(--accent-ink);
+  transform: scale(1.4);
+  transform-origin: left center;
+}
+.stage-panel__label {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.stage-panel__no {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+}
+.stage-panel__body {
+  flex: 1;
+  position: relative;
+  padding: 30px 34px;
+  transition: opacity 0.3s var(--ease-out);
+}
+.stage-panel__code {
+  display: flex;
+  align-items: center;
+  margin: 0 26px 24px;
+  padding: 13px 18px;
+  border-radius: var(--radius-sm);
+  background: rgba(26, 24, 20, 0.055);
+  border: 1px solid var(--frame-line-soft);
+  border-left: 3px solid var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-panel__code::before {
+  content: '›';
+  margin-right: 10px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Panel1：waitFor 结构树（3 节点 + 2 连线逐个点亮） */
+.stage-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-top: 14px;
+}
+.stage-tree__step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.stage-tree__node {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--frame-line);
+  background: rgba(255, 255, 255, 0.72);
+  opacity: 0.32;
+  transition:
+    opacity 0.35s var(--ease-out),
+    border-color 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out),
+    transform 0.35s var(--ease-out);
+}
+.stage-tree__node.is-on {
+  opacity: 1;
+  border-color: var(--accent);
+  transform: translateX(2px);
+  box-shadow: 0 0 0 3px rgba(201, 138, 106, 0.14);
+}
+.stage-tree__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--frame-line);
+  transition:
+    background 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out);
+}
+.stage-tree__node.is-on .stage-tree__dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(201, 138, 106, 0.18);
+}
+.stage-tree__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+.stage-tree__wait {
+  margin-left: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(201, 138, 106, 0.12);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent-ink);
+}
+.stage-tree__wire {
+  width: 2px;
+  height: 30px;
+  margin-left: 34px;
+  background: var(--frame-line);
+  transition: background 0.35s var(--ease-out);
+}
+.stage-tree__wire.is-on {
+  background: var(--accent);
+}
+
+/* Panel2：stagger 方块横排 */
+.stage-squares {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  padding-top: 104px;
+}
+.stage-squares__cell {
+  width: 80px;
+  height: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: linear-gradient(
+    160deg,
+    rgba(201, 138, 106, 0.2),
+    rgba(201, 138, 106, 0.08)
+  );
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 6px 16px rgba(201, 138, 106, 0.12);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--accent-ink);
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.4s var(--ease-out),
+    transform 0.4s var(--ease-out);
+}
+.stage-squares__cell.is-on {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Panel3：Position 双轴坐标卡 */
+.stage-coords {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.stage-coords__axis {
+  position: absolute;
+  background: var(--frame-line);
+}
+.stage-coords__axis--x {
+  left: 0;
+  right: 0;
+  top: 24px;
+  height: 1px;
+}
+.stage-coords__axis--y {
+  top: 0;
+  bottom: 0;
+  left: 24px;
+  width: 1px;
+}
+.stage-coords__card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--frame-line);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.35s var(--ease-out),
+    transform 0.35s var(--ease-out),
+    border-color 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out);
+}
+.stage-coords__card.is-on {
+  opacity: 1;
+  transform: translateY(0);
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(26, 24, 20, 0.12);
+}
+.stage-coords__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(201, 138, 106, 0.18);
+}
+.stage-coords__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 中央结语 */
+.stage-summary {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 300;
+  line-height: 1.9;
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 340px;
+}
+.stage-summary--center {
+  text-align: center;
+  max-width: 620px;
+}
+
+/* 中央打字机代码框:暖奶白/陶土主题(不再深黑),三段依次逐字敷出 */
+.stage-code {
+  width: 620px;
+  border-radius: 14px;
+  background: rgba(252, 247, 241, 0.94);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(201, 138, 106, 0.28);
+  box-shadow: 0 20px 48px rgba(168, 102, 63, 0.16);
+  overflow: hidden;
+}
+.stage-code__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  background: rgba(201, 138, 106, 0.1);
+  border-bottom: 1px solid rgba(201, 138, 106, 0.18);
+}
+.stage-code__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(176, 118, 79, 0.3);
+}
+.stage-code__dot:nth-child(1) {
+  background: #d98a6a;
+}
+.stage-code__dot:nth-child(2) {
+  background: #dcab6e;
+}
+.stage-code__dot:nth-child(3) {
+  background: #b0764f;
+}
+.stage-code__file {
+  margin-left: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+.stage-code__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 24px 24px;
+  min-height: 116px;
+}
+.stage-code__line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out);
+}
+.stage-code__line.is-shown {
+  opacity: 1;
+}
+.stage-code__prompt {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--text-base);
+}
+.stage-code__text {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--ink);
+  white-space: pre;
+}
+.stage-code__cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: stage-caret 0.9s step-end infinite;
+}
+@keyframes stage-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ===================================================================
+   响应式 / reduced-motion
+   =================================================================== */
+@media (max-width: 1280px) {
+  .film-gate {
+    transform: scale(0.82);
+    transform-origin: top center;
+  }
+  .stage-frame {
+    transform: scale(0.86);
+    transform-origin: top center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* REC 改为静止常亮（不完全消失）；活跃帧/联动切换 transition 归零 */
+  .tc-capsule__rec-dot {
+    animation: none !important;
+    opacity: 1;
+    box-shadow: 0 0 0 3px var(--rec-glow);
+  }
+  .film-track,
+  .film-frame__card,
+  .film-frame__icon,
+  .film-caption,
+  .film-codecard__code,
+  .film-codecard__desc,
+  .stage-tree__node,
+  .stage-tree__dot,
+  .stage-tree__wire,
+  .stage-coords__card,
+  .stage-code__line {
+    transition: none !important;
+  }
+  .stage-code__cursor {
+    animation: none !important;
+  }
+}

@@ -4,7 +4,16 @@
  * scroll 模式：使用 useAnimateScroll
  */
 
-import React, { useEffect, useRef, useState, useContext, createContext, useMemo } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useContext,
+  createContext,
+  useMemo,
+  isValidElement,
+} from 'react';
+import type { ReactElement } from 'react';
 import { motion, MotionValue, useAnimation } from 'framer-motion';
 import type { ParsedAnimationVariant, ScrollMode, ScrollTimelineState } from '../../types';
 import type { AnimateRegistrationInfo } from '../../animations/registry';
@@ -14,9 +23,13 @@ import { useAnimateScroll } from './useAnimateScroll';
 import {
   normalizeAnimateSemantics,
   type AnimateInternalProps,
-  type NormalizedAnimateTimeline,
+  type ResolvedAnimateTimeline,
 } from './animateSemantics';
 import type { DragRelease, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
+import { ScrollRenderBridge, DragRenderBridge } from './AnimateRenderBridge';
+import { ScrollStagger, DragStagger } from './StaggerContainer';
+import { IDLE_RENDER_STATE } from './animateRenderState';
+import type { AnimateRenderState } from '../../types';
 import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 import {
   SceneScrollRuntimeContext,
@@ -88,6 +101,15 @@ export interface SceneAnimationRegistryContext {
   registerAnimate: (id: string, info: AnimateRegistrationInfo) => void;
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (id: string) => number;
+  // Per-scene enter-phase bus for the visibility driver's waitFor. An element
+  // marks itself entered/not-entered; a follower subscribes to its leader's
+  // completion. This gives visibility (which has no shared timeline axis) a way
+  // to start its own delay only AFTER the leader actually finished — instead of
+  // re-waiting the whole calculatedDelay chain from its own gate-fire instant.
+  markAnimateEntered?: (id: string, entered: boolean) => void;
+  // Invokes cb once the leader is entered (immediately if already entered).
+  // Returns an unsubscribe to drop the pending subscription on teardown/preempt.
+  subscribeAnimateEntered?: (leaderId: string, cb: () => void) => () => void;
 }
 
 export type SceneContextType = SceneBaseRuntimeContext &
@@ -111,9 +133,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   exitDuration,
   delay,
   waitFor,
-  scrollDriven,
   scrollPhaseStart,
   scrollPhaseEnd,
+  stagger,
   children,
 }) => {
   const componentId = useRef(animateId || `animate-${++animateIdCounter}`);
@@ -137,20 +159,18 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     exitDuration,
     delay,
     waitFor,
-    scrollDriven,
     scrollPhaseStart,
     scrollPhaseEnd,
   });
   const mode = sceneContext?.mode ?? cineViewRuntime?.mode ?? 'drag';
-  const resolvedTimeline = useMemo<NormalizedAnimateTimeline>(() => {
-    if (mode !== 'scroll' || normalizedSemantics.timeline.driver !== 'auto') {
-      return normalizedSemantics.timeline;
-    }
-
-    return {
-      ...normalizedSemantics.timeline,
-      driver: inheritedZoneId ? 'scroll' : 'visibility',
-    };
+  // Resolve sceneControlled + mode + inherited zoneId down to a concrete driver.
+  // scroll driver only when: scroll mode, sceneControlled (default), and actually
+  // inside a Scene.scroll zone. Everything else (drag mode, no zone, or explicit
+  // sceneControlled:false) is the standalone visibility gate.
+  const resolvedTimeline = useMemo<ResolvedAnimateTimeline>(() => {
+    const { sceneControlled, ...rest } = normalizedSemantics.timeline;
+    const isSceneScroll = mode === 'scroll' && sceneControlled && Boolean(inheritedZoneId);
+    return { ...rest, driver: isSceneScroll ? 'scroll' : 'visibility' };
   }, [inheritedZoneId, mode, normalizedSemantics.timeline]);
   const normalizedEnterDuration = normalizedSemantics.duration.enter;
   const normalizedExitDuration = normalizedSemantics.duration.exit;
@@ -270,8 +290,60 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     } as never);
   }, [mode, infiniteVariant, scrollResult.shouldRunInfinite, scrollInfiniteControls]);
 
+  // render-prop 桥接:children 为函数时,按当前 mode 挂对应 bridge 订阅进度/相位源;
+  // 否则原样透传。非函数 children 零额外成本(不挂 bridge、不订阅)。
+  const isRenderProp = typeof children === 'function';
+  const renderFn = children as (state: AnimateRenderState) => React.ReactNode;
+  const bridgedChildren: React.ReactNode = !isRenderProp ? (
+    (children as React.ReactNode)
+  ) : mode === 'scroll' ? (
+    <ScrollRenderBridge
+      signedVisual={scrollResult.visualMotion}
+      phaseMotion={scrollResult.phaseMotion}
+      render={renderFn}
+    />
+  ) : (
+    <DragRenderBridge visualState={dragResult.visualState} render={renderFn} />
+  );
+
+  // Tier 2 stagger:children 为单个有效元素容器 + 有 stagger + 有 enterVariant 时,
+  // 子元素由 framer 原生 variant 传播错峰(方案B,绕白名单)。外层 motion.div 的视觉
+  // style 中和(否则容器整体入场与子元素错峰双重动画),但 visualMotion 仍在内部跑作
+  // 触发源供 stagger 订阅。render-prop 与 stagger 互斥(函数 children 无容器可拆)。
+  const staggerContainer =
+    stagger && !isRenderProp && enterVariant && isValidElement(children)
+      ? (children as ReactElement)
+      : null;
+  const staggerActive = Boolean(staggerContainer);
+  const staggerEach = stagger?.each ?? 40;
+  const staggerFrom = stagger?.from ?? 'first';
+  const staggeredContent: React.ReactNode =
+    staggerContainer && enterVariant ? (
+      mode === 'scroll' ? (
+        <ScrollStagger
+          container={staggerContainer}
+          variant={enterVariant}
+          each={staggerEach}
+          from={staggerFrom}
+          signedVisual={scrollResult.visualMotion}
+        />
+      ) : (
+        <DragStagger
+          container={staggerContainer}
+          variant={enterVariant}
+          each={staggerEach}
+          from={staggerFrom}
+          visualState={dragResult.visualState}
+        />
+      )
+    ) : null;
+  const content = staggerActive ? staggeredContent : bridgedChildren;
+  const scrollOuterStyle = staggerActive ? undefined : scrollResult.style;
+  const dragOuterStyle = staggerActive ? undefined : dragResult.style;
+
   if (!enterVariant && !exitVariant && !infiniteVariant) {
-    return <>{children}</>;
+    // 无动画早退:无进度可推,函数 children 直接给初始态(否则会渲染成 [object Function])。
+    return <>{isRenderProp ? renderFn(IDLE_RENDER_STATE) : children}</>;
   }
 
   if (mode === 'scroll') {
@@ -283,7 +355,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
             className="cineview-animate"
             data-cineview-animate-id={id}
           >
-            <motion.div animate={scrollInfiniteControls}>{children}</motion.div>
+            <motion.div animate={scrollInfiniteControls}>{bridgedChildren}</motion.div>
           </motion.div>
         </div>
       );
@@ -292,11 +364,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     return (
       <div data-cineview-animate-host={id}>
         <motion.div
-          style={scrollResult.style}
+          style={scrollOuterStyle}
           className="cineview-animate"
           data-cineview-animate-id={id}
         >
-          {children}
+          {content}
         </motion.div>
       </div>
     );
@@ -304,19 +376,15 @@ export const Animate: React.FC<AnimateInternalProps> = ({
 
   if (infiniteVariant) {
     return (
-      <motion.div
-        style={dragResult.style}
-        className="cineview-animate"
-        data-cineview-animate-id={id}
-      >
-        <motion.div animate={dragInfiniteControls}>{children}</motion.div>
+      <motion.div style={dragOuterStyle} className="cineview-animate" data-cineview-animate-id={id}>
+        <motion.div animate={dragInfiniteControls}>{content}</motion.div>
       </motion.div>
     );
   }
 
   return (
-    <motion.div style={dragResult.style} className="cineview-animate" data-cineview-animate-id={id}>
-      {children}
+    <motion.div style={dragOuterStyle} className="cineview-animate" data-cineview-animate-id={id}>
+      {content}
     </motion.div>
   );
 };

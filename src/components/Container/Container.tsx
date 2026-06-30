@@ -1,15 +1,19 @@
 /**
- * Container 组件
- * 提供响应式容器，完全基于百分比系统
- * 只能在 CineView 下使用
+ * Container 组件 — px2vw 盒模型换算容器。
  *
- * 设计理念：
- * - 宽高都转换为相对于设计稿的百分比
- * - 这样可以完美适配任何屏幕尺寸
+ * 职责边界（与 Position 正交）：
+ * - Position 管「元素放在哪」（坐标点 x/y，经 `convert` 换算）。
+ * - Container 管「盒子多大 + 内部怎么呼吸」：width/height 便捷属性，以及整个 `style`
+ *   里的所有长度量（padding/margin/gap/borderRadius/fontSize/...）都按设计 px 经
+ *   px2vw 单尺子 `convert` 自动换算。作者用设计稿的一个单位书写整块盒模型，
+ *   Container 忠实缩放到任何屏幕——正方形永远是正方形（单尺子不形变）。
+ *
+ * 只能在 CineView 下使用（需要换算上下文）。
  */
 
 import React, { useMemo } from 'react';
 import { useCineViewContext } from '../../context/CineViewContext';
+import { convertStyle } from '../../utils/styleConvert';
 import type { ContainerProps } from '../../types';
 
 export const Container: React.FC<ContainerProps> = ({
@@ -30,17 +34,19 @@ export const Container: React.FC<ContainerProps> = ({
     );
   }
 
-  // 计算响应式尺寸 - 使用双轴设计基准换算
+  // px2vw 盒模型换算：width/height 便捷属性走 `convert`；整个 style 的长度量交给
+  // convertStyle 逐键换算（padding/margin/gap/borderRadius/fontSize/... 一并缩放）。
   const containerStyle = useMemo(() => {
     if (!context) return style;
 
-    const widthPx = width !== undefined ? context.convertX(width) : undefined;
-    const heightPx = height !== undefined ? context.convertY(height) : undefined;
+    const convertedStyle = convertStyle(style, context);
+    const widthPx = width !== undefined ? context.convert(width) : undefined;
+    const heightPx = height !== undefined ? context.convert(height) : undefined;
 
     return {
       width: widthPx,
       height: heightPx,
-      ...style,
+      ...convertedStyle,
     };
   }, [context, width, height, style]);
 

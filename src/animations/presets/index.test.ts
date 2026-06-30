@@ -6,6 +6,16 @@ import {
   clearAnimationCache,
 } from './index';
 
+// devWarn/devError (used for unknown-preset / load-failure diagnostics) only
+// emit when NODE_ENV === 'development'. Force it so the console spies observe them.
+const originalNodeEnv = process.env.NODE_ENV;
+beforeAll(() => {
+  process.env.NODE_ENV = 'development';
+});
+afterAll(() => {
+  process.env.NODE_ENV = originalNodeEnv;
+});
+
 describe('animations/presets/index', () => {
   beforeEach(() => {
     clearAnimationCache();

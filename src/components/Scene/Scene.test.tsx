@@ -153,7 +153,7 @@ jest.mock('framer-motion', () => {
 // Helper to wrap Scene in CineViewProvider
 const renderScene = (ui: React.ReactElement): ReturnType<typeof render> => {
   return render(
-    <CineViewProvider designWidth={750} designHeight={750} unit="px">
+    <CineViewProvider designWidth={750} designHeight={750}>
       {ui}
     </CineViewProvider>
   );
@@ -325,6 +325,41 @@ describe('Scene Component', () => {
       );
 
       expect(container.querySelector('[data-scene-fixed-host="0"]')).toBeInTheDocument();
+    });
+
+    // Regression: the scene-scoped fixed host is a full-bleed portal target for
+    // Position fixed content, layered above the scene's normal children at
+    // z-index 20. It must default to pointer-events:none so that a scene with no
+    // fixed content does not swallow clicks meant for ordinary children (e.g. a
+    // hero with buttons). Real fixed Position content portaled in carries its
+    // own pointer-events:auto, so this does not disable fixed interactivity.
+    it('keeps the scroll fixed host pointer-events:none so children stay clickable', () => {
+      const { container } = renderScene(
+        <Scene
+          runtimeMode="scroll"
+          sceneIndex={0}
+          sceneRuntime={{ viewportHeight: 400 }}
+          scrollRuntime={{
+            viewportOffset: 120,
+            timelineState: {
+              phase: 'hold',
+              enterProgress: 1,
+              exitProgress: 0,
+              sceneProgress: 0.5,
+              rangeStart: 0,
+              rangeEnd: 680,
+              rangeLength: 680,
+              enterLength: 120,
+              exitLength: 120,
+            },
+          }}
+        >
+          <div>Ordinary clickable children</div>
+        </Scene>
+      );
+
+      const host = container.querySelector('[data-scene-fixed-host="0"]') as HTMLElement;
+      expect(host).toHaveStyle({ pointerEvents: 'none' });
     });
   });
 
@@ -582,9 +617,7 @@ describe('Scene Component', () => {
         expect.stringContaining('Fix: Wrap your Scene components inside a <CineView> component')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          '<CineView mode="drag" config={{ width: 750, height: 1334, unit: \'px\' }}>'
-        )
+        expect.stringContaining('<CineView mode="drag" config={{ width: 750, height: 1334 }}>')
       );
 
       consoleSpy.mockRestore();
@@ -1072,7 +1105,7 @@ describe('Scene Component', () => {
       };
 
       render(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene>
               <TestChild />
@@ -1274,7 +1307,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <Scene isActive={false}>
             <TestChild />
           </Scene>
@@ -1494,7 +1527,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>
@@ -1521,7 +1554,7 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
@@ -1545,7 +1578,7 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
@@ -1569,7 +1602,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+        <CineViewProvider designWidth={750} designHeight={750}>
           <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>

@@ -18,7 +18,7 @@ import type {
   CineViewDesignConfig,
 } from '../index';
 
-const config: CineViewDesignConfig = { width: 750, height: 1334, unit: 'px' };
+const config: CineViewDesignConfig = { width: 750, height: 1334 };
 
 // --- Positive: the per-mode flat callbacks are accepted ---------------------
 const dragOk: DragModeCallbacks = {
@@ -52,19 +52,21 @@ const defaultModeProps: CineViewProps = {
 };
 
 // --- Negative: a scroll callback in drag mode must be rejected --------------
+// The `?: never` cross-exclusion surfaces the incompatibility on the whole-object
+// assignment, so the directive sits on the `const` line (not the `callbacks:` line).
+// @ts-expect-error onZoneProgress is not a drag-mode callback
 const dragWithScrollCb: CineViewProps = {
   config,
   mode: 'drag',
-  // @ts-expect-error onZoneProgress is not a drag-mode callback
   callbacks: { onZoneProgress: () => {} },
   children: null,
 };
 
 // --- Negative: a drag callback in scroll mode must be rejected --------------
+// @ts-expect-error onDragCommit is not a scroll-mode callback
 const scrollWithDragCb: CineViewProps = {
   config,
   mode: 'scroll',
-  // @ts-expect-error onDragCommit is not a scroll-mode callback
   callbacks: { onDragCommit: () => {} },
   children: null,
 };
@@ -87,6 +89,26 @@ export function ScrollModeDragCallbackJsx(): JSX.Element {
     </CineView>
   );
 }
+
+// --- Negative: mixed valid+wrong callback via EXTRACTED VARIABLE ------------
+// The excess-property check only fires on inline object literals; a callbacks
+// object first assigned to a variable evades it. Before the per-mode `?: never`
+// cross-exclusion (see DragModeCallbacks / ScrollModeCallbacks), a variable
+// holding a valid drag callback AND a wrong-mode scroll callback slipped through
+// (weak-type check passed on the shared property). The `?: never` on each mode's
+// foreign keys now rejects it even via a variable.
+const extractedMixedCb = {
+  onDragCommit: (): void => {},
+  onZoneProgress: (): void => {},
+};
+const dragWithExtractedMixedCb: CineViewProps = {
+  config,
+  mode: 'drag',
+  // @ts-expect-error onZoneProgress (scroll-only) is rejected even via a variable
+  callbacks: extractedMixedCb,
+  children: null,
+};
+void dragWithExtractedMixedCb;
 
 // Reference the value-level bindings so they are not "unused" errors.
 void dragOk;

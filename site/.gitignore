@@ -1,0 +1,7 @@
+# Dependencies / build output
+node_modules
+dist
+
+# Throwaway acceptance / verification artifacts (screenshots, Playwright output)
+acceptance-shots
+test-results

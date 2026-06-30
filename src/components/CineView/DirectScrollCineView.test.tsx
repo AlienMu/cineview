@@ -770,7 +770,6 @@ describe('DirectScrollCineView', () => {
   const config = {
     width: 750,
     height: 1334,
-    unit: 'px' as const,
   };
 
   beforeEach(() => {
@@ -918,6 +917,46 @@ describe('DirectScrollCineView', () => {
       '[data-cineview-scroll-zone="scene-0"]'
     ) as HTMLElement;
     expect(firstSceneZone).toHaveAttribute('data-first-scene-enter-ready', 'false');
+  });
+
+  // Regression: scroll mode must call startPreload unconditionally, even when no
+  // scene declares preloadImages. The old effect guarded the call behind
+  // `preloadImages.length > 0`, so a zero-image scroll first screen never ran the
+  // preloader — priorityComplete never fired, firstSceneEnterReady stayed false
+  // forever, and scene 0's visibility elements were stuck at their initial
+  // opacity:0 frame (the cold-start gate deadlocked with no timeout). Drag mode
+  // (CineView.tsx) always called startPreload, so this only hit scroll. The
+  // preloader's own zero-image branch resolves priorityComplete immediately, so
+  // the fix is simply to always invoke it.
+  it('calls startPreload even when no scene declares preloadImages (scroll cold-start)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useImagePreloader } = require('../../hooks/useImagePreloader');
+    const startPreload = jest.fn().mockResolvedValue(undefined);
+    useImagePreloader.mockImplementation(() => [
+      {
+        isLoading: false,
+        progress: 100,
+        loadedCount: 0,
+        totalCount: 0,
+        priorityComplete: true,
+        results: [],
+        errors: new Map(),
+      },
+      { startPreload, reset: jest.fn(), addUrls: jest.fn() },
+    ]);
+
+    render(
+      <DirectScrollCineView config={config}>
+        <TestScene sceneId="scene-0">
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1">
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    expect(startPreload).toHaveBeenCalled();
   });
 
   it('hides internal takeover debug metrics unless scroll debug is enabled', () => {
@@ -1137,6 +1176,85 @@ describe('DirectScrollCineView', () => {
     expect(
       root.parentElement?.querySelector('[data-cineview-scrollbar-overlay="true"]')
     ).toBeInTheDocument();
+  });
+
+  // Regression: autoHide must truly hide the scrollbar at rest and reveal it
+  // while scrolling. The old impl set a STATIC opacity 0.56 on the rail
+  // regardless of scroll state (named "autoHide" but never actually hid). The
+  // overlay opacity is now driven by isScrolling: visible (1) while scrolling,
+  // hidden (0) once the idle timer (~120ms after the last scroll input) flips
+  // isScrolling false. The overlay element stays mounted throughout — only its
+  // opacity changes — so this is purely the existing isScrolling render input
+  // feeding one more style, not a new timer or state.
+  it('autoHide overlay fades in while scrolling and hides once scrolling settles', async () => {
+    const { container } = render(
+      <DirectScrollCineView config={config} scrollbar={{ enabled: true, autoHide: true }}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000],
+      sceneHeights: [1000, 1000],
+    });
+
+    const overlay = () =>
+      root.parentElement?.querySelector(
+        '[data-cineview-scrollbar-overlay="true"]'
+      ) as HTMLDivElement | null;
+
+    // Scrolling: overlay renders (geometry synced) and isScrolling is true → visible.
+    act(() => {
+      root.scrollTop = 200;
+      fireEvent.scroll(root);
+    });
+    expect(overlay()?.style.opacity).toBe('1');
+
+    // Settled: the idle timer flips isScrolling false → overlay hides. The
+    // element stays mounted; only opacity drops. waitFor polls the real timer
+    // rather than hardcoding 120ms.
+    await waitFor(() => {
+      expect(overlay()?.style.opacity).toBe('0');
+    });
+  });
+
+  it('non-autoHide overlay stays fully visible while scrolling', () => {
+    const { container } = render(
+      <DirectScrollCineView config={config} scrollbar={{ enabled: true, autoHide: false }}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000],
+      sceneHeights: [1000, 1000],
+    });
+
+    act(() => {
+      root.scrollTop = 200;
+      fireEvent.scroll(root);
+    });
+
+    const overlay = root.parentElement?.querySelector(
+      '[data-cineview-scrollbar-overlay="true"]'
+    ) as HTMLDivElement;
+
+    // No autoHide: opacity stays 1 regardless of scroll state.
+    expect(overlay.style.opacity).toBe('1');
   });
 
   it('applies configured colors to the CineView scrollbar overlay instead of the browser scrollbar', () => {

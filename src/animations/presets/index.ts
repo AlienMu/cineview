@@ -4,6 +4,7 @@
  */
 
 import type { Variant } from 'framer-motion';
+import { devWarn, devError } from '../../utils/devLog';
 
 export interface PresetAnimation {
   initial: Variant;
@@ -172,7 +173,7 @@ export const getPresetAnimation = async (
   const category = animationCategoryMap[name];
 
   if (!category) {
-    console.warn(`Unknown preset animation: ${name}`);
+    devWarn(`Unknown preset animation: ${name}`);
     return null;
   }
 
@@ -180,7 +181,7 @@ export const getPresetAnimation = async (
     const module = await loadAnimationModule(category);
     return module[name] || null;
   } catch (error) {
-    console.error(`Failed to load animation "${name}":`, error);
+    devError(`Failed to load animation "${name}":`, error);
     return null;
   }
 };
@@ -192,7 +193,7 @@ export const preloadAnimationCategory = async (category: string): Promise<void> 
   try {
     await loadAnimationModule(category);
   } catch (error) {
-    console.error(`Failed to preload animation category "${category}":`, error);
+    devError(`Failed to preload animation category "${category}":`, error);
   }
 };
 

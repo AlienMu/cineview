@@ -25,15 +25,8 @@ describe('Property: 相对定位累加性', () => {
   const createTestContext = (designSize: number, viewportWidth: number): CineViewContextValue => {
     const scale = viewportWidth / designSize;
     return {
-      designWidth: designSize,
-      designHeight: 1080,
-      unit: 'px' as const,
-      viewportWidth,
-      viewportHeight: 1080,
-      scaleX: scale,
-      scaleY: 1,
-      convertX: (size: number): number => size * scale,
-      convertY: (size: number): number => size,
+      scale,
+      convert: (size: number): number => size * scale,
     };
   };
 

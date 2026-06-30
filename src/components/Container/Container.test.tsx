@@ -9,7 +9,6 @@ import { CineViewProvider } from '../../context/CineViewContext';
 const defaultProviderProps = {
   designWidth: 750,
   designHeight: 800,
-  unit: 'px' as 'px' | 'rem' | 'vw',
 };
 
 function renderWithCineView(
@@ -134,7 +133,8 @@ describe('Container', () => {
       });
     });
 
-    it('应该在 rem 单位模式下进行换算', () => {
+    it('应该把 style 里的盒模型长度（padding/borderRadius/fontSize）按同一 scale 换算', () => {
+      // px2vw 单尺子：width 375 / design 750 → scale 0.5，所有长度量共用。
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -147,14 +147,23 @@ describe('Container', () => {
       });
 
       const { getByTestId } = renderWithCineView(
-        <Container width={100} data-testid="container">
+        <Container
+          width={100}
+          style={{ padding: 40, borderRadius: 20, fontSize: 32 }}
+          data-testid="container"
+        >
           <div>Content</div>
-        </Container>,
-        { unit: 'rem' }
+        </Container>
       );
 
       const containerDiv = getByTestId('container');
-      expect(containerDiv).toHaveStyle({ width: '50px' });
+      // width 100→50、padding 40→20、borderRadius 20→10、fontSize 32→16（全乘 0.5）。
+      expect(containerDiv).toHaveStyle({
+        width: '50px',
+        padding: '20px',
+        borderRadius: '10px',
+        fontSize: '16px',
+      });
     });
   });
 
@@ -237,6 +246,26 @@ describe('Container', () => {
       }).toThrow('[CineView] Container must be used within a CineView component');
 
       consoleError.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('应该在生产环境无 context 时静默透传原样 style（不换算、不抛错）', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      // production 下 !context 不抛错，走 `return style` 分支：width/height 便捷属性
+      // 不换算（无 scale 可用），仅原样保留传入的 style。
+      const { getByTestId } = render(
+        <Container width={200} style={{ padding: 10 }} data-testid="container">
+          <div>Content</div>
+        </Container>
+      );
+
+      const containerDiv = getByTestId('container');
+      // 无 context：不产生 width 换算值，padding 保持原始数字（React 补 px）。
+      expect(containerDiv.style.width).toBe('');
+      expect(containerDiv).toHaveStyle({ padding: '10px' });
+
       process.env.NODE_ENV = originalEnv;
     });
   });

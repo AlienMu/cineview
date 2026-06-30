@@ -4,6 +4,7 @@
  */
 
 import { parseAnimation } from './animationParser';
+import { devError } from '../utils/devLog';
 import type { ComposedAnimation, CustomAnimation, ParsedAnimationVariant } from '../types';
 import type { Variant } from 'framer-motion';
 
@@ -156,7 +157,7 @@ export const composeAnimation = async (
   animation: ComposedAnimation
 ): Promise<ParsedAnimationVariant | null> => {
   if (!validateComposedAnimation(animation)) {
-    console.error('Invalid composed animation configuration:', animation);
+    devError('Invalid composed animation configuration:', animation);
     return null;
   }
 
@@ -171,7 +172,7 @@ export const composeAnimation = async (
 
     return null;
   } catch (error) {
-    console.error('Failed to compose animation:', error);
+    devError('Failed to compose animation:', error);
     return null;
   }
 };

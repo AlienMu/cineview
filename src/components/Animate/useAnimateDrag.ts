@@ -33,6 +33,7 @@ interface UseAnimateDragReturn {
   rotate: MotionValue<number | string>;
   useInteractiveStyles: boolean;
   shouldRunInfinite: boolean;
+  visualState: MotionValue<DragVisualState | null>;
 }
 
 type DragMotionValue = MotionValue<number> | MotionValue<string> | MotionValue<number | string>;
@@ -43,7 +44,7 @@ interface CachedVariants {
   exitTarget: VariantRecord;
 }
 
-interface DragVisualState {
+export interface DragVisualState {
   // Two-track model (2026-06-25): the enter source is unified to ONE per-scene
   // element track (sceneContext.sharedElapsedMotion). incoming, active-settle and
   // cold-start all read the same track via the `enter` mode. Outgoing follows the
@@ -639,5 +640,8 @@ export function useAnimateDrag({
     rotate,
     useInteractiveStyles: true,
     shouldRunInfinite: shouldRunInfiniteState,
+    // Observable source for the render-prop bridge. visualState carries mode +
+    // localProgress; the bridge derives AnimateRenderState from it.
+    visualState,
   };
 }

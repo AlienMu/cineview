@@ -324,7 +324,6 @@ async function flushAnimationFrame(): Promise<void> {
 const config = {
   width: 750,
   height: 1334,
-  unit: 'px' as const,
 };
 
 afterEach(async () => {

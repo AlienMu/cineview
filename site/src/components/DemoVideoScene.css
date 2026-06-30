@@ -1,0 +1,123 @@
+/**
+ * Demo · 滚动驱动视频镜的样式(时光副标题版,2026-07-14)
+ *
+ * 近白暖调 video 全屏铺底(object-fit:cover);其上 4 个暖琥珀光圈围绕副标题公转,
+ * 尾段聚拢到中心合为一个(位置由 tsx 的 videoProgress 驱动,inline transform,本文件不做动画)。
+ * 主标题居顶(大),时光副标题居中(小):电影衬线,逐字两层动效(黑字清晰 → 覆盖渐变色)。
+ */
+
+.demo-video {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--film-white); /* video 加载/letterbox 兜底色,与首帧暖白一致 */
+}
+
+/* 铺底舞台:撑满 scene,承载全屏 video */
+.demo-video__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+/* AnimateVideo host + 内层包裹撑满,让 <video> 的 object-fit:cover 生效 */
+.demo-video__stage > [data-cineview-animate-host],
+.demo-video__stage .cineview-animate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.demo-video__stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 暖白 scrim:上下两端极淡提亮,让主标题 / 副标题从流动的光雾中浮出;中段保持全透。 */
+.demo-video__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(250, 248, 244, 0.72) 0%,
+    rgba(250, 248, 244, 0.24) 20%,
+    rgba(250, 248, 244, 0) 42%,
+    rgba(250, 248, 244, 0) 58%,
+    rgba(250, 248, 244, 0.26) 80%,
+    rgba(250, 248, 244, 0.72) 100%
+  );
+}
+
+/* ── 顶部主标题块 ── */
+.demo-video__titleblock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 720px;
+  padding: 0 24px;
+}
+.demo-video__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-shadow: 0 1px 20px rgba(250, 248, 244, 0.6);
+}
+.demo-video__title-head {
+  display: inline;
+}
+.demo-video__title-tail {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--accent-ink);
+}
+
+/* ── 时光副标题(画面正中,新主角) ──
+   电影衬线放大;逐字两层动效(blur/opacity/transform/color)全由 inline style 逐字驱动(见 tsx):
+   第一层黑字 blur→清晰,第二层清晰后从黑覆盖成沿整句流转的渐变暖色。这里只定版式。 */
+.demo-video__subtitle {
+  margin: 0;
+  max-width: 860px;
+  padding: 0 32px;
+  text-align: center;
+  font-family: 'Playfair Display', 'Songti SC', 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: var(--text-2xl);
+  line-height: 1.32;
+  letter-spacing: 0.005em;
+  position: relative;
+  z-index: 3;
+}
+.demo-video__subtitle-line {
+  display: block;
+  white-space: nowrap; /* 作者用 \n 控制换行,行内每个字是独立 span,禁止浏览器在字间自动折词 */
+  /* blur 施加在行(而非逐字):整行一个模糊层,滚动中任一刻最多 1-2 行的 blur 在变
+     → 每帧 1-2 次模糊卷积,而非几十个字各自卷积(模糊是最贵的重绘操作)。inline 由 tsx 写。 */
+  will-change: filter;
+}
+.demo-video__subtitle-line + .demo-video__subtitle-line {
+  margin-top: 0.32em;
+}
+/* 每个字:独立层。opacity / 位移 / 渐变暖色逐帧由 tsx 写进本元素自己的 inline style
+   (见 TimeSubtitle 的 layout effect);blur 已上移到行(见上)。这里只定「颜色靠
+   background-clip:text 透出字形」的静态底:文字透明 + 背景裁剪到字形 → inline 写的
+   background-image 渐变即成为字的填色。
+   为何驱动写在叶子而非容器变量:改叶子自身非继承属性只失效该叶子,不触发 132 字子树全量 recalc
+   (实测 recalcStyle 从 ~960ms/120帧 降到 ~38ms)。opacity/transform 是合成器免费属性 →
+   字级逐帧几乎不产生重绘,每帧重绘只剩 1-2 行的 blur + 少数正在上色的字。 */
+.demo-video__subtitle-char {
+  display: inline-block;
+  white-space: pre;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  will-change: transform, opacity;
+}

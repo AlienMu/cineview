@@ -3,7 +3,7 @@ import { CineView, Scene, Animate, Position } from '../../../index';
 export function GroupedPublicPathFixture(): JSX.Element {
   return (
     <CineView
-      config={{ width: 1440, height: 900, unit: 'px' }}
+      config={{ width: 1440, height: 900 }}
       mode="scroll"
       modes={{
         scroll: {
@@ -33,7 +33,7 @@ export function GroupedPublicPathFixture(): JSX.Element {
             animateId="headline"
             enterAnimation="fade-in"
             duration={{ enter: 600 }}
-            timeline={{ driver: 'scroll', delay: 120, phase: { start: 0.1, end: 0.8 } }}
+            timeline={{ delay: 120, phase: { start: 0.1, end: 0.8 } }}
           >
             <div>Headline</div>
           </Animate>

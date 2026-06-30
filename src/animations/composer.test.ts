@@ -5,6 +5,16 @@ import {
 } from './composer';
 import type { ComposedAnimation, CustomAnimation, PresetAnimation } from '../types';
 
+// devError (used by the composer for failure diagnostics) only emits when
+// NODE_ENV === 'development'. Force it so the console spies below observe them.
+const originalNodeEnv = process.env.NODE_ENV;
+beforeAll(() => {
+  process.env.NODE_ENV = 'development';
+});
+afterAll(() => {
+  process.env.NODE_ENV = originalNodeEnv;
+});
+
 // Mock parseAnimation
 jest.mock('./animationParser', () => ({
   parseAnimation: jest.fn((animation) => {

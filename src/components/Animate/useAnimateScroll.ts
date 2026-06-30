@@ -4,7 +4,7 @@ import { animate, MotionValue, useMotionValue, useTransform } from 'framer-motio
 import type { ParsedAnimationVariant } from '../../types';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { SceneContextType } from './Animate';
-import type { NormalizedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
+import type { ResolvedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
 import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 import {
   clamp,
@@ -30,7 +30,7 @@ interface UseAnimateScrollParams {
     enter: number;
     exit: number;
   };
-  timeline: NormalizedAnimateTimeline;
+  timeline: ResolvedAnimateTimeline;
   visibility: NormalizedAnimateVisibility;
   /** CineView-level default enter/exit gate margins (design px). Per-Animate
    *  visibility margins override these; both undefined → fall back to 50. */
@@ -41,6 +41,10 @@ interface UseAnimateScrollParams {
 interface UseAnimateScrollReturn {
   style: Record<string, MotionValue<number> | MotionValue<string> | MotionValue<number | string>>;
   shouldRunInfinite: boolean;
+  // Observable sources for the render-prop bridge. visualMotion: 0=initial, 1=entered,
+  // -1=exited. phaseMotion mirrors the GatePhase. Non-subscribers pay no re-render.
+  visualMotion: MotionValue<number>;
+  phaseMotion: MotionValue<GatePhase>;
 }
 
 type AnimatedProperty = AnimatableProperty;
@@ -227,16 +231,16 @@ export function useAnimateScroll({
   const phaseEnd = timeline.phase?.end;
   const replayOnReenter = visibility.replayOnReenter;
   // Resolve enter/exit gate margins: per-Animate override → CineView-level
-  // default → 50. Design px × scaleY → physical px (the gate compares against
-  // getBoundingClientRect, which is in physical px). scaleY falls back to 1 when
-  // no CineViewContext (e.g. isolated tests).
+  // default → 50. Design px × scale → physical px (the gate compares against
+  // getBoundingClientRect, which is in physical px). Under the px2vw single-scale
+  // model the margin scales by the same width-scale as every other length.
+  // `scale` falls back to 1 when no CineViewContext (e.g. isolated tests).
   const cineViewContext = useCineViewContext();
-  const scaleY = cineViewContext?.scaleY ?? 1;
+  const gateScale = cineViewContext?.scale ?? 1;
   const enterMarginDesignPx = visibility.enterMargin ?? globalEnterMargin ?? DEFAULT_GATE_MARGIN_PX;
   const exitMarginDesignPx = visibility.exitMargin ?? globalExitMargin ?? DEFAULT_GATE_MARGIN_PX;
-  const enterMarginPx = Math.max(0, enterMarginDesignPx * scaleY);
-  const exitMarginPx = Math.max(0, exitMarginDesignPx * scaleY);
-  const calculatedDelayRef = useRef(0);
+  const enterMarginPx = Math.max(0, enterMarginDesignPx * gateScale);
+  const exitMarginPx = Math.max(0, exitMarginDesignPx * gateScale);
   const variantsRef = useRef({
     enterInitial: {} as VariantRecord,
     enterAnimate: {} as VariantRecord,
@@ -246,10 +250,15 @@ export function useAnimateScroll({
   const [shouldRunInfiniteState, setShouldRunInfiniteState] = useState(false);
   const hostRef = useRef<HTMLElement | null>(null);
   const [hostVersion, setHostVersion] = useState(0);
-  const hasWarnedOrphanRef = useRef(false);
   const registerZoneAnimation = zoneRuntime?.registerZoneAnimation;
   const unregisterZoneAnimation = zoneRuntime?.unregisterZoneAnimation;
   const zoneRuntimeVersion = zoneRuntime?.version;
+  // Per-scene enter-completion bus (visibility waitFor). markEntered publishes
+  // this element's entered/left state; subscribeEntered lets a follower wait for
+  // its leader to actually finish instead of re-deriving the delay from
+  // calculatedDelay (which double-counts the leader on the gate-relative clock).
+  const markAnimateEntered = sceneContext?.markAnimateEntered;
+  const subscribeAnimateEntered = sceneContext?.subscribeAnimateEntered;
   const hasParsedEnter = Boolean(
     enterVariant?.animate && Object.keys(enterVariant.animate as Record<string, unknown>).length > 0
   );
@@ -283,8 +292,26 @@ export function useAnimateScroll({
   // animate frame visually) then tweens to -1, so it never passes through 0
   // (which would flash the initial frame).
   const phaseRef = useRef<GatePhase>('idle');
+  // Mirror of phaseRef as a MotionValue so the render-prop bridge can subscribe to
+  // phase changes. `.set()` is a no-op cost for non-subscribers, so this adds no
+  // re-render to Animates that don't use function children.
+  const phaseMotion = useMotionValue<GatePhase>('idle');
+  const setPhase = useCallback(
+    (p: GatePhase): void => {
+      phaseRef.current = p;
+      phaseMotion.set(p);
+      // Publish entered/left to the per-scene bus so followers gated on this id
+      // (visibility waitFor) can wake exactly when it completes. entered=true on
+      // 'entered'; false on any non-entered phase (idle/entering/exiting/exited)
+      // so a re-entering leader re-arms its followers.
+      markAnimateEntered?.(componentId, p === 'entered');
+    },
+    [phaseMotion, markAnimateEntered, componentId]
+  );
   const tweenControlsRef = useRef<{ stop: () => void } | null>(null);
   const enterDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Unsubscribe handle for an in-flight waitFor-leader subscription (visibility).
+  const waitForUnsubRef = useRef<(() => void) | null>(null);
   const initializedRef = useRef(false);
 
   const stopTween = useCallback(() => {
@@ -296,43 +323,64 @@ export function useAnimateScroll({
       clearTimeout(enterDelayTimerRef.current);
       enterDelayTimerRef.current = null;
     }
+    if (waitForUnsubRef.current) {
+      waitForUnsubRef.current();
+      waitForUnsubRef.current = null;
+    }
   }, []);
 
   const runEnterTween = useCallback(() => {
     stopTween();
-    phaseRef.current = 'entering';
+    setPhase('entering');
     // Re-enter from an exited/exiting state starts from the initial frame so the
     // enter animation replays from the top, not from the exit frame.
     if (visualMotion.get() < 0) {
       visualMotion.set(0);
     }
-    const startMs = waitFor ? calculatedDelayRef.current : delay;
     const launch = (): void => {
       const controls = animate(visualMotion, 1, {
         duration: Math.max(enterDuration, 0) / 1000,
         ease: 'easeInOut',
         onComplete: () => {
           tweenControlsRef.current = null;
-          phaseRef.current = 'entered';
+          setPhase('entered');
           setShouldRunInfiniteState(true);
         },
       });
       tweenControlsRef.current = controls;
     };
-    if (startMs > 0) {
-      enterDelayTimerRef.current = setTimeout(() => {
-        enterDelayTimerRef.current = null;
+    // After the (optional) leader-completion wait, delay by this element's OWN
+    // delay only. The leader's delay+duration is NOT re-added here: on the
+    // visibility gate each element runs its own clock, so the shared-clock
+    // calculatedDelay would double-count the leader (see the phase bus above).
+    const launchAfterOwnDelay = (): void => {
+      if (delay > 0) {
+        enterDelayTimerRef.current = setTimeout(() => {
+          enterDelayTimerRef.current = null;
+          launch();
+        }, delay);
+      } else {
         launch();
-      }, startMs);
+      }
+    };
+    // waitFor gates on the LEADER actually completing. subscribeAnimateEntered
+    // fires the callback immediately if the leader already entered (the "leader
+    // long done" case — no re-wait), else once it does. No waitFor → straight to
+    // the own-delay launch.
+    if (waitFor && subscribeAnimateEntered) {
+      waitForUnsubRef.current = subscribeAnimateEntered(waitFor, () => {
+        waitForUnsubRef.current = null;
+        launchAfterOwnDelay();
+      });
     } else {
-      launch();
+      launchAfterOwnDelay();
     }
     setShouldRunInfiniteState(false);
-  }, [delay, enterDuration, stopTween, visualMotion, waitFor]);
+  }, [delay, enterDuration, stopTween, setPhase, visualMotion, waitFor, subscribeAnimateEntered]);
 
   const runExitTween = useCallback(() => {
     stopTween();
-    phaseRef.current = 'exiting';
+    setPhase('exiting');
     setShouldRunInfiniteState(false);
     // runExitTween is only reached when hasExplicitExit is true: resolveGatePhaseAction
     // never returns 'exit' for an element without an authored exitAnimation (no exit
@@ -347,11 +395,11 @@ export function useAnimateScroll({
       ease: 'easeInOut',
       onComplete: () => {
         tweenControlsRef.current = null;
-        phaseRef.current = 'exited';
+        setPhase('exited');
       },
     });
     tweenControlsRef.current = controls;
-  }, [exitDuration, stopTween, visualMotion]);
+  }, [exitDuration, stopTween, setPhase, visualMotion]);
 
   const runVisibilityUpdate = useCallback(() => {
     if (isScrollDriven) {
@@ -368,7 +416,7 @@ export function useAnimateScroll({
     const firstSceneReady = sceneContext?.firstSceneEnterReady;
     if (firstSceneReady === false) {
       visualMotion.set(0);
-      phaseRef.current = 'idle';
+      setPhase('idle');
       setShouldRunInfiniteState(false);
       return;
     }
@@ -433,8 +481,24 @@ export function useAnimateScroll({
       if (aboveTop) {
         stopTween();
         visualMotion.set(1);
-        phaseRef.current = 'entered';
+        setPhase('entered');
         setShouldRunInfiniteState(resolveInfiniteActive('entered', false));
+        return;
+      }
+      // First-screen cold-start reveal: whatever the author placed fully inside
+      // the FIRST screen must play its enter on load, before any scroll. The
+      // normal gate blocks this for an element in the bottom band (e.g. a scroll
+      // hint pinned near the viewport bottom): its bottom edge sits within
+      // enterMargin of the viewport bottom, so the enter gate's bottom cushion
+      // fails AND the bottom exit gate (reverse-scroll leave) fires —
+      // resolveGatePhaseAction sees both gates and holds at idle forever, so the
+      // element never appears. Those bottom margins are scroll-IN / scroll-OUT
+      // cushions that don't apply to the first paint. Scoped to scene 0 only
+      // (firstSceneReady === true; non-first scenes are undefined and keep the
+      // strict margins). Later measures fall through to the normal margin-gated
+      // machine, so scroll-driven enter/exit is unchanged.
+      if (firstSceneReady === true && !isOversized && relTop >= 0 && relBottom <= vh) {
+        runEnterTween();
         return;
       }
     }
@@ -470,15 +534,19 @@ export function useAnimateScroll({
     runEnterTween,
     runExitTween,
     sceneContext?.firstSceneEnterReady,
+    setPhase,
     stopTween,
     visualMotion,
   ]);
 
+  // Register into the scene registry for duplicate/cycle validation and the
+  // drag/scroll-zone timelineDuration fold. The visibility path no longer reads
+  // calculatedDelay (it observes leader completion via the enter bus instead),
+  // so getCalculatedDelay is not consumed here.
   useEffect(() => {
     if (
       !sceneContext?.registerAnimate ||
       !sceneContext?.unregisterAnimate ||
-      !sceneContext?.getCalculatedDelay ||
       (!hasExplicitEnter && !hasExplicitExit)
     ) {
       return;
@@ -489,7 +557,6 @@ export function useAnimateScroll({
       duration: hasExplicitEnter ? enterDuration : exitDuration,
       waitFor,
     });
-    calculatedDelayRef.current = sceneContext.getCalculatedDelay(componentId);
 
     return () => {
       sceneContext.unregisterAnimate(componentId);
@@ -498,7 +565,6 @@ export function useAnimateScroll({
     sceneContext,
     sceneContext?.registerAnimate,
     sceneContext?.unregisterAnimate,
-    sceneContext?.getCalculatedDelay,
     componentId,
     delay,
     enterDuration,
@@ -572,12 +638,10 @@ export function useAnimateScroll({
   useEffect(() => {
     if (isScrollDriven) {
       if (!zoneRuntime || !zoneId) {
-        if (!hasWarnedOrphanRef.current && process.env.NODE_ENV === 'development') {
-          console.warn(
-            `[CineView Warning] scroll-driven Animate "${componentId}" must be placed inside a Scene with a scroll takeover config.`
-          );
-          hasWarnedOrphanRef.current = true;
-        }
+        // driver === 'scroll' now implies mode==='scroll' + sceneControlled +
+        // an inherited zoneId (see Animate.tsx resolve), so a scroll-driven
+        // element without a zone is structurally impossible. Kept as a defensive
+        // early-return (rest at the initial frame) rather than a warning.
         visualMotion.set(0);
         return;
       }
@@ -792,5 +856,7 @@ export function useAnimateScroll({
       filter,
     },
     shouldRunInfinite: shouldRunInfiniteState,
+    visualMotion,
+    phaseMotion,
   };
 }

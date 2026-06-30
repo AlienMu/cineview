@@ -47,6 +47,7 @@ import {
   type ScrollInputDirection,
 } from './directScrollHelpers';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
+import { ScrollbarOverlay } from './ScrollbarOverlay';
 import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
 import {
   SceneScrollRuntimeContext,
@@ -65,7 +66,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     { children, config, modes, scrollbar, callbacks, performance },
     ref
   ) {
-    const { designWidth, designHeight, unit } = resolveDesignDimensions(config);
+    const { designWidth, designHeight } = resolveDesignDimensions(config);
     // Public callbacks are flat + mode-aware; regroup back into { common, drag,
     // scroll } so the read sites below stay grouped (mirrors CineView.tsx).
     const resolvedCallbacks = useMemo<GroupedCallbacks>(
@@ -196,10 +197,16 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       [scenes]
     );
 
+    // Always kick the preload run, even with zero priority images. startPreload
+    // owns the only call to setPriorityComplete(true) — including its zero-image
+    // fast path (initialTotal === 0 → immediate completion). Guarding this on
+    // preloadImages.length > 0 meant a scroll root with no first-screen images
+    // never ran it, so priorityComplete (and thus firstSceneEnterReady) stayed
+    // false forever and the first scene's enter animations were pinned at their
+    // initial frame. Drag mode (CineView.tsx) already calls it unconditionally;
+    // this matches that contract.
     useEffect(() => {
-      if (preloadImages.length > 0) {
-        void startPreload();
-      }
+      void startPreload();
     }, [preloadImages, startPreload]);
 
     const getViewportSpan = useCallback((): number => {
@@ -460,6 +467,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           const previous = currentStates[zoneId];
           if (
             previous &&
+            previous.sceneIndex === nextState.sceneIndex &&
             previous.progressPx === nextState.progressPx &&
             previous.totalBudgetPx === nextState.totalBudgetPx &&
             previous.active === nextState.active &&
@@ -1032,15 +1040,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           await startPreload();
         },
         getCurrentScene: () => activeSceneIndex,
-        getPerformanceMetrics: (): PerformanceMetrics => {
-          const metrics = performanceMonitor.getMetrics();
-          return {
-            fps: metrics.fps,
-            avgFrameTime: metrics.avgFrameTime,
-            memoryUsage: metrics.memoryUsage,
-            bundleSize: metrics.bundleSize,
-          };
-        },
+        getPerformanceMetrics: (): PerformanceMetrics => performanceMonitor.getMetrics(),
       }),
       [
         activeSceneIndex,
@@ -1292,36 +1292,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     };
     const resolvedScrollbarConfig = typeof scrollbar === 'object' ? scrollbar : {};
     const scrollbarAutoHide = resolvedScrollbarConfig.autoHide ?? false;
-    const viewportSpanForScrollbar = Math.max(
-      direction === 'x' ? viewportSize.width : viewportSize.height,
-      1
-    );
-    const scrollbarThickness = Math.max(resolvedScrollbarConfig.width ?? 16, 10);
-    const scrollbarInset = Math.max(resolvedScrollbarConfig.inset ?? 2, 0);
-    const scrollbarTrackColor = resolvedScrollbarConfig.trackColor ?? 'rgba(80, 102, 142, 0.3)';
-    const scrollbarThumbColor = resolvedScrollbarConfig.thumbColor ?? 'rgba(52, 79, 132, 0.94)';
-    const scrollbarThumbBorder =
-      resolvedScrollbarConfig.thumbHoverColor ?? 'rgba(255, 255, 255, 0.92)';
     const isScrollbarEnabled = scrollbar !== false && scrollbar?.enabled !== false;
-    const nativeScrollableSpan = Math.max(scrollContentSpan - viewportSpanForScrollbar, 0);
-    const currentNativeScrollOffset = clamp(scrollOffset, 0, nativeScrollableSpan);
-    const effectiveContentSpan = nativeScrollableSpan + viewportSpanForScrollbar;
-    const showScrollbarOverlay = isScrollbarEnabled && nativeScrollableSpan > 1;
-    const railLength = Math.max(viewportSpanForScrollbar - scrollbarInset * 2, 1);
-    const thumbLength =
-      nativeScrollableSpan > 0
-        ? clamp(
-            (viewportSpanForScrollbar / Math.max(effectiveContentSpan, viewportSpanForScrollbar)) *
-              railLength,
-            Math.min(40, railLength),
-            railLength
-          )
-        : railLength;
-    const thumbTravel = Math.max(railLength - thumbLength, 0);
-    const thumbOffset =
-      nativeScrollableSpan > 0
-        ? clamp((currentNativeScrollOffset / nativeScrollableSpan) * thumbTravel, 0, thumbTravel)
-        : 0;
 
     const applyNativeScrollbarOffset = useCallback(
       (targetOffset: number): void => {
@@ -1341,87 +1312,6 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       [direction, resolveNativeScrollIntent, scrollOffset, setNativeOffset, syncNativeScrollState]
     );
 
-    const scrollbarDragCleanupRef = useRef<(() => void) | null>(null);
-
-    const handleScrollbarMouseDown = useCallback(
-      (event: React.MouseEvent<HTMLDivElement>) => {
-        if (nativeScrollableSpan <= 0 || typeof window === 'undefined') {
-          return;
-        }
-
-        event.preventDefault();
-
-        const railRect = event.currentTarget.getBoundingClientRect();
-        const trackLength = direction === 'x' ? railRect.width : railRect.height;
-        const trackStart = direction === 'x' ? railRect.left : railRect.top;
-        const pointer = direction === 'x' ? event.clientX : event.clientY;
-        const currentThumbOffset =
-          nativeScrollableSpan > 0
-            ? clamp(
-                (currentNativeScrollOffset / nativeScrollableSpan) *
-                  Math.max(trackLength - thumbLength, 0),
-                0,
-                Math.max(trackLength - thumbLength, 0)
-              )
-            : 0;
-        const localPointer = pointer - trackStart;
-        const startedOnThumb =
-          localPointer >= currentThumbOffset && localPointer <= currentThumbOffset + thumbLength;
-        const pointerOffsetWithinThumb = startedOnThumb
-          ? localPointer - currentThumbOffset
-          : thumbLength / 2;
-
-        const commitPointer = (clientPosition: number): void => {
-          const thumbTravelDistance = Math.max(trackLength - thumbLength, 0);
-          const localThumbOffset = clamp(
-            clientPosition - trackStart - pointerOffsetWithinThumb,
-            0,
-            thumbTravelDistance
-          );
-          const ratio = thumbTravelDistance > 0 ? localThumbOffset / thumbTravelDistance : 0;
-          applyNativeScrollbarOffset(ratio * nativeScrollableSpan);
-        };
-
-        commitPointer(pointer);
-
-        if (!startedOnThumb) {
-          return;
-        }
-
-        const handleMove = (moveEvent: MouseEvent): void => {
-          commitPointer(direction === 'x' ? moveEvent.clientX : moveEvent.clientY);
-        };
-
-        const handleUp = (): void => {
-          window.removeEventListener('mousemove', handleMove);
-          window.removeEventListener('mouseup', handleUp);
-          scrollbarDragCleanupRef.current = null;
-        };
-
-        // Tear down any drag still attached from a prior mousedown that never
-        // received its mouseup, then track this drag's cleanup so an unmount
-        // mid-drag does not leak the window listeners.
-        scrollbarDragCleanupRef.current?.();
-        scrollbarDragCleanupRef.current = handleUp;
-        window.addEventListener('mousemove', handleMove);
-        window.addEventListener('mouseup', handleUp);
-      },
-      [
-        applyNativeScrollbarOffset,
-        currentNativeScrollOffset,
-        direction,
-        nativeScrollableSpan,
-        thumbLength,
-      ]
-    );
-
-    useEffect(
-      () => (): void => {
-        scrollbarDragCleanupRef.current?.();
-      },
-      []
-    );
-
     const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
       () => ({
         mode: 'scroll',
@@ -1436,7 +1326,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     );
 
     return (
-      <CineViewProvider designWidth={designWidth} designHeight={designHeight} unit={unit}>
+      <CineViewProvider designWidth={designWidth} designHeight={designHeight}>
         <CineViewRuntimeContext.Provider value={runtimeContextValue}>
           <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
             <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
@@ -1474,85 +1364,19 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
                 >
                   {renderedChildren}
                 </div>
-                {showScrollbarOverlay && (
-                  <div
-                    aria-hidden="true"
-                    data-cineview-scrollbar-overlay="true"
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      zIndex: 80,
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <div
-                      data-cineview-scrollbar-rail="true"
-                      onMouseDown={handleScrollbarMouseDown}
-                      style={
-                        direction === 'x'
-                          ? {
-                              position: 'absolute',
-                              left: scrollbarInset,
-                              top: Math.max(
-                                viewportSpanForScrollbar - scrollbarThickness - scrollbarInset,
-                                0
-                              ),
-                              width: railLength,
-                              height: scrollbarThickness,
-                              borderRadius: scrollbarThickness,
-                              background: scrollbarTrackColor,
-                              boxShadow:
-                                '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
-                              pointerEvents: 'auto',
-                              cursor: 'pointer',
-                              opacity: scrollbarAutoHide ? 0.56 : 1,
-                            }
-                          : {
-                              position: 'absolute',
-                              top: scrollbarInset,
-                              right: scrollbarInset,
-                              width: scrollbarThickness,
-                              height: railLength,
-                              borderRadius: scrollbarThickness,
-                              background: scrollbarTrackColor,
-                              boxShadow:
-                                '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
-                              pointerEvents: 'auto',
-                              cursor: 'pointer',
-                              opacity: scrollbarAutoHide ? 0.56 : 1,
-                            }
-                      }
-                    >
-                      <div
-                        data-cineview-scrollbar-thumb="true"
-                        style={
-                          direction === 'x'
-                            ? {
-                                position: 'absolute',
-                                left: thumbOffset,
-                                top: 0,
-                                width: thumbLength,
-                                height: scrollbarThickness,
-                                borderRadius: scrollbarThickness,
-                                background: scrollbarThumbColor,
-                                boxShadow: `0 0 0 1px ${scrollbarThumbBorder}, 0 10px 24px rgba(53, 74, 116, 0.16)`,
-                                cursor: 'grab',
-                              }
-                            : {
-                                position: 'absolute',
-                                top: thumbOffset,
-                                left: 0,
-                                width: scrollbarThickness,
-                                height: thumbLength,
-                                borderRadius: scrollbarThickness,
-                                background: scrollbarThumbColor,
-                                boxShadow: `0 0 0 1px ${scrollbarThumbBorder}, 0 10px 24px rgba(53, 74, 116, 0.16)`,
-                                cursor: 'grab',
-                              }
-                        }
-                      />
-                    </div>
-                  </div>
+                {isScrollbarEnabled && (
+                  <ScrollbarOverlay
+                    direction={direction}
+                    scrollContentSpan={scrollContentSpan}
+                    viewportSpan={Math.max(
+                      direction === 'x' ? viewportSize.width : viewportSize.height,
+                      1
+                    )}
+                    scrollOffset={scrollOffset}
+                    isScrolling={isScrolling}
+                    config={resolvedScrollbarConfig}
+                    onScrollToOffset={applyNativeScrollbarOffset}
+                  />
                 )}
               </div>
             </SceneScrollTimelineContext.Provider>

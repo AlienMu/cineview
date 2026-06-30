@@ -9,6 +9,16 @@ jest.mock('./presets', () => ({
   getPresetAnimation: jest.fn(() => Promise.resolve({})),
 }));
 
+// devWarn/devError only emit under NODE_ENV==='development'; these tests assert
+// the dev diagnostics fire, so pin the env for the suite.
+const originalNodeEnv = process.env.NODE_ENV;
+beforeAll(() => {
+  process.env.NODE_ENV = 'development';
+});
+afterAll(() => {
+  process.env.NODE_ENV = originalNodeEnv;
+});
+
 /**
  * Helper: run a transformOrigin string through the public normalizer and read
  * back the normalized initial.transformOrigin value.
@@ -135,6 +145,7 @@ describe('animationParser branch coverage', () => {
 
       expect(result).toBeNull();
       expect(consoleSpy).toHaveBeenCalledWith(
+        '[CineView]',
         'Failed to parse custom animation:',
         expect.any(Error)
       );

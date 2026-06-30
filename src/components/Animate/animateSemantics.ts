@@ -6,7 +6,6 @@ export interface AnimateLegacyCompatProps {
   exitDuration?: number;
   delay?: number;
   waitFor?: string;
-  scrollDriven?: boolean;
   scrollPhaseStart?: number;
   scrollPhaseEnd?: number;
 }
@@ -14,7 +13,14 @@ export interface AnimateLegacyCompatProps {
 export type AnimateInternalProps = AnimateProps & AnimateLegacyCompatProps;
 
 export interface NormalizedAnimateTimeline {
-  driver: 'auto' | 'scene' | 'scroll' | 'visibility';
+  // Whether this element's animation timeline is controlled by an enclosing
+  // Scene's scroll takeover. Default true: inside a Scene.scroll zone it binds
+  // to that zone's real-scroll budget; outside a zone (or in drag mode) it
+  // gracefully falls back to visibility. false forces the standalone visibility
+  // gate even inside a zone. The concrete scroll-vs-visibility resolution
+  // happens in Animate.tsx (which knows the mode + inherited zoneId) and is
+  // exposed as ResolvedAnimateTimeline.
+  sceneControlled: boolean;
   delay: number;
   waitFor?: string;
   zoneId?: string;
@@ -23,6 +29,12 @@ export interface NormalizedAnimateTimeline {
     end?: number;
   };
 }
+
+// The timeline after Animate.tsx has resolved sceneControlled + mode + zoneId
+// down to a concrete driver. useAnimateScroll consumes this shape.
+export type ResolvedAnimateTimeline = Omit<NormalizedAnimateTimeline, 'sceneControlled'> & {
+  driver: 'scroll' | 'visibility';
+};
 
 export interface NormalizedAnimateVisibility {
   replayOnReenter: boolean;
@@ -51,7 +63,6 @@ export function normalizeAnimateSemantics({
   exitDuration,
   delay,
   waitFor,
-  scrollDriven,
   scrollPhaseStart,
   scrollPhaseEnd,
 }: Pick<
@@ -63,21 +74,16 @@ export function normalizeAnimateSemantics({
   | 'exitDuration'
   | 'delay'
   | 'waitFor'
-  | 'scrollDriven'
   | 'scrollPhaseStart'
   | 'scrollPhaseEnd'
 >): NormalizedAnimateSemantics {
-  const normalizedDriver =
-    timeline?.driver ??
-    (scrollDriven === undefined ? 'auto' : scrollDriven ? 'scroll' : 'visibility');
-
   return {
     duration: {
       enter: duration?.enter ?? enterDuration ?? DEFAULT_ANIMATION_DURATION,
       exit: duration?.exit ?? exitDuration ?? DEFAULT_ANIMATION_DURATION,
     },
     timeline: {
-      driver: normalizedDriver,
+      sceneControlled: timeline?.sceneControlled ?? true,
       delay: timeline?.delay ?? delay ?? 0,
       waitFor: timeline?.waitFor ?? waitFor,
       zoneId: timeline?.zoneId,

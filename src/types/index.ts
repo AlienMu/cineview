@@ -5,11 +5,6 @@ import { ReactNode } from 'react';
 // ============================================================================
 
 /**
- * 尺寸单位类型
- */
-export type SizeUnit = 'px' | 'rem' | 'vw';
-
-/**
  * 滑动方向类型
  */
 export type SlideDirection = 'x' | 'y';
@@ -49,10 +44,12 @@ export interface CineViewDesignConfig {
   width?: number;
   /**
    * Preferred modern API.
-   * Design draft height.
+   * Design draft height. Canvas height reference only — NOT part of the
+   * px2vw scale (which is width-only: `scale = viewport / width`). Used by
+   * scroll-mode numeric-length → scroll-budget conversion (viewport-extent
+   * semantics), see directScrollHelpers.resolveTakeoverSceneSpan.
    */
   height?: number;
-  unit?: SizeUnit;
 }
 
 export interface DragThresholdConfig {
@@ -196,10 +193,24 @@ export interface CineViewScrollCallbacks {
   onSceneVisibilityChange?: (detail: SceneVisibilityDetail) => void;
 }
 
-/** Flat callbacks accepted in drag mode (mode="drag" or omitted). */
-export type DragModeCallbacks = CineViewCommonCallbacks & CineViewDragCallbacks;
-/** Flat callbacks accepted in scroll mode (mode="scroll"). */
-export type ScrollModeCallbacks = CineViewCommonCallbacks & CineViewScrollCallbacks;
+/**
+ * Flat callbacks accepted in drag mode (mode="drag" or omitted).
+ *
+ * The `[K in keyof CineViewScrollCallbacks]?: never` cross-exclusion closes a
+ * discrimination hole: without it, TS's excess-property check only rejects
+ * wrong-mode callbacks written as an INLINE object literal. A caller who first
+ * extracts callbacks into a variable that mixes a valid drag callback with a
+ * scroll-only one (e.g. `{ onDragCommit, onZoneProgress }`) would slip past the
+ * check, because a variable is not subject to excess-property checking and the
+ * weak-type check is satisfied by the shared valid key. Marking every scroll-only
+ * key as optional-`never` makes assigning a real function to it a type error on
+ * both the inline and the extracted-variable paths.
+ */
+export type DragModeCallbacks = CineViewCommonCallbacks &
+  CineViewDragCallbacks & { [K in keyof CineViewScrollCallbacks]?: never };
+/** Flat callbacks accepted in scroll mode (mode="scroll"). Mirror cross-exclusion of drag-only keys — see DragModeCallbacks. */
+export type ScrollModeCallbacks = CineViewCommonCallbacks &
+  CineViewScrollCallbacks & { [K in keyof CineViewDragCallbacks]?: never };
 
 /**
  * Back-compat alias. The shape changed from the old nested
@@ -430,20 +441,18 @@ export interface AnimateProps {
   };
   timeline?: {
     /**
-     * 元素动画的时间轴驱动源。默认 `'auto'`，按当前 CineView `mode` 与所处位置推断：
+     * 是否允许场景接管本元素的动画时间轴。默认 `true`（优雅推断）：
      *
-     * - **drag 模式**：`'auto'` 始终跟随场景的进退场时间轴（drag 实现不区分 driver），
-     *   等价于 `'scene'`。此模式下 `'scroll'` / `'visibility'` 无意义。
-     * - **scroll 模式**：
-     *   - 元素位于带 `scroll` 接管配置的 `Scene`（即继承到 zoneId）内 → `'auto'` 解析为
-     *     `'scroll'`：动画进度由该 zone 的真实滚动预算（progressPx）驱动，可配合 `phase`。
-     *   - 否则（普通 scroll 内容）→ `'auto'` 解析为 `'visibility'`：动画由元素进入/离开视口
-     *     的可见性闸门触发，按 `duration` 播放，受 `visibility.enterMargin/exitMargin` 控制。
+     * - **`true` + 位于带 `scroll` 接管配置的 `Scene`（继承到 zoneId）内** → 由该 zone 的
+     *   真实滚动预算（progressPx）驱动，可配合 `phase`（scroll 接管）。
+     * - **`true` + 不在 zone 内**（如普通 scroll 内容，或 drag 模式）→ 优雅降级为可见性闸门：
+     *   动画由元素进入/离开视口触发，按 `duration` 播放，受 `visibility.enterMargin/exitMargin`
+     *   控制。
+     * - **`false`** → 强制独立走可见性闸门，即使身处 `Scene.scroll` zone 内也不被接管。
      *
-     * 需要覆盖推断时显式指定：`'scroll'` 强制走 zone 预算（元素须在 `Scene.scroll` 内，
-     * 否则开发期告警并停在初始帧）；`'visibility'` 强制走可见性闸门；`'scene'` 跟随场景。
+     * drag 模式下场景恒接管场景级进退场时间轴，本字段对 drag 无实际效果。
      */
-    driver?: 'auto' | 'scene' | 'scroll' | 'visibility';
+    sceneControlled?: boolean;
     delay?: number;
     waitFor?: string;
     zoneId?: string;
@@ -464,7 +473,28 @@ export interface AnimateProps {
     enterMargin?: number;
     exitMargin?: number;
   };
-  children: ReactNode;
+  /**
+   * 子元素错峰入场编排。设定后，`children` 的每个**直接子元素**由 framer 原生
+   * `staggerChildren` 逐个揭示，各子元素用 `enterAnimation` 的变体（绕过 enter/exit
+   * 的 10 属性白名单，可用任意 framer 可动画属性，如 `clipPath`/`width`）。
+   *
+   * 时间驱动、不随滚动/拖拽 scrub（需要 scrub 的逐元素揭示改用 render-prop 的
+   * `enterProgress`）。用于 visibility 入场：打字机、列表级联、字母波浪等。
+   */
+  stagger?: {
+    each?: number; // 每子元素间隔 ms，默认 40
+    from?: 'first' | 'last' | 'center'; // 起始方向，默认 'first'
+  };
+  children: ReactNode | ((state: AnimateRenderState) => ReactNode);
+}
+
+/**
+ * render-prop children 接收的动画状态。进度天然跟随当前时间轴来源：
+ * visibility 按时间推进，scroll/drag 随滚动/拖拽 scrub。
+ */
+export interface AnimateRenderState {
+  enterProgress: number; // 0..1，0=初始帧，1=完全进入
+  phase: 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
 }
 
 export interface ScrollTimelineState {
@@ -509,13 +539,15 @@ export interface PositionProps {
 }
 
 /**
- * Container 组件 Props
+ * Container 组件 Props — px2vw 盒模型换算容器。
+ * width/height 与 style 内的所有长度量（padding/margin/gap/borderRadius/fontSize/...）
+ * 均按设计 px 经单尺子 `convert` 自动换算。
  */
 export interface ContainerProps {
-  width?: number; // 容器宽度（设计稿单位）
-  height?: number; // 容器高度（设计稿单位）
+  width?: number; // 容器宽度（设计 px）
+  height?: number; // 容器高度（设计 px）
   children: ReactNode;
-  style?: React.CSSProperties; // 额外的样式
+  style?: React.CSSProperties; // 额外样式；数值型长度量按设计 px 换算
   className?: string; // CSS 类名
 }
 

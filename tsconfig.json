@@ -26,6 +26,9 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["src"],
-  "exclude": ["src/components/Scene/__fixtures__/scene-legacy-public-props.fixture.tsx"],
+  "exclude": [
+    "src/components/Scene/__fixtures__/scene-legacy-public-props.fixture.tsx",
+    "src/components/Animate/__fixtures__/animate-video-illegal-props.fixture.tsx"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

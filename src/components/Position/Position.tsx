@@ -59,12 +59,11 @@ export const Position: React.FC<PositionInternalProps> = ({
   const centerY = anchor === 'center' || anchor === 'center-y';
   const shouldUseStickyLayer = resolvedFixed && cineViewRuntime?.mode === 'scroll' && !fixedLayer;
 
-  // 计算最终位置 - 使用双轴设计基准换算到实际像素坐标。
+  // 计算最终位置 - px2vw 单尺子换算到实际像素坐标（x/y 共用 `convert`，认宽不认高）。
   // 居中轴改用 `calc(50% + offset)` + translate(-50%)（见 positionStyle），
   // 故此处对居中轴产出的 finalLeft/finalTop 仅作非居中回退，居中时被覆盖。
   const { finalLeft, finalTop, finalX, finalY } = useMemo(() => {
-    const convertX = context?.convertX ?? ((size: number): number => size);
-    const convertY = context?.convertY ?? ((size: number): number => size);
+    const convert = context?.convert ?? ((size: number): number => size);
 
     // 绝对定位优先
     if (resolvedX !== undefined || resolvedY !== undefined) {
@@ -72,8 +71,8 @@ export const Position: React.FC<PositionInternalProps> = ({
       const yValue = resolvedY !== undefined ? resolvedY : 0;
 
       return {
-        finalLeft: convertX(xValue),
-        finalTop: convertY(yValue),
+        finalLeft: convert(xValue),
+        finalTop: convert(yValue),
         finalX: xValue,
         finalY: yValue,
       };
@@ -85,8 +84,8 @@ export const Position: React.FC<PositionInternalProps> = ({
       const calcY = parentPosition.lastY + (resolvedOffsetY !== undefined ? resolvedOffsetY : 0);
 
       return {
-        finalLeft: convertX(calcX),
-        finalTop: convertY(calcY),
+        finalLeft: convert(calcX),
+        finalTop: convert(calcY),
         finalX: calcX,
         finalY: calcY,
       };
@@ -103,20 +102,19 @@ export const Position: React.FC<PositionInternalProps> = ({
 
   // 居中轴的 left/top + transform。居中时 x/y 作为「相对中心的偏移」(设计 px)。
   const { leftStyle, topStyle, centerTransform } = useMemo(() => {
-    const convertX = context?.convertX ?? ((size: number): number => size);
-    const convertY = context?.convertY ?? ((size: number): number => size);
+    const convert = context?.convert ?? ((size: number): number => size);
     const transforms: string[] = [];
 
     let left: number | string = finalLeft;
     if (centerX) {
-      const offsetPx = convertX(resolvedX ?? 0);
+      const offsetPx = convert(resolvedX ?? 0);
       left = offsetPx === 0 ? '50%' : `calc(50% + ${offsetPx}px)`;
       transforms.push('translateX(-50%)');
     }
 
     let top: number | string = finalTop;
     if (centerY) {
-      const offsetPx = convertY(resolvedY ?? 0);
+      const offsetPx = convert(resolvedY ?? 0);
       top = offsetPx === 0 ? '50%' : `calc(50% + ${offsetPx}px)`;
       transforms.push('translateY(-50%)');
     }

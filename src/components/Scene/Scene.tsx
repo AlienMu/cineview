@@ -158,6 +158,14 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     })
   );
   const reportedRegistryIssues = useRef<Set<string>>(new Set());
+  // Per-scene enter-completion bus. A visibility-driven Animate with a waitFor
+  // subscribes to its leader's completion here instead of re-deriving the delay
+  // from calculatedDelay (which is a shared-clock offset that double-counts the
+  // leader's playback time when each element enters on its own viewport gate).
+  // enteredAnimates holds the ids currently in the entered phase; enterWaitSubs
+  // maps a leader id → one-shot callbacks to fire the instant it enters.
+  const enteredAnimates = useRef<Set<string>>(new Set());
+  const enterWaitSubs = useRef<Map<string, Set<() => void>>>(new Map());
   // Stable ref to the consumer-facing error channel so reportRegistryIssues can
   // route validation issues to onError in production too, without taking the
   // runtime value as a callback dependency.
@@ -243,7 +251,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         `[CineView Error] Scene component must be used within a CineView component.\n\n` +
           `Problem: Scene component at index ${sceneIndex} is not wrapped by CineView.\n` +
           `Fix: Wrap your Scene components inside a <CineView> component:\n\n` +
-          `  <CineView mode="drag" config={{ width: 750, height: 1334, unit: 'px' }}>\n` +
+          `  <CineView mode="drag" config={{ width: 750, height: 1334 }}>\n` +
           `    <Scene>...</Scene>\n` +
           `  </CineView>\n`
       );
@@ -424,6 +432,38 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     [sceneIndex]
   );
 
+  const markAnimateEntered = useCallback((id: string, entered: boolean): void => {
+    if (!entered) {
+      enteredAnimates.current.delete(id);
+      return;
+    }
+    enteredAnimates.current.add(id);
+    const subs = enterWaitSubs.current.get(id);
+    if (subs) {
+      // One-shot: snapshot then clear before firing so a callback that
+      // re-subscribes (e.g. a replay) lands in a fresh set, not this batch.
+      enterWaitSubs.current.delete(id);
+      subs.forEach((cb) => cb());
+    }
+  }, []);
+
+  const subscribeAnimateEntered = useCallback((leaderId: string, cb: () => void): (() => void) => {
+    // Leader already entered → fire immediately, nothing to unsubscribe.
+    if (enteredAnimates.current.has(leaderId)) {
+      cb();
+      return () => {};
+    }
+    let subs = enterWaitSubs.current.get(leaderId);
+    if (!subs) {
+      subs = new Set();
+      enterWaitSubs.current.set(leaderId, subs);
+    }
+    subs.add(cb);
+    return () => {
+      subs?.delete(cb);
+    };
+  }, []);
+
   const getTimelineDuration = useCallback((): number => {
     return timelineDurationRef.current;
   }, []);
@@ -526,6 +566,8 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       registerAnimate,
       unregisterAnimate,
       getCalculatedDelay,
+      markAnimateEntered,
+      subscribeAnimateEntered,
       enterDuration: slideDuration,
     };
 
@@ -587,6 +629,8 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     registerAnimate,
     unregisterAnimate,
     getCalculatedDelay,
+    markAnimateEntered,
+    subscribeAnimateEntered,
     slideDuration,
     sceneIndex,
   ]);
@@ -870,7 +914,14 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
                         position: 'relative',
                         width: '100%',
                         height: '100%',
-                        pointerEvents: 'auto',
+                        // Host is the portal landing for `Position fixed` content.
+                        // When empty it must NOT eat pointer events — a full-size
+                        // pe:auto host (z-index 20) sat above scene children and
+                        // swallowed every click on otherwise-interactive content
+                        // (e.g. a hero with buttons but no fixed Position). Portaled
+                        // fixed nodes carry their own pe:auto (Position.tsx), so
+                        // they stay clickable through this pe:none parent.
+                        pointerEvents: 'none',
                       }}
                     />
                   </div>

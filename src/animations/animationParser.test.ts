@@ -10,6 +10,16 @@ import {
 } from './animationParser';
 import type { CustomAnimation } from '../types';
 
+// devWarn/devError (used by the parser for failure diagnostics) only emit when
+// NODE_ENV === 'development'. Force it so the console spies below observe them.
+const originalNodeEnv = process.env.NODE_ENV;
+beforeAll(() => {
+  process.env.NODE_ENV = 'development';
+});
+afterAll(() => {
+  process.env.NODE_ENV = originalNodeEnv;
+});
+
 jest.mock('./presets', () => ({
   getPresetAnimation: jest.fn((name: string) => {
     if (name === 'fade') {

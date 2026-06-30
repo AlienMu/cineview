@@ -12,7 +12,6 @@ import React, {
   useCallback,
   useMemo,
   Children,
-  isValidElement,
 } from 'react';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { useSceneManager } from '../../hooks/useSceneManager';
@@ -20,6 +19,7 @@ import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 import { DirectScrollCineView } from './DirectScrollCineView';
+import { resolveDesignDimensions, isSceneElement } from './directScrollHelpers';
 import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
 import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
@@ -60,21 +60,6 @@ function clamp(value: number, min: number, max: number): number {
 // element clock by `100 * DEFAULT_DRAG_TIME_SCALE` ms (= 10000ms), independent of
 // the scene's authored animation length. Override via `modes.drag.dragTimeScale`.
 const DEFAULT_DRAG_TIME_SCALE = 10;
-
-function resolveDesignDimensions(config: CineViewProps['config']): {
-  designWidth: number;
-  designHeight: number;
-  unit: NonNullable<CineViewProps['config']['unit']>;
-} {
-  const designWidth = config.width ?? 750;
-  const designHeight = config.height ?? 1334;
-
-  return {
-    designWidth,
-    designHeight,
-    unit: config.unit ?? 'px',
-  };
-}
 
 function createScrollbarCss(): string {
   return `
@@ -166,7 +151,7 @@ export function resolveRootSceneStackMode(
 const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
   const { config, mode, modes, scrollbar, callbacks, performance, children } = props;
 
-  const { designWidth, designHeight, unit } = resolveDesignDimensions(config);
+  const { designWidth, designHeight } = resolveDesignDimensions(config);
 
   // 场景引用存储（使用 WeakMap 避免内存泄漏）
   // Validates Requirement 26.2: Use WeakMap to store component references
@@ -186,12 +171,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const scenes = useMemo(() => {
     const sceneArray: React.ReactElement[] = [];
     Children.forEach(children, (child) => {
-      if (
-        isValidElement(child) &&
-        child.type &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (child.type as any).displayName === 'Scene'
-      ) {
+      if (isSceneElement(child)) {
         sceneArray.push(child);
       }
     });
@@ -643,15 +623,10 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     return currentScene;
   }, [currentScene]);
 
-  const getPerformanceMetrics = useCallback((): PerformanceMetrics => {
-    const metrics = performanceMonitor.getMetrics();
-    return {
-      fps: metrics.fps,
-      avgFrameTime: metrics.avgFrameTime,
-      memoryUsage: metrics.memoryUsage,
-      bundleSize: metrics.bundleSize,
-    };
-  }, []);
+  const getPerformanceMetrics = useCallback(
+    (): PerformanceMetrics => performanceMonitor.getMetrics(),
+    []
+  );
 
   // 暴露 API 方法
   useImperativeHandle(
@@ -947,7 +922,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   );
 
   return (
-    <CineViewProvider designWidth={designWidth} designHeight={designHeight} unit={unit}>
+    <CineViewProvider designWidth={designWidth} designHeight={designHeight}>
       <CineViewRuntimeContext.Provider value={runtimeContextValue}>
         <div
           ref={containerRef}

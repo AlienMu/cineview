@@ -41,7 +41,7 @@ jest.mock('framer-motion', () => {
 });
 
 describe('Scene Component - Drag Mode Refactoring', () => {
-  const mockConfig = { designWidth: 750, designHeight: 750, unit: 'px' as const };
+  const mockConfig = { designWidth: 750, designHeight: 750 };
 
   const mockOnSceneChange = jest.fn();
   const mockOnDragProgressChange = jest.fn();
@@ -78,7 +78,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -101,7 +100,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={false} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -117,7 +115,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={false} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -129,7 +126,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -149,7 +145,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -172,7 +167,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -213,7 +207,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -236,7 +229,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -261,7 +253,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -277,7 +268,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={2} totalScenes={3} currentSceneIndex={2}>
             <div>Test Content</div>
@@ -295,7 +285,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -311,7 +300,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -327,7 +315,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -345,7 +332,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
@@ -361,7 +347,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -386,7 +371,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"
@@ -412,7 +396,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
         <CineViewProvider
           designWidth={mockConfig.designWidth}
           designHeight={mockConfig.designHeight}
-          unit={mockConfig.unit}
         >
           <Scene
             mode="drag"

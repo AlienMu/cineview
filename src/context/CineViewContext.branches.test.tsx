@@ -51,7 +51,7 @@ describe('useConvertSize fallback (outside provider)', () => {
     });
 
     const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
-      <CineViewProvider designWidth={750} designHeight={1334} unit="px">
+      <CineViewProvider designWidth={750} designHeight={1334}>
         {children}
       </CineViewProvider>
     );

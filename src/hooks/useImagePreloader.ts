@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { markImageAsPreloaded } from './imagePreloadCache';
+import { inferMediaKind, preloadMedia } from './mediaPreloadCache';
 
 export interface ImageLoadResult {
   url: string;
@@ -123,9 +124,25 @@ export const useImagePreloader = (
     }
   }, [priorityUrls, backgroundUrls, enqueueUrls]);
 
-  // 加载单张图片
+  // 加载单个资源。video 走 mediaPreloadCache(blob buffer),普通图片走 Image()。
+  // 媒体资源经此路径进入同一优先级批次,故 priorityComplete 会等首屏 video buffer
+  // 完才 fire——首屏冷启动门控天然覆盖媒体,无需额外信号。
   // Validates Requirement 26.3: Cancel pending image loads on unmount
   const loadImage = useCallback((url: string): Promise<ImageLoadResult> => {
+    const mediaKind = inferMediaKind(url);
+    if (mediaKind) {
+      // 媒体预加载不支持 AbortController;卸载时靠 run-id 守卫忽略结果(见 startPreload)。
+      return preloadMedia(url, mediaKind)
+        .then((): ImageLoadResult => {
+          markImageAsPreloaded(url);
+          return { url, success: true };
+        })
+        .catch((error: unknown): ImageLoadResult => {
+          const wrapped = error instanceof Error ? error : new Error(String(error));
+          onErrorRef.current?.(url, wrapped);
+          return { url, success: false, error: wrapped };
+        });
+    }
     return new Promise((resolve) => {
       const img = new Image();
       const controller = new AbortController();

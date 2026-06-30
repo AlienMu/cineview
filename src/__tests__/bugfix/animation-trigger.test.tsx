@@ -24,7 +24,7 @@ describe('Animation Trigger Bug Fixes', () => {
 
       const { container } = render(
         <CineView
-          config={{ width: 750, height: 1334, unit: 'px' }}
+          config={{ width: 750, height: 1334 }}
           mode="drag"
           modes={{ drag: { transitionDuration: 500 } }}
           callbacks={{ onSceneDidChange: onAfterSceneChange }}
@@ -59,7 +59,7 @@ describe('Animation Trigger Bug Fixes', () => {
     it('should render first scene immediately without waiting for image load', async () => {
       const { container } = render(
         <CineView
-          config={{ width: 750, height: 1334, unit: 'px' }}
+          config={{ width: 750, height: 1334 }}
           mode="drag"
           modes={{ drag: { transitionDuration: 500 } }}
         >
@@ -91,7 +91,7 @@ describe('Animation Trigger Bug Fixes', () => {
               Next
             </button>
             <CineView
-              config={{ width: 750, height: 1334, unit: 'px' }}
+              config={{ width: 750, height: 1334 }}
               mode="drag"
               modes={{ drag: { transitionDuration: 500 } }}
             >
@@ -151,7 +151,7 @@ describe('Animation Trigger Bug Fixes', () => {
               Go to Scene 0
             </button>
             <CineView
-              config={{ width: 750, height: 1334, unit: 'px' }}
+              config={{ width: 750, height: 1334 }}
               mode="drag"
               modes={{ drag: { transitionDuration: 500 } }}
             >
@@ -210,7 +210,7 @@ describe('Animation Trigger Bug Fixes', () => {
     it('should correctly handle waitFor animation chains on scene change', async () => {
       const { container } = render(
         <CineView
-          config={{ width: 750, height: 1334, unit: 'px' }}
+          config={{ width: 750, height: 1334 }}
           mode="drag"
           modes={{ drag: { transitionDuration: 500 } }}
         >

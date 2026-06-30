@@ -152,6 +152,49 @@ function createScrollSceneContext(): SceneContextType {
   };
 }
 
+// A standalone per-scene enter-completion bus mirroring Scene.tsx's
+// markAnimateEntered/subscribeAnimateEntered. Spread into a scene context to
+// exercise the visibility waitFor path end-to-end: a follower subscribes to its
+// leader, and the leader's 'entered' phase fires the follower's launch. Tests
+// can also drive markAnimateEntered directly to simulate a leader that already
+// completed before the follower mounts.
+function createPhaseBus(): {
+  markAnimateEntered: (id: string, entered: boolean) => void;
+  subscribeAnimateEntered: (leaderId: string, cb: () => void) => () => void;
+} {
+  const entered = new Set<string>();
+  const subs = new Map<string, Set<() => void>>();
+  return {
+    markAnimateEntered: (id: string, isEntered: boolean): void => {
+      if (!isEntered) {
+        entered.delete(id);
+        return;
+      }
+      entered.add(id);
+      const cbs = subs.get(id);
+      if (cbs) {
+        subs.delete(id);
+        cbs.forEach((cb) => cb());
+      }
+    },
+    subscribeAnimateEntered: (leaderId: string, cb: () => void): (() => void) => {
+      if (entered.has(leaderId)) {
+        cb();
+        return () => {};
+      }
+      let cbs = subs.get(leaderId);
+      if (!cbs) {
+        cbs = new Set();
+        subs.set(leaderId, cbs);
+      }
+      cbs.add(cb);
+      return () => {
+        cbs?.delete(cb);
+      };
+    },
+  };
+}
+
 function createZoneState(progressPx: number): SceneScrollTimelineState {
   return {
     zoneId: 'zone-1',
@@ -444,7 +487,6 @@ function renderReplayPhaseProbe(
               enterAnimation="fade-in"
               exitAnimation="fade-out"
               timeline={{
-                driver: 'scroll',
                 phase: {
                   start: 0.25,
                   end: 0.75,
@@ -485,7 +527,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         <Animate
           animateId="visibility-probe"
           exitAnimation="fade-out"
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div>Visibility probe</div>
         </Animate>
@@ -536,7 +578,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="oversized-probe"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Oversized content</article>
           </Animate>
@@ -602,7 +644,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="margin-probe"
             enterAnimation="fade-in"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
             visibility={{ enterMargin: 300 }}
           >
             <article>Custom margin content</article>
@@ -646,7 +688,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             <Animate
               animateId="global-margin-probe"
               enterAnimation="fade-in"
-              timeline={{ driver: 'visibility' }}
+              timeline={{ sceneControlled: false }}
             >
               <article>Global margin content</article>
             </Animate>
@@ -692,7 +734,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             <Animate
               animateId="partial-doc-content"
               enterAnimation="fade-in"
-              timeline={{ driver: 'visibility' }}
+              timeline={{ sceneControlled: false }}
             >
               <article>Partially visible content</article>
             </Animate>
@@ -750,7 +792,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="above-top-probe"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Above top content</article>
           </Animate>
@@ -781,6 +823,63 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
+  it('reveals a first-screen element pinned to the viewport bottom on cold start (within enterMargin)', async () => {
+    // First-screen cold reveal: an element authored at the bottom of the first
+    // screen (e.g. a scroll hint) sits fully inside the viewport but with its
+    // bottom edge within enterMargin of the viewport bottom (relBottom 990 >
+    // vh - 50 = 950). The scroll-INTO enter gate is designed for elements
+    // climbing up from below and never fires here — and with no scroll yet, no
+    // later measure ever re-evaluates it. Pre-fix the element stayed at opacity
+    // 0 forever. The first-measurement branch must reveal any element already
+    // fully inside the viewport (relTop >= 0 && relBottom <= vh) via a normal
+    // enter, bypassing the scroll-into bottom margin.
+    const originalInnerHeight = window.innerHeight;
+    // Scene 0 semantics: firstSceneEnterReady === true means the first screen has
+    // settled its priority assets and may reveal. Non-first scenes leave it
+    // undefined and keep the strict scroll-into margins.
+    const sceneContext = { ...createScrollSceneContext(), firstSceneEnterReady: true };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="first-screen-bottom-probe"
+            enterAnimation="fade-in"
+            duration={{ enter: 60, exit: 60 }}
+            timeline={{ sceneControlled: false }}
+          >
+            <article>First screen bottom content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="first-screen-bottom-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="first-screen-bottom-probe"]'
+      ) as HTMLElement;
+      // Fully inside the viewport, but bottom (990) is within enterMargin (50) of
+      // the viewport bottom (1000) → the scroll-into enter gate is NOT satisfied.
+      host.getBoundingClientRect = () => createHostRect(900, 990);
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
   it('holds an entered no-exit element at its entered frame when replayOnReenter is false', async () => {
     // No authored exit + replayOnReenter:false: once entered, leaving the top
     // must NOT reset to initial — it holds at the entered frame.
@@ -797,7 +896,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="no-exit-hold-probe"
             enterAnimation="fade-in"
             visibility={{ replayOnReenter: false }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>No exit hold content</article>
           </Animate>
@@ -812,7 +911,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="no-exit-hold-probe"
             enterAnimation="fade-in"
             visibility={{ replayOnReenter: false }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>No exit hold content</article>
           </Animate>
@@ -869,7 +968,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="no-exit-replay-probe"
             enterAnimation="fade-in"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>No exit replay content</article>
           </Animate>
@@ -883,7 +982,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="no-exit-replay-probe"
             enterAnimation="fade-in"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>No exit replay content</article>
           </Animate>
@@ -948,7 +1047,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="handoff-doc-content"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Handoff content</article>
           </Animate>
@@ -964,7 +1063,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="handoff-doc-content"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Handoff content</article>
           </Animate>
@@ -1048,7 +1147,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="slide-up"
             exitAnimation="slide-up"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Visibility exit variant content</article>
           </Animate>
@@ -1079,7 +1178,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="slide-up"
             exitAnimation="slide-up"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Visibility exit variant content</article>
           </Animate>
@@ -1106,7 +1205,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="slide-up"
             exitAnimation="slide-up"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Visibility exit variant content</article>
           </Animate>
@@ -1146,7 +1245,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Reverse bottom exit content</article>
           </Animate>
@@ -1162,7 +1261,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Reverse bottom exit content</article>
           </Animate>
@@ -1222,7 +1321,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             infiniteAnimation="pulse"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Visibility infinite content</article>
           </Animate>
@@ -1274,7 +1373,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             infiniteAnimation="pulse"
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>Visibility infinite content</article>
           </Animate>
@@ -1296,21 +1395,17 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
-  it('holds the enter tween at the initial frame while the waitFor-derived delay is pending', async () => {
-    // Gate model: a satisfied enter gate launches the enter tween, but a
-    // waitFor dependency defers the tween launch by the registry-calculated
-    // delay (here 5000ms). Within that window the element stays at its initial
-    // frame (opacity 0) even though its gate is already satisfied — proving the
-    // delay gates the TIME-based tween, not a position scrub.
+  it('holds a visibility waitFor follower at its initial frame until the leader actually enters', async () => {
+    // New waitFor model (visibility): the follower's gate can be satisfied, but
+    // it must NOT play until its leader publishes 'entered' on the per-scene bus.
+    // Here the leader never enters, so the follower stays at its initial frame
+    // (opacity 0) even though its own gate is satisfied and its own delay is tiny.
     const originalInnerHeight = window.innerHeight;
     const hostRect = createHostRect(300, 700); // fully inside, enter gate satisfied
-    const sceneContext = createScrollSceneContext();
-    sceneContext.getCalculatedDelay = jest.fn(() => 5000);
+    const bus = createPhaseBus();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...bus };
 
-    Object.defineProperty(window, 'innerHeight', {
-      configurable: true,
-      value: 1000,
-    });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
     try {
       const { rerender } = render(
@@ -1318,10 +1413,10 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="waitfor-visibility-probe"
             enterAnimation="fade-in"
-            delay={120}
+            delay={40}
             waitFor="leader"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>WaitFor visibility content</article>
           </Animate>
@@ -1341,29 +1436,156 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
       rerender(
         <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'forward',
-            scrollProgress: 1,
-          }}
+          value={{ ...sceneContext, scrollDirection: 'forward', scrollProgress: 1 }}
         >
           <Animate
             animateId="waitfor-visibility-probe"
             enterAnimation="fade-in"
-            delay={120}
+            delay={40}
             waitFor="leader"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ driver: 'visibility' }}
+            timeline={{ sceneControlled: false }}
           >
             <article>WaitFor visibility content</article>
           </Animate>
         </SceneContext.Provider>
       );
 
-      // The enter tween is deferred 5000ms by the waitFor delay, so the element
-      // stays at its initial frame across this polling window.
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      // Gate satisfied but the leader has never entered → the follower is pinned
+      // at its initial frame across the polling window.
+      await new Promise((resolve) => setTimeout(resolve, 200));
       expect(readMotionOpacity()).toBe(0);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('lets a visibility waitFor follower play after only its own delay when the leader already entered (no chain double-count)', async () => {
+    // The bug: calculatedDelay is the shared-clock chain offset
+    // (leader.delay + leader.duration + own.delay). On the visibility gate each
+    // element runs its own clock, so re-using calculatedDelay after the
+    // follower's gate fires re-waits the whole leader chain a second time. The
+    // fix: once the leader is entered, the follower waits only its OWN delay.
+    // Here the leader entered long ago; a follower with a huge nominal chain but
+    // tiny own delay must enter promptly (well under any chain-length timeout).
+    const originalInnerHeight = window.innerHeight;
+    const hostRect = createHostRect(300, 700);
+    const bus = createPhaseBus();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...bus };
+    // Leader already completed its enter before the follower ever scrolls in.
+    bus.markAnimateEntered('leader', true);
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="late-follower"
+            enterAnimation="fade-in"
+            delay={20}
+            waitFor="leader"
+            duration={{ enter: 60, exit: 60 }}
+            timeline={{ sceneControlled: false }}
+          >
+            <article>Late follower content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(document.querySelector('[data-cineview-animate-id="late-follower"]')).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="late-follower"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+      await flushScroll(window);
+
+      // Leader already entered → only the 20ms own-delay + 60ms tween, not any
+      // re-waited chain. Enters well within this window.
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('keeps same-screen visibility waitFor order: the follower plays only after the leader completes', async () => {
+    // Cold-start cascade (all gates fire together): the follower subscribes to
+    // the leader on the bus and must not enter until the leader publishes
+    // 'entered'. Order is preserved without re-deriving calculatedDelay.
+    const originalInnerHeight = window.innerHeight;
+    const leaderRect = createHostRect(200, 400);
+    const followerRect = createHostRect(420, 620);
+    const bus = createPhaseBus();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...bus };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="cascade-leader"
+            enterAnimation="fade-in"
+            duration={{ enter: 80, exit: 80 }}
+            timeline={{ sceneControlled: false }}
+          >
+            <article>Cascade leader</article>
+          </Animate>
+          <Animate
+            animateId="cascade-follower"
+            enterAnimation="fade-in"
+            waitFor="cascade-leader"
+            duration={{ enter: 80, exit: 80 }}
+            timeline={{ sceneControlled: false }}
+          >
+            <article>Cascade follower</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="cascade-follower"]')
+        ).not.toBeNull();
+      });
+
+      const leaderHost = document.querySelector(
+        '[data-cineview-animate-host="cascade-leader"]'
+      ) as HTMLElement;
+      const followerHost = document.querySelector(
+        '[data-cineview-animate-host="cascade-follower"]'
+      ) as HTMLElement;
+      leaderHost.getBoundingClientRect = () => leaderRect;
+      followerHost.getBoundingClientRect = () => followerRect;
+
+      const readOpacityFor = (id: string): number => {
+        const node = screen
+          .getAllByTestId('motion-div')
+          .find((n) => n.getAttribute('data-cineview-animate-id') === id);
+        return Number(node?.getAttribute('data-opacity') ?? '0');
+      };
+
+      await flushScroll(window);
+
+      // Both gates fire together, but the follower is still subscribed to the
+      // leader: it stays at 0 until the leader finishes, then plays.
+      await waitFor(() => {
+        expect(readOpacityFor('cascade-leader')).toBe(1);
+      });
+      await waitFor(() => {
+        expect(readOpacityFor('cascade-follower')).toBe(1);
+      });
     } finally {
       Object.defineProperty(window, 'innerHeight', {
         configurable: true,
@@ -1384,7 +1606,6 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               animateId="phased-probe"
               enterAnimation="fade-in"
               timeline={{
-                driver: 'scroll',
                 phase: {
                   start: 0.5,
                   end: 1,
@@ -1410,7 +1631,6 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               animateId="phased-probe"
               enterAnimation="fade-in"
               timeline={{
-                driver: 'scroll',
                 phase: {
                   start: 0.5,
                   end: 1,
@@ -1436,7 +1656,6 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               animateId="phased-probe"
               enterAnimation="fade-in"
               timeline={{
-                driver: 'scroll',
                 phase: {
                   start: 0.5,
                   end: 1,

@@ -276,50 +276,6 @@ describe('useAnimateScroll orphan warning', () => {
     }
   });
 
-  it('points orphan scroll-driven animations to Scene scroll takeover as the primary API', async () => {
-    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-    render(
-      <SceneContext.Provider value={createScrollSceneContext()}>
-        <Animate animateId="scroll-orphan" enterAnimation="fade-in" scrollDriven={true}>
-          <div>Scroll orphan</div>
-        </Animate>
-      </SceneContext.Provider>
-    );
-
-    await waitFor(() => {
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[CineView Warning] scroll-driven Animate "scroll-orphan" must be placed inside a Scene with a scroll takeover config.'
-      );
-    });
-
-    consoleWarnSpy.mockRestore();
-  });
-
-  it('treats timeline.driver="scroll" as the grouped replacement for scrollDriven', async () => {
-    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-    render(
-      <SceneContext.Provider value={createScrollSceneContext()}>
-        <Animate
-          animateId="timeline-scroll"
-          enterAnimation="fade-in"
-          timeline={{ driver: 'scroll' }}
-        >
-          <div>Timeline scroll orphan</div>
-        </Animate>
-      </SceneContext.Provider>
-    );
-
-    await waitFor(() => {
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[CineView Warning] scroll-driven Animate "timeline-scroll" must be placed inside a Scene with a scroll takeover config.'
-      );
-    });
-
-    consoleWarnSpy.mockRestore();
-  });
-
   it('registers grouped timeline and duration fields with the zone runtime', async () => {
     const zoneRuntime: SceneScrollRuntimeContextValue = {
       registerZone: jest.fn(),
@@ -339,7 +295,6 @@ describe('useAnimateScroll orphan warning', () => {
               exitAnimation="fade-out"
               duration={{ enter: 320, exit: 180 }}
               timeline={{
-                driver: 'scroll',
                 delay: 90,
                 waitFor: 'intro',
               }}
@@ -386,7 +341,7 @@ describe('useAnimateScroll orphan warning', () => {
               animateId="stable-registration"
               enterAnimation="fade-in"
               duration={{ enter: 320, exit: 180 }}
-              timeline={{ driver: 'scroll', delay: 90, waitFor: 'intro' }}
+              timeline={{ delay: 90, waitFor: 'intro' }}
             >
               <div>Stable registration</div>
             </Animate>
@@ -415,7 +370,7 @@ describe('useAnimateScroll orphan warning', () => {
               animateId="stable-registration"
               enterAnimation="fade-in"
               duration={{ enter: 320, exit: 180 }}
-              timeline={{ driver: 'scroll', delay: 90, waitFor: 'intro' }}
+              timeline={{ delay: 90, waitFor: 'intro' }}
             >
               <div>Stable registration</div>
             </Animate>
@@ -481,9 +436,8 @@ describe('useAnimateScroll orphan warning', () => {
             <Animate
               animateId="visibility-driver"
               enterAnimation="fade-in"
-              timeline={{ driver: 'visibility' }}
+              timeline={{ sceneControlled: false }}
               visibility={{ replayOnReenter: false }}
-              scrollDriven={true}
             >
               <div>Visibility driver</div>
             </Animate>

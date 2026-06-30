@@ -220,12 +220,10 @@ export function isSceneElement(
 export function resolveDesignDimensions(config: CineViewProps['config']): {
   designWidth: number;
   designHeight: number;
-  unit: NonNullable<CineViewProps['config']['unit']>;
 } {
   return {
     designWidth: config.width ?? 750,
     designHeight: config.height ?? 1334,
-    unit: config.unit ?? 'px',
   };
 }
 

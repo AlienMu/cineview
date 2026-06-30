@@ -1,0 +1,149 @@
+/* ============================================================================
+ * CineView 官网设计系统 — design tokens
+ * 方向:暖白底 + 柔彩 LUT 滚动色带 + Fraunces/Inter/等宽时间码 + 胶片边轨签名
+ * 见 task-flow 2026-06-30-official-site-docs.md
+ * ========================================================================== */
+
+:root {
+  /* — 基础色:暖白 / 暖墨 / 胶片线 — */
+  --film-white: #faf8f4;
+  --film-white-2: #f3efe8;
+  --ink: #1a1814;
+  --ink-soft: #4a463e;
+  --ink-mute: #847d70;
+  --frame-line: #e4dfd6;
+  --frame-line-soft: #eee9e0;
+
+  /* — 柔彩 LUT 色带停靠点(全站滚动总进度驱动,上下双端 linear-gradient 插值)— */
+  /* 每个停靠点定义 top/bottom 两端色,JS 在相邻停靠点间插值后写入 --bg-grad */
+  --lut-dawn-top: #fcede4;
+  --lut-dawn-bot: #faf8f4;
+  --lut-sky-top: #e6eef6;
+  --lut-sky-bot: #f3f1ea;
+  --lut-lavender-top: #ece6f4;
+  --lut-lavender-bot: #f4eef2;
+  --lut-mint-top: #e4f0ea;
+  --lut-mint-bot: #f6f3ec;
+
+  /* JS 实时写入(背景色带层 + 当前镜头强调色) */
+  --bg-grad-top: var(--lut-dawn-top);
+  --bg-grad-bot: var(--lut-dawn-bot);
+  --accent: #c98a6a; /* 当前镜头色,随滚动被 JS 覆写 */
+  --accent-ink: #9c6249;
+
+  /* — REC 常驻指示(时间码胶囊专用,不随镜头色变)— */
+  --rec: #c4453f;
+  --rec-glow: rgba(196, 69, 63, 0.32);
+
+  /* — 字体 — */
+  --font-display: 'Fraunces', 'Songti SC', Georgia, serif;
+  --font-body: 'Inter', 'PingFang SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* — 字号刻度 — */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+  --text-4xl: 4rem;
+  --text-5xl: 5.5rem;
+  --text-6xl: 7.5rem;
+
+  /* — 间距 — */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  /* — 结构 — */
+  --content-max: 1080px;
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 20px;
+
+  /* — 阴影(柔和,浅色系)— */
+  --shadow-sm: 0 1px 3px rgba(26, 24, 20, 0.05);
+  --shadow: 0 8px 30px rgba(26, 24, 20, 0.08);
+  --shadow-lg: 0 24px 60px rgba(26, 24, 20, 0.12);
+
+  /* — 动效 — */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--film-white);
+  line-height: 1.6;
+  font-size: var(--text-base);
+}
+
+#root {
+  min-height: 100vh;
+  position: relative;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+code, .mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--film-white);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
