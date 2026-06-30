@@ -424,10 +424,7 @@ describe('性能测试', () => {
       const onLoadProgress = jest.fn();
 
       const TestApp = () => (
-        <CineView
-          config={{ width: 750, height: 750, unit: 'px' }}
-          callbacks={{ common: { onLoadProgress } }}
-        >
+        <CineView config={{ width: 750, height: 750, unit: 'px' }} callbacks={{ onLoadProgress }}>
           <Scene
             assets={{
               preloadImages: ['https://example.com/valid.jpg', 'https://invalid-url/image.jpg'],

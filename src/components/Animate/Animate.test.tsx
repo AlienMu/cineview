@@ -10,7 +10,7 @@ import type { ParsedAnimationVariant, PresetAnimation } from '../../types';
 import { parseAnimationWithComposition } from '../../animations/composer';
 import type { MotionValue } from 'framer-motion';
 import {
-  type SceneScrollRuntimeContextValue,
+  type SceneScrollZoneRuntime,
   type SceneScrollTimelineState,
 } from '../Scene/sceneScrollRuntime';
 import { useAnimateScroll } from './useAnimateScroll';
@@ -225,7 +225,7 @@ describe('Animate Component', () => {
   });
 
   const renderScrollInfiniteProbe = (zoneState: SceneScrollTimelineState) => {
-    const scrollRuntime: SceneScrollRuntimeContextValue = {
+    const scrollRuntime: SceneScrollZoneRuntime = {
       version: 1,
       zoneStates: { 'zone-1': zoneState },
       registerZone: jest.fn(),
@@ -260,8 +260,6 @@ describe('Animate Component', () => {
         timeline: { driver: 'scroll', delay: 0, phase: {} },
         visibility: {
           replayOnReenter: true,
-          enterWhen: 'fully-visible-bottom',
-          exitWhen: 'leaving-top',
         },
       });
 

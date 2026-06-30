@@ -9,6 +9,7 @@ module.exports = {
     '!src/**/*.test.{ts,tsx}',
     '!src/**/*.d.ts',
     '!src/**/index.ts',
+    '!src/**/*.type-assert.tsx',
   ],
   coverageThreshold: {
     global: {

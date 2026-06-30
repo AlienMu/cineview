@@ -1,14 +1,25 @@
 import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MotionValue, useMotionValue, useTransform } from 'framer-motion';
+import { animate, MotionValue, useMotionValue, useTransform } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
+import { useCineViewContext } from '../../context/CineViewContext';
 import type { SceneContextType } from './Animate';
 import type { NormalizedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
-import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
+import {
+  clamp,
+  getDefaultValue,
+  getVariantValue,
+  lerp,
+  lerpTransformValue,
+  parseNumericValue,
+  type AnimatableProperty,
+  type VariantRecord,
+} from './animateInterpolation';
 
 interface UseAnimateScrollParams {
   sceneContext: SceneContextType | null;
-  zoneRuntime: SceneScrollRuntimeContextValue | null;
+  zoneRuntime: SceneScrollZoneRuntime | null;
   zoneId: string | null;
   enterVariant: ParsedAnimationVariant | null;
   exitVariant: ParsedAnimationVariant | null;
@@ -21,6 +32,10 @@ interface UseAnimateScrollParams {
   };
   timeline: NormalizedAnimateTimeline;
   visibility: NormalizedAnimateVisibility;
+  /** CineView-level default enter/exit gate margins (design px). Per-Animate
+   *  visibility margins override these; both undefined → fall back to 50. */
+  globalEnterMargin?: number;
+  globalExitMargin?: number;
 }
 
 interface UseAnimateScrollReturn {
@@ -28,59 +43,71 @@ interface UseAnimateScrollReturn {
   shouldRunInfinite: boolean;
 }
 
-type AnimatedProperty =
-  | 'opacity'
-  | 'x'
-  | 'y'
-  | 'scale'
-  | 'rotate'
-  | 'rotateX'
-  | 'rotateY'
-  | 'skewX'
-  | 'skewY'
-  | 'filter';
+type AnimatedProperty = AnimatableProperty;
 
-type VariantRecord = Record<string, unknown>;
-type TransformValue = number | string;
-const DEFAULT_VISIBILITY_PX_PER_MS = 0.18;
+const DEFAULT_GATE_MARGIN_PX = 50;
 const VISIBILITY_EXIT_EPSILON = 1e-6;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+export type GatePhase = 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
+export type GateAction = 'enter' | 'exit' | null;
+
+/**
+ * Pure phase-transition decision for the visibility gate state machine.
+ *
+ * Enter and exit gates overlap in relTop ∈ [0, exitMargin] (both true). Without
+ * a mutex, reverse re-entry drives the element down through that band and the
+ * machine flips enter→exit→enter within one update batch — the exit snap to
+ * -epsilon flashes a near-animate frame ("element appears then replays from 0").
+ * The overlap band is therefore a hysteresis dead zone: when BOTH gates are
+ * true, hold the current phase (return null). Enter only fires strictly above
+ * the band (enterGate && !exitGate); exit only strictly below it
+ * (exitGate && !enterGate). Geometry (gate definitions) is unchanged — this only
+ * governs which transition the band resolves to.
+ *
+ * Returns the tween to launch, or null to hold the current phase.
+ */
+export function resolveGatePhaseAction(
+  phase: GatePhase,
+  enterGate: boolean,
+  exitGate: boolean,
+  opts: { hasExplicitExit: boolean; replayOnReenter: boolean }
+): GateAction {
+  switch (phase) {
+    case 'idle':
+      return enterGate && !exitGate ? 'enter' : null;
+    case 'entering':
+      return exitGate && !enterGate && opts.hasExplicitExit ? 'exit' : null;
+    case 'entered':
+      // Only an authored exitAnimation exits. Without one the element holds at
+      // its entered frame forever (never snaps to hidden), even when it scrolls
+      // back up past the top — "no exitAnimation => stay visible". This mirrors
+      // the `entering` guard above; their asymmetry was the snap-disappear bug.
+      return exitGate && !enterGate && opts.hasExplicitExit ? 'exit' : null;
+    case 'exiting':
+      return enterGate && !exitGate && opts.replayOnReenter ? 'enter' : null;
+    case 'exited':
+      return enterGate && !exitGate && opts.replayOnReenter ? 'enter' : null;
+    default:
+      return null;
+  }
 }
 
-function lerp(start: number, end: number, progress: number): number {
-  return start + (end - start) * progress;
-}
-
-function lerpValue(start: TransformValue, end: TransformValue, progress: number): TransformValue {
-  if (typeof start === 'number' && typeof end === 'number') {
-    return lerp(start, end, progress);
-  }
-
-  const startStr = String(start);
-  const endStr = String(end);
-  const startMatch = startStr.match(/^([-\d.]+)(.*)$/);
-  const endMatch = endStr.match(/^([-\d.]+)(.*)$/);
-
-  if (startMatch && endMatch) {
-    const startNum = parseFloat(startMatch[1]);
-    const endNum = parseFloat(endMatch[1]);
-    const unit = endMatch[2] || startMatch[2] || '';
-    const interpolated = lerp(startNum, endNum, progress);
-    return unit ? `${interpolated}${unit}` : interpolated;
-  }
-
-  return progress >= 1 ? end : start;
-}
-
-function parseNumericValue(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = parseFloat(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
+/**
+ * Pure decision for whether a visibility-driven element's infiniteAnimation
+ * should be running.
+ *
+ * The infinite (e.g. pulse) loop must only run while the element is BOTH in its
+ * entered phase AND currently intersecting the viewport. An element with no
+ * authored exitAnimation (hasExplicitExit === false) never exits — its phase
+ * stays 'entered' indefinitely even after it scrolls fully off-screen in either
+ * direction. Without an explicit on-screen check the infinite loop then keeps
+ * spinning off-screen forever (wasted work, and the element silently pulses
+ * where nobody can see it). Tying it to live viewport intersection pauses the
+ * loop the moment the element leaves the viewport in EITHER direction and
+ * resumes it on return.
+ */
+export function resolveInfiniteActive(phase: GatePhase, onScreen: boolean): boolean {
+  return phase === 'entered' && onScreen;
 }
 
 function resolvePhaseBoundaryPx(
@@ -97,31 +124,6 @@ function resolvePhaseBoundaryPx(
   return windowStartPx + (windowEndPx - windowStartPx) * clampedPhase;
 }
 
-function getDefaultValue(
-  property: AnimatedProperty,
-  phase: 'initial' | 'animate' | 'exit'
-): TransformValue {
-  switch (property) {
-    case 'opacity':
-      return phase === 'initial' || phase === 'exit' ? 0 : 1;
-    case 'scale':
-      return 1;
-    case 'filter':
-      return 'none';
-    default:
-      return 0;
-  }
-}
-
-function getVariantValue<T extends TransformValue>(
-  record: VariantRecord,
-  property: AnimatedProperty,
-  fallback: T
-): T {
-  const value = record[property];
-  return value === undefined ? fallback : (value as T);
-}
-
 function hasExitAnimation(
   exitVariant: ParsedAnimationVariant | null,
   exitDuration: number
@@ -131,15 +133,6 @@ function hasExitAnimation(
     exitVariant?.exit &&
     Object.keys(exitVariant.exit as Record<string, unknown>).length > 0
   );
-}
-
-function resolveVisibilityDelayPx(
-  delayMs: number,
-  waitFor: string | undefined,
-  calculatedDelayMs: number
-): number {
-  const sourceMs = waitFor ? calculatedDelayMs : delayMs;
-  return Math.max(sourceMs, 0) * DEFAULT_VISIBILITY_PX_PER_MS;
 }
 
 function useMixedValue(
@@ -170,10 +163,10 @@ function useMixedValue(
     );
 
     if (progress >= 0) {
-      return lerpValue(initialValue, animateValue, progress);
+      return lerpTransformValue(initialValue, animateValue, progress);
     }
 
-    return lerpValue(animateValue, exitValue, Math.abs(progress));
+    return lerpTransformValue(animateValue, exitValue, Math.abs(progress));
   });
 }
 
@@ -222,6 +215,8 @@ export function useAnimateScroll({
   duration,
   timeline,
   visibility,
+  globalEnterMargin,
+  globalExitMargin,
 }: UseAnimateScrollParams): UseAnimateScrollReturn {
   const enterDuration = duration.enter;
   const exitDuration = duration.exit;
@@ -230,8 +225,17 @@ export function useAnimateScroll({
   const isScrollDriven = timeline.driver === 'scroll';
   const phaseStart = timeline.phase?.start;
   const phaseEnd = timeline.phase?.end;
-  const exitWhen = visibility.exitWhen;
   const replayOnReenter = visibility.replayOnReenter;
+  // Resolve enter/exit gate margins: per-Animate override → CineView-level
+  // default → 50. Design px × scaleY → physical px (the gate compares against
+  // getBoundingClientRect, which is in physical px). scaleY falls back to 1 when
+  // no CineViewContext (e.g. isolated tests).
+  const cineViewContext = useCineViewContext();
+  const scaleY = cineViewContext?.scaleY ?? 1;
+  const enterMarginDesignPx = visibility.enterMargin ?? globalEnterMargin ?? DEFAULT_GATE_MARGIN_PX;
+  const exitMarginDesignPx = visibility.exitMargin ?? globalExitMargin ?? DEFAULT_GATE_MARGIN_PX;
+  const enterMarginPx = Math.max(0, enterMarginDesignPx * scaleY);
+  const exitMarginPx = Math.max(0, exitMarginDesignPx * scaleY);
   const calculatedDelayRef = useRef(0);
   const variantsRef = useRef({
     enterInitial: {} as VariantRecord,
@@ -261,6 +265,94 @@ export function useAnimateScroll({
     };
   }, [enterVariant, exitVariant]);
 
+  // --- Gate-based visibility state machine (replaces position-scrub) ---------
+  // The old model mapped rect.top → a continuous enter progress, so any element
+  // whose first frame sat below the viewport center rendered a mid-enter frame
+  // it never scrolled into (and last-screen elements froze half-revealed). The
+  // new model is a boolean GATE + a time-based tween: the element rests at its
+  // initial frame until its enter gate is satisfied, then plays its enter
+  // animation over enterDuration; exit is a symmetric gate + tween. No
+  // position→progress mapping exists, so the mid-enter artifact is structurally
+  // impossible.
+  //
+  // visualMotion convention (consumed by useMixedValue / useNumericValue):
+  //   0  = initial frame      (>=0 lerps initial→animate)
+  //   1  = fully entered (animate)
+  //  -1  = fully exited        (<0 lerps animate→exit)
+  // A tween from the entered state to exit snaps to -epsilon first (still the
+  // animate frame visually) then tweens to -1, so it never passes through 0
+  // (which would flash the initial frame).
+  const phaseRef = useRef<GatePhase>('idle');
+  const tweenControlsRef = useRef<{ stop: () => void } | null>(null);
+  const enterDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initializedRef = useRef(false);
+
+  const stopTween = useCallback(() => {
+    if (tweenControlsRef.current) {
+      tweenControlsRef.current.stop();
+      tweenControlsRef.current = null;
+    }
+    if (enterDelayTimerRef.current) {
+      clearTimeout(enterDelayTimerRef.current);
+      enterDelayTimerRef.current = null;
+    }
+  }, []);
+
+  const runEnterTween = useCallback(() => {
+    stopTween();
+    phaseRef.current = 'entering';
+    // Re-enter from an exited/exiting state starts from the initial frame so the
+    // enter animation replays from the top, not from the exit frame.
+    if (visualMotion.get() < 0) {
+      visualMotion.set(0);
+    }
+    const startMs = waitFor ? calculatedDelayRef.current : delay;
+    const launch = (): void => {
+      const controls = animate(visualMotion, 1, {
+        duration: Math.max(enterDuration, 0) / 1000,
+        ease: 'easeInOut',
+        onComplete: () => {
+          tweenControlsRef.current = null;
+          phaseRef.current = 'entered';
+          setShouldRunInfiniteState(true);
+        },
+      });
+      tweenControlsRef.current = controls;
+    };
+    if (startMs > 0) {
+      enterDelayTimerRef.current = setTimeout(() => {
+        enterDelayTimerRef.current = null;
+        launch();
+      }, startMs);
+    } else {
+      launch();
+    }
+    setShouldRunInfiniteState(false);
+  }, [delay, enterDuration, stopTween, visualMotion, waitFor]);
+
+  const runExitTween = useCallback(() => {
+    stopTween();
+    phaseRef.current = 'exiting';
+    setShouldRunInfiniteState(false);
+    // runExitTween is only reached when hasExplicitExit is true: resolveGatePhaseAction
+    // never returns 'exit' for an element without an authored exitAnimation (no exit
+    // => the element holds at its entered frame forever instead of snapping to hidden).
+    // Snap into the exit branch at the animate frame (-epsilon ≈ animate) so the
+    // tween to -1 never crosses 0 and flashes the initial frame.
+    if (visualMotion.get() >= 0) {
+      visualMotion.set(-VISIBILITY_EXIT_EPSILON);
+    }
+    const controls = animate(visualMotion, -1, {
+      duration: Math.max(exitDuration, 0) / 1000,
+      ease: 'easeInOut',
+      onComplete: () => {
+        tweenControlsRef.current = null;
+        phaseRef.current = 'exited';
+      },
+    });
+    tweenControlsRef.current = controls;
+  }, [exitDuration, stopTween, visualMotion]);
+
   const runVisibilityUpdate = useCallback(() => {
     if (isScrollDriven) {
       return;
@@ -271,66 +363,114 @@ export function useAnimateScroll({
       return;
     }
 
-    const rect = hostElement.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || 1;
-    const hasMeasurableBox = rect.width > 0 || rect.height > 0 || rect.bottom !== rect.top;
-    const aboveViewport = rect.bottom <= 0;
-    const belowViewport = rect.top >= viewportHeight;
-    const isIntersecting = !hasMeasurableBox || (rect.bottom > 0 && rect.top < viewportHeight);
-
-    if (belowViewport) {
+    // First-screen cold-start hold: scene 0 elements wait for priority assets
+    // (firstSceneEnterReady === false). undefined = not gated (non-first scene).
+    const firstSceneReady = sceneContext?.firstSceneEnterReady;
+    if (firstSceneReady === false) {
       visualMotion.set(0);
+      phaseRef.current = 'idle';
       setShouldRunInfiniteState(false);
       return;
     }
 
-    const measurableHeight = Math.max(rect.height, rect.bottom - rect.top, 1);
-    const viewportCenter = viewportHeight / 2;
-    const centerTop = viewportCenter - measurableHeight / 2;
-    const enterWindowPx = Math.max(viewportHeight - centerTop, 1);
-    const exitEndTop = exitWhen === 'leaving-top' ? -measurableHeight : 0;
-    const exitWindowPx = Math.max(centerTop - exitEndTop, 1);
-    const travelPx = Math.max(viewportHeight - rect.top, 0);
-    const delayPx = resolveVisibilityDelayPx(delay, waitFor, calculatedDelayRef.current);
-    const clampedDelayPx = Math.min(delayPx, Math.max(enterWindowPx - 1, 0));
-    const enterStartTravelPx = waitFor ? delayPx : clampedDelayPx;
-    const enterEndTravelPx = waitFor ? delayPx + enterWindowPx : enterWindowPx;
-    const enterProgress = hasExplicitEnter
-      ? clamp(
-          (travelPx - enterStartTravelPx) / Math.max(enterEndTravelPx - enterStartTravelPx, 1),
-          0,
-          1
-        )
-      : isIntersecting || aboveViewport
-        ? 1
-        : 0;
-
-    if (!hasExplicitExit) {
-      const nextMotion =
-        aboveViewport && replayOnReenter ? 0 : isIntersecting || aboveViewport ? enterProgress : 0;
-      visualMotion.set(nextMotion);
-      setShouldRunInfiniteState(nextMotion >= 1);
+    const rect = hostElement.getBoundingClientRect();
+    // Pre-layout / unmounted host reports a zero-area box at the origin. A naive
+    // gate read there would see relTop=0 and fire the enter prematurely, so bail
+    // and keep the current phase until the element has a real box. In a real
+    // browser this just defers the decision by one frame until layout settles.
+    const hasMeasurableBox = rect.width > 0 || rect.height > 0 || rect.bottom !== rect.top;
+    if (!hasMeasurableBox) {
       return;
     }
+    const scrollRoot = hostElement.closest<HTMLElement>('[data-cineview-container="true"]');
+    const containerTop = scrollRoot ? scrollRoot.getBoundingClientRect().top : 0;
+    // The container is always full-height (project invariant), so its clientHeight
+    // equals innerHeight in a real browser. Fall back to innerHeight when the
+    // container reports 0 (jsdom, or before layout) so the gate math stays valid.
+    const containerHeight = scrollRoot?.clientHeight || 0;
+    const vh = containerHeight || window.innerHeight || 1;
+    const relTop = rect.top - containerTop;
+    const relBottom = rect.bottom - containerTop;
+    const elementHeight = Math.max(rect.height, relBottom - relTop, 0);
 
-    const exitStartTravelPx = Math.max(enterWindowPx, waitFor ? enterEndTravelPx : enterWindowPx);
-    if (travelPx <= exitStartTravelPx) {
-      visualMotion.set(enterProgress);
-      setShouldRunInfiniteState(enterProgress >= 1);
-      return;
+    // Oversized: an element taller than the usable enter band can never be
+    // "fully inside with a bottom margin", so it uses a preparatory rule —
+    // enter once its top crosses the viewport center, exit once its bottom
+    // rises past 70% of the viewport.
+    const isOversized = elementHeight > vh - enterMarginPx;
+    const rawEnterGate = isOversized
+      ? relTop <= vh / 2
+      : relTop >= 0 && relBottom <= vh - enterMarginPx;
+    // Symmetric exit: a normal element leaves via the TOP (top edge within
+    // exitMargin of the viewport top) on forward scroll, OR via the BOTTOM
+    // (bottom edge within exitMargin of the viewport bottom) on reverse scroll.
+    // The single-sided top-only gate exited on forward scroll but never on
+    // reverse — an element scrolled back down to the bottom held its entered
+    // frame instead of exiting, which read as asymmetric.
+    const exitGate = isOversized
+      ? relBottom <= vh * 0.7
+      : relTop <= exitMarginPx || relBottom >= vh - exitMarginPx;
+    // Gate overlap differs by path. Normal: enter (relTop>=0 && relBottom<=vh−
+    // enterMargin) overlaps the top exit band (relTop<=exitMargin) only in the
+    // [0, exitMargin] comfort band, and touches the bottom exit band
+    // (relBottom>=vh−exitMargin) only at the single point relBottom=vh−margin
+    // (when enter/exit margins are equal) — both are hysteresis dead zones where
+    // the switch mutex holds the current phase. Forward entry rising through the
+    // bottom band stays in 'idle' (idle never exits), so no premature exit fires.
+    // Oversized: enter (top<=center) and exit (bottom<=70%) overlap across a
+    // large region where the element is genuinely leaving (top still above center
+    // is a stale artifact), so exit must win — suppress enter whenever exit is
+    // satisfied on this path.
+    const enterGate = isOversized ? rawEnterGate && !exitGate : rawEnterGate;
+    const aboveTop = relBottom <= 0;
+
+    // First measurement: if the element is already scrolled past the top, reveal
+    // it at its terminal (entered) frame without replaying an enter tween. It is
+    // above the viewport (off-screen), so infinite stays paused until a later
+    // measure brings it back on-screen.
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      if (aboveTop) {
+        stopTween();
+        visualMotion.set(1);
+        phaseRef.current = 'entered';
+        setShouldRunInfiniteState(resolveInfiniteActive('entered', false));
+        return;
+      }
     }
 
-    const exitProgress = clamp((travelPx - exitStartTravelPx) / Math.max(exitWindowPx, 1), 0, 1);
-    visualMotion.set(exitProgress > 0 ? -exitProgress : -VISIBILITY_EXIT_EPSILON);
-    setShouldRunInfiniteState(false);
+    // Phase-transition decision is a pure function (resolveGatePhaseAction) so
+    // the overlap-band hysteresis mutex can be proven deterministically in tests
+    // without the framer-motion mock collapsing the mid-exit flash frame.
+    const action = resolveGatePhaseAction(phaseRef.current, enterGate, exitGate, {
+      hasExplicitExit,
+      replayOnReenter,
+    });
+    if (action === 'enter') {
+      runEnterTween();
+    } else if (action === 'exit') {
+      runExitTween();
+    }
+
+    // Reconcile infinite-animation activity against on-screen visibility every
+    // measure. An element with no authored exitAnimation (hasExplicitExit=false)
+    // never leaves 'entered' in EITHER direction, so its phase stays 'entered'
+    // even after it scrolls fully off-screen — leaving infiniteAnimation (e.g.
+    // pulse) running off-screen forever (wasted work). resolveInfiniteActive
+    // pauses it whenever the element is not intersecting the viewport, and a
+    // later measure that brings it back on-screen (still 'entered') resumes it.
+    const onScreen = relBottom > 0 && relTop < vh;
+    setShouldRunInfiniteState(resolveInfiniteActive(phaseRef.current, onScreen));
   }, [
-    delay,
-    exitWhen,
-    hasExplicitEnter,
+    enterMarginPx,
+    exitMarginPx,
     hasExplicitExit,
     isScrollDriven,
     replayOnReenter,
-    waitFor,
+    runEnterTween,
+    runExitTween,
+    sceneContext?.firstSceneEnterReady,
+    stopTween,
     visualMotion,
   ]);
 
@@ -518,7 +658,6 @@ export function useAnimateScroll({
     phaseEnd,
     hasExplicitEnter,
     hasExplicitExit,
-    exitWhen,
     replayOnReenter,
     sceneContext?.scrollProgress,
     sceneContext?.scrollTimelineState,
@@ -569,6 +708,10 @@ export function useAnimateScroll({
       window.removeEventListener('resize', scheduleVisibilityUpdate);
     };
   }, [hostVersion, isScrollDriven, runVisibilityUpdate]);
+
+  // Stop any in-flight enter/exit tween + pending enter-delay timer on unmount so
+  // framer-motion's animate() does not fire onComplete (setState) after teardown.
+  useEffect(() => stopTween, [stopTween]);
 
   useEffect(() => {
     if (isScrollDriven) {

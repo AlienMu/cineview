@@ -36,3 +36,9 @@ pnpm-debug.log*
 
 # Husky
 .husky/_
+
+# Tooling / local agent config
+.claude
+
+# Bundle analysis output
+stats.html

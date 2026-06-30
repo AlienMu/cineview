@@ -140,13 +140,13 @@ describe('CineView Component', () => {
       ]);
 
       const { rerender } = render(
-        <CineView config={defaultConfig} callbacks={{ common: { onLoadProgress: () => {} } }}>
+        <CineView config={defaultConfig} callbacks={{ onLoadProgress: () => {} }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
         </CineView>
       );
 
       rerender(
-        <CineView config={defaultConfig} callbacks={{ common: { onLoadProgress: () => {} } }}>
+        <CineView config={defaultConfig} callbacks={{ onLoadProgress: () => {} }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
         </CineView>
       );
@@ -302,7 +302,7 @@ describe('CineView Component', () => {
       const ref = createRef<CineViewRef>();
 
       render(
-        <CineView ref={ref} config={defaultConfig} callbacks={{ common: { onReady: onInit } }}>
+        <CineView ref={ref} config={defaultConfig} callbacks={{ onReady: onInit }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
@@ -319,7 +319,7 @@ describe('CineView Component', () => {
         <CineView
           ref={ref}
           config={defaultConfig}
-          callbacks={{ common: { onSceneWillChange: onBeforeSceneChange } }}
+          callbacks={{ onSceneWillChange: onBeforeSceneChange }}
         >
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
@@ -347,7 +347,7 @@ describe('CineView Component', () => {
         <CineView
           ref={ref}
           config={defaultConfig}
-          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+          callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
@@ -369,11 +369,65 @@ describe('CineView Component', () => {
       });
     });
 
+    it('drag 模式下 ref.goToScene 补发 onDragCommit 一次（统一手势与程序化提交）', async () => {
+      const onDragCommit = jest.fn();
+      const ref = createRef<CineViewRef>();
+
+      render(
+        <CineView ref={ref} mode="drag" config={defaultConfig} callbacks={{ onDragCommit }}>
+          <MockScene>Scene 1</MockScene>
+          <MockScene>Scene 2</MockScene>
+          <MockScene>Scene 3</MockScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(ref.current).not.toBeNull();
+      });
+
+      act(() => {
+        ref.current?.goToScene(1);
+      });
+
+      expect(onDragCommit).toHaveBeenCalledTimes(1);
+      expect(onDragCommit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sceneIndex: 0,
+          targetSceneIndex: 1,
+          progress: 1,
+          direction: 'forward',
+        })
+      );
+    });
+
+    it('ref.goToScene 在 no-op（同索引/越界）时不发 onDragCommit', async () => {
+      const onDragCommit = jest.fn();
+      const ref = createRef<CineViewRef>();
+
+      render(
+        <CineView ref={ref} mode="drag" config={defaultConfig} callbacks={{ onDragCommit }}>
+          <MockScene>Scene 1</MockScene>
+          <MockScene>Scene 2</MockScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(ref.current).not.toBeNull();
+      });
+
+      act(() => {
+        ref.current?.goToScene(0); // 同索引
+        ref.current?.goToScene(5); // 越界
+      });
+
+      expect(onDragCommit).not.toHaveBeenCalled();
+    });
+
     it('应该触发 onLoadProgress 回调', () => {
       const onLoadProgress = jest.fn();
 
       render(
-        <CineView config={defaultConfig} callbacks={{ common: { onLoadProgress } }}>
+        <CineView config={defaultConfig} callbacks={{ onLoadProgress }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
         </CineView>
       );

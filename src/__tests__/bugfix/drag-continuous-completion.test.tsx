@@ -11,8 +11,9 @@
  *  - completing the page-slide (render) lane ALONE commits the scene change
  *    (the long element timeline must NOT gate the commit);
  *  - the commit lands at the PARTIAL release elapsed (< T), so a settle
- *    continuation is created on the incoming scene and onSceneDidChange is
- *    DEFERRED until that continuation finishes;
+ *    continuation is created on the incoming scene; onSceneDidChange fires AT
+ *    the commit (scene-switch-complete = render commit), NOT gated on the
+ *    continuation — the element line is independent and interruptible;
  *  - the continuation advances the remaining timeline at natural rate (its
  *    duration reflects T minus the elapsed reached at commit) — it is NOT
  *    crammed into the slide window (which caused the "animation runs too fast
@@ -170,9 +171,9 @@ function renderDragApp(onSceneDidChange?: jest.Mock) {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600 } }}
+      modes={{ drag: { direction: 'y', transitionDuration: 600, dragTimeScale: 25 } }}
       config={{ width: 750, height: 1334, unit: 'px' }}
-      callbacks={{ common: { onSceneDidChange } }}
+      callbacks={{ onSceneDidChange }}
     >
       <Scene
         transition={{ enterAnimation: 'slide-up', exitAnimation: 'fade-out', exitDuration: 600 }}
@@ -224,7 +225,7 @@ describe('drag continuous cross-commit completion', () => {
     animateCalls.length = 0;
   });
 
-  it('commits on the page-slide lane alone and DEFERS onSceneDidChange for a natural-rate continuation', async () => {
+  it('commits on the page-slide lane alone and fires onSceneDidChange AT commit; the element continuation runs on independently', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
     await waitFor(() => {
@@ -248,13 +249,19 @@ describe('drag continuous cross-commit completion', () => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
     });
 
-    // ...but the element timeline is not finished, so onSceneDidChange is
-    // DEFERRED until the continuation settles (it has NOT fired yet).
-    expect(onSceneDidChange).not.toHaveBeenCalled();
+    // The scene switch is COMPLETE at the render commit, so onSceneDidChange has
+    // already fired exactly once — it is NOT gated on the element continuation.
+    await waitFor(() => {
+      expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+    });
+    expect(onSceneDidChange).toHaveBeenCalledWith(
+      expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+    );
 
     // A continuation animation exists on the incoming scene, advancing the
-    // shared timeline toward its full duration (2500ms) from the partial elapsed
-    // reached at commit — i.e. at natural rate, NOT crammed into the slide.
+    // element timeline toward its full duration (2500ms) from the partial elapsed
+    // reached at commit — i.e. at natural rate, NOT crammed into the slide, NOT
+    // restarted from 0 (continuous completion).
     const continuation = animateCalls.find(
       (c) => c.kind === 'motion-value' && c.target >= 2400 && !c.stopped
     );
@@ -264,15 +271,12 @@ describe('drag continuous cross-commit completion', () => {
     expect(continuation!.durationMs).not.toBeNull();
     expect(continuation!.durationMs!).toBeGreaterThan(200);
 
-    // Finishing the continuation fires onSceneDidChange exactly once.
+    // Finishing the continuation drives the visual enter to completion but does
+    // NOT fire onSceneDidChange a second time — the public callback already fired
+    // at commit; the element line only triggers internal cleanup.
     await act(async () => {
       continuation!.onComplete?.();
     });
-    await waitFor(() => {
-      expect(onSceneDidChange).toHaveBeenCalledTimes(1);
-    });
-    expect(onSceneDidChange).toHaveBeenCalledWith(
-      expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
-    );
+    expect(onSceneDidChange).toHaveBeenCalledTimes(1);
   });
 });

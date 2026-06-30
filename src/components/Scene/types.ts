@@ -1,5 +1,6 @@
 import type {
   AnimationType,
+  DragThresholdConfig,
   SceneAnchor,
   SceneProps,
   SceneStackMode,
@@ -60,6 +61,16 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     sharedTimelineDurationMs?: number;
     viewportWidth?: number;
     viewportHeight?: number;
+    // CineView-owned signal: the initial active scene is playing its one-shot
+    // first-screen enter animation (driven by its own element track once
+    // first-screen priority assets settle). Distinct from the scene-switch
+    // release path.
+    firstSceneEnterActive?: boolean;
+    // CineView-owned trigger: first-screen priority assets are ready (or forced
+    // ready). Turns on the scene-0 cold-start element-track driver. Distinct
+    // from the active flag above (which holds the scene at its initial frame
+    // until then).
+    firstSceneEnterReady?: boolean;
   };
   dragRuntime?: {
     progress?: number;
@@ -67,6 +78,13 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     timelineProgress?: number;
     isDragging?: boolean;
     release?: DragRelease | null;
+    threshold?: DragThresholdConfig;
+    // Absolute follow-finger time scale: ms of element-timeline elapsed per 1% of
+    // drag (default 100 = 1% → 100ms, full drag → 10000ms). The follow-finger write
+    // maps drag % to this absolute clock instead of the scene timeline T_self, so
+    // drag SPEED is decoupled from animation length. Settle continues from the
+    // reached elapsed to T_self at real rate.
+    dragTimeScale?: number;
     onCommit?: (
       direction: 'forward' | 'backward',
       progressRatio: number,
@@ -105,34 +123,6 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     timelineDuration?: number
   ) => void;
   onDragReset?: () => void;
-  globalDragProgress?: number;
-  globalRenderProgress?: number;
-  globalDragTimelineProgress?: number;
-  globalIsDragging?: boolean;
-  globalScrollProgress?: number;
-  globalIsScrolling?: boolean;
-  globalScrollDirection?: 'forward' | 'backward' | null;
-  globalScrollTransitionSnapshot?: ScrollTransitionSnapshot | null;
-  globalScrollBackdropActive?: boolean;
-  globalScrollTimelineState?: ScrollTimelineState | null;
-  globalScrollActiveSceneIndex?: number;
-  globalScrollViewportOffset?: number;
-  globalViewportWidth?: number;
-  globalViewportHeight?: number;
-  globalSharedTimelineDurationMs?: number;
-  // Two-track model: the single read-only release directive (settle / bounce)
-  // published by the outgoing scene's release. Replaces globalDragTransitionSnapshot.
-  globalDragRelease?: DragRelease | null;
-  // CineView-owned signal: the initial active scene is playing its one-shot
-  // first-screen enter animation (driven by its own element track once first-screen
-  // priority assets settle). Distinct from the scene-switch release path.
-  globalFirstSceneEnterActive?: boolean;
-  // CineView-owned trigger: first-screen priority assets are ready (or forced
-  // ready). Turns on the scene-0 cold-start element-track driver. Distinct from
-  // the window flag above (which holds the scene at its initial frame until then).
-  globalFirstSceneEnterReady?: boolean;
-  globalDirection?: 'forward' | 'backward' | null;
-  globalIsSceneAnimating?: boolean;
   onActivationComplete?: () => void;
   onDragProgressChange?: (progress: number) => void;
   onRenderProgressChange?: (progress: number) => void;

@@ -1,11 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
-import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
-import type {
-  SceneScrollRuntimeContextValue,
-  SceneScrollTimelineState,
+import {
+  SceneScrollRuntimeContext,
+  SceneScrollTimelineContext,
+  SceneScrollTakeoverContext,
 } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import { CineViewRuntimeContext } from '../CineView/runtimeContext';
 
 const animationControlsRegistry: Array<{
@@ -203,7 +205,7 @@ function createZoneState(progressPx: number): SceneScrollTimelineState {
   };
 }
 
-function createZoneRuntime(progressPx: number, version: number): SceneScrollRuntimeContextValue {
+function createZoneRuntime(progressPx: number, version: number): SceneScrollZoneRuntime {
   return {
     version,
     zoneStates: {
@@ -252,10 +254,7 @@ function createReplayZoneState(progressPx: number): SceneScrollTimelineState {
   };
 }
 
-function createReplayZoneRuntime(
-  progressPx: number,
-  version: number
-): SceneScrollRuntimeContextValue {
+function createReplayZoneRuntime(progressPx: number, version: number): SceneScrollZoneRuntime {
   return {
     version,
     zoneStates: {
@@ -269,10 +268,7 @@ function createReplayZoneRuntime(
   };
 }
 
-function createSharedPhaseRuntime(
-  progressPx: number,
-  version: number
-): SceneScrollRuntimeContextValue {
+function createSharedPhaseRuntime(progressPx: number, version: number): SceneScrollZoneRuntime {
   return {
     version,
     zoneStates: {
@@ -353,6 +349,28 @@ function createSharedPhaseRuntime(
   };
 }
 
+// Mounts both scroll contexts from one merged runtime: the runtime context
+// gets the stable registration API, the timeline context gets the live
+// version/zoneStates snapshot. Mirrors how DirectScrollCineView provides them
+// as two separate contexts.
+function ScrollZoneProviders({
+  runtime,
+  children,
+}: {
+  runtime: SceneScrollZoneRuntime;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <SceneScrollRuntimeContext.Provider value={runtime}>
+      <SceneScrollTimelineContext.Provider
+        value={{ version: runtime.version, zoneStates: runtime.zoneStates }}
+      >
+        {children}
+      </SceneScrollTimelineContext.Provider>
+    </SceneScrollRuntimeContext.Provider>
+  );
+}
+
 function createHostRect(top: number, bottom: number): DOMRect {
   return {
     top,
@@ -365,6 +383,19 @@ function createHostRect(top: number, bottom: number): DOMRect {
     y: top,
     toJSON: () => undefined,
   } as DOMRect;
+}
+
+// Fire a scroll event and let the visibility hook's scheduled rAF callback
+// (runVisibilityUpdate -> setShouldRunInfiniteState) settle INSIDE an act scope.
+// The hook schedules the gate read on requestAnimationFrame; without flushing
+// that frame under act, its setState lands after the test's synchronous segment
+// and React warns "update not wrapped in act". A bare macrotask wait covers the
+// jsdom rAF (≈16ms) plus the microtask the motion-div mock uses to re-render.
+async function flushScroll(target: Window | HTMLElement): Promise<void> {
+  await act(async () => {
+    fireEvent.scroll(target as HTMLElement);
+    await new Promise((resolve) => setTimeout(resolve, 32));
+  });
 }
 
 function readMotionOpacity(): number {
@@ -403,28 +434,30 @@ function renderReplayPhaseProbe(
     progressPx: number,
     version: number,
     sceneOverrides: Partial<SceneContextType> = {}
-  ): JSX.Element => (
-    <SceneContext.Provider value={{ ...sceneContext, ...sceneOverrides }}>
-      <SceneScrollRuntimeContext.Provider value={createReplayZoneRuntime(progressPx, version)}>
-        <SceneScrollTakeoverContext.Provider value="zone-1">
-          <Animate
-            animateId="phase-replay-probe"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{
-              driver: 'scroll',
-              phase: {
-                start: 0.25,
-                end: 0.75,
-              },
-            }}
-          >
-            <div>Replay probe</div>
-          </Animate>
-        </SceneScrollTakeoverContext.Provider>
-      </SceneScrollRuntimeContext.Provider>
-    </SceneContext.Provider>
-  );
+  ): JSX.Element => {
+    return (
+      <SceneContext.Provider value={{ ...sceneContext, ...sceneOverrides }}>
+        <ScrollZoneProviders runtime={createReplayZoneRuntime(progressPx, version)}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate
+              animateId="phase-replay-probe"
+              enterAnimation="fade-in"
+              exitAnimation="fade-out"
+              timeline={{
+                driver: 'scroll',
+                phase: {
+                  start: 0.25,
+                  end: 0.75,
+                },
+              }}
+            >
+              <div>Replay probe</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </ScrollZoneProviders>
+      </SceneContext.Provider>
+    );
+  };
 
   const { rerender } = render(renderTree(initialProgressPx, 1, initialSceneOverrides));
 
@@ -482,14 +515,169 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         y: 300,
         toJSON: () => undefined,
       }) as DOMRect;
-    fireEvent.scroll(window);
+    await flushScroll(window);
 
     await waitFor(() => {
       expect(screen.getByTestId('motion-div')).toHaveAttribute('data-opacity', '1');
     });
   });
 
-  it('keeps ordinary scroll content visually present when it is only partially inside the viewport', async () => {
+  it('uses the center/70% preparatory rule for an oversized element taller than the viewport band', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const sceneContext = createScrollSceneContext();
+    let hostRect = createHostRect(700, 2100); // height 1400 > vh - margin
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="oversized-probe"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>Oversized content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-host="oversized-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="oversized-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+
+      // top below viewport center -> NOT entered (the standard "fully inside"
+      // rule would never fire for an element taller than the viewport).
+      await flushScroll(window);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(readMotionOpacity()).toBe(0);
+
+      // top crosses viewport center (500) -> enter.
+      hostRect = createHostRect(400, 1800);
+      await flushScroll(window);
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+
+      // bottom still below 70% line (700) -> stays entered.
+      hostRect = createHostRect(-200, 1200);
+      await flushScroll(window);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(readMotionOpacity()).toBe(1);
+
+      // bottom rises past 70% line -> exit.
+      hostRect = createHostRect(-900, 500);
+      await flushScroll(window);
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(0);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('honors a per-Animate enterMargin override over the default gate', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const sceneContext = createScrollSceneContext();
+    // bottom at 800: with default 50px margin the bottom gap (200) clears, so the
+    // element would enter; with a 300px margin it must NOT yet enter (800 > 700).
+    const hostRect = createHostRect(100, 800);
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="margin-probe"
+            enterAnimation="fade-in"
+            timeline={{ driver: 'visibility' }}
+            visibility={{ enterMargin: 300 }}
+          >
+            <article>Custom margin content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-host="margin-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="margin-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+      await flushScroll(window);
+
+      // bottom 800 > vh(1000) - enterMargin(300) = 700 -> gate not satisfied.
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(readMotionOpacity()).toBe(0);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('falls back to the CineView-level enterMargin when no per-Animate override is set', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const hostRect = createHostRect(100, 800);
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <CineViewRuntimeContext.Provider value={{ mode: 'scroll', scrollEnterMargin: 300 }}>
+          <main data-cineview-container="true">
+            <Animate
+              animateId="global-margin-probe"
+              enterAnimation="fade-in"
+              timeline={{ driver: 'visibility' }}
+            >
+              <article>Global margin content</article>
+            </Animate>
+          </main>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-host="global-margin-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="global-margin-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+      await flushScroll(window);
+
+      // global 300px margin -> bottom 800 > 700 -> not entered.
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(readMotionOpacity()).toBe(0);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('holds an explicitly-animated element at its initial frame while only partially inside the viewport', async () => {
     const originalInnerHeight = window.innerHeight;
 
     Object.defineProperty(window, 'innerHeight', {
@@ -521,11 +709,22 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       const host = container.querySelector(
         '[data-cineview-animate-host="partial-doc-content"]'
       ) as HTMLElement;
+      // Bottom (1220) is past the viewport bottom (1000): the element is only
+      // partially inside, so under the gate model the enter gate is NOT yet
+      // satisfied and it must hold at its initial frame (opacity 0). This is the
+      // intended replacement for the old scrub model, which mid-entered it.
       host.getBoundingClientRect = () => createHostRect(820, 1220);
-      fireEvent.scroll(container.querySelector('[data-cineview-container="true"]') as HTMLElement);
+      await flushScroll(container.querySelector('[data-cineview-container="true"]') as HTMLElement);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(screen.getByTestId('motion-div')).toHaveAttribute('data-opacity', '0');
+
+      // Once fully inside with the 50px bottom gap, the enter gate fires.
+      host.getBoundingClientRect = () => createHostRect(300, 700);
+      await flushScroll(container.querySelector('[data-cineview-container="true"]') as HTMLElement);
 
       await waitFor(() => {
-        expect(screen.getByTestId('motion-div')).not.toHaveAttribute('data-opacity', '0');
+        expect(screen.getByTestId('motion-div')).toHaveAttribute('data-opacity', '1');
       });
     } finally {
       Object.defineProperty(window, 'innerHeight', {
@@ -535,7 +734,201 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
-  it('maps visibility-driven document content through 0 -> 100 -> 200 and back again without snapping off the exit path', async () => {
+  it('reveals an element already scrolled past the top at its entered frame without replaying enter', async () => {
+    // First measurement with the element already above the viewport top
+    // (bottom <= 0): it must snap to the entered frame (opacity 1), not replay
+    // an enter tween from initial.
+    const originalInnerHeight = window.innerHeight;
+    const sceneContext = createScrollSceneContext();
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="above-top-probe"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>Above top content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="above-top-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="above-top-probe"]'
+      ) as HTMLElement;
+      // Already scrolled past: top -600, bottom -200 (entirely above viewport top).
+      host.getBoundingClientRect = () => createHostRect(-600, -200);
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('holds an entered no-exit element at its entered frame when replayOnReenter is false', async () => {
+    // No authored exit + replayOnReenter:false: once entered, leaving the top
+    // must NOT reset to initial — it holds at the entered frame.
+    const originalInnerHeight = window.innerHeight;
+    let hostRect = createHostRect(300, 700);
+    const sceneContext = createScrollSceneContext();
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    const renderAt = (rerender: (ui: JSX.Element) => void, progress: number): void => {
+      rerender(
+        <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
+          <Animate
+            animateId="no-exit-hold-probe"
+            enterAnimation="fade-in"
+            visibility={{ replayOnReenter: false }}
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>No exit hold content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+    };
+
+    try {
+      const { rerender } = render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="no-exit-hold-probe"
+            enterAnimation="fade-in"
+            visibility={{ replayOnReenter: false }}
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>No exit hold content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="no-exit-hold-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="no-exit-hold-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+
+      // Leave the top (top edge crosses above the viewport top → relTop < 0).
+      // With no exit and replayOnReenter:false, it must stay at the entered frame,
+      // not reset to 0.
+      hostRect = createHostRect(-60, 340);
+      renderAt(rerender, 1);
+      await flushScroll(window);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(readMotionOpacity()).toBe(1);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('keeps a no-exit element visible on leave even when replayOnReenter is true', async () => {
+    // No authored exitAnimation: the element must stay at its entered frame
+    // (opacity 1) when it leaves the top, regardless of replayOnReenter. Without
+    // an exit animation there is no exit — "no exit => stay visible". (Previously
+    // replayOnReenter:true reset it to opacity 0, which read as a snap-disappear.)
+    const originalInnerHeight = window.innerHeight;
+    let hostRect = createHostRect(300, 700);
+    const sceneContext = createScrollSceneContext();
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    const renderAt = (rerender: (ui: JSX.Element) => void, progress: number): void => {
+      rerender(
+        <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
+          <Animate
+            animateId="no-exit-replay-probe"
+            enterAnimation="fade-in"
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>No exit replay content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+    };
+
+    try {
+      const { rerender } = render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="no-exit-replay-probe"
+            enterAnimation="fade-in"
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>No exit replay content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="no-exit-replay-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="no-exit-replay-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+
+      // Leave the top (top edge crosses above the viewport top → relTop < 0). With
+      // no exitAnimation the element holds at its entered frame (opacity 1) — it
+      // does NOT snap to hidden, regardless of replayOnReenter.
+      hostRect = createHostRect(-60, 340);
+      renderAt(rerender, 1);
+      await flushScroll(window);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(readMotionOpacity()).toBe(1);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('gates visibility-driven content through idle -> enter -> hold -> exit -> re-enter (no scrub map)', async () => {
+    // Gate model (vh=1000, default margins 50): enter when fully inside with a
+    // 50px bottom gap (relTop>=0 && relBottom<=950); exit when the top reaches
+    // within 50px of the top (relTop<=50). Enter/exit play as time tweens, so we
+    // assert terminal frames + the no-flash invariant (exit never passes through
+    // the initial frame), NOT a position->opacity scrub midpoint.
     const originalInnerHeight = window.innerHeight;
     let hostRect = createHostRect(1000, 1400);
     const sceneContext = createScrollSceneContext();
@@ -544,6 +937,25 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       configurable: true,
       value: 1000,
     });
+
+    const renderAt = async (
+      rerender: (ui: JSX.Element) => void,
+      progress: number
+    ): Promise<void> => {
+      rerender(
+        <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
+          <Animate
+            animateId="handoff-doc-content"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>Handoff content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+      await flushScroll(window);
+    };
 
     try {
       const { rerender } = render(
@@ -569,206 +981,42 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         '[data-cineview-animate-host="handoff-doc-content"]'
       ) as HTMLElement;
       host.getBoundingClientRect = () => hostRect;
-      fireEvent.scroll(window);
 
+      // idle: below the viewport -> rests at the initial frame.
+      await flushScroll(window);
       await waitFor(() => {
         expect(readMotionOpacity()).toBe(0);
       });
 
-      hostRect = createHostRect(650, 1050);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'forward',
-            scrollProgress: 1,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
-      await waitFor(() => {
-        expect(readMotionOpacity()).toBeGreaterThan(0.45);
-        expect(readMotionOpacity()).toBeLessThan(0.55);
-      });
-
+      // enter gate satisfied (fully inside, 50px bottom gap) -> tween to entered.
       hostRect = createHostRect(300, 700);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'forward',
-            scrollProgress: 2,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
+      await renderAt(rerender, 1);
       await waitFor(() => {
         expect(readMotionOpacity()).toBe(1);
       });
 
-      hostRect = createHostRect(-50, 350);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'forward',
-            scrollProgress: 3,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
+      // hold: still inside, top not yet at the exit margin -> stays entered.
+      hostRect = createHostRect(100, 500);
+      await renderAt(rerender, 2);
       await waitFor(() => {
-        expect(readMotionOpacity()).toBeGreaterThan(0.45);
-        expect(readMotionOpacity()).toBeLessThan(0.55);
+        expect(readMotionOpacity()).toBe(1);
       });
 
-      hostRect = createHostRect(-400, 0);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'forward',
-            scrollProgress: 4,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
+      // exit gate satisfied (top within 50px of the top) -> tween to the exit
+      // frame (fade-out -> 0). The exit must not flash the initial frame first.
+      hostRect = createHostRect(-50, 350);
+      await renderAt(rerender, 3);
       await waitFor(() => {
         expect(readMotionOpacity()).toBe(0);
       });
 
-      hostRect = createHostRect(-50, 350);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'backward',
-            scrollProgress: 5,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
-      await waitFor(() => {
-        expect(readMotionOpacity()).toBeGreaterThan(0.45);
-        expect(readMotionOpacity()).toBeLessThan(0.55);
-      });
-
-      hostRect = createHostRect(300, 700);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'backward',
-            scrollProgress: 6,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
-      await waitFor(() => {
-        expect(readMotionOpacity()).toBe(1);
-      });
-
-      hostRect = createHostRect(650, 1050);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'backward',
-            scrollProgress: 7,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
-      await waitFor(() => {
-        expect(readMotionOpacity()).toBeGreaterThan(0.45);
-        expect(readMotionOpacity()).toBeLessThan(0.55);
-      });
-
+      // re-enter from below (replayOnReenter default true) -> tween back to 1.
       hostRect = createHostRect(1000, 1400);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'backward',
-            scrollProgress: 8,
-          }}
-        >
-          <Animate
-            animateId="handoff-doc-content"
-            enterAnimation="fade-in"
-            exitAnimation="fade-out"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Handoff content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
+      await renderAt(rerender, 4);
+      hostRect = createHostRect(300, 700);
+      await renderAt(rerender, 5);
       await waitFor(() => {
-        expect(readMotionOpacity()).toBe(0);
+        expect(readMotionOpacity()).toBe(1);
       });
     } finally {
       Object.defineProperty(window, 'innerHeight', {
@@ -779,8 +1027,12 @@ describe('useAnimateScroll grouped timeline.phase', () => {
   });
 
   it('uses the exit variant while visibility-driven content leaves the top instead of resetting to initial', async () => {
+    // Gate model: after the element enters (y → 0%, animate frame), crossing the
+    // exit gate (top within exitMargin of the viewport top) plays the EXIT
+    // variant (slide-up exits to y -100%). The motion must land on the exit
+    // target (-100%), never snap back through the initial frame (100%).
     const originalInnerHeight = window.innerHeight;
-    let hostRect = createHostRect(300, 700);
+    let hostRect = createHostRect(300, 700); // fully inside → enter gate
     const sceneContext = createScrollSceneContext();
 
     Object.defineProperty(window, 'innerHeight', {
@@ -795,6 +1047,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="visibility-exit-variant-probe"
             enterAnimation="slide-up"
             exitAnimation="slide-up"
+            duration={{ enter: 60, exit: 60 }}
             timeline={{ driver: 'visibility' }}
           >
             <article>Visibility exit variant content</article>
@@ -825,6 +1078,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="visibility-exit-variant-probe"
             enterAnimation="slide-up"
             exitAnimation="slide-up"
+            duration={{ enter: 60, exit: 60 }}
             timeline={{ driver: 'visibility' }}
           >
             <article>Visibility exit variant content</article>
@@ -832,11 +1086,13 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         </SceneContext.Provider>
       );
 
+      // Enter tween settles on the animate frame.
       await waitFor(() => {
         expect(readMotionY()).toBe('0%');
       });
 
-      hostRect = createHostRect(-50, 350);
+      // Element scrolls up past the exit gate (top ≤ exitMargin).
+      hostRect = createHostRect(-400, 0);
       rerender(
         <SceneContext.Provider
           value={{
@@ -849,6 +1105,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="visibility-exit-variant-probe"
             enterAnimation="slide-up"
             exitAnimation="slide-up"
+            duration={{ enter: 60, exit: 60 }}
             timeline={{ driver: 'visibility' }}
           >
             <article>Visibility exit variant content</article>
@@ -856,33 +1113,88 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         </SceneContext.Provider>
       );
 
-      await waitFor(() => {
-        expect(readMotionY()).toBe('-50%');
-      });
-
-      hostRect = createHostRect(-400, 0);
-      rerender(
-        <SceneContext.Provider
-          value={{
-            ...sceneContext,
-            scrollDirection: 'forward',
-            scrollProgress: 3,
-          }}
-        >
-          <Animate
-            animateId="visibility-exit-variant-probe"
-            enterAnimation="slide-up"
-            exitAnimation="slide-up"
-            timeline={{ driver: 'visibility' }}
-          >
-            <article>Visibility exit variant content</article>
-          </Animate>
-        </SceneContext.Provider>
-      );
-
+      // Exit tween lands on the exit variant target, never the initial frame.
       await waitFor(() => {
         expect(readMotionY()).toBe('-100%');
-        expect(readMotionY()).not.toBe('100%');
+      });
+      expect(readMotionY()).not.toBe('100%');
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('plays the exit when an entered element leaves via the BOTTOM on reverse scroll', async () => {
+    // Symmetric exit: after entering, scrolling back UP pushes the element down
+    // until its bottom edge re-approaches the viewport bottom (relBottom >= vh -
+    // exitMargin). That must fire the exit, mirroring the top-edge exit on
+    // forward scroll. The pre-fix top-only gate (relTop <= exitMargin) never
+    // fired here, so the element held its entered frame (opacity 1) forever.
+    const originalInnerHeight = window.innerHeight;
+    let hostRect = createHostRect(300, 700); // fully inside → enter gate
+    const sceneContext = createScrollSceneContext();
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    const renderAt = (rerender: (ui: JSX.Element) => void, progress: number): void => {
+      rerender(
+        <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
+          <Animate
+            animateId="reverse-bottom-exit-probe"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            duration={{ enter: 60, exit: 60 }}
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>Reverse bottom exit content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+    };
+
+    try {
+      const { rerender } = render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="reverse-bottom-exit-probe"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            duration={{ enter: 60, exit: 60 }}
+            timeline={{ driver: 'visibility' }}
+          >
+            <article>Reverse bottom exit content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="reverse-bottom-exit-probe"]')
+        ).not.toBeNull();
+      });
+
+      const host = document.querySelector(
+        '[data-cineview-animate-host="reverse-bottom-exit-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+
+      // Enter: fully inside with the 50px bottom gap.
+      await flushScroll(window);
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+
+      // Reverse scroll pushes the element down: bottom edge within exitMargin of
+      // the viewport bottom (relBottom 960 >= 1000 - 50). The bottom exit gate
+      // fires and the element fades out.
+      hostRect = createHostRect(560, 960);
+      renderAt(rerender, 1);
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(0);
       });
     } finally {
       Object.defineProperty(window, 'innerHeight', {
@@ -927,7 +1239,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         '[data-cineview-animate-host="visibility-infinite-exit"]'
       ) as HTMLElement;
       host.getBoundingClientRect = () => hostRect;
-      fireEvent.scroll(window);
+      await flushScroll(window);
 
       await waitFor(() => {
         expect(readMotionOpacity()).toBe(1);
@@ -984,9 +1296,14 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
-  it('lets waitFor-derived delay override the default center-complete visibility timing', async () => {
+  it('holds the enter tween at the initial frame while the waitFor-derived delay is pending', async () => {
+    // Gate model: a satisfied enter gate launches the enter tween, but a
+    // waitFor dependency defers the tween launch by the registry-calculated
+    // delay (here 5000ms). Within that window the element stays at its initial
+    // frame (opacity 0) even though its gate is already satisfied — proving the
+    // delay gates the TIME-based tween, not a position scrub.
     const originalInnerHeight = window.innerHeight;
-    const hostRect = createHostRect(300, 700);
+    const hostRect = createHostRect(300, 700); // fully inside, enter gate satisfied
     const sceneContext = createScrollSceneContext();
     sceneContext.getCalculatedDelay = jest.fn(() => 5000);
 
@@ -1003,6 +1320,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             delay={120}
             waitFor="leader"
+            duration={{ enter: 80, exit: 80 }}
             timeline={{ driver: 'visibility' }}
           >
             <article>WaitFor visibility content</article>
@@ -1034,6 +1352,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             delay={120}
             waitFor="leader"
+            duration={{ enter: 80, exit: 80 }}
             timeline={{ driver: 'visibility' }}
           >
             <article>WaitFor visibility content</article>
@@ -1041,9 +1360,10 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         </SceneContext.Provider>
       );
 
-      await waitFor(() => {
-        expect(readMotionOpacity()).toBe(0);
-      });
+      // The enter tween is deferred 5000ms by the waitFor delay, so the element
+      // stays at its initial frame across this polling window.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(readMotionOpacity()).toBe(0);
     } finally {
       Object.defineProperty(window, 'innerHeight', {
         configurable: true,
@@ -1058,7 +1378,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     const { rerender } = render(
       <SceneContext.Provider value={sceneContext}>
-        <SceneScrollRuntimeContext.Provider value={initialRuntime}>
+        <ScrollZoneProviders runtime={initialRuntime}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
             <Animate
               animateId="phased-probe"
@@ -1074,7 +1394,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               <div>Phased probe</div>
             </Animate>
           </SceneScrollTakeoverContext.Provider>
-        </SceneScrollRuntimeContext.Provider>
+        </ScrollZoneProviders>
       </SceneContext.Provider>
     );
 
@@ -1084,7 +1404,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     rerender(
       <SceneContext.Provider value={{ ...sceneContext, scrollProgress: 1 }}>
-        <SceneScrollRuntimeContext.Provider value={createZoneRuntime(200, 2)}>
+        <ScrollZoneProviders runtime={createZoneRuntime(200, 2)}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
             <Animate
               animateId="phased-probe"
@@ -1100,7 +1420,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               <div>Phased probe</div>
             </Animate>
           </SceneScrollTakeoverContext.Provider>
-        </SceneScrollRuntimeContext.Provider>
+        </ScrollZoneProviders>
       </SceneContext.Provider>
     );
 
@@ -1110,7 +1430,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     rerender(
       <SceneContext.Provider value={{ ...sceneContext, scrollProgress: 2 }}>
-        <SceneScrollRuntimeContext.Provider value={createZoneRuntime(400, 3)}>
+        <ScrollZoneProviders runtime={createZoneRuntime(400, 3)}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
             <Animate
               animateId="phased-probe"
@@ -1126,7 +1446,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               <div>Phased probe</div>
             </Animate>
           </SceneScrollTakeoverContext.Provider>
-        </SceneScrollRuntimeContext.Provider>
+        </ScrollZoneProviders>
       </SceneContext.Provider>
     );
 
@@ -1218,7 +1538,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     render(
       <SceneContext.Provider value={sceneContext}>
-        <SceneScrollRuntimeContext.Provider value={createSharedPhaseRuntime(900, 1)}>
+        <ScrollZoneProviders runtime={createSharedPhaseRuntime(900, 1)}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
             <Animate
               animateId="scenarios-left"
@@ -1242,7 +1562,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               <div>Right</div>
             </Animate>
           </SceneScrollTakeoverContext.Provider>
-        </SceneScrollRuntimeContext.Provider>
+        </ScrollZoneProviders>
       </SceneContext.Provider>
     );
 

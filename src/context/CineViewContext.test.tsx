@@ -2,7 +2,7 @@
  * CineViewContext 测试
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { CineViewProvider, useCineViewContext } from './CineViewContext';
 
@@ -13,7 +13,7 @@ describe('CineViewContext', () => {
         const context = useCineViewContext();
         return (
           <div>
-            <div data-testid="designSize">{context?.designSize}</div>
+            <div data-testid="designWidth">{context?.designWidth}</div>
             <div data-testid="unit">{context?.unit}</div>
           </div>
         );
@@ -25,16 +25,16 @@ describe('CineViewContext', () => {
         </CineViewProvider>
       );
 
-      expect(screen.getByTestId('designSize')).toHaveTextContent('750');
+      expect(screen.getByTestId('designWidth')).toHaveTextContent('750');
       expect(screen.getByTestId('unit')).toHaveTextContent('px');
     });
 
-    it('should use custom designSize and unit', (): void => {
+    it('should use custom designWidth and unit', (): void => {
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
         return (
           <div>
-            <div data-testid="designSize">{context?.designSize}</div>
+            <div data-testid="designWidth">{context?.designWidth}</div>
             <div data-testid="unit">{context?.unit}</div>
           </div>
         );
@@ -46,7 +46,7 @@ describe('CineViewContext', () => {
         </CineViewProvider>
       );
 
-      expect(screen.getByTestId('designSize')).toHaveTextContent('1920');
+      expect(screen.getByTestId('designWidth')).toHaveTextContent('1920');
       expect(screen.getByTestId('unit')).toHaveTextContent('rem');
     });
 
@@ -60,7 +60,7 @@ describe('CineViewContext', () => {
 
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        return <div data-testid="scale">{context?.scale}</div>;
+        return <div data-testid="scale">{context?.scaleX}</div>;
       };
 
       render(
@@ -76,7 +76,7 @@ describe('CineViewContext', () => {
     it('should calculate scale correctly for non-px unit', (): void => {
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        return <div data-testid="scale">{context?.scale}</div>;
+        return <div data-testid="scale">{context?.scaleX}</div>;
       };
 
       // Mock window.innerWidth
@@ -113,10 +113,6 @@ describe('CineViewContext', () => {
         </CineViewProvider>
       );
 
-      // Get initial values
-      screen.getByTestId('viewportWidth').textContent;
-      screen.getByTestId('viewportHeight').textContent;
-
       // Trigger resize event
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
@@ -128,13 +124,17 @@ describe('CineViewContext', () => {
         configurable: true,
         value: 768,
       });
-      window.dispatchEvent(new Event('resize'));
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
 
-      // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      expect(screen.getByTestId('viewportWidth')).toHaveTextContent('1024');
-      expect(screen.getByTestId('viewportHeight')).toHaveTextContent('768');
+      // The resize handler is debounced (150ms) and updates state; poll until
+      // the debounced commit flushes to the DOM rather than asserting after a
+      // fixed delay (a fixed setTimeout races the debounce + act flush).
+      await waitFor(() => {
+        expect(screen.getByTestId('viewportWidth')).toHaveTextContent('1024');
+        expect(screen.getByTestId('viewportHeight')).toHaveTextContent('768');
+      });
     });
 
     it('should provide convertSize function', (): void => {
@@ -147,7 +147,7 @@ describe('CineViewContext', () => {
 
       const TestComponent = (): JSX.Element => {
         const context = useCineViewContext();
-        const converted = context?.convertSize(100);
+        const converted = context?.convertX(100);
         return <div data-testid="converted">{converted}</div>;
       };
 
@@ -178,7 +178,7 @@ describe('CineViewContext', () => {
       const { result } = renderHook(() => useCineViewContext(), { wrapper });
 
       expect(result.current).not.toBeNull();
-      expect(result.current?.designSize).toBe(750);
+      expect(result.current?.designWidth).toBe(750);
       expect(result.current?.unit).toBe('px');
     });
   });
@@ -215,7 +215,7 @@ describe('Unit Conversion', () => {
 
     const TestComponent = (): JSX.Element => {
       const context = useCineViewContext();
-      return <div data-testid="scale">{context?.scale}</div>;
+      return <div data-testid="scale">{context?.scaleX}</div>;
     };
 
     render(
@@ -238,7 +238,7 @@ describe('Unit Conversion', () => {
 
     const TestComponent = (): JSX.Element => {
       const context = useCineViewContext();
-      return <div data-testid="scale">{context?.scale}</div>;
+      return <div data-testid="scale">{context?.scaleX}</div>;
     };
 
     render(
@@ -264,7 +264,7 @@ describe('Additional Branch Coverage Tests', () => {
 
     // For rem unit, scale should be viewportWidth / designSize
     const expectedScale = result.current!.viewportWidth / 750;
-    expect(result.current!.scale).toBe(expectedScale);
+    expect(result.current!.scaleX).toBe(expectedScale);
     expect(result.current!.unit).toBe('rem');
   });
 
@@ -279,7 +279,7 @@ describe('Additional Branch Coverage Tests', () => {
 
     // For vw unit, scale should be viewportWidth / designSize
     const expectedScale = result.current!.viewportWidth / 750;
-    expect(result.current!.scale).toBe(expectedScale);
+    expect(result.current!.scaleX).toBe(expectedScale);
     expect(result.current!.unit).toBe('vw');
   });
 
@@ -319,7 +319,7 @@ describe('More Branch Coverage Tests', () => {
     });
 
     // For px unit, scale = viewportWidth / designSize = 750 / 750 = 1
-    expect(result.current!.scale).toBe(1);
+    expect(result.current!.scaleX).toBe(1);
     expect(result.current!.unit).toBe('px');
   });
 
@@ -402,7 +402,7 @@ describe('SSR and Edge Case Coverage', () => {
       expect(result.current!.unit).toBe(unit);
 
       // All units now use scale = viewportWidth / designSize
-      expect(result.current!.scale).toBe(result.current!.viewportWidth / 750);
+      expect(result.current!.scaleX).toBe(result.current!.viewportWidth / 750);
     });
   });
 
@@ -415,7 +415,7 @@ describe('SSR and Edge Case Coverage', () => {
       ),
     });
 
-    const initialScale = result.current!.scale;
+    const initialScale = result.current!.scaleX;
 
     // Change viewport width
     Object.defineProperty(window, 'innerWidth', {
@@ -427,13 +427,13 @@ describe('SSR and Edge Case Coverage', () => {
 
     await waitFor(
       () => {
-        expect(result.current!.scale).not.toBe(initialScale);
+        expect(result.current!.scaleX).not.toBe(initialScale);
       },
       { timeout: 300 }
     );
 
     // Scale should be recalculated
-    expect(result.current!.scale).toBe(1500 / 750);
+    expect(result.current!.scaleX).toBe(1500 / 750);
   });
 
   it('should handle convertSize function with different units', (): void => {
@@ -455,8 +455,8 @@ describe('SSR and Edge Case Coverage', () => {
 
     // Test convertSize function
     const size = 100;
-    const pxConverted = pxResult.current!.convertSize(size);
-    const remConverted = remResult.current!.convertSize(size);
+    const pxConverted = pxResult.current!.convertX(size);
+    const remConverted = remResult.current!.convertX(size);
 
     expect(typeof pxConverted).toBe('number');
     expect(typeof remConverted).toBe('number');
@@ -516,7 +516,7 @@ describe('Additional CineViewContext Coverage', () => {
     });
 
     expect(result.current!.unit).toBe('vw');
-    expect(result.current!.scale).toBe(result.current!.viewportWidth / 750);
+    expect(result.current!.scaleX).toBe(result.current!.viewportWidth / 750);
   });
 
   it('should handle different designSize values', (): void => {
@@ -531,8 +531,8 @@ describe('Additional CineViewContext Coverage', () => {
         ),
       });
 
-      expect(result.current!.designSize).toBe(designSize);
-      expect(result.current!.scale).toBe(result.current!.viewportWidth / designSize);
+      expect(result.current!.designWidth).toBe(designSize);
+      expect(result.current!.scaleX).toBe(result.current!.viewportWidth / designSize);
     });
   });
 
@@ -545,13 +545,13 @@ describe('Additional CineViewContext Coverage', () => {
       ),
     });
 
-    const firstConvertSize = result.current!.convertSize;
+    const firstConvertSize = result.current!.convertX;
 
     // Rerender without changing props
     rerender();
 
     // convertSize function should be the same reference
-    expect(result.current!.convertSize).toBe(firstConvertSize);
+    expect(result.current!.convertX).toBe(firstConvertSize);
   });
 });
 

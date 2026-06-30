@@ -28,15 +28,13 @@ export default function SnapModePage(): JSX.Element {
       <CineView
         ref={cineViewRef}
         callbacks={{
-          common: {
-            onLoadProgress: (progress) => setLoadProgress(progress),
-            onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
-          },
+          onLoadProgress: (progress) => setLoadProgress(progress),
+          onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
         }}
         config={{ width: 1440, height: 1080, unit: 'px' }}
         mode="snap"
         modes={{ snap: { direction: 'y', duration: 860 } }}
-        performance={{ preset: 'smooth', monitor: monitorOpen }}
+        performance={{ monitor: monitorOpen }}
       >
         {renderSnapScenes(PERFORMANCE_EXPERIENCE.sections)}
       </CineView>

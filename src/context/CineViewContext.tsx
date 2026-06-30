@@ -5,22 +5,18 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { debounce } from '../utils/debounce';
-import { convertSize } from '../utils/sizeConverter';
 import type { SizeUnit } from '../types';
 
 export interface CineViewContextValue {
   designWidth: number;
   designHeight: number;
-  designSize: number;
   unit: SizeUnit;
   scaleX: number;
   scaleY: number;
-  scale: number;
   viewportWidth: number;
   viewportHeight: number;
   convertX: (size: number) => number;
   convertY: (size: number) => number;
-  convertSize: (size: number) => number;
 }
 
 const CineViewContext = createContext<CineViewContextValue | null>(null);
@@ -43,7 +39,6 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
 }) => {
   const resolvedDesignWidth = designWidth ?? 750;
   const resolvedDesignHeight = designHeight ?? 1334;
-  const resolvedDesignSize = resolvedDesignWidth;
   const resolvedUnit = unit ?? 'px';
   const [viewportWidth, setViewportWidth] = useState<number>(
     typeof window !== 'undefined' ? window.innerWidth : 750
@@ -61,11 +56,6 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
     () => viewportHeight / resolvedDesignHeight,
     [viewportHeight, resolvedDesignHeight]
   );
-  const scale = useMemo(() => {
-    if (resolvedUnit === 'px') return 1;
-    return scaleX;
-  }, [resolvedUnit, scaleX]);
-
   const convertXFn = useCallback(
     (size: number): number => {
       return size * scaleX;
@@ -78,14 +68,6 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
       return size * scaleY;
     },
     [scaleY]
-  );
-
-  // 尺寸换算函数
-  const convertSizeFn = useCallback(
-    (size: number): number => {
-      return convertSize(size, resolvedDesignWidth, viewportWidth, resolvedUnit);
-    },
-    [resolvedDesignWidth, viewportWidth, resolvedUnit]
   );
 
   // 处理窗口 resize 事件
@@ -108,30 +90,24 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
     () => ({
       designWidth: resolvedDesignWidth,
       designHeight: resolvedDesignHeight,
-      designSize: resolvedDesignSize,
       unit: resolvedUnit,
       scaleX,
       scaleY,
-      scale,
       viewportWidth,
       viewportHeight,
       convertX: convertXFn,
       convertY: convertYFn,
-      convertSize: convertSizeFn,
     }),
     [
       resolvedDesignWidth,
       resolvedDesignHeight,
-      resolvedDesignSize,
       resolvedUnit,
       scaleX,
       scaleY,
-      scale,
       viewportWidth,
       viewportHeight,
       convertXFn,
       convertYFn,
-      convertSizeFn,
     ]
   );
 
@@ -139,25 +115,14 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({
   const containerStyle = useMemo<React.CSSProperties>(
     () =>
       ({
-        '--cineview-scale': scale,
         '--cineview-scale-x': scaleX,
         '--cineview-scale-y': scaleY,
         '--cineview-design-width': `${resolvedDesignWidth}px`,
         '--cineview-design-height': `${resolvedDesignHeight}px`,
-        '--cineview-design-size': `${resolvedDesignSize}px`,
         '--cineview-viewport-width': `${viewportWidth}px`,
         '--cineview-viewport-height': `${viewportHeight}px`,
       }) as React.CSSProperties,
-    [
-      scale,
-      scaleX,
-      scaleY,
-      resolvedDesignWidth,
-      resolvedDesignHeight,
-      resolvedDesignSize,
-      viewportWidth,
-      viewportHeight,
-    ]
+    [scaleX, scaleY, resolvedDesignWidth, resolvedDesignHeight, viewportWidth, viewportHeight]
   );
 
   return (
@@ -195,5 +160,5 @@ export const useConvertSize = (): ((size: number) => number) => {
     return (size: number) => size;
   }
 
-  return context.convertSize;
+  return context.convertX;
 };

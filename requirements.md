@@ -150,7 +150,12 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建拖拽分页
 1. THE Animate SHALL 支持 `timeline.driver = 'scroll' | 'visibility' | 'scene' | 'auto'`
 2. WHERE `timeline.driver = 'scroll'`，THE Animate SHALL 依附所属 `Scene.scroll` 的统一真实滚动距离时间轴
 3. WHERE `timeline.driver = 'scroll'`，THE Animate SHALL NOT 再按自身 `getBoundingClientRect()` 独立计算进退场
-4. WHERE `timeline.driver = 'visibility'`，THE Animate SHALL 基于可视规则自动执行
+4. WHERE `timeline.driver = 'visibility'`，THE Animate SHALL 用「闸门触发 + 按时长补间」自动执行：元素静止在 `initial` 帧，直到进场闸门满足，再按 `enterDuration` 播放一次进场动画；退场为对称的闸门 + 补间。SHALL NOT 把位置连续映射为进度（旧 scrub 模型已废除）
+   - 进场闸门（常规元素）：元素完全在滚动容器内且底边距容器底 ≥ `enterMargin`
+   - 退场闸门（常规元素）：顶边距容器顶 ≤ `exitMargin`
+   - 超高元素（高度 > 容器高 − `enterMargin`）改用预备规则：顶边过容器中心点触发进场，底边升过容器 70% 触发退场
+   - `enterMargin` / `exitMargin` 为设计 px（经 `scaleY` 换算），默认 50；可在 `modes.scroll` 设全局默认，或在 `Animate.visibility` 按元素覆盖
+   - 首屏元素受全局 `useFirstSceneEnter` 门控：优先资产就绪（或超时静态揭示）前静止在 `initial`
 5. WHERE `timeline.driver = 'visibility'`，THE 可视规则 SHALL 只决定补充动画何时触发，而 SHALL NOT 决定元素是否渲染、是否参与自然文档流
 6. THE framework SHALL NOT 把正文、卡片、图片、章节主体等阅读型内容默认隐藏到进入 viewport 才显示
 7. WHERE 元素离开 viewport，THE framework SHALL NOT 默认销毁、重建或将其硬重置为完全隐藏；需要重播或重置时必须显式声明
@@ -227,30 +232,30 @@ CineView 是一款面向 React 的叙事型 UI 框架，用于构建拖拽分页
 
 ### 需求 13: 回调系统
 
-**用户故事**: 作为开发者，我希望回调按模式和职责分组，而不是全部平铺到 root。
+**用户故事**: 作为开发者，我希望回调**扁平暴露并按 `mode` 判别**——`mode='drag'`（或省略）时只能写 common + drag 回调，`mode='scroll'` 时只能写 common + scroll 回调，写错模式的回调应在类型层报错。内部仍按职责分三类（common/drag/scroll），但不向外暴露分组结构。
 
 #### 验收标准
 
-1. THE framework SHALL 提供 `callbacks.common`
-2. THE framework SHALL 提供 `callbacks.drag`、`callbacks.scroll`
-3. `callbacks.common` 至少 SHALL 包含：
+1. THE `callbacks` prop SHALL 为扁平对象（无 `common`/`drag`/`scroll` 嵌套层），其可写键由 `mode` 判别共用体决定。
+2. WHEN `mode='drag'` 或省略，THE `callbacks` SHALL 接受 common + drag 回调；写入 scroll 专属回调（如 `onZoneProgress`）SHALL 触发类型错误。
+3. WHEN `mode='scroll'`，THE `callbacks` SHALL 接受 common + scroll 回调；写入 drag 专属回调（如 `onDragCommit`）SHALL 触发类型错误。
+4. THE common 类（两模式通用）至少 SHALL 包含：
    - `onReady`
    - `onLoadProgress`
    - `onSceneWillChange`
    - `onSceneDidChange`
-   - `onInteractionStateChange`
-   - `onLayoutMeasured`
    - `onError`
-4. `callbacks.drag` 至少 SHALL 包含：
+5. THE drag 类至少 SHALL 包含：
    - `onDragStart`
    - `onDragProgress`
    - `onDragCommit`
    - `onDragCancel`
-5. `callbacks.scroll` 至少 SHALL 包含：
+6. THE scroll 类至少 SHALL 包含：
    - `onZoneEnter`
    - `onZoneLeave`
    - `onZoneProgress`
    - `onSceneVisibilityChange`
+7. `onDragCommit` SHALL 在**所有 drag 切换提交**时触发——既包括手势释放提交，也包括 `ref.goToScene` 程序化跳转（payload `{sceneIndex, targetSceneIndex, progress: 1, direction}`，无手势时省略 `elapsedMs`/`timelineDurationMs`）。`onDragStart`/`onDragProgress`/`onDragCancel` 仍为手势专属。
 
 ### 需求 14: Ref API
 

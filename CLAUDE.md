@@ -86,12 +86,12 @@ pnpm format                  # Prettier
   }}
   scrollbar={{ enabled: true, width: 6, autoHide: true }}
   callbacks={{ common: { onReady }, drag: { onDragCommit }, scroll: { onZoneProgress } }}
-  performance={{ preset: 'balanced' }}
+  performance={{ monitor: true }}
   ref={cineViewRef}
 >
 ```
 
-**Ref 方法**: `goToScene(index, animated?)` / `goToZone(zoneId, opts?)` / `refreshLayout()` / `preload(targets?)` / `getCurrentScene()` / `getPerformanceMetrics()`
+**Ref 方法**: `goToScene(index, animated?)` / `refreshLayout()` / `preload(targets?)` / `getCurrentScene()` / `getPerformanceMetrics()`（公共，必填）；`goToZone(zoneId, opts?)`（scroll 专属，可选；scroll 消费者可用 `CineViewScrollRef` 便捷类型）
 
 ### Scene
 
@@ -133,54 +133,56 @@ pnpm format                  # Prettier
 
 ---
 
-## 已知问题与当前状态（2026-06-23）
+## 已知问题与当前状态（verified 2026-06-29）
 
 ### 测试状态
 
-- **总计**: 817 tests，771 通过，46 失败（均在 `DirectScrollCineView.test.tsx`）
-- **失败集中点**: scroll 模式 center-lock 场景**反向重入**（completed 100% → backward → 0%），programmatic `goToZone` 后的 progress 重置，以及涉及 scene 边界跨越的大输入处理
+- **总计**: 1127 tests，**1127 全部通过**（77 suites，2026-06-30 评审整改轮实测；含新增 `directScrollHelpers.test.ts` 32 例）；`type-check` 0 错误、`lint` 0 错误 0 警告（16 个历史 warnings 已清零）；`build:verify` 8/8 通过
+- scroll 核心套件 `DirectScrollCineView.test.tsx` + `.branches` 共 110/110 通过（新增「measures scene layouts once per gesture burst」回归测试）
+- ⚠️ **单测全绿 ≠ 视觉验收通过**：scroll/drag 交互路径仍需独立 agent 在真实浏览器（`localhost:3000/#/scroll`）跑通完整手势后才算收口（见开发规则 4）
+
+### 2026-06-29 评审整改（已落地）
+
+- **（已修复）scroll 侧 `onReady` 重复触发**：`DirectScrollCineView.tsx` 的 onReady effect 原依赖 `getRuntimeApi`，而后者依赖 `activeSceneIndex`，每次切场景重触发。改为 ref 持有最新 API + 挂载时仅触发一次，对齐 drag 侧（`CineView.tsx`）语义。回归测试 "fires onReady exactly once across active-scene changes"。
+- **（已修复）scrollbar 拖拽 listener 泄漏**：`handleScrollbarMouseDown` 在 window 挂 mousemove/mouseup，仅 mouseup 注销；拖拽中卸载会泄漏。改为 `scrollbarDragCleanupRef` 跟踪 + unmount effect 兜底清理 + 新 mousedown 前先清理上一次未释放的拖拽。回归测试 "removes window mousemove/mouseup listeners when unmounted mid scrollbar drag"。
+- **（已修复）`CineViewContext.test.tsx` 确定性失败**：resize 测试用裸 `setTimeout(200ms)` + 同步断言，与 debounce(150ms)+act flush 竞态（确定性失败，非 flaky）。改用 `act` 包裹派发 + `waitFor` 轮询，对齐同文件通过副本。
+- **（已修复）dist 类型漂移**：`dist/index.d.ts` 曾缺源码已加的 `ScrollModeConfig.enterMargin/exitMargin`、`AnimateProps.visibility.enterMargin/exitMargin`。已重新 `pnpm build:verify`（8/8 通过），dist 与源码同步。
+- **（已修复 2026-06-30）ES 模块未被压缩 + console 泄漏 + 超 50 KB 目标**：`vite.config.ts` 原用 `minify: 'terser'`，但 lib 多格式（es + umd）下 terser 只压 umd、**静默跳过 es 输出**（Vite 已知问题）——es 产物 307 KB 未压缩、保留 39 处 console 调用、gzip 59.47 KB 超 50 KB 目标。改用 `minify: 'esbuild'`（Vite 默认压缩器，对两格式都可靠）+ build-only `esbuild.drop: ['console','debugger']`（用 `defineConfig(({command})=>...)` 按 `command==='build'` 门控，dev server 保留诊断 console）。删除未用的 `@rollup/plugin-terser` 与无效的 `terser` devDep。结果：es 307→178 KB、gzip **44.9 KB**（达标），无 console 调用（残留 7 处为 framer-motion 字符串字面量，非调用），UMD gzip 38.51 KB；`build:verify` 8/8。
+
+### 2026-06-29 性能/结构整改轮（已落地，task-flow `2026-06-29-perf-structure-remediation.md`）
+
+- **（已修复 P0）scroll 热路径 layout thrashing**：`syncNativeScrollState` 原每个 scroll 帧都调 `measureSceneLayouts()` 遍历所有 scene 做 `getBoundingClientRect`+offset 读（约 2N 次 getBoundingClientRect/帧），与 `setNativeOffset` 写交替 → 强制 reflow；wheel/touch 路径还双重测量。改为**手势起点测量一次**：`syncNativeScrollState(fromGesture)` 仅在手势首帧（`!isScrollingRef.current`）测量，连续帧读缓存 `sceneLayoutsRef`；programmatic 重同步（mount/resize/refreshLayout，调用前已自测量）传 `fromGesture=false` 不污染手势标志。依据：`getRelativeOffset` 把 `rootScroll` 加回 → `sceneStart` 等输出 scroll 不变量。回归测试「measures scene layouts once per gesture burst」（revert-to-confirm-red 验证守卫有效）。⚠️ 性能收益（真机无卡顿/无跳过）+ 手势中途内容 resize 延迟到下次手势捕获，**仍需独立 lane 浏览器验收**。
+- **（已修复 P1）`SceneScrollRuntimeContext` 原地 mutate**：`DirectScrollCineView.tsx` 渲染中原地改写 `zoneRuntimeValueRef.current.zoneStates/version`（违反 React context 契约）。核实 version/zoneStates 是**死字段**（无消费者直接从 runtime context 读，活数据走已 memo 的 `SceneScrollTimelineContext`，Animate 的回退分支因两 Provider 成对挂载永不触发）→ 从 runtime context 类型删除，runtime value 改 `useMemo`（纯 5 个稳定 useCallback，永久稳定身份）。新增合并类型 `SceneScrollZoneRuntime`（= 注册 API + timeline 快照）供 `useAnimateScroll` 消费；phase/warning 测试迁移到 TimelineContext。⚠️ 「Scene 不再因 zoneStates 变化每帧重渲染」的性能收益需真机 Profiler 确认。
+- **（已修复 P1）`useAnimateDrag` 每帧 11× resolveVisualState**：10 个属性 useTransform 各自重调 `resolveVisualState`（输入相同，仅 property 不同）+ updateVisualMotion 一次 = 11×/帧。改为 `updateVisualMotion` effect 把已解析的 state 直接写入一个 `useMotionValue<DragVisualState|null>`，10 个属性从它单层派生 → **1×/帧**。注：**链式 `useTransform` 方案失败**（中间层打断更新传播，属性停在 render 种子值 localProgress=1），改用 MotionValue 直写（与原架构同构，只是载荷 number→state）。注：评审称 scroll 侧同有 10× 冗余**有误**——scroll 的 transform 用 `(progress)=>` 直接消费入参做廉价 lerp，不调 resolveVisualState，无可共享重计算。
+- **（已落地 P1）名义配置项从公共类型删除**：`CineViewPerformanceConfig.preset/virtualization/measurement` + `DragThresholdConfig.reboundDuration` 四字段全仓零消费（仅类型声明，会进 dist 给消费者补全却无实现）→ 删除；examples 三页的 `preset: 'smooth'` 同步移除。`PerformanceConfig` 仅保留实际消费的 `monitor`。
+
+### 已实现的 scroll 模型（与早期 rewrite plan 有偏差，实现更简洁）
+
+`SCROLL_TAKEOVER_REWRITE_PLAN.md` 设计的是 ownership-ref 记忆模型，但**实际实现未采用**。真实实现：progress 是 `scrollTop` 的纯函数（`progressPx = clamp(nativeOffset − segmentStart, 0, totalBudgetPx)`，`DirectScrollCineView.tsx` `syncZoneStatesFromNativeOffset`）。center-lock 段即真实滚动距离（`1ms=1px`），反向回段内时 `scrollTop` 从 `segmentEnd` 递减、progress 天然 `100%→0%`，**无需 ownership 记忆**——符合 design「真实 center-lock 滚动段」原则。"防跳过"由 `resolveScrollIntentOffset` 单独处理（大 delta 钳到 `segmentStart+1`/`segmentEnd−1` 强制段内帧）。注：rewrite plan 与本节属历史/现状对照，以代码为准。
 
 ### 设计与实现偏差（按优先级）
 
 #### P0：功能 Bug
 
-1. **Scroll 反向重入 bug**（`DirectScrollCineView.test.tsx` 失败核心）  
-   scene 完成到 100% 后，从后方文档流反向回到 center-lock 触发点时，progress 未从保留的 100% 向 0% 回退，而是没有恢复接管权或重置为 0。  
-   定位：`DirectScrollCineView.tsx` center-lock reducer 的反向 ownership 恢复逻辑。
-
-2. **大输入跨越 center-lock 段处理**  
-   requirements 7.21 / design 「Root Scroll 运行规则」第 13 条：一次 delta 足够跨完整段时，reducer 必须产生一个段内 progress frame，后续输入再移动。当前行为疑似直接跳过。
+- **（已修复）Scroll 反向重入 / 大输入跨段**：center-lock reducer 重写已落地，原 46 失败全绿。反向重入靠 "段=真实距离" 的纯函数模型天然成立；大输入防跳过由 `resolveScrollIntentOffset` 保证段内帧。**仍待真实浏览器验收确认视觉无跳过。**
 
 #### P1：API 污染（旧口径未清除）
 
-3. **`SceneLegacyCompatProps` 仍可读**（`src/components/Scene/types.ts`）  
-   包含 `scrollSpeed`、`scrollEnterLength`、`scrollHoldLength`、`scrollExitLength`、`slideDirection`、`slideDuration` 等已废弃字段，requirements 3.7 / 7.22 要求删除。  
-   当前状态：作为内部兼容 props 存在，未从 public API 入口删除。
-
-4. **`VirtualScrollPhase` 仍在 public types**（`src/types/index.ts` line 21）  
-   这是虚拟滚动轨道的内部概念，requirements 26 要求删除虚拟滚动轨道路径。
-
-5. **`ScrollTimelineState` 包含 `holdProgress/holdLength`**  
-   `hold` 是旧虚拟 3-phase 模型概念，与新的 `0%→100%` scene progress 模型不一致，混淆读代码者。
-
-6. **`CineViewContext` 接口同时含旧字段**（`src/types/index.ts` 约 432 行）  
-   `designSize`、`scale`、`convertSize` 是单轴旧 API，与 `scaleX/scaleY/convertX/convertY` 双轴 API 共存，应废弃旧字段。
+- **（已清理 2026-06-26）`VirtualScrollPhase`**：重命名为 `SceneTimelinePhase`（`hold` 仍是活跃的进退场中段相位，非虚拟轨道坐标）。
+- **（已清理 2026-06-26）`ScrollTimelineState.holdProgress/holdLength`**：纯死输出字段，已删除（含 `SceneLayoutInfo.holdLength` 内部 vestigial 字段）。
+- **`SceneLegacyCompatProps` 仍可读**（`src/components/Scene/types.ts`）：`scrollSpeed`/`scrollEnterLength`/`scrollHoldLength`/`scrollExitLength`/`slideDirection`/`slideDuration` 等。**注**：公共 `SceneProps`（barrel 导出）已干净，`Scene.publicApi.test` 用 tsc fixture 证明 legacy props 会触发类型错误；这些字段仅作内部兼容存在，属内部整洁问题，非公共 API 污染。
+- **（已清理 2026-06-29）`CineViewContext` 旧单轴字段**：运行时 `CineViewContextValue`（`src/context/CineViewContext.tsx`）的 `designSize`/`scale`/`convertSize` 已删除，仅保留双轴 `scaleX/scaleY/convertX/convertY`。`convertSize(s)=s·viewport/designWidth ≡ convertX`，`Image.tsx` 标量长度键归并到 `convertX`，`useConvertSize` hook 返回 `convertX`。死 CSS 变量 `--cineview-scale`/`--cineview-design-size` 同步删除。注：该接口在 `dist` 公共面 0 命中，属内部清理。另删 `types/index.ts` 死 `CineViewContext` interface + 5 个零用常量（THROTTLE_INTERVAL/DEBOUNCE_DELAY/TARGET_FPS/MAX_FRAME_TIME/MAX_BUNDLE_SIZE）。
 
 #### P2：结构问题
 
-7. **`SceneInternalProps` 过度膨胀**（`src/components/Scene/types.ts`）  
-   `global*` 前缀字段多达 18+ 个，设计文档明确指出这是性能与维护风险。应将 runtime 状态通过 Context 传递而非 prop drilling。
+- **（已收敛 2026-06-26）`SceneInternalProps` global* 膨胀**：删除 ~20 个生产已不传的扁平 `global*` 数据 props，`globalFirstSceneEnter*` 收入 grouped `sceneRuntime`，`normalizeSceneProps` 删除 `?? props.globalX` 兜底链。两个生产入口（drag/scroll）均走 grouped 对象。**遗留**：`on*Change` 回调层仍扁平（standalone sink，待后续）；冷启动 `firstSceneEnterActive/Ready` 双 boolean 可合并为三态枚举（高风险，见 task-flow 单列项）。
+- **（已修复 2026-06-26）`framer-motion` 移入 `peerDependencies`**（`>=10.0.0`）+ 保留 devDep；`vite.config.ts` 已 external，无需改。
+- **（已过期）`CineViewRef.goToSceneAdvanced`**：已核实不存在，无需处理。
+- **（已修复 2026-06-29）`CineViewRef` 方法全可选**：`goToScene`/`refreshLayout`/`preload`/`getCurrentScene`/`getPerformanceMetrics` 两模式均真实现，改为**必填**，消除调用点 `ref.current?.x?.()` 噪音。`goToZone` 是唯一 mode-specific 方法（drag 侧原为 no-op 空桩，已删），保持可选；新增便捷类型 `CineViewScrollRef`（`goToZone` 必填）供 scroll 消费者使用。受 React forwardRef 单 ref 类型限制，无法靠 `mode` prop 自动推断，故用「公共必填 + scroll 专属可选 + 便捷类型」方案而非完整判别共用体。
 
-8. **`framer-motion` 应为 peerDependency**  
-   当前在 `dependencies` 中，会导致用户项目重复安装 framer-motion，违背库设计惯例。应移入 `peerDependencies`（建议 `"framer-motion": ">=10.0.0"`）。
+#### P3：性能（未验证）
 
-9. **`CineViewRef.goToSceneAdvanced` 超出规格**  
-   requirements 14 只定义了 `goToScene`、`goToZone`、`refreshLayout`、`preload`、`getCurrentScene`。`goToSceneAdvanced` 属于未声明扩展，若保留需在 requirements 中补充。
-
-#### P3：性能
-
-10. **scroll 场景高度测量范围**  
-    `DirectScrollCineView` 使用 `ResizeObserver` 监听 scene 容器，但 design.md 要求只测量「布局足迹」，排除 fixed layer scaffolding、overlay/portal host 等节点。当前是否精确过滤需验证。
+- **scroll 场景高度测量范围**：`DirectScrollCineView` 用 `ResizeObserver` 监听 scene 容器，design.md 要求只测「布局足迹」，排除 fixed layer scaffolding/overlay/portal host。当前过滤精度需验证（`helpers.ts` 的 `ay()` measure-ignore 过滤是否覆盖全部场景）。
 
 ---
 
@@ -235,7 +237,7 @@ cineview/
 
 ## 下一步重点工作（按优先级）
 
-1. **修复 scroll 反向重入 bug**（DirectScrollCineView.test.tsx 46 失败的根因）
-2. **清理 legacy compat 公开类型**：删除 `VirtualScrollPhase`、`holdProgress/holdLength`，废弃 `CineViewContext` 旧单轴字段
-3. **将 framer-motion 移入 peerDependencies**
-4. **收缩 SceneInternalProps**：global* 字段改为通过专用 Context 传递
+1. **scroll 真实浏览器验收**（最高优先级 / 未完成）：自动化全绿后，按 CLAUDE.md 规则 4 由独立 agent 在 `localhost:3000/#/scroll` 实测完整路径——正向锁定 `0→100%`、释放、反向重锁 `100%→0%`、键盘/scrollbar 同行为、大 flick 防跳过、多 zone 倒序重放。单测全绿 ≠ 视觉正确。
+
+   **注**：本轮（2026-06-29 评审整改）的 scroll 运行时改动（`onReady` fire-once、scrollbar listener cleanup）虽有单测红证，仍计入此项待验收范围。
+2. **冷启动 `firstSceneEnter` 三态合并**（高风险，需配 drag 浏览器验收）：双 boolean → `'waiting' | 'driving' | 'done'` 枚举，消除非法态。位于历史回归高发区，单列推进。

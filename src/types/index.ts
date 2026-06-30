@@ -18,7 +18,11 @@ export type SlideDirection = 'x' | 'y';
  * 滚动模式类型
  */
 export type ScrollMode = 'drag' | 'scroll';
-export type VirtualScrollPhase = 'before' | 'enter' | 'hold' | 'exit' | 'after';
+/**
+ * Scene timeline phase for scroll-mode scenes. `hold` is the steady middle
+ * phase between enter and exit; it is NOT a virtual scroll-track coordinate.
+ */
+export type SceneTimelinePhase = 'before' | 'enter' | 'hold' | 'exit' | 'after';
 
 export type SceneAnchor =
   | 'top-left'
@@ -56,13 +60,21 @@ export interface DragThresholdConfig {
   maxVelocity?: number;
   minRatio?: number;
   maxRatio?: number;
-  reboundDuration?: number;
 }
 
 export interface DragModeConfig {
   direction?: SlideDirection;
   transitionDuration?: number;
   threshold?: DragThresholdConfig;
+  // Follow-finger element-timeline scale: how many ms of element-timeline elapsed
+  // ONE percent of drag advances. The element clock during a live drag is
+  // `dragPercent(0..1) * 100 * dragTimeScale`, i.e. full drag (100%) = 100 *
+  // dragTimeScale ms — INDEPENDENT of the scene's authored animation length,
+  // delay, or waitFor. Lower it to make the timeline crawl (a long animation then
+  // won't fully play within one drag; settle finishes the remainder on release);
+  // raise it to play more of the timeline per unit drag. Defaults to 100 (so
+  // 1% = 100ms, full drag = 10000ms).
+  dragTimeScale?: number;
   // Max time to wait for first-screen priority images before the first-scene
   // enter animation is allowed to start. On timeout a FIRST_SCENE_TIMEOUT error
   // is emitted; if the consumer does not call preventDefault() the framework
@@ -75,6 +87,11 @@ export interface ScrollModeConfig {
   direction?: SlideDirection;
   zoneTrigger?: 'center-lock';
   sceneSizing?: 'content' | 'screen';
+  // Global default enter/exit gate margins (design px) for visibility-driven
+  // Animate elements in scroll mode. Per-Animate `visibility.enterMargin` /
+  // `exitMargin` override these. Both default to 50.
+  enterMargin?: number;
+  exitMargin?: number;
 }
 
 export interface ScrollbarConfig {
@@ -94,21 +111,27 @@ export interface SceneChangeDetail {
   direction?: 'forward' | 'backward' | null;
 }
 
-export interface InteractionStateDetail {
-  mode: ScrollMode;
-  dragging?: boolean;
-  scrolling?: boolean;
-  animating?: boolean;
-}
-
-export interface LayoutMeasuredDetail {
-  sceneIndex?: number;
-  width?: number;
-  height?: number;
-}
+/**
+ * 框架运行时实际会发出的错误码联合。消费者在 `onError` 里对 `code` 做 switch
+ * 时可获得自动补全与穷尽性检查（不再是裸 string）。
+ *
+ * - `NO_SCENES`：CineView 没有任何 Scene 子节点。
+ * - `IMAGE_LOAD_FAILED`：预加载图片失败。
+ * - `FIRST_SCENE_TIMEOUT`：首屏优先资源等待超时（可恢复，带 preventDefault）。
+ * - `INVALID_ANIMATION`：Animate 的 waitFor 指向不存在的组件。
+ * - `CIRCULAR_DEPENDENCY`：Animate 的 waitFor 链存在循环。
+ * - `INVALID_COMPONENT_HIERARCHY`：同一 Scene 内出现重复的 animateId。
+ */
+export type CineViewErrorCode =
+  | 'NO_SCENES'
+  | 'IMAGE_LOAD_FAILED'
+  | 'FIRST_SCENE_TIMEOUT'
+  | 'INVALID_ANIMATION'
+  | 'CIRCULAR_DEPENDENCY'
+  | 'INVALID_COMPONENT_HIERARCHY';
 
 export interface CineViewErrorDetail {
-  code: string;
+  code: CineViewErrorCode;
   message: string;
   context?: Record<string, unknown>;
   // Present on recoverable errors that have a default framework fallback
@@ -116,13 +139,6 @@ export interface CineViewErrorDetail {
   // take over handling in the consumer (e.g. render a retry UI). When not
   // called, the framework proceeds with its default fallback.
   preventDefault?: () => void;
-}
-
-export interface FirstSceneReadyDetail {
-  sceneIndex: number;
-  // True when the first scene's priority images all settled before the
-  // timeout; false when the enter was allowed to start by some other path.
-  fromPreload: boolean;
 }
 
 export interface DragDetail {
@@ -152,35 +168,48 @@ export interface SceneVisibilityDetail {
   progress: number;
 }
 
-export interface CineViewCallbacks {
-  common?: {
-    onReady?: (api: CineViewRef) => void;
-    onLoadProgress?: (progress: number) => void;
-    onSceneWillChange?: (detail: SceneChangeDetail) => void;
-    onSceneDidChange?: (detail: SceneChangeDetail) => void;
-    onFirstSceneReady?: (detail: FirstSceneReadyDetail) => void;
-    onInteractionStateChange?: (detail: InteractionStateDetail) => void;
-    onLayoutMeasured?: (detail: LayoutMeasuredDetail) => void;
-    onError?: (detail: CineViewErrorDetail) => void;
-  };
-  drag?: {
-    onDragStart?: (detail: DragDetail) => void;
-    onDragProgress?: (detail: DragDetail) => void;
-    onDragCommit?: (detail: DragCommitDetail) => void;
-    onDragCancel?: (detail: DragDetail) => void;
-  };
-  scroll?: {
-    onZoneEnter?: (detail: ZoneDetail) => void;
-    onZoneLeave?: (detail: ZoneDetail) => void;
-    onZoneProgress?: (detail: ZoneProgressDetail) => void;
-    onSceneVisibilityChange?: (detail: SceneVisibilityDetail) => void;
-  };
+// Flat, mode-aware callback surface. The callbacks a consumer may pass are
+// determined by `mode`: drag mode exposes common + drag callbacks, scroll mode
+// exposes common + scroll callbacks. The three building blocks below are merged
+// into the two per-mode flat types, and CineViewProps is a discriminated union
+// on `mode` so writing a scroll callback in drag mode (or vice versa) is a type
+// error. Internally these are regrouped back into { common, drag, scroll }.
+export interface CineViewCommonCallbacks {
+  onReady?: (api: CineViewRef) => void;
+  onLoadProgress?: (progress: number) => void;
+  onSceneWillChange?: (detail: SceneChangeDetail) => void;
+  onSceneDidChange?: (detail: SceneChangeDetail) => void;
+  onError?: (detail: CineViewErrorDetail) => void;
 }
 
+export interface CineViewDragCallbacks {
+  onDragStart?: (detail: DragDetail) => void;
+  onDragProgress?: (detail: DragDetail) => void;
+  onDragCommit?: (detail: DragCommitDetail) => void;
+  onDragCancel?: (detail: DragDetail) => void;
+}
+
+export interface CineViewScrollCallbacks {
+  onZoneEnter?: (detail: ZoneDetail) => void;
+  onZoneLeave?: (detail: ZoneDetail) => void;
+  onZoneProgress?: (detail: ZoneProgressDetail) => void;
+  onSceneVisibilityChange?: (detail: SceneVisibilityDetail) => void;
+}
+
+/** Flat callbacks accepted in drag mode (mode="drag" or omitted). */
+export type DragModeCallbacks = CineViewCommonCallbacks & CineViewDragCallbacks;
+/** Flat callbacks accepted in scroll mode (mode="scroll"). */
+export type ScrollModeCallbacks = CineViewCommonCallbacks & CineViewScrollCallbacks;
+
+/**
+ * Back-compat alias. The shape changed from the old nested
+ * `{ common, drag, scroll }` to the flat per-mode union, so this is a breaking
+ * change at the value level, but the NAME is preserved to avoid breaking
+ * type-only imports.
+ */
+export type CineViewCallbacks = DragModeCallbacks | ScrollModeCallbacks;
+
 export interface CineViewPerformanceConfig {
-  preset?: 'balanced' | 'smooth' | 'strict';
-  virtualization?: 'auto' | 'off';
-  measurement?: 'observer' | 'manual';
   monitor?: boolean;
 }
 
@@ -286,20 +315,30 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
 // ============================================================================
 
 /**
- * CineView 组件 Props
+ * Shared CineView props, independent of `mode`. The `mode`/`callbacks` pair is
+ * added by the discriminated union below so the callback surface is constrained
+ * by the active mode.
  */
-export interface CineViewProps {
+export interface CineViewBaseProps {
   config: CineViewDesignConfig;
-  mode?: ScrollMode;
   modes?: {
     drag?: DragModeConfig;
     scroll?: ScrollModeConfig;
   };
   scrollbar?: false | ScrollbarConfig;
-  callbacks?: CineViewCallbacks;
   performance?: CineViewPerformanceConfig;
   children: ReactNode;
 }
+
+/**
+ * CineView 组件 Props — discriminated on `mode`. Drag mode (the default when
+ * `mode` is omitted) accepts common + drag callbacks; scroll mode accepts
+ * common + scroll callbacks. Passing a callback from the wrong mode is a type
+ * error (TS excess-property check on the flat callbacks object).
+ */
+export type CineViewProps =
+  | (CineViewBaseProps & { mode?: 'drag'; callbacks?: DragModeCallbacks })
+  | (CineViewBaseProps & { mode: 'scroll'; callbacks?: ScrollModeCallbacks });
 
 /**
  * 性能指标
@@ -319,19 +358,29 @@ export interface PerformanceMetrics {
 export type CineViewPreloadTarget = number | string;
 
 /**
- * CineView Ref 方法
+ * CineView Ref 方法。
+ *
+ * 这 5 个方法在 drag 与 scroll 两种模式下都必定存在，因此为必填——
+ * 调用点不再需要 `ref.current?.refreshLayout?.()` 的逐方法判空。
+ * `goToZone` 是 scroll 模式专属能力（drag 模式下无 zone 概念），保持可选；
+ * scroll 消费者可改用 {@link CineViewScrollRef} 取得 `goToZone` 必填的视图。
  */
 export interface CineViewRef {
   goToScene: (index: number, animated?: boolean) => void;
-  goToSceneAdvanced?: (
-    target: number | string,
-    options?: { animated?: boolean; align?: 'start' | 'center' }
-  ) => void;
-  goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
-  refreshLayout?: () => void;
-  preload?: (targets?: CineViewPreloadTarget[]) => Promise<void>;
+  refreshLayout: () => void;
+  preload: (targets?: CineViewPreloadTarget[]) => Promise<void>;
   getCurrentScene: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
+  /** scroll 模式专属：跳转到指定 zone。drag 模式下不提供。 */
+  goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
+}
+
+/**
+ * scroll 模式下的 CineView Ref——`goToZone` 在此为必填。
+ * 用法：`const ref = useRef<CineViewScrollRef>(null)`，搭配 `mode="scroll"`。
+ */
+export interface CineViewScrollRef extends CineViewRef {
+  goToZone: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
 }
 
 /**
@@ -380,6 +429,20 @@ export interface AnimateProps {
     exit?: number;
   };
   timeline?: {
+    /**
+     * 元素动画的时间轴驱动源。默认 `'auto'`，按当前 CineView `mode` 与所处位置推断：
+     *
+     * - **drag 模式**：`'auto'` 始终跟随场景的进退场时间轴（drag 实现不区分 driver），
+     *   等价于 `'scene'`。此模式下 `'scroll'` / `'visibility'` 无意义。
+     * - **scroll 模式**：
+     *   - 元素位于带 `scroll` 接管配置的 `Scene`（即继承到 zoneId）内 → `'auto'` 解析为
+     *     `'scroll'`：动画进度由该 zone 的真实滚动预算（progressPx）驱动，可配合 `phase`。
+     *   - 否则（普通 scroll 内容）→ `'auto'` 解析为 `'visibility'`：动画由元素进入/离开视口
+     *     的可见性闸门触发，按 `duration` 播放，受 `visibility.enterMargin/exitMargin` 控制。
+     *
+     * 需要覆盖推断时显式指定：`'scroll'` 强制走 zone 预算（元素须在 `Scene.scroll` 内，
+     * 否则开发期告警并停在初始帧）；`'visibility'` 强制走可见性闸门；`'scene'` 跟随场景。
+     */
     driver?: 'auto' | 'scene' | 'scroll' | 'visibility';
     delay?: number;
     waitFor?: string;
@@ -391,23 +454,28 @@ export interface AnimateProps {
   };
   visibility?: {
     replayOnReenter?: boolean;
-    enterWhen?: 'fully-visible-bottom';
-    exitWhen?: 'leaving-top';
+    // Design-px gap from the viewport edges that gates enter/exit. Enter fires
+    // when the element is fully inside the viewport AND its bottom clears the
+    // bottom edge by `enterMargin`; exit fires when its top reaches within
+    // `exitMargin` of the top edge. Oversized elements (taller than
+    // viewport - enterMargin) fall back to a center/70% rule. Both are design
+    // px (run through scaleY) and default to the CineView-level scroll config
+    // (`modes.scroll.enterMargin` / `exitMargin`), which defaults to 50.
+    enterMargin?: number;
+    exitMargin?: number;
   };
   children: ReactNode;
 }
 
 export interface ScrollTimelineState {
-  phase: VirtualScrollPhase;
+  phase: SceneTimelinePhase;
   enterProgress: number;
-  holdProgress: number;
   exitProgress: number;
   sceneProgress: number;
   rangeStart: number;
   rangeEnd: number;
   rangeLength: number;
   enterLength: number;
-  holdLength: number;
   exitLength: number;
 }
 
@@ -420,12 +488,22 @@ export interface PositionProps {
     y?: number;
     offsetX?: number;
     offsetY?: number;
+    /**
+     * 居中锚点。设定后元素相对视口居中，无需再手写 `translate(-50%)`：
+     * - `'center'`：水平 + 垂直双向居中
+     * - `'center-x'`：仅水平居中（`y` 仍为绝对设计坐标）
+     * - `'center-y'`：仅垂直居中（`x` 仍为绝对设计坐标）
+     *
+     * 居中后 `x` / `y` 改作「相对中心的偏移量」（设计 px，经双轴换算）：
+     * 例如 `anchor: 'center', x: 0, y: -100` 表示水平居中、垂直居中再上移 100。
+     * 被居中的轴忽略 `offsetX` / `offsetY` 相对定位链。
+     */
+    anchor?: 'center' | 'center-x' | 'center-y';
   };
   layer?: {
     fixed?: boolean;
   };
   children: ReactNode;
-  positionId?: string; // 用于相对定位计算的标识
   style?: React.CSSProperties; // 额外的样式
   className?: string; // CSS 类名
 }
@@ -444,27 +522,6 @@ export interface ContainerProps {
 // ============================================================================
 // Data Model Types
 // ============================================================================
-
-/**
- * CineView 上下文
- */
-export interface CineViewContext {
-  designWidth?: number;
-  designHeight?: number;
-  designSize: number;
-  unit: 'px' | 'rem' | 'vw';
-  viewportWidth: number;
-  viewportHeight: number;
-  scaleX?: number;
-  scaleY?: number;
-  scale: number; // 换算比例
-  convertX?: (size: number) => number;
-  convertY?: (size: number) => number;
-  convertSize: (size: number) => number; // 尺寸换算函数
-  currentScene: number;
-  totalScenes: number;
-  goToScene: (index: number, animated?: boolean) => void;
-}
 
 /**
  * Scene 状态
@@ -520,38 +577,9 @@ export interface PreloadState {
  */
 export type GestureType = 'swipe-up' | 'swipe-down' | 'swipe-left' | 'swipe-right' | 'none';
 
-/**
- * 错误码
- */
-export const ErrorCodes = {
-  INVALID_SCENE_INDEX: 'INVALID_SCENE_INDEX',
-  CIRCULAR_DEPENDENCY: 'CIRCULAR_DEPENDENCY',
-  INVALID_ANIMATION: 'INVALID_ANIMATION',
-  IMAGE_LOAD_FAILED: 'IMAGE_LOAD_FAILED',
-  INVALID_COMPONENT_HIERARCHY: 'INVALID_COMPONENT_HIERARCHY',
-} as const;
-
-/**
- * CineView 错误类
- */
-export class CineViewError extends Error {
-  constructor(
-    message: string,
-    public code: keyof typeof ErrorCodes
-  ) {
-    super(message);
-    this.name = 'CineViewError';
-  }
-}
-
 // ============================================================================
 // Constants
 // ============================================================================
 
 export const DEFAULT_SLIDE_DURATION = 800; // 默认滑动动画时间（毫秒）
 export const DEFAULT_ANIMATION_DURATION = 600; // 默认动画时长（毫秒）
-export const THROTTLE_INTERVAL = 16; // 节流间隔（毫秒，60fps）
-export const DEBOUNCE_DELAY = 150; // 防抖延迟（毫秒）
-export const TARGET_FPS = 60; // 目标帧率
-export const MAX_FRAME_TIME = 16.67; // 最大帧时间（毫秒）
-export const MAX_BUNDLE_SIZE = 50; // 最大 Bundle 大小（KB，gzipped）

@@ -16,10 +16,12 @@ import {
 import type { PresetAnimation } from '../../animations/presets';
 import { parseAnimationSafely } from '../../utils/animationHelpers';
 import type { SceneInternalProps, SceneState } from './types';
+import type { DragReleaseInput } from '../../hooks/useSceneManager';
 import { useSceneRuntimeState } from './useSceneRuntimeState';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
 import { useDragSceneEngine } from './useDragSceneEngine';
 import { useElementTrack } from './useElementTrack';
+import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 import { SceneFixedLayerContext } from '../Position/Position';
 import { SceneScrollTakeoverContext } from './sceneScrollRuntime';
 import { useSceneScrollTakeover } from './useSceneScrollTakeover';
@@ -89,18 +91,13 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     compatFields,
   } = normalizeSceneProps(props);
   const cineViewContext = useCineViewContext();
+  const cineViewRuntime = useCineViewRuntimeContext();
   const controls = useAnimation();
 
   const [enterVariant, setEnterVariant] = useState<PresetAnimation | null>(null);
   const [exitVariant, setExitVariant] = useState<PresetAnimation | null>(null);
   const hasExternalDragRuntime = Boolean(
     dragRuntime ||
-    props.globalDragProgress !== undefined ||
-    props.globalRenderProgress !== undefined ||
-    props.globalDragTimelineProgress !== undefined ||
-    props.globalIsDragging !== undefined ||
-    props.globalSharedTimelineDurationMs !== undefined ||
-    props.globalDragRelease !== undefined ||
     props.onDragProgressChange ||
     props.onRenderProgressChange ||
     props.onDragTimelineProgressChange ||
@@ -122,23 +119,14 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
   const localDragReleaseTokenRef = useRef(0);
   // Standalone (no CineView) release sink: injects a monotonic token so the
   // shape matches the global DragRelease the element track reacts to.
-  const setLocalDragReleaseInput = useCallback(
-    (
-      release: {
-        mode: 'settle' | 'bounce';
-        direction: 'forward' | 'backward';
-        targetSceneIndex: number;
-      } | null
-    ) => {
-      if (release === null) {
-        setLocalDragRelease(null);
-        return;
-      }
-      localDragReleaseTokenRef.current += 1;
-      setLocalDragRelease({ ...release, token: localDragReleaseTokenRef.current });
-    },
-    []
-  );
+  const setLocalDragReleaseInput = useCallback((release: DragReleaseInput | null) => {
+    if (release === null) {
+      setLocalDragRelease(null);
+      return;
+    }
+    localDragReleaseTokenRef.current += 1;
+    setLocalDragRelease({ ...release, token: localDragReleaseTokenRef.current });
+  }, []);
   const currentDragProgress = hasExternalDragRuntime ? globalDragProgress : localDragProgress;
   const currentRenderProgress = hasExternalDragRuntime ? globalRenderProgress : localRenderProgress;
   const currentDragTimelineProgress = hasExternalDragRuntime
@@ -170,6 +158,11 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     })
   );
   const reportedRegistryIssues = useRef<Set<string>>(new Set());
+  // Stable ref to the consumer-facing error channel so reportRegistryIssues can
+  // route validation issues to onError in production too, without taking the
+  // runtime value as a callback dependency.
+  const reportRuntimeErrorRef = useRef(cineViewRuntime?.reportError);
+  reportRuntimeErrorRef.current = cineViewRuntime?.reportError;
   const timelineDurationRef = useRef<number>(resolvedSceneTransitionDuration);
   // State mirror of the registry-computed timeline duration. The ref above is
   // read synchronously by the drag/release lanes, but the duration only grows
@@ -184,7 +177,6 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [fixedLayerElement, setFixedLayerElement] = useState<HTMLElement | null>(null);
-  const scrollSettleTimerRef = useRef<number | null>(null);
   const handleFixedLayerHostRef = useCallback((node: HTMLDivElement | null) => {
     setFixedLayerElement((previous) => (previous === node ? previous : node));
   }, []);
@@ -307,9 +299,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
 
   const reportRegistryIssues = useCallback(
     (issues: AnimationRegistryIssue[]): void => {
-      if (process.env.NODE_ENV !== 'development') {
-        return;
-      }
+      const isDev = process.env.NODE_ENV === 'development';
 
       issues.forEach((issue) => {
         const key = getIssueKey(issue);
@@ -318,29 +308,41 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
         }
         reportedRegistryIssues.current.add(key);
 
+        let code: string;
+        let message: string;
+        let devWarning: string;
+
         if (issue.type === 'missing-dependency') {
-          console.warn(
+          code = 'INVALID_ANIMATION';
+          message = `Animate "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor in Scene ${sceneIndex}.`;
+          devWarning =
             `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
-              `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor.\n` +
-              `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`
-          );
-          return;
-        }
-
-        if (issue.type === 'circular-dependency') {
-          console.warn(
+            `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor.\n` +
+            `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`;
+        } else if (issue.type === 'circular-dependency') {
+          code = 'CIRCULAR_DEPENDENCY';
+          message = `Animate waitFor chain contains a cycle in Scene ${sceneIndex}: ${issue.cycle.join(' -> ')}.`;
+          devWarning =
             `[CineView Warning] Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
-              `Problem: Animate waitFor chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
-              `Fix: Remove the circular waitFor reference so each Animate starts after an earlier independent animation.\n`
-          );
-          return;
+            `Problem: Animate waitFor chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
+            `Fix: Remove the circular waitFor reference so each Animate starts after an earlier independent animation.\n`;
+        } else {
+          code = 'INVALID_COMPONENT_HIERARCHY';
+          message = `More than one Animate component registered animateId "${issue.animateId}" in Scene ${sceneIndex}.`;
+          devWarning =
+            `[CineView Warning] Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
+            `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
+            `Fix: Give each Animate component in a Scene a unique animateId.\n`;
         }
 
-        console.warn(
-          `[CineView Warning] Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
-            `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
-            `Fix: Give each Animate component in a Scene a unique animateId.\n`
-        );
+        // Route to the consumer's onError in ALL environments (previously this
+        // surfaced only via the dev-only console.warn below and was silent in
+        // production builds, leaving a typo'd waitFor undetectable).
+        reportRuntimeErrorRef.current?.({ code, message, context: { sceneIndex } });
+
+        if (isDev) {
+          console.warn(devWarning);
+        }
       });
     },
     [getIssueKey, sceneIndex]
@@ -512,6 +514,13 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       scrollTransitionSnapshot: globalScrollTransitionSnapshot,
       sharedTimelineDurationMs: currentSharedTimelineDurationMs,
       firstSceneEnterActive: globalFirstSceneEnterActive,
+      // Three-state for the scroll visibility path: scene 0 forwards the real
+      // ready bolean (held until priority assets settle); non-first scenes pass
+      // `undefined` = NOT gated (so their elements fire on their own viewport
+      // gates rather than being frozen waiting on a ready signal that is scoped
+      // to scene 0). drag's useElementTrack reads the CineView-level flag, not
+      // this field, so this conversion only affects the scroll path.
+      firstSceneEnterReady: sceneIndex === 0 ? globalFirstSceneEnterReady : undefined,
       sceneTransitionDuration: resolvedSceneTransitionDuration,
       getTimelineDuration,
       registerAnimate,
@@ -572,6 +581,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalScrollTransitionSnapshot,
     currentSharedTimelineDurationMs,
     globalFirstSceneEnterActive,
+    globalFirstSceneEnterReady,
     resolvedSceneTransitionDuration,
     getTimelineDuration,
     registerAnimate,
@@ -587,10 +597,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
   useScrollSceneEngine({
     slideMode: effectiveMode,
     isActive,
-    sceneIndex,
-    totalScenes,
     sceneOffset,
-    slideDirection: effectiveDirection,
     sceneStackMode: effectiveSceneStackMode,
     controls,
     enterVariant,
@@ -601,15 +608,14 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     globalScrollTransitionSnapshot,
     globalScrollBackdropActive,
     globalScrollTimelineState,
-    containerRef,
-    scrollSettleTimerRef,
     setSceneState,
   });
   // Two-track element driver (single writer = this scene). Owns
   // elementElapsedMotion across follow-finger, release continuation, H2 preempt
   // and the scene-0 cold-start. onSettleComplete / onColdStartComplete both wire
-  // to completeDragTransition (via onActivationComplete) — fired when this
-  // scene's element track reaches T.
+  // to completeDragTransition (via onActivationComplete), fired when this scene's
+  // element track reaches T — which now drives state CLEANUP only (the public
+  // onSceneDidChange fires earlier, at the render commit).
   useElementTrack({
     slideMode: effectiveMode,
     isActive,
@@ -624,6 +630,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
     elementElapsedMotion,
     getTimelineDuration,
     timelineDurationState,
+    dragTimeScale: dragRuntime?.dragTimeScale,
     onSettleComplete: dragRuntime?.onActivationComplete ?? onActivationComplete,
     onColdStartComplete: dragRuntime?.onActivationComplete ?? onActivationComplete,
   });
@@ -675,6 +682,7 @@ const SceneImpl: React.FC<SceneInternalProps> = (props) => {
       onDragRelease ??
       (hasExternalDragRuntime ? undefined : setLocalDragReleaseInput),
     completeReleaseImmediately: !hasExternalDragRuntime,
+    thresholdConfig: dragRuntime?.threshold,
     onDragCommit:
       dragRuntime?.onCommit ??
       onDragCommit ??

@@ -328,6 +328,7 @@ interface TestSceneProps {
   };
   sceneRuntime?: {
     sceneIndex: number;
+    firstSceneEnterReady?: boolean;
   };
 }
 
@@ -336,6 +337,9 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
   const zoneRef = React.useRef<HTMLDivElement>(null);
   const zoneId = scroll?.zoneId ?? sceneId ?? null;
   const sceneIndex = sceneRuntime?.sceneIndex ?? 0;
+  // Expose the cold-start ready flag CineView injects, so a regression test can
+  // assert scene 0 is no longer permanently held at its initial frame.
+  const firstSceneEnterReady = sceneRuntime?.firstSceneEnterReady;
 
   useEffect(() => {
     if (!runtime || !zoneId || !scroll) {
@@ -366,7 +370,13 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
 
   return (
     <SceneScrollTakeoverContext.Provider value={zoneId}>
-      <div ref={zoneRef} data-cineview-scroll-zone={zoneId ?? undefined}>
+      <div
+        ref={zoneRef}
+        data-cineview-scroll-zone={zoneId ?? undefined}
+        data-first-scene-enter-ready={
+          firstSceneEnterReady === undefined ? undefined : String(firstSceneEnterReady)
+        }
+      >
         {children}
       </div>
     </SceneScrollTakeoverContext.Provider>
@@ -843,6 +853,73 @@ describe('DirectScrollCineView', () => {
     expect(startPreload).toHaveBeenCalledTimes(2);
   });
 
+  // Regression: the scroll root (DirectScrollCineView) must run the cold-start
+  // gate and inject firstSceneEnterReady into scene 0's sceneRuntime. Without it
+  // scene 0's visibility elements stayed permanently at their initial frame
+  // (opacity 0 hero), since useAnimateScroll holds on firstSceneEnterReady===false.
+  it('lights firstSceneEnterReady on scene 0 once first-screen priority assets settle', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useImagePreloader } = require('../../hooks/useImagePreloader');
+    useImagePreloader.mockImplementation(() => [
+      {
+        isLoading: false,
+        progress: 100,
+        loadedCount: 1,
+        totalCount: 1,
+        priorityComplete: true,
+        results: [],
+        errors: new Map(),
+      },
+      { startPreload: jest.fn(), reset: jest.fn(), addUrls: jest.fn() },
+    ]);
+
+    const { container } = render(
+      <DirectScrollCineView config={config}>
+        <TestScene sceneId="scene-0" assets={{ preloadImages: ['first.jpg'] }}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1">
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const firstSceneZone = container.querySelector(
+      '[data-cineview-scroll-zone="scene-0"]'
+    ) as HTMLElement;
+    expect(firstSceneZone).toHaveAttribute('data-first-scene-enter-ready', 'true');
+  });
+
+  it('holds firstSceneEnterReady false on scene 0 while priority assets are pending', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useImagePreloader } = require('../../hooks/useImagePreloader');
+    useImagePreloader.mockImplementation(() => [
+      {
+        isLoading: true,
+        progress: 0,
+        loadedCount: 0,
+        totalCount: 1,
+        priorityComplete: false,
+        results: [],
+        errors: new Map(),
+      },
+      { startPreload: jest.fn(), reset: jest.fn(), addUrls: jest.fn() },
+    ]);
+
+    const { container } = render(
+      <DirectScrollCineView config={config}>
+        <TestScene sceneId="scene-0" assets={{ preloadImages: ['first.jpg'] }}>
+          <div>Scene 0</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const firstSceneZone = container.querySelector(
+      '[data-cineview-scroll-zone="scene-0"]'
+    ) as HTMLElement;
+    expect(firstSceneZone).toHaveAttribute('data-first-scene-enter-ready', 'false');
+  });
+
   it('hides internal takeover debug metrics unless scroll debug is enabled', () => {
     delete (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__;
 
@@ -919,6 +996,113 @@ describe('DirectScrollCineView', () => {
     const root = container.querySelector('.cineview-container') as HTMLDivElement;
 
     expect(root).toHaveAttribute('data-cineview-scrollbar-autohide', 'false');
+  });
+
+  // Regression: onReady is a one-shot lifecycle callback. The scroll root must
+  // fire it exactly once on mount, NOT again on every active-scene change. The
+  // bug was an effect keyed on getRuntimeApi, whose identity churns with
+  // activeSceneIndex, so scrolling between scenes re-fired onReady. The drag
+  // root (CineView.tsx) already fires it once via a ref + mount-only effect.
+  it('fires onReady exactly once across active-scene changes in scroll mode', () => {
+    const onReady = jest.fn();
+
+    const { container } = render(
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onReady }}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+        <TestScene sceneId="scene-2" sceneHeight={1000}>
+          <div>Scene 2</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000, 2000],
+      sceneHeights: [1000, 1000, 1000],
+    });
+
+    expect(onReady).toHaveBeenCalledTimes(1);
+
+    // Drive the active scene forward; each change used to re-fire onReady.
+    act(() => {
+      root.scrollTop = 1000;
+      fireEvent.scroll(root);
+    });
+    act(() => {
+      root.scrollTop = 2000;
+      fireEvent.scroll(root);
+    });
+
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it('measures scene layouts once per gesture burst, not once per scroll frame', async () => {
+    const { container } = render(
+      <DirectScrollCineView config={config} mode="scroll">
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+        <TestScene sceneId="scene-2" sceneHeight={1000}>
+          <div>Scene 2</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000, 2000],
+      sceneHeights: [1000, 1000, 1000],
+    });
+
+    // measureSceneLayouts walks every scene via getRelativeOffset, which calls
+    // root.getBoundingClientRect once per scene. root is the stable container
+    // node (never re-keyed), so spying it reliably counts measure passes — one
+    // measure pass bumps the counter by (scene count). Spying a scene wrapper is
+    // unreliable: wrappers use inline ref callbacks and can be re-created across
+    // the setState-driven re-renders, detaching the spy mid-gesture.
+    const baseRect = root.getBoundingClientRect.bind(root);
+    let rootRectCalls = 0;
+    root.getBoundingClientRect = () => {
+      rootRectCalls += 1;
+      return baseRect();
+    };
+
+    // First frame of a gesture re-measures.
+    act(() => {
+      root.scrollTop = 200;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    const afterFirstFrame = rootRectCalls;
+    expect(afterFirstFrame).toBeGreaterThan(0);
+
+    // Continuous frames of the same gesture (no 120ms idle gap) read the cached
+    // sceneLayoutsRef and must not trigger further measure passes.
+    act(() => {
+      root.scrollTop = 400;
+      fireEvent.scroll(root);
+    });
+    act(() => {
+      root.scrollTop = 600;
+      fireEvent.scroll(root);
+    });
+    act(() => {
+      root.scrollTop = 800;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+
+    expect(rootRectCalls).toBe(afterFirstFrame);
   });
 
   it('renders a visible custom scrollbar rail when scroll mode has overflow content', () => {
@@ -1268,7 +1452,7 @@ describe('DirectScrollCineView', () => {
       };
 
       const { container } = render(
-        <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+        <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
           <Scene layout={{ height: 1200 }}>
             <div>01 hero</div>
           </Scene>
@@ -2080,8 +2264,9 @@ describe('DirectScrollCineView', () => {
       const { container } = render(
         <DirectScrollCineView
           config={config}
+          mode="scroll"
           scrollbar={{ enabled: true }}
-          callbacks={{ scroll: { onZoneEnter } }}
+          callbacks={{ onZoneEnter }}
         >
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
@@ -2174,8 +2359,9 @@ describe('DirectScrollCineView', () => {
       const { container } = render(
         <DirectScrollCineView
           config={config}
+          mode="scroll"
           scrollbar={{ enabled: true }}
-          callbacks={{ scroll: { onZoneEnter } }}
+          callbacks={{ onZoneEnter }}
         >
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
@@ -2284,8 +2470,9 @@ describe('DirectScrollCineView', () => {
       const { container } = render(
         <DirectScrollCineView
           config={config}
+          mode="scroll"
           scrollbar={{ enabled: true }}
-          callbacks={{ scroll: { onZoneProgress } }}
+          callbacks={{ onZoneProgress }}
         >
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
@@ -2399,8 +2586,9 @@ describe('DirectScrollCineView', () => {
       const { container } = render(
         <DirectScrollCineView
           config={config}
+          mode="scroll"
           scrollbar={{ enabled: true }}
-          callbacks={{ scroll: { onZoneProgress } }}
+          callbacks={{ onZoneProgress }}
         >
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
@@ -2759,6 +2947,96 @@ describe('DirectScrollCineView', () => {
     });
   });
 
+  it('removes window mousemove/mouseup listeners when unmounted mid scrollbar drag', () => {
+    const addSpy = jest.spyOn(window, 'addEventListener');
+    const removeSpy = jest.spyOn(window, 'removeEventListener');
+
+    const { container, unmount } = render(
+      <DirectScrollCineView config={config} scrollbar={{ enabled: true }}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+        <TestScene sceneId="scene-2" sceneHeight={1000}>
+          <div>Scene 2</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000, 2000],
+      sceneHeights: [1000, 1000, 1000],
+    });
+
+    act(() => {
+      fireEvent.scroll(root);
+    });
+
+    const rail = container.querySelector('[data-cineview-scrollbar-rail="true"]') as HTMLDivElement;
+    const thumb = container.querySelector(
+      '[data-cineview-scrollbar-thumb="true"]'
+    ) as HTMLDivElement;
+    const railRect = {
+      top: 16,
+      bottom: 984,
+      left: 734,
+      right: 744,
+      width: 10,
+      height: 968,
+      x: 734,
+      y: 16,
+      toJSON: () => undefined,
+    } as DOMRect;
+    rail.getBoundingClientRect = () => railRect;
+    thumb.getBoundingClientRect = () =>
+      ({
+        top: 16,
+        bottom: 338.671875,
+        left: 734,
+        right: 744,
+        width: 10,
+        height: 322.671875,
+        x: 734,
+        y: 16,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    const initial = getThumbMetrics(container);
+
+    // Begin a thumb drag: this attaches window mousemove + mouseup listeners.
+    act(() => {
+      fireEvent.mouseDown(thumb, {
+        button: 0,
+        clientX: railRect.left + railRect.width / 2,
+        clientY: railRect.top + initial.offset + initial.length / 2,
+      });
+    });
+
+    const attachedMove = addSpy.mock.calls.filter(([type]) => type === 'mousemove').length;
+    const attachedUp = addSpy.mock.calls.filter(([type]) => type === 'mouseup').length;
+    expect(attachedMove).toBeGreaterThan(0);
+    expect(attachedUp).toBeGreaterThan(0);
+
+    // Unmount WHILE the drag is still active (no mouseup yet). The component must
+    // clean up the window listeners on unmount, otherwise the handlers and their
+    // closures leak.
+    act(() => {
+      unmount();
+    });
+
+    const removedMove = removeSpy.mock.calls.filter(([type]) => type === 'mousemove').length;
+    const removedUp = removeSpy.mock.calls.filter(([type]) => type === 'mouseup').length;
+    expect(removedMove).toBeGreaterThanOrEqual(attachedMove);
+    expect(removedUp).toBeGreaterThanOrEqual(attachedUp);
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
   it('uses a white container background for the scroll-mode overscroll edge', () => {
     const { container } = render(
       <DirectScrollCineView config={config} scrollbar={{ enabled: true }}>
@@ -3015,7 +3293,7 @@ describe('DirectScrollCineView', () => {
     const onZoneEnter = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneEnter } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneEnter }}>
         <TestScene
           sceneId="scene-0"
           sceneHeight={535}
@@ -3131,7 +3409,7 @@ describe('DirectScrollCineView', () => {
     const onZoneEnter = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneEnter } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneEnter }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -3234,7 +3512,7 @@ describe('DirectScrollCineView', () => {
     const onZoneEnter = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneEnter } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneEnter }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -3324,7 +3602,7 @@ describe('DirectScrollCineView', () => {
     const onZoneEnter = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneEnter } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneEnter }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -3511,7 +3789,7 @@ describe('DirectScrollCineView', () => {
       progressRatios.length > 0 ? progressRatios[progressRatios.length - 1] : 0;
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
         <Scene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </Scene>
@@ -4382,7 +4660,7 @@ describe('DirectScrollCineView', () => {
     const onZoneEnter = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneEnter } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneEnter }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -4643,7 +4921,7 @@ describe('DirectScrollCineView', () => {
     const onZoneProgress = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -4850,7 +5128,7 @@ describe('DirectScrollCineView', () => {
     const onZoneProgress = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -5000,7 +5278,7 @@ describe('DirectScrollCineView', () => {
     const onZoneProgress = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
         <TestScene
           sceneId="scene-0"
           sceneHeight={1000}
@@ -5043,7 +5321,7 @@ describe('DirectScrollCineView', () => {
     const onZoneProgress = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
         <TestScene
           sceneId="scene-0"
           sceneHeight={1000}
@@ -5095,7 +5373,7 @@ describe('DirectScrollCineView', () => {
     const onZoneProgress = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
         <TestScene
           sceneId="scene-0"
           sceneHeight={1000}
@@ -5224,7 +5502,7 @@ describe('DirectScrollCineView', () => {
     render(
       <>
         <button type="button">Toggle metrics</button>
-        <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneProgress } }}>
+        <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
           <TestScene
             sceneId="scene-0"
             sceneHeight={1000}
@@ -5469,7 +5747,7 @@ describe('DirectScrollCineView', () => {
     const onZoneEnter = jest.fn();
 
     const { container } = render(
-      <DirectScrollCineView config={config} callbacks={{ scroll: { onZoneEnter } }}>
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneEnter }}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>

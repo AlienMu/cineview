@@ -4,7 +4,9 @@ import dts from 'vite-plugin-dts';
 import { visualizer } from 'rollup-plugin-visualizer';
 import compression from 'vite-plugin-compression';
 
-export default defineConfig({
+// command === 'build' 时移除 console/debugger；dev server（serve）保留，
+// 以免吞掉框架的开发期诊断（Scene 层级错误、循环依赖告警等）。
+export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     // 生成 TypeScript 类型定义文件
@@ -49,20 +51,15 @@ export default defineConfig({
         // 注意：库模式下 Vite 会自动处理动态 import，无需手动配置 manualChunks
       },
     },
-    // 使用 Terser 压缩
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // 移除 console
-        drop_debugger: true, // 移除 debugger
-        pure_funcs: ['console.log', 'console.info', 'console.debug'], // 移除特定函数调用
-      },
-      format: {
-        comments: false, // 移除注释
-      },
-    },
+    // 使用 esbuild 压缩。注意：lib 多格式（es + umd）下用 terser 时，terser 只会
+    // 压缩 umd 输出而静默跳过 es 输出（Vite 已知问题），导致 es 包未压缩、体积翻倍且
+    // console 残留。esbuild 对两种格式都可靠压缩，并通过 esbuild.drop 移除 console。
+    minify: 'esbuild',
     // 优化配置
     sourcemap: false, // 生产环境不生成 sourcemap
     chunkSizeWarningLimit: 500, // chunk 大小警告阈值 (KB)
   },
-});
+  // 生产构建移除 console 与 debugger（terser 的 drop_console 等价物）；
+  // dev server 保留，避免吞掉开发期诊断输出。
+  esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : {},
+}));

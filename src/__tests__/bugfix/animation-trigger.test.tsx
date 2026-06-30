@@ -27,7 +27,7 @@ describe('Animation Trigger Bug Fixes', () => {
           config={{ width: 750, height: 1334, unit: 'px' }}
           mode="drag"
           modes={{ drag: { transitionDuration: 500 } }}
-          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+          callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene>
             <Animate enterAnimation="fade-in" duration={{ enter: 300 }} animateId="test-animate-1">

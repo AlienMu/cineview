@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { useEffect } from 'react';
 import type { AnimationControls } from 'framer-motion';
 import type { ScrollMode, ScrollTimelineState } from '../../types';
@@ -10,10 +10,7 @@ import type { SceneState } from './types';
 interface UseScrollSceneEngineParams {
   slideMode: ScrollMode;
   isActive: boolean;
-  sceneIndex: number;
-  totalScenes: number;
   sceneOffset: number;
-  slideDirection: 'x' | 'y';
   sceneStackMode: 'replace' | 'cover';
   controls: AnimationControls;
   enterVariant: PresetAnimation | null;
@@ -24,8 +21,6 @@ interface UseScrollSceneEngineParams {
   globalScrollTransitionSnapshot: ScrollTransitionSnapshot | null;
   globalScrollBackdropActive: boolean;
   globalScrollTimelineState: ScrollTimelineState | null;
-  containerRef: RefObject<HTMLDivElement>;
-  scrollSettleTimerRef: MutableRefObject<number | null>;
   setSceneState: Dispatch<SetStateAction<SceneState>>;
 }
 
@@ -55,10 +50,7 @@ function clampProgress(value: number): number {
 export function useScrollSceneEngine({
   slideMode,
   isActive,
-  sceneIndex,
-  totalScenes,
   sceneOffset,
-  slideDirection,
   sceneStackMode,
   controls,
   enterVariant,
@@ -69,8 +61,6 @@ export function useScrollSceneEngine({
   globalScrollTransitionSnapshot,
   globalScrollBackdropActive,
   globalScrollTimelineState,
-  containerRef,
-  scrollSettleTimerRef,
   setSceneState,
 }: UseScrollSceneEngineParams): void {
   useEffect(() => {
@@ -87,26 +77,17 @@ export function useScrollSceneEngine({
       sceneStackMode === 'cover' &&
       globalScrollBackdropActive &&
       (sceneOffset === 0 || sceneOffset === -1);
-    const activeSceneState = resolveVariantState(
-      enterVariant?.animate,
-      DEFAULT_SCENE_VISUAL_STATE
-    );
+    const activeSceneState = resolveVariantState(enterVariant?.animate, DEFAULT_SCENE_VISUAL_STATE);
     const initialSceneState = resolveVariantState(enterVariant?.initial, activeSceneState);
     const exitedSceneState = resolveVariantState(exitVariant?.exit, activeSceneState);
     const transitionProgress = clampProgress(globalScrollProgress);
 
-    void enterVariant;
-    void exitVariant;
-    void sceneIndex;
-    void totalScenes;
-    void slideDirection;
-    void containerRef;
-    void scrollSettleTimerRef;
-
     if (!timelineState) {
       if (incomingScene) {
         setSceneState('entering');
-        controls.set(interpolateVariant(initialSceneState, activeSceneState, transitionProgress) as never);
+        controls.set(
+          interpolateVariant(initialSceneState, activeSceneState, transitionProgress) as never
+        );
       } else if (outgoingScene || backdropCoveredScene) {
         setSceneState(exitVariant?.exit ? 'exiting' : 'active');
         controls.set(
@@ -180,10 +161,5 @@ export function useScrollSceneEngine({
     globalScrollTimelineState,
     controls,
     setSceneState,
-    sceneIndex,
-    totalScenes,
-    slideDirection,
-    containerRef,
-    scrollSettleTimerRef,
   ]);
 }

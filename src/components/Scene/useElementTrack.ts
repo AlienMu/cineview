@@ -53,6 +53,14 @@ interface UseElementTrackParams {
   getTimelineDuration: () => number;
   /** Registry-aware timeline duration trigger; re-fires the cold-start extend. */
   timelineDurationState: number;
+  /**
+   * Absolute follow-finger time scale: ms of element-timeline elapsed per 1% of
+   * drag. The follow-finger write pegs the track to `r * 100 * dragTimeScale` (an
+   * absolute clock) instead of `r * T_self`, decoupling drag speed from animation
+   * length. Defaults to 100 (1% → 100ms; full drag → 10000ms). Settle continues
+   * from the reached elapsed to T_self at the natural rate.
+   */
+  dragTimeScale?: number;
   /** Fired when the element track reaches T (settle / cold-start complete). */
   onSettleComplete?: () => void;
   onColdStartComplete?: () => void;
@@ -72,18 +80,32 @@ export function useElementTrack({
   elementElapsedMotion,
   getTimelineDuration,
   timelineDurationState,
+  dragTimeScale,
   onSettleComplete,
   onColdStartComplete,
 }: UseElementTrackParams): void {
+  // Absolute follow-finger time scale: drag percent -> element-track elapsed ms.
+  // `dragTimeScale` is ms per 1% of drag (default 100 -> full drag 0..1 maps to
+  // 0..10_000ms). This DECOUPLES the clock from the scene's own timeline T_self:
+  // the finger advances the shared elapsed at a fixed authored rate, so short
+  // elements no longer race to terminal just because the drag fraction is large.
+  // Whether the animation fully plays out during the drag depends on this scale
+  // vs the scene's T_self — if the scale's full span (100 * dragTimeScale) is
+  // shorter than T_self the drag cannot finish it and settle continues the
+  // remainder at real-time rate; if longer, it completes mid-drag and holds.
+  // The default is resolved at the config entry (CineView.DEFAULT_DRAG_TIME_SCALE);
+  // the `?? 100` here is a pure safety net for direct hook callers / tests that
+  // omit the prop — it should never fire on the production config path.
+  const dragTimeScalePer100 = Math.max(0, (dragTimeScale ?? 100) * 100);
   // The single in-flight element-track animation controls for THIS scene.
   // Whatever source is currently driving the track stores its controls here so
   // the next source (or a preempting drag) can stop it in place.
   const controlsRef = useRef<{ stop: () => void } | null>(null);
-  // What the current in-flight animation is doing, so a preempting drag can do
-  // the right bookkeeping: a 'settle' represents a committed scene change whose
-  // deferred onSceneDidChange must still fire even if the visual continuation is
-  // cut short (the index change is real); a 'cold-start'/'bounce' has no such
-  // deferred callback.
+  // What the current in-flight animation is doing. onSceneDidChange now fires at
+  // the render commit, so a preempted settle has NO orphaned public callback to
+  // fire — preempt just stops the track in place. This ref is now write-only
+  // (kept for debug/clarity of which source last drove the track); no control
+  // flow reads it anymore.
   const inFlightKindRef = useRef<'settle' | 'bounce' | 'cold-start' | null>(null);
   const releaseTokenRef = useRef(0);
   const lastHandledReleaseTokenRef = useRef<number | null>(null);
@@ -108,6 +130,10 @@ export function useElementTrack({
   onColdStartCompleteRef.current = onColdStartComplete;
   const elementMotionRef = useRef(elementElapsedMotion);
   elementMotionRef.current = elementElapsedMotion;
+  // Stable ref for the follow-finger / settle effects so a config change does not
+  // churn the token-keyed effects (which would spawn a spurious second animate).
+  const dragTimeScalePer100Ref = useRef(dragTimeScalePer100);
+  dragTimeScalePer100Ref.current = dragTimeScalePer100;
   // Latest drag timeline ratio r, read at release time. The follow-finger effect
   // pegs the track to r*T across the drag, but a release can land in the SAME
   // synchronous batch as the final pan (no intermediate render to run the
@@ -141,28 +167,30 @@ export function useElementTrack({
     if (slideMode !== 'drag') return;
     if (!globalIsDragging) return;
 
-    // H2: preempt the in-flight animation in place (no jump to terminal). If the
-    // preempted animation was a release SETTLE, its scene-index commit already
-    // happened (the render lane committed); the visual continuation is abandoned
-    // because the scene is sliding offscreen, but the deferred transition
-    // completion must still fire exactly once (otherwise onSceneDidChange for the
-    // real 0->1 change is orphaned). Fire it as bookkeeping BEFORE stopping.
+    // H2: preempt the in-flight animation in place (no jump to terminal). The
+    // public onSceneDidChange already fired at commit (the render lane), so a
+    // preempted settle has NO orphaned public callback to fire — just stop the
+    // visual continuation in place (the scene is sliding offscreen / about to be
+    // re-driven by the finger). The superseded `dragRelease` is overwritten when
+    // the new drag releases (publishDragRelease bumps the token) or cleared on a
+    // bounce (resetDragInteraction), so no stray cleanup is needed here either.
     if (controlsRef.current) {
-      const wasSettle = inFlightKindRef.current === 'settle';
       controlsRef.current.stop();
       controlsRef.current = null;
       inFlightKindRef.current = null;
-      if (wasSettle) {
-        onSettleCompleteRef.current?.();
-      }
     }
     // The cold-start window is now owned by the gesture; no further extend.
     coldStartRanRef.current = true;
     coldStartExtendableRef.current = false;
 
     if (isIncoming) {
+      // Absolute time scale (NOT r * T_self): drag percent maps to a fixed authored
+      // ms rate so the clock advances independently of the scene's own timeline.
+      // Clamp to T_self so the track never reports past its own terminal — short
+      // elements settle early (accepted), but the shared clock itself stops at T.
       const tSelf = getTimelineDurationRef.current();
-      const elapsed = Math.max(0, Math.min(globalDragTimelineProgress, 1)) * tSelf;
+      const r = Math.max(0, Math.min(globalDragTimelineProgress, 1));
+      const elapsed = Math.min(r * dragTimeScalePer100Ref.current, tSelf);
       elementElapsedMotion.set(elapsed);
     }
   }, [slideMode, globalIsDragging, isIncoming, globalDragTimelineProgress, elementElapsedMotion]);
@@ -191,15 +219,61 @@ export function useElementTrack({
     // the follow-finger effect already pegged the track to r * T; but when the
     // gesture's whole press/move/release lands in one synchronous batch (no
     // intervening commit of isDragging), that effect has not run yet, so the
-    // track still reads 0. Seed from max(live track, r * T) so the continuation
-    // always starts from the release elapsed — never a replay from 0.
-    const ratioElapsed = Math.max(0, Math.min(dragTimelineProgressRef.current, 1)) * tSelf;
+    // track still reads 0 AND the render-synced ref still holds its pre-pan value
+    // (also 0) — seeding from the ref alone replays from 0. The directive carries
+    // the release ratio captured authoritatively at release time, so prefer it;
+    // fall back to the render-synced ref only when the directive omits it (e.g.
+    // hand-authored test directives). Seed from max(live track, r * T) so the
+    // continuation always starts from the release elapsed — never a replay from 0.
+    const releaseRatio =
+      typeof release.progressRatio === 'number'
+        ? release.progressRatio
+        : dragTimelineProgressRef.current;
+    // Same absolute time scale as the follow-finger write (r * dragTimeScalePer100,
+    // clamped to tSelf), so the release instant is continuous with the last drag
+    // frame — never a jump from a T_self-based ratio.
+    const ratioElapsed = Math.min(
+      Math.max(0, Math.min(releaseRatio, 1)) * dragTimeScalePer100Ref.current,
+      tSelf
+    );
     const current = Math.max(0, motion.get(), ratioElapsed);
     if (current > motion.get()) {
       motion.set(current);
     }
 
-    if (release.mode === 'settle') {
+    if (release.mode === 'enter') {
+      // Programmatic navigation (ref.goToScene / nextScene / prevScene). Unlike a
+      // gesture settle (which CONTINUES from the release elapsed), this is a fresh
+      // enter: replay 0 -> T at natural rate so the destination scene plays its
+      // full element-timeline enter with per-element delay sequencing. It is NOT
+      // part of the gesture join — no onSettleComplete — so it cannot corrupt a
+      // later commit's settleArrived bookkeeping; CineView's animated-settle timer
+      // drives completion (setAnimating(false) -> onAfterChange).
+      motion.set(0);
+      if (tSelf <= 0.001) {
+        motion.set(tSelf);
+        return;
+      }
+      // 'cold-start' kind (not 'settle'): a drag that preempts this mid-enter
+      // must stop the track in place WITHOUT firing onSettleComplete (the H2
+      // preempt only fires it for the 'settle' kind). Programmatic enter is not
+      // part of the join, so a spurious completion must never reach it.
+      inFlightKindRef.current = 'cold-start';
+      controlsRef.current = animate(motion, tSelf, {
+        duration: tSelf / 1000,
+        ease: 'linear',
+        onUpdate: (latest) => {
+          if (releaseTokenRef.current !== token) return;
+          motion.set(latest);
+        },
+        onComplete: () => {
+          if (releaseTokenRef.current !== token) return;
+          controlsRef.current = null;
+          inFlightKindRef.current = null;
+          motion.set(tSelf);
+        },
+      });
+    } else if (release.mode === 'settle') {
       const remainingMs = tSelf - current;
       if (remainingMs <= 0.001) {
         // Clean commit: already at (or past) T. Snap and complete immediately.

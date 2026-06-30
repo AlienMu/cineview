@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { MotionValue, useMotionValue, useTransform } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
 import type { SceneContextType } from './Animate';
+import {
+  clamp,
+  getDefaultValue,
+  getVariantValue,
+  lerpTransformValue,
+  parseNumericValue,
+  type AnimatableProperty,
+  type TransformValue,
+  type VariantRecord,
+} from './animateInterpolation';
 
 interface UseAnimateDragParams {
   sceneContext: SceneContextType | null;
@@ -25,19 +35,6 @@ interface UseAnimateDragReturn {
   shouldRunInfinite: boolean;
 }
 
-type DragProperty =
-  | 'opacity'
-  | 'x'
-  | 'y'
-  | 'scale'
-  | 'rotate'
-  | 'rotateX'
-  | 'rotateY'
-  | 'skewX'
-  | 'skewY'
-  | 'filter';
-type VariantRecord = Record<string, unknown>;
-type TransformValue = number | string;
 type DragMotionValue = MotionValue<number> | MotionValue<string> | MotionValue<number | string>;
 
 interface CachedVariants {
@@ -63,84 +60,6 @@ interface DragVisualState {
 }
 
 const EPSILON = 0.001;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function lerp(start: number, end: number, progress: number): number {
-  return start + (end - start) * progress;
-}
-
-function lerpStringValue(
-  start: TransformValue,
-  end: TransformValue,
-  progress: number
-): TransformValue {
-  if (typeof start === 'number' && typeof end === 'number') {
-    return lerp(start, end, progress);
-  }
-
-  const startStr = String(start);
-  const endStr = String(end);
-  const startMatch = startStr.match(/^([-\d.]+)(.*)$/);
-  const endMatch = endStr.match(/^([-\d.]+)(.*)$/);
-
-  if (startMatch && endMatch) {
-    const startNum = parseFloat(startMatch[1]);
-    const endNum = parseFloat(endMatch[1]);
-    const unit = endMatch[2] || startMatch[2] || '';
-    const interpolated = lerp(startNum, endNum, progress);
-    return unit ? `${interpolated}${unit}` : interpolated;
-  }
-
-  const startFuncMatch = startStr.match(/^([a-zA-Z]+)\(([-\d.]+)(.*)\)$/);
-  const endFuncMatch = endStr.match(/^([a-zA-Z]+)\(([-\d.]+)(.*)\)$/);
-
-  if (startFuncMatch && endFuncMatch && startFuncMatch[1] === endFuncMatch[1]) {
-    const startNum = parseFloat(startFuncMatch[2]);
-    const endNum = parseFloat(endFuncMatch[2]);
-    const unit = endFuncMatch[3] || startFuncMatch[3] || '';
-    const interpolated = lerp(startNum, endNum, progress);
-    return `${endFuncMatch[1]}(${interpolated}${unit})`;
-  }
-
-  return progress >= 1 ? end : start;
-}
-
-function parseNumericValue(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = parseFloat(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
-}
-
-function getDefaultValue(
-  property: DragProperty,
-  phase: 'initial' | 'animate' | 'exit'
-): TransformValue {
-  switch (property) {
-    case 'opacity':
-      return phase === 'initial' || phase === 'exit' ? 0 : 1;
-    case 'scale':
-      return 1;
-    case 'filter':
-      return 'none';
-    default:
-      return 0;
-  }
-}
-
-function getVariantValue<T extends TransformValue>(
-  record: VariantRecord,
-  property: DragProperty,
-  fallback: T
-): T {
-  const value = record[property];
-  return value === undefined ? fallback : (value as T);
-}
 
 function isVerboseDragDebug(): boolean {
   if (process.env.NODE_ENV !== 'development' || typeof window === 'undefined') {
@@ -200,18 +119,38 @@ function resolveSharedTimelineDuration(sceneContext: SceneContextType): number {
   return shared > 0 ? shared : own;
 }
 
-function resolveEnterLocalProgress(
-  sharedElapsedMs: number,
+// Enter local progress — SINGLE shared timeline (restored 2026-06-30).
+//
+// The per-scene element track `elementElapsedMotion` runs as a single shared
+// elapsed-ms clock. EVERY element reads the SAME `m` and gates on its OWN
+// `calculatedDelay` / `enterDuration`:
+//
+//   localProgress = clamp((m - calculatedDelay) / enterDuration, 0, 1)
+//
+// waitFor / delay sequencing is correct for free: `calculatedDelay` already folds
+// in the waitFor target's full delay+duration at registration (registry.ts), so a
+// chain member B gates at A's completion — B cannot start until A has played out.
+// This is the original two-track (2026-06-25) behaviour. SHORT elements settle
+// EARLY (a 200ms element reaches 1 while the shared clock is only part-way to
+// T_self) — this is ACCEPTED: the user trades early settle for correct waitFor
+// serialisation, and decouples drag SPEED from the clock via `dragTimeScale` (the
+// follow-finger write in useElementTrack maps drag % to an absolute ms scale, not
+// to T_self), so the clock advances slowly enough that early settle is gentle.
+//
+// The same formula serves all drivers (follow-finger, settle, cold-start,
+// programmatic) — they differ only in HOW `m` is advanced, never in how it is read.
+export function resolveEnterLocalProgress(
+  sceneElapsedMs: number,
   calculatedDelay: number,
   enterDuration: number
 ): number {
-  if (sharedElapsedMs <= calculatedDelay) {
+  if (enterDuration <= 0) {
+    return sceneElapsedMs >= calculatedDelay - EPSILON ? 1 : 0;
+  }
+  if (sceneElapsedMs <= calculatedDelay) {
     return 0;
   }
-  if (enterDuration <= 0) {
-    return 1;
-  }
-  return clamp((sharedElapsedMs - calculatedDelay) / enterDuration, 0, 1);
+  return clamp((sceneElapsedMs - calculatedDelay) / enterDuration, 0, 1);
 }
 
 function resolveVisualState(
@@ -229,9 +168,10 @@ function resolveVisualState(
   const sharedTimelineDurationMs = resolveSharedTimelineDuration(sceneContext);
   const sceneTimelineDurationMs = resolveSceneTimelineDuration(sceneContext);
   const renderProgress = Math.abs(resolveRenderProgress(sceneContext));
-  // Element enter progress: a pure function of the per-scene track elapsed,
-  // gated by the element's own (calculated) delay. Direction-agnostic — the
-  // lerp is always initial -> animate.
+  // Single shared timeline: every element reads the same elapsed `m` and gates on
+  // its own calculatedDelay/enterDuration. waitFor/delay sequencing is correct via
+  // calculatedDelay; short elements settle early (accepted). The drivers differ only
+  // in how `m` advances (follow-finger uses the dragTimeScale absolute clock).
   const enterLocalProgress = resolveEnterLocalProgress(
     elementElapsedMs,
     calculatedDelay,
@@ -271,7 +211,14 @@ function resolveVisualState(
     // offset-0 scene), so a mode check is sufficient.
     const coldStartActive = sceneContext.firstSceneEnterActive === true;
     const settlePending = sceneContext.dragRelease?.mode === 'settle';
-    if (coldStartActive || settlePending) {
+    // Programmatic navigation publishes an 'enter' directive whose target is the
+    // now-active scene; its element track replays 0->T. This idle-active branch
+    // is only reachable for the sole offset-0 scene, which IS that target, so a
+    // mode check suffices (no index compare). Read the track for the enter lerp
+    // instead of snapping to rest, so ref-driven goToScene/nextScene/prevScene
+    // plays the authored enter timeline.
+    const programmaticEnterPending = sceneContext.dragRelease?.mode === 'enter';
+    if (coldStartActive || settlePending || programmaticEnterPending) {
       return {
         ...baseState,
         mode: 'enter',
@@ -310,7 +257,7 @@ function resolveVisualState(
 function resolvePropertyValue(
   state: DragVisualState,
   variants: CachedVariants,
-  property: DragProperty
+  property: AnimatableProperty
 ): TransformValue {
   const initialValue = getVariantValue(
     variants.enterInitial,
@@ -334,14 +281,14 @@ function resolvePropertyValue(
     case 'hidden':
       return initialValue;
     case 'enter':
-      return lerpStringValue(initialValue, animateValue, state.localProgress);
+      return lerpTransformValue(initialValue, animateValue, state.localProgress);
     case 'outgoing':
       // When no exitAnimation is authored, exitTarget is {} — skip all
       // exit animation and keep the element at its animate state.
       if (Object.keys(variants.exitTarget).length === 0) {
         return animateValue;
       }
-      return lerpStringValue(
+      return lerpTransformValue(
         animateValue,
         state.direction === 'forward' ? exitValue : initialValue,
         state.localProgress
@@ -351,54 +298,38 @@ function resolvePropertyValue(
   }
 }
 
+// Property transforms derive from the shared visualState MotionValue (resolved
+// once per frame in the hook body) instead of each re-running resolveVisualState
+// off the raw visualMotion. A null state means no sceneContext — fall back to the
+// animate (rest) value, matching the prior per-helper guard.
 function useNumericValue(
-  visualMotion: MotionValue<number>,
-  sceneContext: SceneContextType | null,
+  visualState: MotionValue<DragVisualState | null>,
   variantsRef: React.MutableRefObject<CachedVariants>,
-  calculatedDelayRef: React.MutableRefObject<number>,
-  enterDuration: number,
-  exitDuration: number,
-  property: DragProperty
+  property: AnimatableProperty
 ): MotionValue<number> {
-  return useTransform(visualMotion, () => {
+  return useTransform(visualState, (vs) => {
     const variants = variantsRef.current;
     const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
-    if (!sceneContext) {
+    if (!vs) {
       return parseNumericValue(
         getVariantValue(variants.enterAnimate, property, fallback),
         fallback
       );
     }
-    const vs = resolveVisualState(
-      sceneContext,
-      calculatedDelayRef.current,
-      enterDuration,
-      exitDuration
-    );
     return parseNumericValue(resolvePropertyValue(vs, variants, property), fallback);
   });
 }
 
 function useMixedValue(
-  visualMotion: MotionValue<number>,
-  sceneContext: SceneContextType | null,
+  visualState: MotionValue<DragVisualState | null>,
   variantsRef: React.MutableRefObject<CachedVariants>,
-  calculatedDelayRef: React.MutableRefObject<number>,
-  enterDuration: number,
-  exitDuration: number,
-  property: DragProperty
+  property: AnimatableProperty
 ): MotionValue<number | string> {
-  return useTransform(visualMotion, () => {
+  return useTransform(visualState, (vs) => {
     const variants = variantsRef.current;
-    if (!sceneContext) {
+    if (!vs) {
       return getVariantValue(variants.enterAnimate, property, getDefaultValue(property, 'animate'));
     }
-    const vs = resolveVisualState(
-      sceneContext,
-      calculatedDelayRef.current,
-      enterDuration,
-      exitDuration
-    );
     return resolvePropertyValue(vs, variants, property);
   });
 }
@@ -431,19 +362,22 @@ export function useAnimateDrag({
   // localProgress, outgoing -> signed localProgress). When sceneContext is
   // null the effect early-returns and the transforms ignore visualMotion, so
   // a seed of 0 is correct in that case.
-  const initialVisualMotion = (() => {
-    if (!sceneContext) return 0;
-    const state = resolveVisualState(
-      sceneContext,
-      calculatedDelayRef.current,
-      enterDuration,
-      exitDuration
-    );
-    return state.mode === 'outgoing'
-      ? (state.direction === 'forward' ? 1 : -1) * state.localProgress
-      : state.localProgress;
-  })();
+  const initialVisualState = sceneContext
+    ? resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration, exitDuration)
+    : null;
+  const initialVisualMotion = initialVisualState
+    ? initialVisualState.mode === 'outgoing'
+      ? (initialVisualState.direction === 'forward' ? 1 : -1) * initialVisualState.localProgress
+      : initialVisualState.localProgress
+    : 0;
   const visualMotion = useMotionValue(initialVisualMotion);
+  // Shared per-frame resolved state. updateVisualMotion below resolves once and
+  // writes it here; the 10 property transforms read it instead of each
+  // re-running resolveVisualState (was 11 resolves/frame -> 1). This is a plain
+  // MotionValue written by the same effect that drives visualMotion (NOT a
+  // useTransform chained off visualMotion — that broke update propagation,
+  // leaving properties stuck on the render-time seed).
+  const visualState = useMotionValue<DragVisualState | null>(initialVisualState);
   const [shouldRunInfiniteState, setShouldRunInfiniteState] = useState(false);
   const lastDebugBucketRef = useRef<string | null>(null);
   const lastModeRef = useRef<string | null>(null);
@@ -527,6 +461,7 @@ export function useAnimateDrag({
       const modeChanged = lastModeRef.current !== modeKey;
 
       visualMotion.set(nextValue);
+      visualState.set(state);
       lastModeRef.current = modeKey;
 
       if (modeChanged) {
@@ -617,6 +552,7 @@ export function useAnimateDrag({
   }, [
     sceneContext,
     visualMotion,
+    visualState,
     componentId,
     enterDuration,
     exitDuration,
@@ -629,96 +565,16 @@ export function useAnimateDrag({
     sceneContext?.firstSceneEnterActive,
   ]);
 
-  const opacity = useNumericValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'opacity'
-  );
-  const x = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'x'
-  );
-  const y = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'y'
-  );
-  const scale = useNumericValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'scale'
-  );
-  const rotate = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'rotate'
-  );
-  const rotateX = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'rotateX'
-  );
-  const rotateY = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'rotateY'
-  );
-  const skewX = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'skewX'
-  );
-  const skewY = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'skewY'
-  );
-  const filter = useMixedValue(
-    visualMotion,
-    sceneContext,
-    variantsRef,
-    calculatedDelayRef,
-    enterDuration,
-    exitDuration,
-    'filter'
-  );
+  const opacity = useNumericValue(visualState, variantsRef, 'opacity');
+  const x = useMixedValue(visualState, variantsRef, 'x');
+  const y = useMixedValue(visualState, variantsRef, 'y');
+  const scale = useNumericValue(visualState, variantsRef, 'scale');
+  const rotate = useMixedValue(visualState, variantsRef, 'rotate');
+  const rotateX = useMixedValue(visualState, variantsRef, 'rotateX');
+  const rotateY = useMixedValue(visualState, variantsRef, 'rotateY');
+  const skewX = useMixedValue(visualState, variantsRef, 'skewX');
+  const skewY = useMixedValue(visualState, variantsRef, 'skewY');
+  const filter = useMixedValue(visualState, variantsRef, 'filter');
 
   useEffect(() => {
     if (!sceneContext) {

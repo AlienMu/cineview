@@ -1,6 +1,7 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useEffect, useMemo } from 'react';
 import type { CSSProperties, ImgHTMLAttributes } from 'react';
 import { useCineViewContext } from '../../context/CineViewContext';
+import { isImagePreloaded, markImageAsPreloaded } from '../../hooks/imagePreloadCache';
 
 type NativeImageProps = Omit<
   ImgHTMLAttributes<HTMLImageElement>,
@@ -99,7 +100,9 @@ const convertNumericStyleValue = (
   }
 
   if (scalarLengthStyleKeys.has(key)) {
-    return context.convertSize(value);
+    // Scalar lengths (borderRadius/fontSize/...) scale on the width axis;
+    // convertX(s) === s * scaleX is identical to the old convertSize(s).
+    return context.convertX(value);
   }
 
   return value;
@@ -126,16 +129,7 @@ const convertStyle = (
 };
 
 export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
-  {
-    src,
-    alt,
-    width,
-    height,
-    style,
-    loading,
-    preload = true,
-    ...imgProps
-  },
+  { src, alt, width, height, style, loading, preload = true, ...imgProps },
   ref
 ): JSX.Element {
   const cineViewContext = useCineViewContext();
@@ -161,6 +155,28 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
     [cineViewContext, style]
   );
   const resolvedLoading = loading ?? (preload ? 'eager' : 'lazy');
+
+  // Warm the shared preload cache so this URL is registered with the framework's
+  // preload pipeline (the same Set consulted by useImagePreloader). Without this
+  // the `preload` prop only toggled the native loading attribute and an asset
+  // rendered via <Image> stayed invisible to isImagePreloaded/subscribers.
+  useEffect(() => {
+    if (!preload || !src || typeof window === 'undefined') {
+      return;
+    }
+    if (isImagePreloaded(src)) {
+      return;
+    }
+    const loader = new window.Image();
+    const handleLoad = (): void => {
+      markImageAsPreloaded(src);
+    };
+    loader.addEventListener('load', handleLoad);
+    loader.src = src;
+    return () => {
+      loader.removeEventListener('load', handleLoad);
+    };
+  }, [preload, src]);
 
   return (
     <img

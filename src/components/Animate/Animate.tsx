@@ -23,6 +23,7 @@ import {
   SceneScrollTimelineContext,
   SceneScrollTakeoverContext,
 } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 
 export type SceneRuntimeState =
   | 'inactive'
@@ -66,6 +67,12 @@ export interface SceneDragRuntimeContext {
   // priority images are ready. Lets the active offset-0 scene resolve through the
   // enter lerp path instead of snapping straight to rest.
   firstSceneEnterActive?: boolean;
+  // Cold-start START trigger for the first mounted scene, mirrored from the
+  // global useFirstSceneEnter gate. Three-state for the scroll visibility path:
+  // `true` = first scene, assets ready, may play its enter; `false` = first
+  // scene, held at initial (pre-load / preventDefault); `undefined` = not the
+  // first scene, never gated by cold start.
+  firstSceneEnterReady?: boolean;
 }
 
 export interface SceneScrollRuntimeBridgeContext {
@@ -150,13 +157,13 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const normalizedDelay = resolvedTimeline.delay;
   const normalizedWaitFor = resolvedTimeline.waitFor;
   const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
-  const scrollZoneRuntime = useMemo(
+  const scrollZoneRuntime = useMemo<SceneScrollZoneRuntime | null>(
     () =>
       zoneRuntime
         ? {
             ...zoneRuntime,
-            version: zoneTimeline?.version ?? zoneRuntime.version,
-            zoneStates: zoneTimeline?.zoneStates ?? zoneRuntime.zoneStates,
+            version: zoneTimeline?.version ?? 0,
+            zoneStates: zoneTimeline?.zoneStates ?? {},
           }
         : null,
     [zoneRuntime, zoneTimeline]
@@ -219,6 +226,8 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     duration: normalizedSemantics.duration,
     timeline: resolvedTimeline,
     visibility: normalizedSemantics.visibility,
+    globalEnterMargin: cineViewRuntime?.scrollEnterMargin,
+    globalExitMargin: cineViewRuntime?.scrollExitMargin,
   });
 
   useEffect(() => {

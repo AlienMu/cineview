@@ -26,8 +26,12 @@ export interface NormalizedAnimateTimeline {
 
 export interface NormalizedAnimateVisibility {
   replayOnReenter: boolean;
-  enterWhen: 'fully-visible-bottom';
-  exitWhen: 'leaving-top';
+  // Raw per-Animate design-px overrides (undefined = inherit the CineView-level
+  // `modes.scroll.enterMargin` / `exitMargin`, default 50). The global fallback
+  // and the scaleY → physical-px conversion are resolved in useAnimateScroll,
+  // which has the CineViewContext; keeping this layer pure of context.
+  enterMargin?: number;
+  exitMargin?: number;
 }
 
 export interface NormalizedAnimateSemantics {
@@ -84,8 +88,8 @@ export function normalizeAnimateSemantics({
     },
     visibility: {
       replayOnReenter: visibility?.replayOnReenter ?? true,
-      enterWhen: visibility?.enterWhen ?? 'fully-visible-bottom',
-      exitWhen: visibility?.exitWhen ?? 'leaving-top',
+      enterMargin: visibility?.enterMargin,
+      exitMargin: visibility?.exitMargin,
     },
   };
 }

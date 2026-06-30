@@ -2,6 +2,7 @@ import { createRef } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { Image } from './Image';
+import { isImagePreloaded, resetPreloadedImageCache } from '../../hooks/imagePreloadCache';
 
 function setViewport(width: number, height: number): void {
   Object.defineProperty(window, 'innerWidth', {
@@ -71,6 +72,65 @@ describe('Image', () => {
     const { getByAltText } = render(<Image src="hero.jpg" alt="Hero" loading="lazy" />);
 
     expect(getByAltText('Hero')).toHaveAttribute('loading', 'lazy');
+  });
+
+  it('registers a preloaded src with the shared preload cache when it loads', () => {
+    resetPreloadedImageCache();
+    const loaders: Array<{ src: string; dispatch: (type: string) => void }> = [];
+    const OriginalImage = window.Image;
+    // Capture the off-screen loader the component creates and let the test fire
+    // its load event, so we can assert the URL lands in the shared cache that
+    // useImagePreloader reads — the no-flash guarantee the old Preloader gave.
+    class MockImage {
+      private listeners: Record<string, Array<() => void>> = {};
+      set src(value: string) {
+        loaders.push({
+          src: value,
+          dispatch: (type: string) => this.listeners[type]?.forEach((fn) => fn()),
+        });
+      }
+      addEventListener(type: string, fn: () => void): void {
+        (this.listeners[type] ??= []).push(fn);
+      }
+      removeEventListener(): void {}
+    }
+    (window as unknown as { Image: unknown }).Image = MockImage;
+
+    try {
+      render(<Image src="warm.jpg" alt="Warm" />);
+      expect(isImagePreloaded('warm.jpg')).toBe(false);
+
+      const loader = loaders.find((l) => l.src === 'warm.jpg');
+      expect(loader).toBeDefined();
+      loader!.dispatch('load');
+
+      expect(isImagePreloaded('warm.jpg')).toBe(true);
+    } finally {
+      (window as unknown as { Image: typeof OriginalImage }).Image = OriginalImage;
+      resetPreloadedImageCache();
+    }
+  });
+
+  it('does not warm the preload cache when preload is disabled', () => {
+    resetPreloadedImageCache();
+    const loaders: string[] = [];
+    const OriginalImage = window.Image;
+    class MockImage {
+      set src(value: string) {
+        loaders.push(value);
+      }
+      addEventListener(): void {}
+      removeEventListener(): void {}
+    }
+    (window as unknown as { Image: unknown }).Image = MockImage;
+
+    try {
+      render(<Image src="lazy.jpg" alt="Lazy" preload={false} />);
+      expect(loaders).not.toContain('lazy.jpg');
+    } finally {
+      (window as unknown as { Image: typeof OriginalImage }).Image = OriginalImage;
+      resetPreloadedImageCache();
+    }
   });
 
   it('converts numeric width and height with CineView viewport scale', () => {

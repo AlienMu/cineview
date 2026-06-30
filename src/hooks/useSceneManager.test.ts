@@ -463,7 +463,7 @@ describe('useSceneManager', () => {
   });
 
   describe('drag release state (two-track model)', () => {
-    it('should commit drag scene change and DEFER onAfterChange until the transition completes', () => {
+    it('should commit drag scene change and fire onAfterChange AT commit (scene-switch-complete = render commit)', () => {
       const onBeforeChange = jest.fn();
       const onAfterChange = jest.fn();
 
@@ -483,8 +483,9 @@ describe('useSceneManager', () => {
         actions.setDragTimelineProgress(0.6);
         actions.setRenderProgress(0.6);
         actions.setIsDragging(true);
-        // Two-track commit advances the scene index only; the incoming scene's
-        // element track continues independently. No elapsed/snapshot is built.
+        // Two-track commit advances the scene index AND fires onAfterChange now —
+        // the page-slide reaching the target IS the scene-switch-complete moment.
+        // The incoming scene's element track continues independently afterward.
         actions.commitDragSceneChange('forward', 0.6);
       });
 
@@ -498,11 +499,12 @@ describe('useSceneManager', () => {
       // No global element-timeline scalar / snapshot exists anymore.
       expect(state.dragRelease).toBeNull();
       expect(onBeforeChange).toHaveBeenCalledWith(1, 2);
-      // Deferred: onAfterChange fires later via completeDragTransition.
-      expect(onAfterChange).not.toHaveBeenCalled();
+      // Fires at commit, not deferred to the element track.
+      expect(onAfterChange).toHaveBeenCalledTimes(1);
+      expect(onAfterChange).toHaveBeenCalledWith(2, 1);
     });
 
-    it('should fire onAfterChange when completeDragTransition is called by the incoming scene', () => {
+    it('fires onAfterChange at commit, then completeDragTransition only cleans up (no second fire)', () => {
       const onAfterChange = jest.fn();
       const { result } = renderHook(() =>
         useSceneManager({
@@ -518,11 +520,13 @@ describe('useSceneManager', () => {
         actions.commitDragSceneChange('forward', 0.75);
       });
 
-      // Deferred until the incoming scene's element track reaches T.
-      expect(onAfterChange).not.toHaveBeenCalled();
+      // Fired at commit, exactly once.
+      expect(onAfterChange).toHaveBeenCalledTimes(1);
+      expect(onAfterChange).toHaveBeenCalledWith(2, 1);
 
       act(() => {
         const [, actions] = result.current;
+        // Element track reached T → cleanup only, no second callback.
         actions.completeDragTransition();
       });
 
@@ -531,17 +535,18 @@ describe('useSceneManager', () => {
       expect(state.dragTimelineProgress).toBe(0);
       expect(state.dragRelease).toBeNull();
       expect(state.direction).toBeNull();
-      expect(onAfterChange).toHaveBeenCalledWith(2, 1);
+      expect(onAfterChange).toHaveBeenCalledTimes(1);
     });
 
-    it('fires onAfterChange once when the element settle completes BEFORE the render commit (order-independent join)', () => {
+    it('fires onAfterChange once at commit even when the element settle arm arrives first (order-independent cleanup join)', () => {
       // Regression: in the CineView path the page-slide (render lane) runs on a
       // fixed slideDuration (~800ms) while the incoming scene's element settle
       // runs on its own T_self. When T_self < slideDuration the element track
       // reaches T — and fires completeDragTransition — BEFORE the render lane
-      // commits. The deferred onSceneDidChange must still fire exactly once; the
-      // two arms form an order-independent join, not a settle-arrives-second
-      // assumption.
+      // commits. The public onSceneDidChange fires at commit (exactly once); the
+      // early element arm only records its arrival so the commit can run the state
+      // cleanup. The two arms form an order-independent join for CLEANUP, not for
+      // the callback.
       const onAfterChange = jest.fn();
       const { result } = renderHook(() =>
         useSceneManager({ totalScenes: 4, initialScene: 1, mode: 'drag', onAfterChange })
@@ -556,23 +561,24 @@ describe('useSceneManager', () => {
       act(() => {
         const [, actions] = result.current;
         // Incoming scene's element track reaches T FIRST → settle arm arrives
-        // before the render-lane commit arm.
+        // before the render-lane commit arm. Only records arrival (no callback).
         actions.completeDragTransition();
       });
 
-      // Render commit has not happened yet → the deferred callback waits.
+      // Commit has not happened yet → the callback has not fired.
       expect(onAfterChange).not.toHaveBeenCalled();
 
       act(() => {
         const [, actions] = result.current;
-        // Render lane finishes → commit advances the scene index and closes the join.
+        // Render lane finishes → commit advances the index, fires the callback,
+        // and (since the element arm already arrived) runs the cleanup now.
         actions.commitDragSceneChange('forward', 0.6);
       });
 
       const [state] = result.current;
       expect(state.currentScene).toBe(2);
-      // direction / dragRelease are cleared at the JOIN, not prematurely by the
-      // settle arm while the page was still sliding.
+      // direction / dragRelease are cleared at the JOIN close (element arm already
+      // arrived), not prematurely while the page was still sliding.
       expect(state.direction).toBeNull();
       expect(state.dragRelease).toBeNull();
       expect(onAfterChange).toHaveBeenCalledTimes(1);
@@ -613,6 +619,66 @@ describe('useSceneManager', () => {
         actions.setDragRelease(null);
       });
       [state] = result.current;
+      expect(state.dragRelease).toBeNull();
+    });
+
+    it('should publish an "enter" release directive for programmatic goToScene in drag mode', () => {
+      // Programmatic navigation must drive the destination scene's element-track
+      // enter. Without a directive, the incoming scene would snap to rest with no
+      // enter animation. The 'enter' directive targets the new scene and stays
+      // OUT of the gesture join (it must not set expectedSettle / settleArrived),
+      // so it cannot corrupt a later gesture commit.
+      const onAfterChange = jest.fn();
+      const { result } = renderHook(() =>
+        useSceneManager({ totalScenes: 4, initialScene: 1, mode: 'drag', onAfterChange })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.goToScene(3, true);
+      });
+
+      const [state] = result.current;
+      expect(state.currentScene).toBe(3);
+      expect(state.dragRelease).toMatchObject({
+        mode: 'enter',
+        direction: 'forward',
+        targetSceneIndex: 3,
+      });
+      // Animated path defers onAfterChange to setAnimating(false); not fired yet.
+      expect(onAfterChange).not.toHaveBeenCalled();
+
+      // The element arm of a real gesture join must NOT have been armed by the
+      // programmatic enter: a stray completeDragTransition here records nothing.
+      act(() => {
+        const [, actions] = result.current;
+        actions.completeDragTransition();
+      });
+      expect(onAfterChange).not.toHaveBeenCalled();
+
+      // CineView's animated-settle timer closes the programmatic nav, clearing the
+      // directive and firing onAfterChange exactly once.
+      act(() => {
+        const [, actions] = result.current;
+        actions.setAnimating(false);
+      });
+      const [settled] = result.current;
+      expect(settled.dragRelease).toBeNull();
+      expect(onAfterChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT publish a release directive for programmatic goToScene in scroll mode', () => {
+      const { result } = renderHook(() =>
+        useSceneManager({ totalScenes: 4, initialScene: 1, mode: 'scroll' })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.goToScene(2, true);
+      });
+
+      const [state] = result.current;
+      expect(state.currentScene).toBe(2);
       expect(state.dragRelease).toBeNull();
     });
 

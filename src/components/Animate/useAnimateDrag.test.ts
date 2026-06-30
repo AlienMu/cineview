@@ -26,14 +26,18 @@ jest.mock('framer-motion', () => {
     useMotionValue: (initial: number) => createMotionValueStub(initial),
     useTransform: (
       source: {
-        get: () => number;
-        on: (_event: string, listener: (value: number) => void) => () => void;
+        get: () => unknown;
+        on: (_event: string, listener: (value: unknown) => void) => () => void;
       },
-      transform: () => number | string
+      transform: (value: unknown) => number | string
     ) => {
       const motionValue = createMotionValueStub(0);
       const update = (): void => {
-        const next = transform();
+        // Real framer-motion passes source.get() into the transformer; the
+        // hook reads it as the resolved DragVisualState. The old no-arg form
+        // left it undefined, so every property fell through to the !vs animate
+        // fallback (scale/opacity stuck at 1).
+        const next = transform(source.get());
         if (typeof next === 'number') {
           motionValue.set(next);
         }

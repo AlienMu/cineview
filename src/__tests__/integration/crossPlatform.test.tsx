@@ -256,7 +256,7 @@ describe('跨平台兼容性测试', () => {
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
-          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+          callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -590,7 +590,7 @@ describe('跨平台兼容性测试', () => {
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
-          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+          callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene>
             <h1>Drag 场景 1</h1>

@@ -92,8 +92,6 @@ describe('useSceneScrollTakeover', () => {
     const { rerender } = render(
       <SceneScrollRuntimeContext.Provider
         value={{
-          version: 0,
-          zoneStates: {},
           registerZone,
           unregisterZone,
           setZoneElement,
@@ -108,25 +106,12 @@ describe('useSceneScrollTakeover', () => {
     expect(registerZone).toHaveBeenCalledTimes(1);
     expect(setZoneElement).toHaveBeenCalledTimes(1);
 
+    // Re-render the provider with a fresh value object but identical handler
+    // refs. useSceneScrollTakeover depends on the individual callbacks, not the
+    // value identity, so the registration effects must not re-fire.
     rerender(
       <SceneScrollRuntimeContext.Provider
         value={{
-          version: 1,
-          zoneStates: {
-            'demo-zone': {
-              zoneId: 'demo-zone',
-              sceneIndex: 1,
-              progressPx: 120,
-              totalBudgetPx: 600,
-              active: true,
-              direction: 'forward',
-              sequence: {
-                totalBudgetPx: 600,
-                totalDurationMs: 1000,
-                budgets: {},
-              },
-            },
-          },
           registerZone,
           unregisterZone,
           setZoneElement,

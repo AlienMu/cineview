@@ -468,6 +468,87 @@ describe('Position Component', () => {
     });
   });
 
+  describe('居中定位 (anchor)', () => {
+    it('anchor=center 时水平垂直都居中（left/top=50% + translate(-50%)）', () => {
+      renderWithContext(
+        <Position at={{ anchor: 'center' }}>
+          <div data-testid="child">Content</div>
+        </Position>,
+        { designWidth: 750, designHeight: 750, unit: 'px' }
+      );
+
+      const parent = screen.getByTestId('child').parentElement;
+      expect(parent).toHaveStyle({
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        transform: 'translateX(-50%) translateY(-50%)',
+      });
+    });
+
+    it('anchor=center-x 只水平居中，y 仍为绝对坐标', () => {
+      renderWithContext(
+        <Position at={{ anchor: 'center-x', y: 200 }}>
+          <div data-testid="child">Content</div>
+        </Position>,
+        { designWidth: 750, designHeight: 750, unit: 'px' }
+      );
+
+      const parent = screen.getByTestId('child').parentElement;
+      expect(parent).toHaveStyle({
+        left: '50%',
+        top: '200px',
+        transform: 'translateX(-50%)',
+      });
+    });
+
+    it('anchor=center-y 只垂直居中，x 仍为绝对坐标', () => {
+      renderWithContext(
+        <Position at={{ anchor: 'center-y', x: 100 }}>
+          <div data-testid="child">Content</div>
+        </Position>,
+        { designWidth: 750, designHeight: 750, unit: 'px' }
+      );
+
+      const parent = screen.getByTestId('child').parentElement;
+      expect(parent).toHaveStyle({
+        left: '100px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+      });
+    });
+
+    it('居中后仍可用 x/y 设置相对中心的偏移（calc(50% + offset)）', () => {
+      renderWithContext(
+        <Position at={{ anchor: 'center', x: 40, y: -30 }}>
+          <div data-testid="child">Content</div>
+        </Position>,
+        { designWidth: 750, designHeight: 750, unit: 'px' }
+      );
+
+      const parent = screen.getByTestId('child').parentElement;
+      expect(parent).toHaveStyle({
+        left: 'calc(50% + 40px)',
+        top: 'calc(50% + -30px)',
+        transform: 'translateX(-50%) translateY(-50%)',
+      });
+    });
+
+    it('居中 transform 与用户自定义 transform 叠加（居中在前）', () => {
+      renderWithContext(
+        <Position at={{ anchor: 'center' }} style={{ transform: 'rotate(10deg)' }}>
+          <div data-testid="child">Content</div>
+        </Position>,
+        { designWidth: 750, designHeight: 750, unit: 'px' }
+      );
+
+      const parent = screen.getByTestId('child').parentElement;
+      expect(parent).toHaveStyle({
+        transform: 'translateX(-50%) translateY(-50%) rotate(10deg)',
+      });
+    });
+  });
+
   describe('子元素渲染', () => {
     it('应该正确渲染子元素', () => {
       renderWithContext(

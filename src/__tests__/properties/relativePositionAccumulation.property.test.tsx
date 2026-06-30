@@ -27,16 +27,13 @@ describe('Property: 相对定位累加性', () => {
     return {
       designWidth: designSize,
       designHeight: 1080,
-      designSize,
       unit: 'px' as const,
       viewportWidth,
       viewportHeight: 1080,
       scaleX: scale,
       scaleY: 1,
-      scale,
       convertX: (size: number): number => size * scale,
       convertY: (size: number): number => size,
-      convertSize: (size: number): number => size * scale,
     };
   };
 

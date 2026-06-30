@@ -54,10 +54,14 @@ export const Position: React.FC<PositionInternalProps> = ({
   const resolvedOffsetX = at?.offsetX ?? offsetX;
   const resolvedOffsetY = at?.offsetY ?? offsetY;
   const resolvedFixed = layer?.fixed ?? fixed;
-  const shouldUseStickyLayer =
-    resolvedFixed && cineViewRuntime?.mode === 'scroll' && !fixedLayer;
+  const anchor = at?.anchor;
+  const centerX = anchor === 'center' || anchor === 'center-x';
+  const centerY = anchor === 'center' || anchor === 'center-y';
+  const shouldUseStickyLayer = resolvedFixed && cineViewRuntime?.mode === 'scroll' && !fixedLayer;
 
-  // 计算最终位置 - 使用双轴设计基准换算到实际像素坐标
+  // 计算最终位置 - 使用双轴设计基准换算到实际像素坐标。
+  // 居中轴改用 `calc(50% + offset)` + translate(-50%)（见 positionStyle），
+  // 故此处对居中轴产出的 finalLeft/finalTop 仅作非居中回退，居中时被覆盖。
   const { finalLeft, finalTop, finalX, finalY } = useMemo(() => {
     const convertX = context?.convertX ?? ((size: number): number => size);
     const convertY = context?.convertY ?? ((size: number): number => size);
@@ -97,6 +101,33 @@ export const Position: React.FC<PositionInternalProps> = ({
     };
   }, [context, parentPosition, resolvedOffsetX, resolvedOffsetY, resolvedX, resolvedY]);
 
+  // 居中轴的 left/top + transform。居中时 x/y 作为「相对中心的偏移」(设计 px)。
+  const { leftStyle, topStyle, centerTransform } = useMemo(() => {
+    const convertX = context?.convertX ?? ((size: number): number => size);
+    const convertY = context?.convertY ?? ((size: number): number => size);
+    const transforms: string[] = [];
+
+    let left: number | string = finalLeft;
+    if (centerX) {
+      const offsetPx = convertX(resolvedX ?? 0);
+      left = offsetPx === 0 ? '50%' : `calc(50% + ${offsetPx}px)`;
+      transforms.push('translateX(-50%)');
+    }
+
+    let top: number | string = finalTop;
+    if (centerY) {
+      const offsetPx = convertY(resolvedY ?? 0);
+      top = offsetPx === 0 ? '50%' : `calc(50% + ${offsetPx}px)`;
+      transforms.push('translateY(-50%)');
+    }
+
+    return {
+      leftStyle: left,
+      topStyle: top,
+      centerTransform: transforms.length > 0 ? transforms.join(' ') : undefined,
+    };
+  }, [context, centerX, centerY, resolvedX, resolvedY, finalLeft, finalTop]);
+
   // 更新上下文（传递给子组件）
   const contextValue = useMemo<PositionContextValue>(
     () => ({
@@ -107,18 +138,21 @@ export const Position: React.FC<PositionInternalProps> = ({
   );
 
   // 构建样式
-  const positionStyle = useMemo(
-    () => ({
+  const positionStyle = useMemo(() => {
+    // 合并居中 transform 与用户传入的 transform（居中在前，用户的叠加在后）。
+    const mergedTransform =
+      [centerTransform, style?.transform].filter(Boolean).join(' ') || undefined;
+    return {
       position: (shouldUseStickyLayer ? 'sticky' : 'absolute') as React.CSSProperties['position'],
-      left: finalLeft,
-      top: finalTop,
+      left: leftStyle,
+      top: topStyle,
       pointerEvents: resolvedFixed
         ? ('auto' as React.CSSProperties['pointerEvents'])
         : style?.pointerEvents,
       ...style,
-    }),
-    [shouldUseStickyLayer, resolvedFixed, finalLeft, finalTop, style]
-  );
+      transform: mergedTransform,
+    };
+  }, [shouldUseStickyLayer, resolvedFixed, leftStyle, topStyle, centerTransform, style]);
   const node = (
     <PositionContext.Provider value={contextValue}>
       <div style={positionStyle} className={className}>

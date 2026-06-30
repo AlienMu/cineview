@@ -14,9 +14,10 @@ export interface SceneScrollTimelineState {
   sequence: ResolvedSceneScrollSequence;
 }
 
+// Zone registration API. Stable for the lifetime of the scroll root: every
+// member is a useCallback with no per-frame dependencies, so the context value
+// built from this never needs to change identity (no per-frame consumer churn).
 export interface SceneScrollRuntimeContextValue {
-  version: number;
-  zoneStates: Record<string, SceneScrollTimelineState>;
   registerZone: (
     zoneId: string,
     config: {
@@ -30,13 +31,20 @@ export interface SceneScrollRuntimeContextValue {
   unregisterZoneAnimation: (zoneId: string, animateId: string) => void;
 }
 
-export const SceneScrollRuntimeContext = createContext<SceneScrollRuntimeContextValue | null>(
-  null
-);
-
-export const SceneScrollTimelineContext = createContext<{
+// Per-frame zone timeline snapshot. Lives in its own context so the reactive
+// data path (progress) re-renders consumers without touching the stable
+// registration API above.
+export interface SceneScrollZoneTimeline {
   version: number;
   zoneStates: Record<string, SceneScrollTimelineState>;
-} | null>(null);
+}
+
+// Merged shape consumed by useAnimateScroll: the stable registration API plus
+// the live timeline snapshot. Animate composes this from the two contexts.
+export type SceneScrollZoneRuntime = SceneScrollRuntimeContextValue & SceneScrollZoneTimeline;
+
+export const SceneScrollRuntimeContext = createContext<SceneScrollRuntimeContextValue | null>(null);
+
+export const SceneScrollTimelineContext = createContext<SceneScrollZoneTimeline | null>(null);
 
 export const SceneScrollTakeoverContext = createContext<string | null>(null);

@@ -17,11 +17,11 @@ jest.mock('framer-motion', () => {
   } =>
     Boolean(
       value &&
-        typeof value === 'object' &&
-        'get' in value &&
-        typeof value.get === 'function' &&
-        'on' in value &&
-        typeof value.on === 'function'
+      typeof value === 'object' &&
+      'get' in value &&
+      typeof value.get === 'function' &&
+      'on' in value &&
+      typeof value.on === 'function'
     );
 
   return {
@@ -80,7 +80,20 @@ jest.mock('framer-motion', () => {
       set: jest.fn(),
       stop: jest.fn(),
     }),
-    animate: jest.fn(() => ({ stop: jest.fn() })),
+    // Gate-model test double: immediately settle the MotionValue to its target
+    // and fire onComplete, so the enter/exit gate transition is observable
+    // without driving a real frameloop.
+    animate: jest.fn(
+      (
+        value: { set: (v: number) => void },
+        target: number,
+        options?: { onComplete?: () => void }
+      ) => {
+        value.set(target);
+        queueMicrotask(() => options?.onComplete?.());
+        return { stop: jest.fn() };
+      }
+    ),
   };
 });
 
@@ -309,8 +322,6 @@ describe('useAnimateScroll orphan warning', () => {
 
   it('registers grouped timeline and duration fields with the zone runtime', async () => {
     const zoneRuntime: SceneScrollRuntimeContextValue = {
-      version: 1,
-      zoneStates: {},
       registerZone: jest.fn(),
       unregisterZone: jest.fn(),
       setZoneElement: jest.fn(),
@@ -363,8 +374,6 @@ describe('useAnimateScroll orphan warning', () => {
       <SceneContext.Provider value={createScrollSceneContext()}>
         <SceneScrollRuntimeContext.Provider
           value={{
-            version: 1,
-            zoneStates: {},
             registerZone: jest.fn(),
             unregisterZone: jest.fn(),
             setZoneElement: jest.fn(),
@@ -394,22 +403,6 @@ describe('useAnimateScroll orphan warning', () => {
       <SceneContext.Provider value={createScrollSceneContext()}>
         <SceneScrollRuntimeContext.Provider
           value={{
-            version: 2,
-            zoneStates: {
-              'zone-1': {
-                zoneId: 'zone-1',
-                sceneIndex: 0,
-                progressPx: 120,
-                totalBudgetPx: 320,
-                active: true,
-                direction: 'forward',
-                sequence: {
-                  totalBudgetPx: 320,
-                  totalDurationMs: 320,
-                  budgets: {},
-                },
-              },
-            },
             registerZone: jest.fn(),
             unregisterZone: jest.fn(),
             setZoneElement: jest.fn(),
@@ -438,8 +431,6 @@ describe('useAnimateScroll orphan warning', () => {
   it('defaults omitted timeline.driver to the takeover scroll budget inside a scroll Scene', async () => {
     const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
     const zoneRuntime: SceneScrollRuntimeContextValue = {
-      version: 1,
-      zoneStates: {},
       registerZone: jest.fn(),
       unregisterZone: jest.fn(),
       setZoneElement: jest.fn(),
@@ -476,8 +467,6 @@ describe('useAnimateScroll orphan warning', () => {
   it('lets explicit visibility semantics opt out of takeover scroll registration', async () => {
     const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
     const zoneRuntime: SceneScrollRuntimeContextValue = {
-      version: 1,
-      zoneStates: {},
       registerZone: jest.fn(),
       unregisterZone: jest.fn(),
       setZoneElement: jest.fn(),

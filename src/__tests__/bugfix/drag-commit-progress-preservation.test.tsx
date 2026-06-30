@@ -1,12 +1,12 @@
 /**
- * Two-track commit contract (2026-06-25, supersedes the single-scalar settle
- * snapshot model).
+ * Two-track commit contract (2026-06-26, supersedes the deferred-onSceneDidChange
+ * model).
  *
- * commitDragSceneChange advances the scene index ONLY — it does not build a
- * snapshot, does not carry an elapsed/timeline scalar, and DEFERS onAfterChange.
- * The incoming scene drives its own element track and calls
- * completeDragTransition when that track reaches T, which fires the deferred
- * onAfterChange. These tests exercise that production path through
+ * commitDragSceneChange advances the scene index AND fires onAfterChange now —
+ * scene-switch-complete = render commit. The incoming scene drives its own
+ * element track and calls completeDragTransition when that track reaches T; that
+ * arm is now CLEANUP ONLY (clears dragRelease/direction/scalars), it does not
+ * fire the public callback. These tests exercise that production path through
  * useSceneManager directly.
  */
 
@@ -14,7 +14,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useSceneManager } from '../../hooks/useSceneManager';
 
 describe('commitDragSceneChange two-track behaviour', () => {
-  it('advances the scene index and defers onAfterChange after a partial commit', () => {
+  it('advances the scene index and fires onAfterChange at commit after a partial commit', () => {
     const onBeforeChange = jest.fn();
     const onAfterChange = jest.fn();
 
@@ -51,12 +51,13 @@ describe('commitDragSceneChange two-track behaviour', () => {
     // No global element-timeline scalar / snapshot exists in the two-track model.
     expect(state.dragRelease).toBeNull();
 
-    // onAfterChange is DEFERRED until the incoming scene's element track settles.
+    // onAfterChange fires AT commit (scene-switch-complete = render commit).
     expect(onBeforeChange).toHaveBeenCalledWith(1, 2);
-    expect(onAfterChange).not.toHaveBeenCalled();
+    expect(onAfterChange).toHaveBeenCalledTimes(1);
+    expect(onAfterChange).toHaveBeenCalledWith(2, 1);
   });
 
-  it('fires onAfterChange exactly once when completeDragTransition runs', () => {
+  it('fires onAfterChange once at commit; completeDragTransition only cleans up', () => {
     const onAfterChange = jest.fn();
 
     const { result } = renderHook(() =>
@@ -73,7 +74,9 @@ describe('commitDragSceneChange two-track behaviour', () => {
       actions.commitDragSceneChange('forward', 0.6);
     });
 
-    expect(onAfterChange).not.toHaveBeenCalled();
+    // Fired at commit, exactly once.
+    expect(onAfterChange).toHaveBeenCalledTimes(1);
+    expect(onAfterChange).toHaveBeenCalledWith(2, 1);
 
     act(() => {
       const [, actions] = result.current;
@@ -83,11 +86,11 @@ describe('commitDragSceneChange two-track behaviour', () => {
     const [state] = result.current;
     expect(state.dragRelease).toBeNull();
     expect(state.dragTimelineProgress).toBe(0);
+    // Cleanup only — no second callback.
     expect(onAfterChange).toHaveBeenCalledTimes(1);
-    expect(onAfterChange).toHaveBeenCalledWith(2, 1);
   });
 
-  it('does not fire onAfterChange at commit for a full-progress release either (always deferred)', () => {
+  it('fires onAfterChange at commit for a full-progress release too', () => {
     const onAfterChange = jest.fn();
 
     const { result } = renderHook(() =>
@@ -106,14 +109,17 @@ describe('commitDragSceneChange two-track behaviour', () => {
 
     const [state] = result.current;
     expect(state.currentScene).toBe(1);
-    // Deferred regardless of release ratio: the incoming scene owns completion.
-    expect(onAfterChange).not.toHaveBeenCalled();
+    // Fires at commit regardless of release ratio: scene-switch-complete = render
+    // commit. The incoming scene's element track continues independently after.
+    expect(onAfterChange).toHaveBeenCalledTimes(1);
+    expect(onAfterChange).toHaveBeenCalledWith(1, 0);
 
     act(() => {
       const [, actions] = result.current;
+      // Element track reached T → cleanup only, no second callback.
       actions.completeDragTransition();
     });
-    expect(onAfterChange).toHaveBeenCalledWith(1, 0);
+    expect(onAfterChange).toHaveBeenCalledTimes(1);
   });
 
   it('preserves backward commit direction', () => {

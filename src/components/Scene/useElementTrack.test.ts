@@ -139,3 +139,149 @@ describe('useElementTrack cold-start extend-after-completion (waitFor cascade-fr
     expect(motion.get()).toBeGreaterThanOrEqual(2500);
   });
 });
+
+describe('useElementTrack programmatic "enter" directive (ref nav)', () => {
+  beforeEach(() => {
+    animateCalls.length = 0;
+  });
+
+  it('replays the destination track 0 -> T and does NOT fire onSettleComplete', () => {
+    // Programmatic goToScene publishes an 'enter' directive targeting the new
+    // (already-current) scene. Unlike a gesture settle, this is a fresh enter:
+    // the track must replay from 0 to T, and it must NOT enter the gesture join
+    // (no onSettleComplete) — completion is driven by CineView's animated timer.
+    const motion = createMotionValueStub(0);
+    const tSelf = 800;
+    const getTimelineDuration = (): number => tSelf;
+    const onSettleComplete = jest.fn();
+
+    renderHook(() =>
+      useElementTrack({
+        slideMode: 'drag',
+        isActive: true,
+        sceneIndex: 2,
+        sceneOffset: 0,
+        globalDirection: 'forward',
+        globalIsDragging: false,
+        globalRenderProgress: 0,
+        globalDragTimelineProgress: 0,
+        dragRelease: { token: 7, mode: 'enter', direction: 'forward', targetSceneIndex: 2 },
+        firstSceneEnterReady: false,
+        elementElapsedMotion: motion as never,
+        getTimelineDuration,
+        timelineDurationState: tSelf,
+        onSettleComplete,
+        onColdStartComplete: undefined,
+      })
+    );
+
+    const enter = animateCalls.find((c) => c.target === tSelf);
+    expect(enter).toBeDefined();
+    // Fresh replay: the track was reset to 0 before the tween launched.
+    expect(enter!.readCurrent()).toBe(0);
+
+    enter!.complete();
+    expect(motion.get()).toBe(tSelf);
+    // Crucially out of the join: programmatic enter never closes a settle arm.
+    expect(onSettleComplete).not.toHaveBeenCalled();
+  });
+
+  it('ignores an "enter" directive targeting a different scene', () => {
+    const motion = createMotionValueStub(0);
+    renderHook(() =>
+      useElementTrack({
+        slideMode: 'drag',
+        isActive: false,
+        sceneIndex: 1,
+        sceneOffset: -1,
+        globalDirection: 'forward',
+        globalIsDragging: false,
+        globalRenderProgress: 0,
+        globalDragTimelineProgress: 0,
+        dragRelease: { token: 9, mode: 'enter', direction: 'forward', targetSceneIndex: 2 },
+        firstSceneEnterReady: false,
+        elementElapsedMotion: motion as never,
+        getTimelineDuration: () => 800,
+        timelineDurationState: 800,
+        onSettleComplete: undefined,
+        onColdStartComplete: undefined,
+      })
+    );
+
+    // Not the target scene → no tween launched.
+    expect(animateCalls.length).toBe(0);
+  });
+});
+
+describe('useElementTrack follow-finger absolute dragTimeScale', () => {
+  beforeEach(() => {
+    animateCalls.length = 0;
+  });
+
+  // The follow-finger write maps drag percent to an ABSOLUTE ms rate
+  // (dragTimeScale ms per 1%), NOT to r * T_self. This decouples the shared clock
+  // from the scene's own timeline so short elements no longer race to terminal
+  // just because the drag fraction is large. The write is synchronous (motion.set),
+  // so assert on motion.get() directly.
+  function dragTo(
+    motion: { get: () => number; set: (n: number) => void },
+    r: number,
+    opts: { dragTimeScale?: number; tSelf: number }
+  ): void {
+    renderHook(() =>
+      useElementTrack({
+        slideMode: 'drag',
+        isActive: false,
+        sceneIndex: 1,
+        sceneOffset: 1,
+        globalDirection: 'forward',
+        globalIsDragging: true,
+        globalRenderProgress: r,
+        globalDragTimelineProgress: r,
+        dragRelease: null,
+        firstSceneEnterReady: false,
+        elementElapsedMotion: motion as never,
+        getTimelineDuration: () => opts.tSelf,
+        timelineDurationState: opts.tSelf,
+        dragTimeScale: opts.dragTimeScale,
+        onSettleComplete: undefined,
+        onColdStartComplete: undefined,
+      })
+    );
+  }
+
+  it('maps drag percent by the absolute scale, NOT by r * T_self', () => {
+    // dragTimeScale 100 ms/1% -> full span 10_000ms. At r=0.5 the elapsed is
+    // 0.5 * 10_000 = 5000ms, clamped to T_self. With a LONG T_self (20_000) the
+    // clamp does not bite: elapsed = 5000, NOT r*T_self (which would be 10_000).
+    const motion = createMotionValueStub(0);
+    dragTo(motion, 0.5, { dragTimeScale: 100, tSelf: 20_000 });
+    expect(motion.get()).toBeCloseTo(5000);
+  });
+
+  it('defaults to 100 ms per 1% when dragTimeScale is omitted', () => {
+    const motion = createMotionValueStub(0);
+    dragTo(motion, 0.25, { tSelf: 20_000 });
+    // 0.25 * (100 * 100) = 2500.
+    expect(motion.get()).toBeCloseTo(2500);
+  });
+
+  it('clamps the elapsed to T_self so the track never reports past terminal', () => {
+    // Short scene (T_self 2000) with the default scale: r=0.5 would be 5000ms,
+    // but the clamp pins it to T_self 2000 (element already fully settled — the
+    // accepted early-settle behaviour).
+    const motion = createMotionValueStub(0);
+    dragTo(motion, 0.5, { tSelf: 2000 });
+    expect(motion.get()).toBe(2000);
+  });
+
+  it('a lower scale keeps a long animation from fully playing out mid-drag', () => {
+    // dragTimeScale 10 ms/1% -> full span 1000ms. Even dragged fully (r=1) the
+    // elapsed is only 1000ms, far below a 5000ms T_self — the drag cannot finish
+    // the animation, settle continues the rest. This is the user's "long
+    // animation, low scale, not fully played out" case.
+    const motion = createMotionValueStub(0);
+    dragTo(motion, 1, { dragTimeScale: 10, tSelf: 5000 });
+    expect(motion.get()).toBeCloseTo(1000);
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "cineview",
-  "version": "0.0.1-beta",
+  "version": "1.0.0",
   "description": "React UI framework for creating cinematic full-screen sliding pages",
   "main": "dist/cineview.umd.js",
   "module": "dist/cineview.es.js",
@@ -28,15 +28,13 @@
     "lighthouse": "lighthouse http://localhost:3000 --view"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
-  },
-  "dependencies": {
-    "framer-motion": "^11.0.0"
+    "framer-motion": ">=10.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@fast-check/jest": "^1.0.0",
-    "@rollup/plugin-terser": "^0.4.0",
+    "framer-motion": "^11.0.0",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.0.0",
@@ -76,11 +74,11 @@
     "slider",
     "cinematic"
   ],
-  "author": "",
+  "author": "Alien.mu",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/AlienMu/cineview.git"
   },
   "packageManager": "pnpm@10.22.0"
 }

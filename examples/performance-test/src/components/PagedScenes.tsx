@@ -56,7 +56,7 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
             exitAnimation="zoom-out"
             animateId={`drag-${section.id}-copy`}
             enterAnimation="slide-up"
-            timeline={{ delay: 2000 }}
+            timeline={{ delay: 2000, waitFor: `drag-${section.id}-media` }}
             duration={{ enter: 760, exit: 360 }}
           >
             <SectionCopy
@@ -70,7 +70,7 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
           <Animate
             animateId={`drag-${section.id}-media`}
             enterAnimation="focus-in"
-            duration={{ enter: 980, exit: 520 }}
+            duration={{ enter: 500, exit: 520 }}
             timeline={{ delay: 90 }}
           >
             <MediaFrame priority={index === 0} section={section} width={540} />

@@ -40,9 +40,20 @@ function warnSceneManager(message: string): void {
 // — a single-writer input, NOT a shared timeline value.
 export interface DragRelease {
   token: number;
-  mode: 'settle' | 'bounce';
+  // 'settle'/'bounce' are gesture releases (settle feeds the deferred-completion
+  // join). 'enter' is a PROGRAMMATIC navigation directive (goToScene/next/prev in
+  // drag mode): it drives the destination scene's element track 0 -> T so the
+  // authored enter timeline plays, but it is deliberately kept OUT of the gesture
+  // join (it never sets expectedSettleRef), so it cannot corrupt a later commit.
+  mode: 'settle' | 'bounce' | 'enter';
   direction: 'forward' | 'backward';
   targetSceneIndex: number;
+  // The drag timeline ratio r in [0, 1] captured at release time, authoritative
+  // for seeding the incoming scene's element-track continuation. The follow-finger
+  // ref can read a stale 0 when the whole gesture flushes in one synchronous batch
+  // (no intervening render); carrying r in the directive guarantees the settle
+  // continues from the release elapsed instead of replaying from 0.
+  progressRatio?: number;
 }
 
 export type DragReleaseInput = Omit<DragRelease, 'token'>;
@@ -115,7 +126,7 @@ export interface SceneManagerActions {
 export const useSceneManager = (
   options: UseSceneManagerOptions
 ): [SceneManagerState, SceneManagerActions] => {
-  const { totalScenes, initialScene = 0, onBeforeChange, onAfterChange } = options;
+  const { totalScenes, initialScene = 0, mode = 'drag', onBeforeChange, onAfterChange } = options;
 
   const [currentScene, setCurrentScene] = useState<number>(
     Math.max(0, Math.min(initialScene, totalScenes - 1))
@@ -142,51 +153,54 @@ export const useSceneManager = (
 
   const animatingRef = useRef<boolean>(false);
   const currentSceneRef = useRef<number>(currentScene);
-  // A drag transition completes when BOTH arms arrive, in EITHER order:
+  // The public onSceneDidChange now fires at COMMIT (render arm), not at the join
+  // close. The two-arm join is RETAINED but its job is narrowed to STATE CLEANUP
+  // timing — deciding WHEN it is safe to clear `dragRelease`/`direction`/scalars:
   //  - render arm: the page-slide reaches the target -> commitDragSceneChange
-  //    advances the index and records `pendingTransitionFromRef` (the from index).
+  //    advances the index, fires onAfterChange, and records
+  //    `pendingTransitionFromRef` (the from index) so the element arm knows a
+  //    commit already happened.
   //  - element arm: the incoming scene's element track reaches T ->
   //    completeDragTransition.
-  // The page-slide runs on a fixed slideDuration while the element track runs on
-  // the incoming scene's own T_self, so when T_self < slideDuration the element
-  // arm arrives FIRST (before the index has even advanced). The deferred
-  // onAfterChange must still fire exactly once, so the two arms form an
-  // order-independent join: whichever arrives second closes it. `from`/`to` are
-  // only knowable after the render arm has committed, so onAfterChange always
-  // fires at the join close (never lost, never early).
+  // Cleanup must wait for BOTH: clearing `dragRelease` while the incoming element
+  // track is still running snaps the incoming scene to rest (useAnimateDrag keeps
+  // the cross-commit continuation alive only while dragRelease.mode === 'settle'),
+  // and clearing `direction`/scalars while the page is still sliding strands the
+  // outgoing scene. The page-slide runs on a fixed slideDuration while the element
+  // track runs on the incoming scene's own T_self, so either arm can arrive first;
+  // whichever arrives second runs the cleanup.
   const pendingTransitionFromRef = useRef<number | null>(null);
   // Set by the element arm when it arrives before the render commit. The render
-  // arm closes the join when it sees this.
+  // arm runs the cleanup when it sees this.
   const settleArrivedRef = useRef<boolean>(false);
   // True only while a settle release is outstanding. Gates the element arm so a
   // stray completion (e.g. a cold-start extend re-firing onActivationComplete
   // after its window closed) cannot record a phantom early-settle and pollute the
-  // next transition's join.
+  // next transition's cleanup join.
   const expectedSettleRef = useRef<boolean>(false);
 
   currentSceneRef.current = currentScene;
 
-  // Closes the drag-transition join: clears the lingering drag scalars, the
-  // direction, and the release directive, then fires the deferred onAfterChange.
-  // Direction/release are cleared HERE (at the join, when both arms are done) and
-  // never by a single arm — clearing them while the page is still sliding would
-  // strand the outgoing scene mid-transition.
-  const finalizeTransition = useCallback(
-    (toScene: number, fromScene: number | null) => {
-      pendingTransitionFromRef.current = null;
-      settleArrivedRef.current = false;
-      expectedSettleRef.current = false;
-      setDragProgress(0);
-      setDragTimelineProgress(0);
-      setSharedTimelineDurationMs(0);
-      setDragRelease(null);
-      setDirection(null);
-      if (fromScene !== null && fromScene !== toScene) {
-        onAfterChange?.(toScene, fromScene);
-      }
-    },
-    [onAfterChange]
-  );
+  // Cleans up the drag-transition state: clears the lingering drag scalars, the
+  // direction, and the release directive. This is CLEANUP ONLY — it no longer
+  // fires onAfterChange (that now fires at commit, see commitDragSceneChange).
+  // Direction/release are cleared HERE (at the join close, when both arms are
+  // done) and never by a single arm — clearing them while the page is still
+  // sliding would strand the outgoing scene mid-transition, and clearing
+  // `dragRelease` while the incoming element track is still running would snap
+  // the incoming scene to rest (useAnimateDrag reads dragRelease.mode === 'settle'
+  // to keep the cross-commit element continuation alive). So the element track
+  // reaching T is what releases this cleanup.
+  const cleanupAfterTransition = useCallback(() => {
+    pendingTransitionFromRef.current = null;
+    settleArrivedRef.current = false;
+    expectedSettleRef.current = false;
+    setDragProgress(0);
+    setDragTimelineProgress(0);
+    setSharedTimelineDurationMs(0);
+    setDragRelease(null);
+    setDirection(null);
+  }, []);
 
   // Publishes the single read-only release directive. The token is injected here
   // (monotonic) so each release is uniquely identifiable and every scene's
@@ -255,12 +269,30 @@ export const useSceneManager = (
       if (animated) {
         setIsAnimating(true);
         animatingRef.current = true;
+        // Drag mode: programmatic navigation must still play the destination
+        // scene's element-timeline enter. Gesture/release nav drives the element
+        // track via a release directive; a bare setCurrentScene does not, so the
+        // incoming scene would otherwise snap to rest (mode 'rest', localProgress
+        // 1) with no per-element delay sequencing. Publish an 'enter' directive so
+        // the destination's useElementTrack replays 0->T. This deliberately does
+        // NOT enter the gesture join (expectedSettleRef stays false for 'enter'),
+        // so it cannot corrupt a later gesture commit; completion is still driven
+        // by CineView's animated-settle timer -> setAnimating(false).
+        if (mode === 'drag') {
+          dragReleaseTokenRef.current += 1;
+          setDragRelease({
+            token: dragReleaseTokenRef.current,
+            mode: 'enter',
+            direction: newDirection,
+            targetSceneIndex: index,
+          });
+        }
       } else {
         // 立即触发 onAfterChange
         onAfterChange?.(index);
       }
     },
-    [currentScene, totalScenes, onBeforeChange, onAfterChange]
+    [currentScene, totalScenes, mode, onBeforeChange, onAfterChange]
   );
 
   // 下一个场景
@@ -305,6 +337,10 @@ export const useSceneManager = (
       if (!animating) {
         onAfterChange?.(currentScene);
         setDirection(null);
+        // Clear any programmatic 'enter' directive (goToScene). The destination
+        // scene's element track has reached T by now; leaving the directive set
+        // would keep useAnimateDrag in 'enter' mode reading a settled track.
+        setDragRelease(null);
       }
     },
     [currentScene, onAfterChange]
@@ -365,18 +401,22 @@ export const useSceneManager = (
         return;
       }
 
-      // Two-track commit: the page-slide (render lane) reached the target, so the
-      // ONLY job here is to advance the scene index. We do NOT build a snapshot,
-      // do NOT touch any element timeline value (each Scene owns its own track),
-      // and do NOT fire onAfterChange — that is DEFERRED to completeDragTransition,
-      // fired by the incoming scene once ITS element track reaches T. We remember
-      // the fromScene so the deferred callback can report the correct previous
-      // index even after `direction` is cleared.
+      // Two-track commit: the page-slide (render lane) reached the target. This
+      // IS the scene-switch-complete moment, so onAfterChange (-> onSceneDidChange)
+      // fires HERE, at commit — NOT deferred to the element track. The element
+      // timeline is a separate, interruptible line: it keeps running to T on the
+      // incoming scene's own track for the visual enter continuation, but it no
+      // longer gates the public callback. We still remember `pendingTransitionFromRef`
+      // so the element arm (completeDragTransition) knows a commit happened and can
+      // safely run state cleanup once the track reaches T (clearing `dragRelease`
+      // early would snap the incoming scene to rest). We do NOT build a snapshot
+      // and do NOT touch any element timeline value (each Scene owns its own track).
       onBeforeChange?.(fromScene, targetScene);
       setDirection(direction);
       setDragTimelineProgress(normalizedProgressRatio);
       pendingTransitionFromRef.current = fromScene;
       setCurrentScene(targetScene);
+      onAfterChange?.(targetScene, fromScene);
       setDragProgress(0);
       setRenderProgress(0);
       setIsDragging(false);
@@ -390,24 +430,26 @@ export const useSceneManager = (
       });
 
       // Render arm of the join. If the element arm already arrived (the incoming
-      // scene's T_self was shorter than the page slide), close the join now.
-      // Otherwise leave the join open for the element arm to close.
+      // scene's T_self was shorter than the page slide), the element track is done,
+      // so run cleanup now. Otherwise leave the drag state live for the element arm
+      // to clean up when it reaches T.
       if (settleArrivedRef.current) {
-        finalizeTransition(targetScene, fromScene);
+        cleanupAfterTransition();
       }
     },
-    [finalizeTransition, onBeforeChange, resetDragInteraction, totalScenes]
+    [cleanupAfterTransition, onAfterChange, onBeforeChange, resetDragInteraction, totalScenes]
   );
 
   // Element arm of the join. Called by the incoming scene (via
-  // onActivationComplete) when ITS element track reaches T. If the render arm has
-  // already committed (pendingTransitionFromRef set), close the join and fire the
-  // deferred onAfterChange. If it arrives FIRST (T_self < slideDuration), only
-  // record the arrival — the from/to indices aren't known until the render arm
-  // commits, and direction/release must stay live while the page is still sliding.
-  // A stray completion with no outstanding settle and no pending commit (e.g. a
-  // cold-start extend re-firing after its window closed) is ignored, so it cannot
-  // record a phantom early-settle that would corrupt the next transition's join.
+  // onActivationComplete) when ITS element track reaches T. The public callback
+  // already fired at commit; this arm only drives state CLEANUP. If the render arm
+  // has already committed (pendingTransitionFromRef set), the element track is now
+  // at T so it is safe to clear `dragRelease`/`direction`/scalars. If it arrives
+  // FIRST (T_self < slideDuration), only record the arrival — direction/release
+  // must stay live while the page is still sliding, so the render commit runs the
+  // cleanup. A stray completion with no outstanding settle and no pending commit
+  // (e.g. a cold-start extend re-firing after its window closed) is ignored, so it
+  // cannot record a phantom early-settle that would corrupt the next transition.
   const completeDragTransition = useCallback(() => {
     const completedFromScene = pendingTransitionFromRef.current;
 
@@ -418,14 +460,14 @@ export const useSceneManager = (
     });
 
     if (completedFromScene !== null) {
-      finalizeTransition(currentSceneRef.current, completedFromScene);
+      cleanupAfterTransition();
       return;
     }
 
     if (expectedSettleRef.current) {
       settleArrivedRef.current = true;
     }
-  }, [finalizeTransition]);
+  }, [cleanupAfterTransition]);
 
   const commitScrollSceneChange = useCallback(
     (direction: 'forward' | 'backward', progressRatio: number) => {

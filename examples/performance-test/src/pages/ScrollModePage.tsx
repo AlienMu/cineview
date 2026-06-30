@@ -28,15 +28,13 @@ export default function ScrollModePage(): JSX.Element {
       <CineView
         ref={cineViewRef}
         callbacks={{
-          common: {
-            onLoadProgress: (progress) => setLoadProgress(progress),
-            onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
-          },
+          onLoadProgress: (progress) => setLoadProgress(progress),
+          onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
         }}
         config={{ width: 1440, height: 1200, unit: 'px' }}
         mode="scroll"
         modes={{ scroll: { direction: 'y', sceneSizing: 'content' } }}
-        performance={{ preset: 'smooth', monitor: monitorOpen }}
+        performance={{ monitor: monitorOpen }}
         scrollbar={{ enabled: true, width: 10, autoHide: false }}
       >
         {renderScrollScenes(PERFORMANCE_EXPERIENCE.sections)}

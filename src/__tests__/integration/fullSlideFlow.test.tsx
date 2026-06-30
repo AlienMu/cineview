@@ -119,12 +119,10 @@ describe('完整滑动流程集成测试', () => {
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
           callbacks={{
-            common: {
-              onReady: onInit,
-              onSceneWillChange: onBeforeSceneChange,
-              onSceneDidChange: onAfterSceneChange,
-              onLoadProgress,
-            },
+            onReady: onInit,
+            onSceneWillChange: onBeforeSceneChange,
+            onSceneDidChange: onAfterSceneChange,
+            onLoadProgress,
           }}
         >
           <Scene transition={{ enterAnimation: 'fade-in', exitAnimation: 'fade-out' }}>
@@ -246,7 +244,7 @@ describe('完整滑动流程集成测试', () => {
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
           config={{ width: 750, height: 750, unit: 'px' }}
-          callbacks={{ common: { onSceneDidChange: onAfterSceneChange } }}
+          callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene transition={{ exitAnimation: 'fade-out' }}>
             <Animate animateId="drag-scene1" enterAnimation="fade-in" exitAnimation="slide-down">

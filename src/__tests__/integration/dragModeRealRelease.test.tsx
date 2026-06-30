@@ -166,7 +166,7 @@ describe('drag mode live-release regression', () => {
         mode="drag"
         modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
         config={{ width: 750, height: 1334, unit: 'px' }}
-        callbacks={{ common: { onSceneDidChange } }}
+        callbacks={{ onSceneDidChange }}
       >
         <Scene transition={{ exitDuration: 800 }}>
           <Position at={{ x: 375, y: 220 }}>

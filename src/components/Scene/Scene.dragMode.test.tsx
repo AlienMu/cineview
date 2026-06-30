@@ -189,7 +189,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
       expect(container.firstChild).toBeInTheDocument();
     });
-
   });
 
   describe('Task 20.4: Smart Threshold Algorithm (Linear Interpolation)', () => {
@@ -396,8 +395,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
             totalScenes={3}
             currentSceneIndex={0}
             onSceneChange={mockOnSceneChange}
-            globalDragProgress={0}
-            globalIsDragging={false}
+            dragRuntime={{ progress: 0, isDragging: false }}
             onDragProgressChange={mockOnDragProgressChange}
             onDraggingChange={mockOnDraggingChange}
           >
@@ -423,8 +421,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
             totalScenes={3}
             currentSceneIndex={0}
             onSceneChange={mockOnSceneChange}
-            globalDragProgress={0}
-            globalIsDragging={false}
+            dragRuntime={{ progress: 0, isDragging: false }}
             onDragProgressChange={mockOnDragProgressChange}
             onDraggingChange={mockOnDraggingChange}
           >

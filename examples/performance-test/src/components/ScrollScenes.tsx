@@ -78,8 +78,8 @@ function renderOrdinaryDocumentInterlude(): JSX.Element {
             This chapter is plain document flow, not a Scene.
           </h2>
           <p style={{ margin: '24px 0 0', fontSize: 18, lineHeight: 1.7, color: '#45546E' }}>
-            The visibility animation here proves scroll mode can host normal article content
-            between authored takeover scenes without requiring a Scene wrapper.
+            The visibility animation here proves scroll mode can host normal article content between
+            authored takeover scenes without requiring a Scene wrapper.
           </p>
         </div>
       </Animate>
@@ -95,14 +95,14 @@ function renderOrdinaryDocumentInterlude(): JSX.Element {
         }}
       >
         <p style={{ margin: 0 }}>
-          Below the animated lead, the page keeps behaving like ordinary document flow. There
-          is no Scene wrapper here, no separate scroll speed knob, and no authored fixed layer
-          holding the viewport in place.
+          Below the animated lead, the page keeps behaving like ordinary document flow. There is no
+          Scene wrapper here, no separate scroll speed knob, and no authored fixed layer holding the
+          viewport in place.
         </p>
         <p style={{ margin: 0 }}>
-          That extra runway is deliberate. It gives the visibility-driven block enough room to
-          reach its center state, continue into exit, and then return naturally when you reverse
-          back up through the tail of the page.
+          That extra runway is deliberate. It gives the visibility-driven block enough room to reach
+          its center state, continue into exit, and then return naturally when you reverse back up
+          through the tail of the page.
         </p>
         <p style={{ margin: 0 }}>
           In other words: the route can end in plain prose and still preserve the same authored
@@ -151,8 +151,7 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-badge`}
           enterAnimation="fade-in"
-          exitAnimation="fade-out"
-          duration={{ enter: 280, exit: 180 }}
+          duration={{ enter: 280 }}
           timeline={{ driver: 'visibility' }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / ${takeover ? 'Scene.scroll takeover' : 'Document chapter'}`}</LabPill>
@@ -162,8 +161,7 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-up"
-          exitAnimation="slide-up"
-          duration={{ enter: 780, exit: 300 }}
+          duration={{ enter: 780 }}
           timeline={{ driver: 'visibility' }}
         >
           <SectionCopy maxWidth={590} section={section} titleSize="hero" />
@@ -173,9 +171,8 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-media`}
           enterAnimation="zoom-in"
-          exitAnimation="zoom-out"
           infiniteAnimation={takeover ? undefined : 'pulse'}
-          duration={{ enter: 900, exit: 320 }}
+          duration={{ enter: 900 }}
           timeline={takeover ? { phase: { start: 0.08, end: 0.68 } } : { driver: 'visibility' }}
         >
           <MediaFrame priority={index === 0} section={section} width={520} />
@@ -185,8 +182,7 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-rail`}
           enterAnimation="fade-in"
-          exitAnimation="fade-out"
-          duration={{ enter: 620, exit: 260 }}
+          duration={{ enter: 620 }}
           timeline={takeover ? { phase: { start: 0.42, end: 1 } } : { driver: 'visibility' }}
         >
           <div style={{ width: 1216 }}>
@@ -208,33 +204,63 @@ function EditorialSplit({
   return (
     <>
       <Position at={{ x: 116, y: 116 }}>
-        <Animate animateId={`${section.id}-pill`} enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 260, exit: 160 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-pill`}
+          enterAnimation="fade-in"
+          duration={{ enter: 260 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Editorial flow`}</LabPill>
         </Animate>
       </Position>
       <Position at={{ x: 116, y: 232 }}>
-        <Animate animateId={`${section.id}-copy`} enterAnimation="slide-right" exitAnimation="slide-right" duration={{ enter: 640, exit: 260 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-copy`}
+          enterAnimation="slide-right"
+          duration={{ enter: 640 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 460 }}>
             <SectionCopy maxWidth={460} section={section} titleSize="medium" />
           </div>
         </Animate>
       </Position>
       <Position at={{ x: 642, y: 218 }}>
-        <Animate animateId={`${section.id}-media`} enterAnimation="slide-left" exitAnimation="slide-left" duration={{ enter: 760, exit: 280 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-media`}
+          enterAnimation="slide-left"
+          duration={{ enter: 760 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <MediaFrame section={section} width={620} />
         </Animate>
       </Position>
       <Position at={{ x: 116, y: 770 }}>
-        <Animate animateId={`${section.id}-stats`} enterAnimation="fade-in" exitAnimation="fade-out" infiniteAnimation="pulse" duration={{ enter: 520, exit: 220 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-stats`}
+          enterAnimation="fade-in"
+          infiniteAnimation="pulse"
+          duration={{ enter: 520 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 1146 }}>
             <StatGrid compact={true} section={section} />
           </div>
         </Animate>
       </Position>
       <Position at={{ x: 116, y: 1012 }}>
-        <Animate animateId={`${section.id}-notes`} enterAnimation="blur-in" exitAnimation="blur-out" duration={{ enter: 420, exit: 220 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-notes`}
+          enterAnimation="blur-in"
+          duration={{ enter: 420 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 540 }}>
-            <DetailList accent={section.accent} items={section.secondaryPoints} title="Why this scene stays in document flow" />
+            <DetailList
+              accent={section.accent}
+              items={section.secondaryPoints}
+              title="Why this scene stays in document flow"
+            />
           </div>
         </Animate>
       </Position>
@@ -257,8 +283,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
-          exitAnimation="fade-out"
-          duration={{ enter: 240, exit: 160 }}
+          duration={{ enter: 240 }}
           timeline={{ phase: { start: 0, end: 0.22 } }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Sticky layer + scroll`}</LabPill>
@@ -268,8 +293,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-up"
-          exitAnimation="slide-up"
-          duration={{ enter: 700, exit: 260 }}
+          duration={{ enter: 700 }}
           timeline={{ phase: { start: 0, end: 0.34 } }}
         >
           <SectionCopy maxWidth={680} section={section} titleSize="large" />
@@ -279,8 +303,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-stats`}
           enterAnimation="fade-in"
-          exitAnimation="fade-out"
-          duration={{ enter: 560, exit: 220 }}
+          duration={{ enter: 560 }}
           timeline={{ phase: { start: 0.04, end: 0.48 } }}
         >
           <div style={{ width: 510 }}>
@@ -292,8 +315,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-media`}
           enterAnimation="rotate-in"
-          exitAnimation="rotate-out"
-          duration={{ enter: 900, exit: 320 }}
+          duration={{ enter: 900 }}
           timeline={{ phase: { start: 0.12, end: 0.76 } }}
         >
           <MediaFrame section={section} width={580} />
@@ -303,8 +325,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-bullets`}
           enterAnimation="blur-in"
-          exitAnimation="blur-out"
-          duration={{ enter: 420, exit: 220 }}
+          duration={{ enter: 420 }}
           timeline={{ phase: { start: 0.28, end: 0.92 } }}
         >
           <div style={{ width: 360 }}>
@@ -326,33 +347,63 @@ function ExplodedStory({
   return (
     <>
       <Position at={{ x: 120, y: 112 }}>
-        <Animate animateId={`${section.id}-pill`} enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 260, exit: 180 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-pill`}
+          enterAnimation="fade-in"
+          duration={{ enter: 260 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Visibility timeline`}</LabPill>
         </Animate>
       </Position>
       <Position at={{ x: 120, y: 220 }}>
-        <Animate animateId={`${section.id}-copy`} enterAnimation="slide-up" exitAnimation="slide-up" duration={{ enter: 680, exit: 260 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-copy`}
+          enterAnimation="slide-up"
+          duration={{ enter: 680 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 540 }}>
             <SectionCopy maxWidth={540} section={section} titleSize="medium" />
           </div>
         </Animate>
       </Position>
       <Position at={{ x: 798, y: 204 }}>
-        <Animate animateId={`${section.id}-media`} enterAnimation="zoom-in" exitAnimation="zoom-out" infiniteAnimation="wave" duration={{ enter: 780, exit: 300 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-media`}
+          enterAnimation="zoom-in"
+          infiniteAnimation="wave"
+          duration={{ enter: 780 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <MediaFrame section={section} width={520} />
         </Animate>
       </Position>
       <Position at={{ x: 120, y: 706 }}>
-        <Animate animateId={`${section.id}-rail`} enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 560, exit: 240 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-rail`}
+          enterAnimation="fade-in"
+          duration={{ enter: 560 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 1200 }}>
             <MetricRail section={section} />
           </div>
         </Animate>
       </Position>
       <Position at={{ x: 120, y: 1010 }}>
-        <Animate animateId={`${section.id}-notes`} enterAnimation="slide-up" exitAnimation="slide-up" duration={{ enter: 500, exit: 220 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-notes`}
+          enterAnimation="slide-up"
+          duration={{ enter: 500 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 480 }}>
-            <DetailList accent={section.accent} items={section.secondaryPoints} title="Module story" />
+            <DetailList
+              accent={section.accent}
+              items={section.secondaryPoints}
+              title="Module story"
+            />
           </div>
         </Animate>
       </Position>
@@ -372,31 +423,60 @@ function ScenarioTakeover({
   return (
     <>
       <Position at={{ x: 118, y: 102 }} layer={{ fixed: takeover }}>
-        <Animate animateId={`${section.id}-pill`} enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 260, exit: 180 }} timeline={{ phase: { start: 0, end: 0.2 } }}>
+        <Animate
+          animateId={`${section.id}-pill`}
+          enterAnimation="fade-in"
+          duration={{ enter: 260 }}
+          timeline={{ phase: { start: 0, end: 0.2 } }}
+        >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Shared authored content`}</LabPill>
         </Animate>
       </Position>
       <Position at={{ x: 334, y: 160 }}>
-        <Animate animateId={`${section.id}-copy`} enterAnimation="zoom-in" exitAnimation="zoom-out" duration={{ enter: 640, exit: 240 }} timeline={{ phase: { start: 0, end: 0.38 } }}>
+        <Animate
+          animateId={`${section.id}-copy`}
+          enterAnimation="zoom-in"
+          duration={{ enter: 640 }}
+          timeline={{ phase: { start: 0, end: 0.38 } }}
+        >
           <SectionCopy align="center" maxWidth={760} section={section} titleSize="large" />
         </Animate>
       </Position>
       <Position at={{ x: 118, y: 470 }}>
-        <Animate animateId={`${section.id}-left`} enterAnimation="slide-right" exitAnimation="slide-right" duration={{ enter: 620, exit: 220 }} timeline={{ phase: { start: 0.04, end: 0.46 } }}>
+        <Animate
+          animateId={`${section.id}-left`}
+          enterAnimation="slide-right"
+          duration={{ enter: 620 }}
+          timeline={{ phase: { start: 0.04, end: 0.46 } }}
+        >
           <div style={{ width: 350 }}>
             <BulletColumn section={section} />
           </div>
         </Animate>
       </Position>
       <Position at={{ x: 474, y: 430 }}>
-        <Animate animateId={`${section.id}-center`} enterAnimation="focus-in" exitAnimation="blur-out" duration={{ enter: 760, exit: 260 }} timeline={{ phase: { start: 0.12, end: 0.72 } }}>
+        <Animate
+          animateId={`${section.id}-center`}
+          enterAnimation="focus-in"
+          duration={{ enter: 760 }}
+          timeline={{ phase: { start: 0.12, end: 0.72 } }}
+        >
           <MediaFrame section={section} width={500} />
         </Animate>
       </Position>
       <Position at={{ x: 1002, y: 470 }}>
-        <Animate animateId={`${section.id}-right`} enterAnimation="slide-left" exitAnimation="slide-left" duration={{ enter: 620, exit: 220 }} timeline={{ phase: { start: 0.24, end: 0.9 } }}>
+        <Animate
+          animateId={`${section.id}-right`}
+          enterAnimation="slide-left"
+          duration={{ enter: 620 }}
+          timeline={{ phase: { start: 0.24, end: 0.9 } }}
+        >
           <div style={{ width: 320 }}>
-            <DetailList accent={section.accent} items={section.secondaryPoints} title="Kit variations" />
+            <DetailList
+              accent={section.accent}
+              items={section.secondaryPoints}
+              title="Kit variations"
+            />
           </div>
         </Animate>
       </Position>
@@ -414,26 +494,51 @@ function DecisionAppendix({
   return (
     <>
       <Position at={{ x: 118, y: 112 }}>
-        <Animate animateId={`${section.id}-pill`} enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 240, exit: 160 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-pill`}
+          enterAnimation="fade-in"
+          duration={{ enter: 240 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Comparison close`}</LabPill>
         </Animate>
       </Position>
       <Position at={{ x: 300, y: 200 }}>
-        <Animate animateId={`${section.id}-copy`} enterAnimation="slide-up" exitAnimation="slide-up" duration={{ enter: 660, exit: 220 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-copy`}
+          enterAnimation="slide-up"
+          duration={{ enter: 660 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <SectionCopy align="center" maxWidth={820} section={section} titleSize="large" />
         </Animate>
       </Position>
       <Position at={{ x: 140, y: 518 }}>
-        <Animate animateId={`${section.id}-grid`} enterAnimation="fade-in" exitAnimation="fade-out" infiniteAnimation="pulse" duration={{ enter: 540, exit: 220 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-grid`}
+          enterAnimation="fade-in"
+          infiniteAnimation="pulse"
+          duration={{ enter: 540 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 1160 }}>
             <StatGrid section={section} />
           </div>
         </Animate>
       </Position>
       <Position at={{ x: 468, y: 842 }}>
-        <Animate animateId={`${section.id}-rail`} enterAnimation="blur-in" exitAnimation="blur-out" duration={{ enter: 480, exit: 220 }} timeline={{ driver: 'visibility' }}>
+        <Animate
+          animateId={`${section.id}-rail`}
+          enterAnimation="blur-in"
+          duration={{ enter: 480 }}
+          timeline={{ driver: 'visibility' }}
+        >
           <div style={{ width: 520 }}>
-            <DetailList accent={section.accent} items={section.secondaryPoints} title="What the framework is showing here" />
+            <DetailList
+              accent={section.accent}
+              items={section.secondaryPoints}
+              title="What the framework is showing here"
+            />
           </div>
         </Animate>
       </Position>

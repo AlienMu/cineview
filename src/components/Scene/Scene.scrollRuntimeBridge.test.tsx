@@ -30,8 +30,8 @@ jest.mock('framer-motion', () => ({
         ) => {
           const resolveStyleState = (value: unknown): React.CSSProperties =>
             isStyleRecord(value) ? (value as React.CSSProperties) : {};
-          const [animatedStyle, setAnimatedStyle] = React.useState((): React.CSSProperties =>
-            resolveStyleState(initial)
+          const [animatedStyle, setAnimatedStyle] = React.useState(
+            (): React.CSSProperties => resolveStyleState(initial)
           );
 
           React.useEffect(() => {
@@ -243,14 +243,12 @@ describe('Scene scroll runtime bridge', () => {
     const timelineState = {
       phase: 'before' as const,
       enterProgress: 0,
-      holdProgress: 0,
       exitProgress: 0,
       sceneProgress: 0,
       rangeStart: 0,
       rangeEnd: 600,
       rangeLength: 600,
       enterLength: 120,
-      holdLength: 360,
       exitLength: 120,
     };
 

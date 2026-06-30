@@ -161,22 +161,13 @@ export function interpolateVariant(
           const startValue = startMatch[2];
           const endValue = endMatch[2];
 
-          // 处理数字值
+          // 处理数字值。能走到这里的 transform 参数必为无单位（含 px/%/deg
+          // 的字符串已被上方单位分支拦截并 return），所以这里只产出无单位形式。
           if (!isNaN(parseFloat(startValue)) && !isNaN(parseFloat(endValue))) {
             const startNum = parseFloat(startValue);
             const endNum = parseFloat(endValue);
             const interpolated = startNum + (endNum - startNum) * progress;
-
-            // 保留单位
-            if (endValue.includes('px') || startValue.includes('px')) {
-              result[key] = `${funcName}(${interpolated}px)`;
-            } else if (endValue.includes('%') || startValue.includes('%')) {
-              result[key] = `${funcName}(${interpolated}%)`;
-            } else if (endValue.includes('deg') || startValue.includes('deg')) {
-              result[key] = `${funcName}(${interpolated}deg)`;
-            } else {
-              result[key] = `${funcName}(${interpolated})`;
-            }
+            result[key] = `${funcName}(${interpolated})`;
             return;
           }
         }

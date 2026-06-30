@@ -11,13 +11,14 @@
  *       - preventDefault() called  -> framework does NOT force enter, scene
  *         stays at its initial frame (consumer drives recovery).
  *       - preventDefault() omitted -> default static reveal (scene at terminal).
- *  3. Signal: onFirstSceneReady fires with { sceneIndex: 0, fromPreload }.
+ *  3. Start: once priority assets settle, scene 0's element track starts a
+ *     single enter pass (observed via the captured driver controller).
  *  4. delay ordering: multiple first-scene Animate elements honour their
  *     individual delays during the enter sweep.
  *  5. Enter not interrupted: background images settling mid-enter must not
  *     restart/reset the enter (driver runs once).
  *  6. No regression: scroll mode never triggers the first-scene driver; the
- *     enter is one-shot (onFirstSceneReady fires exactly once).
+ *     enter is one-shot (driver runs exactly once).
  *
  * Determinism note: useAnimateDrag's style transforms recompute
  * resolveVisualState() from sceneContext at RENDER time (the motion-value
@@ -33,7 +34,7 @@ import React, { createRef } from 'react';
 import { render, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef, CineViewErrorDetail, FirstSceneReadyDetail } from '../../types';
+import type { CineViewRef, CineViewErrorDetail } from '../../types';
 import { resetPreloadedImageCache } from '../../hooks/imagePreloadCache';
 
 // ---------------------------------------------------------------------------
@@ -251,7 +252,6 @@ afterEach(() => {
 function renderDragFirstScene(
   options: {
     firstSceneTimeout?: number;
-    onFirstSceneReady?: (d: FirstSceneReadyDetail) => void;
     onError?: (d: CineViewErrorDetail) => void;
     transitionDuration?: number;
     extraAnimate?: boolean;
@@ -271,10 +271,7 @@ function renderDragFirstScene(
       }}
       config={{ width: 750, height: 1334, unit: 'px' }}
       callbacks={{
-        common: {
-          onFirstSceneReady: options.onFirstSceneReady,
-          onError: options.onError,
-        },
+        onError: options.onError,
       }}
     >
       <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
@@ -316,8 +313,7 @@ function renderDragFirstScene(
 describe('drag first-scene cold-start enter (acceptance lane)', () => {
   // --- Spec 1 + Spec 3 (fromPreload: true) --------------------------------
   it('holds the first scene at its enter-initial frame until priority assets settle, then enters to terminal', async () => {
-    const onFirstSceneReady = jest.fn();
-    renderDragFirstScene({ onFirstSceneReady });
+    renderDragFirstScene();
 
     // The active scene's fade-in Animate mounts after async variant parse.
     await waitFor(() => {
@@ -327,22 +323,14 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
     // Spec 1: BEFORE priority assets settle, the element is pinned at its enter
     // initial frame (opacity 0), not snapped to terminal (1).
     expect(latestOpacityById.title).toBeLessThan(0.01);
-    // Spec 3: the ready signal has NOT fired yet.
-    expect(onFirstSceneReady).not.toHaveBeenCalled();
-    // The driver has not started the timeline enter yet.
+    // The driver has not started the timeline enter yet (ready-gating).
     expect(driverControllers).toHaveLength(0);
 
     // Settle the first scene's priority asset.
     fireImageLoads((src) => src.includes('hero'));
 
-    // Spec 3: onFirstSceneReady fires once priority assets are ready, with
-    // sceneIndex 0 and fromPreload true.
-    await waitFor(() => {
-      expect(onFirstSceneReady).toHaveBeenCalledTimes(1);
-    });
-    expect(onFirstSceneReady).toHaveBeenCalledWith({ sceneIndex: 0, fromPreload: true });
-
-    // The driver kicked off a single timeline enter pass.
+    // Spec 3: once priority assets are ready, the cold-start driver starts a
+    // single timeline enter pass on scene 0's element track.
     await waitFor(() => {
       expect(driverControllers.length).toBeGreaterThan(0);
     });
@@ -497,14 +485,13 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   // --- Spec 2: timeout + preventDefault() called --------------------------
   it('emits FIRST_SCENE_TIMEOUT with preventDefault(); when called, scene stays at initial', async () => {
     let captured: CineViewErrorDetail | null = null;
-    const onFirstSceneReady = jest.fn();
     const onError = jest.fn((detail: CineViewErrorDetail) => {
       captured = detail;
       // Consumer takes over recovery.
       detail.preventDefault?.();
     });
 
-    renderDragFirstScene({ firstSceneTimeout: 60, onError, onFirstSceneReady });
+    renderDragFirstScene({ firstSceneTimeout: 60, onError });
 
     await waitFor(() => {
       expect(latestOpacityById.title).toBeDefined();
@@ -523,8 +510,8 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
     expect(typeof detail.preventDefault).toBe('function');
 
     // preventDefault() called -> framework does NOT force a reveal; the scene
-    // remains at its enter-initial frame and onFirstSceneReady never fires.
-    expect(onFirstSceneReady).not.toHaveBeenCalled();
+    // remains at its enter-initial frame and the driver never starts.
+    expect(driverControllers).toHaveLength(0);
     expect(latestOpacityById.title).toBeLessThan(0.01);
   });
 
@@ -567,10 +554,13 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       expect(driverControllers.length).toBeGreaterThan(0);
     });
 
-    // Drive the shared timeline to an intermediate elapsed value between the
-    // two delays (title delay 200, subtitle delay 500, enter duration 600).
-    // At elapsed=300ms: title localProgress = (300-200)/600 ~= 0.167; subtitle
-    // is still before its delay -> 0.
+    // Cold-start uses REAL-TIME playback (useScrub=false, 2026-06-29): elements
+    // enter at their authored ms offsets, NOT scrubbed by drag ratio. The driver
+    // runs the scene track in real ms and each element reads (m - delay) / dur
+    // directly, so the title (delay 200) leads the subtitle (delay 500) by a real
+    // 300ms — the first-screen sweep preserves authored timing.
+    // At track elapsed=300ms: title = (300-200)/600 ~= 0.167; subtitle is still
+    // before its 500ms delay -> 0.
     act(() => {
       driverControllers[0].onUpdate?.(300);
     });
@@ -585,8 +575,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
 
   // --- Spec 5: enter not interrupted by background image settling ---------
   it('does not restart the enter when more images settle mid-enter', async () => {
-    const onFirstSceneReady = jest.fn();
-    renderDragFirstScene({ onFirstSceneReady });
+    renderDragFirstScene();
 
     await waitFor(() => {
       expect(latestOpacityById.title).toBeDefined();
@@ -597,7 +586,6 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
     await waitFor(() => {
       expect(driverControllers).toHaveLength(1);
     });
-    expect(onFirstSceneReady).toHaveBeenCalledTimes(1);
 
     // Advance the enter partway.
     act(() => {
@@ -611,19 +599,17 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
 
     expect(driverControllers).toHaveLength(1);
     expect(driverControllers[0].stopped).toBe(false);
-    expect(onFirstSceneReady).toHaveBeenCalledTimes(1);
   });
 
   // --- Spec 6: no regression in scroll mode -------------------------------
   it('never triggers the first-scene driver in scroll mode', async () => {
-    const onFirstSceneReady = jest.fn();
     const onError = jest.fn();
     render(
       <CineView
         mode="scroll"
         modes={{ scroll: { direction: 'y' } }}
         config={{ width: 750, height: 1334, unit: 'px' }}
-        callbacks={{ common: { onFirstSceneReady, onError } }}
+        callbacks={{ onError }}
       >
         <Scene scroll={{ zoneId: 'z0' }} assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
@@ -642,11 +628,14 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       </CineView>
     );
 
-    // Settle assets; in scroll mode the first-scene driver must not run.
+    // Settle assets; in scroll mode the first-scene driver must not run. The
+    // preload promise chain resolves async and setStates the scroll root, so the
+    // settle wait runs inside act to keep those updates wrapped.
     fireImageLoads(() => true);
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
 
-    expect(onFirstSceneReady).not.toHaveBeenCalled();
     expect(driverControllers).toHaveLength(0);
     const firstSceneTimeoutErrors = onError.mock.calls.filter(
       (call) => (call[0] as CineViewErrorDetail).code === 'FIRST_SCENE_TIMEOUT'
@@ -656,30 +645,31 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
 
   // --- Spec 6: one-shot enter (fires exactly once) ------------------------
   it('runs the first-scene enter exactly once', async () => {
-    const onFirstSceneReady = jest.fn();
-    const { rerender } = renderDragFirstScene({ onFirstSceneReady });
+    const { rerender } = renderDragFirstScene();
 
     await waitFor(() => {
       expect(latestOpacityById.title).toBeDefined();
     });
     fireImageLoads((src) => src.includes('hero'));
     await waitFor(() => {
-      expect(onFirstSceneReady).toHaveBeenCalledTimes(1);
+      expect(driverControllers).toHaveLength(1);
     });
 
     act(() => {
       driverControllers[0].onComplete?.();
     });
 
-    // Force re-renders / more image settles: enter must not run again.
+    // Force re-renders / more image settles: enter must not run again. The extra
+    // settle resolves async and setStates the root, so flush it inside act.
     fireImageLoads(() => true);
-    await Promise.resolve();
+    await act(async () => {
+      await Promise.resolve();
+    });
     rerender(
       <CineView
         mode="drag"
         modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
         config={{ width: 750, height: 1334, unit: 'px' }}
-        callbacks={{ common: { onFirstSceneReady } }}
       >
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
@@ -697,9 +687,11 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
         </Scene>
       </CineView>
     );
-    await Promise.resolve();
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-    expect(onFirstSceneReady).toHaveBeenCalledTimes(1);
+    // One-shot: no second driver run spawned by the re-render / extra settles.
     expect(driverControllers).toHaveLength(1);
   });
 });

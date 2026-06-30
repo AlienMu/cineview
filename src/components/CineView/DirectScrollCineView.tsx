@@ -1,7 +1,6 @@
 import React, {
   Children,
   forwardRef,
-  isValidElement,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -11,22 +10,44 @@ import React, {
 } from 'react';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
+import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
 import { performanceMonitor } from '../../utils/performanceMonitor';
-import {
-  getScenePreloadImages,
-  resolveScenePreloadTargetImages,
-} from './preloadTargets';
+import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
 import type {
-  AnimationType,
+  CineViewErrorCode,
   CineViewPreloadTarget,
   CineViewProps,
   CineViewRef,
   PerformanceMetrics,
-  SceneProps,
   ScrollModeConfig,
-  ScrollTimelineState,
 } from '../../types';
-import { CineViewRuntimeContext } from './runtimeContext';
+import {
+  CENTER_LOCK_BOUNDARY_EPSILON_PX,
+  TAKEOVER_PROGRESS_SNAP_EPSILON_PX,
+  areSceneLayoutsEqual,
+  buildSceneTimelineState,
+  clamp,
+  createScrollbarCss,
+  getRelativeOffset,
+  getSceneTransitionConfig,
+  isSceneElement,
+  isScrollDebugEnabled,
+  normalizeKeyboardDeltaPx,
+  normalizeTouchDeltaPx,
+  normalizeWheelDeltaPx,
+  resolveDesignDimensions,
+  resolveRootSceneStackMode,
+  resolveScrollIntentOffset,
+  resolveScrollSceneDeclaredSpan,
+  resolveTakeoverSceneSpan,
+  shouldIgnoreGlobalScrollKey,
+  type CenterLockSegment,
+  type SceneAuthoringCompatProps,
+  type SceneLayoutInfo,
+  type ScrollInputDirection,
+} from './directScrollHelpers';
+import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
+import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTimelineContext,
@@ -39,472 +60,18 @@ import {
   type SceneScrollAnimationRegistration,
 } from '../Scene/sceneScrollBudget';
 
-type SceneAuthoringCompatProps = SceneProps & {
-  sceneId?: string;
-  sceneHeight?: number | string;
-  sceneWidth?: number | string;
-  sceneZIndex?: number;
-  sceneTransitionDuration?: number;
-  enterAnimation?: AnimationType;
-  exitAnimation?: AnimationType;
-  exitDuration?: number;
-  scrollEnterLength?: number;
-  scrollExitLength?: number;
-};
-
-interface SceneLayoutInfo {
-  sceneStart: number;
-  sceneEnd: number;
-  visualSpan: number;
-  flowSpan: number;
-  timelineDistancePx: number;
-  centerLockOffset: number;
-  segmentStart: number;
-  segmentEnd: number;
-  enterLength: number;
-  holdLength: number;
-  exitLength: number;
-  stackMode: 'replace' | 'cover';
-}
-
-interface CenterLockSegment {
-  segmentStart: number;
-  segmentEnd: number;
-}
-
-type ScrollInputDirection = 'forward' | 'backward';
-
-const TAKEOVER_PROGRESS_SNAP_EPSILON_PX = 0.01;
-const CENTER_LOCK_BOUNDARY_EPSILON_PX = 0.5;
-
-function isScrollDebugEnabled(): boolean {
-  if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') {
-    return false;
-  }
-
-  return Boolean(
-    (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__
-  );
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeWheelDeltaPx(delta: number, deltaMode: number, viewportSpan: number): number {
-  if (!Number.isFinite(delta) || delta === 0) {
-    return 0;
-  }
-
-  if (deltaMode === 1) {
-    return delta * 18;
-  }
-
-  if (deltaMode === 2) {
-    return delta * Math.max(viewportSpan, 1);
-  }
-
-  return delta;
-}
-
-function normalizeTouchDeltaPx(delta: number): number {
-  return Number.isFinite(delta) ? delta : 0;
-}
-
-function normalizeKeyboardDeltaPx(key: string, shiftKey: boolean, viewportSpan: number): number {
-  const pageStep = Math.max(viewportSpan * 0.86, 1);
-  const lineStep = 80;
-
-  switch (key) {
-    case 'PageDown':
-      return pageStep;
-    case 'PageUp':
-      return -pageStep;
-    case ' ':
-    case 'Spacebar':
-      return shiftKey ? -pageStep : pageStep;
-    case 'ArrowDown':
-      return lineStep;
-    case 'ArrowUp':
-      return -lineStep;
-    case 'Home':
-      return Number.NEGATIVE_INFINITY;
-    case 'End':
-      return Number.POSITIVE_INFINITY;
-    default:
-      return 0;
-  }
-}
-
-function resolveScrollIntentOffset({
-  currentOffset,
-  deltaPx,
-  maxNativeOffset,
-  segments = [],
-}: {
-  currentOffset: number;
-  deltaPx: number;
-  maxNativeOffset: number;
-  segments?: CenterLockSegment[];
-}): number {
-  if (deltaPx === 0) {
-    return clamp(currentOffset, 0, maxNativeOffset);
-  }
-
-  const current = clamp(currentOffset, 0, maxNativeOffset);
-  const target = deltaPx === Number.POSITIVE_INFINITY
-    ? maxNativeOffset
-    : deltaPx === Number.NEGATIVE_INFINITY
-      ? 0
-      : clamp(current + deltaPx, 0, maxNativeOffset);
-
-  if (segments.length === 0 || Math.abs(target - current) <= CENTER_LOCK_BOUNDARY_EPSILON_PX) {
-    return target;
-  }
-
-  if (target > current) {
-    const crossedSegment = segments.find(
-      (segment) =>
-        current < segment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX &&
-        target > segment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX
-    );
-    if (crossedSegment) {
-      return Math.min(
-        crossedSegment.segmentStart + 1,
-        crossedSegment.segmentEnd
-      );
-    }
-
-    const activeSegment = segments.find(
-      (segment) =>
-        current >= segment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX &&
-        current < segment.segmentEnd - CENTER_LOCK_BOUNDARY_EPSILON_PX
-    );
-    if (
-      activeSegment &&
-      target > activeSegment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX
-    ) {
-      return activeSegment.segmentEnd;
-    }
-
-    return target;
-  }
-
-  const crossedSegment = [...segments]
-    .reverse()
-    .find(
-      (segment) =>
-        current > segment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX &&
-        target < segment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX
-    );
-  if (crossedSegment) {
-    return Math.max(
-      crossedSegment.segmentEnd - 1,
-      crossedSegment.segmentStart
-    );
-  }
-
-  const activeSegment = [...segments]
-    .reverse()
-    .find(
-      (segment) =>
-        current > segment.segmentStart + CENTER_LOCK_BOUNDARY_EPSILON_PX &&
-        current <= segment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX
-    );
-  if (
-    activeSegment &&
-    target < activeSegment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX
-  ) {
-    return activeSegment.segmentStart;
-  }
-
-  return target;
-}
-
-function shouldIgnoreGlobalScrollKey(event: KeyboardEvent): boolean {
-  const target = event.target;
-  if (!(target instanceof Element)) {
-    return false;
-  }
-
-  const tagName = target.tagName.toLowerCase();
-  if (
-    event.key === ' ' &&
-    (tagName === 'button' ||
-      tagName === 'summary' ||
-      (tagName === 'a' && target.hasAttribute('href')) ||
-      target.getAttribute('role') === 'button' ||
-      target.getAttribute('role') === 'link')
-  ) {
-    return true;
-  }
-
-  return (
-    tagName === 'input' ||
-    tagName === 'textarea' ||
-    tagName === 'select' ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  );
-}
-
-function isSceneElement(
-  node: React.ReactNode
-): node is React.ReactElement<SceneAuthoringCompatProps> {
-  return (
-    isValidElement(node) &&
-    typeof node.type !== 'string' &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (node.type as any).displayName === 'Scene'
-  );
-}
-
-function resolveDesignDimensions(config: CineViewProps['config']): {
-  designWidth: number;
-  designHeight: number;
-  unit: NonNullable<CineViewProps['config']['unit']>;
-} {
-  return {
-    designWidth: config.width ?? 750,
-    designHeight: config.height ?? 1334,
-    unit: config.unit ?? 'px',
-  };
-}
-
-function getSceneTransitionConfig(sceneProps: SceneAuthoringCompatProps): {
-  enterAnimation?: SceneAuthoringCompatProps['enterAnimation'];
-  exitAnimation?: SceneAuthoringCompatProps['exitAnimation'];
-  transitionDurationMs: number;
-  scrollEnterLength?: number;
-  scrollExitLength?: number;
-} {
-  return {
-    enterAnimation: sceneProps.transition?.enterAnimation ?? sceneProps.enterAnimation,
-    exitAnimation: sceneProps.transition?.exitAnimation ?? sceneProps.exitAnimation,
-    transitionDurationMs: sceneProps.sceneTransitionDuration ?? 800,
-    scrollEnterLength: sceneProps.scrollEnterLength,
-    scrollExitLength: sceneProps.scrollExitLength,
-  };
-}
-
-function resolveRootSceneStackMode(sceneProps: SceneAuthoringCompatProps): 'replace' | 'cover' {
-  return sceneProps.stack?.mode ?? 'cover';
-}
-
-function resolveScrollSceneDeclaredSpan(
-  sceneProps: SceneAuthoringCompatProps,
-  direction: 'x' | 'y',
-  viewportWidth: number,
-  viewportHeight: number
-): number | null {
-  const rawSize =
-    direction === 'x'
-      ? (sceneProps.layout?.width ?? sceneProps.sceneWidth)
-      : (sceneProps.layout?.height ?? sceneProps.sceneHeight);
-
-  if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
-    return rawSize;
-  }
-
-  if (typeof rawSize !== 'string') {
-    return null;
-  }
-
-  const value = rawSize.trim().toLowerCase();
-  if (!value || value === 'auto') {
-    return null;
-  }
-
-  const numericValue = Number.parseFloat(value);
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return null;
-  }
-
-  if (value.endsWith('px')) {
-    return numericValue;
-  }
-
-  if (value.endsWith('vh')) {
-    return (viewportHeight * numericValue) / 100;
-  }
-
-  if (value.endsWith('vw')) {
-    return (viewportWidth * numericValue) / 100;
-  }
-
-  return null;
-}
-
-function resolveTakeoverSceneSpan(
-  rawSize: number | string | undefined,
-  direction: 'x' | 'y',
-  viewportWidth: number,
-  viewportHeight: number,
-  designWidth: number,
-  designHeight: number
-): number | null {
-  const viewportSpan = Math.max(direction === 'x' ? viewportWidth : viewportHeight, 1);
-  const designSpan = Math.max(direction === 'x' ? designWidth : designHeight, 1);
-
-  if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
-    return Math.max((rawSize / designSpan) * viewportSpan, 1);
-  }
-
-  if (typeof rawSize !== 'string') {
-    return null;
-  }
-
-  const value = rawSize.trim().toLowerCase();
-  if (!value || value === 'auto') {
-    return null;
-  }
-
-  const numericValue = Number.parseFloat(value);
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return null;
-  }
-
-  if (value.endsWith('px')) {
-    return Math.max((numericValue / designSpan) * viewportSpan, 1);
-  }
-
-  if (value.endsWith('vh')) {
-    return Math.max((viewportHeight * numericValue) / 100, 1);
-  }
-
-  if (value.endsWith('vw')) {
-    return Math.max((viewportWidth * numericValue) / 100, 1);
-  }
-
-  return null;
-}
-
-function getRelativeOffset(
-  element: HTMLElement,
-  root: HTMLElement,
-  direction: 'x' | 'y'
-): number {
-  const elementRect = element.getBoundingClientRect();
-  const rootRect = root.getBoundingClientRect();
-  const rootScroll = direction === 'x' ? root.scrollLeft : root.scrollTop;
-  return direction === 'x'
-    ? elementRect.left - rootRect.left + rootScroll
-    : elementRect.top - rootRect.top + rootScroll;
-}
-
-function buildSceneTimelineState(
-  layout: SceneLayoutInfo | null,
-  scrollOffset: number,
-  viewportSpan: number
-): ScrollTimelineState | null {
-  if (!layout) {
-    return null;
-  }
-
-  const safeViewportSpan = Math.max(viewportSpan, 1);
-  const viewportTop = scrollOffset;
-  const viewportBottom = scrollOffset + safeViewportSpan;
-  const viewportCenter = viewportTop + safeViewportSpan / 2;
-  const visibleTop = Math.max(viewportTop, layout.sceneStart);
-  const visibleBottom = Math.min(viewportBottom, layout.sceneEnd);
-  const overlap = Math.max(visibleBottom - visibleTop, 0);
-  const holdStart = layout.sceneStart + layout.enterLength;
-  const exitStart = layout.sceneEnd - Math.max(layout.exitLength, 0);
-
-  let phase: ScrollTimelineState['phase'] = 'before';
-  let enterProgress = 0;
-  let holdProgress = 0;
-  let exitProgress = 0;
-
-  if (viewportBottom <= layout.sceneStart) {
-    phase = 'before';
-  } else if (viewportTop >= layout.sceneEnd) {
-    phase = 'after';
-    enterProgress = layout.enterLength > 0 ? 1 : 0;
-    holdProgress = layout.holdLength > 0 ? 1 : 0;
-    exitProgress = layout.exitLength > 0 ? 1 : 0;
-  } else if (layout.enterLength > 0 && viewportTop < holdStart) {
-    phase = 'enter';
-    enterProgress = clamp(
-      (viewportBottom - layout.sceneStart) / Math.max(layout.enterLength, 1),
-      0,
-      1
-    );
-  } else if (layout.exitLength > 0 && viewportTop >= exitStart) {
-    phase = 'exit';
-    exitProgress = clamp((viewportTop - exitStart) / Math.max(layout.exitLength, 1), 0, 1);
-    enterProgress = layout.enterLength > 0 ? 1 : 0;
-    holdProgress = layout.holdLength > 0 ? 1 : 0;
-  } else {
-    phase = 'hold';
-    holdProgress = overlap > 0 ? 1 : 0;
-    enterProgress = layout.enterLength > 0 ? 1 : 0;
-  }
-
-  const rangeLength = Math.max(layout.sceneEnd - layout.sceneStart, 1);
-  const sceneProgress = clamp((viewportCenter - layout.sceneStart) / rangeLength, 0, 1);
-
-  return {
-    phase,
-    enterProgress,
-    holdProgress,
-    exitProgress,
-    sceneProgress,
-    rangeStart: layout.sceneStart,
-    rangeEnd: layout.sceneEnd,
-    rangeLength,
-    enterLength: layout.enterLength,
-    holdLength: layout.holdLength,
-    exitLength: layout.exitLength,
-  };
-}
-
-function areSceneLayoutsEqual(
-  currentLayouts: SceneLayoutInfo[],
-  nextLayouts: SceneLayoutInfo[]
-): boolean {
-  if (currentLayouts.length !== nextLayouts.length) {
-    return false;
-  }
-
-  return nextLayouts.every((nextLayout, index) => {
-    const currentLayout = currentLayouts[index];
-    return (
-      currentLayout.sceneStart === nextLayout.sceneStart &&
-      currentLayout.sceneEnd === nextLayout.sceneEnd &&
-      currentLayout.visualSpan === nextLayout.visualSpan &&
-      currentLayout.flowSpan === nextLayout.flowSpan &&
-      currentLayout.timelineDistancePx === nextLayout.timelineDistancePx &&
-      currentLayout.centerLockOffset === nextLayout.centerLockOffset &&
-      currentLayout.segmentStart === nextLayout.segmentStart &&
-      currentLayout.segmentEnd === nextLayout.segmentEnd &&
-      currentLayout.enterLength === nextLayout.enterLength &&
-      currentLayout.holdLength === nextLayout.holdLength &&
-      currentLayout.exitLength === nextLayout.exitLength &&
-      currentLayout.stackMode === nextLayout.stackMode
-    );
-  });
-}
-
-function createScrollbarCss(): string {
-  return `
-    [data-cineview-container="true"] {
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-    [data-cineview-container="true"]::-webkit-scrollbar {
-      width: 0;
-      height: 0;
-      display: none;
-    }
-  `;
-}
-
 export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
   function DirectScrollCineView(
     { children, config, modes, scrollbar, callbacks, performance },
     ref
   ) {
     const { designWidth, designHeight, unit } = resolveDesignDimensions(config);
+    // Public callbacks are flat + mode-aware; regroup back into { common, drag,
+    // scroll } so the read sites below stay grouped (mirrors CineView.tsx).
+    const resolvedCallbacks = useMemo<GroupedCallbacks>(
+      () => regroupCallbacks(callbacks),
+      [callbacks]
+    );
     const resolvedScrollConfig = useMemo<ScrollModeConfig>(
       () => ({
         direction: modes?.scroll?.direction ?? 'y',
@@ -517,6 +84,13 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const touchStartRef = useRef<{ x: number; y: number } | null>(null);
     const scrollingIdleTimerRef = useRef<number | null>(null);
+    // Synchronous truth for "is a scroll gesture in flight". Drives the
+    // gesture-start layout measurement gate in syncNativeScrollState: layouts
+    // are scroll-invariant (getRelativeOffset adds rootScroll back), so we
+    // measure once per gesture burst instead of once per frame to avoid
+    // per-frame layout thrashing. Mid-gesture content resizes are picked up on
+    // the next gesture start.
+    const isScrollingRef = useRef(false);
     const scrollOffsetFrameRef = useRef<number | null>(null);
     const pendingScrollOffsetRef = useRef<number | null>(null);
     const previousScrollOffsetRef = useRef(0);
@@ -569,12 +143,53 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       () => Array.from(new Set(scenes.flatMap((scene) => getScenePreloadImages(scene.props)))),
       [scenes]
     );
-    const [, preloadActions] = useImagePreloader({
+    const [preloadState, preloadActions] = useImagePreloader({
       priorityUrls: preloadImages,
       backgroundUrls: [],
-      onProgress: callbacks?.common?.onLoadProgress,
+      onProgress: resolvedCallbacks.common?.onLoadProgress,
     });
     const startPreload = preloadActions.startPreload;
+
+    // First-screen cold-start gate for the scroll path. scene 0's visibility
+    // elements hold at their initial frame until first-screen priority assets
+    // settle (firstSceneEnterReady). Without this the scroll root never lit the
+    // ready signal and scene 0 stayed permanently at opacity 0. scroll uses the
+    // `ready` trigger only; the (drag-only) `active` window is inert here.
+    const preloadCountsRef = useRef({ loadedCount: 0, totalCount: 0 });
+    preloadCountsRef.current = {
+      loadedCount: preloadState.loadedCount,
+      totalCount: preloadState.totalCount,
+    };
+    const emitRecoverableError = useCallback(
+      (code: CineViewErrorCode, message: string, context?: Record<string, unknown>): boolean => {
+        let defaultPrevented = false;
+        resolvedCallbacks.common?.onError?.({
+          code,
+          message,
+          context,
+          preventDefault: () => {
+            defaultPrevented = true;
+          },
+        });
+        return defaultPrevented;
+      },
+      [resolvedCallbacks.common]
+    );
+    const getPreloadCounts = useCallback(
+      () => ({
+        loadedCount: preloadCountsRef.current.loadedCount,
+        totalCount: preloadCountsRef.current.totalCount,
+      }),
+      []
+    );
+    const { firstSceneEnterReady } = useFirstSceneEnter({
+      enabled: scenes.length > 0,
+      hasFirstScene: Boolean(scenes[0]),
+      priorityComplete: preloadState.priorityComplete,
+      timeoutMs: Math.max(0, modes?.drag?.firstSceneTimeout ?? 3000),
+      emitRecoverableError,
+      getPreloadCounts,
+    });
     const resolvedTargetPreloadImages = useCallback(
       (targets?: CineViewPreloadTarget[]): string[] =>
         resolveScenePreloadTargetImages(scenes, targets, { includeZoneIds: true }),
@@ -697,8 +312,8 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         );
         const hasExit = Boolean(
           transitionConfig.exitAnimation &&
-            transitionConfig.exitAnimation !== 'none' &&
-            index < scenes.length - 1
+          transitionConfig.exitAnimation !== 'none' &&
+          index < scenes.length - 1
         );
         const requestedEnterLength = Math.max(
           0,
@@ -712,7 +327,6 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         const maxPhaseLength = Math.max(Math.min(flowSpan, viewportSpan), 1);
         const enterLength = Math.min(requestedEnterLength, maxPhaseLength);
         const exitLength = Math.min(requestedExitLength, maxPhaseLength);
-        const holdLength = Math.max(flowSpan - enterLength - exitLength, 0);
 
         return {
           sceneStart,
@@ -724,7 +338,6 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           segmentStart: centerLockOffset,
           segmentEnd: centerLockOffset + timelineDistancePx,
           enterLength,
-          holdLength,
           exitLength,
           stackMode: resolveRootSceneStackMode(sceneProps),
         };
@@ -760,8 +373,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const getCenterLockSegments = useCallback((): CenterLockSegment[] => {
       return sceneLayoutsRef.current
         .filter(
-          (layout) =>
-            layout.segmentEnd - layout.segmentStart > CENTER_LOCK_BOUNDARY_EPSILON_PX
+          (layout) => layout.segmentEnd - layout.segmentStart > CENTER_LOCK_BOUNDARY_EPSILON_PX
         )
         .map((layout) => ({
           segmentStart: layout.segmentStart,
@@ -904,13 +516,14 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           return;
         }
 
-        callbacks?.scroll?.onZoneProgress?.({
+        resolvedCallbacks.scroll?.onZoneProgress?.({
           zoneId,
           sceneIndex: meta.sceneIndex,
-          progress: state.totalBudgetPx > 0 ? clamp(state.progressPx / state.totalBudgetPx, 0, 1) : 0,
+          progress:
+            state.totalBudgetPx > 0 ? clamp(state.progressPx / state.totalBudgetPx, 0, 1) : 0,
         });
       },
-      [callbacks?.scroll]
+      [resolvedCallbacks.scroll]
     );
 
     const updateActiveScene = useCallback(
@@ -933,12 +546,12 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
 
         setActiveSceneIndex(nearestIndex);
         if (lastReportedSceneRef.current !== nearestIndex) {
-          callbacks?.common?.onSceneWillChange?.({
+          resolvedCallbacks.common?.onSceneWillChange?.({
             fromIndex: lastReportedSceneRef.current,
             toIndex: nearestIndex,
             direction: nearestIndex >= lastReportedSceneRef.current ? 'forward' : 'backward',
           });
-          callbacks?.common?.onSceneDidChange?.({
+          resolvedCallbacks.common?.onSceneDidChange?.({
             fromIndex: lastReportedSceneRef.current,
             toIndex: nearestIndex,
             direction: nearestIndex >= lastReportedSceneRef.current ? 'forward' : 'backward',
@@ -946,7 +559,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           lastReportedSceneRef.current = nearestIndex;
         }
       },
-      [callbacks?.common, getViewportSpan]
+      [resolvedCallbacks.common, getViewportSpan]
     );
 
     const syncZoneStatesFromNativeOffset = useCallback(
@@ -1019,78 +632,93 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           }
 
           if (!previousState?.active && state.active) {
-            callbacks?.scroll?.onZoneEnter?.({
+            resolvedCallbacks.scroll?.onZoneEnter?.({
               zoneId,
               sceneIndex: meta.sceneIndex,
             });
           } else if (previousState?.active && !state.active) {
-            callbacks?.scroll?.onZoneLeave?.({
+            resolvedCallbacks.scroll?.onZoneLeave?.({
               zoneId,
               sceneIndex: meta.sceneIndex,
             });
           }
         });
       },
-      [callbacks?.scroll, emitZoneProgress]
+      [resolvedCallbacks.scroll, emitZoneProgress]
     );
 
-    const syncNativeScrollState = useCallback(() => {
-      const root = containerRef.current;
-      if (!root) {
-        return;
-      }
+    const syncNativeScrollState = useCallback(
+      (fromGesture = false) => {
+        const root = containerRef.current;
+        if (!root) {
+          return;
+        }
 
-      updateViewportMetrics();
-      measureSceneLayouts();
-      const rawOffset = direction === 'x' ? root.scrollLeft : root.scrollTop;
-      const previousOffset = previousScrollOffsetRef.current;
-      const resolvedOffset = resolveNativeScrollIntent(
-        previousOffset,
-        rawOffset - previousOffset
-      );
-      if (Math.abs(resolvedOffset - rawOffset) > 0.5) {
-        setNativeOffset(resolvedOffset);
-      }
-      const nextDirection =
-        Math.abs(resolvedOffset - previousOffset) <= 0.5
-          ? scrollDirection
-          : resolvedOffset > previousOffset
-            ? 'forward'
-            : 'backward';
+        // Layout outputs are scroll-invariant (getRelativeOffset adds rootScroll
+        // back), so measuring every frame is pure layout thrashing. Measure once
+        // per gesture burst: the first frame of a gesture re-measures, continuous
+        // frames read the cached sceneLayoutsRef. Programmatic re-syncs
+        // (mount / resize / refreshLayout) already measure before calling here and
+        // must not flip the gesture flag, so they pass fromGesture=false.
+        if (fromGesture) {
+          if (!isScrollingRef.current) {
+            updateViewportMetrics();
+            measureSceneLayouts();
+          }
+          isScrollingRef.current = true;
+        }
+        const rawOffset = direction === 'x' ? root.scrollLeft : root.scrollTop;
+        const previousOffset = previousScrollOffsetRef.current;
+        const resolvedOffset = resolveNativeScrollIntent(
+          previousOffset,
+          rawOffset - previousOffset
+        );
+        if (Math.abs(resolvedOffset - rawOffset) > 0.5) {
+          setNativeOffset(resolvedOffset);
+        }
+        const nextDirection =
+          Math.abs(resolvedOffset - previousOffset) <= 0.5
+            ? scrollDirection
+            : resolvedOffset > previousOffset
+              ? 'forward'
+              : 'backward';
 
-      previousScrollOffsetRef.current = resolvedOffset;
-      scheduleScrollOffsetState(resolvedOffset);
-      setScrollDirection((current) => (current === nextDirection ? current : nextDirection));
-      setIsScrolling((current) => (current ? current : true));
-      if (scrollingIdleTimerRef.current !== null) {
-        window.clearTimeout(scrollingIdleTimerRef.current);
-      }
-      scrollingIdleTimerRef.current = window.setTimeout(() => {
-        setIsScrolling(false);
-        scrollingIdleTimerRef.current = null;
-      }, 120);
-      syncZoneStatesFromNativeOffset(resolvedOffset, nextDirection);
-      updateActiveScene(resolvedOffset);
-      const viewportSpan = getViewportSpan();
-      const contentSpan = Math.max(
-        direction === 'x' ? root.scrollWidth : root.scrollHeight,
-        viewportSpan
-      );
-      setScrollContentSpan((current) =>
-        Math.abs(current - contentSpan) <= 0.5 ? current : contentSpan
-      );
-    }, [
-      direction,
-      getViewportSpan,
-      measureSceneLayouts,
-      resolveNativeScrollIntent,
-      scheduleScrollOffsetState,
-      scrollDirection,
-      setNativeOffset,
-      syncZoneStatesFromNativeOffset,
-      updateActiveScene,
-      updateViewportMetrics,
-    ]);
+        previousScrollOffsetRef.current = resolvedOffset;
+        scheduleScrollOffsetState(resolvedOffset);
+        setScrollDirection((current) => (current === nextDirection ? current : nextDirection));
+        setIsScrolling((current) => (current ? current : true));
+        if (scrollingIdleTimerRef.current !== null) {
+          window.clearTimeout(scrollingIdleTimerRef.current);
+        }
+        scrollingIdleTimerRef.current = window.setTimeout(() => {
+          setIsScrolling(false);
+          isScrollingRef.current = false;
+          scrollingIdleTimerRef.current = null;
+        }, 120);
+        syncZoneStatesFromNativeOffset(resolvedOffset, nextDirection);
+        updateActiveScene(resolvedOffset);
+        const viewportSpan = getViewportSpan();
+        const contentSpan = Math.max(
+          direction === 'x' ? root.scrollWidth : root.scrollHeight,
+          viewportSpan
+        );
+        setScrollContentSpan((current) =>
+          Math.abs(current - contentSpan) <= 0.5 ? current : contentSpan
+        );
+      },
+      [
+        direction,
+        getViewportSpan,
+        measureSceneLayouts,
+        resolveNativeScrollIntent,
+        scheduleScrollOffsetState,
+        scrollDirection,
+        setNativeOffset,
+        syncZoneStatesFromNativeOffset,
+        updateActiveScene,
+        updateViewportMetrics,
+      ]
+    );
 
     const applyNativeScrollDelta = useCallback(
       (deltaPx: number): boolean => {
@@ -1106,7 +734,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         }
 
         setNativeOffset(clampedOffset);
-        syncNativeScrollState();
+        syncNativeScrollState(true);
         return true;
       },
       [direction, resolveNativeScrollIntent, setNativeOffset, syncNativeScrollState]
@@ -1131,12 +759,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         syncZoneStatesFromNativeOffset(layout.centerLockOffset, null);
         updateActiveScene(layout.centerLockOffset);
       },
-      [
-        direction,
-        scheduleScrollOffsetState,
-        syncZoneStatesFromNativeOffset,
-        updateActiveScene,
-      ]
+      [direction, scheduleScrollOffsetState, syncZoneStatesFromNativeOffset, updateActiveScene]
     );
 
     const registerZone = useCallback(
@@ -1203,27 +826,22 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       [recomputeZoneSequence]
     );
 
-    const zoneRuntimeValueRef = useRef<SceneScrollRuntimeContextValue | null>(null);
-    if (!zoneRuntimeValueRef.current) {
-      zoneRuntimeValueRef.current = {
-        version: zoneRuntimeVersion,
-        zoneStates,
+    // Runtime context carries only the stable registration API. Live zone
+    // state (version / zoneStates) flows through the separately-memoized
+    // timeline context below, so this value's identity only changes when a
+    // registration callback identity changes (effectively never). Consumers
+    // (every Scene via useSceneScrollTakeover) therefore do not re-render on
+    // scroll frames.
+    const zoneRuntimeValue = useMemo<SceneScrollRuntimeContextValue>(
+      () => ({
         registerZone,
         unregisterZone,
         setZoneElement,
         registerZoneAnimation,
         unregisterZoneAnimation,
-      };
-    } else {
-      zoneRuntimeValueRef.current.version = zoneRuntimeVersion;
-      zoneRuntimeValueRef.current.zoneStates = zoneStates;
-      zoneRuntimeValueRef.current.registerZone = registerZone;
-      zoneRuntimeValueRef.current.unregisterZone = unregisterZone;
-      zoneRuntimeValueRef.current.setZoneElement = setZoneElement;
-      zoneRuntimeValueRef.current.registerZoneAnimation = registerZoneAnimation;
-      zoneRuntimeValueRef.current.unregisterZoneAnimation = unregisterZoneAnimation;
-    }
-    const zoneRuntimeValue = zoneRuntimeValueRef.current;
+      }),
+      [registerZone, unregisterZone, setZoneElement, registerZoneAnimation, unregisterZoneAnimation]
+    );
     const zoneTimelineValue = useMemo(
       () => ({
         version: zoneRuntimeVersion,
@@ -1238,13 +856,13 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       }
 
       performanceMonitor.start();
-      return () => {
+      return (): void => {
         performanceMonitor.stop();
       };
     }, [performance?.monitor]);
 
     useEffect(() => {
-      return () => {
+      return (): void => {
         if (scrollOffsetFrameRef.current !== null) {
           window.cancelAnimationFrame(scrollOffsetFrameRef.current);
           scrollOffsetFrameRef.current = null;
@@ -1267,14 +885,14 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         return;
       }
 
-      const handleResize = () => {
+      const handleResize = (): void => {
         updateViewportMetrics();
         measureSceneLayouts();
         syncNativeScrollState();
       };
 
       window.addEventListener('resize', handleResize);
-      return () => {
+      return (): void => {
         window.removeEventListener('resize', handleResize);
       };
     }, [measureSceneLayouts, syncNativeScrollState, updateViewportMetrics]);
@@ -1335,7 +953,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       root.addEventListener('touchend', clearTouch);
       root.addEventListener('touchcancel', clearTouch);
 
-      return () => {
+      return (): void => {
         root.removeEventListener('wheel', handleWheel, { capture: true });
         root.removeEventListener('touchstart', handleTouchStart);
         root.removeEventListener('touchmove', handleTouchMove);
@@ -1376,14 +994,14 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       };
 
       window.addEventListener('keydown', handleKeyDown, true);
-      return () => {
+      return (): void => {
         window.removeEventListener('keydown', handleKeyDown, true);
       };
     }, [applyNativeScrollDelta, getViewportSpan]);
 
     const getRuntimeApi = useCallback(
       (): CineViewRef => ({
-        goToScene: (index: number, animated = true) => {
+        goToScene: (index: number, animated = true): void => {
           const root = containerRef.current;
           const wrapper = sceneWrapperRefs.current[index];
           if (!root || !wrapper) {
@@ -1397,15 +1015,15 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
             behavior: animated ? 'smooth' : 'auto',
           });
         },
-        goToZone: (zoneId: string, options) => {
+        goToZone: (zoneId: string, options): void => {
           goToScrollZone(zoneId, options);
         },
-        refreshLayout: () => {
+        refreshLayout: (): void => {
           updateViewportMetrics();
           measureSceneLayouts();
           syncNativeScrollState();
         },
-        preload: async (targets?: CineViewPreloadTarget[]) => {
+        preload: async (targets?: CineViewPreloadTarget[]): Promise<void> => {
           const targetImages = resolvedTargetPreloadImages(targets);
           if (targetImages.length > 0) {
             preloadActions.addUrls(targetImages, true);
@@ -1437,9 +1055,18 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       ]
     );
 
+    // onReady must fire exactly once after mount, mirroring the drag root
+    // (CineView.tsx). getRuntimeApi changes identity on every activeSceneIndex
+    // change, so depending on it here would re-fire onReady on each scene
+    // change. Hold the latest api in a ref and fire once on mount instead.
+    const getRuntimeApiRef = useRef(getRuntimeApi);
+    getRuntimeApiRef.current = getRuntimeApi;
+    const onReadyRef = useRef(resolvedCallbacks.common?.onReady);
+    onReadyRef.current = resolvedCallbacks.common?.onReady;
+
     useEffect(() => {
-      callbacks?.common?.onReady?.(getRuntimeApi());
-    }, [callbacks?.common, getRuntimeApi]);
+      onReadyRef.current?.(getRuntimeApiRef.current());
+    }, []);
 
     useImperativeHandle(ref, getRuntimeApi, [getRuntimeApi]);
 
@@ -1519,7 +1146,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
                 sceneIndex?: number;
               }) => {
                 child.props.callbacks?.onVisibilityChange?.(detail);
-                callbacks?.scroll?.onSceneVisibilityChange?.(detail);
+                resolvedCallbacks.scroll?.onSceneVisibilityChange?.(detail);
               },
             },
             sceneRuntime: {
@@ -1535,6 +1162,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
               sharedTimelineDurationMs: 0,
               viewportWidth: viewportSize.width,
               viewportHeight: viewportSize.height,
+              firstSceneEnterReady,
             },
             scrollRuntime: {
               progress: sceneTimelineState?.sceneProgress ?? 0,
@@ -1630,11 +1258,12 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       });
     }, [
       activeSceneIndex,
-      callbacks?.scroll,
+      resolvedCallbacks.scroll,
       childrenArray,
       designHeight,
       designWidth,
       direction,
+      firstSceneEnterReady,
       isScrolling,
       resolvedScrollConfig.sceneSizing,
       scrollBackdropSceneIndex,
@@ -1697,13 +1326,22 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const applyNativeScrollbarOffset = useCallback(
       (targetOffset: number): void => {
         const root = containerRef.current;
-        const currentOffset = root ? (direction === 'x' ? root.scrollLeft : root.scrollTop) : scrollOffset;
-        const resolvedOffset = resolveNativeScrollIntent(currentOffset, targetOffset - currentOffset);
+        const currentOffset = root
+          ? direction === 'x'
+            ? root.scrollLeft
+            : root.scrollTop
+          : scrollOffset;
+        const resolvedOffset = resolveNativeScrollIntent(
+          currentOffset,
+          targetOffset - currentOffset
+        );
         setNativeOffset(resolvedOffset);
-        syncNativeScrollState();
+        syncNativeScrollState(true);
       },
       [direction, resolveNativeScrollIntent, scrollOffset, setNativeOffset, syncNativeScrollState]
     );
+
+    const scrollbarDragCleanupRef = useRef<(() => void) | null>(null);
 
     const handleScrollbarMouseDown = useCallback(
       (event: React.MouseEvent<HTMLDivElement>) => {
@@ -1757,8 +1395,14 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         const handleUp = (): void => {
           window.removeEventListener('mousemove', handleMove);
           window.removeEventListener('mouseup', handleUp);
+          scrollbarDragCleanupRef.current = null;
         };
 
+        // Tear down any drag still attached from a prior mousedown that never
+        // received its mouseup, then track this drag's cleanup so an unmount
+        // mid-drag does not leak the window listeners.
+        scrollbarDragCleanupRef.current?.();
+        scrollbarDragCleanupRef.current = handleUp;
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('mouseup', handleUp);
       },
@@ -1771,9 +1415,29 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       ]
     );
 
+    useEffect(
+      () => (): void => {
+        scrollbarDragCleanupRef.current?.();
+      },
+      []
+    );
+
+    const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
+      () => ({
+        mode: 'scroll',
+        reportError: (detail): void => {
+          resolvedCallbacks.common?.onError?.({
+            ...detail,
+            code: detail.code as CineViewErrorCode,
+          });
+        },
+      }),
+      [resolvedCallbacks.common]
+    );
+
     return (
       <CineViewProvider designWidth={designWidth} designHeight={designHeight} unit={unit}>
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+        <CineViewRuntimeContext.Provider value={runtimeContextValue}>
           <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
             <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
               {isScrollbarEnabled && <style>{createScrollbarCss()}</style>}
@@ -1792,7 +1456,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
                   data-cineview-container="true"
                   data-cineview-scrollbar-autohide={String(scrollbarAutoHide)}
                   tabIndex={0}
-                  onScroll={syncNativeScrollState}
+                  onScroll={() => syncNativeScrollState(true)}
                   onKeyDownCapture={(event) => {
                     if (event.defaultPrevented) {
                       return;

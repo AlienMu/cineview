@@ -159,7 +159,7 @@ function renderDragApp(onSceneDidChange?: jest.Mock) {
       mode="drag"
       modes={{ drag: { direction: 'y', transitionDuration: 600 } }}
       config={{ width: 750, height: 1334, unit: 'px' }}
-      callbacks={{ common: { onSceneDidChange } }}
+      callbacks={{ onSceneDidChange }}
     >
       <Scene
         transition={{ enterAnimation: 'fade-in', exitAnimation: 'fade-out', exitDuration: 600 }}

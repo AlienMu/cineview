@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import { animate, type AnimationControls, type MotionValue, type PanInfo } from 'framer-motion';
 import type { DragReleaseInput } from '../../hooks/useSceneManager';
-import type { ScrollMode } from '../../types';
+import type { DragThresholdConfig, ScrollMode } from '../../types';
 import type { SceneState } from './types';
 
 function isVerboseDragDebug(): boolean {
@@ -28,17 +28,24 @@ function debugDrag(message: string, details?: Record<string, unknown>): void {
   console.log(message);
 }
 
-function calculateThreshold(velocity: number): number {
+export function calculateThreshold(velocity: number, config?: DragThresholdConfig): number {
+  const MIN_VELOCITY = config?.minVelocity ?? 0;
+  const MAX_VELOCITY = config?.maxVelocity ?? 1000;
+  const MIN_THRESHOLD = config?.minRatio ?? 0.15;
+  const MAX_THRESHOLD = config?.maxRatio ?? 0.3;
+
   if (!Number.isFinite(velocity)) {
-    return 0.3;
+    return MAX_THRESHOLD;
   }
 
-  const MIN_VELOCITY = 0;
-  const MAX_VELOCITY = 1000;
-  const MIN_THRESHOLD = 0.15;
-  const MAX_THRESHOLD = 0.3;
+  const span = MAX_VELOCITY - MIN_VELOCITY;
+  if (span <= 0) {
+    return MAX_THRESHOLD;
+  }
   const clampedVelocity = Math.max(MIN_VELOCITY, Math.min(MAX_VELOCITY, velocity));
-  return MAX_THRESHOLD - (clampedVelocity / MAX_VELOCITY) * (MAX_THRESHOLD - MIN_THRESHOLD);
+  return (
+    MAX_THRESHOLD - ((clampedVelocity - MIN_VELOCITY) / span) * (MAX_THRESHOLD - MIN_THRESHOLD)
+  );
 }
 
 function resolveProgressVelocity(slideDirection: 'x' | 'y', info: PanInfo): number {
@@ -57,6 +64,7 @@ interface UseDragSceneEngineParams {
   sceneTransitionDuration: number;
   sceneOffset: number;
   sceneState: SceneState;
+  thresholdConfig?: DragThresholdConfig;
   globalDirection: 'forward' | 'backward' | null;
   globalRenderProgress: number;
   globalIsDragging: boolean;
@@ -123,6 +131,7 @@ export function useDragSceneEngine({
   completeReleaseImmediately = false,
   onDragCommit,
   onDragReset,
+  thresholdConfig,
 }: UseDragSceneEngineParams): UseDragSceneEngineResult {
   const lastPanBucketRef = useRef<number | null>(null);
   const lastRenderReleaseBucketRef = useRef<number | null>(null);
@@ -184,6 +193,21 @@ export function useDragSceneEngine({
     setSceneState,
   ]);
 
+  // Stop any in-flight release/bounce tween on unmount. Without this, a release
+  // or bounce animation still running when the scene unmounts (route change,
+  // conditional render, virtualization pruning an adjacent scene) keeps its
+  // framer-motion rAF alive and fires onUpdate/onComplete — which call
+  // setState/onRenderProgressChange after teardown (React warning + leaked rAF).
+  // The token bump invalidates the settle onUpdate/onComplete guards too.
+  useEffect(() => {
+    return () => {
+      releaseTokenRef.current += 1;
+      renderReleaseControlsRef.current?.stop();
+      renderReleaseControlsRef.current = null;
+      pendingReleaseRef.current = null;
+    };
+  }, []);
+
   const handleDragStart = useCallback(() => {
     if (slideMode !== 'drag' || !isActive) return;
 
@@ -205,6 +229,14 @@ export function useDragSceneEngine({
       debugDrag(`🧹 [Scene ${sceneIndex}] finalize pending release before new drag`, {
         direction: pendingRelease.direction,
       });
+    } else {
+      // No pending settle, but a bounce (boundary / below-threshold) may still be
+      // tweening the render lane back to 0. Stop it so this new pan becomes the
+      // SOLE writer of renderProgress — without this the in-flight bounce's
+      // onUpdate and handlePan both write the render lane during a re-grab,
+      // breaking the single-writer invariant and producing a visible stutter.
+      renderReleaseControlsRef.current?.stop();
+      renderReleaseControlsRef.current = null;
     }
 
     debugDrag(`🫳 [Scene ${sceneIndex}] drag start`, {
@@ -313,7 +345,7 @@ export function useDragSceneEngine({
         // via dragProgressMotion; the (would-be) incoming scene's element track
         // returns via the bounce release directive.
         onDragRelease?.({ mode: 'bounce', direction, targetSceneIndex });
-        animate(dragProgressMotion, 0, {
+        renderReleaseControlsRef.current = animate(dragProgressMotion, 0, {
           duration: 0.15,
           ease: 'easeOut',
           onUpdate: (latest) => {
@@ -326,6 +358,7 @@ export function useDragSceneEngine({
             onDragTimelineProgressChange?.(0);
             onRenderProgressChange?.(0);
             dragProgressMotion.set(0);
+            renderReleaseControlsRef.current = null;
             onDragReset?.();
             onDraggingChange?.(false);
             setSceneState('active');
@@ -335,7 +368,9 @@ export function useDragSceneEngine({
         return;
       }
 
-      const threshold = completeReleaseImmediately ? 0.5 : calculateThreshold(velocity);
+      const threshold = completeReleaseImmediately
+        ? 0.5
+        : calculateThreshold(velocity, thresholdConfig);
 
       debugDrag(`🎯 [Scene ${sceneIndex}] Threshold:`, {
         velocity: velocity.toFixed(1),
@@ -387,9 +422,19 @@ export function useDragSceneEngine({
         // track from the release elapsed to T at natural rate. F1: direction is
         // captured in the directive at creation — the incoming scene never re-reads
         // the global direction (which gets cleared at completeDragTransition).
-        onDragRelease?.({ mode: 'settle', direction, targetSceneIndex });
+        // Carry the release ratio (abs drag fraction) IN the directive so the
+        // incoming scene's element track can seed its continuation from the
+        // release elapsed authoritatively — without depending on a render-synced
+        // ratio ref that reads a stale 0 when press/move/release flush in one
+        // synchronous batch (the replay-from-0 case).
+        onDragRelease?.({
+          mode: 'settle',
+          direction,
+          targetSceneIndex,
+          progressRatio: absFinalProgress,
+        });
 
-        const commitRelease = () => {
+        const commitRelease = (): void => {
           const pendingRelease = pendingReleaseRef.current;
           if (!pendingRelease || pendingRelease.token !== releaseTokenRef.current) {
             return;
@@ -466,7 +511,7 @@ export function useDragSceneEngine({
 
         // Bounce both tracks back to 0 in parallel (I1).
         onDragRelease?.({ mode: 'bounce', direction, targetSceneIndex });
-        animate(dragProgressMotion, 0, {
+        renderReleaseControlsRef.current = animate(dragProgressMotion, 0, {
           duration,
           ease: 'easeOut',
           onUpdate: (latest) => {
@@ -479,6 +524,7 @@ export function useDragSceneEngine({
             onDragTimelineProgressChange?.(0);
             onRenderProgressChange?.(0);
             dragProgressMotion.set(0);
+            renderReleaseControlsRef.current = null;
             onDragReset?.();
             onDraggingChange?.(false);
             setIsAnimating(false);
@@ -507,6 +553,7 @@ export function useDragSceneEngine({
       setIsAnimating,
       setSceneState,
       completeReleaseImmediately,
+      thresholdConfig,
     ]
   );
 

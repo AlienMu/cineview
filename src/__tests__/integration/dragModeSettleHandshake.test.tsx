@@ -227,7 +227,7 @@ function renderDragApp(onSceneDidChange: jest.Mock): React.RefObject<CineViewRef
       mode="drag"
       modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
       config={{ width: 750, height: 1334, unit: 'px' }}
-      callbacks={{ common: { onSceneDidChange } }}
+      callbacks={{ onSceneDidChange }}
     >
       <Scene transition={{ exitDuration: 800 }}>
         <Position at={{ x: 375, y: 220 }}>
@@ -316,7 +316,7 @@ describe('drag mode settle handshake', () => {
     });
   });
 
-  it('defers onSceneDidChange until the incoming element timeline continuation settles', async () => {
+  it('fires onSceneDidChange at the render commit; the element continuation runs on independently', async () => {
     const onSceneDidChange = jest.fn();
     const cineViewRef = renderDragApp(onSceneDidChange);
 
@@ -333,19 +333,20 @@ describe('drag mode settle handshake', () => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
     });
 
-    // ...but the partial release created a settle snapshot, so onSceneDidChange
-    // is deferred until the incoming scene's activation-settle continuation
-    // (a motion-value animation) finishes the element timeline to 100%.
-    expect(onSceneDidChange).not.toHaveBeenCalled();
-
-    await flushPendingObjectAnimations();
-
+    // The scene switch is COMPLETE at the render commit, so onSceneDidChange has
+    // already fired exactly once — it is NOT gated on the element continuation.
     await waitFor(() => {
       expect(onSceneDidChange).toHaveBeenCalledTimes(1);
     });
     expect(onSceneDidChange).toHaveBeenCalledWith(
       expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
     );
+
+    // Draining the incoming element continuation (the independent line) drives the
+    // visual enter to completion but does NOT fire onSceneDidChange a second time.
+    await flushPendingObjectAnimations();
+
+    expect(onSceneDidChange).toHaveBeenCalledTimes(1);
   });
 
   it('finalizes a pending release on a new drag start and commits once', async () => {

@@ -8,6 +8,7 @@ import { SceneInternal as Scene } from './Scene';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { SceneContext } from '../Animate/Animate';
 import type { SceneContextType } from '../Animate/Animate';
+import { CineViewRuntimeContext } from '../CineView/runtimeContext';
 import type { AnimationType } from '../../types';
 
 // Mock framer-motion
@@ -273,18 +274,18 @@ describe('Scene Component', () => {
           isActive={true}
           sceneIndex={2}
           callbacks={{ onVisibilityChange: groupedVisibilityChange }}
-          globalScrollTimelineState={{
-            phase: 'hold',
-            enterProgress: 1,
-            holdProgress: 1,
-            exitProgress: 0,
-            sceneProgress: 0.5,
-            rangeStart: 0,
-            rangeEnd: 600,
-            rangeLength: 600,
-            enterLength: 100,
-            holdLength: 400,
-            exitLength: 100,
+          scrollRuntime={{
+            timelineState: {
+              phase: 'hold',
+              enterProgress: 1,
+              exitProgress: 0,
+              sceneProgress: 0.5,
+              rangeStart: 0,
+              rangeEnd: 600,
+              rangeLength: 600,
+              enterLength: 100,
+              exitLength: 100,
+            },
           }}
         >
           <div>Visibility Content</div>
@@ -303,20 +304,20 @@ describe('Scene Component', () => {
         <Scene
           runtimeMode="scroll"
           sceneIndex={0}
-          globalViewportHeight={400}
-          globalScrollViewportOffset={120}
-          globalScrollTimelineState={{
-            phase: 'hold',
-            enterProgress: 1,
-            holdProgress: 1,
-            exitProgress: 0,
-            sceneProgress: 0.5,
-            rangeStart: 0,
-            rangeEnd: 680,
-            rangeLength: 680,
-            enterLength: 120,
-            holdLength: 440,
-            exitLength: 120,
+          sceneRuntime={{ viewportHeight: 400 }}
+          scrollRuntime={{
+            viewportOffset: 120,
+            timelineState: {
+              phase: 'hold',
+              enterProgress: 1,
+              exitProgress: 0,
+              sceneProgress: 0.5,
+              rangeStart: 0,
+              rangeEnd: 680,
+              rangeLength: 680,
+              enterLength: 120,
+              exitLength: 120,
+            },
           }}
         >
           <div>Fixed Host Content</div>
@@ -1040,6 +1041,58 @@ describe('Scene Component', () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('references non-existent component')
       );
+
+      consoleSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('routes a non-existent waitFor reference to onError via the runtime context even in production', async () => {
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const originalEnv = process.env.NODE_ENV;
+      // Production: the dev-only console.warn is suppressed, but the consumer's
+      // onError must still fire so a typo'd waitFor is not silently swallowed.
+      process.env.NODE_ENV = 'production';
+      const reportError = jest.fn();
+
+      const TestChild = (): JSX.Element => {
+        const context = useContext(SceneContext);
+
+        useEffect(() => {
+          if (context) {
+            context.registerAnimate('animate1', {
+              delay: 100,
+              duration: 500,
+              waitFor: 'non-existent',
+            });
+            context.getCalculatedDelay('animate1');
+          }
+        }, [context]);
+
+        return <div>Test</div>;
+      };
+
+      render(
+        <CineViewProvider designWidth={750} designHeight={750} unit="px">
+          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+            <Scene>
+              <TestChild />
+            </Scene>
+          </CineViewRuntimeContext.Provider>
+        </CineViewProvider>
+      );
+
+      await waitFor(() => {
+        expect(reportError).toHaveBeenCalled();
+      });
+
+      expect(reportError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'INVALID_ANIMATION',
+          message: expect.stringContaining('non-existent'),
+        })
+      );
+      // Dev-only console.warn stays silent in production.
+      expect(consoleSpy).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
       process.env.NODE_ENV = originalEnv;
