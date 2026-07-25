@@ -7,9 +7,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const os = require('os');
+const { execFileSync } = require('child_process');
 
 const DIST_DIR = path.join(__dirname, '../dist');
-const MAX_BUNDLE_SIZE_KB = 50; // 主包最大 gzip 大小 (KB)
+const PACKAGE_JSON = path.join(__dirname, '../package.json');
+const MAX_BUNDLE_SIZE_KB = Number(process.env.CINEVIEW_MAX_BUNDLE_SIZE_KB || 50); // 主包最大 gzip 大小 (KB)
 
 // ANSI 颜色代码
 const colors = {
@@ -41,21 +45,178 @@ function checkFile(fileName, description) {
   }
 }
 
-function main() {
+function hasPublicApiShape(mod) {
+  return Boolean(
+    mod &&
+    typeof mod === 'object' &&
+    mod.CineView &&
+    mod.Scene &&
+    mod.Animate &&
+    mod.Position &&
+    mod.Container &&
+    mod.Image
+  );
+}
+
+function checkPackageExports() {
+  log('\n7. 检查 package exports:', 'yellow');
+  try {
+    const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
+    const rootExport = pkg.exports && pkg.exports['.'];
+    const expected = {
+      types: './dist/index.d.ts',
+      import: './dist/cineview.es.mjs',
+      require: './dist/cineview.umd.js',
+    };
+    const passed =
+      pkg.types === 'dist/index.d.ts' &&
+      pkg.module === 'dist/cineview.es.mjs' &&
+      pkg.main === 'dist/cineview.umd.js' &&
+      rootExport?.types === expected.types &&
+      rootExport?.import === expected.import &&
+      rootExport?.require === expected.require;
+
+    if (passed) {
+      log('  ✓ package exports/main/module/types 与 dist 产物一致', 'green');
+    } else {
+      log('  ✗ package exports/main/module/types 与 dist 产物不一致', 'red');
+    }
+
+    return passed;
+  } catch (error) {
+    log(`  ✗ package.json 读取失败: ${error.message}`, 'red');
+    return false;
+  }
+}
+
+async function checkConsumerSmoke() {
+  log('\n8. 检查 consumer require/import smoke:', 'yellow');
+  let passed = true;
+
+  try {
+    const cjs = require(path.join(DIST_DIR, 'cineview.umd.js'));
+    if (!hasPublicApiShape(cjs)) {
+      throw new Error('UMD export shape missing public components');
+    }
+    log("  ✓ require('cineview') 入口可消费", 'green');
+  } catch (error) {
+    log(`  ✗ require smoke 失败: ${error.message}`, 'red');
+    passed = false;
+  }
+
+  try {
+    const esm = await import(pathToFileURL(path.join(DIST_DIR, 'cineview.es.mjs')).href);
+    if (!hasPublicApiShape(esm)) {
+      throw new Error('ESM export shape missing public components');
+    }
+    log("  ✓ import('cineview') 入口可消费", 'green');
+  } catch (error) {
+    log(`  ✗ import smoke 失败: ${error.message}`, 'red');
+    passed = false;
+  }
+
+  return passed;
+}
+
+function checkPeerExternalizationAndSourceMaps() {
+  log('\n9. 检查 peer externalization/source maps:', 'yellow');
+  try {
+    const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
+    const viteConfig = fs.readFileSync(path.join(__dirname, '../vite.config.ts'), 'utf8');
+    const peerDependencies = Object.keys(pkg.peerDependencies || {});
+    const externalizedPeers = peerDependencies.every(
+      (dependency) =>
+        viteConfig.includes(`'${dependency}'`) || viteConfig.includes(`"${dependency}"`)
+    );
+    const sourceMapTargets = ['cineview.es.mjs', 'cineview.umd.js'];
+    const sourceMaps = sourceMapTargets.map((fileName) => {
+      const mapPath = path.join(DIST_DIR, `${fileName}.map`);
+      if (!fs.existsSync(mapPath)) return false;
+      const sourceMap = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+      return (
+        Array.isArray(sourceMap.sources) &&
+        sourceMap.sources.some((source) => source.includes('src/'))
+      );
+    });
+
+    if (externalizedPeers && sourceMaps.every(Boolean)) {
+      log('  ✓ peerDependencies 已由 Vite external，主产物 source map 可回溯到 src', 'green');
+      return true;
+    }
+
+    log('  ✗ peer externalization 或 source map 审计失败', 'red');
+    return false;
+  } catch (error) {
+    log(`  ✗ peer/source map 审计异常: ${error.message}`, 'red');
+    return false;
+  }
+}
+
+function checkPackedTarballConsumer() {
+  log('\n10. 检查 packed tarball consumer:', 'yellow');
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cineview-pack-'));
+  try {
+    const packOutput = execFileSync(
+      'npm',
+      ['pack', '--json', '--ignore-scripts', '--pack-destination', tempRoot],
+      {
+        cwd: path.join(__dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, HUSKY: '0' },
+      }
+    );
+    const jsonStart = packOutput.lastIndexOf('\n[');
+    const packResult = JSON.parse(packOutput.slice(jsonStart >= 0 ? jsonStart + 1 : 0));
+    const tarballPath = path.join(tempRoot, packResult[0].filename);
+    const fixtureRoot = path.join(tempRoot, 'fixture');
+    const fixtureModules = path.join(fixtureRoot, 'node_modules');
+    fs.mkdirSync(fixtureModules, { recursive: true });
+    execFileSync('tar', ['-xzf', tarballPath, '-C', tempRoot]);
+    fs.renameSync(path.join(tempRoot, 'package'), path.join(fixtureModules, 'cineview'));
+
+    for (const dependency of Object.keys(require(PACKAGE_JSON).peerDependencies || {})) {
+      const source = path.join(__dirname, '..', 'node_modules', dependency);
+      const destination = path.join(fixtureModules, dependency);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.symlinkSync(source, destination, 'junction');
+    }
+
+    const consumerScript = [
+      "const assert = require('node:assert');",
+      "const cjs = require('cineview');",
+      "for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(cjs[name], name);",
+      "import('cineview').then((esm) => { for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(esm[name], name); }).catch((error) => { console.error(error); process.exit(1); });",
+    ].join('\n');
+    execFileSync(process.execPath, ['-e', consumerScript], {
+      cwd: fixtureRoot,
+      stdio: 'pipe',
+    });
+    log('  ✓ packed tarball 在隔离 consumer 中 require/import 均可消费', 'green');
+    return true;
+  } catch (error) {
+    log(`  ✗ packed tarball consumer 失败: ${error.message}`, 'red');
+    return false;
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function main() {
   log('\n=== CineView 构建验证 ===\n', 'blue');
 
   let hasErrors = false;
 
   // 1. 检查 ES 模块
   log('1. 检查 ES 模块输出:', 'yellow');
-  const esModule = checkFile('cineview.es.js', 'ES 模块');
-  const esModuleGz = checkFile('cineview.es.js.gz', 'ES 模块 (gzipped)');
+  const esModule = checkFile('cineview.es.mjs', 'ES 模块');
+  const esModuleGz = checkFile('cineview.es.mjs.gz', 'ES 模块 (gzipped)');
 
   if (esModuleGz.exists && esModuleGz.size > MAX_BUNDLE_SIZE_KB) {
     log(
-      `  ⚠ 警告: ES 模块 gzip 大小 (${esModuleGz.size} KB) 超过目标 (${MAX_BUNDLE_SIZE_KB} KB)`,
-      'yellow'
+      `  ✗ 错误: ES 模块 gzip 大小 (${esModuleGz.size} KB) 超过目标 (${MAX_BUNDLE_SIZE_KB} KB)`,
+      'red'
     );
+    hasErrors = true;
   }
 
   // 2. 检查 UMD 模块
@@ -65,9 +226,10 @@ function main() {
 
   if (umdModuleGz.exists && umdModuleGz.size > MAX_BUNDLE_SIZE_KB) {
     log(
-      `  ⚠ 警告: UMD 模块 gzip 大小 (${umdModuleGz.size} KB) 超过目标 (${MAX_BUNDLE_SIZE_KB} KB)`,
-      'yellow'
+      `  ✗ 错误: UMD 模块 gzip 大小 (${umdModuleGz.size} KB) 超过目标 (${MAX_BUNDLE_SIZE_KB} KB)`,
+      'red'
     );
+    hasErrors = true;
   }
 
   // 3. 检查 TypeScript 类型定义
@@ -91,7 +253,7 @@ function main() {
   ];
 
   const files = fs.readdirSync(DIST_DIR);
-  const chunkFiles = files.filter((f) => f.endsWith('.mjs'));
+  const chunkFiles = files.filter((file) => file.endsWith('.mjs') && file !== 'cineview.es.mjs');
 
   log(`  找到 ${chunkFiles.length} 个代码分割 chunk:`);
   chunkFiles.forEach((file) => {
@@ -132,6 +294,17 @@ function main() {
     hasErrors = true;
   }
 
+  const packageExportsPassed = checkPackageExports();
+  const consumerSmokePassed = await checkConsumerSmoke();
+  const peerAndSourceMapsPassed = checkPeerExternalizationAndSourceMaps();
+  const packedTarballPassed = checkPackedTarballConsumer();
+  hasErrors =
+    hasErrors ||
+    !packageExportsPassed ||
+    !consumerSmokePassed ||
+    !peerAndSourceMapsPassed ||
+    !packedTarballPassed;
+
   // 总结
   log('\n=== 验证总结 ===\n', 'blue');
 
@@ -144,6 +317,10 @@ function main() {
     { name: '代码分割', passed: chunkFiles.length > 0 },
     { name: 'Gzip 压缩', passed: gzFiles.length > 0 },
     { name: 'Bundle 分析报告', passed: fs.existsSync(statsFile) },
+    { name: 'Package exports', passed: packageExportsPassed },
+    { name: 'Consumer smoke', passed: consumerSmokePassed },
+    { name: 'Peer/source maps', passed: peerAndSourceMapsPassed },
+    { name: 'Packed tarball consumer', passed: packedTarballPassed },
   ];
 
   const passedChecks = checks.filter((c) => c.passed).length;
@@ -174,4 +351,7 @@ function main() {
   }
 }
 
-main();
+main().catch((error) => {
+  log(`\n构建验证异常: ${error.message}`, 'red');
+  process.exit(1);
+});

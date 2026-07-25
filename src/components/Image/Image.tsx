@@ -19,7 +19,7 @@ export interface ImageProps extends NativeImageProps {
 }
 
 export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
-  { src, alt, width, height, style, loading, preload = true, ...imgProps },
+  { src, alt, width, height, style, loading, preload, ...imgProps },
   ref
 ): JSX.Element {
   const cineViewContext = useCineViewContext();
@@ -44,14 +44,15 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
     () => convertStyle(style, cineViewContext),
     [cineViewContext, style]
   );
-  const resolvedLoading = loading ?? (preload ? 'eager' : 'lazy');
+  const shouldPreload = loading === 'lazy' ? false : (preload ?? true);
+  const resolvedLoading = loading ?? (shouldPreload ? 'eager' : 'lazy');
 
   // Warm the shared preload cache so this URL is registered with the framework's
   // preload pipeline (the same Set consulted by useImagePreloader). Without this
   // the `preload` prop only toggled the native loading attribute and an asset
   // rendered via <Image> stayed invisible to isImagePreloaded/subscribers.
   useEffect(() => {
-    if (!preload || !src || typeof window === 'undefined') {
+    if (!shouldPreload || !src || typeof window === 'undefined') {
       return;
     }
     if (isImagePreloaded(src)) {
@@ -66,7 +67,7 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
     return () => {
       loader.removeEventListener('load', handleLoad);
     };
-  }, [preload, src]);
+  }, [shouldPreload, src]);
 
   return (
     <img

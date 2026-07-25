@@ -1,8 +1,9 @@
 /**
  * VideoFrameRenderer 单测:渲染 <video muted playsInline>、progress → currentTime seek、
- * 就绪后换 objectURL、双轴换算。jsdom 的 video.duration/currentTime 需 mock。
+ * 就绪后换 objectURL、单尺子换算。jsdom 的 video.duration/currentTime 需 mock。
  */
 import { render, act } from '@testing-library/react';
+import { motionValue } from 'framer-motion';
 import { CineViewProvider } from '../context/CineViewContext';
 import { VideoFrameRenderer } from './VideoFrameRenderer';
 import * as cache from '../hooks/mediaPreloadCache';
@@ -60,6 +61,19 @@ describe('VideoFrameRenderer', () => {
     expect(spy).toHaveBeenCalledWith('/v.mp4', 'video');
   });
 
+  it('subscribes without starting an eager fetch when preload is false', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    const spy = jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10);
+    const { container } = render(
+      <VideoFrameRenderer src="/background.mp4" progress={0} preload={false} />
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'none');
+  });
+
   it('seeks currentTime = progress * duration when metadata ready', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:mock-x');
     stubVideoTiming(20, 1);
@@ -79,6 +93,51 @@ describe('VideoFrameRenderer', () => {
     expect(currentTimeSetters).toContain(90); // 0.9*100
   });
 
+  it('seeks directly from a MotionValue without replacing the video element', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:motion');
+    stubVideoTiming(100, 1);
+    const progress = motionValue(0.2);
+    const { container } = render(<VideoFrameRenderer src="/motion.mp4" progress={progress} />);
+    const video = container.querySelector('video');
+
+    act(() => {
+      progress.set(0.75);
+    });
+
+    expect(currentTimeSetters).toContain(20);
+    expect(currentTimeSetters).toContain(75);
+    expect(container.querySelector('video')).toBe(video);
+  });
+
+  it('cleans MotionValue subscriptions on source swap and unmount', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:swap');
+    stubVideoTiming(100, 1);
+    const oldProgress = motionValue(0.1);
+    const nextProgress = motionValue(0.2);
+    const { rerender, unmount } = render(
+      <VideoFrameRenderer src="/old.mp4" progress={oldProgress} />
+    );
+
+    rerender(<VideoFrameRenderer src="/next.mp4" progress={nextProgress} />);
+    const afterSwap = currentTimeSetters.length;
+    act(() => {
+      oldProgress.set(0.8);
+    });
+    expect(currentTimeSetters).toHaveLength(afterSwap);
+
+    act(() => {
+      nextProgress.set(0.6);
+    });
+    expect(currentTimeSetters).toContain(60);
+
+    const afterUnmount = currentTimeSetters.length;
+    unmount();
+    act(() => {
+      nextProgress.set(0.9);
+    });
+    expect(currentTimeSetters).toHaveLength(afterUnmount);
+  });
+
   it('prefers preloaded objectURL over raw src', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:ready');
     stubVideoTiming(5, 1);
@@ -92,7 +151,7 @@ describe('VideoFrameRenderer', () => {
     stubVideoTiming(5, 1);
     // viewport 750 / design 750 → scale 1；height 也走宽度尺子（认宽不认高）。
     const { container } = render(
-      <CineViewProvider designWidth={750} designHeight={1334}>
+      <CineViewProvider designSize={750}>
         <VideoFrameRenderer src="/d.mp4" progress={0} width={375} height={667} />
       </CineViewProvider>
     );
@@ -106,7 +165,7 @@ describe('VideoFrameRenderer', () => {
     stubVideoTiming(5, 1);
     Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 375 });
     const { container } = render(
-      <CineViewProvider designWidth={750} designHeight={1334}>
+      <CineViewProvider designSize={750}>
         <VideoFrameRenderer src="/h.mp4" progress={0} width={200} height={200} />
       </CineViewProvider>
     );

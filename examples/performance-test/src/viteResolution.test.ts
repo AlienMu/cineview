@@ -23,9 +23,7 @@ describe('performance-test cineview resolution', () => {
     const here = path.dirname(fileURLToPath(import.meta.url));
     const expectedEntry = path.resolve(here, '../../../src/index.ts');
 
-    expect(path.normalize(getCineviewAliasReplacement() ?? '')).toBe(
-      path.normalize(expectedEntry)
-    );
+    expect(path.normalize(getCineviewAliasReplacement() ?? '')).toBe(path.normalize(expectedEntry));
   });
 
   it('keeps cineview out of optimizeDeps prebundling', () => {

@@ -113,7 +113,14 @@ export function StatGrid({
           <div style={{ color: mutedText, fontSize: 12, marginBottom: compact ? 12 : 16 }}>
             {stat.label}
           </div>
-          <div style={{ color: textColor, fontSize: compact ? 24 : 30, fontWeight: 700, marginBottom: 10 }}>
+          <div
+            style={{
+              color: textColor,
+              fontSize: compact ? 24 : 30,
+              fontWeight: 700,
+              marginBottom: 10,
+            }}
+          >
             {stat.value}
           </div>
           <div style={{ color: '#63708F', fontSize: 14, lineHeight: 1.5 }}>{stat.detail}</div>
@@ -177,7 +184,10 @@ export function DetailList({
       <div style={{ fontSize: 12, fontWeight: 700, color: accent, marginBottom: 14 }}>{title}</div>
       <div style={{ display: 'grid', gap: 12 }}>
         {items.map((item) => (
-          <div key={`${title}-${item}`} style={{ color: mutedText, fontSize: 14, lineHeight: 1.55 }}>
+          <div
+            key={`${title}-${item}`}
+            style={{ color: mutedText, fontSize: 14, lineHeight: 1.55 }}
+          >
             {item}
           </div>
         ))}
@@ -217,7 +227,8 @@ export function MediaFrame({
         <Image
           alt={section.media.alt}
           height={height}
-          loading={priority ? 'eager' : undefined}
+          loading={priority ? 'eager' : 'lazy'}
+          preload={priority}
           src={section.media.src}
           style={{ display: 'block', width: '100%', height: 'auto', background: '#FFFFFF' }}
           width={width}

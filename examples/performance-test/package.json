@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "profile:browser": "node profile-browser.mjs",
     "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "format": "pnpm --dir ../.. exec prettier --write \"examples/performance-test/**/*.{ts,tsx,js,mjs,json}\"",
+    "format:check": "pnpm --dir ../.. exec prettier --check \"examples/performance-test/**/*.{ts,tsx,js,mjs,json}\"",
     "preview": "vite preview",
     "lighthouse": "pnpm run build && pnpm run preview & sleep 3 && lighthouse http://localhost:4173 --view --output html --output-path ./lighthouse-report.html"
   },
@@ -21,6 +25,7 @@
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^4.0.0",
     "jsdom": "^26.1.0",
+    "playwright-core": "1.54.2",
     "terser": "^5.46.1",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",

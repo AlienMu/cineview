@@ -172,7 +172,7 @@ function renderDragApp(onSceneDidChange?: jest.Mock) {
       ref={cineViewRef}
       mode="drag"
       modes={{ drag: { direction: 'y', transitionDuration: 600, dragTimeScale: 25 } }}
-      config={{ width: 750, height: 1334 }}
+      config={{ size: 750 }}
       callbacks={{ onSceneDidChange }}
     >
       <Scene

@@ -8,7 +8,13 @@ import { act } from '@testing-library/react';
 import { motionValue } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
 import type { DragVisualState } from './useAnimateDrag';
-import { renderStaggerTree, ScrollStagger, DragStagger } from './StaggerContainer';
+import {
+  countStaggerItems,
+  renderStaggerTree,
+  resolveStaggerTiming,
+  ScrollStagger,
+  DragStagger,
+} from './StaggerContainer';
 
 const variant: ParsedAnimationVariant = {
   initial: { opacity: 0, y: 20 },
@@ -47,6 +53,43 @@ function makeDragState(partial: Partial<DragVisualState>): DragVisualState {
 }
 
 describe('renderStaggerTree', () => {
+  it('folds the stagger tail into the effective group duration', () => {
+    expect(resolveStaggerTiming(variant, 600, 80, 'first', 5)).toEqual({
+      itemDurationMs: 400,
+      tailDurationMs: 320,
+      effectiveDurationMs: 720,
+    });
+  });
+
+  it('uses duration.enter as item duration when the variant has no duration', () => {
+    expect(resolveStaggerTiming(variantNoTransition, 600, 80, 'first', 3)).toEqual({
+      itemDurationMs: 600,
+      tailDurationMs: 160,
+      effectiveDurationMs: 760,
+    });
+  });
+
+  it('keeps an explicitly longer group duration and resolves center ordering', () => {
+    expect(resolveStaggerTiming(variant, 1000, 80, 'center', 4)).toEqual({
+      itemDurationMs: 400,
+      tailDurationMs: 120,
+      effectiveDurationMs: 1000,
+    });
+  });
+
+  it('counts exactly the direct valid child elements used by stagger rendering', () => {
+    expect(countStaggerItems(container)).toBe(3);
+    expect(
+      countStaggerItems(
+        <p>
+          text
+          <span>a</span>
+          {null}
+        </p>
+      )
+    ).toBe(1);
+  });
+
   it('克隆 container 与直接子元素为 motion 元素，play=true 时父挂 animate 标签', () => {
     const tree = renderStaggerTree(container, variant, 40, 'first', true);
     const { container: root } = render(tree);
@@ -102,8 +145,16 @@ describe('renderStaggerTree', () => {
       </p>
     );
     const { container: root } = render(renderStaggerTree(withText, variant, 40, 'first', true));
-    // 纯文本被过滤，仅保留 span 元素
+    expect(root.textContent).toBe('文本a');
     expect(root.querySelector('.stagger-parent')).toBeInTheDocument();
+  });
+
+  it('calculates the exit stagger tail from the authored exit transition', () => {
+    expect(resolveStaggerTiming(variant, 500, 80, 'last', 4, 'exit')).toEqual({
+      itemDurationMs: 500,
+      tailDurationMs: 240,
+      effectiveDurationMs: 740,
+    });
   });
 });
 

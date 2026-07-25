@@ -110,12 +110,21 @@ export const zh = {
   'demoDrag.s2.line2': '副标题等它(waitFor)',
   'demoDrag.s2.line3': '正文延迟 300ms 跟上',
   'demoDrag.s3.eyebrow': '第三镜 · 定位',
-  'demoDrag.s3.title': '双轴坐标定位',
+  'demoDrag.s3.title': '单尺子坐标定位',
   'demoDrag.s3.badge': '固定层',
   'demoDrag.s3.sub': '元素按设计稿坐标精确落位',
   'demoDrag.s4.eyebrow': '第四镜 · 预设',
   'demoDrag.s4.title': '40+ 动画预设',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur 任意组合',
+
+  // ── 独立移动端 Drag 第一幕 ──
+  'drag.shot': '01 / FIRST CUT',
+  'drag.eyebrow': '移动端 · 拖拽分页',
+  'drag.title': 'CineView',
+  'drag.sub': '影院级叙事，触手可及',
+  'drag.hint': '按住屏幕，上下拖动',
+  'drag.footer': '释放后，时间继续完成',
+  'drag.target': '下一镜，待剪入',
 
   // ── 第5幕 能力矩阵 ──
   'caps.eyebrow': '能力',
@@ -123,8 +132,8 @@ export const zh = {
   'caps.1.title': '40+ 动画预设',
   'caps.1.desc':
     'fade、slide、zoom、flip、bounce、blur、elastic 等多类预设,支持 sequential / parallel 组合。',
-  'caps.2.title': '双轴响应式换算',
-  'caps.2.desc': '按设计稿坐标书写,框架自动在两个轴向换算到任意视口,无需手写媒体查询。',
+  'caps.2.title': '单尺子响应式换算',
+  'caps.2.desc': '按设计稿坐标书写,横纵长度共用认宽的等比尺子,无需手写媒体查询且绝不形变。',
   'caps.3.title': 'waitFor 时间轴编排',
   'caps.3.desc': '元素之间用 waitFor 串成依赖链,delay 精确控制节奏,循环依赖会被静态检测。',
   'caps.4.title': '图片预加载',
@@ -160,7 +169,7 @@ export const zh = {
   'demoVideo.intro':
     '从逐帧跳动，\n到光影长卷——\n所有动态，共用一种节奏；\n解锁画面，让故事自由上演。',
   'demoVideo.code':
-    '<Scene scroll={{ trigger: "center-lock" }}>\n  {({ progress }) => (\n    <>\n      <AnimateVideo src="/video.mp4" progress={progress} />\n      <Glow opacity={progress} scale={0.7 + progress} />\n    </>\n  )}\n</Scene>',
+    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ waitFor: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc': '滚动即时间轴：进度 0→1 映射到视频首帧→末帧，反向滚动天然倒放。',
 
   // ── 文档外壳 ──
@@ -181,7 +190,7 @@ export const zh = {
   'docs.page.introduction': '介绍',
   'docs.page.installation': '安装',
   'docs.page.quickstart': '快速开始',
-  'docs.page.responsive': '双轴换算',
+  'docs.page.responsive': '单尺子换算',
   'docs.page.modes': 'drag 与 scroll',
   'docs.page.timeline': '时间轴与所有权',
   'docs.page.cineview': 'CineView',
@@ -200,4 +209,33 @@ export const zh = {
 
   // ── 通用 ──
   'common.timecode': '时间码',
+
+  // ── /drag 时间叙事体验（仅译叙事文案；电影术语保留英文）──
+  'dragTemporal.s01.eyebrow': 'CINEMATIC UI FRAMEWORK',
+  'dragTemporal.s01.subtitle': '像导演一样，逐帧掌控',
+  'dragTemporal.s01.footerHint': '释放后，时间继续完成',
+  'dragTemporal.s01.dialLabel': '时间校准盘',
+  'dragTemporal.s01.dragHintLabel': '上下拖动',
+  'dragTemporal.s01.actionsLabel': '主导航',
+  'dragTemporal.s01.btnDocs': '阅读文档',
+  'dragTemporal.s01.btnHome': '在 GitHub 查看',
+  'dragTemporal.s02.eyebrow': 'SLATE · ACTION',
+  'dragTemporal.s02.title': '打板，开拍',
+  'dragTemporal.s02.footerHint': '打板——镜头开始运转',
+  'dragTemporal.s02.slateLabel': '02 / SLATE',
+  'dragTemporal.s02.clapperLabel': '粒子汇聚成场记板',
+  'dragTemporal.s03.eyebrow': 'DECLARATIVE TIMELINE',
+  'dragTemporal.s03.title': '顺序与位置，一次说清',
+  'dragTemporal.s03.footerHint': '元素依次入场',
+  'dragTemporal.s03.timelineLabel': '五段式声明时间轴',
+  'dragTemporal.s03.panelLabel': '当前节点参数',
+  'dragTemporal.s03.contextTitle': '元素按 waitFor 依次入场',
+  'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
+  'dragTemporal.s04.footerHint': '拖拽距离化作时间',
+  'dragTemporal.s04.rulerLabel': '拖拽进度标尺',
+  'dragTemporal.s05.actionsLabel': '尾场导航',
+  'dragTemporal.s05.btnHome': '返回首页',
+  'dragTemporal.s05.btnDocs': '阅读文档',
+  'dragTemporal.s05.reelLabel': '胶片尾段',
+  'dragTemporal.hud.metaLabel': '拍摄元数据',
 };

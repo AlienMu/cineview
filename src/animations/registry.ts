@@ -60,7 +60,6 @@ export function buildAnimationRegistrySnapshot({
   const calculatedDelays = new Map<string, number>();
   const issues: AnimationRegistryIssue[] = [];
   const visiting = new Set<string>();
-  const visited = new Set<string>();
 
   Array.from(duplicateIds).forEach((animateId) => {
     pushIssueOnce(issues, { type: 'duplicate-id', animateId });
@@ -72,21 +71,14 @@ export function buildAnimationRegistrySnapshot({
       return cached;
     }
 
-    const info = registrations.get(animateId);
-    if (!info) {
-      return 0;
-    }
+    const info = registrations.get(animateId)!;
 
     if (visiting.has(animateId)) {
       const cycleStart = chain.indexOf(animateId);
-      const cycle = cycleStart >= 0 ? chain.slice(cycleStart).concat(animateId) : [animateId];
+      const cycle = chain.slice(cycleStart).concat(animateId);
       pushIssueOnce(issues, { type: 'circular-dependency', animateId, cycle });
       calculatedDelays.set(animateId, info.delay);
       return info.delay;
-    }
-
-    if (visited.has(animateId)) {
-      return calculatedDelays.get(animateId) ?? info.delay;
     }
 
     visiting.add(animateId);
@@ -107,7 +99,6 @@ export function buildAnimationRegistrySnapshot({
     }
 
     visiting.delete(animateId);
-    visited.add(animateId);
     calculatedDelays.set(animateId, totalDelay);
     return totalDelay;
   };
@@ -118,7 +109,7 @@ export function buildAnimationRegistrySnapshot({
 
   let timelineDuration = Math.max(baseDuration, 0);
   registrations.forEach((info, animateId) => {
-    const calculatedDelay = calculatedDelays.get(animateId) ?? info.delay;
+    const calculatedDelay = calculatedDelays.get(animateId)!;
     timelineDuration = Math.max(timelineDuration, calculatedDelay + info.duration);
   });
 

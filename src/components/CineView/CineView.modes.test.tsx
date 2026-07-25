@@ -19,7 +19,7 @@
  * - scrollSceneLayout memo 中 resolveScrollSceneDeclaredSpan 的各类尺寸解析
  */
 
-import { createRef } from 'react';
+import { createRef, useState } from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { CineView } from './CineView';
 import type { CineViewRef } from '../../types';
@@ -46,6 +46,12 @@ type CapturedSceneProps = {
       committedElapsedMs?: number,
       timelineDuration?: number
     ) => void;
+    onRelease: (release: {
+      mode: 'settle' | 'bounce' | 'enter';
+      direction: 'forward' | 'backward';
+      targetSceneIndex: number;
+      progressRatio?: number;
+    }) => void;
     onActivationComplete: () => void;
     onReset: () => void;
     [k: string]: unknown;
@@ -62,6 +68,7 @@ const DriverScene: React.FC<CapturedSceneProps> = (props) => {
   captured[index] = props;
   return <div data-testid={`driver-scene-${index}`}>{props.children}</div>;
 };
+(DriverScene as React.FC & { cineViewScene?: boolean; displayName?: string }).cineViewScene = true;
 (DriverScene as React.FC & { displayName?: string }).displayName = 'Scene';
 
 // ---------------------------------------------------------------------------
@@ -113,7 +120,7 @@ jest.mock('../../hooks/useImagePreloader', () => ({
   }),
 }));
 
-const defaultConfig = { width: 750, height: 1334 };
+const defaultConfig = { size: 750 };
 
 // ResizeObserver capture so the viewport-measure effect's RO branch is exercised.
 class MockResizeObserver {
@@ -159,6 +166,93 @@ describe('CineView drag-path modes / runtime callbacks', () => {
   });
 
   describe('drag 手势 runtime 回调归一化', () => {
+    it('父组件随 drag 重渲染时 callbacks.onReady 仍只触发一次', async () => {
+      const onReady = jest.fn();
+      const callbackRef = jest.fn<void, [CineViewRef | null]>();
+
+      const Harness = (): JSX.Element => {
+        const [, setRevision] = useState(0);
+        return (
+          <CineView
+            ref={(api) => callbackRef(api)}
+            mode="drag"
+            config={defaultConfig}
+            callbacks={{
+              onReady,
+              onDragProgress: () => setRevision((revision) => revision + 1),
+            }}
+          >
+            <DriverScene>S1</DriverScene>
+            <DriverScene>S2</DriverScene>
+          </CineView>
+        );
+      };
+
+      render(<Harness />);
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      act(() => {
+        captured[0].dragRuntime!.onDraggingChange(true);
+        captured[0].dragRuntime!.onProgressChange(0.1);
+      });
+      act(() => {
+        captured[0].dragRuntime!.onProgressChange(0.2);
+      });
+
+      expect(onReady).toHaveBeenCalledTimes(1);
+      expect(callbackRef.mock.calls.filter(([api]) => api !== null).length).toBeGreaterThan(1);
+    });
+
+    it('同一 React 批次内逐个发布 drag progress 样本', async () => {
+      const onDragProgress = jest.fn();
+
+      render(
+        <CineView mode="drag" config={defaultConfig} callbacks={{ onDragProgress }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      act(() => {
+        captured[0].dragRuntime!.onDraggingChange(true);
+        captured[0].dragRuntime!.onProgressChange(0.1);
+        captured[0].dragRuntime!.onProgressChange(0.35);
+        captured[0].dragRuntime!.onProgressChange(0.6);
+      });
+
+      expect(onDragProgress.mock.calls.map(([detail]) => detail)).toEqual([
+        expect.objectContaining({ progress: 0.1, direction: 'forward' }),
+        expect.objectContaining({ progress: 0.35, direction: 'forward' }),
+        expect.objectContaining({ progress: 0.6, direction: 'forward' }),
+      ]);
+    });
+
+    it('发布等幅 drag progress 的方向反转', async () => {
+      const onDragProgress = jest.fn();
+
+      render(
+        <CineView mode="drag" config={defaultConfig} callbacks={{ onDragProgress }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      act(() => {
+        captured[0].dragRuntime!.onDraggingChange(true);
+        captured[0].dragRuntime!.onProgressChange(0.25);
+        captured[0].dragRuntime!.onProgressChange(-0.25);
+      });
+
+      expect(onDragProgress.mock.calls.map(([detail]) => detail)).toEqual([
+        expect.objectContaining({ progress: 0.25, direction: 'forward' }),
+        expect.objectContaining({ progress: 0.25, direction: 'backward' }),
+      ]);
+    });
+
     it('注入的 dragRuntime 驱动 onDragStart / onDragProgress / onDragCancel 一轮', async () => {
       const onDragStart = jest.fn();
       const onDragProgress = jest.fn();
@@ -184,7 +278,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       });
 
       expect(onDragStart).toHaveBeenCalledWith(
-        expect.objectContaining({ sceneIndex: 0, direction: 'forward' })
+        expect.objectContaining({ sceneIndex: 0, progress: 0, direction: null })
       );
       expect(onDragProgress).toHaveBeenCalledWith(
         expect.objectContaining({ sceneIndex: 0, progress: 0.5, direction: 'forward' })
@@ -198,13 +292,82 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         expect.objectContaining({ progress: 0.25, direction: 'backward' })
       );
 
-      // 松手未提交 → cancel
+      // 松手未提交 → reset 结局发布 cancel
       act(() => {
+        captured[0].dragRuntime!.onRelease({
+          mode: 'bounce',
+          direction: 'backward',
+          targetSceneIndex: -1,
+        });
+        captured[0].dragRuntime!.onReset();
         captured[0].dragRuntime!.onDraggingChange(false);
       });
       expect(onDragCancel).toHaveBeenCalledWith(
         expect.objectContaining({ sceneIndex: 0, direction: 'backward' })
       );
+    });
+
+    it('成功提交不同时误报 onDragCancel', async () => {
+      const onDragCancel = jest.fn();
+      const onDragCommit = jest.fn();
+
+      render(
+        <CineView mode="drag" config={defaultConfig} callbacks={{ onDragCancel, onDragCommit }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      act(() => {
+        captured[0].dragRuntime!.onDraggingChange(true);
+        captured[0].dragRuntime!.onProgressChange(0.7);
+        captured[0].dragRuntime!.onDraggingChange(false);
+        captured[0].dragRuntime!.onRelease({
+          mode: 'settle',
+          direction: 'forward',
+          targetSceneIndex: 1,
+          progressRatio: 0.7,
+        });
+        captured[0].dragRuntime!.onCommit('forward', 0.7, 70, 100);
+      });
+
+      expect(onDragCommit).toHaveBeenCalledTimes(1);
+      expect(onDragCancel).not.toHaveBeenCalled();
+    });
+
+    it('bounce 结束时只发布一次 release 点的 onDragCancel', async () => {
+      const onDragCancel = jest.fn();
+
+      render(
+        <CineView mode="drag" config={defaultConfig} callbacks={{ onDragCancel }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      act(() => {
+        captured[0].dragRuntime!.onDraggingChange(true);
+        captured[0].dragRuntime!.onProgressChange(0.4);
+        captured[0].dragRuntime!.onRelease({
+          mode: 'bounce',
+          direction: 'forward',
+          targetSceneIndex: 1,
+        });
+        captured[0].dragRuntime!.onProgressChange(0);
+        captured[0].dragRuntime!.onReset();
+        captured[0].dragRuntime!.onDraggingChange(false);
+      });
+
+      expect(onDragCancel).toHaveBeenCalledTimes(1);
+      expect(onDragCancel).toHaveBeenCalledWith({
+        sceneIndex: 0,
+        progress: 0.4,
+        direction: 'forward',
+      });
     });
 
     it('dragRuntime.onCommit 在 forward / backward 都补发 onDragCommit 并携带 elapsedMs', async () => {

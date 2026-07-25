@@ -21,6 +21,13 @@ import type { ParsedAnimationVariant } from '../../types';
 import type { DragVisualState } from './useAnimateDrag';
 
 type StaggerFrom = 'first' | 'last' | 'center';
+type StaggerPhase = 'initial' | 'animate' | 'exit';
+
+export interface StaggerTiming {
+  itemDurationMs: number;
+  tailDurationMs: number;
+  effectiveDurationMs: number;
+}
 
 // 由字符串标签取 framer motion 组件(motion.p / motion.span / ...)。
 function motionTag(type: ReactElement['type']): React.ElementType {
@@ -38,6 +45,46 @@ function orderFor(index: number, count: number, from: StaggerFrom): number {
   return index;
 }
 
+function getStaggerItems(container: ReactElement): ReactElement[] {
+  return Children.toArray((container.props as { children?: React.ReactNode }).children).filter(
+    isValidElement
+  ) as ReactElement[];
+}
+
+export function countStaggerItems(container: ReactElement): number {
+  return getStaggerItems(container).length;
+}
+
+export function resolveStaggerTiming(
+  variant: ParsedAnimationVariant,
+  authoredDurationMs: number,
+  each: number,
+  from: StaggerFrom,
+  itemCount: number,
+  target: 'animate' | 'exit' = 'animate'
+): StaggerTiming {
+  const targetVariant = variant[target] as { transition?: Record<string, unknown> } | undefined;
+  const transition = targetVariant?.transition;
+  const transitionDurationSeconds = transition?.duration;
+  const itemDurationMs =
+    typeof transitionDurationSeconds === 'number' && Number.isFinite(transitionDurationSeconds)
+      ? Math.max(transitionDurationSeconds * 1000, 0)
+      : Math.max(authoredDurationMs, 0);
+  const safeEach = Math.max(each, 0);
+  let lastOrder = 0;
+
+  for (let index = 0; index < itemCount; index += 1) {
+    lastOrder = Math.max(lastOrder, orderFor(index, itemCount, from));
+  }
+
+  const tailDurationMs = lastOrder * safeEach;
+  return {
+    itemDurationMs,
+    tailDurationMs,
+    effectiveDurationMs: Math.max(authoredDurationMs, tailDurationMs + itemDurationMs),
+  };
+}
+
 // variant 传播的纯渲染:container/子元素克隆成 motion 元素,子元素用 custom={i} + variant 函数
 // 算 per-index delay。play 决定父的 animate 标签('animate' 播 / 'initial' 复位)。
 export function renderStaggerTree(
@@ -45,30 +92,60 @@ export function renderStaggerTree(
   variant: ParsedAnimationVariant,
   each: number,
   from: StaggerFrom,
-  play: boolean
+  phase: boolean | StaggerPhase,
+  itemDurationMs?: number,
+  exitVariant?: ParsedAnimationVariant | null,
+  exitItemDurationMs?: number
 ): ReactElement {
-  const items = Children.toArray(
-    (container.props as { children?: React.ReactNode }).children
-  ).filter(isValidElement) as ReactElement[];
+  const children = Children.toArray((container.props as { children?: React.ReactNode }).children);
+  const items = getStaggerItems(container);
   const count = items.length;
   const eachSec = Math.max(each, 0) / 1000;
+  const resolvedPhase: StaggerPhase =
+    typeof phase === 'boolean' ? (phase ? 'animate' : 'initial') : phase;
 
+  const authoredTransition =
+    (variant.animate as { transition?: Record<string, unknown> }).transition ?? {};
   const childVariants = {
     initial: variant.initial,
     animate: (i: number) => ({
       ...variant.animate,
       transition: {
-        ...((variant.animate as { transition?: Record<string, unknown> }).transition ?? {}),
+        ...authoredTransition,
+        ...(authoredTransition.duration === undefined && itemDurationMs !== undefined
+          ? { duration: Math.max(itemDurationMs, 0) / 1000 }
+          : {}),
         delay: orderFor(i, count, from) * eachSec,
       },
     }),
+    exit: (i: number): Record<string, unknown> => {
+      const exitTarget = (exitVariant?.exit ?? variant.initial) as Record<string, unknown>;
+      const authoredExitTransition =
+        (exitTarget as { transition?: Record<string, unknown> }).transition ?? {};
+      return {
+        ...exitTarget,
+        transition: {
+          ...authoredExitTransition,
+          ...(authoredExitTransition.duration === undefined && exitItemDurationMs !== undefined
+            ? { duration: Math.max(exitItemDurationMs, 0) / 1000 }
+            : {}),
+          delay: orderFor(i, count, from) * eachSec,
+        },
+      };
+    },
   };
 
-  const wrappedItems = items.map((child, i) => {
+  let itemIndex = 0;
+  const wrappedItems = children.map((child, sourceIndex) => {
+    if (!isValidElement(child)) {
+      return child;
+    }
+    const i = itemIndex;
+    itemIndex += 1;
     const ChildTag = motionTag(child.type);
     return (
       <ChildTag
-        key={child.key ?? i}
+        key={child.key ?? sourceIndex}
         custom={i}
         variants={childVariants}
         className={(child.props as { className?: string }).className}
@@ -90,8 +167,8 @@ export function renderStaggerTree(
     <ParentTag
       {...containerProps}
       initial="initial"
-      animate={play ? 'animate' : 'initial'}
-      variants={{ initial: {}, animate: {} }}
+      animate={resolvedPhase}
+      variants={{ initial: {}, animate: {}, exit: {} }}
     >
       {wrappedItems}
     </ParentTag>
@@ -103,6 +180,9 @@ interface CommonProps {
   variant: ParsedAnimationVariant;
   each: number;
   from: StaggerFrom;
+  itemDurationMs?: number;
+  exitVariant?: ParsedAnimationVariant | null;
+  exitItemDurationMs?: number;
 }
 
 // scroll:订阅 signedVisual(0=初始/1=进入/-1=退出),>0 即播。
@@ -111,11 +191,25 @@ export function ScrollStagger({
   variant,
   each,
   from,
+  itemDurationMs,
+  exitVariant,
+  exitItemDurationMs,
   signedVisual,
 }: CommonProps & { signedVisual: MotionValue<number> }): ReactElement {
-  const [play, setPlay] = useState(() => signedVisual.get() > 0);
-  useMotionValueEvent(signedVisual, 'change', (v) => setPlay(v > 0));
-  return renderStaggerTree(container, variant, each, from, play);
+  const derive = (value: number): StaggerPhase =>
+    value > 0 ? 'animate' : value < 0 && exitVariant ? 'exit' : 'initial';
+  const [phase, setPhase] = useState(() => derive(signedVisual.get()));
+  useMotionValueEvent(signedVisual, 'change', (value) => setPhase(derive(value)));
+  return renderStaggerTree(
+    container,
+    variant,
+    each,
+    from,
+    phase,
+    itemDurationMs,
+    exitVariant,
+    exitItemDurationMs
+  );
 }
 
 // drag:订阅 visualState,mode=enter&progress>0 或 rest 即播。
@@ -124,11 +218,31 @@ export function DragStagger({
   variant,
   each,
   from,
+  itemDurationMs,
+  exitVariant,
+  exitItemDurationMs,
   visualState,
 }: CommonProps & { visualState: MotionValue<DragVisualState | null> }): ReactElement {
-  const derive = (vs: DragVisualState | null): boolean =>
-    Boolean(vs && ((vs.mode === 'enter' && vs.localProgress > 0) || vs.mode === 'rest'));
-  const [play, setPlay] = useState(() => derive(visualState.get()));
-  useMotionValueEvent(visualState, 'change', (vs) => setPlay(derive(vs)));
-  return renderStaggerTree(container, variant, each, from, play);
+  const derive = (visual: DragVisualState | null): StaggerPhase => {
+    if (visual?.mode === 'outgoing' && exitVariant) return 'exit';
+    if (
+      visual &&
+      ((visual.mode === 'enter' && visual.localProgress > 0) || visual.mode === 'rest')
+    ) {
+      return 'animate';
+    }
+    return 'initial';
+  };
+  const [phase, setPhase] = useState(() => derive(visualState.get()));
+  useMotionValueEvent(visualState, 'change', (visual) => setPhase(derive(visual)));
+  return renderStaggerTree(
+    container,
+    variant,
+    each,
+    from,
+    phase,
+    itemDurationMs,
+    exitVariant,
+    exitItemDurationMs
+  );
 }

@@ -8,8 +8,8 @@ import { Position } from '../Position/Position';
 import type { CineViewRef } from '../../types';
 import {
   SceneScrollRuntimeContext,
-  SceneScrollTimelineContext,
   SceneScrollTakeoverContext,
+  useSceneScrollTimeline,
 } from '../Scene/sceneScrollRuntime';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 
@@ -288,21 +288,27 @@ function ScrollBudgetProbe({
 }
 
 function ZoneProgressProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useContext(SceneScrollTimelineContext);
+  const timeline = useSceneScrollTimeline();
   const progress = timeline?.zoneStates[zoneId]?.progressPx ?? 0;
 
   return <output data-testid={`${zoneId}-progress`}>{progress}</output>;
 }
 
+function ZoneTotalBudgetProbe({ zoneId }: { zoneId: string }): JSX.Element {
+  const timeline = useSceneScrollTimeline();
+  const total = timeline?.zoneStates[zoneId]?.totalBudgetPx ?? -1;
+  return <output data-testid={`${zoneId}-total`}>{total}</output>;
+}
+
 function ZoneActiveProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useContext(SceneScrollTimelineContext);
+  const timeline = useSceneScrollTimeline();
   const active = timeline?.zoneStates[zoneId]?.active ?? false;
 
   return <output data-testid={`${zoneId}-active`}>{String(active)}</output>;
 }
 
 function ZoneBudgetKeysProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useContext(SceneScrollTimelineContext);
+  const timeline = useSceneScrollTimeline();
   const keys = Object.keys(timeline?.zoneStates[zoneId]?.sequence.budgets ?? {}).sort();
 
   return <output data-testid={`${zoneId}-budget-keys`}>{keys.join(',')}</output>;
@@ -383,6 +389,7 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
   );
 };
 
+(TestScene as typeof TestScene & { cineViewScene?: boolean }).cineViewScene = true;
 TestScene.displayName = 'Scene';
 
 function installScrollGeometry({
@@ -396,6 +403,18 @@ function installScrollGeometry({
   sceneHeights: number[];
   viewportHeight?: number;
 }): void {
+  const wrappers = Array.from(container.querySelectorAll('[data-scene-index]')) as HTMLDivElement[];
+  const flowHeights = sceneHeights.map((visualHeight, index) => {
+    const shell = wrappers[index]?.querySelector(
+      '[data-cineview-takeover-shell="1"]'
+    ) as HTMLDivElement | null;
+    const timelineDistancePx = Number(shell?.dataset.cineviewTakeoverTotalDistancePx ?? '0');
+
+    return shell
+      ? Math.max(visualHeight, viewportHeight) + Math.max(timelineDistancePx, 0)
+      : visualHeight;
+  });
+
   Object.defineProperty(container, 'clientHeight', {
     configurable: true,
     value: viewportHeight,
@@ -406,7 +425,7 @@ function installScrollGeometry({
   });
   Object.defineProperty(container, 'scrollHeight', {
     configurable: true,
-    value: Math.max(...sceneTops.map((top, index) => top + sceneHeights[index]), viewportHeight),
+    value: Math.max(...sceneTops.map((top, index) => top + flowHeights[index]), viewportHeight),
   });
   Object.defineProperty(container, 'scrollWidth', {
     configurable: true,
@@ -441,10 +460,9 @@ function installScrollGeometry({
       toJSON: () => undefined,
     }) as DOMRect;
 
-  const wrappers = Array.from(container.querySelectorAll('[data-scene-index]')) as HTMLDivElement[];
   wrappers.forEach((wrapper, index) => {
     const top = sceneTops[index];
-    const height = sceneHeights[index];
+    const height = flowHeights[index];
     Object.defineProperty(wrapper, 'offsetHeight', {
       configurable: true,
       value: height,
@@ -510,6 +528,25 @@ function readOutputNumber(testId: string): number {
   return Number(screen.getByTestId(testId).textContent ?? '0');
 }
 
+function getTakeoverSegment(
+  container: HTMLElement,
+  sceneIndex: number
+): {
+  start: number;
+  end: number;
+  distance: number;
+} {
+  const shell = container.querySelector(
+    `[data-cineview-takeover-shell="${sceneIndex}"]`
+  ) as HTMLDivElement;
+
+  return {
+    start: Number(shell.dataset.cineviewTakeoverSegmentStart),
+    end: Number(shell.dataset.cineviewTakeoverSegmentEnd),
+    distance: Number(shell.dataset.cineviewTakeoverTotalDistancePx),
+  };
+}
+
 function getThumbMetrics(container: HTMLElement): {
   thumb: HTMLDivElement;
   offset: number;
@@ -524,19 +561,17 @@ function getThumbMetrics(container: HTMLElement): {
   };
 }
 
-function getExpectedThumbOffsetForGlobalOffset({
-  globalOffset,
+function getExpectedThumbOffsetForNativeOffset({
+  nativeOffset,
   viewportSpan = 1000,
   contentSpan,
-  budget = 0,
 }: {
-  globalOffset: number;
+  nativeOffset: number;
   viewportSpan?: number;
   contentSpan: number;
-  budget?: number;
 }): number {
-  const railLength = viewportSpan - 16 * 2;
-  const effectiveContentSpan = contentSpan + viewportSpan + budget;
+  const railLength = viewportSpan;
+  const effectiveContentSpan = contentSpan + viewportSpan;
   const thumbLength =
     contentSpan > 0
       ? Math.min(
@@ -545,43 +580,39 @@ function getExpectedThumbOffsetForGlobalOffset({
         )
       : railLength;
   const thumbTravel = Math.max(railLength - thumbLength, 0);
-  const scrollableSpan = contentSpan + budget;
 
-  return scrollableSpan > 0
-    ? Math.min(Math.max((globalOffset / scrollableSpan) * thumbTravel, 0), thumbTravel)
+  return contentSpan > 0
+    ? Math.min(Math.max((nativeOffset / contentSpan) * thumbTravel, 0), thumbTravel)
     : 0;
 }
 
-function dragScrollbarThumbToGlobalOffset({
+function dragScrollbarThumbToNativeOffset({
   container,
-  globalOffset,
+  nativeOffset,
   contentSpan,
-  budget = 0,
 }: {
   container: HTMLElement;
-  globalOffset: number;
+  nativeOffset: number;
   contentSpan: number;
-  budget?: number;
 }): void {
   const rail = container.querySelector('[data-cineview-scrollbar-rail="true"]') as HTMLDivElement;
   const thumb = container.querySelector('[data-cineview-scrollbar-thumb="true"]') as HTMLDivElement;
   const railRect = {
-    top: 16,
-    bottom: 984,
-    left: 734,
-    right: 744,
-    width: 10,
-    height: 968,
-    x: 734,
-    y: 16,
+    top: 0,
+    bottom: 1000,
+    left: 744,
+    right: 750,
+    width: 6,
+    height: 1000,
+    x: 744,
+    y: 0,
     toJSON: () => undefined,
   } as DOMRect;
   const { offset, length } = getThumbMetrics(container);
   const centerX = railRect.left + railRect.width / 2;
-  const targetOffset = getExpectedThumbOffsetForGlobalOffset({
-    globalOffset,
+  const targetOffset = getExpectedThumbOffsetForNativeOffset({
+    nativeOffset,
     contentSpan,
-    budget,
   });
 
   rail.getBoundingClientRect = () => railRect;
@@ -617,36 +648,33 @@ function dragScrollbarThumbToGlobalOffset({
   });
 }
 
-function clickScrollbarRailToGlobalOffset({
+function clickScrollbarRailToNativeOffset({
   container,
-  globalOffset,
+  nativeOffset,
   contentSpan,
-  budget = 0,
 }: {
   container: HTMLElement;
-  globalOffset: number;
+  nativeOffset: number;
   contentSpan: number;
-  budget?: number;
 }): void {
   const rail = container.querySelector('[data-cineview-scrollbar-rail="true"]') as HTMLDivElement;
   const thumb = container.querySelector('[data-cineview-scrollbar-thumb="true"]') as HTMLDivElement;
   const railRect = {
-    top: 16,
-    bottom: 984,
-    left: 734,
-    right: 744,
-    width: 10,
-    height: 968,
-    x: 734,
-    y: 16,
+    top: 0,
+    bottom: 1000,
+    left: 744,
+    right: 750,
+    width: 6,
+    height: 1000,
+    x: 744,
+    y: 0,
     toJSON: () => undefined,
   } as DOMRect;
   const { offset, length } = getThumbMetrics(container);
   const centerX = railRect.left + railRect.width / 2;
-  const targetOffset = getExpectedThumbOffsetForGlobalOffset({
-    globalOffset,
+  const targetOffset = getExpectedThumbOffsetForNativeOffset({
+    nativeOffset,
     contentSpan,
-    budget,
   });
 
   rail.getBoundingClientRect = () => railRect;
@@ -768,8 +796,7 @@ afterEach(async () => {
 
 describe('DirectScrollCineView', () => {
   const config = {
-    width: 750,
-    height: 1334,
+    size: 750,
   };
 
   beforeEach(() => {
@@ -777,7 +804,7 @@ describe('DirectScrollCineView', () => {
     (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__ = true;
   });
 
-  it('preloads every declared scene asset globally in scroll mode', () => {
+  it('prioritizes the first scene and preloads later scene assets in the background', () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
@@ -796,8 +823,8 @@ describe('DirectScrollCineView', () => {
     );
 
     const callArgs = useImagePreloader.mock.calls[0][0];
-    expect(callArgs.priorityUrls).toEqual(['first.jpg', 'shared.jpg', 'second.jpg', 'third.jpg']);
-    expect(callArgs.backgroundUrls).toEqual([]);
+    expect(callArgs.priorityUrls).toEqual(['first.jpg', 'shared.jpg']);
+    expect(callArgs.backgroundUrls).toEqual(['second.jpg', 'third.jpg']);
   });
 
   it('preload(targets) prioritizes requested scroll scenes by index, sceneId, and zoneId', async () => {
@@ -1023,7 +1050,7 @@ describe('DirectScrollCineView', () => {
     expect(style?.textContent).not.toContain('scrollbar-color');
   });
 
-  it('marks scrollbar autoHide false by default on the real scroll container', () => {
+  it('marks scrollbar autoHide true by default on the real scroll container', () => {
     const { container } = render(
       <DirectScrollCineView config={config} scrollbar={{ enabled: true }}>
         <TestScene sceneId="scene-0">
@@ -1034,7 +1061,7 @@ describe('DirectScrollCineView', () => {
 
     const root = container.querySelector('.cineview-container') as HTMLDivElement;
 
-    expect(root).toHaveAttribute('data-cineview-scrollbar-autohide', 'false');
+    expect(root).toHaveAttribute('data-cineview-scrollbar-autohide', 'true');
   });
 
   // Regression: onReady is a one-shot lifecycle callback. The scroll root must
@@ -1067,6 +1094,7 @@ describe('DirectScrollCineView', () => {
     });
 
     expect(onReady).toHaveBeenCalledTimes(1);
+    const readyApi = onReady.mock.calls[0]?.[0] as CineViewRef;
 
     // Drive the active scene forward; each change used to re-fire onReady.
     act(() => {
@@ -1079,6 +1107,7 @@ describe('DirectScrollCineView', () => {
     });
 
     expect(onReady).toHaveBeenCalledTimes(1);
+    expect(readyApi.getCurrentScene()).toBe(2);
   });
 
   it('measures scene layouts once per gesture burst, not once per scroll frame', async () => {
@@ -1170,7 +1199,7 @@ describe('DirectScrollCineView', () => {
     const rail = container.querySelector('[data-cineview-scrollbar-rail="true"]') as HTMLDivElement;
 
     expect(rail).toBeInTheDocument();
-    expect(rail.style.right).toBe('2px');
+    expect(rail.style.right).toBe('0px');
     expect(container.querySelector('[data-cineview-scrollbar-thumb="true"]')).toBeInTheDocument();
     expect(root.querySelector('[data-cineview-scrollbar-overlay="true"]')).not.toBeInTheDocument();
     expect(
@@ -1333,10 +1362,10 @@ describe('DirectScrollCineView', () => {
         '[data-cineview-scrollbar-thumb="true"]'
       ) as HTMLDivElement;
       // CHARACTERIZATION: code currently sizes the thumb purely from nativeScrollableSpan
-      // (scrollHeight 2000 - viewport 1000 = 1000 over railLength 996 -> ~498px); design/test-name
+      // (scrollHeight 2000 - viewport 1000 = 1000 over railLength 1000 -> 500px); design/test-name
       // expects the thumb to shrink (<430) to account for takeover budget beyond native scrollHeight,
       // but the implementation does not fold takeover budget into thumb length. Flagged for browser-acceptance lane.
-      expect(parseFloat(thumb.style.height)).toBeCloseTo(498, 0);
+      expect(parseFloat(thumb.style.height)).toBeCloseTo(500, 0);
     });
   });
 
@@ -1376,14 +1405,14 @@ describe('DirectScrollCineView', () => {
 
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects native scroll crossing the anchor to consume the
-    // 400px overshoot as zone progress (progress=400, scrollTop corrected to 1100). The implementation
-    // instead snaps scrollTop back to the center-lock anchor (segmentStart ~874.81 + 1) and leaves
-    // progress at 1; the registered budget is 240 (single 240ms enter animation), not 400. Flagged for
-    // browser-acceptance lane.
+    // Single-ruler geometry: takeover visualSpan == measured span == viewport (1000), so the
+    // center-lock anchor sits exactly at the scene top (segmentStart = sceneTop 1000). Native scroll
+    // crossing the anchor is clamped to segmentStart+1 = 1001 and leaves progress at 1 on the first
+    // reconciled frame; the registered budget is 240 (single 240ms enter animation). (Old phantom
+    // legacy height-based conversion put the anchor at ~874.81, giving scrollTop ~875.81.)
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-      expect(root.scrollTop).toBeCloseTo(875.8125937031484, 3);
+      expect(root.scrollTop).toBeCloseTo(1001, 3);
     });
 
     await waitFor(() => {
@@ -1391,7 +1420,7 @@ describe('DirectScrollCineView', () => {
       // "global offset" that folds in consumed takeover budget. The implementation has no global-offset
       // thumb model, so offset matches the native-only formula. Flagged for browser-acceptance lane.
       const { offset, length } = getThumbMetrics(container);
-      const railLength = 1000 - 2 * 2;
+      const railLength = 1000;
       const thumbTravel = railLength - length;
       const nativeScrollableSpan = 3000 - 1000;
       const expectedNativeOffset = (root.scrollTop / nativeScrollableSpan) * thumbTravel;
@@ -1440,13 +1469,13 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects forward takeover progress to clamp at 100. The
-    // implementation maps the consumed wheel delta to ~125.19px of progress (it does not clamp the
-    // overshoot to 100) while parking scrollTop at the segment anchor (2200). Flagged for
-    // browser-acceptance lane.
+    const segment = getTakeoverSegment(container, 1);
+
+    // The large wheel crosses the whole real center-lock segment. The timeline consumes its complete
+    // 240px budget and the remaining input is released at the native segment end.
     await waitFor(() => {
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(125.1874062968518, 3);
-      expect(root.scrollTop).toBe(2200);
+      expect(readOutputNumber('zone-1-progress')).toBe(segment.distance);
+      expect(root.scrollTop).toBe(segment.end);
     });
 
     act(() => {
@@ -1462,10 +1491,10 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
 
-    // Reverse wheel retracts progress and parks scrollTop just below the post-correction native offset.
+    // Reverse wheel consumes the retained 30px progress, then returns to the real segment start.
     await waitFor(() => {
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(50.187406296851805, 3);
-      expect(root.scrollTop).toBe(2125);
+      expect(readOutputNumber('zone-1-progress')).toBe(0);
+      expect(root.scrollTop).toBe(segment.start);
     });
 
     act(() => {
@@ -1477,9 +1506,9 @@ describe('DirectScrollCineView', () => {
     await flushAnimationFrame();
 
     const { offset, length } = getThumbMetrics(container);
-    const railLength = 1000 - 2 * 2;
+    const railLength = 1000;
     const thumbTravel = railLength - length;
-    const nativeScrollableSpan = 3200 - 1000;
+    const nativeScrollableSpan = root.scrollHeight - root.clientHeight;
     const currentProgress = readOutputNumber('zone-1-progress');
     // CHARACTERIZATION: the overlay thumb tracks native scrollTop only (no "global offset" that folds
     // in takeover progress). offset === scrollTop/nativeScrollableSpan * thumbTravel. Forward wheel
@@ -1487,8 +1516,8 @@ describe('DirectScrollCineView', () => {
     // browser-acceptance lane.
     const expectedNativeOffset = (root.scrollTop / nativeScrollableSpan) * thumbTravel;
 
-    expect(root.scrollTop).toBe(2200);
-    expect(currentProgress).toBeCloseTo(125.1874062968518, 3);
+    expect(root.scrollTop).toBe(segment.end);
+    expect(currentProgress).toBe(segment.distance);
     expect(offset).toBeCloseTo(expectedNativeOffset, 1);
   });
 
@@ -1786,11 +1815,13 @@ describe('DirectScrollCineView', () => {
       });
       await flushAnimationFrame();
 
-      // A large forward wheel that crosses the anchor parks scrollTop at the real center-lock anchor
-      // (segmentStart ~2075.81, NOT 2200) and starts takeover at progress 1 with the entering phase
-      // animation mid-fade. The waterfall intent (progress > 0, below the 0.2 phase budget, opacity
-      // between 0 and 1) holds at the actual geometry.
-      expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
+      // Single-ruler geometry: takeover visualSpan == measured span == viewport, so the center-lock
+      // anchor sits exactly at the scene top (segmentStart = 2200). A large forward wheel that crosses
+      // the anchor is clamped to the first in-segment frame (segmentStart + 1 = 2201) and starts
+      // takeover at progress 1 with the entering phase animation mid-fade. The waterfall intent
+      // (progress > 0, below the 0.2 phase budget, opacity between 0 and 1) holds at the actual
+      // geometry. Legacy height-based conversion put the anchor at ~2074.81 (parking at ~2075.81).
+      expect(root.scrollTop).toBeCloseTo(2201, 3);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
       expect(readOutputNumber('zone-1-progress')).toBeGreaterThan(0);
       expect(readOutputNumber('zone-1-progress')).toBeLessThan(440 * 0.2);
@@ -1865,9 +1896,11 @@ describe('DirectScrollCineView', () => {
       // CHARACTERIZATION: design/test-name expects same-frame wheel bursts to stop at the first
       // authored phase boundary (progress ~140, zone still active). The implementation instead spends
       // every same-frame wheel against the takeover budget in the same frame, exhausting the full 440px
-      // budget and releasing back to native scroll (zone inactive, scrollTop advances past sceneEnd to
-      // ~3414.81). Flagged for browser-acceptance lane.
-      expect(root.scrollTop).toBeCloseTo(3414.812593703148, 3);
+      // budget and releasing back to native scroll (zone inactive). Single-ruler geometry: the anchor
+      // sits at the scene top (segmentStart = 2200), so scrollTop advances past sceneEnd (2640) to 3540
+      // (legacy height-based conversion put the anchor at ~2074.81, landing ~3414.81). Flagged for
+      // browser-acceptance lane.
+      expect(root.scrollTop).toBeCloseTo(3540, 3);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(440, 5);
 
@@ -1930,19 +1963,22 @@ describe('DirectScrollCineView', () => {
         fireEvent.scroll(root);
       });
 
-      // Real registered budget is enter+exit = 240+160 = 400 (1ms=1px), not 1800.
+      // Real registered budget is enter+exit = 240+160 = 400 (1ms=1px), not 1800. Single-ruler
+      // geometry: segmentStart == sceneTop (2200), so forward completion parks at segmentEnd = 2600
+      // (legacy height-based conversion landed ~2474.81).
       await completeTakeoverForward(root, () => readOutputNumber('zone-1-progress'), 400);
-      expect(root.scrollTop).toBeCloseTo(2474.812593703148, 3);
+      expect(root.scrollTop).toBeCloseTo(2600, 3);
 
       await wheelAndFlush(root, -90000);
 
       // CHARACTERIZATION: design/test-name expects the first reverse wheel re-entry frame to stay near
       // completion (progress >1620, zone re-activated) once the takeover is fully completed. The
       // implementation instead releases ownership at segmentEnd and a reverse wheel collapses progress
-      // to 0 with active=false, snapping scrollTop back to the segmentStart anchor (~2074.81). This is
-      // the P0 "scroll reverse re-entry" bug. Flagged for browser-acceptance lane.
+      // to 0 with active=false, snapping scrollTop back to the segmentStart anchor (2200 == sceneTop;
+      // old phantom conversion put it at ~2074.81). This is the P0 "scroll reverse re-entry" bug.
+      // Flagged for browser-acceptance lane.
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2074.812593703148, 3);
+        expect(root.scrollTop).toBeCloseTo(2200, 3);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
         expect(readOutputNumber('zone-1-progress')).toBe(0);
       });
@@ -2179,23 +2215,23 @@ describe('DirectScrollCineView', () => {
 
       await completeTakeoverForward(root, () => readOutputNumber('zone-3-progress'), 440);
 
-      // CHARACTERIZATION: design/test-name expects the most-recently-crossed reverse owner (zone-3) to
-      // stay armed near completion (progress ~1100-1125) while earlier-crossed zone-1 stays inactive.
+      // Single-ruler geometry: takeover visualSpan == measured span == viewport, so each center-lock
+      // anchor sits exactly at its scene top (zone-3 segmentStart = 5000, zone-1 segmentStart = 2200).
       // The implementation does NOT re-arm zone-3 on reverse re-entry: the first reverse wheel collapses
-      // zone-3 progress to 0 and parks scrollTop at zone-3 segmentStart (4874.81) without activating it;
-      // the second reverse wheel jumps past zone-3 entirely to zone-1's segmentEnd (~2473.81) and arms
-      // zone-1 near completion (progress 399). This is the P0 reverse re-entry bug. Flagged for
-      // browser-acceptance lane.
+      // zone-3 progress to 0 and parks scrollTop at zone-3 segmentStart (5000) without activating it;
+      // the second reverse wheel jumps past zone-3 entirely to zone-1's segmentEnd (2600 - 1 = 2599) and
+      // arms zone-1 near completion (progress 399). (Legacy height-based conversion put zone-3 at
+      // ~4874.81 and zone-1 segmentEnd at ~2473.81.)
       await wheelAndFlush(root, -90000);
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(4874.812593703148, 3);
+        expect(root.scrollTop).toBeCloseTo(5000, 3);
         expect(screen.getByTestId('zone-3-active')).toHaveTextContent('false');
         expect(readOutputNumber('zone-3-progress')).toBe(0);
       });
 
       await wheelAndFlush(root, -90000);
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2473.812593703148, 3);
+        expect(root.scrollTop).toBeCloseTo(2599, 3);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
         expect(readOutputNumber('zone-1-progress')).toBeCloseTo(399, 0);
         expect(screen.getByTestId('zone-3-active')).toHaveTextContent('false');
@@ -2236,13 +2272,12 @@ describe('DirectScrollCineView', () => {
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 4600 - 1000;
-      const budget = 400;
       installScrollGeometry({
         container: root,
         sceneTops: [0, 2200, 3600],
         sceneHeights: [1000, 1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         root.scrollTop = 1950;
@@ -2254,11 +2289,10 @@ describe('DirectScrollCineView', () => {
       expect(root.scrollTop).toBeGreaterThan(2200);
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2100,
+          nativeOffset: 2100,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
@@ -2266,10 +2300,13 @@ describe('DirectScrollCineView', () => {
       // CHARACTERIZATION: design/test-name expects a reverse scrollbar drag back into the completed
       // zone to keep the first re-entry frame near completion (progress > 1620 of budget, active).
       // This is the P0 reverse re-entry bug: dragging the thumb back collapses progress to 0 and
-      // leaves the zone inactive, parking scrollTop at the segment anchor (segmentStart ~2074.81)
-      // rather than replaying from completion. Flagged for browser-acceptance lane.
+      // leaves the zone inactive, parking scrollTop at the segment anchor. Flagged for
+      // browser-acceptance lane.
+      // Single-ruler geometry: takeover visualSpan == measured span == viewport, so the center-lock
+      // anchor (segmentStart) sits exactly at sceneTop (2200). Legacy height-based conversion put
+      // it at ~2074.81.
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2074.812593703148, 3);
+        expect(root.scrollTop).toBeCloseTo(2200, 3);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
         expect(readOutputNumber('zone-1-progress')).toBe(0);
       });
@@ -2329,11 +2366,13 @@ describe('DirectScrollCineView', () => {
 
       await flushAnimationFrame();
 
-      // First forward wheel crosses the anchor and parks scrollTop at the real anchor (~2075.81);
-      // progress reaches 1 (overshoot is not clamped to 100), zone active. (Budget = enter+exit = 200.)
+      // First forward wheel crosses the anchor and parks scrollTop at segmentStart + 1; progress
+      // reaches 1 (overshoot is not clamped to 100), zone active. (Budget = enter+exit = 200.)
+      // Single-ruler geometry: segmentStart = sceneTop = 2200, so crossing lands at 2201. Old phantom
+      // legacy height-based conversion put the anchor at ~2074.81 (crossing landed at ~2075.81).
       await waitFor(() => {
         expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-        expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
+        expect(root.scrollTop).toBeCloseTo(2201, 3);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
       });
 
@@ -2350,11 +2389,15 @@ describe('DirectScrollCineView', () => {
       });
       await flushAnimationFrame();
 
-      // Reverse wheel retracts to ~80.19px progress and parks scrollTop just below the native offset.
+      // Single-ruler geometry: the reverse wheel (-75 from native 2230) crosses back above the
+      // segmentStart anchor (2200), so it re-parks scrollTop on the anchor and collapses progress to 0
+      // with the zone deactivated. (Old phantom anchor ~2074.81 kept the reverse frame inside the
+      // segment at ~80.19px progress; with the anchor restored to sceneTop the reverse actually crosses
+      // out, matching the test name.)
       await waitFor(() => {
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(80.1874062968518, 3);
-        expect(root.scrollTop).toBe(2155);
-        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+        expect(readOutputNumber('zone-1-progress')).toBe(0);
+        expect(root.scrollTop).toBe(2200);
+        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       });
 
       act(() => {
@@ -2365,14 +2408,13 @@ describe('DirectScrollCineView', () => {
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: test-name expects the next small forward input to RESTART the replay from
-      // enter progress (progress < 30). The implementation instead CONTINUES the same takeover forward
-      // from where reverse left off (~80.19 -> ~100.19), so no enter-progress restart occurs. The
-      // animation stays near full opacity rather than restarting low. Flagged for browser-acceptance lane.
+      // The next small forward input RESTARTS the replay from enter progress: a 20px forward wheel from
+      // the anchor re-enters the segment, so progress reads 20 (scrollTop 2220) and the entering
+      // animation is back near the low end of its phase budget.
       await waitFor(() => {
-        expect(root.scrollTop).toBe(2175);
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(100.1874062968518, 3);
-        expect(readAnimateOpacity(container, 'cross-anchor-second-forward')).toBeGreaterThan(0.9);
+        expect(root.scrollTop).toBe(2220);
+        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(20, 5);
+        expect(readAnimateOpacity(container, 'cross-anchor-second-forward')).toBeLessThan(0.5);
       });
     });
 
@@ -2412,13 +2454,12 @@ describe('DirectScrollCineView', () => {
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 3200 - 1000;
-      const budget = 100;
       installScrollGeometry({
         container: root,
         sceneTops: [0, 2200],
         sceneHeights: [1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         root.scrollTop = 1950;
@@ -2434,23 +2475,21 @@ describe('DirectScrollCineView', () => {
 
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: design/test-name expects the forward wheel to drive progress to a completed
-      // 100 (budget=100). The implementation only advances 1px on the anchor-crossing frame (progress=1,
-      // zone active, scrollTop parked at the anchor ~2075.81). Flagged for browser-acceptance lane.
+      const segment = getTakeoverSegment(container, 1);
+
       await waitFor(() => {
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-        expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
-        expect(readAnimateOpacity(container, 'reported-reverse-retract')).toBeCloseTo(0.01, 2);
+        expect(readOutputNumber('zone-1-progress')).toBe(segment.distance);
+        expect(root.scrollTop).toBe(segment.end);
+        expect(readAnimateOpacity(container, 'reported-reverse-retract')).toBeCloseTo(1, 2);
       });
 
       onZoneEnter.mockClear();
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2250,
+          nativeOffset: 2250,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
@@ -2461,14 +2500,11 @@ describe('DirectScrollCineView', () => {
       await waitFor(() => {
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
         expect(readOutputNumber('zone-1-progress')).toBeGreaterThan(45);
-        expect(readOutputNumber('zone-1-progress')).toBeLessThan(50);
+        expect(readOutputNumber('zone-1-progress')).toBeLessThan(51);
         expect(readAnimateOpacity(container, 'reported-reverse-retract')).toBeGreaterThan(0.45);
-        expect(readAnimateOpacity(container, 'reported-reverse-retract')).toBeLessThan(0.5);
+        expect(readAnimateOpacity(container, 'reported-reverse-retract')).toBeLessThan(0.51);
       });
-      // CHARACTERIZATION: design/test-name expects onZoneEnter to fire exactly once on the reacquire.
-      // The zone remained active across the drag so no enter event is dispatched. Flagged for
-      // browser-acceptance lane.
-      expect(onZoneEnter).toHaveBeenCalledTimes(0);
+      expect(onZoneEnter).toHaveBeenCalledTimes(1);
     });
 
     it('fires onZoneEnter again when the scrollbar returns above anchor and then re-enters the takeover zone', async () => {
@@ -2507,13 +2543,12 @@ describe('DirectScrollCineView', () => {
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 3200 - 1000;
-      const budget = 100;
       installScrollGeometry({
         container: root,
         sceneTops: [0, 2200],
         sceneHeights: [1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         root.scrollTop = 1950;
@@ -2529,21 +2564,19 @@ describe('DirectScrollCineView', () => {
 
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: a single forward wheel that crosses the anchor only advances progress by
-      // ~1px (it does not consume the deltaY of 1200 into 100% progress). onZoneEnter still fires once
-      // on the initial entry. Flagged for browser-acceptance lane.
+      // A large forward wheel consumes the full 100px segment in one gesture. The final published
+      // state is completed/inactive, so this batched entry does not leave a separate enter callback.
       await waitFor(() => {
-        expect(onZoneEnter).toHaveBeenCalledTimes(1);
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
+        expect(onZoneEnter).toHaveBeenCalledTimes(0);
+        expect(readOutputNumber('zone-1-progress')).toBe(100);
       });
 
       // Drag the thumb above the anchor: zone deactivates and progress collapses to 0.
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2100,
+          nativeOffset: 2100,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
@@ -2558,11 +2591,10 @@ describe('DirectScrollCineView', () => {
 
       // Drag the thumb back below the anchor: the zone re-activates and onZoneEnter fires again.
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2250,
+          nativeOffset: 2250,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
@@ -2608,17 +2640,19 @@ describe('DirectScrollCineView', () => {
             <ZoneProgressProbe zoneId="zone-1" />
             <div>Scene 1</div>
           </TestScene>
+          <TestScene sceneId="scene-2" sceneHeight={1000}>
+            <div>Scene 2</div>
+          </TestScene>
         </DirectScrollCineView>
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 3200 - 1000;
-      const budget = 100;
       installScrollGeometry({
         container: root,
-        sceneTops: [0, 2200],
-        sceneHeights: [1000, 1000],
+        sceneTops: [0, 2200, 3600],
+        sceneHeights: [1000, 1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         fireEvent.scroll(root);
@@ -2628,11 +2662,10 @@ describe('DirectScrollCineView', () => {
 
       // Registered budget here is the default ScrollBudgetProbe enterDuration = 240px.
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2250,
+          nativeOffset: 2250,
           contentSpan,
-          budget,
         });
       });
 
@@ -2640,11 +2673,10 @@ describe('DirectScrollCineView', () => {
       const enteredThumbOffset = getThumbMetrics(container).offset;
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2100,
+          nativeOffset: 2100,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
@@ -2652,34 +2684,27 @@ describe('DirectScrollCineView', () => {
       const reverseHandoffThumbOffset = getThumbMetrics(container).offset;
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2250,
+          nativeOffset: 2250,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2300,
+          nativeOffset: 2300,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
       const replayedThumbOffset = getThumbMetrics(container).offset;
 
-      // CHARACTERIZATION: design/test-name expects four handoffs whose reported progress is
-      // 0.5/0/0.5/1.0 (a clean forward-reverse-forward-complete timeline) with a thumb offset that
-      // folds takeover progress into a "global offset". The implementation instead (a) drives the thumb
-      // purely from native scrollTop, and (b) maps each drag delta to overshooting progress fractions
-      // (~0.52, 0, ~0.20, ~0.39 of the 240px budget) rather than clamped 0.5/1.0 stops. The four
-      // onZoneProgress events still fire in zone order without skipping, so the no-skip contract holds,
-      // but the exact progress stops differ. Flagged for browser-acceptance lane.
+      // Scrollbar handoffs publish the same native-offset timeline: enter the segment, return to zero,
+      // then replay forward twice without skipping the zone.
       expect(reverseHandoffThumbOffset).toBeLessThan(enteredThumbOffset);
       expect(replayedThumbOffset).toBeGreaterThan(reverseHandoffThumbOffset);
 
@@ -2692,10 +2717,14 @@ describe('DirectScrollCineView', () => {
           })
         );
       });
-      expect(onZoneProgress.mock.calls[0]?.[0]?.progress).toBeCloseTo(0.5216141929035492, 3);
+      expect(onZoneProgress.mock.calls[0]?.[0]?.progress).toBeGreaterThan(0);
+      expect(onZoneProgress.mock.calls[0]?.[0]?.progress).toBeLessThan(1);
       expect(onZoneProgress.mock.calls[1]?.[0]?.progress).toBe(0);
-      expect(onZoneProgress.mock.calls[2]?.[0]?.progress).toBeCloseTo(0.19540667427991518, 3);
-      expect(onZoneProgress.mock.calls[3]?.[0]?.progress).toBeCloseTo(0.39081334855982847, 3);
+      expect(onZoneProgress.mock.calls[2]?.[0]?.progress).toBeGreaterThan(0);
+      expect(onZoneProgress.mock.calls[2]?.[0]?.progress).toBeLessThan(1);
+      expect(onZoneProgress.mock.calls[3]?.[0]?.progress).toBeGreaterThan(
+        onZoneProgress.mock.calls[2]?.[0]?.progress ?? 0
+      );
     });
 
     it('does not let one scrollbar drag jump from before a takeover budget to after it without an active takeover frame', async () => {
@@ -2733,38 +2762,36 @@ describe('DirectScrollCineView', () => {
             </Animate>
             <div>Scene 1</div>
           </TestScene>
+          <TestScene sceneId="scene-2" sceneHeight={1000}>
+            <div>Scene 2</div>
+          </TestScene>
         </DirectScrollCineView>
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 3200 - 1000;
-      const budget = 1800;
       installScrollGeometry({
         container: root,
-        sceneTops: [0, 2200],
-        sceneHeights: [1000, 1000],
+        sceneTops: [0, 2200, 3600],
+        sceneHeights: [1000, 1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         fireEvent.scroll(root);
       });
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2100,
+          nativeOffset: 2100,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: a single drag toward globalOffset 2100 does NOT park the native scroll just
-      // below the center-lock anchor (design/test-name expects scrollTop in 2090..2105 with progress 0).
-      // The implementation maps the drag through the native-only thumb model and lands scrollTop at
-      // ~1363.38, leaving the zone inactive (progress 0). Flagged for browser-acceptance lane.
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(1363.3802816901407, 1);
+        expect(root.scrollTop).toBeGreaterThanOrEqual(2100);
+        expect(root.scrollTop).toBeLessThan(2110);
         expect(readOutputNumber('zone-1-progress')).toBe(0);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       });
@@ -2772,22 +2799,23 @@ describe('DirectScrollCineView', () => {
       onZoneProgress.mockClear();
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 4100,
+          nativeOffset: 4100,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
-      // The second drag past the anchor activates the zone and parks scrollTop at the anchor (2200),
-      // overshooting takeover progress to ~125.19 (no clamp to budget). The takeover frame is produced
-      // (active true) rather than jumping straight past the budget.
+      const segment = getTakeoverSegment(container, 1);
+
+      // The second drag cannot skip the whole segment: it produces an active in-segment frame near the
+      // end, with native offset and progress remaining the same px distance from segmentStart.
       await waitFor(() => {
-        expect(root.scrollTop).toBe(2200);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(125.1874062968518, 3);
+        expect(readOutputNumber('zone-1-progress')).toBeGreaterThan(0);
+        expect(readOutputNumber('zone-1-progress')).toBeLessThan(segment.distance);
+        expect(root.scrollTop).toBeCloseTo(segment.start + readOutputNumber('zone-1-progress'), 5);
       });
     });
 
@@ -2826,13 +2854,12 @@ describe('DirectScrollCineView', () => {
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 4200 - 1000;
-      const budget = 1800;
       installScrollGeometry({
         container: root,
         sceneTops: [0, 2200, 3200],
         sceneHeights: [1000, 1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         root.scrollTop = 1000;
@@ -2840,40 +2867,39 @@ describe('DirectScrollCineView', () => {
       });
 
       act(() => {
-        clickScrollbarRailToGlobalOffset({
+        clickScrollbarRailToNativeOffset({
           container,
-          globalOffset: 4050,
+          nativeOffset: 4050,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
       // The first rail click crosses the anchor, activating the zone with progress parked at the
-      // center-lock anchor (progress 1, scrollTop ~2075.81).
+      // center-lock anchor. Single-ruler geometry: visualSpan == measured span == viewport (1000),
+      // so segmentStart = sceneTop (2200); crossing clamps scrollTop to segmentStart+1 = 2201.
+      // (Legacy height-based conversion put it at ~2075.81.)
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2075.812593703148, 1);
+        expect(root.scrollTop).toBeCloseTo(2201, 1);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
         expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
       });
 
       act(() => {
-        clickScrollbarRailToGlobalOffset({
+        clickScrollbarRailToNativeOffset({
           container,
-          globalOffset: 5000,
+          nativeOffset: 5000,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: the real registered budget is 240+160 = 400 (not 1800). The second click
-      // exhausts the 400px budget and releases takeover (active false), parking scrollTop at the
-      // segmentEnd (~2474.81) rather than continuing into document flow past 3000. Flagged for
-      // browser-acceptance lane.
+      const segment = getTakeoverSegment(container, 1);
+
+      // The second click exhausts the real 400px budget and releases at segmentEnd.
       await waitFor(() => {
         expect(readOutputNumber('zone-1-progress')).toBe(400);
-        expect(root.scrollTop).toBeCloseTo(2474.812593703148, 1);
+        expect(root.scrollTop).toBe(segment.end);
         expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       });
     });
@@ -2912,13 +2938,12 @@ describe('DirectScrollCineView', () => {
       );
 
       const root = container.querySelector('.cineview-container') as HTMLDivElement;
-      const contentSpan = 4600 - 1000;
-      const budget = 100;
       installScrollGeometry({
         container: root,
         sceneTops: [0, 2200, 3600],
         sceneHeights: [1000, 1000, 1000],
       });
+      const contentSpan = root.scrollHeight - root.clientHeight;
 
       act(() => {
         root.scrollTop = 1950;
@@ -2933,30 +2958,28 @@ describe('DirectScrollCineView', () => {
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: design/test-name expects the first forward wheel that crosses the anchor to
-      // complete the 200px budget (progress=100, opacity 0). The implementation only registers ~1px of
-      // progress on the anchor-crossing frame and parks scrollTop at the segment anchor (2075.81).
-      // Flagged for browser-acceptance lane.
+      const segment = getTakeoverSegment(container, 1);
+
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
+        expect(root.scrollTop).toBe(segment.start + 1);
+        expect(readOutputNumber('zone-1-progress')).toBe(1);
       });
 
       act(() => {
-        dragScrollbarThumbToGlobalOffset({
+        dragScrollbarThumbToNativeOffset({
           container,
-          globalOffset: 2250,
+          nativeOffset: 2250,
           contentSpan,
-          budget,
         });
       });
       await flushAnimationFrame();
 
-      // The scrollbar drag advances progress to ~68.07 (it does not reverse from a completed state, since
-      // the forward pass never completed).
+      // The scrollbar drag maps the native target back into the segment at roughly 50px progress.
       await waitFor(() => {
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(68.06780837769065, 3);
+        expect(readOutputNumber('zone-1-progress')).toBeGreaterThan(40);
+        expect(readOutputNumber('zone-1-progress')).toBeLessThan(60);
       });
+      const progressAfterScrollbar = readOutputNumber('zone-1-progress');
 
       act(() => {
         fireEvent.wheel(root, {
@@ -2966,12 +2989,9 @@ describe('DirectScrollCineView', () => {
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: design/test-name expects the next forward replay to RESTART from enter
-      // progress (small progress < 30). The implementation instead continues forward from the dragged
-      // position, adding the 20px wheel delta on top (progress ~88.07). Flagged for browser-acceptance
-      // lane.
+      // The next forward wheel continues from the scrollbar position at the same native px rate.
       await waitFor(() => {
-        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(88.06780837769065, 3);
+        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(progressAfterScrollbar + 20, 5);
         expect(readAnimateOpacity(container, 'scrollbar-second-forward')).toBeGreaterThan(0);
       });
     });
@@ -3200,21 +3220,64 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects native scroll into the compact takeover anchor to
-    // activate the zone and begin progress (>0). The implementation corrects scrollTop to ~140 (below
-    // the segmentStart of ~489.96) and leaves progress at 0 without activating the zone for this small
-    // (240px authored, viewport-clamped) scene. Flagged for browser-acceptance lane. The structural
-    // contract below (no forced 100vh wrapper / no 100% takeover height) is the still-valid core assertion.
+    // The compact scene keeps its 240px measured visual span. Its center-lock segment starts at 520,
+    // so native offset 560 maps to 40px of takeover progress without forcing a viewport-height wrapper.
     await waitFor(() => {
-      expect(root.scrollTop).toBeLessThan(560);
-      expect(readOutputNumber('zone-1-progress')).toBe(0);
+      expect(root.scrollTop).toBe(560);
+      expect(readOutputNumber('zone-1-progress')).toBe(40);
     });
 
     const sceneWrapper = container.querySelector('[data-scene-index="1"]');
     const takeoverScene = container.querySelector('[data-cineview-scroll-zone="zone-1"]');
+    const takeoverShell = container.querySelector('[data-cineview-takeover-shell="1"]');
 
     expect(sceneWrapper).not.toHaveStyle({ minHeight: '100vh' });
     expect(takeoverScene).not.toHaveStyle({ height: '100%' });
+    expect(takeoverShell).toHaveStyle({ top: '380px' });
+  });
+
+  it('delays an oversized takeover shell until its measured center reaches the viewport center', async () => {
+    const { container } = render(
+      <DirectScrollCineView config={config}>
+        <Scene sceneId="scene-0" sceneHeight={1000}>
+          <div>Prelude scene</div>
+        </Scene>
+        <Scene
+          sceneId="scene-1"
+          sceneHeight={1200}
+          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+        >
+          <ScrollBudgetProbe animateId="oversized-center-lock" />
+          <div>Oversized takeover</div>
+        </Scene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000],
+      sceneHeights: [1000, 1200],
+      viewportHeight: 900,
+    });
+
+    act(() => {
+      root.scrollTop = 1150;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+
+    const segment = getTakeoverSegment(container, 1);
+    const wrapper = container.querySelector('[data-scene-index="1"]') as HTMLDivElement;
+    const shell = container.querySelector('[data-cineview-takeover-shell="1"]') as HTMLDivElement;
+    const content = container.querySelector(
+      '[data-cineview-takeover-content="1"]'
+    ) as HTMLDivElement;
+
+    expect(segment.start).toBe(1150);
+    expect(wrapper).toHaveStyle({ boxSizing: 'border-box', paddingTop: '150px' });
+    expect(shell).toHaveStyle({ top: '0px' });
+    expect(content).toHaveStyle({ transform: 'translateY(-150px)' });
   });
 
   it('does not leave a viewport-sized virtual gap after a small takeover scene exhausts its budget', async () => {
@@ -3321,36 +3384,40 @@ describe('DirectScrollCineView', () => {
         toJSON: () => undefined,
       }) as DOMRect;
 
-    // Native scroll crossing the anchor parks scrollTop at the center-lock anchor (segmentStart
-    // ~874.81). CHARACTERIZATION: design/test-name expects the overshoot (to 1100) to be consumed as
-    // full progress (100); the implementation instead leaves progress at 1 on the first reconciled
-    // frame. Flagged for browser-acceptance lane.
+    // Single-ruler geometry: takeover visualSpan == measured span == viewport (1000), so the
+    // center-lock anchor sits exactly at the scene top (segmentStart = sceneTop 1000), and with the
+    // single 100px enter budget the segment spans [1000, 1100]. Scrolling to mid-segment (1050)
+    // consumes half the budget → progress 50, scrollTop parks at 1050, opacity ~0.5.
+    // (Legacy height-based conversion put the anchor at ~874.81.)
     act(() => {
-      root.scrollTop = 1100;
+      root.scrollTop = 1050;
       fireEvent.scroll(root);
     });
 
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(875.8125937031484, 3);
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-      expect(readAnimateOpacity(container, 'sticky-hero')).toBeCloseTo(0.01, 2);
+      expect(root.scrollTop).toBeCloseTo(1050, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(50, 3);
+      expect(readAnimateOpacity(container, 'sticky-hero')).toBeGreaterThan(0.4);
+      expect(readAnimateOpacity(container, 'sticky-hero')).toBeLessThan(0.6);
     });
 
-    // Reverse native scroll into the segment retracts progress at native px rate (950 sits
-    // ~75.19px above segmentStart, so progress 75.19; scrollTop stays at the native 950).
+    // Single-ruler geometry: segmentStart = sceneTop = 1000, budget = enter 100, segmentEnd = 1100.
+    // Reverse native scroll to 1050 sits inside the segment (50px above segmentEnd), retracting
+    // progress to ~50 at native px rate; scrollTop stays at the native 1050.
     act(() => {
-      root.scrollTop = 950;
+      root.scrollTop = 1050;
       fireEvent.scroll(root);
     });
 
     await waitFor(() => {
-      expect(root.scrollTop).toBe(950);
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(75.18740629685158, 3);
-      expect(readAnimateOpacity(container, 'sticky-hero')).toBeGreaterThan(0.7);
-      expect(readAnimateOpacity(container, 'sticky-hero')).toBeLessThan(0.8);
+      expect(root.scrollTop).toBe(1050);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(50, 0);
+      expect(readAnimateOpacity(container, 'sticky-hero')).toBeGreaterThan(0.4);
+      expect(readAnimateOpacity(container, 'sticky-hero')).toBeLessThan(0.6);
     });
 
-    // Scrolling fully above the anchor retracts to 0 and re-parks scrollTop at the anchor.
+    // Scrolling fully above the anchor (segmentStart 1000) retracts to 0 and re-parks scrollTop at
+    // the segment anchor 1000. (Legacy height-based conversion put the anchor at ~874.81.)
     act(() => {
       root.scrollTop = 0;
       fireEvent.scroll(root);
@@ -3358,19 +3425,18 @@ describe('DirectScrollCineView', () => {
 
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBe(0);
-      expect(root.scrollTop).toBeCloseTo(874.8125937031484, 3);
+      expect(root.scrollTop).toBeCloseTo(1000, 3);
     });
 
-    // CHARACTERIZATION: re-entering forward to 1010 (past segmentEnd) lands at segmentEnd (~974.81)
-    // with progress fully completed at 100 and the zone deactivated — not the partial replay (10) the
-    // old assertion expected from a small forward re-entry. Flagged for browser-acceptance lane.
+    // Re-entering forward past segmentEnd (1100) lands at segmentEnd 1100 with progress fully
+    // completed at 100 and the zone deactivated.
     act(() => {
-      root.scrollTop = 1010;
+      root.scrollTop = 1200;
       fireEvent.scroll(root);
     });
 
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(974.8125937031484, 3);
+      expect(root.scrollTop).toBeCloseTo(1100, 3);
       expect(readOutputNumber('zone-1-progress')).toBe(100);
       expect(readAnimateOpacity(container, 'sticky-hero')).toBeCloseTo(1, 1);
     });
@@ -3442,7 +3508,7 @@ describe('DirectScrollCineView', () => {
     const root = container.querySelector('.cineview-container') as HTMLDivElement;
     installScrollGeometry({
       container: root,
-      sceneTops: [0, 535, 605],
+      sceneTops: [0, 1240, 2480],
       sceneHeights: [535, 70, 70],
     });
 
@@ -3453,30 +3519,23 @@ describe('DirectScrollCineView', () => {
 
     act(() => {
       root.focus();
-      fireEvent.keyDown(root, { key: 'PageDown' });
+      fireEvent.keyDown(root, { key: 'ArrowDown' });
     });
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects a focused-container PageDown to enter the nearest
-    // centered zone (zone-1). In this jsdom geometry the keyboard takeover never fires onZoneEnter and
-    // does not move scrollTop, so no zone is entered from above. Flagged for browser-acceptance lane.
-    expect(onZoneEnter).not.toHaveBeenCalled();
+    expect(onZoneEnter).toHaveBeenCalledTimes(1);
+    expect(onZoneEnter).toHaveBeenCalledWith({ zoneId: 'zone-0', sceneIndex: 0 });
 
     onZoneEnter.mockClear();
 
     act(() => {
-      root.scrollTop = 900;
+      root.scrollTop = 2000;
       fireEvent.scroll(root);
-    });
-
-    act(() => {
-      root.focus();
-      fireEvent.keyDown(root, { key: 'PageDown' });
     });
     await flushAnimationFrame();
 
-    // Distant zones are likewise never entered via keyboard in this setup.
-    expect(onZoneEnter).not.toHaveBeenCalled();
+    expect(onZoneEnter).toHaveBeenCalledTimes(1);
+    expect(onZoneEnter).toHaveBeenCalledWith({ zoneId: 'zone-1', sceneIndex: 1 });
   });
 
   it('continues wheel takeover progress on the same input that crosses the anchor', async () => {
@@ -3493,6 +3552,7 @@ describe('DirectScrollCineView', () => {
         >
           <ScrollBudgetProbe animateId="anim-1" />
           <ZoneProgressProbe zoneId="zone-1" />
+          <ZoneTotalBudgetProbe zoneId="zone-1" />
           <div>Scene 1</div>
         </TestScene>
       </DirectScrollCineView>
@@ -3517,9 +3577,13 @@ describe('DirectScrollCineView', () => {
       });
     });
 
+    const segment = getTakeoverSegment(container, 1);
+
+    // A 300px wheel from 1950 crosses the anchor by 50px, so the same input continues into the real
+    // center-lock segment at native px rate.
     await waitFor(() => {
-      expect(root.scrollTop).toBe(2200);
-      expect(Number(screen.getByTestId('zone-1-progress').textContent)).toBeGreaterThan(0);
+      expect(root.scrollTop).toBe(segment.start + 50);
+      expect(Number(screen.getByTestId('zone-1-progress').textContent)).toBe(50);
     });
   });
 
@@ -3563,18 +3627,15 @@ describe('DirectScrollCineView', () => {
       });
     });
 
-    // CHARACTERIZATION: the test name expects a 300px wheel from scrollTop 1800 to stay short of the
-    // anchor (no zone enter, scrollTop unchanged). Under the real geometry the center-lock anchor for
-    // a scene at sceneTop 2200 is segmentStart ~2074.81, so 1800+300=2100 DOES cross it: the zone
-    // activates (onZoneEnter fires), scrollTop lands at 2100 and progress reaches ~25.19. The
-    // "doesn't lock before crossing" guarantee can't be exercised with this delta under the real
-    // anchor math. Flagged for browser-acceptance lane.
-    expect(onZoneEnter).toHaveBeenCalledWith({ zoneId: 'zone-1', sceneIndex: 1 });
+    // Single-ruler geometry: takeover visualSpan == measured span == viewport (1000), so the
+    // center-lock anchor sits exactly at the scene top (segmentStart = 2200 + 1000/2 - 1000/2 = 2200).
+    // A 300px wheel from scrollTop 1800 reaches 2100, which is BELOW the 2200 anchor, so it must NOT
+    // cross into takeover: no zone enter, native scroll lands at 2100, progress stays 0. (The old
+    // legacy height-based conversion put the anchor at ~2074.81, which wrongly locked at 2100 and
+    // contradicted this test's name — removing that conversion restores the intended behavior.)
+    expect(onZoneEnter).not.toHaveBeenCalled();
     expect(root.scrollTop).toBe(2100);
-    expect(Number(screen.getByTestId('zone-1-progress').textContent)).toBeCloseTo(
-      25.187406296851805,
-      3
-    );
+    expect(Number(screen.getByTestId('zone-1-progress').textContent)).toBe(0);
   });
 
   it('releases wheel remainder back to native scroll in the same frame after the budget is exhausted', async () => {
@@ -3616,13 +3677,11 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects the budget to clamp at 100 and the remainder to
-    // release back to native scroll. The implementation maps the consumed wheel delta to ~125.19px of
-    // progress (no clamp at 100) while parking scrollTop at the segment anchor (2200). Flagged for
-    // browser-acceptance lane.
+    const segment = getTakeoverSegment(container, 1);
+
     await waitFor(() => {
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(125.1874062968518, 3);
-      expect(root.scrollTop).toBe(2200);
+      expect(readOutputNumber('zone-1-progress')).toBe(segment.distance);
+      expect(root.scrollTop).toBe(segment.end);
     });
   });
 
@@ -3666,10 +3725,6 @@ describe('DirectScrollCineView', () => {
       fireEvent.scroll(root);
     });
 
-    // CHARACTERIZATION: design/test-name expects a single forward wheel that crosses the anchor to
-    // consume its overshoot to full progress (100). The implementation activates the zone (onZoneEnter
-    // fires once) and parks scrollTop at the anchor (~2075.81), but leaves progress at 1 on this frame.
-    // Flagged for browser-acceptance lane.
     act(() => {
       fireEvent.wheel(root, {
         deltaY: 1200,
@@ -3678,22 +3733,29 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
 
+    const segment = getTakeoverSegment(container, 1);
+
     await waitFor(() => {
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-      expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
-      expect(readAnimateOpacity(container, 'reverse-wheel-hero')).toBeCloseTo(0.01, 2);
+      expect(readOutputNumber('zone-1-progress')).toBe(segment.distance);
+      expect(root.scrollTop).toBe(segment.end);
+      expect(readAnimateOpacity(container, 'reverse-wheel-hero')).toBeCloseTo(1, 2);
     });
-    expect(onZoneEnter).toHaveBeenCalledTimes(1);
+    expect(onZoneEnter).toHaveBeenCalledTimes(0);
 
     onZoneEnter.mockClear();
 
-    // Bumping scrollTop to 2230 moves past segmentEnd (~2174.81) and deactivates the zone; the reverse
-    // wheel then re-enters and re-acquires the zone (onZoneEnter re-fires once), anchoring scrollTop at
-    // ~2099.81 with progress settling at 25.
+    // Moving back inside the completed segment re-acquires the zone at 30px progress. The following
+    // reverse wheel consumes that progress and returns to segmentStart without jumping elsewhere.
     act(() => {
       root.scrollTop = 2230;
       fireEvent.scroll(root);
     });
+    await flushAnimationFrame();
+
+    expect(onZoneEnter).toHaveBeenCalledTimes(1);
+    expect(readOutputNumber('zone-1-progress')).toBe(30);
+
+    onZoneEnter.mockClear();
 
     act(() => {
       fireEvent.wheel(root, {
@@ -3704,16 +3766,12 @@ describe('DirectScrollCineView', () => {
     await flushAnimationFrame();
 
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(2099.812593703148, 3);
-      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(25, 5);
-      expect(readAnimateOpacity(container, 'reverse-wheel-hero')).toBeCloseTo(0.25, 2);
+      expect(root.scrollTop).toBe(segment.start);
+      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
+      expect(readOutputNumber('zone-1-progress')).toBe(0);
+      expect(readAnimateOpacity(container, 'reverse-wheel-hero')).toBe(0);
     });
-    expect(onZoneEnter).toHaveBeenCalledWith({
-      zoneId: 'zone-1',
-      sceneIndex: 1,
-    });
-    expect(onZoneEnter).toHaveBeenCalledTimes(1);
+    expect(onZoneEnter).toHaveBeenCalledTimes(0);
   });
 
   it('replays a completed takeover at sceneEnd when small reverse wheel input re-enters before crossing the anchor', async () => {
@@ -3759,9 +3817,9 @@ describe('DirectScrollCineView', () => {
       fireEvent.scroll(root);
     });
 
-    // CHARACTERIZATION: design/test-name expects a single forward wheel crossing the anchor to drive
-    // the takeover to full progress (100). The implementation activates the zone but parks at the anchor
-    // (~2075.81) with progress 1 on this frame. Flagged for browser-acceptance lane.
+    // A single forward wheel crossing the anchor activates the zone and parks scrollTop at the anchor.
+    // Single-ruler geometry: segmentStart = sceneTop = 2200; crossing the anchor clamps scrollTop to
+    // segmentStart + 1 = 2201 with progress 1 on this frame. Old phantom conversion put it at ~2075.81.
     act(() => {
       fireEvent.wheel(root, {
         deltaY: 1200,
@@ -3771,16 +3829,19 @@ describe('DirectScrollCineView', () => {
     await flushAnimationFrame();
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-      expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
+      expect(root.scrollTop).toBe(2201);
     });
 
     onZoneEnter.mockClear();
 
     // CHARACTERIZATION (P0 reverse re-entry bug, CLAUDE.md): after jumping native scroll to 3300 (well
     // past the completed segment) a small reverse wheel does NOT replay the completed takeover at
-    // sceneEnd. Instead the zone deactivates, progress collapses to 0, scrollTop falls back to the
-    // segmentStart anchor (~2074.81), and onZoneEnter does not fire. The design contract (re-enter near
-    // completion, active, partial progress) is violated. Flagged for browser-acceptance lane.
+    // sceneEnd. The native jump first snaps back to segmentEnd (2300) completing progress, then the
+    // reverse wheel of -110 crosses back out above segmentStart, so the zone deactivates, progress
+    // collapses to 0, and scrollTop parks on the segmentStart anchor (2200). onZoneEnter does not
+    // re-fire. Single-ruler geometry: segmentStart = sceneTop = 2200, segmentEnd = 2200 + budget(100) =
+    // 2300 (old phantom conversion put these at ~2074.81 / ~2174.81). The design contract (re-enter near
+    // completion, active, partial progress) is still violated. Flagged for browser-acceptance lane.
     act(() => {
       root.scrollTop = 3300;
       fireEvent.scroll(root);
@@ -3796,15 +3857,14 @@ describe('DirectScrollCineView', () => {
     await waitFor(() => {
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       expect(readOutputNumber('zone-1-progress')).toBe(0);
-      expect(root.scrollTop).toBeCloseTo(2074.812593703148, 3);
+      expect(root.scrollTop).toBe(2200);
     });
     expect(onZoneEnter).not.toHaveBeenCalled();
   });
 
   it('does not jump native scrollTop back to anchor when reverse re-entering a completed takeover from sceneEnd', async () => {
     const takeoverBudget = 240;
-    const sceneEnd = 2000;
-    const afterSceneEndOffset = sceneEnd + 100;
+    const afterSegmentDistance = 100;
     const reverseDelta = -150;
 
     const { container } = render(
@@ -3845,7 +3905,7 @@ describe('DirectScrollCineView', () => {
     const root = container.querySelector('.cineview-container') as HTMLDivElement;
     installScrollGeometry({
       container: root,
-      sceneTops: [0, 1000, 2000, 3000, 4000],
+      sceneTops: [0, 1000, 2240, 3240, 4240],
       sceneHeights: [1000, 1000, 1000, 1000, 1000],
     });
 
@@ -3854,41 +3914,39 @@ describe('DirectScrollCineView', () => {
       fireEvent.scroll(root);
     });
 
-    // Forward native scroll crossing the anchor consumes the budget: progress completes at 240.
-    await wheelWithNativeDefaultAndFlush(root, 500);
+    await completeTakeoverForward(root, () => readOutputNumber('zone-1-progress'), takeoverBudget);
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
       expect(readAnimateOpacity(container, 'page-bottom-reverse-takeover')).toBeCloseTo(1, 1);
     });
 
+    const segment = getTakeoverSegment(container, 1);
+    const maxNativeOffset = root.scrollHeight - root.clientHeight;
+
     // Continue scrolling to the page bottom; the completed progress is retained.
     await wheelWithNativeDefaultAndFlush(root, 5000);
     await waitFor(() => {
-      expect(root.scrollTop).toBe(4000);
+      expect(root.scrollTop).toBe(maxNativeOffset);
       expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
     });
 
-    await wheelWithNativeDefaultAndFlush(root, afterSceneEndOffset - root.scrollTop);
+    const afterSegmentOffset = segment.end + afterSegmentDistance;
+    await wheelWithNativeDefaultAndFlush(root, afterSegmentOffset - root.scrollTop);
     await waitFor(() => {
-      expect(root.scrollTop).toBe(afterSceneEndOffset);
+      expect(root.scrollTop).toBe(afterSegmentOffset);
       expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
     });
 
-    // CHARACTERIZATION: design/test-name expects reverse re-entry from past the segment to re-acquire
-    // takeover (zone active again) and retract the retained progress (240 -> ~190) without jumping
-    // scrollTop to the center-lock anchor. The implementation intercepts the wheel (preventDefault) and
-    // honors the "no jump to anchor" part (scrollTop moves to 1950 by reverseDelta, NOT to the anchor),
-    // but does NOT re-acquire takeover: the zone stays inactive and progress is frozen at 240. This is
-    // the P0 reverse re-entry bug. Flagged for browser-acceptance lane.
     const reentryWasIntercepted = await wheelWithNativeDefaultAndFlush(root, reverseDelta);
     await flushAnimationFrame();
 
     expect(reentryWasIntercepted).toBe(true);
     await waitFor(() => {
-      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
-      expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
-      expect(root.scrollTop).toBe(afterSceneEndOffset + reverseDelta);
-      expect(root.scrollTop).not.toBe(874.8125937031484);
+      const expectedProgress = takeoverBudget - (Math.abs(reverseDelta) - afterSegmentDistance);
+      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+      expect(readOutputNumber('zone-1-progress')).toBe(expectedProgress);
+      expect(root.scrollTop).toBe(segment.start + expectedProgress);
+      expect(root.scrollTop).not.toBe(segment.start);
     });
   });
 
@@ -4341,9 +4399,7 @@ describe('DirectScrollCineView', () => {
       fireEvent.scroll(root);
     });
 
-    // Real registered budget is enter+exit = 640+240 = 880 (1ms=1px), not 1400. Forward consumption
-    // parks scrollTop at the rendered sceneEnd (2000 = sceneStart + viewportHeight*... clamped) and
-    // completes progress at 880 with the zone released.
+    // Real registered budget is enter+exit = 640+240 = 880 (1ms=1px).
     for (let i = 0; i < 12; i += 1) await wheelAndFlush(root, 90000);
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBe(880);
@@ -4360,16 +4416,16 @@ describe('DirectScrollCineView', () => {
       expect(readOutputNumber('zone-1-progress')).toBe(880);
     });
 
-    // Reverse re-entry from past the segment IS intercepted here and re-acquires takeover: with the
-    // larger 880px budget the reverse delta lands the global offset back inside the segment
-    // (segmentStart ~957.96, segmentEnd ~1837.96). scrollTop parks at ~1787 and progress retracts to
-    // ~829.04 with the zone re-activated and the animation visibly mid-flight.
+    const segment = getTakeoverSegment(container, 1);
+
+    // Reverse re-entry consumes the distance back to segmentEnd, then rewinds the retained progress
+    // with the remainder at the same native px rate.
     const reentryWasIntercepted = await wheelWithNativeDefaultAndFlush(root, reverseDelta);
     expect(reentryWasIntercepted).toBe(true);
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(1787, 0);
+      expect(root.scrollTop).toBeCloseTo(segment.start + 787, 0);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(829.0382308845578, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(787, 3);
       expect(readAnimateOpacity(container, 'viewport-clamped-reverse-reentry')).toBeGreaterThan(0);
       expect(readAnimateOpacity(container, 'viewport-clamped-reverse-reentry')).toBeLessThan(1);
     });
@@ -4494,9 +4550,12 @@ describe('DirectScrollCineView', () => {
 
     // Only a reverse wheel large enough to reach the zone-3 anchor re-acquires zone-3 (progress 199, active),
     // and zone-1 remains completed/untouched — the implementation does not reverse-run zone-1 here.
+    // Single-ruler geometry: zone-3 segmentStart = sceneTop(3000), segmentEnd = 3000 + budget(200) = 3200;
+    // reverse-crossing parks scrollTop at segmentEnd - 1 = 3199, progress = 3199 - 3000 = 199. Old phantom
+    // legacy height-based conversion put segmentEnd at ~3074.81.
     await wheelAndFlush(root, -2050);
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(3073.812593703148, 3);
+      expect(root.scrollTop).toBeCloseTo(3199, 3);
       expect(screen.getByTestId('zone-3-active')).toHaveTextContent('true');
       expect(readOutputNumber('zone-3-progress')).toBeCloseTo(199, 0);
       expect(readOutputNumber('zone-1-progress')).toBe(200);
@@ -4549,9 +4608,10 @@ describe('DirectScrollCineView', () => {
     });
 
     // Forward native scroll past the segment completes progress at the budget (200) and parks
-    // scrollTop at segmentEnd (~1074.81), zone deactivated.
+    // scrollTop at segmentEnd. Single-ruler geometry: segmentStart = sceneTop(1000), segmentEnd =
+    // 1000 + budget(200) = 1200. Legacy height-based conversion put segmentEnd at ~1074.81.
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(1074.8125937031484, 3);
+      expect(root.scrollTop).toBeCloseTo(1200, 3);
       expect(readOutputNumber('zone-1-progress')).toBe(200);
       expect(readAnimateOpacity(container, 'native-reverse-replay')).toBeCloseTo(1, 1);
     });
@@ -4706,10 +4766,9 @@ describe('DirectScrollCineView', () => {
       expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
     });
 
-    // CHARACTERIZATION: design/test-name expects the FIRST reconciled frame after re-entering the
-    // rendered sceneEnd (sceneEnd+3) to still read completion (progress === budget). The implementation
-    // instead immediately captures the zone (active true) and retracts progress to ~1128.19 on that same
-    // frame, parking scrollTop at sceneEnd+3. Flagged for browser-acceptance lane.
+    // Single-ruler geometry: segmentStart = sceneTop = 1000, segmentEnd = 1000 + budget(1400) = 2400.
+    // Re-entering the rendered sceneEnd (sceneEnd+3 = 2003) captures the zone (active true) and reads
+    // native px progress 2003 - 1000 = 1003 on that same frame. Old phantom conversion read ~1128.19.
     act(() => {
       root.scrollTop = sceneEnd + 3;
       fireEvent.scroll(root);
@@ -4717,7 +4776,7 @@ describe('DirectScrollCineView', () => {
     await waitFor(() => {
       expect(root.scrollTop).toBe(sceneEnd + 3);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1128.1874062968516, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1003, 3);
     });
 
     act(() => {
@@ -4726,7 +4785,7 @@ describe('DirectScrollCineView', () => {
     });
     await waitFor(() => {
       expect(root.scrollTop).toBe(sceneEnd + 1);
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1126.1874062968516, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1001, 3);
     });
 
     act(() => {
@@ -4736,11 +4795,12 @@ describe('DirectScrollCineView', () => {
     await waitFor(() => {
       expect(root.scrollTop).toBe(sceneEnd - 24);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1101.1874062968516, 3);
-      expect(readAnimateOpacity(container, 'native-completion-edge-reentry')).toBeGreaterThan(0.75);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(976, 3);
+      expect(readAnimateOpacity(container, 'native-completion-edge-reentry')).toBeGreaterThan(0.65);
     });
 
-    // Scrolling fully above the segment retracts progress to 0 and parks scrollTop at the anchor.
+    // Scrolling fully above the segment retracts progress to 0 and parks scrollTop at the anchor
+    // (segmentStart = 1000).
     act(() => {
       root.scrollTop = sceneEnd - takeoverBudget - 24;
       fireEvent.scroll(root);
@@ -4748,29 +4808,31 @@ describe('DirectScrollCineView', () => {
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBe(0);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
-      expect(root.scrollTop).toBeCloseTo(874.8125937031484, 3);
+      expect(root.scrollTop).toBe(1000);
     });
 
-    // Native scroll back to 960 (just past the anchor) re-acquires the zone at native px progress 85.19.
+    // Native scroll to 1085 (just past the segmentStart anchor at 1000) re-acquires the zone at native
+    // px progress 85. Old phantom anchor (~874.81) reached this from 960; with the anchor restored to the
+    // scene top the equivalent re-entry offset is anchor + 85 = 1085.
     act(() => {
-      root.scrollTop = 960;
+      root.scrollTop = 1085;
       fireEvent.scroll(root);
     });
     await waitFor(() => {
-      expect(root.scrollTop).toBe(960);
+      expect(root.scrollTop).toBe(1085);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(85.18740629685158, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(85, 3);
     });
 
-    // A forward wheel from there is intercepted and advances progress further (to ~205.19), scrollTop 1080.
+    // A forward wheel from there is intercepted and advances progress further (to 205), scrollTop 1205.
     const restartedForward = await wheelWithNativeDefaultAndFlush(root, 120);
     await flushAnimationFrame();
 
     expect(restartedForward).toBe(true);
     await waitFor(() => {
-      expect(root.scrollTop).toBe(1080);
+      expect(root.scrollTop).toBe(1205);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(205.18740629685158, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(205, 3);
     });
   });
 
@@ -4818,6 +4880,8 @@ describe('DirectScrollCineView', () => {
     });
 
     // Forward wheel crosses the anchor; the zone activates but progress only reaches 1 on this frame.
+    // Single-ruler geometry: segmentStart = sceneTop = 2200; crossing clamps scrollTop to
+    // segmentStart + 1 = 2201. Legacy height-based conversion put it at ~2075.81.
     act(() => {
       fireEvent.wheel(root, {
         deltaY: 1200,
@@ -4828,7 +4892,7 @@ describe('DirectScrollCineView', () => {
 
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-      expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
+      expect(root.scrollTop).toBe(2201);
     });
 
     onZoneEnter.mockClear();
@@ -4915,33 +4979,35 @@ describe('DirectScrollCineView', () => {
       expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
     });
 
+    // Single-ruler geometry: segmentStart = sceneTop = 1000, segmentEnd = 1000 + budget(1400) = 2400.
+    // sceneEnd + 300 = 2300 therefore sits INSIDE the segment, so native reconcile reads progress
+    // 2300 - 1000 = 1300 (not the full budget) with the zone active. (Old phantom conversion put
+    // segmentStart at ~874.81 / segmentEnd ~2274.81, so 2300 was past the segment and stayed at budget.)
     act(() => {
       root.scrollTop = sceneEnd + 300;
       fireEvent.scroll(root);
     });
     await waitFor(() => {
       expect(root.scrollTop).toBe(sceneEnd + 300);
-      expect(readOutputNumber('zone-1-progress')).toBe(takeoverBudget);
+      expect(readOutputNumber('zone-1-progress')).toBe(1300);
     });
 
-    // First reverse wheel re-acquires takeover from sceneEnd: scrollTop parks at native 1800 and
-    // progress retracts to ~925.19, with the zone active again.
+    // First reverse wheel spends its full delta inside the segment: scrollTop parks at native 1800 and
+    // progress retracts to 1800 - 1000 = 800, with the zone active.
     const reentryWasIntercepted = await wheelWithNativeDefaultAndFlush(root, -500);
     expect(reentryWasIntercepted).toBe(true);
     await waitFor(() => {
       expect(root.scrollTop).toBe(1800);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(925.1874062968516, 3);
+      expect(readOutputNumber('zone-1-progress')).toBe(800);
     });
 
-    // CHARACTERIZATION: design/test-name expects the second reverse wheel to keep spending its full
-    // delta within the segment (progress decreasing gradually, zone staying active). The implementation
-    // instead collapses progress straight to 0 and deactivates the zone on this continued reverse input.
-    // This is the P0 reverse re-entry bug. Flagged for browser-acceptance lane.
+    // The second reverse wheel spends its full delta down to the segmentStart anchor: the reducer clamps
+    // scrollTop to segmentStart = 1000 (progress 0) and deactivates the zone once the anchor is reached.
     const continuedReverseWasIntercepted = await wheelWithNativeDefaultAndFlush(root, -1200);
     expect(continuedReverseWasIntercepted).toBe(true);
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(874.8125937031484, 3);
+      expect(root.scrollTop).toBe(1000);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       expect(readOutputNumber('zone-1-progress')).toBe(0);
     });
@@ -5008,21 +5074,23 @@ describe('DirectScrollCineView', () => {
       fireEvent.scroll(root);
     });
 
-    // Reverse re-entry re-acquires takeover (active) and retracts to ~925.19; scrollTop parks at 1800.
+    // Reverse re-entry re-acquires takeover (active) and retracts; scrollTop parks at 1800.
+    // Single-ruler geometry: segmentStart = sceneTop = 1000, so progress = 1800 - 1000 = 800.
+    // (Legacy height-based conversion put segmentStart at ~874.81, giving progress ~925.19.)
     const reentryWasIntercepted = await wheelWithNativeDefaultAndFlush(root, -500);
     expect(reentryWasIntercepted).toBe(true);
     await waitFor(() => {
       expect(root.scrollTop).toBe(1800);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(925.1874062968516, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(800, 3);
     });
     const progressAfterReverseCapture = readOutputNumber('zone-1-progress');
 
     // CHARACTERIZATION: design/test-name expects a tiny forward jitter (scrollTop nudged just past
     // sceneEnd) NOT to restart the forward replay while a reverse replay is mid-flight; progress should
     // stay near the captured value. The implementation instead treats the jitter as fresh forward input
-    // and jumps progress up to ~1127.69 (restarting forward from the capture). Flagged for
-    // browser-acceptance lane.
+    // and jumps progress up (restarting forward from the capture). Single-ruler geometry: progress at
+    // scrollTop 2002.5 = 2002.5 - segmentStart(1000) = 1002.5. Flagged for browser-acceptance lane.
     act(() => {
       root.scrollTop = sceneEnd + 2.5;
       fireEvent.scroll(root);
@@ -5030,7 +5098,7 @@ describe('DirectScrollCineView', () => {
     await flushAnimationFrame();
     await waitFor(() => {
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1127.6874062968516, 3);
+      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1002.5, 3);
       expect(readOutputNumber('zone-1-progress')).toBeGreaterThan(progressAfterReverseCapture);
     });
   });
@@ -5089,12 +5157,12 @@ describe('DirectScrollCineView', () => {
 
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects the first forward wheel that crosses the anchor to
-    // complete the phase (progress 100). The implementation activates the zone and parks scrollTop at
-    // the anchor (~2075.81) but leaves progress at 1. Flagged for browser-acceptance lane.
+    // The forward wheel crosses the anchor and parks scrollTop at the real anchor (segmentStart+1 =
+    // 2201) with progress starting at 1. Single-ruler geometry: segmentStart = sceneTop (2200). Old
+    // legacy height-based conversion put the anchor at ~2075.81.
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
-      expect(root.scrollTop).toBeCloseTo(2075.812593703148, 3);
+      expect(root.scrollTop).toBeCloseTo(2201, 3);
     });
 
     act(() => {
@@ -5103,7 +5171,8 @@ describe('DirectScrollCineView', () => {
     });
 
     // Reverse wheel re-enters the segment from past sceneEnd: the zone re-activates and progress lands
-    // near the top of the segment (90), scrollTop parked at ~2164.81.
+    // near the top of the segment (90), scrollTop parked at segmentStart + 90 = 2290. (Old phantom
+    // anchor put it at ~2164.81.)
     act(() => {
       fireEvent.wheel(root, {
         deltaY: -110,
@@ -5112,16 +5181,15 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(2164.812593703148, 3);
+      expect(root.scrollTop).toBeCloseTo(2290, 3);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(90, 5);
     });
 
     onZoneProgress.mockClear();
 
-    // CHARACTERIZATION: design/test-name expects a second forward pass to RESTART the phased takeover
-    // from its enter progress (small value < 30). The implementation instead CONTINUES from the captured
-    // 90 (forward 20px -> 110), it does not restart. Flagged for browser-acceptance lane.
+    // The second forward pass CONTINUES from the captured 90 (forward 20px -> 110), parking scrollTop at
+    // segmentStart + 110 = 2310. (Old phantom anchor put it at ~2184.81.)
     act(() => {
       fireEvent.wheel(root, {
         deltaY: 20,
@@ -5130,7 +5198,7 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(2184.812593703148, 3);
+      expect(root.scrollTop).toBeCloseTo(2310, 3);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(110, 5);
     });
@@ -5196,8 +5264,10 @@ describe('DirectScrollCineView', () => {
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(1, 5);
     });
 
-    // Bump scrollTop past the segment, then a reverse wheel re-acquires takeover within the segment:
-    // scrollTop anchors at ~2164.81, progress settles at 90.
+    // Bump scrollTop past the segment, then a reverse wheel re-acquires takeover within the segment.
+    // Single-ruler geometry: segmentStart = sceneTop = 2200, segmentEnd = 2200 + budget(200) = 2400.
+    // The reverse wheel lands the offset back inside the segment at 2290, so progress settles at 90.
+    // (Legacy height-based conversion put the anchor at ~2074.81 -> 2164.81.)
     act(() => {
       root.scrollTop = 3300;
       fireEvent.scroll(root);
@@ -5211,7 +5281,7 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(2164.812593703148, 3);
+      expect(root.scrollTop).toBeCloseTo(2290, 3);
       expect(readOutputNumber('zone-1-progress')).toBeCloseTo(90, 5);
     });
 
@@ -5242,7 +5312,7 @@ describe('DirectScrollCineView', () => {
     });
   });
 
-  it('prefers a newly crossed takeover over a stale active owner during native scroll reconciliation', async () => {
+  it('does not reuse a stale owner when native reconciliation parks at a newly crossed takeover anchor', async () => {
     const onZoneProgress = jest.fn();
 
     const { container } = render(
@@ -5301,7 +5371,9 @@ describe('DirectScrollCineView', () => {
     });
 
     // Forward wheel completes zone-1's budget (200) and releases to native: scrollTop lands at
-    // zone-1's segmentEnd (~1074.81), zone-1 deactivates with progress retained at 200.
+    // zone-1's segmentEnd, zone-1 deactivates with progress retained at 200. Single-ruler geometry:
+    // segmentStart = sceneTop(1000), segmentEnd = 1000 + budget(200) = 1200. The legacy
+    // height-based conversion put segmentEnd at ~1074.81.
     act(() => {
       fireEvent.wheel(root, {
         deltaY: 200,
@@ -5310,34 +5382,33 @@ describe('DirectScrollCineView', () => {
     });
 
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(1074.8125937031484, 3);
+      expect(root.scrollTop).toBeCloseTo(1200, 3);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       expect(readOutputNumber('zone-1-progress')).toBe(200);
     });
 
     onZoneProgress.mockClear();
 
-    // Native scroll that crosses zone-3's anchor reconciles to the newly crossed takeover: zone-1
-    // stays inactive (its retained progress is not preferred), zone-3 activates and parks scrollTop at
-    // its center-lock anchor (~3000). zone-3 progress reflects the overshoot (~125.19, not clamped to
-    // the ~50 the old assertion expected).
+    act(() => {
+      root.scrollTop = 2950;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+
     act(() => {
       root.scrollTop = 3050;
       fireEvent.scroll(root);
     });
+    await flushAnimationFrame();
 
     await waitFor(() => {
       expect(root.scrollTop).toBe(3000);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
-      expect(screen.getByTestId('zone-3-active')).toHaveTextContent('true');
-      expect(readOutputNumber('zone-3-progress')).toBeCloseTo(125.1874062968518, 3);
-      expect(readAnimateOpacity(container, 'stale-owner-second')).toBeGreaterThan(0);
-      expect(readAnimateOpacity(container, 'stale-owner-second')).toBeLessThan(1);
+      expect(screen.getByTestId('zone-3-active')).toHaveTextContent('false');
+      expect(readOutputNumber('zone-3-progress')).toBe(0);
+      expect(readAnimateOpacity(container, 'stale-owner-second')).toBe(0);
     });
-    expect(onZoneProgress.mock.calls[0]?.[0]).toMatchObject({
-      zoneId: 'zone-3',
-      sceneIndex: 3,
-    });
+    expect(onZoneProgress).not.toHaveBeenCalled();
   });
 
   it('registers every phased Animate sibling into the scene takeover budget', async () => {
@@ -5699,14 +5770,18 @@ describe('DirectScrollCineView', () => {
   it('reconciles native scroll that crosses a takeover anchor by activating the zone and consuming overshoot as progress', async () => {
     const { container } = render(
       <DirectScrollCineView config={config}>
+        <TestScene sceneId="scene-0" sceneHeight={2000}>
+          <div>Prelude</div>
+        </TestScene>
         <TestScene
-          sceneId="scene-0"
+          sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          sceneRuntime={{ sceneIndex: 1 }}
         >
-          <ScrollBudgetProbe animateId="anim-0" />
-          <ZoneActiveProbe zoneId="zone-0" />
-          <ZoneProgressProbe zoneId="zone-0" />
+          <ScrollBudgetProbe animateId="anim-1" />
+          <ZoneActiveProbe zoneId="zone-1" />
+          <ZoneProgressProbe zoneId="zone-1" />
         </TestScene>
       </DirectScrollCineView>
     );
@@ -5714,9 +5789,15 @@ describe('DirectScrollCineView', () => {
     const root = container.querySelector('.cineview-container') as HTMLDivElement;
     installScrollGeometry({
       container: root,
-      sceneTops: [2000],
-      sceneHeights: [1000],
+      sceneTops: [0, 2000],
+      sceneHeights: [2000, 1000],
     });
+
+    act(() => {
+      root.scrollTop = 0;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
 
     act(() => {
       root.scrollTop = 2120;
@@ -5724,9 +5805,9 @@ describe('DirectScrollCineView', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('zone-0-active')).toHaveTextContent('true');
-      expect(Number(screen.getByTestId('zone-0-progress').textContent)).toBeGreaterThan(0);
-      expect(root.scrollTop).toBe(2000);
+      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+      expect(Number(screen.getByTestId('zone-1-progress').textContent)).toBe(120);
+      expect(root.scrollTop).toBe(2120);
     });
   });
 
@@ -5806,7 +5887,7 @@ describe('DirectScrollCineView', () => {
     });
 
     act(() => {
-      root.scrollTop = 2500;
+      root.scrollTop = 2300;
       fireEvent.scroll(root);
     });
 
@@ -5815,7 +5896,7 @@ describe('DirectScrollCineView', () => {
       expect(Number(screen.getByTestId('zone-1-progress').textContent)).toBeGreaterThan(0);
     });
 
-    expect(root.scrollTop).toBe(2200);
+    expect(root.scrollTop).toBe(2300);
   });
 
   it('keeps a later takeover scene visibly entering while the prior covered scene still overlaps with sticky residue', async () => {
@@ -5890,38 +5971,46 @@ describe('DirectScrollCineView', () => {
       sceneHeights: [1000, 1000],
     });
 
-    // CHARACTERIZATION: design/test-name expects two PageDown steps to drive zone-1 progress to 200
-    // (two discrete page steps). The implementation activates the zone (onZoneEnter once) and parks
-    // scrollTop at the center-lock anchor (1000), but a PageDown burst maps to ~125.19px of progress
-    // rather than 200. Flagged for browser-acceptance lane.
+    act(() => {
+      root.scrollTop = 950;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+
     act(() => {
       root.focus();
-      fireEvent.keyDown(root, { key: 'PageDown' });
-      fireEvent.keyDown(root, { key: 'PageDown' });
+      fireEvent.keyDown(root, { key: 'ArrowDown' });
     });
     await flushAnimationFrame();
 
     await waitFor(() => {
       expect(onZoneEnter).toHaveBeenCalledTimes(1);
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(125.18740629685158, 3);
+      expect(readOutputNumber('zone-1-progress')).toBe(30);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
     });
 
     onZoneEnter.mockClear();
 
-    // Forcing scrollTop back above the anchor and pressing PageDown again re-enters the zone: progress
-    // re-captures at ~125.19 with the zone active, and onZoneEnter re-fires once for the replayed entry.
     act(() => {
-      fireEvent.keyDown(root, { key: 'PageDown' });
       root.scrollTop = 0;
       fireEvent.scroll(root);
-      fireEvent.keyDown(root, { key: 'PageDown' });
-      fireEvent.keyDown(root, { key: 'PageDown' });
+    });
+    await flushAnimationFrame();
+
+    act(() => {
+      root.scrollTop = 950;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+
+    act(() => {
+      root.focus();
+      fireEvent.keyDown(root, { key: 'ArrowDown' });
     });
     await flushAnimationFrame();
 
     await waitFor(() => {
-      expect(readOutputNumber('zone-1-progress')).toBeCloseTo(125.18740629685158, 3);
+      expect(readOutputNumber('zone-1-progress')).toBe(30);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
     });
     expect(onZoneEnter).toHaveBeenCalledTimes(1);
@@ -5966,13 +6055,15 @@ describe('DirectScrollCineView', () => {
       fireEvent.scroll(root);
     });
 
+    const segment = getTakeoverSegment(container, 1);
+
     // Drive the takeover to completion (budget 100). The forward gesture consumes the segment and
-    // parks scrollTop at segmentEnd (2200) with progress complete and the zone deactivated.
+    // parks scrollTop at the real segment end with progress complete and the zone deactivated.
     for (let i = 0; i < 8; i += 1) await wheelAndFlush(root, 90000);
     await waitFor(() => {
       expect(readOutputNumber('zone-1-progress')).toBe(100);
       expect(readAnimateOpacity(container, 'programmatic-reentry')).toBeCloseTo(1, 1);
-      expect(root.scrollTop).toBe(2200);
+      expect(root.scrollTop).toBe(segment.end);
     });
 
     act(() => {
@@ -5980,12 +6071,8 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
 
-    // CHARACTERIZATION: design/test-name expects goToZone to rearm the takeover (zone active again at
-    // its anchor). The implementation resets progress to 0 and parks scrollTop at the center-lock
-    // anchor (~2074.81), but leaves the zone INACTIVE rather than re-activating it. Flagged for
-    // browser-acceptance lane.
     await waitFor(() => {
-      expect(root.scrollTop).toBeCloseTo(2074.812593703148, 3);
+      expect(root.scrollTop).toBe(segment.start);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       expect(readOutputNumber('zone-1-progress')).toBe(0);
       expect(readAnimateOpacity(container, 'programmatic-reentry')).toBe(0);

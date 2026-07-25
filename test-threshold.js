@@ -2,16 +2,16 @@
 function calculateThreshold(velocity) {
   const MIN_VELOCITY = 0;
   const MAX_VELOCITY = 1000;
-  const MIN_THRESHOLD = 0.15;  // 快速滑动阈值
-  const MAX_THRESHOLD = 0.3;   // 慢速滑动阈值
-  
+  const MIN_THRESHOLD = 0.15; // 快速滑动阈值
+  const MAX_THRESHOLD = 0.3; // 慢速滑动阈值
+
   // 限制速度范围
   const clampedVelocity = Math.max(MIN_VELOCITY, Math.min(MAX_VELOCITY, velocity));
-  
+
   // 线性插值：速度越快，阈值越低
-  const threshold = MAX_THRESHOLD - 
-    (clampedVelocity / MAX_VELOCITY) * (MAX_THRESHOLD - MIN_THRESHOLD);
-  
+  const threshold =
+    MAX_THRESHOLD - (clampedVelocity / MAX_VELOCITY) * (MAX_THRESHOLD - MIN_THRESHOLD);
+
   return threshold;
 }
 

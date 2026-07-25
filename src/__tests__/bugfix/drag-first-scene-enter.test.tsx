@@ -269,7 +269,7 @@ function renderDragFirstScene(
           firstSceneTimeout: options.firstSceneTimeout,
         },
       }}
-      config={{ width: 750, height: 1334 }}
+      config={{ size: 750 }}
       callbacks={{
         onError: options.onError,
       }}
@@ -358,7 +358,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
         ref={cineViewRef}
         mode="drag"
         modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ width: 750, height: 1334 }}
+        config={{ size: 750 }}
       >
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
@@ -426,7 +426,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
         ref={cineViewRef}
         mode="drag"
         modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ width: 750, height: 1334 }}
+        config={{ size: 750 }}
       >
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
@@ -608,7 +608,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       <CineView
         mode="scroll"
         modes={{ scroll: { direction: 'y' } }}
-        config={{ width: 750, height: 1334 }}
+        config={{ size: 750 }}
         callbacks={{ onError }}
       >
         <Scene scroll={{ zoneId: 'z0' }} assets={{ preloadImages: ['/hero.jpg'] }}>
@@ -669,7 +669,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       <CineView
         mode="drag"
         modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ width: 750, height: 1334 }}
+        config={{ size: 750 }}
       >
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>

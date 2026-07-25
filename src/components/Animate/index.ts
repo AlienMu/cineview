@@ -1,4 +1,5 @@
 export { Animate } from './Animate';
+export { useAnimateTimeline } from './animateTimeline';
 export { SceneContext } from './Animate';
 export type {
   SceneAnimationRegistryContext,

@@ -272,9 +272,7 @@ export function areResolvedSceneScrollSequencesEqual(
     const leftBudget = left.budgets[key];
     const rightBudget = right.budgets[key];
     return Boolean(
-      leftBudget &&
-        rightBudget &&
-        areSceneScrollAnimationBudgetsEqual(leftBudget, rightBudget)
+      leftBudget && rightBudget && areSceneScrollAnimationBudgetsEqual(leftBudget, rightBudget)
     );
   });
 }

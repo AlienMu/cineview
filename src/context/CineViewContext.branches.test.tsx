@@ -40,7 +40,7 @@ describe('useConvertSize fallback (outside provider)', () => {
   });
 
   it('returns the context convertSize when used inside a provider', () => {
-    // designWidth 750, viewport 750 (jsdom default may vary) -> convertSize is the
+    // designSize 750, viewport 750 (jsdom default may vary) -> convertSize is the
     // real context fn (not identity). Assert it is the context function path, not
     // the fallback: warn must NOT fire and the result scales with viewport/design.
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -51,14 +51,12 @@ describe('useConvertSize fallback (outside provider)', () => {
     });
 
     const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
-      <CineViewProvider designWidth={750} designHeight={1334}>
-        {children}
-      </CineViewProvider>
+      <CineViewProvider designSize={750}>{children}</CineViewProvider>
     );
 
     const { result } = renderHook(() => useConvertSize(), { wrapper });
 
-    // convertSize(size, designWidth=750, viewportWidth=375, 'px') => size * 0.5
+    // convertSize(size, designSize=750, viewportWidth=375, 'px') => size * 0.5
     expect(result.current(100)).toBeCloseTo(50);
     expect(warnSpy).not.toHaveBeenCalled();
   });

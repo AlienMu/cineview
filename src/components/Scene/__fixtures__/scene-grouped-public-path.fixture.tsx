@@ -3,7 +3,7 @@ import { CineView, Scene, Animate, Position } from '../../../index';
 export function GroupedPublicPathFixture(): JSX.Element {
   return (
     <CineView
-      config={{ width: 1440, height: 900 }}
+      config={{ size: 1440 }}
       mode="scroll"
       modes={{
         scroll: {

@@ -76,4 +76,31 @@ describe('useImagePreloader — media routing', () => {
     await waitFor(() => expect(result.current[0].priorityComplete).toBe(true));
     expect(onError).toHaveBeenCalledWith('/broken.mp4', expect.any(Error));
   });
+
+  it('does not publish a stale media error after unmount', async () => {
+    let rejectBuffer: ((error: Error) => void) | null = null;
+    preloadMediaMock.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectBuffer = reject;
+        })
+    );
+    const onError = jest.fn();
+    const { result, unmount } = renderHook(() =>
+      useImagePreloader({ priorityUrls: ['/late-error.mp4'], onError })
+    );
+
+    act(() => {
+      void result.current[1].startPreload();
+    });
+    await waitFor(() => expect(preloadMediaMock).toHaveBeenCalled());
+
+    unmount();
+    await act(async () => {
+      rejectBuffer?.(new Error('late failure'));
+      await Promise.resolve();
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+  });
 });

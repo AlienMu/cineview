@@ -35,7 +35,7 @@ import './CapabilityScene.css';
  */
 
 /* ── 自定义变体(仅白名单属性;scroll 驱动下 transition duration 置 0)── */
-function riseVariant(amplitude: number): {
+function riseVariant(amplitude: string): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
@@ -59,7 +59,7 @@ function solidVariant(): {
 }
 /** 面板播完飞到顶部一行(上左/上中/上右),对齐上一幕胶带所在的横向位置。
  *  dx=水平列偏移(相对舞台中心);统一上移 DOCK_Y、缩小 DOCK_SCALE。opacity 显式 1(exit 缺省为 0)。 */
-function panelDockRow(dx: number): { exit: Record<string, unknown> } {
+function panelDockRow(dx: string): { exit: Record<string, unknown> } {
   return {
     exit: { x: dx, y: DOCK_Y, scale: DOCK_SCALE, opacity: 1, transition: { duration: 0 } },
   };
@@ -168,7 +168,7 @@ const PAN_MS = INTRO_DELAY + N_FRAMES * FRAME_PLAY; // 10000
 const HOLD_MS = 500;
 
 export function CapabilityFilmStripScene(): JSX.Element {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [activeFrame, setActiveFrame] = useState(-1);
   const [hoveredFrame, setHoveredFrame] = useState<number | null>(null);
   const [stripHue, setStripHue] = useState(18);
@@ -225,7 +225,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
   } as CSSProperties;
 
   return (
-    <div className="capability-full capability-full--film">
+    <div className="capability-full capability-full--film" data-lang={lang}>
       <div className="bg-grid" />
       <TimecodeAxis shotIndex={1} seconds={10} progress={panProgress} />
       <div className="cap-slate">{t('cap.shot1.slate')}</div>
@@ -234,7 +234,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
       <Position at={{ anchor: 'center-x', y: 66 }}>
         <Animate
           animateId="film-title"
-          enterAnimation={riseVariant(32)}
+          enterAnimation={riseVariant('25%')}
           duration={{ enter: 640 }}
           timeline={{ delay: 0 }}
         >
@@ -424,7 +424,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
    SHOT 02 · 舞台抽屉镜(结算链重做)
    链:panel0(3200+800) → panel1(3200+800) → panel2(3200+800)
        → stage-title(400) → stage-summary(delay100+2500) = 15000ms。
-   每面板播完经 exitAnimation 飞入左侧抽屉(x:-540, scale:0.42, y 错位 36px/层)。
+   每面板播完经 exitAnimation 飞入上方三列抽屉(percent 位移随面板尺寸等比缩放)。
    ================================================================== */
 
 // 面板 enter 3000ms:外壳前 22%(~660ms)快速铺满(面板出现快);内容在尾段 30%→92%
@@ -438,7 +438,7 @@ const STAGE_CLOCK_MS = 15500;
 // 停靠飞到上方一行(top≈130 完整可见,在标题上方)的三列 x≈225/720/1215。
 // 实测(scale 0.46):panel top = DOCK_Y + 180 → 取 -50 使 top≈130。
 // 最终构图三层:面板行(上)→ 标题(中)→ 代码框(下),全部可见,不裁切、不藏。
-const DOCK_Y = -50;
+const DOCK_Y = '-9.615385%';
 const DOCK_SCALE = 0.46;
 const STAGE_PANELS = [
   {
@@ -446,21 +446,21 @@ const STAGE_PANELS = [
     labelKey: 'cap.shot2.panel.chain.label',
     codeKey: 'cap.shot2.panel.chain.code',
     Icon: IconDolly,
-    dx: -492,
+    dx: '-68.333333%',
   },
   {
     id: 'stagger',
     labelKey: 'cap.shot2.panel.stagger.label',
     codeKey: 'cap.shot2.panel.stagger.code',
     Icon: IconFilmRoll,
-    dx: 0,
+    dx: '0%',
   },
   {
     id: 'position',
     labelKey: 'cap.shot2.panel.position.label',
     codeKey: 'cap.shot2.panel.position.code',
     Icon: IconAperture,
-    dx: 492,
+    dx: '68.333333%',
   },
 ] as const;
 // 面板 enter 窗口(stageProgress 归一,总时钟 15500ms)。inner 外壳/内容由这些窗口驱动
@@ -517,7 +517,7 @@ function StaggerPanelBody({ progress }: { progress: number }): JSX.Element {
   );
 }
 
-/** Panel3 内容:Position 双轴坐标卡 ×3,由 progress 逐个落位。 */
+/** Panel3 内容:Position 单尺子坐标卡 ×3,由 progress 逐个落位。 */
 const POSITION_CARDS = [
   { x: 56, y: 64, at: 0.2 },
   { x: 292, y: 148, at: 0.45 },
@@ -533,7 +533,12 @@ function PositionPanelBody({ progress }: { progress: number }): JSX.Element {
         <div
           key={`${card.x}-${card.y}`}
           className={`stage-coords__card${progress >= card.at ? ' is-on' : ''}`}
-          style={{ left: card.x, top: card.y }}
+          style={
+            {
+              '--stage-card-x': card.x,
+              '--stage-card-y': card.y,
+            } as CSSProperties
+          }
         >
           <span className="stage-coords__dot" />
           <span className="stage-coords__label">{`x:${card.x} y:${card.y}`}</span>
@@ -598,7 +603,7 @@ function TypewriterCode({ progress }: { progress: number }): JSX.Element {
 }
 
 export function CapabilityStageDrawerScene(): JSX.Element {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [stageProgress, setStageProgress] = useState(0);
   const handleStageProgress = useCallback((v: number) => {
     setStageProgress((prev) => (Math.abs(prev - v) < 0.002 ? prev : v));
@@ -608,13 +613,13 @@ export function CapabilityStageDrawerScene(): JSX.Element {
   const PanelBody = [ChainTreePanelBody, StaggerPanelBody, PositionPanelBody];
 
   return (
-    <div className="capability-full capability-full--stage">
+    <div className="capability-full capability-full--stage" data-lang={lang}>
       <div className="bg-grid" />
       <TimecodeAxis shotIndex={2} seconds={15} progress={stageProgress} />
       <div className="cap-slate">{t('cap.shot2.slate')}</div>
 
       {/* 中央舞台:三面板依次在同一位置播放;播完飞入左侧抽屉(无占位框) */}
-      <Position at={{ anchor: 'center-x', y: 180 }}>
+      <Position at={{ anchor: 'center-x', y: 140 }}>
         <div className="stage-frame">
           {STAGE_PANELS.map((panel, index) => {
             const { Icon } = panel;
@@ -665,21 +670,21 @@ export function CapabilityStageDrawerScene(): JSX.Element {
         </div>
       </Position>
 
-      {/* 三面板停靠顶部后,标题+总结在中部依次出现(面板行 ~130-370 之下) */}
-      <Position at={{ anchor: 'center-x', y: 432 }}>
+      {/* 三面板停靠顶部后,标题+总结在中部依次出现。 */}
+      <Position at={{ anchor: 'center-x', y: 400 }}>
         <Animate
           animateId="stage-title"
-          enterAnimation={riseVariant(36)}
+          enterAnimation={riseVariant('75%')}
           duration={{ enter: 400 }}
           timeline={{ waitFor: 'stage-panel-2', delay: 0 }}
         >
           <SplitTitle text={t('cap.shot2.title')} />
         </Animate>
       </Position>
-      <Position at={{ anchor: 'center-x', y: 540 }}>
+      <Position at={{ anchor: 'center-x', y: 480 }}>
         <Animate
           animateId="stage-summary"
-          enterAnimation={riseVariant(28)}
+          enterAnimation={riseVariant('46%')}
           duration={{ enter: 900 }}
           timeline={{ waitFor: 'stage-title', delay: 100 }}
         >
@@ -689,7 +694,7 @@ export function CapabilityStageDrawerScene(): JSX.Element {
 
       {/* 代码框:三段 API 依次逐字敷出(打字机)。opacity 由 enterProgress 门控 ——
           它的相位(waitFor stage-summary)开始前进度为 0 → 框隐藏,不提前显示、不遮挡面板。 */}
-      <Position at={{ anchor: 'center-x', y: 632 }}>
+      <Position at={{ anchor: 'center-x', y: 560 }}>
         <Animate
           animateId="stage-typed"
           enterAnimation={solidVariant()}

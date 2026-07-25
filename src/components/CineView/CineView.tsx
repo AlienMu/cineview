@@ -5,7 +5,6 @@
 
 import React, {
   forwardRef,
-  useImperativeHandle,
   useRef,
   useEffect,
   useState,
@@ -14,23 +13,27 @@ import React, {
   Children,
 } from 'react';
 import { CineViewProvider } from '../../context/CineViewContext';
-import { useSceneManager } from '../../hooks/useSceneManager';
+import { useSceneManager, type DragReleaseInput } from '../../hooks/useSceneManager';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 import { DirectScrollCineView } from './DirectScrollCineView';
-import { resolveDesignDimensions, isSceneElement } from './directScrollHelpers';
-import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
+import { DragSceneStack } from './DragSceneStack';
+import {
+  resolveDesignDimensions,
+  isLegacyDisplayNameSceneElement,
+  isSceneElement,
+} from './directScrollHelpers';
+import { getScenePreloadImages } from './preloadTargets';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
 import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
+import { useCineViewImperativeApi } from './useCineViewImperativeApi';
 import type {
   AnimationType,
   CineViewErrorCode,
-  CineViewPreloadTarget,
   CineViewProps,
   CineViewRef,
   CineViewPerformanceConfig,
-  PerformanceMetrics,
   SceneChangeDetail,
   SceneProps,
   ScrollMode,
@@ -100,41 +103,43 @@ function collectScenePreloadPlan(
   mode: ScrollMode
 ): { priorityImages: string[]; backgroundImages: string[] } {
   if (mode === 'scroll') {
+    const firstScene = scenes[clamp(activeSceneIndex, 0, Math.max(scenes.length - 1, 0))];
+    const firstSceneImages = firstScene
+      ? getScenePreloadImages(firstScene.props as SceneAuthoringCompatProps)
+      : [];
+    const prioritySet = new Set(firstSceneImages);
     return {
-      priorityImages: Array.from(
+      priorityImages: firstSceneImages,
+      backgroundImages: Array.from(
         new Set(
-          scenes.flatMap((scene) => getScenePreloadImages(scene.props as SceneAuthoringCompatProps))
+          scenes.flatMap((scene) =>
+            getScenePreloadImages(scene.props as SceneAuthoringCompatProps).filter(
+              (url) => !prioritySet.has(url)
+            )
+          )
         )
       ),
-      backgroundImages: [],
     };
   }
 
-  const prioritySceneIndices = new Set<number>();
   const normalizedActiveScene = clamp(activeSceneIndex, 0, Math.max(scenes.length - 1, 0));
-
-  prioritySceneIndices.add(normalizedActiveScene);
-  if (normalizedActiveScene > 0) {
-    prioritySceneIndices.add(normalizedActiveScene - 1);
-  }
-  if (normalizedActiveScene < scenes.length - 1) {
-    prioritySceneIndices.add(normalizedActiveScene + 1);
-  }
-
   const priority: string[] = [];
+  const background: string[] = [];
   scenes.forEach((scene, index) => {
     const sceneProps = scene.props as SceneAuthoringCompatProps;
     const images = getScenePreloadImages(sceneProps);
-    if (images.length === 0 || !prioritySceneIndices.has(index)) {
-      return;
+    if (index === normalizedActiveScene) {
+      priority.push(...images);
+    } else {
+      background.push(...images);
     }
-
-    priority.push(...images);
   });
+
+  const prioritySet = new Set(priority);
 
   return {
     priorityImages: Array.from(new Set(priority)),
-    backgroundImages: [],
+    backgroundImages: Array.from(new Set(background.filter((url) => !prioritySet.has(url)))),
   };
 }
 
@@ -151,7 +156,7 @@ export function resolveRootSceneStackMode(
 const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
   const { config, mode, modes, scrollbar, callbacks, performance, children } = props;
 
-  const { designWidth, designHeight } = resolveDesignDimensions(config);
+  const { designSize } = resolveDesignDimensions(config);
 
   // 场景引用存储（使用 WeakMap 避免内存泄漏）
   // Validates Requirement 26.2: Use WeakMap to store component references
@@ -161,7 +166,6 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const lastSceneWillChangeFromRef = useRef<number | null>(null);
   const scenesRef = useRef<React.ReactElement[]>([]);
   const measureViewportRef = useRef<(() => void) | null>(null);
-  const measureSceneHeightsRef = useRef<(() => void) | null>(null);
 
   // Track cleanup timers to clear on unmount
   // Validates Requirement 26.5: Clean up timers on unmount
@@ -177,6 +181,15 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     });
     return sceneArray;
   }, [children]);
+  const hasLegacyDisplayNameScene = useMemo(() => {
+    let found = false;
+    Children.forEach(children, (child) => {
+      if (isLegacyDisplayNameSceneElement(child)) {
+        found = true;
+      }
+    });
+    return found;
+  }, [children]);
 
   const totalScenes = scenes.length;
   const resolvedRootMode = useMemo<ScrollMode>(() => resolveRootMode(mode), [mode]);
@@ -190,8 +203,9 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const resolvedCallbacksRef = useRef(resolvedCallbacks);
   const dragSessionActiveRef = useRef(false);
   const lastDragProgressRef = useRef(0);
-  const hasSyncedAdjacentPreloadRef = useRef(false);
-  const lastAdjacentPreloadSignatureRef = useRef<string | null>(null);
+  const pendingDragCancelRef = useRef<{ sceneIndex: number; signedProgress: number } | null>(null);
+  const hasSyncedPreloadPlanRef = useRef(false);
+  const lastPreloadSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     resolvedCallbacksRef.current = resolvedCallbacks;
@@ -293,6 +307,8 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       emitSceneDidChange(sceneIndex, previousIndex ?? currentSceneRef.current);
     },
   });
+  const sceneActionsRef = useRef(sceneActions);
+  sceneActionsRef.current = sceneActions;
 
   const {
     currentScene,
@@ -336,44 +352,84 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   }, [isAnimating, currentScene, scenes, sceneActions, resolvedRootMode, modes]);
 
   useEffect(() => {
-    if (resolvedRootMode !== 'drag') {
-      dragSessionActiveRef.current = false;
-      lastDragProgressRef.current = 0;
-      return;
-    }
+    if (resolvedRootMode === 'drag') return;
+    dragSessionActiveRef.current = false;
+    lastDragProgressRef.current = 0;
+    pendingDragCancelRef.current = null;
+  }, [resolvedRootMode]);
 
-    const activeSceneIndex = currentScene;
-    const resolvedDirection = dragProgress === 0 ? null : dragProgress > 0 ? 'forward' : 'backward';
-    const normalizedProgress = Math.min(Math.abs(dragProgress), 1);
+  const handleDragProgressChange = useCallback(
+    (progress: number): void => {
+      sceneActions.setDragProgress(progress);
+      if (resolvedRootMode !== 'drag' || !dragSessionActiveRef.current) return;
 
-    if (isDragging && !dragSessionActiveRef.current) {
-      dragSessionActiveRef.current = true;
-      resolvedCallbacksRef.current.drag?.onDragStart?.({
-        sceneIndex: activeSceneIndex,
-        progress: normalizedProgress,
-        direction: resolvedDirection,
-      });
-    }
+      const signedProgress = progress === 0 ? 0 : clamp(progress, -1, 1);
+      if (signedProgress === lastDragProgressRef.current) return;
 
-    if (isDragging && normalizedProgress !== lastDragProgressRef.current) {
-      lastDragProgressRef.current = normalizedProgress;
+      lastDragProgressRef.current = signedProgress;
       resolvedCallbacksRef.current.drag?.onDragProgress?.({
-        sceneIndex: activeSceneIndex,
-        progress: normalizedProgress,
-        direction: resolvedDirection,
+        sceneIndex: currentSceneRef.current,
+        progress: Math.abs(signedProgress),
+        direction: signedProgress > 0 ? 'forward' : signedProgress < 0 ? 'backward' : null,
       });
-    }
+    },
+    [resolvedRootMode, sceneActions]
+  );
 
-    if (!isDragging && dragSessionActiveRef.current) {
-      dragSessionActiveRef.current = false;
-      resolvedCallbacksRef.current.drag?.onDragCancel?.({
-        sceneIndex: activeSceneIndex,
-        progress: lastDragProgressRef.current,
-        direction: resolvedDirection,
-      });
+  const handleDraggingChange = useCallback(
+    (dragging: boolean): void => {
+      sceneActions.setIsDragging(dragging);
+      if (resolvedRootMode !== 'drag' || !dragging || dragSessionActiveRef.current) return;
+
+      dragSessionActiveRef.current = true;
       lastDragProgressRef.current = 0;
+      pendingDragCancelRef.current = null;
+      resolvedCallbacksRef.current.drag?.onDragStart?.({
+        sceneIndex: currentSceneRef.current,
+        progress: 0,
+        direction: null,
+      });
+    },
+    [resolvedRootMode, sceneActions]
+  );
+
+  const handleDragRelease = useCallback(
+    (release: DragReleaseInput | null): void => {
+      if (release?.mode === 'bounce' && dragSessionActiveRef.current) {
+        pendingDragCancelRef.current = {
+          sceneIndex: currentSceneRef.current,
+          signedProgress: lastDragProgressRef.current,
+        };
+      } else if (release?.mode !== 'bounce') {
+        pendingDragCancelRef.current = null;
+      }
+      sceneActions.setDragRelease(release);
+    },
+    [sceneActions]
+  );
+
+  const handleDragReset = useCallback((): void => {
+    if (resolvedRootMode === 'drag' && dragSessionActiveRef.current) {
+      const cancelSnapshot = pendingDragCancelRef.current ?? {
+        sceneIndex: currentSceneRef.current,
+        signedProgress: lastDragProgressRef.current,
+      };
+      dragSessionActiveRef.current = false;
+      lastDragProgressRef.current = 0;
+      pendingDragCancelRef.current = null;
+      resolvedCallbacksRef.current.drag?.onDragCancel?.({
+        sceneIndex: cancelSnapshot.sceneIndex,
+        progress: Math.abs(cancelSnapshot.signedProgress),
+        direction:
+          cancelSnapshot.signedProgress > 0
+            ? 'forward'
+            : cancelSnapshot.signedProgress < 0
+              ? 'backward'
+              : null,
+      });
     }
-  }, [resolvedRootMode, isDragging, dragProgress, currentScene]);
+    sceneActions.resetDragInteraction();
+  }, [resolvedRootMode, sceneActions]);
 
   useEffect(() => {
     const root = containerRef.current;
@@ -445,7 +501,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
 
   const preloadActiveSceneIndex = currentScene;
 
-  // drag 模式预热当前和相邻场景；scroll 模式使用全局预热计划。
+  // 首屏只等待当前场景；其余场景进入后台队列，避免远端资源阻塞首屏 ready。
   const { priorityImages, backgroundImages } = useMemo(
     () => collectScenePreloadPlan(scenes, preloadActiveSceneIndex, resolvedRootMode),
     [scenes, preloadActiveSceneIndex, resolvedRootMode]
@@ -460,6 +516,8 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       emitError('IMAGE_LOAD_FAILED', error.message, { url });
     },
   });
+  const preloadActionsRef = useRef(preloadActions);
+  preloadActionsRef.current = preloadActions;
 
   // Mirror live preload counts into a ref so the first-scene enter driver can
   // read them for the timeout error context WITHOUT depending on them — they
@@ -508,43 +566,39 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     // 开始预加载
     void preloadActions.startPreload();
 
-    // 性能模式下启动性能监控
-    if (resolvedPerformance.monitor) {
-      performanceMonitor.start();
-    }
-
-    // 触发初始化兼容回调
-    if (ref && typeof ref !== 'function' && ref.current) {
-      resolvedCallbacksRef.current.common?.onReady?.(ref.current);
-    }
-
     return (): void => {
       // Validates Requirement 26.5: Clean up all tracked timers on unmount
       timersRef.forEach((timer) => {
         clearTimeout(timer);
       });
       timersRef.clear();
-
-      // 清理性能监控
-      if (resolvedPerformance.monitor) {
-        performanceMonitor.stop();
-      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ref, resolvedPerformance.monitor]); // 只在组件挂载时执行一次
+  }, [ref]); // 只在组件挂载时执行一次
+
+  useEffect(() => {
+    if (!resolvedPerformance.monitor) {
+      return;
+    }
+
+    performanceMonitor.start();
+    return (): void => {
+      performanceMonitor.stop();
+    };
+  }, [resolvedPerformance.monitor]);
 
   useEffect(() => {
     const signature = `${priorityImages.join('|')}::${backgroundImages.join('|')}`;
-    if (lastAdjacentPreloadSignatureRef.current === signature) {
+    if (lastPreloadSignatureRef.current === signature) {
       return;
     }
-    lastAdjacentPreloadSignatureRef.current = signature;
+    lastPreloadSignatureRef.current = signature;
 
     preloadActions.addUrls(priorityImages, true);
     preloadActions.addUrls(backgroundImages, false);
 
-    if (!hasSyncedAdjacentPreloadRef.current) {
-      hasSyncedAdjacentPreloadRef.current = true;
+    if (!hasSyncedPreloadPlanRef.current) {
+      hasSyncedPreloadPlanRef.current = true;
       return;
     }
 
@@ -560,7 +614,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     // 当前场景
     indices.add(currentScene);
 
-    // 在非 scroll 的交互模式下，保留相邻场景，兼容动画触发和虚拟化预热。
+    // 在 drag 模式下保留相邻场景，兼容动画触发和虚拟化窗口切换。
     if (resolvedRootMode === 'drag') {
       if (currentScene > 0) {
         indices.add(currentScene - 1);
@@ -573,73 +627,15 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     return indices;
   }, [resolvedRootMode, currentScene, totalScenes]);
 
-  // API 方法实现
-  const goToScene = useCallback(
-    (index: number, animated: boolean = true): void => {
-      // Programmatic navigation in drag mode also commits a scene change, so emit
-      // onDragCommit here to unify "all drag-mode commits fire onDragCommit" (the
-      // gesture path fires it in handleSceneChange). Mirror sceneActions.goToScene's
-      // own guards (valid range, real change) so a no-op navigation does not emit a
-      // phantom commit. Fired BEFORE sceneActions.goToScene to match the gesture
-      // ordering (onDragCommit precedes onBeforeChange/onSceneWillChange). progress
-      // is 1 (a full commit); elapsedMs/timelineDurationMs are omitted (no gesture
-      // timeline). onSceneDidChange still fires via the setAnimating(false) path.
-      if (index >= 0 && index < totalScenes && index !== currentScene) {
-        resolvedCallbacksRef.current.drag?.onDragCommit?.({
-          sceneIndex: currentScene,
-          targetSceneIndex: index,
-          progress: 1,
-          direction: index > currentScene ? 'forward' : 'backward',
-        });
-      }
-
-      sceneActions.goToScene(index, animated);
-    },
-    [sceneActions, currentScene, totalScenes]
-  );
-
-  // goToZone targets scroll-mode zones; in drag mode (this component) it is a
-  // no-op. Scroll navigation is handled by DirectScrollCineView.
-  const refreshLayout = useCallback((): void => {
-    measureViewportRef.current?.();
-    measureSceneHeightsRef.current?.();
-  }, []);
-
-  const preload = useCallback(
-    async (targets?: CineViewPreloadTarget[]): Promise<void> => {
-      const targetImages = resolveScenePreloadTargetImages(scenes, targets, {
-        includeZoneIds: true,
-      });
-      if (targetImages.length > 0) {
-        preloadActions.addUrls(targetImages, true);
-      }
-
-      await preloadActions.startPreload();
-    },
-    [preloadActions, scenes]
-  );
-
-  const getCurrentScene = useCallback((): number => {
-    return currentScene;
-  }, [currentScene]);
-
-  const getPerformanceMetrics = useCallback(
-    (): PerformanceMetrics => performanceMonitor.getMetrics(),
-    []
-  );
-
-  // 暴露 API 方法
-  useImperativeHandle(
+  useCineViewImperativeApi({
     ref,
-    () => ({
-      goToScene,
-      refreshLayout,
-      preload,
-      getCurrentScene,
-      getPerformanceMetrics,
-    }),
-    [goToScene, refreshLayout, preload, getCurrentScene, getPerformanceMetrics]
-  );
+    currentSceneRef,
+    scenesRef,
+    sceneActionsRef,
+    preloadActionsRef,
+    measureViewportRef,
+    resolvedCallbacksRef,
+  });
 
   // 场景切换处理
   const handleSceneChange = useCallback(
@@ -666,6 +662,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         if (resolvedRootMode === 'drag') {
           dragSessionActiveRef.current = false;
           lastDragProgressRef.current = 0;
+          pendingDragCancelRef.current = null;
           resolvedCallbacksRef.current.drag?.onDragCommit?.({
             sceneIndex: activeSceneIndex,
             targetSceneIndex,
@@ -687,6 +684,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         if (resolvedRootMode === 'drag') {
           dragSessionActiveRef.current = false;
           lastDragProgressRef.current = 0;
+          pendingDragCancelRef.current = null;
           resolvedCallbacksRef.current.drag?.onDragCommit?.({
             sceneIndex: activeSceneIndex,
             targetSceneIndex,
@@ -709,168 +707,6 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     [sceneActions, currentScene, resolvedRootMode, dragTimelineProgress]
   );
 
-  // 渲染场景
-  const renderScenes = useCallback((): (JSX.Element | null)[] => {
-    return scenes.map((scene, index) => {
-      const isVisible = visibleSceneIndices.has(index);
-      const effectiveCurrentScene = currentScene;
-      const isCurrent = index === effectiveCurrentScene;
-      const sceneProps = scene.props as SceneAuthoringCompatProps;
-      const effectiveMode = resolvedRootMode;
-      const slideDirection = modes?.drag?.direction ?? sceneProps.slideDirection ?? 'y';
-
-      const scenePosition: React.CSSProperties = {
-        width: '100%',
-        height: '100%',
-      };
-
-      if (effectiveMode === 'drag') {
-        scenePosition.position = 'absolute';
-        scenePosition.inset = 0;
-        let clampedProgress = renderProgress;
-
-        if (effectiveCurrentScene === 0 && renderProgress < 0) {
-          clampedProgress = 0;
-        }
-
-        if (effectiveCurrentScene === totalScenes - 1 && renderProgress > 0) {
-          clampedProgress = 0;
-        }
-
-        const relativeOffset = index - effectiveCurrentScene;
-        const offset = (relativeOffset - clampedProgress) * 100;
-
-        if (slideDirection === 'y') {
-          scenePosition.transform = `translate3d(0, ${offset}%, 0)`;
-        } else {
-          scenePosition.transform = `translate3d(${offset}%, 0, 0)`;
-        }
-
-        scenePosition.visibility = 'visible';
-        scenePosition.opacity = 1;
-        scenePosition.pointerEvents = isCurrent ? 'auto' : 'none';
-        scenePosition.contentVisibility = 'visible';
-        scenePosition.transition = 'none';
-        scenePosition.zIndex = isCurrent ? 10 : 1;
-      } else {
-        scenePosition.position = 'absolute';
-        scenePosition.inset = 0;
-        const isAnimatingBackwardReveal =
-          isAnimating &&
-          direction === 'backward' &&
-          (index === effectiveCurrentScene || index === effectiveCurrentScene + 1);
-        const isAnimatingForwardStack =
-          isAnimating &&
-          direction === 'forward' &&
-          (index === effectiveCurrentScene || index === effectiveCurrentScene - 1);
-        const shouldShow = isCurrent || isAnimatingBackwardReveal || isAnimatingForwardStack;
-
-        scenePosition.visibility = shouldShow ? 'visible' : 'hidden';
-        scenePosition.contentVisibility = shouldShow ? 'visible' : 'hidden';
-
-        if (isAnimating && direction === 'backward') {
-          scenePosition.zIndex =
-            index === effectiveCurrentScene + 1 ? 2 : index === effectiveCurrentScene ? 1 : 0;
-        } else if (isAnimating && direction === 'forward') {
-          scenePosition.zIndex =
-            index === effectiveCurrentScene ? 2 : index === effectiveCurrentScene - 1 ? 1 : 0;
-        } else {
-          scenePosition.zIndex = isCurrent ? 1 : 0;
-        }
-      }
-
-      // 虚拟化：scroll 模式保留布局高度，其它模式直接跳过不可见场景
-      if (!isVisible) {
-        return null;
-      }
-
-      // Clone scene element and inject props
-      const clonedScene = React.cloneElement(scene, {
-        sceneRuntime: {
-          mode: effectiveMode,
-          direction: slideDirection,
-          isActive: isCurrent,
-          sceneIndex: index,
-          totalScenes: scenes.length,
-          currentSceneIndex: effectiveCurrentScene,
-          transitionDirection: direction,
-          isSceneAnimating: isAnimating,
-          sharedTimelineDurationMs,
-          viewportWidth,
-          viewportHeight,
-          firstSceneEnterActive: firstSceneEnterActive && index === 0,
-          firstSceneEnterReady: firstSceneEnterReady && index === 0,
-        },
-        dragRuntime: {
-          progress: dragProgress,
-          renderProgress,
-          timelineProgress: dragTimelineProgress,
-          isDragging,
-          release: dragRelease,
-          threshold: modes?.drag?.threshold,
-          dragTimeScale: modes?.drag?.dragTimeScale ?? DEFAULT_DRAG_TIME_SCALE,
-          onCommit: handleSceneChange,
-          onReset: sceneActions.resetDragInteraction,
-          // Both the incoming scene's release-settle completion AND scene 0's
-          // cold-start completion fire onActivationComplete. For a scene-change
-          // settle this drives state CLEANUP via completeDragTransition (clearing
-          // dragRelease/direction/scalars once the element track reaches T — the
-          // public onSceneDidChange already fired at render commit, not here); for
-          // the cold-start it clears the first-scene window. The two are
-          // mutually exclusive per scene instance, so route by which one this is.
-          onActivationComplete:
-            index === 0 && firstSceneEnterActive
-              ? handleFirstSceneEnterComplete
-              : sceneActions.completeDragTransition,
-          onProgressChange: sceneActions.setDragProgress,
-          onRenderProgressChange: sceneActions.setRenderProgress,
-          onTimelineProgressChange: sceneActions.setDragTimelineProgress,
-          onDraggingChange: sceneActions.setIsDragging,
-          onRelease: sceneActions.setDragRelease,
-          onSharedTimelineDurationChange: sceneActions.setSharedTimelineDurationMs,
-        },
-        onSceneChange: handleSceneChange,
-      });
-
-      return (
-        <div
-          key={index}
-          ref={(node) => {
-            sceneWrapperRefs.current[index] = node;
-          }}
-          style={scenePosition}
-          data-scene-index={index}
-        >
-          {clonedScene}
-        </div>
-      );
-    });
-  }, [
-    resolvedRootMode,
-    modes?.drag?.direction,
-    modes?.drag?.threshold,
-    modes?.drag?.dragTimeScale,
-    scenes,
-    visibleSceneIndices,
-    currentScene,
-    totalScenes,
-    dragProgress,
-    dragTimelineProgress,
-    renderProgress,
-    isDragging,
-    sharedTimelineDurationMs,
-    dragRelease,
-    firstSceneEnterActive,
-    firstSceneEnterReady,
-    handleFirstSceneEnterComplete,
-    direction,
-    isAnimating,
-    handleSceneChange,
-    sceneActions,
-    viewportWidth,
-    viewportHeight,
-  ]);
-
   // 开发环境检查
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -879,11 +715,15 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         console.warn('[CineView] No Scene components found. Please add at least one Scene child.');
       }
 
-      // 检查设计稿尺寸
-      if (designWidth <= 0 || designHeight <= 0) {
-        console.error(
-          '[CineView] Invalid config.width/config.height. Both values must be greater than 0.'
+      if (hasLegacyDisplayNameScene) {
+        console.warn(
+          '[CineView] A child component uses displayName="Scene" but is not the exported CineView Scene. Scene discovery now uses the internal cineViewScene marker; import { Scene } from "cineview" or wrap the exported Scene instead of spoofing displayName.'
         );
+      }
+
+      // 检查设计稿尺寸
+      if (designSize <= 0) {
+        console.error('[CineView] Invalid config.size. It must be greater than 0.');
       }
 
       // 性能调试模式
@@ -891,7 +731,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         performanceMonitor.start();
       }
     }
-  }, [totalScenes, designWidth, designHeight, resolvedPerformance.monitor]);
+  }, [hasLegacyDisplayNameScene, totalScenes, designSize, resolvedPerformance.monitor]);
 
   // 容器样式
   const containerStyle: React.CSSProperties = {
@@ -912,8 +752,8 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
     () => ({
       mode: resolvedRootMode,
-      visibilityEnterMargin: modes?.scroll?.enterMargin,
-      visibilityExitMargin: modes?.scroll?.exitMargin,
+      scrollEnterMargin: modes?.scroll?.enterMargin,
+      scrollExitMargin: modes?.scroll?.exitMargin,
       reportError: (detail): void => {
         emitError(detail.code as CineViewErrorCode, detail.message, detail.context);
       },
@@ -922,7 +762,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   );
 
   return (
-    <CineViewProvider designWidth={designWidth} designHeight={designHeight}>
+    <CineViewProvider designSize={designSize}>
       <CineViewRuntimeContext.Provider value={runtimeContextValue}>
         <div
           ref={containerRef}
@@ -930,7 +770,37 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
           className="cineview-container"
           data-cineview-container="true"
         >
-          <div style={sceneViewportStyle}>{renderScenes()}</div>
+          <div style={sceneViewportStyle}>
+            <DragSceneStack
+              scenes={scenes}
+              visibleSceneIndices={visibleSceneIndices}
+              currentScene={currentScene}
+              totalScenes={totalScenes}
+              mode={resolvedRootMode}
+              dragConfig={modes?.drag}
+              dragTimeScale={modes?.drag?.dragTimeScale ?? DEFAULT_DRAG_TIME_SCALE}
+              dragProgress={dragProgress}
+              dragTimelineProgress={dragTimelineProgress}
+              renderProgress={renderProgress}
+              isDragging={isDragging}
+              sharedTimelineDurationMs={sharedTimelineDurationMs}
+              dragRelease={dragRelease}
+              firstSceneEnterActive={firstSceneEnterActive}
+              firstSceneEnterReady={firstSceneEnterReady}
+              direction={direction}
+              isAnimating={isAnimating}
+              viewportWidth={viewportWidth}
+              viewportHeight={viewportHeight}
+              sceneActions={sceneActions}
+              sceneWrapperRefs={sceneWrapperRefs}
+              onSceneChange={handleSceneChange}
+              onDragProgressChange={handleDragProgressChange}
+              onDraggingChange={handleDraggingChange}
+              onDragRelease={handleDragRelease}
+              onDragReset={handleDragReset}
+              onFirstSceneEnterComplete={handleFirstSceneEnterComplete}
+            />
+          </div>
         </div>
       </CineViewRuntimeContext.Provider>
     </CineViewProvider>

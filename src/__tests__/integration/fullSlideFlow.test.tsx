@@ -72,8 +72,26 @@ jest.mock('framer-motion', () => ({
     return { stop: jest.fn() };
   },
   motion: {
-    div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
-      <div {...props}>{children}</div>
+    div: React.forwardRef<
+      HTMLDivElement,
+      React.PropsWithChildren<{
+        initial?: unknown;
+        animate?: unknown;
+        style?: React.CSSProperties;
+        className?: string;
+        onPanStart?: unknown;
+        onPan?: unknown;
+        onPanEnd?: unknown;
+      }>
+    >(
+      (
+        { children, onPanStart: _onPanStart, onPan: _onPan, onPanEnd: _onPanEnd, ...props },
+        ref
+      ) => (
+        <div ref={ref} {...(props as React.HTMLAttributes<HTMLDivElement>)}>
+          {children}
+        </div>
+      )
     ),
   },
   AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
@@ -117,7 +135,7 @@ describe('完整滑动流程集成测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
           callbacks={{
             onReady: onInit,
             onSceneWillChange: onBeforeSceneChange,
@@ -243,7 +261,7 @@ describe('完整滑动流程集成测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
           callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene transition={{ exitAnimation: 'fade-out' }}>
@@ -294,7 +312,7 @@ describe('完整滑动流程集成测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene transition={{ enterAnimation: 'fade-in' }}>
             <Animate
@@ -347,7 +365,7 @@ describe('完整滑动流程集成测试', () => {
   test('响应式尺寸换算：窗口 resize 触发重新计算', async () => {
     const TestApp = () => {
       return (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="positioned-element">居中元素</div>
@@ -388,7 +406,7 @@ describe('完整滑动流程集成测试', () => {
   test('性能指标获取：getPerformanceMetrics', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} config={{ width: 750, height: 750 }}>
+        <CineView ref={cineViewRef} config={{ size: 750 }}>
           <Scene>
             <h1>性能测试场景</h1>
           </Scene>
@@ -417,7 +435,7 @@ describe('完整滑动流程集成测试', () => {
   test('虚拟化渲染：仅渲染当前场景及前后各一个', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} config={{ width: 750, height: 750 }}>
+        <CineView ref={cineViewRef} config={{ size: 750 }}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
@@ -466,7 +484,7 @@ describe('完整滑动流程集成测试', () => {
 
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} config={{ width: 750, height: 750 }}>
+        <CineView ref={cineViewRef} config={{ size: 750 }}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>

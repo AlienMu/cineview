@@ -132,3 +132,48 @@
 ## 附加交付
 
 - [ ] X.1 中英文双语框架梳理 md（详细架构介绍，放项目根或 site）
+
+---
+
+## 2026-07-19 续作 — 第五幕移动端 Drag（分幕确认）
+
+> 用户最新裁决覆盖旧的“第4幕手机”顺序：保留现有 Hero / 胶片 / 舞台 / 视频四幕，
+> 将移动端 drag 体验放入当前第五幕 `placeholder-5`。先只完成手机内第一幕并展示，
+> 用户确认后再继续第二至第四幕及 PC drag 展开。
+
+- [x] D1 回读 `DESIGN.md`、本任务流与当前 site 视觉/幕次，锁定 drag 双轨语义和第五幕插槽。
+- [ ] D2 实现手机内真实 drag 实例的第一幕：品牌入镜、拖拽提示、render/element 双轨视觉隐喻。
+- [ ] D3 将手机体验嵌入官网第五幕，沿用暖白胶片、Fraunces/mono、REC 时间码与当前 LUT 色带。
+- [ ] D4 完成中英文第一幕文案接线，不提前实现 drag 第二至第四幕。
+- [ ] D5 `site` type-check/build + 独立 agent 在真实浏览器验证移动/桌面尺寸、拖拽与无遮挡。
+- [ ] D6 输出第五幕第一屏截图供用户确认；确认前停止后续幕次开发。
+
+### 2026-07-20 用户确认后的实现裁决
+
+- `/drag` 是移动端 Drag 的独立入口；PC 首页第五幕只嵌入同一套 Drag 体验，不为 PC 另写一套分页逻辑。
+- 第一阶段只实现移动端 Drag 第一幕。为保证第一幕可真实拖拽，允许挂载一个无第二幕内容的最小目标 Scene，用于验证切换、回弹和反向回拖。
+- PC 第五幕外层由 scroll 引擎强接管，直到手机完成入镜；手机内容在解锁时才挂载/启用，避免外层 scroll 与内层 drag 同时拥有输入。
+- 内层 Drag 的 pointer/touch 事件直接截断冒泡，拖拽期间不让外层 scroll 再消费同一输入。
+- `/drag` 在移动端视口内直接铺满体验；PC 首页用手机壳包裹相同内层实现。
+
+### 第一幕执行节点（当前批次）
+
+- [x] D2.1 抽出可复用 `DragPhoneExperience`，内部只拥有一套真实 `CineView mode="drag"`。
+- [x] D2.2 完成第一幕视觉：暖白胶片舞台、REC/DRAG 时间码、品牌入镜、拖拽提示、双轨隐喻。
+- [x] D2.3 加入最小目标 Scene，仅用于真实分页与回弹验证，不实现第二幕内容。
+- [x] D2.4 新增 `/drag` 路由并接入中英文第一幕文案。
+- [x] D2.5 将同一实现嵌入首页第五幕；外层 scroll 解锁后才挂载并启用内层 Drag，内层截断 pointer/touch 冒泡。
+- [x] D2.6 站点 type-check/build；实现者回读改动并检查每帧路径、状态所有权与事件清理。
+- [x] D2.7 独立浏览器 agent 在移动/桌面尺寸验证 `/drag` 和第五幕：入镜、拖拽、释放结算、反向回拖、无遮挡、并发动画掉帧/长任务。
+- [x] D2.8 输出第一幕截图与浏览器证据；用户确认前停止，不实现第二至第四幕。
+
+### 第一幕验收证据（2026-07-20）
+
+- `/drag` 390×844：首屏中文/英文无遮挡；时间码避开语言按钮；站点 console errors/warnings = 0。
+- pointer drag：13.03% 部分拖拽时 `scene0=-110px`、`scene1=734px`，RENDER/ELEMENT 轨约 `0.130/0.174`；释放回弹通过；长拖提交到目标 Scene；反向长拖返回第一幕。
+- iPhone 15 touch（393×659、`maxTouchPoints=1`）：真实 CDP touch 上拖提交、反向 touch 返回均通过。
+- 性能：两次完整 touch 往返共 282 个 rAF 样本，long tasks = 0，平均帧时长 16.66ms，p95 18.60ms，最大 18.70ms，>33ms = 0，>50ms = 0。
+- 首页第五幕：未到 zone 时 `data-drag-unlocked=false` 且 inner Scene 数为 0；解锁后 inner Scene 数为 1、手机壳完整入镜。内层 pointer 拖拽前后外层 `scrollTop` 14 次采样保持 `36680` 不变，证明冒泡截断生效。
+- 截图：`site/acceptance-shots/drag-first-mobile-390x844-final.png`、`site/acceptance-shots/drag-first-mobile-zh-390x844-final.png`、`site/acceptance-shots/drag-first-home-fifth-1440x900.png`。
+
+> 旧阶段 2 的 D2–D6 仍保持未勾选；本批次只收口第一幕，等待用户确认后再继续第二至第四幕和 PC Drag 展开。

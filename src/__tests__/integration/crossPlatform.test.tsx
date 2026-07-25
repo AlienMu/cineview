@@ -147,7 +147,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -176,7 +176,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <h1>拖拽场景</h1>
@@ -205,7 +205,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'x', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <h1>横向场景</h1>
@@ -220,7 +220,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <h1>纵向场景</h1>
@@ -255,7 +255,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
           callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene>
@@ -327,7 +327,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 750, y: 100 }}>
               <div data-testid="positioned-element">右边缘元素</div>
@@ -362,7 +362,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="centered-element">居中元素</div>
@@ -396,7 +396,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="desktop-element">桌面元素</div>
@@ -430,7 +430,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="responsive-element">响应式元素</div>
@@ -478,7 +478,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="rem-element">rem 单位元素</div>
@@ -505,7 +505,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="vw-element">vw 单位元素</div>
@@ -533,7 +533,7 @@ describe('跨平台兼容性测试', () => {
       delete window.IntersectionObserver;
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -556,7 +556,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -589,7 +589,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
           callbacks={{ onSceneDidChange: onAfterSceneChange }}
         >
           <Scene>
@@ -625,7 +625,7 @@ describe('跨平台兼容性测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <Animate animateId="drag-test" exitAnimation="fade-out">

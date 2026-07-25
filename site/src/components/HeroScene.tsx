@@ -68,17 +68,17 @@ function introCharVariant(reduced: boolean): {
   animate: Record<string, unknown>;
 } {
   return {
-    initial: { opacity: 0, y: 6 },
+    initial: { opacity: 0, y: '15%' },
     animate: { opacity: 1, y: 0, transition: { duration: reduced ? 0 : CHAR_DUR / 1000 } },
   };
 }
 
-// slogan 自定义小位移 slide 动画（30px，预设 100% 太大）
+// slogan 自定义小位移 slide 动画（自身宽度的 4%，预设 100% 太大）
 function sloganSlideVariant(direction: 'left' | 'right'): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
-  const offsetX = direction === 'left' ? 30 : -30;
+  const offsetX = direction === 'left' ? '4%' : '-4%';
   return {
     initial: { x: offsetX, opacity: 0 },
     animate: { x: 0, opacity: 1 },
@@ -91,23 +91,10 @@ function buttonEnterVariant(): {
   animate: Record<string, unknown>;
 } {
   return {
-    initial: { y: 20, opacity: 0 },
+    initial: { y: '42%', opacity: 0 },
     animate: { y: 0, opacity: 1 },
   };
 }
-
-// hint 组合动画：闪烁 + 向下移动（用于无限循环）
-const hintInfiniteVariant = {
-  animate: {
-    opacity: [0.4, 1, 0.4],
-    y: [0, 8, 0],
-    transition: {
-      duration: 2,
-      repeat: Infinity,
-      ease: 'easeInOut',
-    },
-  },
-};
 
 // intro 逐字 span + 换行处一个全宽 break span(靠 .hero__intro 的 flex-wrap 强制折行)。
 // 每个 span 是 stagger 的直接子元素,由框架原生 variant 传播错峰揭示(方案B)。
@@ -153,11 +140,6 @@ export function HeroScene(): JSX.Element {
   const intro = t('hero.intro');
   const sloganLines = t('hero.slogan').split('\n');
   const introItems = buildIntroItems(intro);
-  // 打字总时长 = 字符数 × 错峰间隔 + 单字符 reveal 时长(最后一个字符铺开后还要播完)。
-  // 既驱动 stagger 铺开,又让 buttons 的 waitFor='hero-intro' 折叠到打字结束之后。
-  const charCount = Array.from(intro).filter((c) => c !== '\n').length;
-  const typingMs = charCount * CHAR_INTERVAL + CHAR_DUR;
-
   // 流光接力共享时钟:两排光束是各自独立的 18s 循环,keyframe 的接力编排(row0 扫
   // 0-18% → row1 接 18-36% → button 段 36-50%)只有在两排/按钮同一时刻起跑时才对得上。
   // 故不各等自己 entered,而是数齐所有 slogan 排都 entered 后,统一翻 beamOn,让整组
@@ -223,7 +205,11 @@ export function HeroScene(): JSX.Element {
                         className="hero__slogan-line"
                         data-row={i}
                         data-beam={beamOn}
-                        style={persist ? { transform: `translateX(${persist}px)` } : undefined}
+                        style={
+                          persist
+                            ? { transform: `translateX(calc(${persist} * var(--cv-u)))` }
+                            : undefined
+                        }
                       >
                         {line}
                       </span>
@@ -234,15 +220,12 @@ export function HeroScene(): JSX.Element {
             })}
           </h1>
 
-          {/* intro 逐字揭示改用框架 Tier 2 stagger:每个字符 span 由 framer 原生
-              staggerChildren 错峰入场(替掉旧的 setInterval + budget 占位 hack)。
-              duration.enter = 字数 × each + 尾余,既驱动 stagger 铺开、又让 buttons 的
-              waitFor='hero-intro' 折叠到打字结束之后。换行用整宽 break span(flex-wrap)。 */}
+          {/* intro 逐字揭示使用框架 stagger；有效组时长由直接子项数量、each 与子项
+              transition.duration 自动结算，buttons 的 waitFor 会等最后一个字符完成。 */}
           <Animate
             animateId="hero-intro"
             enterAnimation={introCharVariant(reduced)}
             stagger={{ each: dur(CHAR_INTERVAL) }}
-            duration={{ enter: dur(typingMs) }}
             timeline={{ waitFor: 'hero-slogan-1' }}
           >
             <p className="hero__intro" data-lang={lang}>
@@ -294,11 +277,10 @@ export function HeroScene(): JSX.Element {
         </div>
       </Position>
 
-      <Position at={{ anchor: 'center-x', y: 840 }}>
+      <Position at={{ anchor: 'center', y: 360 }}>
         <Animate
           animateId="hero-hint"
           enterAnimation="fade-in"
-          infiniteAnimation={hintInfiniteVariant}
           duration={{ enter: dur(HINT_DUR) }}
           timeline={{ waitFor: 'hero-btn-2', delay: 0 }}
         >

@@ -10,8 +10,7 @@
 
 import { test } from '@fast-check/jest';
 import * as fc from 'fast-check';
-import { act } from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 
 describe('Property: 图片加载进度单调性', () => {

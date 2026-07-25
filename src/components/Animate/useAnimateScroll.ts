@@ -16,6 +16,10 @@ import {
   type AnimatableProperty,
   type VariantRecord,
 } from './animateInterpolation';
+import {
+  subscribeVisibilityMeasurement,
+  type VisibilityRootMeasurement,
+} from './visibilityScheduler';
 
 interface UseAnimateScrollParams {
   sceneContext: SceneContextType | null;
@@ -401,168 +405,169 @@ export function useAnimateScroll({
     tweenControlsRef.current = controls;
   }, [exitDuration, stopTween, setPhase, visualMotion]);
 
-  const runVisibilityUpdate = useCallback(() => {
-    if (isScrollDriven) {
-      return;
-    }
-
-    const hostElement = hostRef.current;
-    if (!(hostElement instanceof HTMLElement)) {
-      return;
-    }
-
-    // First-screen cold-start hold: scene 0 elements wait for priority assets
-    // (firstSceneEnterReady === false). undefined = not gated (non-first scene).
-    const firstSceneReady = sceneContext?.firstSceneEnterReady;
-    if (firstSceneReady === false) {
-      visualMotion.set(0);
-      setPhase('idle');
-      setShouldRunInfiniteState(false);
-      return;
-    }
-
-    const rect = hostElement.getBoundingClientRect();
-    // Pre-layout / unmounted host reports a zero-area box at the origin. A naive
-    // gate read there would see relTop=0 and fire the enter prematurely, so bail
-    // and keep the current phase until the element has a real box. In a real
-    // browser this just defers the decision by one frame until layout settles.
-    const hasMeasurableBox = rect.width > 0 || rect.height > 0 || rect.bottom !== rect.top;
-    if (!hasMeasurableBox) {
-      return;
-    }
-    const scrollRoot = hostElement.closest<HTMLElement>('[data-cineview-container="true"]');
-    const containerTop = scrollRoot ? scrollRoot.getBoundingClientRect().top : 0;
-    // The container is always full-height (project invariant), so its clientHeight
-    // equals innerHeight in a real browser. Fall back to innerHeight when the
-    // container reports 0 (jsdom, or before layout) so the gate math stays valid.
-    const containerHeight = scrollRoot?.clientHeight || 0;
-    const vh = containerHeight || window.innerHeight || 1;
-    const relTop = rect.top - containerTop;
-    const relBottom = rect.bottom - containerTop;
-    const elementHeight = Math.max(rect.height, relBottom - relTop, 0);
-
-    // Oversized: an element taller than the usable enter band can never be
-    // "fully inside with a bottom margin", so it uses a preparatory rule —
-    // enter once its top crosses the viewport center, exit once its bottom
-    // rises past 70% of the viewport.
-    const isOversized = elementHeight > vh - enterMarginPx;
-    const rawEnterGate = isOversized
-      ? relTop <= vh / 2
-      : relTop >= 0 && relBottom <= vh - enterMarginPx;
-    // Symmetric exit: a normal element leaves via the TOP (top edge within
-    // exitMargin of the viewport top) on forward scroll, OR via the BOTTOM
-    // (bottom edge within exitMargin of the viewport bottom) on reverse scroll.
-    // The single-sided top-only gate exited on forward scroll but never on
-    // reverse — an element scrolled back down to the bottom held its entered
-    // frame instead of exiting, which read as asymmetric.
-    const exitGate = isOversized
-      ? relBottom <= vh * 0.7
-      : relTop <= exitMarginPx || relBottom >= vh - exitMarginPx;
-    // Gate overlap differs by path. Normal: enter (relTop>=0 && relBottom<=vh−
-    // enterMargin) overlaps the top exit band (relTop<=exitMargin) only in the
-    // [0, exitMargin] comfort band, and touches the bottom exit band
-    // (relBottom>=vh−exitMargin) only at the single point relBottom=vh−margin
-    // (when enter/exit margins are equal) — both are hysteresis dead zones where
-    // the switch mutex holds the current phase. Forward entry rising through the
-    // bottom band stays in 'idle' (idle never exits), so no premature exit fires.
-    // Oversized: enter (top<=center) and exit (bottom<=70%) overlap across a
-    // large region where the element is genuinely leaving (top still above center
-    // is a stale artifact), so exit must win — suppress enter whenever exit is
-    // satisfied on this path.
-    const enterGate = isOversized ? rawEnterGate && !exitGate : rawEnterGate;
-    const aboveTop = relBottom <= 0;
-
-    // First measurement: if the element is already scrolled past the top, reveal
-    // it at its terminal (entered) frame without replaying an enter tween. It is
-    // above the viewport (off-screen), so infinite stays paused until a later
-    // measure brings it back on-screen.
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      if (aboveTop) {
-        stopTween();
-        visualMotion.set(1);
-        setPhase('entered');
-        setShouldRunInfiniteState(resolveInfiniteActive('entered', false));
+  const runVisibilityUpdate = useCallback(
+    (rootMeasurement?: VisibilityRootMeasurement) => {
+      if (isScrollDriven) {
         return;
       }
-      // First-screen cold-start reveal: whatever the author placed fully inside
-      // the FIRST screen must play its enter on load, before any scroll. The
-      // normal gate blocks this for an element in the bottom band (e.g. a scroll
-      // hint pinned near the viewport bottom): its bottom edge sits within
-      // enterMargin of the viewport bottom, so the enter gate's bottom cushion
-      // fails AND the bottom exit gate (reverse-scroll leave) fires —
-      // resolveGatePhaseAction sees both gates and holds at idle forever, so the
-      // element never appears. Those bottom margins are scroll-IN / scroll-OUT
-      // cushions that don't apply to the first paint. Scoped to scene 0 only
-      // (firstSceneReady === true; non-first scenes are undefined and keep the
-      // strict margins). Later measures fall through to the normal margin-gated
-      // machine, so scroll-driven enter/exit is unchanged.
-      if (firstSceneReady === true && !isOversized && relTop >= 0 && relBottom <= vh) {
+
+      const hostElement = hostRef.current;
+      if (!(hostElement instanceof HTMLElement)) {
+        return;
+      }
+
+      // First-screen cold-start hold: scene 0 elements wait for priority assets
+      // (firstSceneEnterReady === false). undefined = not gated (non-first scene).
+      const firstSceneReady = sceneContext?.firstSceneEnterReady;
+      if (firstSceneReady === false) {
+        visualMotion.set(0);
+        setPhase('idle');
+        setShouldRunInfiniteState(false);
+        return;
+      }
+
+      const rect = hostElement.getBoundingClientRect();
+      // Pre-layout / unmounted host reports a zero-area box at the origin. A naive
+      // gate read there would see relTop=0 and fire the enter prematurely, so bail
+      // and keep the current phase until the element has a real box. In a real
+      // browser this just defers the decision by one frame until layout settles.
+      const hasMeasurableBox = rect.width > 0 || rect.height > 0 || rect.bottom !== rect.top;
+      if (!hasMeasurableBox) {
+        return;
+      }
+      const scrollRoot = hostElement.closest<HTMLElement>('[data-cineview-container="true"]');
+      const containerTop =
+        rootMeasurement?.top ?? (scrollRoot ? scrollRoot.getBoundingClientRect().top : 0);
+      // The container is always full-height (project invariant), so its clientHeight
+      // equals innerHeight in a real browser. Fall back to innerHeight when the
+      // container reports 0 (jsdom, or before layout) so the gate math stays valid.
+      const containerHeight = rootMeasurement?.height ?? scrollRoot?.clientHeight ?? 0;
+      const vh = containerHeight || window.innerHeight || 1;
+      const relTop = rect.top - containerTop;
+      const relBottom = rect.bottom - containerTop;
+      const elementHeight = Math.max(rect.height, relBottom - relTop, 0);
+
+      // Oversized: an element taller than the usable enter band can never be
+      // "fully inside with a bottom margin", so it uses a preparatory rule —
+      // enter once its top crosses the viewport center, exit once its bottom
+      // rises past 70% of the viewport.
+      const isOversized = elementHeight > vh - enterMarginPx;
+      const rawEnterGate = isOversized
+        ? relTop <= vh / 2
+        : relTop >= 0 && relBottom <= vh - enterMarginPx;
+      // Symmetric exit: a normal element leaves via the TOP (top edge within
+      // exitMargin of the viewport top) on forward scroll, OR via the BOTTOM
+      // (bottom edge within exitMargin of the viewport bottom) on reverse scroll.
+      // The single-sided top-only gate exited on forward scroll but never on
+      // reverse — an element scrolled back down to the bottom held its entered
+      // frame instead of exiting, which read as asymmetric.
+      const exitGate = isOversized
+        ? relBottom <= vh * 0.7
+        : relTop <= exitMarginPx || relBottom >= vh - exitMarginPx;
+      // Gate overlap differs by path. Normal: enter (relTop>=0 && relBottom<=vh−
+      // enterMargin) overlaps the top exit band (relTop<=exitMargin) only in the
+      // [0, exitMargin] comfort band, and touches the bottom exit band
+      // (relBottom>=vh−exitMargin) only at the single point relBottom=vh−margin
+      // (when enter/exit margins are equal) — both are hysteresis dead zones where
+      // the switch mutex holds the current phase. Forward entry rising through the
+      // bottom band stays in 'idle' (idle never exits), so no premature exit fires.
+      // Oversized: enter (top<=center) and exit (bottom<=70%) overlap across a
+      // large region where the element is genuinely leaving (top still above center
+      // is a stale artifact), so exit must win — suppress enter whenever exit is
+      // satisfied on this path.
+      const enterGate = isOversized ? rawEnterGate && !exitGate : rawEnterGate;
+      const aboveTop = relBottom <= 0;
+
+      // First measurement: if the element is already scrolled past the top, reveal
+      // it at its terminal (entered) frame without replaying an enter tween. It is
+      // above the viewport (off-screen), so infinite stays paused until a later
+      // measure brings it back on-screen.
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        if (aboveTop) {
+          stopTween();
+          visualMotion.set(1);
+          setPhase('entered');
+          setShouldRunInfiniteState(resolveInfiniteActive('entered', false));
+          return;
+        }
+        // First-screen cold-start reveal: whatever the author placed fully inside
+        // the FIRST screen must play its enter on load, before any scroll. The
+        // normal gate blocks this for an element in the bottom band (e.g. a scroll
+        // hint pinned near the viewport bottom): its bottom edge sits within
+        // enterMargin of the viewport bottom, so the enter gate's bottom cushion
+        // fails AND the bottom exit gate (reverse-scroll leave) fires —
+        // resolveGatePhaseAction sees both gates and holds at idle forever, so the
+        // element never appears. Those bottom margins are scroll-IN / scroll-OUT
+        // cushions that don't apply to the first paint. Scoped to scene 0 only
+        // (firstSceneReady === true; non-first scenes are undefined and keep the
+        // strict margins). Later measures fall through to the normal margin-gated
+        // machine, so scroll-driven enter/exit is unchanged.
+        if (firstSceneReady === true && !isOversized && relTop >= 0 && relBottom <= vh) {
+          runEnterTween();
+          return;
+        }
+      }
+
+      // Phase-transition decision is a pure function (resolveGatePhaseAction) so
+      // the overlap-band hysteresis mutex can be proven deterministically in tests
+      // without the framer-motion mock collapsing the mid-exit flash frame.
+      const action = resolveGatePhaseAction(phaseRef.current, enterGate, exitGate, {
+        hasExplicitExit,
+        replayOnReenter,
+      });
+      if (action === 'enter') {
         runEnterTween();
-        return;
+      } else if (action === 'exit') {
+        runExitTween();
       }
-    }
 
-    // Phase-transition decision is a pure function (resolveGatePhaseAction) so
-    // the overlap-band hysteresis mutex can be proven deterministically in tests
-    // without the framer-motion mock collapsing the mid-exit flash frame.
-    const action = resolveGatePhaseAction(phaseRef.current, enterGate, exitGate, {
+      // Reconcile infinite-animation activity against on-screen visibility every
+      // measure. An element with no authored exitAnimation (hasExplicitExit=false)
+      // never leaves 'entered' in EITHER direction, so its phase stays 'entered'
+      // even after it scrolls fully off-screen — leaving infiniteAnimation (e.g.
+      // pulse) running off-screen forever (wasted work). resolveInfiniteActive
+      // pauses it whenever the element is not intersecting the viewport, and a
+      // later measure that brings it back on-screen (still 'entered') resumes it.
+      const onScreen = relBottom > 0 && relTop < vh;
+      setShouldRunInfiniteState(resolveInfiniteActive(phaseRef.current, onScreen));
+    },
+    [
+      enterMarginPx,
+      exitMarginPx,
       hasExplicitExit,
+      isScrollDriven,
       replayOnReenter,
-    });
-    if (action === 'enter') {
-      runEnterTween();
-    } else if (action === 'exit') {
-      runExitTween();
-    }
-
-    // Reconcile infinite-animation activity against on-screen visibility every
-    // measure. An element with no authored exitAnimation (hasExplicitExit=false)
-    // never leaves 'entered' in EITHER direction, so its phase stays 'entered'
-    // even after it scrolls fully off-screen — leaving infiniteAnimation (e.g.
-    // pulse) running off-screen forever (wasted work). resolveInfiniteActive
-    // pauses it whenever the element is not intersecting the viewport, and a
-    // later measure that brings it back on-screen (still 'entered') resumes it.
-    const onScreen = relBottom > 0 && relTop < vh;
-    setShouldRunInfiniteState(resolveInfiniteActive(phaseRef.current, onScreen));
-  }, [
-    enterMarginPx,
-    exitMarginPx,
-    hasExplicitExit,
-    isScrollDriven,
-    replayOnReenter,
-    runEnterTween,
-    runExitTween,
-    sceneContext?.firstSceneEnterReady,
-    setPhase,
-    stopTween,
-    visualMotion,
-  ]);
+      runEnterTween,
+      runExitTween,
+      sceneContext?.firstSceneEnterReady,
+      setPhase,
+      stopTween,
+      visualMotion,
+    ]
+  );
 
   // Register into the scene registry for duplicate/cycle validation and the
   // drag/scroll-zone timelineDuration fold. The visibility path no longer reads
   // calculatedDelay (it observes leader completion via the enter bus instead),
   // so getCalculatedDelay is not consumed here.
   useEffect(() => {
-    if (
-      !sceneContext?.registerAnimate ||
-      !sceneContext?.unregisterAnimate ||
-      (!hasExplicitEnter && !hasExplicitExit)
-    ) {
+    const registerAnimate = sceneContext?.registerAnimate;
+    const unregisterAnimate = sceneContext?.unregisterAnimate;
+    if (!registerAnimate || !unregisterAnimate || (!hasExplicitEnter && !hasExplicitExit)) {
       return;
     }
 
-    sceneContext.registerAnimate(componentId, {
+    registerAnimate(componentId, {
       delay,
       duration: hasExplicitEnter ? enterDuration : exitDuration,
       waitFor,
     });
 
     return () => {
-      sceneContext.unregisterAnimate(componentId);
+      unregisterAnimate(componentId);
     };
   }, [
-    sceneContext,
     sceneContext?.registerAnimate,
     sceneContext?.unregisterAnimate,
     componentId,
@@ -742,35 +747,7 @@ export function useAnimateScroll({
 
     const scrollRoot =
       hostElement.closest<HTMLElement>('[data-cineview-container="true"]') ?? window;
-    let animationFrame: number | null = null;
-    const requestFrame =
-      window.requestAnimationFrame?.bind(window) ??
-      ((callback: FrameRequestCallback): number =>
-        window.setTimeout(() => callback(Date.now()), 16));
-    const cancelFrame =
-      window.cancelAnimationFrame?.bind(window) ??
-      ((handle: number): void => window.clearTimeout(handle));
-    const scheduleVisibilityUpdate = (): void => {
-      if (animationFrame !== null) {
-        return;
-      }
-
-      animationFrame = requestFrame(() => {
-        animationFrame = null;
-        runVisibilityUpdate();
-      });
-    };
-
-    scrollRoot.addEventListener('scroll', scheduleVisibilityUpdate, { passive: true });
-    window.addEventListener('resize', scheduleVisibilityUpdate, { passive: true });
-
-    return () => {
-      if (animationFrame !== null) {
-        cancelFrame(animationFrame);
-      }
-      scrollRoot.removeEventListener('scroll', scheduleVisibilityUpdate);
-      window.removeEventListener('resize', scheduleVisibilityUpdate);
-    };
+    return subscribeVisibilityMeasurement(scrollRoot, runVisibilityUpdate);
   }, [hostVersion, isScrollDriven, runVisibilityUpdate]);
 
   // Stop any in-flight enter/exit tween + pending enter-delay timer on unmount so

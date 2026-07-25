@@ -5,6 +5,7 @@
 
 import type { FC } from 'react';
 import { Animate as AnimateComponent } from './components/Animate';
+export { useAnimateTimeline } from './components/Animate';
 import { CineView } from './components/CineView';
 import { Container } from './components/Container';
 import { Position as PositionComponent } from './components/Position';
@@ -59,6 +60,9 @@ export type {
   CineViewPreloadTarget,
   AnimateProps,
   AnimateRenderState,
+  AnimatePhase,
+  AnimateTimelineDriver,
+  AnimateTimeline,
   PositionProps,
   ContainerProps,
   SceneProps,

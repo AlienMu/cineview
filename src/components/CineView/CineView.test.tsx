@@ -21,6 +21,7 @@ interface MockSceneProps {
 const MockScene: React.FC<MockSceneProps> = ({ children }) => {
   return <div data-testid="mock-scene">{children}</div>;
 };
+(MockScene as React.FC & { cineViewScene?: boolean; displayName?: string }).cineViewScene = true;
 (MockScene as React.FC & { displayName?: string }).displayName = 'Scene';
 
 // Mock performance monitor
@@ -59,8 +60,7 @@ jest.mock('../../hooks/useImagePreloader', () => ({
 
 describe('CineView Component', () => {
   const defaultConfig = {
-    width: 750,
-    height: 1334,
+    size: 750,
   };
 
   beforeEach(() => {
@@ -165,8 +165,8 @@ describe('CineView Component', () => {
       );
 
       const callArgs = useImagePreloader.mock.calls[0][0];
-      expect(callArgs.priorityUrls).toEqual(['grouped-first.jpg', 'grouped-second.jpg']);
-      expect(callArgs.backgroundUrls).toEqual([]);
+      expect(callArgs.priorityUrls).toEqual(['grouped-first.jpg']);
+      expect(callArgs.backgroundUrls).toEqual(['grouped-second.jpg']);
     });
 
     it('应该在首屏优先图片未完成时仍然展示场景视口', () => {
@@ -310,6 +310,63 @@ describe('CineView Component', () => {
       expect(onInit).toHaveBeenCalled();
     });
 
+    it('使用 callback ref 时仍只触发一次 onReady 并返回同一 API', () => {
+      const onReady = jest.fn();
+      const callbackRef = jest.fn<void, [CineViewRef | null]>();
+
+      render(
+        <CineView ref={callbackRef} config={defaultConfig} callbacks={{ onReady }}>
+          <MockScene>Scene 1</MockScene>
+        </CineView>
+      );
+
+      const exposedApi = callbackRef.mock.calls.find(([api]) => api !== null)?.[0];
+      expect(exposedApi).toBeDefined();
+      expect(onReady).toHaveBeenCalledTimes(1);
+      expect(onReady).toHaveBeenCalledWith(exposedApi);
+    });
+
+    it('切换 performance.monitor 不应重新触发 onReady 或破坏 ref 导航', async () => {
+      const onReady = jest.fn();
+      const ref = createRef<CineViewRef>();
+      const { rerender } = render(
+        <CineView
+          ref={ref}
+          config={defaultConfig}
+          performance={{ monitor: false }}
+          callbacks={{ onReady }}
+        >
+          <MockScene>Scene 1</MockScene>
+          <MockScene>Scene 2</MockScene>
+        </CineView>
+      );
+
+      expect(onReady).toHaveBeenCalledTimes(1);
+
+      rerender(
+        <CineView
+          ref={ref}
+          config={defaultConfig}
+          performance={{ monitor: true }}
+          callbacks={{ onReady }}
+        >
+          <MockScene>Scene 1</MockScene>
+          <MockScene>Scene 2</MockScene>
+        </CineView>
+      );
+
+      expect(onReady).toHaveBeenCalledTimes(1);
+      expect(performanceMonitor.start).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        ref.current?.goToScene(1, false);
+      });
+      await waitFor(() => {
+        expect(ref.current?.getCurrentScene()).toBe(1);
+      });
+      expect(onReady).toHaveBeenCalledTimes(1);
+    });
+
     it('应该触发 onBeforeSceneChange 回调', async () => {
       const onBeforeSceneChange = jest.fn();
       const ref = createRef<CineViewRef>();
@@ -402,6 +459,7 @@ describe('CineView Component', () => {
     it('ref.goToScene 在 no-op（同索引/越界）时不发 onDragCommit', async () => {
       const onDragCommit = jest.fn();
       const ref = createRef<CineViewRef>();
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       render(
         <CineView ref={ref} mode="drag" config={defaultConfig} callbacks={{ onDragCommit }}>
@@ -420,6 +478,8 @@ describe('CineView Component', () => {
       });
 
       expect(onDragCommit).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid scene index: 5'));
+      warnSpy.mockRestore();
     });
 
     it('应该触发 onLoadProgress 回调', () => {
@@ -709,18 +769,56 @@ describe('CineView Component', () => {
       consoleWarnSpy.mockRestore();
     });
 
+    it('warns when drag mode receives a displayName-spoofed Scene child', () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const LegacyNamedScene: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <div>{children}</div>
+      );
+      LegacyNamedScene.displayName = 'Scene';
+
+      render(
+        <CineView mode="drag" config={defaultConfig}>
+          <LegacyNamedScene>Legacy Scene</LegacyNamedScene>
+        </CineView>
+      );
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('displayName="Scene"'));
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('cineViewScene marker'));
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('warns when scroll mode receives a displayName-spoofed Scene child', async () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const LegacyNamedScene: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <div>{children}</div>
+      );
+      LegacyNamedScene.displayName = 'Scene';
+
+      render(
+        <CineView mode="scroll" config={defaultConfig}>
+          <LegacyNamedScene>Legacy Scene</LegacyNamedScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('displayName="Scene"'));
+      });
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('cineViewScene marker'));
+
+      consoleWarnSpy.mockRestore();
+    });
+
     it('应该在开发环境提供组件层级检查', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       render(
-        <CineView config={{ width: 0, height: 0 }}>
+        <CineView config={{ size: 0 }}>
           <MockScene>Scene 1</MockScene>
         </CineView>
       );
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid config.width/config.height')
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid config.size'));
 
       consoleErrorSpy.mockRestore();
     });
@@ -819,7 +917,7 @@ describe('CineView Component', () => {
   });
 
   describe('图片预加载流程', () => {
-    it('应该优先加载当前场景及相邻场景图片', () => {
+    it('应该只等待当前场景图片并将其余场景放入后台队列', () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
@@ -832,11 +930,11 @@ describe('CineView Component', () => {
       );
 
       const callArgs = useImagePreloader.mock.calls[0][0];
-      expect(callArgs.priorityUrls).toEqual(['first1.jpg', 'first2.jpg', 'second1.jpg']);
-      expect(callArgs.backgroundUrls).toEqual([]);
+      expect(callArgs.priorityUrls).toEqual(['first1.jpg', 'first2.jpg']);
+      expect(callArgs.backgroundUrls).toEqual(['second1.jpg', 'third1.jpg']);
     });
 
-    it('应该在翻页后追加预加载新的相邻场景图片', async () => {
+    it('应该在翻页后提升当前场景并继续后台预热其余场景图片', async () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
@@ -877,8 +975,10 @@ describe('CineView Component', () => {
       });
 
       await waitFor(() => {
-        expect(addUrls).toHaveBeenCalledWith(['scene-2.jpg', 'scene-3.jpg', 'scene-4.jpg'], true);
+        expect(addUrls).toHaveBeenCalledWith(['scene-3.jpg'], true);
       });
+
+      expect(addUrls).toHaveBeenCalledWith(['scene-1.jpg', 'scene-2.jpg', 'scene-4.jpg'], false);
 
       expect(startPreload).toHaveBeenCalled();
     });

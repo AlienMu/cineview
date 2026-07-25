@@ -28,9 +28,7 @@ export function ExperienceHub(): JSX.Element {
         >
           CineView example / two authored motion studies
         </div>
-        <h1 style={{ margin: 0, fontSize: 80, lineHeight: 0.94, fontWeight: 600 }}>
-          Orbit S1
-        </h1>
+        <h1 style={{ margin: 0, fontSize: 80, lineHeight: 0.94, fontWeight: 600 }}>Orbit S1</h1>
         <p
           style={{
             margin: '20px 0 0',
@@ -40,9 +38,9 @@ export function ExperienceHub(): JSX.Element {
             lineHeight: 1.65,
           }}
         >
-          A reference imaging console presented through one shared hardware story and two
-          distinct motion systems: drag for release-led progression and scroll for real document
-          reading mixed with authored Scene.scroll takeovers.
+          A reference imaging console presented through one shared hardware story and two distinct
+          motion systems: drag for release-led progression and scroll for real document reading
+          mixed with authored Scene.scroll takeovers.
         </p>
       </header>
 
@@ -95,10 +93,14 @@ export function ExperienceHub(): JSX.Element {
                   alignItems: 'start',
                 }}
               >
-                <div style={{ color: section.accent, fontSize: 14 }}>{String(index + 1).padStart(2, '0')}</div>
+                <div style={{ color: section.accent, fontSize: 14 }}>
+                  {String(index + 1).padStart(2, '0')}
+                </div>
                 <div>
                   <div style={{ fontSize: 16, marginBottom: 4 }}>{section.title}</div>
-                  <div style={{ color: 'rgba(231,237,245,0.58)', fontSize: 13 }}>{section.eyebrow}</div>
+                  <div style={{ color: 'rgba(231,237,245,0.58)', fontSize: 13 }}>
+                    {section.eyebrow}
+                  </div>
                 </div>
               </div>
             ))}
@@ -128,7 +130,9 @@ export function ExperienceHub(): JSX.Element {
           >
             <div style={{ color: 'rgba(231,237,245,0.54)', fontSize: 12 }}>Motion mode</div>
             <h2 style={{ margin: 0, fontSize: 34, fontWeight: 600 }}>{route.label}</h2>
-            <p style={{ margin: 0, color: 'rgba(231,237,245,0.74)', fontSize: 16, lineHeight: 1.65 }}>
+            <p
+              style={{ margin: 0, color: 'rgba(231,237,245,0.74)', fontSize: 16, lineHeight: 1.65 }}
+            >
               {route.summary}
             </p>
             <a

@@ -51,6 +51,16 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
         <Position at={{ x: 112, y: 94 }}>
           <StagePill index={index} section={section} />
         </Position>
+        <Position at={{ x: 820, y: 154 }}>
+          <Animate
+            animateId={`drag-${section.id}-media`}
+            enterAnimation="focus-in"
+            duration={{ enter: 500, exit: 520 }}
+            timeline={{ delay: 90 }}
+          >
+            <MediaFrame priority={index === 0} section={section} width={540} />
+          </Animate>
+        </Position>
         <Position at={{ x: 104, y: 190 }}>
           <Animate
             exitAnimation="zoom-out"
@@ -64,16 +74,6 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
               section={section}
               titleSize={index === 0 ? 'hero' : 'large'}
             />
-          </Animate>
-        </Position>
-        <Position at={{ x: 820, y: 154 }}>
-          <Animate
-            animateId={`drag-${section.id}-media`}
-            enterAnimation="focus-in"
-            duration={{ enter: 500, exit: 520 }}
-            timeline={{ delay: 90 }}
-          >
-            <MediaFrame priority={index === 0} section={section} width={540} />
           </Animate>
         </Position>
         <Position at={{ x: 106, y: 824 }}>
@@ -105,12 +105,12 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
             enterAnimation="slide-right"
             duration={{ enter: 720, exit: 340 }}
           >
-            <div style={{ width: 430 }}>
-              <SectionCopy maxWidth={430} section={section} titleSize="medium" />
+            <div style={{ width: 400 }}>
+              <SectionCopy maxWidth={400} section={section} titleSize="medium" />
             </div>
           </Animate>
         </Position>
-        <Position at={{ x: 540, y: 170 }}>
+        <Position at={{ x: 560, y: 170 }}>
           <Animate
             animateId={`drag-${section.id}-media`}
             enterAnimation="slide-left"
@@ -120,14 +120,14 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
             <MediaFrame section={section} width={500} />
           </Animate>
         </Position>
-        <Position at={{ x: 1090, y: 184 }}>
+        <Position at={{ x: 1160, y: 184 }}>
           <Animate
             animateId={`drag-${section.id}-details`}
             enterAnimation="rotate-in"
             duration={{ enter: 720, exit: 340 }}
             timeline={{ delay: 0, waitFor: `drag-${section.id}-copy` }}
           >
-            <div style={{ width: 260 }}>
+            <div style={{ width: 240 }}>
               <DetailList
                 accent={section.accent}
                 items={section.secondaryPoints}
@@ -157,38 +157,38 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
       <Position at={{ x: 116, y: 96 }}>
         <StagePill index={index} section={section} />
       </Position>
-      <Position at={{ x: 364, y: 160 }}>
+      <Position at={{ x: 120, y: 150 }}>
         <Animate
           animateId={`drag-${section.id}-copy`}
           enterAnimation="zoom-in"
           duration={{ enter: 700, exit: 320 }}
         >
-          <SectionCopy align="center" maxWidth={720} section={section} titleSize="large" />
+          <SectionCopy maxWidth={620} section={section} titleSize="large" />
         </Animate>
       </Position>
-      <Position at={{ x: 132, y: 484 }}>
+      <Position at={{ x: 120, y: 500 }}>
         <Animate
           animateId={`drag-${section.id}-stats`}
           enterAnimation="fade-in"
           duration={{ enter: 520, exit: 240 }}
           timeline={{ delay: 120 }}
         >
-          <div style={{ width: 540 }}>
+          <div style={{ width: 520 }}>
             <StatGrid columns={2} section={section} />
           </div>
         </Animate>
       </Position>
-      <Position at={{ x: 714, y: 462 }}>
+      <Position at={{ x: 1000, y: 414 }}>
         <Animate
           animateId={`drag-${section.id}-media`}
           enterAnimation="focus-in"
           duration={{ enter: 860, exit: 420 }}
           timeline={{ delay: 160 }}
         >
-          <MediaFrame section={section} width={592} />
+          <MediaFrame section={section} width={360} withCaption={false} />
         </Animate>
       </Position>
-      <Position at={{ x: 844, y: 130 }}>
+      <Position at={{ x: 960, y: 150 }}>
         <Animate
           animateId={`drag-${section.id}-bullet`}
           enterAnimation="blur-in"

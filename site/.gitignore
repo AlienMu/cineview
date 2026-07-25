@@ -5,3 +5,13 @@ dist
 # Throwaway acceptance / verification artifacts (screenshots, Playwright output)
 acceptance-shots
 test-results
+site
+
+# One-off verification / repaint / manual-inspection scripts + stray screenshots
+_repaint-*.mjs
+verify-*.mjs
+verify-*.spec.ts
+verify-*.md
+manual-inspection.mjs
+animation-verification.html
+*.png

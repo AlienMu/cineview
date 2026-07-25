@@ -24,7 +24,7 @@ describe('Animation Trigger Bug Fixes', () => {
 
       const { container } = render(
         <CineView
-          config={{ width: 750, height: 1334 }}
+          config={{ size: 750 }}
           mode="drag"
           modes={{ drag: { transitionDuration: 500 } }}
           callbacks={{ onSceneDidChange: onAfterSceneChange }}
@@ -58,11 +58,7 @@ describe('Animation Trigger Bug Fixes', () => {
 
     it('should render first scene immediately without waiting for image load', async () => {
       const { container } = render(
-        <CineView
-          config={{ width: 750, height: 1334 }}
-          mode="drag"
-          modes={{ drag: { transitionDuration: 500 } }}
-        >
+        <CineView config={{ size: 750 }} mode="drag" modes={{ drag: { transitionDuration: 500 } }}>
           <Scene assets={{ preloadImages: ['https://example.com/image.jpg'] }}>
             <Animate enterAnimation="fade-in" duration={{ enter: 300 }}>
               <div data-testid="first-scene">First Scene</div>
@@ -91,7 +87,7 @@ describe('Animation Trigger Bug Fixes', () => {
               Next
             </button>
             <CineView
-              config={{ width: 750, height: 1334 }}
+              config={{ size: 750 }}
               mode="drag"
               modes={{ drag: { transitionDuration: 500 } }}
             >
@@ -151,7 +147,7 @@ describe('Animation Trigger Bug Fixes', () => {
               Go to Scene 0
             </button>
             <CineView
-              config={{ width: 750, height: 1334 }}
+              config={{ size: 750 }}
               mode="drag"
               modes={{ drag: { transitionDuration: 500 } }}
             >
@@ -209,11 +205,7 @@ describe('Animation Trigger Bug Fixes', () => {
   describe('Issue 3: Animation delay chain', () => {
     it('should correctly handle waitFor animation chains on scene change', async () => {
       const { container } = render(
-        <CineView
-          config={{ width: 750, height: 1334 }}
-          mode="drag"
-          modes={{ drag: { transitionDuration: 500 } }}
-        >
+        <CineView config={{ size: 750 }} mode="drag" modes={{ drag: { transitionDuration: 500 } }}>
           <Scene>
             <Animate
               enterAnimation="fade-in"

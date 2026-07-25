@@ -15,7 +15,7 @@ export interface CineViewRuntimeContextValue {
   // CineView-level default visibility gate margins (design px) for the scroll
   // visibility path. Per-Animate `visibility.enterMargin` / `exitMargin` override
   // these; if both are undefined the hook falls back to 50. Resolved to physical
-  // px via scaleY inside useAnimateScroll.
+  // px via the single-ruler scale inside useAnimateScroll.
   scrollEnterMargin?: number;
   scrollExitMargin?: number;
 }

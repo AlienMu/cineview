@@ -4,6 +4,7 @@ import { LangToggle } from './components/LangToggle';
 import HomePage from './pages/HomePage';
 import DemoPage from './pages/DemoPage';
 import DocsPage from './pages/DocsPage';
+import DragPage from './pages/DragPage';
 
 export default function App(): JSX.Element {
   return (
@@ -13,6 +14,7 @@ export default function App(): JSX.Element {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/demo" element={<DemoPage />} />
+        <Route path="/drag" element={<DragPage />} />
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/docs/:slug" element={<DocsPage />} />
         <Route path="*" element={<HomePage />} />

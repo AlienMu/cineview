@@ -58,8 +58,8 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  max-width: 720px;
-  padding: 0 24px;
+  max-width: calc(720 * var(--cv-u));
+  padding: 0 calc(24 * var(--cv-u));
 }
 .demo-video__title {
   margin: 0;
@@ -69,7 +69,7 @@
   line-height: 1.2;
   letter-spacing: -0.015em;
   color: var(--ink);
-  text-shadow: 0 1px 20px rgba(250, 248, 244, 0.6);
+  text-shadow: 0 calc(1 * var(--cv-u)) calc(20 * var(--cv-u)) rgba(250, 248, 244, 0.6);
 }
 .demo-video__title-head {
   display: inline;
@@ -85,8 +85,8 @@
    第一层黑字 blur→清晰,第二层清晰后从黑覆盖成沿整句流转的渐变暖色。这里只定版式。 */
 .demo-video__subtitle {
   margin: 0;
-  max-width: 860px;
-  padding: 0 32px;
+  width: calc(860 * var(--cv-u));
+  padding: 0 calc(32 * var(--cv-u));
   text-align: center;
   font-family: 'Playfair Display', 'Songti SC', 'Fraunces', Georgia, serif;
   font-weight: 500;
@@ -98,10 +98,13 @@
 }
 .demo-video__subtitle-line {
   display: block;
-  white-space: nowrap; /* 作者用 \n 控制换行,行内每个字是独立 span,禁止浏览器在字间自动折词 */
+  white-space: nowrap;
   /* blur 施加在行(而非逐字):整行一个模糊层,滚动中任一刻最多 1-2 行的 blur 在变
      → 每帧 1-2 次模糊卷积,而非几十个字各自卷积(模糊是最贵的重绘操作)。inline 由 tsx 写。 */
   will-change: filter;
+}
+.demo-video[data-lang='en'] .demo-video__subtitle {
+  width: calc(1340 * var(--cv-u));
 }
 .demo-video__subtitle-line + .demo-video__subtitle-line {
   margin-top: 0.32em;

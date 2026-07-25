@@ -1,4 +1,4 @@
-export type ModeId = 'drag' | 'scroll' | 'panda' | 'panda-pro';
+export type ModeId = 'drag' | 'scroll';
 export type AppRoute = 'home' | ModeId;
 
 export interface ModeRouteDefinition {

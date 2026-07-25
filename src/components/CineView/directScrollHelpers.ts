@@ -77,6 +77,45 @@ export function normalizeTouchDeltaPx(delta: number): number {
   return Number.isFinite(delta) ? delta : 0;
 }
 
+export function shouldDeferToNestedScrollable(
+  target: EventTarget | null,
+  root: HTMLElement,
+  direction: 'x' | 'y',
+  deltaPx: number
+): boolean {
+  if (!(target instanceof Element) || deltaPx === 0) {
+    return false;
+  }
+
+  const overflowProperty = direction === 'x' ? 'overflowX' : 'overflowY';
+  let element: Element | null = target;
+
+  while (element && element !== root) {
+    if (element instanceof HTMLElement) {
+      const style = window.getComputedStyle(element);
+      const overflow = style[overflowProperty];
+      const permitsScroll = overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay';
+      const current = direction === 'x' ? element.scrollLeft : element.scrollTop;
+      const viewport = direction === 'x' ? element.clientWidth : element.clientHeight;
+      const content = direction === 'x' ? element.scrollWidth : element.scrollHeight;
+      const max = Math.max(content - viewport, 0);
+
+      if (permitsScroll && max > 1) {
+        if (deltaPx > 0 && current < max - 1) {
+          return true;
+        }
+        if (deltaPx < 0 && current > 1) {
+          return true;
+        }
+      }
+    }
+
+    element = element.parentElement;
+  }
+
+  return false;
+}
+
 export function normalizeKeyboardDeltaPx(
   key: string,
   shiftKey: boolean,
@@ -202,28 +241,79 @@ export function shouldIgnoreGlobalScrollKey(event: KeyboardEvent): boolean {
     tagName === 'input' ||
     tagName === 'textarea' ||
     tagName === 'select' ||
-    (target instanceof HTMLElement && target.isContentEditable)
+    Boolean(target instanceof HTMLElement && target.isContentEditable)
   );
 }
 
 export function isSceneElement(
   node: React.ReactNode
 ): node is React.ReactElement<SceneAuthoringCompatProps> {
-  return (
-    isValidElement(node) &&
-    typeof node.type !== 'string' &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (node.type as any).displayName === 'Scene'
-  );
+  if (!isValidElement(node) || typeof node.type === 'string') {
+    return false;
+  }
+
+  let type: unknown = node.type;
+  for (let depth = 0; depth < 6 && type; depth += 1) {
+    if (
+      (typeof type === 'function' || typeof type === 'object') &&
+      type !== null &&
+      (type as { cineViewScene?: boolean }).cineViewScene === true
+    ) {
+      return true;
+    }
+
+    if (typeof type === 'object' && type !== null && 'type' in type) {
+      type = (type as { type?: unknown }).type;
+      continue;
+    }
+
+    if (typeof type === 'object' && type !== null && 'render' in type) {
+      type = (type as { render?: unknown }).render;
+      continue;
+    }
+
+    break;
+  }
+
+  return false;
+}
+
+export function isLegacyDisplayNameSceneElement(node: React.ReactNode): boolean {
+  if (!isValidElement(node) || typeof node.type === 'string' || isSceneElement(node)) {
+    return false;
+  }
+
+  let type: unknown = node.type;
+  for (let depth = 0; depth < 6 && type; depth += 1) {
+    if (
+      (typeof type === 'function' || typeof type === 'object') &&
+      type !== null &&
+      (type as { displayName?: string }).displayName === 'Scene'
+    ) {
+      return true;
+    }
+
+    if (typeof type === 'object' && type !== null && 'type' in type) {
+      type = (type as { type?: unknown }).type;
+      continue;
+    }
+
+    if (typeof type === 'object' && type !== null && 'render' in type) {
+      type = (type as { render?: unknown }).render;
+      continue;
+    }
+
+    break;
+  }
+
+  return false;
 }
 
 export function resolveDesignDimensions(config: CineViewProps['config']): {
-  designWidth: number;
-  designHeight: number;
+  designSize: number;
 } {
   return {
-    designWidth: config.width ?? 750,
-    designHeight: config.height ?? 1334,
+    designSize: config.size ?? 750,
   };
 }
 
@@ -251,39 +341,31 @@ export function resolveRootSceneStackMode(
 
 /**
  * 把一个 scene span 原始值（number | 'NNNpx' | 'NNNvh' | 'NNNvw' | 'auto'）解析为
- * 像素跨度。两种消费模式由 `designConversion` 区分（逐分支等价于拆分前的两份实现）：
+ * 像素跨度。两种消费模式由 `mode` 区分：
  *
- * - `designConversion = null`（普通 declared scene）：number 与 `px` 原样返回；
+ * - `'declared'`（普通 declared scene）：number 与 `px` 原样返回（字面像素）；
  *   `vh`/`vw` 按视口换算；结果不向下取整到 1。
- * - `designConversion` 提供（takeover scene）：number 与 `px` 先做 design→viewport
- *   换算（`(n / designSpan) * viewportSpan`）；所有分支结果 floor 到 ≥ 1。
+ * - `'takeover'`（带 scroll 接管的 scene）：**单尺子模型下不再有独立的高度尺子**，
+ *   故绝对设计值（number / `px`）不在此换算，一律返回 null——调用方回退到 DOM 实测跨度
+ *   （takeover 视觉盒本就 sticky 撑满视口，实测即所需）。只有视口相对的 `vh`/`vw`
+ *   保留（它们无需任何设计尺子），并 floor 到 ≥ 1。
  *
- * 非正数、非法字符串与 `auto` 一律返回 null（交由调用方回退到测量值）。
+ * 非正数、非法字符串、`auto`、以及 takeover 下的绝对值一律返回 null（交由调用方回退）。
  */
 function resolveSpanValue(
   rawSize: number | string | undefined,
-  direction: 'x' | 'y',
   viewportWidth: number,
   viewportHeight: number,
-  designConversion: { designWidth: number; designHeight: number } | null
+  mode: 'declared' | 'takeover'
 ): number | null {
-  const viewportSpan = Math.max(direction === 'x' ? viewportWidth : viewportHeight, 1);
-  // takeover 模式（有 designConversion）对所有分支 floor 到 1；declared 模式不 floor。
-  const floor = (value: number): number => (designConversion ? Math.max(value, 1) : value);
-  // number / px：takeover 做 design→viewport 换算后 floor；declared 原样返回。
-  const resolveAbsolute = (value: number): number => {
-    if (!designConversion) {
-      return value;
-    }
-    const designSpan = Math.max(
-      direction === 'x' ? designConversion.designWidth : designConversion.designHeight,
-      1
-    );
-    return Math.max((value / designSpan) * viewportSpan, 1);
-  };
+  const isTakeover = mode === 'takeover';
+  // takeover 对 vh/vw 结果 floor 到 1；declared 不 floor。
+  const floor = (value: number): number => (isTakeover ? Math.max(value, 1) : value);
 
+  // 绝对设计值（number / 'NNNpx'）：declared 原样返回字面像素；takeover 返回 null，
+  // 交调用方回退到 DOM 实测（方案 A：单尺子零例外，不再有 design 高度换算）。
   if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
-    return resolveAbsolute(rawSize);
+    return isTakeover ? null : rawSize;
   }
 
   if (typeof rawSize !== 'string') {
@@ -301,7 +383,7 @@ function resolveSpanValue(
   }
 
   if (value.endsWith('px')) {
-    return resolveAbsolute(numericValue);
+    return isTakeover ? null : numericValue;
   }
 
   if (value.endsWith('vh')) {
@@ -326,21 +408,15 @@ export function resolveScrollSceneDeclaredSpan(
       ? (sceneProps.layout?.width ?? sceneProps.sceneWidth)
       : (sceneProps.layout?.height ?? sceneProps.sceneHeight);
 
-  return resolveSpanValue(rawSize, direction, viewportWidth, viewportHeight, null);
+  return resolveSpanValue(rawSize, viewportWidth, viewportHeight, 'declared');
 }
 
 export function resolveTakeoverSceneSpan(
   rawSize: number | string | undefined,
-  direction: 'x' | 'y',
   viewportWidth: number,
-  viewportHeight: number,
-  designWidth: number,
-  designHeight: number
+  viewportHeight: number
 ): number | null {
-  return resolveSpanValue(rawSize, direction, viewportWidth, viewportHeight, {
-    designWidth,
-    designHeight,
-  });
+  return resolveSpanValue(rawSize, viewportWidth, viewportHeight, 'takeover');
 }
 
 export function getRelativeOffset(

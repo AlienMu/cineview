@@ -46,22 +46,32 @@ jest.mock('framer-motion', () => {
       div: ({
         children,
         initial,
+        animate,
+        variants,
+        custom,
         style,
         ...props
       }: React.HTMLAttributes<HTMLDivElement> & {
         initial?: unknown;
         animate?: unknown;
+        variants?: unknown;
+        custom?: unknown;
         style?: React.CSSProperties;
-      }): JSX.Element => (
-        <div
-          data-testid="motion-div"
-          data-initial={JSON.stringify(initial)}
-          {...props}
-          style={style}
-        >
-          {children}
-        </div>
-      ),
+      }): JSX.Element => {
+        void animate;
+        void variants;
+        void custom;
+        return (
+          <div
+            data-testid="motion-div"
+            data-initial={JSON.stringify(initial)}
+            {...props}
+            style={style}
+          >
+            {children}
+          </div>
+        );
+      },
     },
     useAnimation: (): {
       start: jest.Mock;
@@ -87,6 +97,13 @@ jest.mock('framer-motion', () => {
     },
     useMotionValue: (initial: number) => createMotionValueStub(initial),
     useTransform: () => createMotionValueStub(0),
+    useMotionValueEvent: (
+      motionValue: { on: (event: string, listener: (value: number) => void) => () => void },
+      event: string,
+      listener: (value: number) => void
+    ): void => {
+      React.useEffect(() => motionValue.on(event, listener), [event, listener, motionValue]);
+    },
     animate: () => ({
       stop: jest.fn(),
     }),
@@ -332,6 +349,38 @@ describe('Animate Component', () => {
           delay: 200,
           duration: 600,
           waitFor: 'test-1',
+        });
+      });
+    });
+
+    it('registers waitFor plus stagger with the full visual group duration', async () => {
+      const mockContext = createMockSceneContext();
+
+      render(
+        <SceneContext.Provider value={mockContext}>
+          <Animate
+            animateId="stagger-follower"
+            enterAnimation="fade-in"
+            duration={{ enter: 600 }}
+            timeline={{ waitFor: 'leader' }}
+            stagger={{ each: 80 }}
+          >
+            <div>
+              <span>1</span>
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+              <span>5</span>
+            </div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(mockContext.registerAnimate).toHaveBeenLastCalledWith('stagger-follower', {
+          delay: 0,
+          duration: 920,
+          waitFor: 'leader',
         });
       });
     });

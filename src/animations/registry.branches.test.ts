@@ -95,4 +95,20 @@ describe('animation registry branch coverage', () => {
     // timeline is driven purely by the registration end time (0 + 100).
     expect(snapshot.timelineDuration).toBe(100);
   });
+
+  it('reports a circular waitFor chain and remains finite', () => {
+    const snapshot = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map([
+        ['a', { delay: 1, duration: 10, waitFor: 'b' }],
+        ['b', { delay: 2, duration: 20, waitFor: 'a' }],
+      ]),
+    });
+
+    expect(snapshot.issues).toEqual([
+      { type: 'circular-dependency', animateId: 'a', cycle: ['a', 'b', 'a'] },
+    ]);
+    expect(snapshot.calculatedDelays.get('a')).toBe(34);
+    expect(snapshot.calculatedDelays.get('b')).toBe(13);
+  });
 });

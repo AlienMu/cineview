@@ -1,0 +1,1662 @@
+/* Temporal Drag is deliberately self-contained so the dark edit-suite palette
+ * cannot leak into the warm official-site surfaces. */
+.drag-temporal {
+  /* Micro-cool black body (v3 §2.1): replaces the warm #0c0a08 so cyan/blue
+   * signals read clean on top instead of being muddied by warmth. */
+  --tp-bg-deep: #08070a;
+  --tp-bg: #0c0a0c;
+  --tp-bg-elevated: #15131a;
+  --tp-bg-glass: rgba(12, 10, 12, 0.72);
+  --tp-ink: #ede8e0;
+  --tp-ink-soft: #b4ada1;
+  /* Chrome ink (HUD/footer/corner labels). Lifted from the old #5c564e — which
+   * sat UNDER the z:50 vignette and read as near-invisible on a 390px phone — to
+   * a warm mid-grey that clears the softened vignette. */
+  --tp-ink-mute: #8b8479;
+  --tp-ink-faint: rgba(237, 232, 224, 0.1);
+
+  /* Film-grade three-color system (the teal-&-orange color-grade the subject
+   * literally lives in). Three signal colors, each with ONE semantic role held
+   * across every scene — not one-color-per-scene:
+   *   - amber  = warm pole: tungsten light, the resting / base / calibration tone
+   *   - teal   = cool pole: technical readout, the ACTIVE / measuring / in-flight tone
+   *   - rec    = tally red: record light, the terminal / commit / CTA signal
+   * warm-white is a neutral (brightest ink), not a fourth signal. No blue, no
+   * magenta — they read as arbitrary the moment they appear next to the grade. */
+  --tp-sig-amber: #d8a24a;
+  --tp-sig-amber-glow: rgba(
+    216,
+    162,
+    74,
+    0.22
+  ); /* base tone: glow dialed DOWN so amber reads as the sunk resting pole */
+  --tp-sig-teal: #409ba8; /* instrument cyan: desaturated toward a scope/monitor readout, away from brand-cyan */
+  --tp-sig-teal-glow: rgba(64, 155, 168, 0.28);
+  --tp-sig-rec: #e64536; /* tally red: pushed toward pure red, hue distance from amber widened so the terminal beat snaps */
+  --tp-sig-rec-glow: rgba(
+    230,
+    69,
+    54,
+    0.38
+  ); /* terminal signal: glow dialed UP so the CUT/CTA hit is the brightest */
+  /* neutral brightest ink (canvas highlight / warm white), NOT a signal */
+  --tp-sig-warm: #ece3d0;
+  --tp-sig-warm-glow: rgba(236, 227, 208, 0.22);
+
+  /* Legacy aliases → mapped onto the new palette so existing components keep
+   * working during the incremental scene-by-scene migration. amber is the
+   * base/calibration color; rec is brightened to the new signal red. */
+  --tp-accent: var(--tp-sig-amber);
+  --tp-accent-soft: #a08050;
+  --tp-accent-dim: rgba(216, 162, 74, 0.18);
+  --tp-accent-glow: var(--tp-sig-amber-glow);
+  --tp-rec: var(--tp-sig-rec);
+  --tp-rec-glow: var(--tp-sig-rec-glow);
+  --tp-rule: rgba(237, 232, 224, 0.08);
+  --tp-rule-strong: rgba(237, 232, 224, 0.14);
+  --tp-border-glass: rgba(237, 232, 224, 0.06);
+
+  /* Type scale (2026 rework): mobile floors raised so nothing reads thin on a
+   * 390px phone, and the display steps widened to a ~1.45 ratio so the hero
+   * genuinely dominates instead of sitting one notch above body. 2xs/xs are
+   * mono utility (labels, timecode); lg/xl/2xl are the Fraunces display range. */
+  --tp-text-2xs: clamp(10px, 2.4cqw, 12px);
+  --tp-text-xs: clamp(11px, 2.8cqw, 14px);
+  --tp-text-sm: clamp(14px, 3.4cqw, 17px);
+  --tp-text-md: clamp(17px, 4.6cqw, 24px);
+  --tp-text-lg: clamp(28px, 7.6cqw, 46px);
+  --tp-text-xl: clamp(42px, 12cqw, 74px);
+  --tp-text-2xl: clamp(56px, 18cqw, 116px);
+
+  --tp-space-1: clamp(2px, 0.6cqw, 4px);
+  --tp-space-2: clamp(4px, 1.2cqw, 8px);
+  --tp-space-3: clamp(8px, 2cqw, 14px);
+  --tp-space-4: clamp(12px, 3cqw, 22px);
+  --tp-space-5: clamp(18px, 4.5cqw, 32px);
+  --tp-space-6: clamp(24px, 6cqw, 42px);
+  --tp-space-7: clamp(36px, 9cqw, 64px);
+  --tp-space-8: clamp(48px, 12cqw, 86px);
+
+  --tp-radius-sm: 4px;
+  --tp-radius: 8px;
+  --tp-radius-pill: 999px;
+  --tp-shadow-glow: 0 0 20px 4px var(--tp-accent-glow);
+  --tp-shadow-subtle: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --tp-font-display: 'Fraunces', 'Songti SC', Georgia, serif;
+  --tp-font-body:
+    'Inter', 'PingFang SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --tp-font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --tp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --tp-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --tp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --tp-ease-linear-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+  container-type: inline-size;
+  isolation: isolate;
+  color: var(--tp-ink);
+  background: var(--tp-bg);
+  font-family: var(--tp-font-body);
+}
+
+.drag-temporal > .cineview-responsive-container,
+.drag-temporal .cineview-container {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+.drag-temporal .cineview-container {
+  background: var(--tp-bg) !important;
+}
+
+.drag-temporal .tp-scene {
+  color: var(--tp-ink);
+  /* Lit-room base (N1 背景太暗单调 fix): a soft warm key glow at upper-center
+   * plus a faint cool floor lift, over the center rule and base black. Gives the
+   * black structure/depth so it never reads as flat dead black. Per-scene --tp-sig
+   * tints the top glow so each act's floor feels distinct without a new layer. */
+  background:
+    radial-gradient(
+      ellipse 90% 60% at 50% 8%,
+      color-mix(in srgb, var(--tp-sig, var(--tp-sig-amber)) 12%, transparent) 0%,
+      transparent 58%
+    ),
+    radial-gradient(ellipse 120% 80% at 50% 108%, rgba(60, 66, 82, 0.14) 0%, transparent 60%),
+    linear-gradient(90deg, transparent 49.8%, var(--tp-rule) 50%, transparent 50.2%),
+    var(--tp-bg);
+}
+
+.drag-temporal .tp-scene--03,
+.drag-temporal .tp-scene--05 {
+  background:
+    radial-gradient(
+      ellipse 90% 60% at 50% 8%,
+      color-mix(in srgb, var(--tp-sig, var(--tp-sig-amber)) 14%, transparent) 0%,
+      transparent 58%
+    ),
+    radial-gradient(ellipse 120% 80% at 50% 108%, rgba(60, 66, 82, 0.16) 0%, transparent 60%),
+    linear-gradient(90deg, transparent 49.8%, var(--tp-rule) 50%, transparent 50.2%),
+    var(--tp-bg-elevated);
+}
+
+/* Per-scene signal-color aliases (调色台：每屏叙事偏重色，非独占).
+ * 因自定义属性继承，在屏级 wrapper 覆写 --tp-accent 家族即可让全部
+ * 硬编码 --tp-accent 的元素一次性吃到该屏主导色；再按 §2.4 语义叠加副色。 */
+.drag-temporal .tp-scene--01 {
+  --tp-sig: var(--tp-sig-amber);
+  --tp-sig-glow: var(--tp-sig-amber-glow);
+}
+.drag-temporal .tp-scene--02 {
+  --tp-sig: var(--tp-sig-teal);
+  --tp-sig-glow: var(--tp-sig-teal-glow);
+  --tp-accent: var(--tp-sig-teal);
+  --tp-accent-soft: #4a9aa0;
+  --tp-accent-dim: rgba(94, 200, 208, 0.16);
+  --tp-accent-glow: var(--tp-sig-teal-glow);
+}
+.drag-temporal .tp-scene--03 {
+  --tp-sig: var(--tp-sig-amber);
+  --tp-sig-glow: var(--tp-sig-amber-glow);
+}
+.drag-temporal .tp-scene--04 {
+  --tp-sig: var(--tp-sig-teal);
+  --tp-sig-glow: var(--tp-sig-teal-glow);
+  --tp-accent: var(--tp-sig-teal);
+  --tp-accent-soft: #4a9aa0;
+  --tp-accent-dim: rgba(94, 200, 208, 0.16);
+  --tp-accent-glow: var(--tp-sig-teal-glow);
+}
+.drag-temporal .tp-scene--05 {
+  --tp-sig: var(--tp-sig-rec);
+  --tp-sig-glow: var(--tp-sig-rec-glow);
+  --tp-accent: var(--tp-sig-rec);
+  --tp-accent-soft: #b8564a;
+  --tp-accent-dim: rgba(224, 87, 74, 0.16);
+  --tp-accent-glow: var(--tp-sig-rec-glow);
+}
+
+.drag-temporal .tp-scene__inner {
+  display: grid;
+  grid-template-rows: clamp(42px, 12.3cqw, 64px) minmax(0, 1fr) clamp(36px, 10.3cqw, 54px);
+  width: 100%;
+  height: 100%;
+}
+
+.drag-temporal .tp-hud,
+.drag-temporal .tp-footer {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding-inline: var(--tp-space-4);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.drag-temporal .tp-hud {
+  border-bottom: 1px solid var(--tp-rule);
+}
+
+.drag-temporal .tp-footer {
+  border-top: 1px solid var(--tp-rule);
+  color: var(--tp-ink-mute);
+}
+
+.drag-temporal .tp-hud__left,
+.drag-temporal .tp-hud__right,
+.drag-temporal .tp-rec {
+  display: flex;
+  align-items: center;
+}
+
+.drag-temporal .tp-hud__left {
+  gap: var(--tp-space-3);
+}
+
+.drag-temporal .tp-hud__right {
+  gap: var(--tp-space-4);
+  color: var(--tp-ink-mute);
+}
+
+.drag-temporal .tp-rec {
+  gap: var(--tp-space-2);
+  color: var(--tp-ink-mute);
+}
+
+.drag-temporal .tp-rec.is-recording {
+  color: var(--tp-rec);
+}
+
+.drag-temporal .tp-rec-dot {
+  display: block;
+  width: clamp(6px, 1.8cqw, 8px);
+  height: clamp(6px, 1.8cqw, 8px);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.drag-temporal .tp-rec.is-recording .tp-rec-dot {
+  box-shadow: 0 0 0 var(--tp-space-1) var(--tp-rec-glow);
+  animation: tp-rec-pulse 1.8s ease-in-out infinite;
+}
+
+.drag-temporal .tp-timecode {
+  display: inline-flex;
+  color: var(--tp-ink-soft);
+  font-family: var(--tp-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.drag-temporal .tp-timecode__characters {
+  display: inline-flex;
+}
+
+.drag-temporal .tp-timecode__characters > span {
+  display: inline-block;
+  min-width: 0.62em;
+  text-align: center;
+}
+
+.drag-temporal .tp-timecode__characters > span:nth-child(3n) {
+  min-width: 0.42em;
+  color: var(--tp-ink-mute);
+}
+
+.drag-temporal .tp-footer__hint {
+  overflow: hidden;
+  max-width: 62%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drag-temporal .tp-sprocket {
+  display: block;
+  width: clamp(3px, 1cqw, 5px);
+  height: clamp(5px, 1.6cqw, 8px);
+  border-radius: 1px;
+  background: var(--tp-ink-faint);
+}
+
+.drag-temporal .tp-sprocket--end {
+  background: var(--tp-accent-dim);
+  box-shadow: inset 0 0 0 1px var(--tp-accent-soft);
+}
+
+.drag-temporal .tp-placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--tp-space-3);
+  min-height: 0;
+  color: var(--tp-ink-mute);
+  text-align: center;
+}
+
+.drag-temporal .tp-placeholder > span {
+  color: var(--tp-ink);
+  font-family: var(--tp-font-display);
+  font-size: var(--tp-text-2xl);
+  font-weight: 600;
+  line-height: 0.9;
+}
+
+.drag-temporal .tp-placeholder > p {
+  margin: 0;
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.18em;
+}
+
+.lang-toggle.lang-toggle--drag {
+  top: clamp(58px, 15vw, 76px);
+  right: clamp(12px, 3vw, 22px);
+  min-width: 44px;
+  min-height: 44px;
+  color: #9a948a;
+  background: rgba(12, 10, 8, 0.78);
+  border-color: rgba(237, 232, 224, 0.1);
+}
+
+.drag-temporal .s01-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(var(--tp-space-4), 4.5cqw, var(--tp-space-6));
+  min-height: 0;
+  padding: clamp(var(--tp-space-5), 7cqw, var(--tp-space-7)) 0
+    clamp(var(--tp-space-6), 8cqw, var(--tp-space-8));
+  overflow: hidden;
+}
+
+.drag-temporal .s01-slate {
+  position: absolute;
+  top: var(--tp-space-3);
+  left: 50%;
+  margin: 0;
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.18em;
+  translate: -50% 0;
+}
+
+.drag-temporal .s01-dial {
+  position: relative;
+  /* Single size base for the whole dial. Both the tick ring AND the inner ring
+   * derive their radius from this one token, so they can never drift onto two
+   * different circles the way the old min(58cqw,300px) vs 45cqw/234px split did. */
+  --s01-dial-size: min(58cqw, 300px);
+  /* Radius the tick bars are seated on (center of the tick sits here). */
+  --s01-ring-radius: calc(var(--s01-dial-size) * 0.4);
+  width: var(--s01-dial-size);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+}
+
+.drag-temporal .s01-dial > .cineview-animate,
+.drag-temporal .s01-dial__ticks,
+.drag-temporal .s01-hands {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s01-dial > .cineview-animate {
+  display: grid;
+  place-items: center;
+}
+
+.drag-temporal .s01-dial__ticks {
+  border-radius: 50%;
+}
+
+/* Each clock segment is a framework <Animate> (its motion.div = .cineview-animate)
+ * that must FILL the dial so the 5 tick anchors inside land at dial center and the
+ * segment's enter scale (0.62 -> 1, around its own center = dial center) grows them
+ * outward onto the ring. Without inset:0 the wrapper would collapse and the polar
+ * translateY(-radius) would measure from the wrong origin. */
+.drag-temporal .s01-dial__ticks > .cineview-animate,
+.drag-temporal .s01-tick-segment {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+
+.drag-temporal .s01-tick {
+  /* Zero-size anchor parked at the dial center. cineview's <Animate stagger>
+   * writes an inline transform (scale/opacity entrance + drag breathing) onto
+   * THIS element, so we must NOT put positioning transforms here — they'd be
+   * overwritten (the earlier build did exactly that and every tick collapsed to
+   * center). Polar seating lives on the untouched children below. Scaling a
+   * zero-size point around its own origin (0 0 = dial center) can't shift the
+   * arm, it only scales the children — which is the intended tick "breathing". */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.drag-temporal .s01-tick__bar {
+  /* Radial seating: pivot at the dial center (transform-origin 0 0 = the tick
+   * anchor), rotate to the clock angle, then push OUT by exactly the ring radius.
+   * The bar's length runs down the local +Y (back toward center) so every tick
+   * points straight at the middle and its outer tip meets the ring. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 1px;
+  height: clamp(7px, 2.6cqw, 12px);
+  background: var(--tp-ink-faint);
+  transform-origin: 0 0;
+  transform: translateX(-50%) rotate(var(--tick-angle))
+    translateY(calc(-1 * var(--s01-ring-radius)));
+}
+
+.drag-temporal .s01-tick--major .s01-tick__bar {
+  height: clamp(12px, 4.2cqw, 20px);
+  background: var(--tp-ink-mute);
+}
+
+.drag-temporal .s01-tick__label {
+  /* Seated on a smaller radius (inside the tick ring), then un-rotated by its own
+   * angle so the digits stay upright, and finally self-centered on that point. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  transform: rotate(var(--tick-angle))
+    translateY(calc(-1 * (var(--s01-ring-radius) - clamp(18px, 6cqw, 30px))))
+    rotate(calc(-1 * var(--tick-angle)))
+    translate(-50%, -50%);
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.drag-temporal[data-drag-direction] .s01-tick {
+  scale: 0.96;
+  transition:
+    scale 0.14s var(--tp-ease-linear-out),
+    opacity 0.14s var(--tp-ease-linear-out);
+}
+
+.drag-temporal[data-drag-direction] .s01-tick__bar {
+  opacity: 0.56;
+  transition:
+    opacity 0.14s var(--tp-ease-linear-out),
+    background 0.14s var(--tp-ease-linear-out),
+    box-shadow 0.14s var(--tp-ease-linear-out);
+}
+
+.drag-temporal[data-drag-direction='forward'] .s01-tick.is-forward-sector,
+.drag-temporal[data-drag-direction='backward'] .s01-tick.is-backward-sector {
+  z-index: 2;
+  scale: 1.08;
+}
+
+.drag-temporal[data-drag-direction='forward'] .s01-tick.is-forward-sector .s01-tick__bar,
+.drag-temporal[data-drag-direction='backward'] .s01-tick.is-backward-sector .s01-tick__bar {
+  opacity: 1;
+  background: var(--tp-accent);
+  box-shadow: 0 0 7px var(--tp-accent-glow);
+}
+
+.drag-temporal[data-drag-direction='forward'] .s01-tick.is-backward-sector,
+.drag-temporal[data-drag-direction='backward'] .s01-tick.is-forward-sector {
+  scale: 0.92;
+}
+
+.drag-temporal[data-drag-direction='forward'] .s01-tick.is-backward-sector .s01-tick__bar,
+.drag-temporal[data-drag-direction='backward'] .s01-tick.is-forward-sector .s01-tick__bar {
+  opacity: 0.3;
+}
+
+.drag-temporal .s01-dial__ticks.is-calibrating {
+  animation: s01-ticks-calibrate 0.4s var(--tp-ease-in-out) both;
+}
+
+.drag-temporal .s01-inner-ring {
+  /* Diameter = 2 × the tick-seat radius, so the ring line passes exactly through
+   * where every tick bar meets it. Shares --s01-ring-radius with the ticks — the
+   * old 45cqw/234px base drifted onto a different circle than the ticks. */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--s01-ring-radius) * 2);
+  aspect-ratio: 1;
+  border: 1px solid var(--tp-rule-strong);
+  border-radius: 50%;
+  translate: -50% -50%;
+  box-shadow:
+    inset 0 0 0 clamp(8px, 2.5cqw, 14px) rgba(237, 232, 224, 0.012),
+    0 0 40px rgba(201, 161, 108, 0.05);
+}
+
+.drag-temporal .s01-center-number {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: var(--tp-ink);
+  font-family: var(--tp-font-display);
+  font-size: var(--tp-text-2xl);
+  font-weight: 600;
+  line-height: 0.82;
+  letter-spacing: -0.04em;
+  translate: -50% -50%;
+}
+
+.drag-temporal .s01-hands {
+  pointer-events: none;
+}
+
+.drag-temporal .s01-hands > .cineview-animate {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+}
+
+/* Pivot layer: fills the dial, centered, so a rotate written by framer-motion
+ * spins around the dial center. This carries the DRAG-driven offset only. The
+ * continuous running-hand spin lives on the bar inside (see below), so the two
+ * compose: drag lean + never-stopping tick. */
+.drag-temporal .s01-hand-pivot {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+.drag-temporal .s01-hand {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  display: block;
+  border-radius: var(--tp-radius-pill);
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+}
+
+/* Continuous rotation lives on the `rotate` property (independent axis from the
+ * bar's `transform: translateX`), so the hand is ALWAYS running even at rest.
+ * Second hand sweeps a full turn; minute hand crawls ~12× slower. */
+.drag-temporal .s01-hand--second {
+  width: 1px;
+  height: 22cqw;
+  max-height: 114px;
+  background: var(--tp-accent);
+  box-shadow: 0 0 8px var(--tp-accent-glow);
+  animation: s01-hand-run 8s linear infinite;
+}
+
+.drag-temporal .s01-hand--minute {
+  width: 2px;
+  height: 15cqw;
+  max-height: 78px;
+  background: var(--tp-ink-soft);
+  animation: s01-hand-run 96s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drag-temporal .s01-hand--second,
+  .drag-temporal .s01-hand--minute {
+    animation: none;
+  }
+}
+
+.drag-temporal .s01-hands__pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: clamp(7px, 2cqw, 11px);
+  aspect-ratio: 1;
+  border: 1px solid var(--tp-accent-soft);
+  border-radius: 50%;
+  background: var(--tp-bg);
+  box-shadow: 0 0 0 var(--tp-space-1) rgba(201, 161, 108, 0.08);
+  translate: -50% -50%;
+}
+
+.drag-temporal .s01-title-area {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: min(88cqw, 458px);
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.drag-temporal .s01-eyebrow,
+.drag-temporal .s01-title,
+.drag-temporal .s01-subtitle {
+  margin: 0;
+}
+
+.drag-temporal .s01-eyebrow {
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.22em;
+}
+
+.drag-temporal .s01-title {
+  margin-top: var(--tp-space-2);
+  color: var(--tp-ink);
+  font-family: var(--tp-font-display);
+  font-size: var(--tp-text-2xl);
+  font-weight: 600;
+  line-height: 0.94;
+  letter-spacing: -0.035em;
+}
+
+.drag-temporal .s01-subtitle {
+  max-width: 24ch;
+  margin-top: var(--tp-space-3);
+  color: var(--tp-ink-soft);
+  font-size: var(--tp-text-sm);
+  line-height: 1.5;
+}
+
+.drag-temporal .s01-actions-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(var(--tp-space-3), 3cqw, var(--tp-space-4));
+  flex: 0 0 auto;
+  width: min(88cqw, 458px);
+}
+
+.drag-temporal .s01-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(var(--tp-space-3), 3cqw, var(--tp-space-4));
+  flex-wrap: wrap;
+}
+
+.drag-temporal .s01-corner {
+  z-index: 4;
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.12em;
+  pointer-events: none;
+}
+
+.drag-temporal .s01-corner--tr,
+.drag-temporal .s01-corner--br {
+  right: var(--tp-space-5);
+  left: auto !important;
+  text-align: right;
+}
+
+.drag-temporal .s01-corner--tr {
+  top: clamp(112px, 29cqw, 142px) !important;
+}
+
+.drag-temporal .s01-corner--bl,
+.drag-temporal .s01-corner--br {
+  top: auto !important;
+  bottom: clamp(48px, 12cqw, 70px);
+}
+
+.drag-temporal .s01-corner__copy {
+  margin: 0;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+
+.drag-temporal .s01-corner__sprockets {
+  display: grid;
+  width: clamp(4px, 1.2cqw, 7px);
+  gap: var(--tp-space-3);
+}
+
+.drag-temporal .s01-corner--br .s01-corner__sprockets {
+  grid-template-columns: repeat(2, auto);
+}
+
+.drag-temporal .s02-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
+  padding: clamp(var(--tp-space-4), 5cqw, var(--tp-space-6)) var(--tp-space-4)
+    clamp(var(--tp-space-6), 8cqw, var(--tp-space-8));
+  overflow: hidden;
+}
+
+/* Slate scene 02: the clapperboard canvas fills the middle of the stage so the
+ * particle field has real pixels to converge within. The Animate wrapper is a
+ * flex child that grows; the canvas stretches to it. */
+.drag-temporal .s02-stage > [data-cineview-animate-id='s02-clapper'] {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: clamp(var(--tp-space-3), 4cqw, var(--tp-space-5));
+}
+
+.drag-temporal .s02-clapper {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s02-clapper-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.drag-temporal .s02-slate,
+.drag-temporal .s02-eyebrow,
+.drag-temporal .s02-title,
+.drag-temporal .s03-eyebrow,
+.drag-temporal .s03-title {
+  margin: 0;
+  text-align: center;
+}
+
+.drag-temporal .s02-slate {
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.18em;
+}
+
+.drag-temporal .s02-stage > [data-cineview-animate-id='s02-eyebrow'] {
+  margin-top: clamp(var(--tp-space-4), 5cqw, var(--tp-space-5));
+}
+
+.drag-temporal .s02-eyebrow {
+  color: var(--tp-accent);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.2em;
+}
+
+.drag-temporal .s02-stage > [data-cineview-animate-id='s02-title'] {
+  margin-top: var(--tp-space-2);
+}
+
+.drag-temporal .s02-title {
+  color: var(--tp-ink);
+  font-family: var(--tp-font-display);
+  font-size: var(--tp-text-xl);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+.drag-temporal .s02-stage > [data-cineview-animate-id='s03-eyebrow'] {
+  margin-top: clamp(var(--tp-space-4), 5cqw, var(--tp-space-5));
+}
+
+.drag-temporal .s03-eyebrow {
+  color: var(--tp-accent);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.2em;
+}
+
+.drag-temporal .s02-stage > [data-cineview-animate-id='s03-title'] {
+  margin-top: var(--tp-space-2);
+}
+
+.drag-temporal .s03-title {
+  max-width: min(92cqw, 460px);
+  margin-inline: auto;
+  color: var(--tp-ink);
+  font-family: var(--tp-font-display);
+  font-size: var(--tp-text-lg);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.drag-temporal .s03-timeline {
+  position: relative;
+  width: min(88cqw, 458px);
+  height: clamp(96px, 25cqw, 130px);
+  margin: auto auto;
+}
+
+.drag-temporal .s03-timeline > [data-cineview-animate-id='timeline-base'] {
+  position: absolute;
+  top: clamp(20px, 5.2cqw, 27px);
+  right: 0;
+  left: 0;
+  transform-origin: left center;
+}
+
+.drag-temporal .s03-timeline__base {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--tp-accent-soft) 12%,
+    var(--tp-accent-soft) 88%,
+    transparent
+  );
+  box-shadow: 0 0 12px var(--tp-accent-glow);
+}
+
+.drag-temporal .s03-timeline__nodes {
+  position: absolute;
+  inset: 0;
+}
+
+/* Inset distribution (v3 §6.2C): nodes at 6/28/50/72/94% instead of 0/25/50/75/100%
+ * so the end node (CTA) circle + label no longer overflow the viewport edge. */
+.drag-temporal .s03-timeline__slot {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 100%;
+}
+
+.drag-temporal .s03-timeline__slot:nth-child(1) {
+  left: 6%;
+}
+
+.drag-temporal .s03-timeline__slot:nth-child(2) {
+  left: 28%;
+}
+
+.drag-temporal .s03-timeline__slot:nth-child(3) {
+  left: 50%;
+}
+
+.drag-temporal .s03-timeline__slot:nth-child(4) {
+  left: 72%;
+}
+
+.drag-temporal .s03-timeline__slot:nth-child(5) {
+  left: 94%;
+}
+
+.drag-temporal .s03-timeline__slot > [data-cineview-animate-id^='node-'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  translate: -50% 0;
+}
+
+.drag-temporal .s03-node {
+  display: grid;
+  justify-items: center;
+  gap: var(--tp-space-2);
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  transition: color 0.28s var(--tp-ease-out);
+}
+
+.drag-temporal .s03-node__glyph {
+  display: grid;
+  place-items: center;
+  width: clamp(36px, 10.3cqw, 54px);
+  aspect-ratio: 1;
+  border: 1px solid var(--tp-rule-strong);
+  border-radius: 50%;
+  background: var(--tp-bg-elevated);
+  font-size: var(--tp-text-sm);
+  box-shadow: 0 0 0 0 var(--tp-accent-glow);
+  transition:
+    color 0.28s var(--tp-ease-out),
+    border-color 0.28s var(--tp-ease-out),
+    background 0.28s var(--tp-ease-out),
+    box-shadow 0.28s var(--tp-ease-out);
+}
+
+.drag-temporal .s03-node__label {
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.12em;
+}
+
+/* Entered node: amber baseline (编排就位, v3 §6.99). */
+.drag-temporal .s03-node.is-active {
+  color: var(--tp-accent);
+}
+
+.drag-temporal .s03-node.is-active .s03-node__glyph {
+  border-color: var(--tp-accent-soft);
+  background: var(--tp-accent-dim);
+  box-shadow: 0 0 18px var(--tp-accent-glow);
+}
+
+/* Current cue: magenta 点睛 on the single node matching the panel (v3 §6.99). */
+.drag-temporal .s03-node.is-current {
+  color: var(--tp-sig-teal);
+}
+
+.drag-temporal .s03-node.is-current .s03-node__glyph {
+  border-color: var(--tp-sig-teal);
+  background: rgba(200, 111, 212, 0.16);
+  box-shadow: 0 0 22px var(--tp-sig-teal-glow);
+}
+
+.drag-temporal .s03-timeline__slot > [data-cineview-animate-id^='s03-light-'] {
+  position: absolute;
+  top: clamp(18px, 4.6cqw, 24px);
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  pointer-events: none;
+}
+
+.drag-temporal .s03-light {
+  display: block;
+  width: clamp(5px, 1.5cqw, 7px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--tp-accent);
+  box-shadow: 0 0 8px 2px var(--tp-accent-glow);
+}
+
+.drag-temporal .s02-stage > [data-cineview-animate-id='s03-panel'] {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+}
+
+.drag-temporal .s03-panel {
+  width: min(88cqw, 380px);
+  margin: 0 auto;
+  padding: var(--tp-space-4);
+  border: 1px solid var(--tp-border-glass);
+  border-radius: var(--tp-radius);
+  color: var(--tp-ink-soft);
+  background: var(--tp-bg-glass);
+  box-shadow: var(--tp-shadow-subtle);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+.drag-temporal .s03-panel__heading,
+.drag-temporal .s03-panel__params > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drag-temporal .s03-panel__heading {
+  padding-bottom: var(--tp-space-3);
+  border-bottom: 1px solid var(--tp-rule);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.14em;
+}
+
+.drag-temporal .s03-panel__heading strong {
+  color: var(--tp-accent);
+  font-weight: 500;
+}
+
+.drag-temporal .s03-panel__params {
+  display: grid;
+  gap: var(--tp-space-1);
+  margin: var(--tp-space-3) 0;
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  line-height: 1.8;
+}
+
+.drag-temporal .s03-panel__params dt,
+.drag-temporal .s03-panel__params dd {
+  margin: 0;
+}
+
+.drag-temporal .s03-panel__params dt {
+  color: var(--tp-ink-mute);
+}
+
+.drag-temporal .s03-panel__delay {
+  color: var(--tp-sig-teal);
+}
+
+.drag-temporal .s03-panel__progress {
+  height: 2px;
+  overflow: hidden;
+  background: var(--tp-rule);
+}
+
+.drag-temporal .s03-panel__progress > span {
+  display: block;
+  height: 100%;
+  background: var(--tp-accent);
+  transform-origin: left center;
+  transition: width 0.38s var(--tp-ease-out);
+}
+
+/* Scene 03 — time flux. Background streams are compositor-only CSS loops;
+ * the foreground ring and marker consume CineView-owned MotionValues. */
+.drag-temporal .s03-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.drag-temporal .s03-slate {
+  position: absolute;
+  top: var(--tp-space-4);
+  left: var(--tp-space-4);
+  z-index: 3;
+  margin: 0;
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.18em;
+}
+
+.drag-temporal .s03-streams {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.drag-temporal .s03-stream {
+  position: absolute;
+  top: -10%;
+  display: grid;
+  gap: var(--tp-space-3);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.drag-temporal .s03-stream--left {
+  left: 6%;
+  color: rgba(237, 232, 224, 0.04);
+  animation: s03-stream-up 24s linear infinite;
+}
+
+.drag-temporal .s03-stream--center {
+  left: 50%;
+  color: rgba(237, 232, 224, 0.055);
+  translate: -50% 0;
+  animation: s03-stream-up 14s linear infinite;
+}
+
+.drag-temporal .s03-stream--right {
+  right: 6%;
+  color: rgba(237, 232, 224, 0.07);
+  animation: s03-stream-up 8s linear infinite;
+}
+
+.drag-temporal .s03-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  width: min(92cqw, 478px);
+  translate: -50% -52%;
+}
+
+.drag-temporal .s03-label,
+.drag-temporal .s03-equation {
+  margin: 0;
+  font-family: var(--tp-font-mono);
+  text-align: center;
+}
+
+.drag-temporal .s03-label {
+  color: var(--tp-ink-mute);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.22em;
+}
+
+.drag-temporal .s03-clock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(78cqw, 406px);
+  aspect-ratio: 1;
+  margin-block: var(--tp-space-4);
+  /* Give the main-timecode flip-out exit (rotateX) real depth instead of a flat
+   * squash. Enter uses the flip preset's rotateY; both now read as 3D. */
+  perspective: 900px;
+}
+
+.drag-temporal .s03-clock > .cineview-animate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.drag-temporal .s03-ring {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+.drag-temporal .s03-ring__track,
+.drag-temporal .s03-ring__progress {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.drag-temporal .s03-ring__track {
+  stroke: var(--tp-rule-strong);
+}
+
+.drag-temporal .s03-ring__progress {
+  stroke: var(--tp-accent);
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px var(--tp-accent-glow));
+}
+
+.drag-temporal .s03-main-timecode {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  color: var(--tp-accent);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(30px, 10.8cqw, 58px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  text-shadow: 0 0 24px var(--tp-accent-glow);
+  white-space: nowrap;
+}
+
+.drag-temporal .s03-main-timecode > span {
+  display: inline-block;
+  min-width: 0.58em;
+  text-align: center;
+}
+
+.drag-temporal .s03-main-timecode > span:nth-child(3n) {
+  min-width: 0.34em;
+  color: var(--tp-accent-soft);
+}
+
+.drag-temporal .s03-equation {
+  display: grid;
+  gap: var(--tp-space-2);
+  color: var(--tp-ink-mute);
+  font-size: var(--tp-text-2xs);
+  letter-spacing: 0.16em;
+}
+
+.drag-temporal .s03-equation strong {
+  color: var(--tp-ink-soft);
+  font-size: var(--tp-text-xs);
+  font-weight: 500;
+}
+
+.drag-temporal .s03-tickbar {
+  position: absolute;
+  right: var(--tp-space-5);
+  bottom: var(--tp-space-5);
+  left: var(--tp-space-5);
+  z-index: 4;
+  height: clamp(18px, 5cqw, 28px);
+}
+
+.drag-temporal .s03-tickbar > [data-cineview-animate-id='s03-ticks'],
+.drag-temporal .s03-tickbar__ticks {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s03-tickbar__ticks {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.drag-temporal .s03-tickbar__ticks > span {
+  display: block;
+  width: 1px;
+  height: clamp(7px, 2cqw, 10px);
+  background: var(--tp-rule-strong);
+  transform-origin: center bottom;
+}
+
+.drag-temporal .s03-tickbar__ticks > span.is-major {
+  height: clamp(11px, 3cqw, 15px);
+  background: var(--tp-ink-mute);
+}
+
+.drag-temporal .s03-tickbar__marker {
+  position: absolute;
+  bottom: 0;
+  display: block;
+  width: 2px;
+  height: clamp(14px, 3.8cqw, 20px);
+  border-radius: var(--tp-radius-pill);
+  background: var(--tp-accent);
+  box-shadow: 0 0 10px var(--tp-accent-glow);
+  translate: -50% 0;
+}
+
+/* Scene 04 — final cut */
+.drag-temporal .s04-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.drag-temporal .s04-slate {
+  position: absolute;
+  top: var(--tp-space-4);
+  left: var(--tp-space-4);
+  margin: 0;
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.16em;
+}
+
+.drag-temporal .s04-center {
+  position: absolute;
+  top: 54%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  width: min(90cqw, 468px);
+  text-align: center;
+  translate: -50% -50%;
+}
+
+.drag-temporal .s04-cut-title,
+.drag-temporal .s04-the-end {
+  margin: 0;
+}
+
+.drag-temporal .s04-cut-title {
+  color: var(--tp-ink);
+  font-family: var(--tp-font-display);
+  font-size: clamp(64px, 22cqw, 118px);
+  font-weight: 600;
+  line-height: 0.84;
+  letter-spacing: -0.055em;
+}
+
+.drag-temporal .s04-accent-line {
+  display: block;
+  width: 12cqw;
+  min-width: 46px;
+  max-width: 64px;
+  height: 1px;
+  margin-top: var(--tp-space-5);
+  background: var(--tp-accent);
+  box-shadow: 0 0 12px var(--tp-accent-glow);
+  transform-origin: center;
+}
+
+.drag-temporal .s04-the-end {
+  margin-top: var(--tp-space-4);
+  color: var(--tp-ink-soft);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.34em;
+}
+
+.drag-temporal .s04-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tp-space-3);
+  margin-top: clamp(var(--tp-space-6), 9cqw, var(--tp-space-8));
+}
+
+.drag-temporal .tp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: clamp(112px, 31cqw, 150px);
+  min-height: 44px;
+  padding: var(--tp-space-3) var(--tp-space-5);
+  border-radius: var(--tp-radius-pill);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition:
+    color 0.3s var(--tp-ease-out),
+    border-color 0.3s var(--tp-ease-out),
+    background 0.3s var(--tp-ease-out),
+    transform 0.3s var(--tp-ease-out);
+}
+
+.drag-temporal .tp-btn:hover,
+.drag-temporal .tp-btn:focus-visible {
+  transform: translateY(-2px);
+}
+
+.drag-temporal .tp-btn--ghost {
+  border: 1px solid var(--tp-rule-strong);
+  color: var(--tp-ink-soft);
+  background: transparent;
+}
+
+.drag-temporal .tp-btn--ghost:hover,
+.drag-temporal .tp-btn--ghost:focus-visible {
+  border-color: var(--tp-accent);
+  color: var(--tp-accent);
+}
+
+.drag-temporal .tp-btn--primary {
+  border: 1px solid var(--tp-accent);
+  color: var(--tp-bg);
+  background: var(--tp-accent);
+}
+
+.drag-temporal .tp-btn--primary:hover,
+.drag-temporal .tp-btn--primary:focus-visible {
+  border-color: var(--tp-accent-soft);
+  background: var(--tp-accent-soft);
+}
+
+.drag-temporal .s04-stage > [data-cineview-animate-id='s04-sprocket-strip'] {
+  position: absolute;
+  right: var(--tp-space-4);
+  bottom: var(--tp-space-5);
+  left: var(--tp-space-4);
+}
+
+.drag-temporal .s04-sprocket-strip {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: center;
+  gap: var(--tp-space-2);
+}
+
+.drag-temporal .s04-sprocket {
+  display: grid;
+  place-items: center;
+  height: clamp(8px, 2.3cqw, 12px);
+  border-radius: 2px;
+  color: transparent;
+  background: var(--tp-ink-faint);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(5px, 1.3cqw, 7px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.drag-temporal .s04-sprocket.is-end {
+  color: var(--tp-accent);
+  background: var(--tp-accent-dim);
+  box-shadow: inset 0 0 0 1px var(--tp-accent-soft);
+}
+
+/* Continuous running hand. Rotates the `rotate` property (not `transform`, which
+ * the bar uses for its translateX centering) a full turn around the dial center. */
+@keyframes s01-hand-run {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes s01-ticks-calibrate {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  25%,
+  65% {
+    opacity: 0.3;
+  }
+  45%,
+  82% {
+    opacity: 1;
+  }
+}
+
+@keyframes s03-stream-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes tp-rec-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@media (max-width: 430px) {
+  .drag-temporal .tp-hud,
+  .drag-temporal .tp-footer {
+    padding-inline: var(--tp-space-3);
+    letter-spacing: 0.04em;
+  }
+
+  .drag-temporal .tp-hud__left {
+    gap: var(--tp-space-2);
+  }
+
+  .drag-temporal .tp-hud__right {
+    gap: var(--tp-space-2);
+    font-size: clamp(7px, 1.8cqw, 8px);
+    letter-spacing: 0.02em;
+  }
+
+  .drag-temporal .s03-stream--center {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drag-temporal,
+  .drag-temporal *,
+  .drag-temporal *::before,
+  .drag-temporal *::after {
+    animation: none !important;
+    transition-delay: 0s !important;
+    transition-duration: 0.08s !important;
+  }
+}
+
+/* ── Texture layer (v3 §3): film grain + scanlines + vignette. Sits above the
+ * CineView scenes as a pointer-events:none overlay inside .drag-temporal.
+ * Strength = "明显" (grain 0.11, deeper vignette, stronger scanline). */
+/* ── Ambient light layer (2026 rework). Sits ABOVE the opaque scenes but below
+ * the grain texture, mix-blend-mode:screen so it only ADDS light — dark pixels
+ * contribute nothing (center type stays crisp) while empty voids fill with a
+ * drifting key light, a slow projector-ray sweep, and floating dust. Tint rides
+ * the inherited --tp-sig from the active scene wrapper. Pure decoration. */
+.drag-temporal .tp-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  overflow: hidden;
+  /* Fallback tint if --tp-sig hasn't cascaded (e.g. root); amber resting pole. */
+  --tp-ambient-sig: var(--tp-sig, var(--tp-sig-amber));
+}
+
+/* Key light: a large soft off-center cone breathing in intensity, the dominant
+ * source. Positioned upper-left so it rakes across the frame like a lamp. */
+.drag-temporal .tp-ambient__key {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(
+    ellipse 60% 55% at 32% 22%,
+    color-mix(in srgb, var(--tp-ambient-sig) 55%, transparent) 0%,
+    color-mix(in srgb, var(--tp-ambient-sig) 20%, transparent) 32%,
+    transparent 62%
+  );
+  animation: tp-ambient-breathe 11s var(--tp-ease-in-out) infinite;
+}
+
+/* Fill light: a cooler, dimmer counter-source lower-right so the frame isn't lit
+ * from one side only. Breathes out of phase with the key. */
+.drag-temporal .tp-ambient__fill {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(
+    ellipse 55% 50% at 74% 82%,
+    color-mix(in srgb, var(--tp-sig-warm) 22%, transparent) 0%,
+    color-mix(in srgb, var(--tp-sig-warm) 8%, transparent) 34%,
+    transparent 60%
+  );
+  animation: tp-ambient-breathe 14s var(--tp-ease-in-out) infinite reverse;
+}
+
+/* Projector rays: two thin volumetric beams sweeping slowly across the frame,
+ * evoking light through a dusty projector booth. */
+.drag-temporal .tp-ambient__ray {
+  position: absolute;
+  top: -30%;
+  left: 8%;
+  width: 42%;
+  height: 160%;
+  background: linear-gradient(
+    102deg,
+    transparent 42%,
+    color-mix(in srgb, var(--tp-ambient-sig) 16%, transparent) 49%,
+    color-mix(in srgb, var(--tp-sig-warm) 22%, transparent) 50%,
+    color-mix(in srgb, var(--tp-ambient-sig) 16%, transparent) 51%,
+    transparent 58%
+  );
+  filter: blur(6px);
+  transform-origin: top center;
+  animation: tp-ambient-ray 18s var(--tp-ease-in-out) infinite;
+}
+
+.drag-temporal .tp-ambient__ray--2 {
+  left: 52%;
+  width: 34%;
+  opacity: 0.7;
+  animation: tp-ambient-ray-2 23s var(--tp-ease-in-out) infinite;
+}
+
+.drag-temporal .tp-ambient__dust {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes tp-ambient-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08) translate(2%, -2%);
+  }
+}
+
+@keyframes tp-ambient-ray {
+  0%,
+  100% {
+    transform: rotate(-8deg) translateX(-6%);
+    opacity: 0.4;
+  }
+  50% {
+    transform: rotate(6deg) translateX(8%);
+    opacity: 0.75;
+  }
+}
+
+@keyframes tp-ambient-ray-2 {
+  0%,
+  100% {
+    transform: rotate(7deg) translateX(6%);
+    opacity: 0.28;
+  }
+  50% {
+    transform: rotate(-5deg) translateX(-8%);
+    opacity: 0.55;
+  }
+}
+
+.drag-temporal .tp-texture {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.drag-temporal .tp-texture__grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.11;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: tp-grain 0.5s steps(4) infinite;
+}
+
+.drag-temporal .tp-texture__scanline {
+  position: absolute;
+  inset: 0;
+  /* Softened (2026 N1): 0.7 stacked with the grain read as a muddy CRT haze over
+   * the whole frame; 0.4 keeps the scanline texture without dulling content. */
+  opacity: 0.4;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px);
+}
+
+.drag-temporal .tp-texture__vignette {
+  position: absolute;
+  inset: 0;
+  /* Softened (2026 N1): the old rgba(0,0,0,0.72) terminal stop, sitting at z:50
+   * over chrome at z:10, crushed the corner/footer labels to near-black. Pushed
+   * the transparent core out to 58% and the edge stop down to 0.46 so the frame
+   * still reads cinematic but the corners stay legible. */
+  background: radial-gradient(
+    ellipse 120% 92% at 50% 42%,
+    transparent 58%,
+    rgba(0, 0, 0, 0.46) 100%
+  );
+}
+
+@keyframes tp-grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-3%, 1%);
+  }
+  50% {
+    transform: translate(2%, -2%);
+  }
+  75% {
+    transform: translate(-1%, 2%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.drag-temporal .s03-context {
+  margin: var(--tp-space-2) auto 0;
+  max-width: 30ch;
+  color: var(--tp-ink-soft);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-sm);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* Scene 05 empty-film-leader strip (v3 §8): countdown frames filling the upper
+ * void above CUT, dim so it reads as reel leader, not primary content. */
+.drag-temporal .s04-leader {
+  position: absolute;
+  top: clamp(48px, 14cqw, 90px);
+  left: 50%;
+  display: flex;
+  gap: var(--tp-space-3);
+  translate: -50% 0;
+  opacity: 0.4;
+}
+
+.drag-temporal .s04-leader__frame {
+  display: grid;
+  place-items: center;
+  width: clamp(18px, 5cqw, 26px);
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--tp-rule-strong);
+  border-radius: 2px;
+  color: var(--tp-ink-mute);
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-2xs);
+}

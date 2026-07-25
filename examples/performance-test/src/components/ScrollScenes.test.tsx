@@ -32,7 +32,28 @@ describe('renderScrollScenes', () => {
     const animate = findAnimateById(ordinaryBlock, 'ordinary-document-visibility');
     expect(animate?.props.exitAnimation).toBe('fade-out');
     expect(animate?.props.infiniteAnimation).toBe('pulse');
-    expect(animate?.props.timeline).toEqual({ driver: 'visibility' });
+    expect(animate?.props.timeline).toEqual({ sceneControlled: false });
+  });
+
+  it('keeps browser acceptance fixtures for nested scroll and dynamic layout mutation', () => {
+    const scenes = renderScrollScenes(PERFORMANCE_EXPERIENCE.sections);
+    const ordinaryBlock = scenes[scenes.length - 1];
+    const fixtures = findElementsByTypeName(ordinaryBlock, 'AcceptanceFixtures')[0];
+
+    expect(fixtures).toBeDefined();
+    expect(typeof fixtures?.type).toBe('function');
+
+    const renderFixtures = fixtures?.type as (() => JSX.Element) | undefined;
+    const renderedFixtures = renderFixtures?.();
+
+    expect(
+      findElementByTestId(renderedFixtures, 'nested-scroll-fixture')?.props.style
+    ).toMatchObject({
+      overflowY: 'auto',
+      overscrollBehavior: 'contain',
+    });
+    expect(findElementByTestId(renderedFixtures, 'dynamic-layout-fixture')?.type).toBe('details');
+    expect(findElementByTestId(renderedFixtures, 'dynamic-layout-toggle')?.type).toBe('summary');
   });
 
   it('configures ordinary visibility scenes with visible infinite motion on media or metrics', () => {
@@ -47,7 +68,7 @@ describe('renderScrollScenes', () => {
 
       expect(findAnimateById(authoredScene, expectation.animateId)?.props).toMatchObject({
         infiniteAnimation: expectation.infiniteAnimation,
-        timeline: { driver: 'visibility' },
+        timeline: { sceneControlled: false },
       });
     }
   });
@@ -70,7 +91,9 @@ describe('renderScrollScenes', () => {
       expect(animateIds.filter((animateId) => animateId.endsWith('-pre-anchor'))).toEqual([]);
 
       for (const replayLayer of expectation.replayLayers) {
-        expect(findAnimateById(authoredTakeover, replayLayer.takeoverAnimateId)?.props.timeline).toEqual({
+        expect(
+          findAnimateById(authoredTakeover, replayLayer.takeoverAnimateId)?.props.timeline
+        ).toEqual({
           phase: replayLayer.phase,
         });
       }
@@ -140,7 +163,9 @@ describe('renderScrollScenes', () => {
       for (const takeoverAnimateId of expectation.replayLayers.map(
         (replayLayer) => replayLayer.takeoverAnimateId
       )) {
-        expect(findAnimateById(authoredTakeover, takeoverAnimateId)?.props.timeline.phase.start).toBe(0);
+        expect(
+          findAnimateById(authoredTakeover, takeoverAnimateId)?.props.timeline.phase.start
+        ).toBe(0);
       }
     }
   });
@@ -291,14 +316,18 @@ function renderAuthoredTakeoverScene(
   sectionId: string,
   componentName: string
 ): JSX.Element {
-  const sectionIndex = PERFORMANCE_EXPERIENCE.sections.findIndex((section) => section.id === sectionId);
+  const sectionIndex = PERFORMANCE_EXPERIENCE.sections.findIndex(
+    (section) => section.id === sectionId
+  );
   const scene = scenes[sectionIndex];
   const authoredScene = findElementsByTypeName(scene, componentName)[0];
 
   expect(authoredScene).toBeDefined();
   expect(typeof authoredScene?.type).toBe('function');
 
-  const render = authoredScene?.type as ((props: Record<string, unknown>) => JSX.Element) | undefined;
+  const render = authoredScene?.type as
+    | ((props: Record<string, unknown>) => JSX.Element)
+    | undefined;
 
   expect(render).toBeDefined();
 
@@ -306,7 +335,9 @@ function renderAuthoredTakeoverScene(
 }
 
 function findAnimateById(node: unknown, animateId: string) {
-  return findElementsByAnimateId(node).find((animate) => animate.props.animateId === animateId) ?? null;
+  return (
+    findElementsByAnimateId(node).find((animate) => animate.props.animateId === animateId) ?? null
+  );
 }
 
 function findElementsByAnimateId(node: unknown) {
@@ -315,6 +346,10 @@ function findElementsByAnimateId(node: unknown) {
 
 function findElementsByTypeName(node: unknown, typeName: string) {
   return collectElements(node, (element) => getElementTypeName(element) === typeName);
+}
+
+function findElementByTestId(node: unknown, testId: string) {
+  return collectElements(node, (element) => element.props['data-testid'] === testId)[0] ?? null;
 }
 
 function collectElements(

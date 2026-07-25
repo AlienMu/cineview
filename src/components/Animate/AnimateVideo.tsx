@@ -7,7 +7,7 @@
  * (initial===animate,建立时间轴但不叠加淡入/位移——scrub 本身即动画)。静音、内联、无控件。
  */
 import { Animate } from './Animate';
-import type { AnimateRenderState } from '../../types';
+import { useAnimateTimeline } from './animateTimeline';
 import type { CSSProperties } from 'react';
 import { VideoFrameRenderer } from '../../media/VideoFrameRenderer';
 
@@ -29,6 +29,8 @@ export interface AnimateVideoProps {
   width?: number | string;
   height?: number | string;
   style?: CSSProperties;
+  /** 是否由组件自行预加载整段视频。后场景可设为 false，并由 Scene.assets 后台队列接管。 */
+  preload?: boolean;
   /** 组件唯一标识(zone 内排序 / waitFor 目标)。 */
   animateId?: string;
   /** scrub 跨度控制:enterProgress 0→1 映射到视频 0→duration.enter 段。 */
@@ -48,12 +50,41 @@ export interface AnimateVideoProps {
   };
 }
 
+type AnimateVideoContentProps = Pick<
+  AnimateVideoProps,
+  'src' | 'aria-label' | 'width' | 'height' | 'style' | 'preload'
+>;
+
+function AnimateVideoContent({
+  src,
+  'aria-label': ariaLabel,
+  width,
+  height,
+  style,
+  preload,
+}: AnimateVideoContentProps): JSX.Element {
+  const timeline = useAnimateTimeline();
+
+  return (
+    <VideoFrameRenderer
+      src={src}
+      progress={timeline.progress}
+      aria-label={ariaLabel}
+      width={width}
+      height={height}
+      style={style}
+      preload={preload}
+    />
+  );
+}
+
 export function AnimateVideo({
   src,
   'aria-label': ariaLabel,
   width,
   height,
   style,
+  preload,
   animateId,
   duration,
   timeline,
@@ -67,16 +98,14 @@ export function AnimateVideo({
       timeline={timeline}
       visibility={visibility}
     >
-      {({ enterProgress }: AnimateRenderState) => (
-        <VideoFrameRenderer
-          src={src}
-          progress={enterProgress}
-          aria-label={ariaLabel}
-          width={width}
-          height={height}
-          style={style}
-        />
-      )}
+      <AnimateVideoContent
+        src={src}
+        aria-label={ariaLabel}
+        width={width}
+        height={height}
+        style={style}
+        preload={preload}
+      />
     </Animate>
   );
 }

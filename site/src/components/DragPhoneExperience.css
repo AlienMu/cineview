@@ -1,0 +1,257 @@
+.drag-phone__viewport {
+  --drag-accent: var(--accent-ink);
+  --drag-rule: color-mix(in srgb, var(--ink) 16%, transparent);
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  container-type: inline-size;
+  color: var(--ink);
+  background: transparent;
+  isolation: isolate;
+}
+
+.drag-phone__viewport > .cineview-responsive-container {
+  width: 100%;
+  height: 100%;
+}
+
+.drag-phone__viewport .cineview-container {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  background: transparent !important;
+}
+
+.drag-phone__scene {
+  background:
+    linear-gradient(90deg, transparent 0 49.8%, var(--drag-rule) 50%, transparent 50.2%),
+    linear-gradient(180deg, transparent 0 49.8%, var(--drag-rule) 50%, transparent 50.2%);
+  background-size:
+    100% 100%,
+    100% 100%;
+}
+
+.drag-phone__scene-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: clamp(26px, 7cqw, 76px) clamp(22px, 7cqw, 86px) clamp(22px, 6cqw, 64px);
+}
+
+.drag-phone__header,
+.drag-phone__footer,
+.drag-phone__rec,
+.drag-phone__shot,
+.drag-phone__footer-note {
+  display: flex;
+  align-items: center;
+}
+
+.drag-phone__header,
+.drag-phone__footer {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.drag-phone__viewport:not(.drag-phone__viewport--embedded) .drag-phone__shot {
+  margin-right: 78px;
+}
+
+.drag-phone__rec,
+.drag-phone__shot,
+.drag-phone__footer-note,
+.drag-phone__eyebrow,
+.drag-phone__target-mark {
+  font-size: clamp(10px, 2.5cqw, 14px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.drag-phone__rec {
+  gap: 8px;
+  color: var(--rec);
+}
+
+.drag-phone__rec i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 14%, transparent);
+  animation: drag-rec-pulse 1.8s ease-in-out infinite;
+}
+
+.drag-phone__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  text-align: center;
+}
+
+.drag-phone__eyebrow {
+  margin-bottom: clamp(18px, 5cqw, 42px);
+}
+
+.drag-phone__title {
+  max-width: 100%;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(54px, 18cqw, 148px);
+  font-weight: 600;
+  line-height: 0.94;
+  letter-spacing: -0.045em;
+}
+
+.drag-phone__sub {
+  max-width: 18em;
+  margin: clamp(18px, 5cqw, 42px) auto 0;
+  color: var(--ink-soft);
+  font-size: clamp(14px, 4cqw, 26px);
+  line-height: 1.45;
+}
+
+.drag-phone__frame-rule {
+  width: min(62%, 300px);
+  height: 1px;
+  margin: clamp(24px, 7cqw, 64px) auto clamp(18px, 4cqw, 34px);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.74;
+}
+
+.drag-phone__hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--accent-ink);
+  font-size: clamp(12px, 3.2cqw, 18px);
+}
+
+.drag-phone__hint-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.3em;
+  height: 2.3em;
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  letter-spacing: 0.04em;
+}
+
+.drag-phone__tracks {
+  display: grid;
+  gap: 8px;
+  width: min(62%, 300px);
+}
+
+.drag-phone__track-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.drag-phone__track-label {
+  width: 62px;
+  color: var(--ink-mute);
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  text-align: right;
+}
+
+.drag-phone__track-line {
+  position: relative;
+  display: block;
+  height: 2px;
+  overflow: visible;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.drag-phone__track-fill {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: left center;
+  background: var(--accent);
+}
+
+.drag-phone__track-marker {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--film-white);
+  border-radius: 50%;
+  background: var(--accent-ink);
+  box-shadow: 0 0 0 1px var(--accent-ink);
+  transform: translate(-50%, -50%);
+}
+
+.drag-phone__track-line--element {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.drag-phone__footer-note {
+  gap: 8px;
+  color: var(--ink-mute);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.drag-phone__scene--target {
+  background: var(--film-white-2);
+}
+
+.drag-phone__target-inner {
+  display: grid;
+  place-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 18px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.drag-phone__target-inner p {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 8cqw, 72px);
+}
+
+.drag-phone__viewport--embedded {
+  height: 100%;
+  min-height: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.drag-phone__viewport--embedded .drag-phone__scene-inner {
+  padding: clamp(18px, 6cqw, 54px) clamp(16px, 6cqw, 58px) clamp(18px, 5cqw, 46px);
+}
+
+@keyframes drag-rec-pulse {
+  0%,
+  100% {
+    opacity: 0.56;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drag-phone__rec i {
+    animation: none;
+  }
+}

@@ -59,7 +59,7 @@ function renderOrdinaryDocumentInterlude(): JSX.Element {
         exitAnimation="fade-out"
         infiniteAnimation="pulse"
         duration={{ enter: 640, exit: 240 }}
-        timeline={{ driver: 'visibility' }}
+        timeline={{ sceneControlled: false }}
       >
         <div style={{ maxWidth: 760 }}>
           <div
@@ -109,7 +109,80 @@ function renderOrdinaryDocumentInterlude(): JSX.Element {
           motion language the earlier chapters used under Scene.scroll.
         </p>
       </div>
+      <AcceptanceFixtures />
     </article>
+  );
+}
+
+function AcceptanceFixtures(): JSX.Element {
+  return (
+    <section
+      data-testid="scroll-acceptance-fixtures"
+      style={{
+        marginTop: 72,
+        maxWidth: 920,
+        display: 'grid',
+        gap: 24,
+      }}
+    >
+      <div>
+        <h3 style={{ margin: '0 0 12px', fontSize: 20 }}>Nested scroll ownership fixture</h3>
+        <div
+          data-testid="nested-scroll-fixture"
+          tabIndex={0}
+          style={{
+            maxHeight: 180,
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            border: '1px solid rgba(23,32,51,0.18)',
+            padding: 20,
+            background: '#FFFFFF',
+            color: '#45546E',
+            fontSize: 15,
+            lineHeight: 1.7,
+          }}
+        >
+          {[
+            'The inner panel should consume wheel/touch deltas while it can still scroll.',
+            'CineView should receive ownership only when this panel reaches its boundary.',
+            'This fixture exists so browser acceptance can verify nested scrolling directly.',
+            'Line four adds enough overflow to make scrollHeight larger than clientHeight.',
+            'Line five gives the test a stable lower boundary.',
+            'Line six keeps repeated wheel input deterministic.',
+            'Line seven should be reachable without advancing the document first.',
+            'Line eight marks the end of the nested scrollable content.',
+          ].map((line) => (
+            <p key={line} style={{ margin: '0 0 14px' }}>
+              {line}
+            </p>
+          ))}
+        </div>
+      </div>
+      <details
+        data-testid="dynamic-layout-fixture"
+        style={{
+          border: '1px solid rgba(23,32,51,0.18)',
+          padding: 20,
+          background: '#FFFFFF',
+        }}
+      >
+        <summary data-testid="dynamic-layout-toggle" style={{ cursor: 'pointer', fontWeight: 700 }}>
+          Dynamic layout mutation fixture
+        </summary>
+        <div
+          data-testid="dynamic-layout-expanded-content"
+          style={{ marginTop: 18, color: '#45546E', fontSize: 15, lineHeight: 1.75 }}
+        >
+          <p style={{ margin: 0 }}>
+            Opening this native details block increases the document footprint after initial layout.
+          </p>
+          <p style={{ margin: '14px 0 0' }}>
+            Browser acceptance should verify that subsequent scroll/center-lock behavior remains
+            stable after the mutation.
+          </p>
+        </div>
+      </details>
+    </section>
   );
 }
 
@@ -151,8 +224,9 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-badge`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 280 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / ${takeover ? 'Scene.scroll takeover' : 'Document chapter'}`}</LabPill>
         </Animate>
@@ -161,8 +235,9 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-up"
+          exitAnimation="slide-up"
           duration={{ enter: 780 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <SectionCopy maxWidth={590} section={section} titleSize="hero" />
         </Animate>
@@ -171,9 +246,10 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-media`}
           enterAnimation="zoom-in"
+          exitAnimation="zoom-out"
           infiniteAnimation={takeover ? undefined : 'pulse'}
           duration={{ enter: 900 }}
-          timeline={takeover ? { phase: { start: 0.08, end: 0.68 } } : { driver: 'visibility' }}
+          timeline={takeover ? { phase: { start: 0.08, end: 0.68 } } : { sceneControlled: false }}
         >
           <MediaFrame priority={index === 0} section={section} width={520} />
         </Animate>
@@ -182,8 +258,9 @@ function DocumentHero({
         <Animate
           animateId={`${section.id}-rail`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 620 }}
-          timeline={takeover ? { phase: { start: 0.42, end: 1 } } : { driver: 'visibility' }}
+          timeline={takeover ? { phase: { start: 0.42, end: 1 } } : { sceneControlled: false }}
         >
           <div style={{ width: 1216 }}>
             <MetricRail section={section} />
@@ -207,8 +284,9 @@ function EditorialSplit({
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 260 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Editorial flow`}</LabPill>
         </Animate>
@@ -217,8 +295,9 @@ function EditorialSplit({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-right"
+          exitAnimation="slide-right"
           duration={{ enter: 640 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 460 }}>
             <SectionCopy maxWidth={460} section={section} titleSize="medium" />
@@ -229,8 +308,9 @@ function EditorialSplit({
         <Animate
           animateId={`${section.id}-media`}
           enterAnimation="slide-left"
+          exitAnimation="slide-left"
           duration={{ enter: 760 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <MediaFrame section={section} width={620} />
         </Animate>
@@ -239,9 +319,10 @@ function EditorialSplit({
         <Animate
           animateId={`${section.id}-stats`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           infiniteAnimation="pulse"
           duration={{ enter: 520 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 1146 }}>
             <StatGrid compact={true} section={section} />
@@ -252,8 +333,9 @@ function EditorialSplit({
         <Animate
           animateId={`${section.id}-notes`}
           enterAnimation="blur-in"
+          exitAnimation="blur-out"
           duration={{ enter: 420 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 540 }}>
             <DetailList
@@ -283,6 +365,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 240 }}
           timeline={{ phase: { start: 0, end: 0.22 } }}
         >
@@ -293,6 +376,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-up"
+          exitAnimation="slide-up"
           duration={{ enter: 700 }}
           timeline={{ phase: { start: 0, end: 0.34 } }}
         >
@@ -303,6 +387,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-stats`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 560 }}
           timeline={{ phase: { start: 0.04, end: 0.48 } }}
         >
@@ -315,6 +400,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-media`}
           enterAnimation="rotate-in"
+          exitAnimation="rotate-out"
           duration={{ enter: 900 }}
           timeline={{ phase: { start: 0.12, end: 0.76 } }}
         >
@@ -325,6 +411,7 @@ function SpecTakeover({
         <Animate
           animateId={`${section.id}-bullets`}
           enterAnimation="blur-in"
+          exitAnimation="blur-out"
           duration={{ enter: 420 }}
           timeline={{ phase: { start: 0.28, end: 0.92 } }}
         >
@@ -350,8 +437,9 @@ function ExplodedStory({
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 260 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Visibility timeline`}</LabPill>
         </Animate>
@@ -360,8 +448,9 @@ function ExplodedStory({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-up"
+          exitAnimation="slide-up"
           duration={{ enter: 680 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 540 }}>
             <SectionCopy maxWidth={540} section={section} titleSize="medium" />
@@ -372,9 +461,10 @@ function ExplodedStory({
         <Animate
           animateId={`${section.id}-media`}
           enterAnimation="zoom-in"
+          exitAnimation="zoom-out"
           infiniteAnimation="wave"
           duration={{ enter: 780 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <MediaFrame section={section} width={520} />
         </Animate>
@@ -383,8 +473,9 @@ function ExplodedStory({
         <Animate
           animateId={`${section.id}-rail`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 560 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 1200 }}>
             <MetricRail section={section} />
@@ -395,8 +486,9 @@ function ExplodedStory({
         <Animate
           animateId={`${section.id}-notes`}
           enterAnimation="slide-up"
+          exitAnimation="slide-up"
           duration={{ enter: 500 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 480 }}>
             <DetailList
@@ -426,6 +518,7 @@ function ScenarioTakeover({
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 260 }}
           timeline={{ phase: { start: 0, end: 0.2 } }}
         >
@@ -436,6 +529,7 @@ function ScenarioTakeover({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="zoom-in"
+          exitAnimation="zoom-out"
           duration={{ enter: 640 }}
           timeline={{ phase: { start: 0, end: 0.38 } }}
         >
@@ -446,6 +540,7 @@ function ScenarioTakeover({
         <Animate
           animateId={`${section.id}-left`}
           enterAnimation="slide-right"
+          exitAnimation="slide-right"
           duration={{ enter: 620 }}
           timeline={{ phase: { start: 0.04, end: 0.46 } }}
         >
@@ -458,6 +553,7 @@ function ScenarioTakeover({
         <Animate
           animateId={`${section.id}-center`}
           enterAnimation="focus-in"
+          exitAnimation="blur-out"
           duration={{ enter: 760 }}
           timeline={{ phase: { start: 0.12, end: 0.72 } }}
         >
@@ -468,6 +564,7 @@ function ScenarioTakeover({
         <Animate
           animateId={`${section.id}-right`}
           enterAnimation="slide-left"
+          exitAnimation="slide-left"
           duration={{ enter: 620 }}
           timeline={{ phase: { start: 0.24, end: 0.9 } }}
         >
@@ -497,8 +594,9 @@ function DecisionAppendix({
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           duration={{ enter: 240 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Comparison close`}</LabPill>
         </Animate>
@@ -507,8 +605,9 @@ function DecisionAppendix({
         <Animate
           animateId={`${section.id}-copy`}
           enterAnimation="slide-up"
+          exitAnimation="slide-up"
           duration={{ enter: 660 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <SectionCopy align="center" maxWidth={820} section={section} titleSize="large" />
         </Animate>
@@ -517,9 +616,10 @@ function DecisionAppendix({
         <Animate
           animateId={`${section.id}-grid`}
           enterAnimation="fade-in"
+          exitAnimation="fade-out"
           infiniteAnimation="pulse"
           duration={{ enter: 540 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 1160 }}>
             <StatGrid section={section} />
@@ -530,8 +630,9 @@ function DecisionAppendix({
         <Animate
           animateId={`${section.id}-rail`}
           enterAnimation="blur-in"
+          exitAnimation="blur-out"
           duration={{ enter: 480 }}
-          timeline={{ driver: 'visibility' }}
+          timeline={{ sceneControlled: false }}
         >
           <div style={{ width: 520 }}>
             <DetailList

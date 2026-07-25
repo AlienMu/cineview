@@ -34,7 +34,6 @@ CineView 是一个面向 React 的叙事型 UI 框架，支持 `drag`（拖拽�
 2. **是否引入冗余**：本次是否留下死代码、重复实现、零消费的字段/导出/参数、与现有工具重叠的新工具。改动应让代码**净减负**或至少不增熵——尤其重构类任务，收口时全仓 grep 确认删净（旧字段、旧命名、旧文件的残留引用）。
 3. **整体项目是否仍可控**：单文件行数、单函数职责、上下文/props 的可选字段是否因本次改动膨胀。触碰大文件时优先抽离而非追加；发现职责焊死的巨石，记录到 task-flow 待专项拆分，不放任继续生长。
 4. **运行时性能是否依旧利落（重点）**：这是自检的核心。本框架是叙事型动画引擎，性能瓶颈永远在**运行时的每帧热路径**，不在构建体积或冷启动。收口时必须问：
-
    - **滚动 / 拖拽并发下的每帧代价**：本次改动是否让 scroll/drag 的每一帧多做了运算？高动画运算（多个 `Animate` 元素同时 scrub、`AnimateVideo` 逐帧 seek、stagger 级联）集中在滚动并发时最吃紧——这里任何一处 `useState` 每帧 setState、每帧换引用的 `useMemo`、读 layout 紧接写 style 的同步布局抖动（layout thrashing），都会放大成全场景子树重渲染或掉帧。
    - **优先 motionValue，而非 React state**：每帧变化的量（progress / elapsedMs / scroll offset）应走 `useMotionValue` + `motion.*` style 单输入映射，让位移绕过 React 渲染管线。新增每帧驱动路径时，默认用 motionValue；只有真正需要触发结构性重渲染时才用 state，并说明理由。
    - **memo 是否真的生效**：给热路径组件加/改 `useMemo`/`memo` 时，确认依赖数组里没有每帧变化的量——否则 memo 每帧失效，是纯开销。
@@ -64,15 +63,15 @@ pnpm format                  # Prettier
 
 ### 核心组件
 
-| 组件 | 职责 | 不负责 |
-|---|---|---|
-| `CineView` | 唯一模式入口、px2vw 单轴换算上下文、scrollbar 注入、预加载调度 | 具体场景布局 |
-| `Scene` | 章节级布局边界、scene-scoped fixed layer 宿主、可视信号 | 根模式配置、drag/scroll 参数 |
-| `Animate` | 消费当前 mode 时间语义（drag/scroll/visibility/auto） | 声明根模式 |
-| `Position` | px2vw 单轴响应式坐标定位、scene-scoped fixed layer 挂载 | 跨 scene 漂浮、尺寸换算（归 `Container`） |
-| `Image` | 统一图片预加载接口 | 阻塞首屏可见性 |
+| 组件           | 职责                                                                        | 不负责                                         |
+| -------------- | --------------------------------------------------------------------------- | ---------------------------------------------- |
+| `CineView`     | 唯一模式入口、px2vw 单轴换算上下文、scrollbar 注入、预加载调度              | 具体场景布局                                   |
+| `Scene`        | 章节级布局边界、scene-scoped fixed layer 宿主、可视信号                     | 根模式配置、drag/scroll 参数                   |
+| `Animate`      | 消费当前 mode 时间语义（drag/scroll/visibility/auto）                       | 声明根模式                                     |
+| `Position`     | px2vw 单轴响应式坐标定位、scene-scoped fixed layer 挂载                     | 跨 scene 漂浮、尺寸换算（归 `Container`）      |
+| `Image`        | 统一图片预加载接口                                                          | 阻塞首屏可见性                                 |
 | `AnimateVideo` | 视频进度驱动帧擦除（`Animate` 薄封装，复用 render-prop 拿 `enterProgress`） | 声明模式、拥有 progress（仍是 `Animate` 所有） |
-| `Container` | px2vw 盒模型换算容器（width/height + 整块 style 长度量按设计 px 换算） | 坐标定位（归 `Position`） |
+| `Container`    | px2vw 盒模型换算容器（width/height + 整块 style 长度量按设计 px 换算）      | 坐标定位（归 `Position`）                      |
 
 ### 关键上下文/运行时文件
 
@@ -97,7 +96,7 @@ pnpm format                  # Prettier
 
 ```tsx
 <CineView
-  config={{ width: 750, height: 1334, unit: 'px' }}
+  config={{ size: 750 }}                // 设计稿尺寸基准（px2vw 单尺子的唯一基准）
   mode="scroll"                        // 'drag' | 'scroll'，默认 'drag'
   modes={{
     drag: { direction: 'y', transitionDuration: 800, threshold: {...} },
@@ -131,7 +130,7 @@ pnpm format                  # Prettier
 ```tsx
 <AnimateVideo
   src="/clip.mp4"
-  duration={{ enter: 2000 }}       // scrub 跨度（scroll 下即真实滚动 px）
+  duration={{ enter: 2000 }} // scrub 跨度（scroll 下即真实滚动 px）
   timeline={{ delay: 100, waitFor: 'intro' }}
   visibility={{ replayOnReenter: true }}
 />
@@ -205,11 +204,11 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 - **（已清理 2026-06-26）`VirtualScrollPhase`**：重命名为 `SceneTimelinePhase`（`hold` 仍是活跃的进退场中段相位，非虚拟轨道坐标）。
 - **（已清理 2026-06-26）`ScrollTimelineState.holdProgress/holdLength`**：纯死输出字段，已删除（含 `SceneLayoutInfo.holdLength` 内部 vestigial 字段）。
 - **`SceneLegacyCompatProps` 仍可读**（`src/components/Scene/types.ts`）：`scrollSpeed`/`scrollEnterLength`/`scrollHoldLength`/`scrollExitLength`/`slideDirection`/`slideDuration` 等。**注**：公共 `SceneProps`（barrel 导出）已干净，`Scene.publicApi.test` 用 tsc fixture 证明 legacy props 会触发类型错误；这些字段仅作内部兼容存在，属内部整洁问题，非公共 API 污染。
-- **（已清理 2026-06-29）`CineViewContext` 旧单轴字段**：运行时 `CineViewContextValue`（`src/context/CineViewContext.tsx`）的 `designSize`/`scale`/`convertSize` 已删除，仅保留双轴 `scaleX/scaleY/convertX/convertY`。`convertSize(s)=s·viewport/designWidth ≡ convertX`，`Image.tsx` 标量长度键归并到 `convertX`，`useConvertSize` hook 返回 `convertX`。死 CSS 变量 `--cineview-scale`/`--cineview-design-size` 同步删除。注：该接口在 `dist` 公共面 0 命中，属内部清理。另删 `types/index.ts` 死 `CineViewContext` interface + 5 个零用常量（THROTTLE_INTERVAL/DEBOUNCE_DELAY/TARGET_FPS/MAX_FRAME_TIME/MAX_BUNDLE_SIZE）。
+- **（已统一 2026-07-17）`CineViewContext` 单尺子**：运行时只暴露 `scale` / `convert`，唯一基准为 `config.size`（默认 750），`scale = viewportWidth / size`。Position、Container、Image 等设计长度共用同一比例；不存在 `config.height`、`designHeight` 或双轴换算。scroll takeover 时间预算仍为 `1ms=1px`，绝对场景跨度回退 DOM 实测。
 
 #### P2：结构问题
 
-- **（已收敛 2026-06-26）`SceneInternalProps` global* 膨胀**：删除 ~20 个生产已不传的扁平 `global*` 数据 props，`globalFirstSceneEnter*` 收入 grouped `sceneRuntime`，`normalizeSceneProps` 删除 `?? props.globalX` 兜底链。两个生产入口（drag/scroll）均走 grouped 对象。**遗留**：`on*Change` 回调层仍扁平（standalone sink，待后续）；冷启动 `firstSceneEnterActive/Ready` 双 boolean 可合并为三态枚举（高风险，见 task-flow 单列项）。
+- **（已收敛 2026-06-26）`SceneInternalProps` global\* 膨胀**：删除 ~20 个生产已不传的扁平 `global*` 数据 props，`globalFirstSceneEnter*` 收入 grouped `sceneRuntime`，`normalizeSceneProps` 删除 `?? props.globalX` 兜底链。两个生产入口（drag/scroll）均走 grouped 对象。**遗留**：`on*Change` 回调层仍扁平（standalone sink，待后续）；冷启动 `firstSceneEnterActive/Ready` 双 boolean 可合并为三态枚举（高风险，见 task-flow 单列项）。
 - **（已修复 2026-06-26）`framer-motion` 移入 `peerDependencies`**（`>=10.0.0`）+ 保留 devDep；`vite.config.ts` 已 external，无需改。
 - **（已过期）`CineViewRef.goToSceneAdvanced`**：已核实不存在，无需处理。
 - **（已修复 2026-06-29）`CineViewRef` 方法全可选**：`goToScene`/`refreshLayout`/`preload`/`getCurrentScene`/`getPerformanceMetrics` 两模式均真实现，改为**必填**，消除调用点 `ref.current?.x?.()` 噪音。`goToZone` 是唯一 mode-specific 方法（drag 侧原为 no-op 空桩，已删），保持可选；新增便捷类型 `CineViewScrollRef`（`goToZone` 必填）供 scroll 消费者使用。受 React forwardRef 单 ref 类型限制，无法靠 `mode` prop 自动推断，故用「公共必填 + scroll 专属可选 + 便捷类型」方案而非完整判别共用体。
@@ -273,4 +272,5 @@ cineview/
 1. **scroll 真实浏览器验收**（最高优先级 / 未完成）：自动化全绿后，按 CLAUDE.md 规则 4 由独立 agent 在 `localhost:3000/#/scroll` 实测完整路径——正向锁定 `0→100%`、释放、反向重锁 `100%→0%`、键盘/scrollbar 同行为、大 flick 防跳过、多 zone 倒序重放。单测全绿 ≠ 视觉正确。
 
    **注**：本轮（2026-06-29 评审整改）的 scroll 运行时改动（`onReady` fire-once、scrollbar listener cleanup）虽有单测红证，仍计入此项待验收范围。
+
 2. **冷启动 `firstSceneEnter` 三态合并**（高风险，需配 drag 浏览器验收）：双 boolean → `'waiting' | 'driving' | 'done'` 枚举，消除非法态。位于历史回归高发区，单列推进。

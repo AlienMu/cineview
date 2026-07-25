@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { CineView } from 'cineview';
 import type { CineViewRef } from 'cineview';
 import ExperienceOverlayChrome from '../components/ExperienceOverlayChrome';
+import { ProfileBoundary } from '../components/ProfileBoundary';
 import { renderScrollScenes } from '../components/ScrollScenes';
 import { PERFORMANCE_EXPERIENCE } from '../content/performanceExperience';
 import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
@@ -25,20 +26,22 @@ export default function ScrollModePage(): JSX.Element {
       subtitle="Real document scroll with ordinary reading sections and Scene.scroll takeover chapters."
       totalScenes={PERFORMANCE_EXPERIENCE.sections.length}
     >
-      <CineView
-        ref={cineViewRef}
-        callbacks={{
-          onLoadProgress: (progress) => setLoadProgress(progress),
-          onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
-        }}
-        config={{ width: 1440, height: 1200, unit: 'px' }}
-        mode="scroll"
-        modes={{ scroll: { direction: 'y', sceneSizing: 'content' } }}
-        performance={{ monitor: monitorOpen }}
-        scrollbar={{ enabled: true, width: 10, autoHide: false }}
-      >
-        {renderScrollScenes(PERFORMANCE_EXPERIENCE.sections)}
-      </CineView>
+      <ProfileBoundary id="cineview-runtime">
+        <CineView
+          ref={cineViewRef}
+          callbacks={{
+            onLoadProgress: (progress) => setLoadProgress(progress),
+            onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
+          }}
+          config={{ size: 1440 }}
+          mode="scroll"
+          modes={{ scroll: { direction: 'y', sceneSizing: 'content' } }}
+          performance={{ monitor: monitorOpen }}
+          scrollbar={{ enabled: true, width: 10, autoHide: false }}
+        >
+          {renderScrollScenes(PERFORMANCE_EXPERIENCE.sections)}
+        </CineView>
+      </ProfileBoundary>
     </ExperienceOverlayChrome>
   );
 }

@@ -33,6 +33,13 @@ jest.mock('./animationParser', () => ({
           exit: { y: -100, opacity: 0 },
         });
       }
+      if (animation === 'bare') {
+        return Promise.resolve({
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 },
+        });
+      }
     }
     if (typeof animation === 'object' && 'animate' in animation) {
       return Promise.resolve({
@@ -159,6 +166,15 @@ describe('composer', () => {
 
         consoleSpy.mockRestore();
       });
+
+      it('uses empty transition defaults for a bare animation', async () => {
+        const result = await composeAnimation({
+          mode: 'sequential',
+          animations: ['bare' as PresetAnimation],
+        });
+
+        expect(result?.animate).toEqual({ opacity: 1, transition: { delay: 0 } });
+      });
     });
 
     describe('parallel mode', () => {
@@ -213,6 +229,15 @@ describe('composer', () => {
         expect(result).toBeNull();
 
         consoleSpy.mockRestore();
+      });
+
+      it('uses empty transition defaults for a bare animation', async () => {
+        const result = await composeAnimation({
+          mode: 'parallel',
+          animations: ['bare' as PresetAnimation],
+        });
+
+        expect(result?.animate).toEqual({ opacity: 1, transition: { delay: 0 } });
       });
     });
 

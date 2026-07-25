@@ -19,10 +19,15 @@ import {
   resolveScrollIntentOffset,
   resolveScrollSceneDeclaredSpan,
   resolveTakeoverSceneSpan,
+  shouldDeferToNestedScrollable,
+  shouldIgnoreGlobalScrollKey,
+  isSceneElement,
+  isLegacyDisplayNameSceneElement,
   type CenterLockSegment,
   type SceneAuthoringCompatProps,
   type SceneLayoutInfo,
 } from './directScrollHelpers';
+import { createElement, forwardRef, memo } from 'react';
 
 describe('clamp', () => {
   it('限制在 [min, max] 区间', () => {
@@ -155,28 +160,34 @@ describe('span 解析器：declared 与 takeover 的逐分支等价/差异', () 
     });
   });
 
-  describe('resolveTakeoverSceneSpan（number/px 做 design→viewport 换算，全分支 floor≥1）', () => {
-    it('number 做 design→viewport 换算', () => {
-      // design 高 1334，视口高 667 → 比例 0.5；1000 设计px → 500 物理px
-      expect(resolveTakeoverSceneSpan(1000, 'y', 375, 667, 750, 1334)).toBeCloseTo(500, 5);
+  describe('resolveTakeoverSceneSpan（方案 A 单尺子：绝对值不换算→null，仅 vh/vw 保留）', () => {
+    it('number（绝对设计值）返回 null → 调用方回退 DOM 实测', () => {
+      // 单尺子模型下不再有独立高度尺子，takeover 绝对值一律 null。
+      expect(resolveTakeoverSceneSpan(1000, 375, 667)).toBeNull();
     });
 
-    it('px 同样换算', () => {
-      expect(resolveTakeoverSceneSpan('1000px', 'y', 375, 667, 750, 1334)).toBeCloseTo(500, 5);
+    it('px（绝对像素）同样返回 null', () => {
+      expect(resolveTakeoverSceneSpan('1000px', 375, 667)).toBeNull();
     });
 
-    it('vh 按视口换算（与 declared 一致）', () => {
-      expect(resolveTakeoverSceneSpan('50vh', 'y', 375, 667, 750, 1334)).toBeCloseTo(333.5, 5);
+    it('vh 按视口换算保留（无需设计尺子）', () => {
+      // 50vh @ 视口高 667 → 333.5，floor 到 ≥1
+      expect(resolveTakeoverSceneSpan('50vh', 375, 667)).toBeCloseTo(333.5, 5);
     });
 
-    it('换算结果 floor 到 ≥1（极小设计值）', () => {
-      // 1 设计px / 1334 * 667 ≈ 0.5 → floor 到 1
-      expect(resolveTakeoverSceneSpan(1, 'y', 375, 667, 750, 1334)).toBe(1);
+    it('vw 按视口换算保留', () => {
+      // 80vw @ 视口宽 375 → 300
+      expect(resolveTakeoverSceneSpan('80vw', 375, 667)).toBeCloseTo(300, 5);
+    });
+
+    it('vh 结果 floor 到 ≥1（极小值）', () => {
+      // 0.1vh @ 667 ≈ 0.667 → floor 到 1
+      expect(resolveTakeoverSceneSpan('0.1vh', 375, 667)).toBe(1);
     });
 
     it('auto / 非法 返回 null', () => {
-      expect(resolveTakeoverSceneSpan('auto', 'y', 375, 667, 750, 1334)).toBeNull();
-      expect(resolveTakeoverSceneSpan(undefined, 'y', 375, 667, 750, 1334)).toBeNull();
+      expect(resolveTakeoverSceneSpan('auto', 375, 667)).toBeNull();
+      expect(resolveTakeoverSceneSpan(undefined, 375, 667)).toBeNull();
     });
   });
 });
@@ -230,6 +241,120 @@ describe('normalizeKeyboardDeltaPx', () => {
 
   it('其它键返回 0', () => {
     expect(normalizeKeyboardDeltaPx('Enter', false, 1000)).toBe(0);
+  });
+});
+
+describe('shouldDeferToNestedScrollable', () => {
+  function setupNestedScroller(): {
+    root: HTMLDivElement;
+    scroller: HTMLDivElement;
+    child: HTMLButtonElement;
+  } {
+    const root = document.createElement('div');
+    const scroller = document.createElement('div');
+    const child = document.createElement('button');
+    scroller.style.overflowY = 'auto';
+    scroller.appendChild(child);
+    root.appendChild(scroller);
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 100 });
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 500 });
+    return { root, scroller, child };
+  }
+
+  it('keeps forward input in a nested scroller until its lower boundary', () => {
+    const { root, scroller, child } = setupNestedScroller();
+    scroller.scrollTop = 120;
+    expect(shouldDeferToNestedScrollable(child, root, 'y', 80)).toBe(true);
+
+    scroller.scrollTop = 400;
+    expect(shouldDeferToNestedScrollable(child, root, 'y', 80)).toBe(false);
+  });
+
+  it('keeps reverse input in a nested scroller until its upper boundary', () => {
+    const { root, scroller, child } = setupNestedScroller();
+    scroller.scrollTop = 120;
+    expect(shouldDeferToNestedScrollable(child, root, 'y', -80)).toBe(true);
+
+    scroller.scrollTop = 0;
+    expect(shouldDeferToNestedScrollable(child, root, 'y', -80)).toBe(false);
+  });
+
+  it('does not defer non-element or zero-delta input', () => {
+    const { root, child } = setupNestedScroller();
+    expect(shouldDeferToNestedScrollable(null, root, 'y', 80)).toBe(false);
+    expect(shouldDeferToNestedScrollable(child, root, 'y', 0)).toBe(false);
+  });
+
+  it('supports horizontal nested scroll ownership', () => {
+    const root = document.createElement('div');
+    const scroller = document.createElement('div');
+    const child = document.createElement('button');
+    scroller.style.overflowX = 'auto';
+    scroller.appendChild(child);
+    root.appendChild(scroller);
+    Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: 100 });
+    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 500 });
+    scroller.scrollLeft = 120;
+
+    expect(shouldDeferToNestedScrollable(child, root, 'x', 80)).toBe(true);
+    scroller.scrollLeft = 400;
+    expect(shouldDeferToNestedScrollable(child, root, 'x', 80)).toBe(false);
+  });
+});
+
+describe('scene discovery and keyboard ownership helpers', () => {
+  it('recognizes explicit and wrapped Scene markers without relying on displayName', () => {
+    function MarkedScene(): JSX.Element {
+      return createElement('div');
+    }
+    (MarkedScene as typeof MarkedScene & { cineViewScene?: boolean }).cineViewScene = true;
+
+    function NamedScene(): JSX.Element {
+      return createElement('div');
+    }
+    (NamedScene as typeof NamedScene & { displayName?: string }).displayName = 'Scene';
+
+    const Wrapped = memo(MarkedScene);
+    const WrappedNamedScene = memo(NamedScene);
+    const PlainScene = (): JSX.Element => createElement('div');
+    const LegacyRender = (): JSX.Element => createElement('div');
+    (LegacyRender as typeof LegacyRender & { displayName?: string }).displayName = 'Scene';
+    const ForwardLegacyScene = forwardRef<HTMLDivElement>(LegacyRender);
+
+    expect(isSceneElement(createElement(MarkedScene))).toBe(true);
+    expect(isSceneElement(createElement(NamedScene))).toBe(false);
+    expect(isSceneElement(createElement(Wrapped))).toBe(true);
+    expect(isSceneElement(createElement('div'))).toBe(false);
+    expect(isSceneElement('scene')).toBe(false);
+
+    expect(isLegacyDisplayNameSceneElement(createElement(MarkedScene))).toBe(false);
+    expect(isLegacyDisplayNameSceneElement(createElement(NamedScene))).toBe(true);
+    expect(isLegacyDisplayNameSceneElement(createElement(WrappedNamedScene))).toBe(true);
+    expect(isLegacyDisplayNameSceneElement(createElement(ForwardLegacyScene))).toBe(true);
+    expect(isLegacyDisplayNameSceneElement(createElement(Wrapped))).toBe(false);
+    expect(isLegacyDisplayNameSceneElement(createElement(PlainScene))).toBe(false);
+    expect(isLegacyDisplayNameSceneElement(createElement('div'))).toBe(false);
+    expect(isLegacyDisplayNameSceneElement('scene')).toBe(false);
+  });
+
+  it('keeps space keys on controls and editable fields', () => {
+    const button = document.createElement('button');
+    const input = document.createElement('input');
+    const section = document.createElement('section');
+
+    expect(
+      shouldIgnoreGlobalScrollKey(new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    ).toBe(false);
+    Object.defineProperty(button, 'tagName', { value: 'BUTTON' });
+    Object.defineProperty(input, 'tagName', { value: 'INPUT' });
+    const keyEvent = (key: string, target: Element): KeyboardEvent => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true });
+      Object.defineProperty(event, 'target', { configurable: true, value: target });
+      return event;
+    };
+    expect(shouldIgnoreGlobalScrollKey(keyEvent(' ', button))).toBe(true);
+    expect(shouldIgnoreGlobalScrollKey(keyEvent('ArrowDown', input))).toBe(true);
+    expect(shouldIgnoreGlobalScrollKey(keyEvent('ArrowDown', section))).toBe(false);
   });
 });
 

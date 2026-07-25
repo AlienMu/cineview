@@ -9,18 +9,14 @@ describe('performance-test routing shell', () => {
     expect(parseHashRoute('#/legacy')).toBe('home');
     expect(parseHashRoute('#/drag')).toBe('drag');
     expect(parseHashRoute('#/scroll')).toBe('scroll');
-    expect(parseHashRoute('#/panda')).toBe('panda');
-    expect(parseHashRoute('#/panda-pro')).toBe('panda-pro');
+    expect(parseHashRoute('#/panda')).toBe('home');
+    expect(parseHashRoute('#/panda-pro')).toBe('home');
     expect(parseHashRoute('#/unknown')).toBe('home');
   });
 
   it('exposes exactly the three curated mode routes', () => {
-    expect(MODE_ROUTES.map((route) => route.id)).toEqual(['drag', 'scroll', 'panda-pro']);
-    expect(MODE_ROUTES.map((route) => buildModeHref(route.id))).toEqual([
-      '#/drag',
-      '#/scroll',
-      '#/panda-pro',
-    ]);
+    expect(MODE_ROUTES.map((route) => route.id)).toEqual(['drag', 'scroll']);
+    expect(MODE_ROUTES.map((route) => buildModeHref(route.id))).toEqual(['#/drag', '#/scroll']);
   });
 
   it('renders the hub with links for all mode pages', () => {
@@ -30,6 +26,5 @@ describe('performance-test routing shell', () => {
     expect(markup).toContain('Motion mode');
     expect(markup).toContain('#/drag');
     expect(markup).toContain('#/scroll');
-    expect(markup).toContain('#/panda-pro');
   });
 });

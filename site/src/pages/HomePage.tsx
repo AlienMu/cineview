@@ -5,7 +5,8 @@ import {
   CapabilityStageDrawerScene,
 } from '../components/CapabilityScene';
 import { DemoVideoScene } from '../components/DemoVideoScene';
-import { useI18n } from '../i18n';
+import { HomeSceneCanvas } from '../components/HomeSceneCanvas';
+import { DragPhoneScene } from '../components/DragPhoneScene';
 
 /**
  * 官网首页 — 整页单个 scroll 实例(见 task-flow A2)。
@@ -14,11 +15,9 @@ import { useI18n } from '../i18n';
  * (DemoVideoScene,center-lock 接管,AnimateVideo 逐帧擦洗)。其余幕次后续替换占位。
  */
 export default function HomePage(): JSX.Element {
-  const { t } = useI18n();
-
   return (
     <CineView
-      config={{ width: 1440, height: 900 }}
+      config={{ size: 1440 }}
       mode="scroll"
       scrollbar={{
         enabled: true,
@@ -30,7 +29,9 @@ export default function HomePage(): JSX.Element {
       }}
     >
       <Scene sceneId="hero" layout={{ width: '100%', height: '100vh' }}>
-        <HeroScene />
+        <HomeSceneCanvas>
+          <HeroScene />
+        </HomeSceneCanvas>
       </Scene>
 
       {/* 能力展示：两个独立 center-lock 接管镜（胶片带 / 舞台抽屉），各自锁定演完再释放 */}
@@ -39,7 +40,9 @@ export default function HomePage(): JSX.Element {
         layout={{ width: '100%', height: '100vh' }}
         scroll={{ zoneId: 'cap-film-zone', trigger: 'center-lock' }}
       >
-        <CapabilityFilmStripScene />
+        <HomeSceneCanvas>
+          <CapabilityFilmStripScene />
+        </HomeSceneCanvas>
       </Scene>
 
       <Scene
@@ -47,7 +50,9 @@ export default function HomePage(): JSX.Element {
         layout={{ width: '100%', height: '100vh' }}
         scroll={{ zoneId: 'cap-stage-zone', trigger: 'center-lock' }}
       >
-        <CapabilityStageDrawerScene />
+        <HomeSceneCanvas>
+          <CapabilityStageDrawerScene />
+        </HomeSceneCanvas>
       </Scene>
 
       {/* 第四幕：滚动驱动视频（center-lock 接管，AnimateVideo 随进度逐帧擦洗） */}
@@ -55,19 +60,22 @@ export default function HomePage(): JSX.Element {
         sceneId="demo-video"
         layout={{ width: '100%', height: '100vh' }}
         scroll={{ zoneId: 'demo-video-zone', trigger: 'center-lock' }}
+        assets={{ preloadImages: ['/video.mp4'] }}
       >
-        <DemoVideoScene />
+        <HomeSceneCanvas>
+          <DemoVideoScene />
+        </HomeSceneCanvas>
       </Scene>
 
-      {[5].map((i) => (
-        <Scene key={i} sceneId={`placeholder-${i}`} layout={{ width: '100%', height: '100vh' }}>
-          <div className="home-placeholder">
-            <span className="home-placeholder__tc mono">{String(i).padStart(2, '0')}</span>
-            <h2>{`Scene ${i}`}</h2>
-            <p>{t('hero.intro')}</p>
-          </div>
-        </Scene>
-      ))}
+      <Scene
+        sceneId="drag-phone"
+        layout={{ width: '100%', height: '100vh', overflow: 'visible' }}
+        scroll={{ zoneId: 'drag-phone-zone', trigger: 'center-lock' }}
+      >
+        <HomeSceneCanvas>
+          <DragPhoneScene />
+        </HomeSceneCanvas>
+      </Scene>
     </CineView>
   );
 }

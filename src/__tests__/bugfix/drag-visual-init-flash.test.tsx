@@ -216,7 +216,7 @@ function renderDragApp() {
       ref={cineViewRef}
       mode="drag"
       modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-      config={{ width: 750, height: 1334 }}
+      config={{ size: 750 }}
     >
       <Scene>
         <Position at={{ x: 375, y: 220 }}>

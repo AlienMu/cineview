@@ -13,6 +13,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
+import type { MotionValue } from 'framer-motion';
 import { useCineViewContext } from '../context/CineViewContext';
 import { convertStyle } from '../utils/styleConvert';
 import {
@@ -34,11 +35,12 @@ const scrubWarnedSrcs = new Set<string>();
 export interface VideoFrameRendererProps {
   src: string;
   /** 0..1 擦除进度,由外层 Animate render-prop 馈送。 */
-  progress: number;
+  progress: number | MotionValue<number>;
   width?: number | string;
   height?: number | string;
   style?: CSSProperties;
   'aria-label'?: string;
+  preload?: boolean;
 }
 
 export function VideoFrameRenderer({
@@ -48,6 +50,7 @@ export function VideoFrameRenderer({
   height,
   style,
   'aria-label': ariaLabel,
+  preload = true,
 }: VideoFrameRendererProps): JSX.Element {
   const context = useCineViewContext();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -81,14 +84,14 @@ export function VideoFrameRenderer({
         setObjectUrl(getVideoObjectUrl(src) ?? null);
       }
     });
-    if (!isMediaPreloaded(src)) {
+    if (preload && !isMediaPreloaded(src)) {
       void preloadMedia(src, 'video').catch(() => undefined);
     }
     return () => {
       active = false;
       unsub();
     };
-  }, [src]);
+  }, [preload, src]);
 
   // progress → currentTime。等元数据就绪(duration 有效)后才 seek。
   useEffect(() => {
@@ -96,12 +99,13 @@ export function VideoFrameRenderer({
     if (!video || typeof window === 'undefined') {
       return;
     }
-    const seek = (): void => {
+    const progressMotion = typeof progress === 'object' ? progress : null;
+    const seek = (nextProgress: number): void => {
       const duration = video.duration;
       if (!Number.isFinite(duration) || duration <= 0) {
         return;
       }
-      const clamped = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+      const clamped = nextProgress < 0 ? 0 : nextProgress > 1 ? 1 : nextProgress;
       // 开发期:测本次 seek 的解码延迟(设 currentTime → 'seeked')。中位数持续偏高 →
       // 视频关键帧过稀,警告一次。生产不测、不挂监听(零开销)。
       if (process.env.NODE_ENV === 'development' && !scrubWarnedSrcs.has(src)) {
@@ -132,13 +136,20 @@ export function VideoFrameRenderer({
       }
       video.currentTime = clamped * duration;
     };
+    const seekCurrent = (): void => {
+      seek(progressMotion?.get() ?? (progress as number));
+    };
+    const unsubscribe = progressMotion?.on('change', (nextProgress) => {
+      seek(nextProgress);
+    });
     if (video.readyState >= 1 /* HAVE_METADATA */) {
-      seek();
-      return;
+      seekCurrent();
+    } else {
+      video.addEventListener('loadedmetadata', seekCurrent, { once: true });
     }
-    video.addEventListener('loadedmetadata', seek, { once: true });
     return () => {
-      video.removeEventListener('loadedmetadata', seek);
+      unsubscribe?.();
+      video.removeEventListener('loadedmetadata', seekCurrent);
     };
   }, [progress, objectUrl, src]);
 
@@ -148,7 +159,7 @@ export function VideoFrameRenderer({
       src={objectUrl ?? src}
       muted
       playsInline
-      preload="auto"
+      preload={preload ? 'auto' : objectUrl ? 'metadata' : 'none'}
       aria-label={ariaLabel}
       width={resolvedWidth}
       height={resolvedHeight}

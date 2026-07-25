@@ -128,7 +128,7 @@ export const useImagePreloader = (
   // 媒体资源经此路径进入同一优先级批次,故 priorityComplete 会等首屏 video buffer
   // 完才 fire——首屏冷启动门控天然覆盖媒体,无需额外信号。
   // Validates Requirement 26.3: Cancel pending image loads on unmount
-  const loadImage = useCallback((url: string): Promise<ImageLoadResult> => {
+  const loadImage = useCallback((url: string, runId: number): Promise<ImageLoadResult> => {
     const mediaKind = inferMediaKind(url);
     if (mediaKind) {
       // 媒体预加载不支持 AbortController;卸载时靠 run-id 守卫忽略结果(见 startPreload)。
@@ -139,7 +139,9 @@ export const useImagePreloader = (
         })
         .catch((error: unknown): ImageLoadResult => {
           const wrapped = error instanceof Error ? error : new Error(String(error));
-          onErrorRef.current?.(url, wrapped);
+          if (activeRunIdRef.current === runId) {
+            onErrorRef.current?.(url, wrapped);
+          }
           return { url, success: false, error: wrapped };
         });
     }
@@ -161,7 +163,9 @@ export const useImagePreloader = (
       img.onerror = (): void => {
         const error = new Error(`Failed to load image: ${url}`);
         cleanup();
-        onErrorRef.current?.(url, error);
+        if (activeRunIdRef.current === runId) {
+          onErrorRef.current?.(url, error);
+        }
         resolve({ url, success: false, error });
       };
 
@@ -286,7 +290,7 @@ export const useImagePreloader = (
 
         for (let i = 0; i < priorityBatch.length; i++) {
           const url = priorityBatch[i];
-          const result = await loadImage(url);
+          const result = await loadImage(url, runId);
 
           if (activeRunIdRef.current !== runId) {
             return;
@@ -298,7 +302,7 @@ export const useImagePreloader = (
         const backgroundResults = await Promise.all(
           backgroundBatch.map(async (url) => ({
             url,
-            result: await loadImage(url),
+            result: await loadImage(url, runId),
           }))
         );
 

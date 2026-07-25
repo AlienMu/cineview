@@ -11,19 +11,15 @@
  * 只能在 CineView 下使用（需要换算上下文）。
  */
 
-import React, { useMemo } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { useCineViewContext } from '../../context/CineViewContext';
 import { convertStyle } from '../../utils/styleConvert';
 import type { ContainerProps } from '../../types';
 
-export const Container: React.FC<ContainerProps> = ({
-  width,
-  height,
-  children,
-  style,
-  className,
-  ...restProps
-}) => {
+export const Container = forwardRef<HTMLDivElement, ContainerProps>(function Container(
+  { width, height, children, style, className, ...restProps },
+  ref
+) {
   const context = useCineViewContext();
 
   // 开发环境检查：必须在 CineView 下使用
@@ -44,17 +40,17 @@ export const Container: React.FC<ContainerProps> = ({
     const heightPx = height !== undefined ? context.convert(height) : undefined;
 
     return {
-      width: widthPx,
-      height: heightPx,
       ...convertedStyle,
+      ...(width !== undefined ? { width: widthPx } : {}),
+      ...(height !== undefined ? { height: heightPx } : {}),
     };
   }, [context, width, height, style]);
 
   return (
-    <div style={containerStyle} className={className} {...restProps}>
+    <div ref={ref} style={containerStyle} className={className} {...restProps}>
       {children}
     </div>
   );
-};
+});
 
 Container.displayName = 'Container';

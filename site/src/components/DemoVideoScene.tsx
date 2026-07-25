@@ -189,7 +189,9 @@ function TimeSubtitle({ text, progress }: { text: string; progress: number }): J
       const done = clear >= 1;
       // 已清晰且上帧也已清晰 → 跳过,不再写 filter(该行退出重绘)。
       if (done && lineClearRef.current[li]) continue;
-      lines[li].style.filter = done ? 'none' : `blur(${((1 - clear) * 8).toFixed(2)}px)`;
+      lines[li].style.filter = done
+        ? 'none'
+        : `blur(calc(${((1 - clear) * 8).toFixed(2)} * var(--cv-u)))`;
       lineClearRef.current[li] = done;
     }
 
@@ -208,7 +210,7 @@ function TimeSubtitle({ text, progress }: { text: string; progress: number }): J
       const gather = clamp01((p - m.lineStart) / (m.lineEnd - m.lineStart));
       el.style.opacity = String(appear);
       const off = m.offset0 * (1 - gather);
-      el.style.transform = off !== 0 ? `translateX(${off.toFixed(1)}px)` : 'none';
+      el.style.transform = off !== 0 ? `translateX(calc(${off.toFixed(1)} * var(--cv-u)))` : 'none';
       const c1 = mix(INK, m.w1, colorLocal);
       const c2 = mix(INK, m.w2, colorLocal);
       el.style.backgroundImage = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
@@ -239,14 +241,15 @@ function mix(from: [number, number, number], to: [number, number, number], t: nu
 }
 
 export function DemoVideoScene(): JSX.Element {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   return (
-    <div className="demo-video">
+    <div className="demo-video" data-lang={lang}>
       {/* 铺底:全屏视频 + 4 光圈层。视频 waitFor 标题 → 标题入场后擦洗。 */}
       <div className="demo-video__stage">
         <AnimateVideo
           src="/video.mp4"
+          preload={false}
           aria-label={t('demoVideo.slate')}
           animateId="demo-video"
           duration={{ enter: 4000 }}
@@ -260,7 +263,10 @@ export function DemoVideoScene(): JSX.Element {
       <Position at={{ anchor: 'center-x', y: 200 }}>
         <Animate
           animateId="demo-title"
-          enterAnimation={{ initial: { y: 32, opacity: 0 }, animate: { y: 0, opacity: 1 } }}
+          enterAnimation={{
+            initial: { y: '62%', opacity: 0 },
+            animate: { y: 0, opacity: 1 },
+          }}
           duration={{ enter: 640 }}
           timeline={{ delay: 0 }}
         >

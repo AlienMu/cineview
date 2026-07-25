@@ -14,16 +14,10 @@ const renderWithContext = (
   ui: React.ReactElement,
   options: {
     designSize?: number;
-    designWidth?: number;
-    designHeight?: number;
   } = {}
 ): ReturnType<typeof render> => {
-  const { designSize = 750, designWidth = designSize, designHeight = designSize } = options;
-  return render(
-    <CineViewProvider designWidth={designWidth} designHeight={designHeight}>
-      {ui}
-    </CineViewProvider>
-  );
+  const designSize = options.designSize ?? 750;
+  return render(<CineViewProvider designSize={designSize}>{ui}</CineViewProvider>);
 };
 
 describe('Position Component', () => {
@@ -47,7 +41,7 @@ describe('Position Component', () => {
         <Position x={100}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -65,7 +59,7 @@ describe('Position Component', () => {
         <Position y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -83,7 +77,7 @@ describe('Position Component', () => {
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -96,10 +90,9 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该用宽度尺(px2vw 单尺子)换算 Y 坐标，与 designHeight/viewportHeight 无关', () => {
-      // px2vw 单尺子：x 和 y 都乘同一个 scale = viewportWidth / designWidth。
-      // 这里 viewportWidth=375、designWidth=750 → scale=0.5。designHeight 与
-      // viewportHeight 取任意值都不影响 y 的换算（不再按纵轴独立拉伸）。
+    it('应该用 px2vw 单尺子换算 Y 坐标，与 viewportHeight 无关', () => {
+      // x 和 y 都乘同一个 scale = viewportWidth / designSize。
+      // 这里 viewportWidth=375、designSize=750 → scale=0.5；viewportHeight 不参与换算。
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -115,23 +108,22 @@ describe('Position Component', () => {
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 1000 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 两轴共用 scale=0.5：100→50px、200→100px（top 不再是旧双轴的 200*500/1000=100 巧合值，
-      // 而是 200*0.5=100 由宽度尺得出；下方 designHeight 变体证明其与高度无关）。
+      // 横纵长度共用 scale=0.5：100→50px、200→100px。
       expect(parent).toHaveStyle({
         left: '50px',
         top: '100px',
       });
     });
 
-    it('Y 坐标换算对 designHeight 不敏感（单尺子证明）', () => {
-      // 同样 viewportWidth=375、designWidth=750 → scale=0.5。把 designHeight 从 1000
-      // 改成 2000，若仍是旧双轴模型 top 会随之减半；单尺子下 top 恒为 200*0.5=100px。
+    it('Y 坐标换算对 viewportHeight 不敏感（单尺子证明）', () => {
+      // 同样 viewportWidth=375、designSize=750 → scale=0.5。改变 viewportHeight 后，
+      // 单尺子下 top 仍为 200*0.5=100px。
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -140,14 +132,14 @@ describe('Position Component', () => {
       Object.defineProperty(window, 'innerHeight', {
         writable: true,
         configurable: true,
-        value: 500,
+        value: 50,
       });
 
       renderWithContext(
         <Position y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 2000 }
+        { designSize: 750 }
       );
 
       const parent = screen.getByTestId('child').parentElement;
@@ -178,7 +170,7 @@ describe('Position Component', () => {
         <Position offsetX={50}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -196,7 +188,7 @@ describe('Position Component', () => {
         <Position offsetY={100}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -216,7 +208,7 @@ describe('Position Component', () => {
             <div data-testid="child">Content</div>
           </Position>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -239,7 +231,7 @@ describe('Position Component', () => {
             </Position>
           </Position>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -255,12 +247,31 @@ describe('Position Component', () => {
   });
 
   describe('优先级处理', () => {
+    it('结构定位 props 应该覆盖冲突的 style 定位，同时保留可组合 transform', () => {
+      renderWithContext(
+        <Position
+          at={{ x: 100, y: 200 }}
+          style={{ position: 'fixed', left: 999, top: 888, transform: 'rotate(10deg)' }}
+        >
+          <div data-testid="child">Content</div>
+        </Position>,
+        { designSize: 750 }
+      );
+
+      expect(screen.getByTestId('child').parentElement).toHaveStyle({
+        position: 'absolute',
+        left: '100px',
+        top: '200px',
+        transform: 'rotate(10deg)',
+      });
+    });
+
     it('绝对定位应该优先于相对定位（同时存在 x 和 offsetX）', () => {
       renderWithContext(
         <Position x={100} offsetX={50}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -278,7 +289,7 @@ describe('Position Component', () => {
         <Position y={200} offsetY={100}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -296,7 +307,7 @@ describe('Position Component', () => {
         <Position x={100} y={200} offsetX={50} offsetY={100}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -317,7 +328,7 @@ describe('Position Component', () => {
             <div data-testid="child">Content</div>
           </Position>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -339,7 +350,7 @@ describe('Position Component', () => {
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -357,7 +368,7 @@ describe('Position Component', () => {
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 375, designHeight: 375 }
+        { designSize: 375 }
       );
 
       const child = screen.getByTestId('child');
@@ -375,7 +386,7 @@ describe('Position Component', () => {
         <Position x={100.5} y={200.75}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -394,7 +405,7 @@ describe('Position Component', () => {
         <Position x={0} y={0}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -411,7 +422,7 @@ describe('Position Component', () => {
         <Position x={-50} y={-100}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -428,7 +439,7 @@ describe('Position Component', () => {
         <Position x={10000} y={20000}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -447,7 +458,7 @@ describe('Position Component', () => {
             <div data-testid="child">Content</div>
           </Position>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -469,7 +480,7 @@ describe('Position Component', () => {
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const child = screen.getByTestId('child');
@@ -482,7 +493,7 @@ describe('Position Component', () => {
 
       // 重新渲染以模拟 Context 更新
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Position x={100} y={200}>
             <div data-testid="child">Content</div>
           </Position>
@@ -503,7 +514,7 @@ describe('Position Component', () => {
         <Position at={{ anchor: 'center' }}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const parent = screen.getByTestId('child').parentElement;
@@ -520,7 +531,7 @@ describe('Position Component', () => {
         <Position at={{ anchor: 'center-x', y: 200 }}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const parent = screen.getByTestId('child').parentElement;
@@ -536,7 +547,7 @@ describe('Position Component', () => {
         <Position at={{ anchor: 'center-y', x: 100 }}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const parent = screen.getByTestId('child').parentElement;
@@ -552,7 +563,7 @@ describe('Position Component', () => {
         <Position at={{ anchor: 'center', x: 40, y: -30 }}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const parent = screen.getByTestId('child').parentElement;
@@ -568,7 +579,7 @@ describe('Position Component', () => {
         <Position at={{ anchor: 'center' }} style={{ transform: 'rotate(10deg)' }}>
           <div data-testid="child">Content</div>
         </Position>,
-        { designWidth: 750, designHeight: 750 }
+        { designSize: 750 }
       );
 
       const parent = screen.getByTestId('child').parentElement;
@@ -745,7 +756,7 @@ describe('Position Component', () => {
 
       // 重新渲染但 props 不变
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Position x={100} y={200}>
             <div data-testid="child">Content</div>
           </Position>

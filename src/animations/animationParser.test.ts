@@ -126,6 +126,30 @@ describe('animationParser', () => {
         exit: { transformOrigin: '0% 0%' },
       });
     });
+
+    it('normalizes single-axis origins and preserves unknown values', () => {
+      expect(
+        normalizeParsedAnimationVariant({
+          initial: { transformOrigin: 'center' },
+          animate: { transformOrigin: 'right' },
+          exit: { transformOrigin: 'unknown-origin' },
+        })
+      ).toEqual({
+        initial: { transformOrigin: '50% 50%' },
+        animate: { transformOrigin: '100% 50%' },
+        exit: { transformOrigin: 'unknown-origin' },
+      });
+    });
+
+    it('accepts nullish parsed phases as empty records', () => {
+      expect(
+        normalizeParsedAnimationVariant({
+          initial: null as never,
+          animate: undefined as never,
+          exit: null as never,
+        })
+      ).toEqual({ initial: {}, animate: {}, exit: {} });
+    });
   });
 
   describe('parsePresetAnimation', () => {

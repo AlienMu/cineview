@@ -9,7 +9,9 @@
     "build:framework": "pnpm --dir .. run build",
     "build:cf": "pnpm run build:framework && pnpm run build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "format": "pnpm --dir .. exec prettier --write \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\"",
+    "format:check": "pnpm --dir .. exec prettier --check \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\""
   },
   "dependencies": {
     "cineview": "link:../",

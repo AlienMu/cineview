@@ -19,6 +19,7 @@ export default defineConfig(({ command }) => ({
     compression({
       algorithm: 'gzip',
       ext: '.gz',
+      filter: /\.(js|mjs|cjs|json|css|html)$/i,
       threshold: 1024, // 只压缩大于 1KB 的文件
       deleteOriginFile: false,
     }),
@@ -35,15 +36,23 @@ export default defineConfig(({ command }) => ({
       entry: 'src/index.ts',
       name: 'CineView',
       formats: ['es', 'umd'],
-      fileName: (format) => `cineview.${format}.js`,
+      fileName: (format) => (format === 'umd' ? 'cineview.umd.js' : 'cineview.es.mjs'),
     },
     rollupOptions: {
       // 外部化依赖，不打包到 bundle 中
-      external: ['react', 'react-dom', 'framer-motion'],
+      external: [
+        'react',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'react-dom',
+        'framer-motion',
+      ],
       output: {
         // UMD 格式的全局变量名
         globals: {
           react: 'React',
+          'react/jsx-runtime': 'ReactJSXRuntime',
+          'react/jsx-dev-runtime': 'ReactJSXDevRuntime',
           'react-dom': 'ReactDOM',
           'framer-motion': 'FramerMotion',
         },
@@ -56,7 +65,7 @@ export default defineConfig(({ command }) => ({
     // console 残留。esbuild 对两种格式都可靠压缩，并通过 esbuild.drop 移除 console。
     minify: 'esbuild',
     // 优化配置
-    sourcemap: false, // 生产环境不生成 sourcemap
+    sourcemap: true,
     chunkSizeWarningLimit: 500, // chunk 大小警告阈值 (KB)
   },
   // 生产构建移除 console 与 debugger（terser 的 drop_console 等价物）；

@@ -43,15 +43,7 @@ export function useSceneScrollTakeover({
     return () => {
       unregisterZone(zoneId);
     };
-  }, [
-    mode,
-    hasScrollTakeover,
-    registerZone,
-    unregisterZone,
-    zoneId,
-    sceneIndex,
-    trigger,
-  ]);
+  }, [mode, hasScrollTakeover, registerZone, unregisterZone, zoneId, sceneIndex, trigger]);
 
   useEffect(() => {
     if (mode !== 'scroll' || !hasScrollTakeover || !setZoneElement) {

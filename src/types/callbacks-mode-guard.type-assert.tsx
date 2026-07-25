@@ -18,7 +18,7 @@ import type {
   CineViewDesignConfig,
 } from '../index';
 
-const config: CineViewDesignConfig = { width: 750, height: 1334 };
+const config: CineViewDesignConfig = { size: 750 };
 
 // --- Positive: the per-mode flat callbacks are accepted ---------------------
 const dragOk: DragModeCallbacks = {

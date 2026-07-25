@@ -69,8 +69,7 @@ export function reduceTimelinePhaseEvidence(
     visibilityIndependentObserved:
       state.visibilityIndependentObserved ||
       (visibility.inViewport && visibility.fullyVisible && visibility.opacity > 0),
-    visibilityWasOutOfViewport:
-      state.visibilityWasOutOfViewport || !visibility.inViewport,
+    visibilityWasOutOfViewport: state.visibilityWasOutOfViewport || !visibility.inViewport,
     maxShiftedBeforeBaselineDone: shiftedEarlyOpacity,
     maxVisibilityBeforeViewportEntry: visibilityBeforeEntry,
   };

@@ -37,7 +37,8 @@
 
   /* — 字体 — */
   --font-display: 'Fraunces', 'Songti SC', Georgia, serif;
-  --font-body: 'Inter', 'PingFang SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-body:
+    'Inter', 'PingFang SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* — 字号刻度 — */
@@ -105,7 +106,10 @@ body {
   position: relative;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-family: var(--font-display);
   font-weight: 600;
   line-height: 1.08;
@@ -125,7 +129,8 @@ button {
   background: none;
 }
 
-code, .mono {
+code,
+.mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -141,7 +146,9 @@ code, .mono {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;

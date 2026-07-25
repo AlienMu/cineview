@@ -165,7 +165,7 @@ describe('drag mode live-release regression', () => {
         ref={cineViewRef}
         mode="drag"
         modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ width: 750, height: 1334 }}
+        config={{ size: 750 }}
         callbacks={{ onSceneDidChange }}
       >
         <Scene transition={{ exitDuration: 800 }}>

@@ -40,7 +40,7 @@ export interface NormalizedAnimateVisibility {
   replayOnReenter: boolean;
   // Raw per-Animate design-px overrides (undefined = inherit the CineView-level
   // `modes.scroll.enterMargin` / `exitMargin`, default 50). The global fallback
-  // and the scaleY → physical-px conversion are resolved in useAnimateScroll,
+  // and the single-ruler scale → physical-px conversion are resolved in useAnimateScroll,
   // which has the CineViewContext; keeping this layer pure of context.
   enterMargin?: number;
   exitMargin?: number;

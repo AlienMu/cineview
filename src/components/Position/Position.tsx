@@ -9,7 +9,7 @@
  * - 这样可以完美适配任何屏幕尺寸
  */
 
-import React, { useMemo, useContext, createContext } from 'react';
+import React, { useMemo, useContext, createContext, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { PositionProps } from '../../types';
@@ -33,18 +33,10 @@ interface PositionContextValue {
 const PositionContext = createContext<PositionContextValue>({ lastX: 0, lastY: 0 });
 export const SceneFixedLayerContext = createContext<HTMLElement | null>(null);
 
-export const Position: React.FC<PositionInternalProps> = ({
-  at,
-  layer,
-  x,
-  y,
-  offsetX,
-  offsetY,
-  fixed = false,
-  children,
-  style,
-  className,
-}) => {
+export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(function Position(
+  { at, layer, x, y, offsetX, offsetY, fixed = false, children, style, className, ...restProps },
+  ref
+) {
   const context = useCineViewContext();
   const cineViewRuntime = useCineViewRuntimeContext();
   const parentPosition = useContext(PositionContext);
@@ -141,19 +133,17 @@ export const Position: React.FC<PositionInternalProps> = ({
     const mergedTransform =
       [centerTransform, style?.transform].filter(Boolean).join(' ') || undefined;
     return {
+      ...style,
       position: (shouldUseStickyLayer ? 'sticky' : 'absolute') as React.CSSProperties['position'],
       left: leftStyle,
       top: topStyle,
-      pointerEvents: resolvedFixed
-        ? ('auto' as React.CSSProperties['pointerEvents'])
-        : style?.pointerEvents,
-      ...style,
+      pointerEvents: resolvedFixed ? (style?.pointerEvents ?? 'auto') : style?.pointerEvents,
       transform: mergedTransform,
     };
   }, [shouldUseStickyLayer, resolvedFixed, leftStyle, topStyle, centerTransform, style]);
   const node = (
     <PositionContext.Provider value={contextValue}>
-      <div style={positionStyle} className={className}>
+      <div ref={ref} style={positionStyle} className={className} {...restProps}>
         {children}
       </div>
     </PositionContext.Provider>
@@ -164,6 +154,6 @@ export const Position: React.FC<PositionInternalProps> = ({
   }
 
   return node;
-};
+});
 
 Position.displayName = 'Position';

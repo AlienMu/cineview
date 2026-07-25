@@ -74,6 +74,26 @@ describe('Image', () => {
     expect(getByAltText('Hero')).toHaveAttribute('loading', 'lazy');
   });
 
+  it('does not issue a framework preload when native loading is explicitly lazy', () => {
+    const loaders: string[] = [];
+    const OriginalImage = window.Image;
+    class MockImage {
+      set src(value: string) {
+        loaders.push(value);
+      }
+      addEventListener(): void {}
+      removeEventListener(): void {}
+    }
+    (window as unknown as { Image: unknown }).Image = MockImage;
+
+    try {
+      render(<Image src="lazy-native.jpg" alt="Lazy" loading="lazy" preload={true} />);
+      expect(loaders).not.toContain('lazy-native.jpg');
+    } finally {
+      (window as unknown as { Image: typeof OriginalImage }).Image = OriginalImage;
+    }
+  });
+
   it('registers a preloaded src with the shared preload cache when it loads', () => {
     resetPreloadedImageCache();
     const loaders: Array<{ src: string; dispatch: (type: string) => void }> = [];
@@ -137,7 +157,7 @@ describe('Image', () => {
     setViewport(500, 400);
 
     const { getByAltText } = render(
-      <CineViewProvider designWidth={1000} designHeight={800}>
+      <CineViewProvider designSize={1000}>
         <Image src="hero.jpg" alt="Hero" width={200} height={160} />
       </CineViewProvider>
     );
@@ -151,7 +171,7 @@ describe('Image', () => {
     setViewport(500, 400);
 
     const { getByAltText } = render(
-      <CineViewProvider designWidth={1000} designHeight={800}>
+      <CineViewProvider designSize={1000}>
         <Image
           src="hero.jpg"
           alt="Hero"

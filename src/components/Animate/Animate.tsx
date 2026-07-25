@@ -14,11 +14,17 @@ import React, {
   isValidElement,
 } from 'react';
 import type { ReactElement } from 'react';
-import { motion, MotionValue, useAnimation } from 'framer-motion';
-import type { ParsedAnimationVariant, ScrollMode, ScrollTimelineState } from '../../types';
+import { motion, MotionValue, useAnimation, useMotionValue } from 'framer-motion';
+import type {
+  AnimatePhase,
+  AnimateTimeline,
+  ParsedAnimationVariant,
+  ScrollMode,
+  ScrollTimelineState,
+} from '../../types';
 import type { AnimateRegistrationInfo } from '../../animations/registry';
 import { parseAnimationSafely } from '../../utils/animationHelpers';
-import { useAnimateDrag } from './useAnimateDrag';
+import { useAnimateDrag, type DragVisualState } from './useAnimateDrag';
 import { useAnimateScroll } from './useAnimateScroll';
 import {
   normalizeAnimateSemantics,
@@ -27,14 +33,24 @@ import {
 } from './animateSemantics';
 import type { DragRelease, ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
 import { ScrollRenderBridge, DragRenderBridge } from './AnimateRenderBridge';
-import { ScrollStagger, DragStagger } from './StaggerContainer';
-import { IDLE_RENDER_STATE } from './animateRenderState';
+import {
+  ScrollStagger,
+  DragStagger,
+  countStaggerItems,
+  resolveStaggerTiming,
+} from './StaggerContainer';
+import {
+  IDLE_RENDER_STATE,
+  normalizeDragPhase,
+  resolveScrollEnterProgress,
+} from './animateRenderState';
+import { AnimateTimelineProvider } from './animateTimeline';
 import type { AnimateRenderState } from '../../types';
 import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 import {
   SceneScrollRuntimeContext,
-  SceneScrollTimelineContext,
   SceneScrollTakeoverContext,
+  useSceneScrollTimeline,
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 
@@ -143,7 +159,6 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const sceneContext = useContext(SceneContext);
   const cineViewRuntime = useCineViewRuntimeContext();
   const zoneRuntime = useContext(SceneScrollRuntimeContext);
-  const zoneTimeline = useContext(SceneScrollTimelineContext);
   const inheritedZoneId = useContext(SceneScrollTakeoverContext);
 
   const [enterVariant, setEnterVariant] = useState<ParsedAnimationVariant | null>(null);
@@ -172,21 +187,59 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     const isSceneScroll = mode === 'scroll' && sceneControlled && Boolean(inheritedZoneId);
     return { ...rest, driver: isSceneScroll ? 'scroll' : 'visibility' };
   }, [inheritedZoneId, mode, normalizedSemantics.timeline]);
+  const liveZoneTimeline = useSceneScrollTimeline(resolvedTimeline.driver === 'scroll');
   const normalizedEnterDuration = normalizedSemantics.duration.enter;
   const normalizedExitDuration = normalizedSemantics.duration.exit;
   const normalizedDelay = resolvedTimeline.delay;
   const normalizedWaitFor = resolvedTimeline.waitFor;
   const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
+  const isRenderProp = typeof children === 'function';
+  const staggerContainer =
+    stagger && !isRenderProp && enterVariant && isValidElement(children)
+      ? (children as ReactElement)
+      : null;
+  const staggerActive = Boolean(staggerContainer);
+  const staggerEach = stagger?.each ?? 40;
+  const staggerFrom = stagger?.from ?? 'first';
+  const staggerTiming = useMemo(
+    () =>
+      staggerContainer && enterVariant
+        ? resolveStaggerTiming(
+            enterVariant,
+            normalizedEnterDuration,
+            staggerEach,
+            staggerFrom,
+            countStaggerItems(staggerContainer)
+          )
+        : null,
+    [enterVariant, normalizedEnterDuration, staggerContainer, staggerEach, staggerFrom]
+  );
+  const staggerExitTiming = useMemo(
+    () =>
+      staggerContainer && exitVariant
+        ? resolveStaggerTiming(
+            exitVariant,
+            normalizedExitDuration,
+            staggerEach,
+            staggerFrom,
+            countStaggerItems(staggerContainer),
+            'exit'
+          )
+        : null,
+    [exitVariant, normalizedExitDuration, staggerContainer, staggerEach, staggerFrom]
+  );
+  const effectiveEnterDuration = staggerTiming?.effectiveDurationMs ?? normalizedEnterDuration;
+  const effectiveExitDuration = staggerExitTiming?.effectiveDurationMs ?? normalizedExitDuration;
   const scrollZoneRuntime = useMemo<SceneScrollZoneRuntime | null>(
     () =>
       zoneRuntime
         ? {
             ...zoneRuntime,
-            version: zoneTimeline?.version ?? 0,
-            zoneStates: zoneTimeline?.zoneStates ?? {},
+            version: liveZoneTimeline?.version ?? 0,
+            zoneStates: liveZoneTimeline?.zoneStates ?? {},
           }
         : null,
-    [zoneRuntime, zoneTimeline]
+    [liveZoneTimeline, zoneRuntime]
   );
 
   useEffect(() => {
@@ -229,8 +282,8 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     exitVariant,
     componentId: id,
     delay: normalizedDelay,
-    enterDuration: normalizedEnterDuration,
-    exitDuration: normalizedExitDuration,
+    enterDuration: effectiveEnterDuration,
+    exitDuration: effectiveExitDuration,
     waitFor: normalizedWaitFor,
   });
 
@@ -243,12 +296,77 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     hasAuthoredEnterAnimation: Boolean(enterAnimation),
     hasAuthoredExitAnimation: Boolean(exitAnimation),
     componentId: id,
-    duration: normalizedSemantics.duration,
+    duration: {
+      enter: effectiveEnterDuration,
+      exit: effectiveExitDuration,
+    },
     timeline: resolvedTimeline,
     visibility: normalizedSemantics.visibility,
     globalEnterMargin: cineViewRuntime?.scrollEnterMargin,
     globalExitMargin: cineViewRuntime?.scrollExitMargin,
   });
+
+  const publicProgress = useMotionValue(0);
+  const publicSignedProgress = useMotionValue(0);
+  const publicPhase = useMotionValue<AnimatePhase>('idle');
+
+  useEffect(() => {
+    if (mode === 'scroll') {
+      const updateVisual = (signed: number): void => {
+        publicSignedProgress.set(signed);
+        publicProgress.set(resolveScrollEnterProgress(signed));
+      };
+      const updatePhase = (phase: AnimatePhase): void => {
+        publicPhase.set(phase);
+      };
+
+      updateVisual(scrollResult.visualMotion.get());
+      updatePhase(scrollResult.phaseMotion.get());
+      const unsubscribeVisual = scrollResult.visualMotion.on('change', updateVisual);
+      const unsubscribePhase = scrollResult.phaseMotion.on('change', updatePhase);
+      return () => {
+        unsubscribeVisual();
+        unsubscribePhase();
+      };
+    }
+
+    const updateDrag = (state: DragVisualState | null): void => {
+      if (!state) {
+        publicProgress.set(0);
+        publicSignedProgress.set(0);
+        publicPhase.set('idle');
+        return;
+      }
+
+      const progress = Math.max(0, Math.min(1, state.localProgress));
+      const signedProgress =
+        state.mode === 'outgoing' ? (state.direction === 'forward' ? 1 : -1) * progress : progress;
+      publicProgress.set(progress);
+      publicSignedProgress.set(signedProgress);
+      publicPhase.set(normalizeDragPhase(state.mode, progress));
+    };
+
+    updateDrag(dragResult.visualState.get());
+    return dragResult.visualState.on('change', updateDrag);
+  }, [
+    dragResult.visualState,
+    mode,
+    publicPhase,
+    publicProgress,
+    publicSignedProgress,
+    scrollResult.phaseMotion,
+    scrollResult.visualMotion,
+  ]);
+
+  const publicTimeline = useMemo<AnimateTimeline>(
+    () => ({
+      driver: mode === 'scroll' ? resolvedTimeline.driver : 'drag',
+      progress: publicProgress,
+      signedProgress: publicSignedProgress,
+      phase: publicPhase,
+    }),
+    [mode, publicPhase, publicProgress, publicSignedProgress, resolvedTimeline.driver]
+  );
 
   useEffect(() => {
     if (mode !== 'drag' || !infiniteVariant) return;
@@ -292,10 +410,12 @@ export const Animate: React.FC<AnimateInternalProps> = ({
 
   // render-prop 桥接:children 为函数时,按当前 mode 挂对应 bridge 订阅进度/相位源;
   // 否则原样透传。非函数 children 零额外成本(不挂 bridge、不订阅)。
-  const isRenderProp = typeof children === 'function';
-  const renderFn = children as (state: AnimateRenderState) => React.ReactNode;
-  const bridgedChildren: React.ReactNode = !isRenderProp ? (
-    (children as React.ReactNode)
+  const renderFn = isRenderProp
+    ? (children as (state: AnimateRenderState) => React.ReactNode)
+    : undefined;
+  const plainChildren = isRenderProp ? null : (children as React.ReactNode);
+  const bridgedChildren: React.ReactNode = !renderFn ? (
+    plainChildren
   ) : mode === 'scroll' ? (
     <ScrollRenderBridge
       signedVisual={scrollResult.visualMotion}
@@ -310,13 +430,6 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // 子元素由 framer 原生 variant 传播错峰(方案B,绕白名单)。外层 motion.div 的视觉
   // style 中和(否则容器整体入场与子元素错峰双重动画),但 visualMotion 仍在内部跑作
   // 触发源供 stagger 订阅。render-prop 与 stagger 互斥(函数 children 无容器可拆)。
-  const staggerContainer =
-    stagger && !isRenderProp && enterVariant && isValidElement(children)
-      ? (children as ReactElement)
-      : null;
-  const staggerActive = Boolean(staggerContainer);
-  const staggerEach = stagger?.each ?? 40;
-  const staggerFrom = stagger?.from ?? 'first';
   const staggeredContent: React.ReactNode =
     staggerContainer && enterVariant ? (
       mode === 'scroll' ? (
@@ -325,6 +438,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           variant={enterVariant}
           each={staggerEach}
           from={staggerFrom}
+          itemDurationMs={staggerTiming?.itemDurationMs}
+          exitVariant={exitVariant}
+          exitItemDurationMs={staggerExitTiming?.itemDurationMs}
           signedVisual={scrollResult.visualMotion}
         />
       ) : (
@@ -333,17 +449,27 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           variant={enterVariant}
           each={staggerEach}
           from={staggerFrom}
+          itemDurationMs={staggerTiming?.itemDurationMs}
+          exitVariant={exitVariant}
+          exitItemDurationMs={staggerExitTiming?.itemDurationMs}
           visualState={dragResult.visualState}
         />
       )
     ) : null;
   const content = staggerActive ? staggeredContent : bridgedChildren;
+  const providedContent = (
+    <AnimateTimelineProvider value={publicTimeline}>{content}</AnimateTimelineProvider>
+  );
   const scrollOuterStyle = staggerActive ? undefined : scrollResult.style;
   const dragOuterStyle = staggerActive ? undefined : dragResult.style;
 
   if (!enterVariant && !exitVariant && !infiniteVariant) {
     // 无动画早退:无进度可推,函数 children 直接给初始态(否则会渲染成 [object Function])。
-    return <>{isRenderProp ? renderFn(IDLE_RENDER_STATE) : children}</>;
+    return (
+      <AnimateTimelineProvider value={publicTimeline}>
+        {renderFn ? renderFn(IDLE_RENDER_STATE) : plainChildren}
+      </AnimateTimelineProvider>
+    );
   }
 
   if (mode === 'scroll') {
@@ -355,7 +481,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
             className="cineview-animate"
             data-cineview-animate-id={id}
           >
-            <motion.div animate={scrollInfiniteControls}>{bridgedChildren}</motion.div>
+            <motion.div animate={scrollInfiniteControls}>{providedContent}</motion.div>
           </motion.div>
         </div>
       );
@@ -368,7 +494,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           className="cineview-animate"
           data-cineview-animate-id={id}
         >
-          {content}
+          {providedContent}
         </motion.div>
       </div>
     );
@@ -377,14 +503,14 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   if (infiniteVariant) {
     return (
       <motion.div style={dragOuterStyle} className="cineview-animate" data-cineview-animate-id={id}>
-        <motion.div animate={dragInfiniteControls}>{content}</motion.div>
+        <motion.div animate={dragInfiniteControls}>{providedContent}</motion.div>
       </motion.div>
     );
   }
 
   return (
     <motion.div style={dragOuterStyle} className="cineview-animate" data-cineview-animate-id={id}>
-      {content}
+      {providedContent}
     </motion.div>
   );
 };

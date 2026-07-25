@@ -110,12 +110,21 @@ export const en: Dict = {
   'demoDrag.s2.line2': 'Subtitle waits for it (waitFor)',
   'demoDrag.s2.line3': 'Body follows, delayed 300ms',
   'demoDrag.s3.eyebrow': 'Shot three · positioning',
-  'demoDrag.s3.title': 'Dual-axis coordinates',
+  'demoDrag.s3.title': 'Single-ruler coordinates',
   'demoDrag.s3.badge': 'Fixed layer',
   'demoDrag.s3.sub': 'Elements land exactly on design-draft coords',
   'demoDrag.s4.eyebrow': 'Shot four · presets',
   'demoDrag.s4.title': '40+ animation presets',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur, freely composed',
+
+  // ── Standalone mobile Drag · first cut ──
+  'drag.shot': '01 / FIRST CUT',
+  'drag.eyebrow': 'MOBILE · DRAG PAGING',
+  'drag.title': 'CineView',
+  'drag.sub': 'Cinematic storytelling, within reach',
+  'drag.hint': 'Press and drag up or down',
+  'drag.footer': 'After release, time keeps finishing',
+  'drag.target': 'Next cut, waiting in the wings',
 
   // ── Act 5 Capabilities ──
   'caps.eyebrow': 'Capabilities',
@@ -123,9 +132,9 @@ export const en: Dict = {
   'caps.1.title': '40+ animation presets',
   'caps.1.desc':
     'fade, slide, zoom, flip, bounce, blur, elastic and more — composable sequentially or in parallel.',
-  'caps.2.title': 'Dual-axis responsive',
+  'caps.2.title': 'Single-ruler responsive',
   'caps.2.desc':
-    'Write in design-draft coordinates; the framework converts across both axes to any viewport — no hand-written media queries.',
+    'Write in design-draft coordinates; every length shares one width-based scale, preserving shape without hand-written media queries.',
   'caps.3.title': 'waitFor choreography',
   'caps.3.desc':
     'Chain elements into dependency links with waitFor, pace them with delay; circular dependencies are detected statically.',
@@ -166,7 +175,7 @@ export const en: Dict = {
   'demoVideo.intro':
     'From frame-by-frame,\nto a scroll of light and shadow —\nevery motion shares one rhythm;\nunlock the frame, and let the story play freely.',
   'demoVideo.code':
-    '<Scene scroll={{ trigger: "center-lock" }}>\n  {({ progress }) => (\n    <>\n      <AnimateVideo src="/video.mp4" progress={progress} />\n      <Glow opacity={progress} scale={0.7 + progress} />\n    </>\n  )}\n</Scene>',
+    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ waitFor: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc':
     'Scroll is the timeline: progress 0→1 maps to first frame→last, and scrolling back plays it in reverse.',
 
@@ -207,4 +216,33 @@ export const en: Dict = {
 
   // ── Common ──
   'common.timecode': 'Timecode',
+
+  // ── /drag temporal experience (narrative copy only; film terms stay English) ──
+  'dragTemporal.s01.eyebrow': 'CINEMATIC UI FRAMEWORK',
+  'dragTemporal.s01.subtitle': 'Direct every frame like a filmmaker',
+  'dragTemporal.s01.footerHint': 'After release, time keeps finishing',
+  'dragTemporal.s01.dialLabel': 'Temporal calibration dial',
+  'dragTemporal.s01.dragHintLabel': 'Drag up or down',
+  'dragTemporal.s01.actionsLabel': 'Primary navigation',
+  'dragTemporal.s01.btnDocs': 'Read the docs',
+  'dragTemporal.s01.btnHome': 'View on GitHub',
+  'dragTemporal.s02.eyebrow': 'SLATE · ACTION',
+  'dragTemporal.s02.title': 'Clap the board — the take begins',
+  'dragTemporal.s02.footerHint': 'Mark it — scene in motion',
+  'dragTemporal.s02.slateLabel': '02 / SLATE',
+  'dragTemporal.s02.clapperLabel': 'Clapperboard forming from particles',
+  'dragTemporal.s03.eyebrow': 'DECLARATIVE TIMELINE',
+  'dragTemporal.s03.title': 'Order & position, resolved',
+  'dragTemporal.s03.footerHint': 'Elements arrive in turn',
+  'dragTemporal.s03.timelineLabel': 'Five-stage declarative timeline',
+  'dragTemporal.s03.panelLabel': 'Active cue parameters',
+  'dragTemporal.s03.contextTitle': 'Elements arrive by waitFor',
+  'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
+  'dragTemporal.s04.footerHint': 'Drag distance becomes time',
+  'dragTemporal.s04.rulerLabel': 'Drag progress ruler',
+  'dragTemporal.s05.actionsLabel': 'Final scene navigation',
+  'dragTemporal.s05.btnHome': 'Back to home',
+  'dragTemporal.s05.btnDocs': 'Read docs',
+  'dragTemporal.s05.reelLabel': 'End of reel',
+  'dragTemporal.hud.metaLabel': 'Capture metadata',
 };

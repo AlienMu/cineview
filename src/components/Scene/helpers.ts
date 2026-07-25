@@ -59,6 +59,17 @@ export function resolveScrollSceneAnchor(anchor: SceneAnchor): React.CSSProperti
   }
 }
 
+export function resolveDragTouchAction(
+  mode: ScrollMode,
+  direction: 'x' | 'y'
+): React.CSSProperties['touchAction'] {
+  if (mode !== 'drag') {
+    return 'auto';
+  }
+
+  return direction === 'y' ? 'pan-x pinch-zoom' : 'pan-y pinch-zoom';
+}
+
 export interface NormalizedSceneProps {
   effectiveMode: ScrollMode;
   effectiveDirection: 'x' | 'y';

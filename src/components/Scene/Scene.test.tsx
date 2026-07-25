@@ -152,11 +152,7 @@ jest.mock('framer-motion', () => {
 
 // Helper to wrap Scene in CineViewProvider
 const renderScene = (ui: React.ReactElement): ReturnType<typeof render> => {
-  return render(
-    <CineViewProvider designWidth={750} designHeight={750}>
-      {ui}
-    </CineViewProvider>
-  );
+  return render(<CineViewProvider designSize={750}>{ui}</CineViewProvider>);
 };
 
 const flushAnimationParsing = async (): Promise<void> => {
@@ -167,6 +163,67 @@ const flushAnimationParsing = async (): Promise<void> => {
 };
 
 describe('Scene Component', () => {
+  it('keeps engine-owned layout and interaction styles when custom style conflicts', () => {
+    renderScene(
+      <Scene
+        isActive={true}
+        layout={{ width: 500, height: 400, overflow: 'hidden' }}
+        style={{
+          width: 999,
+          height: 888,
+          position: 'fixed',
+          overflow: 'visible',
+          pointerEvents: 'none',
+          touchAction: 'none',
+          transform: 'scale(2)',
+          backgroundColor: 'red',
+        }}
+      >
+        <div>Composed scene</div>
+      </Scene>
+    );
+
+    const scene = screen.getByText('Composed scene').parentElement!;
+    expect(scene).toHaveStyle({
+      width: '500px',
+      height: '400px',
+      position: 'absolute',
+      overflow: 'hidden',
+    });
+    expect(scene.style.pointerEvents).toBe('auto');
+    expect(scene.style.touchAction).toBe('pan-x pinch-zoom');
+    expect(scene.style.backgroundColor).toBe('red');
+    expect(scene.style.transform).not.toBe('scale(2)');
+  });
+
+  it('composes authored pointer handlers with the drag owner and honors preventDefault', () => {
+    const onPointerDown = jest.fn((event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+    });
+    let contextValue: SceneContextType | null = null;
+    const Probe = (): null => {
+      contextValue = React.useContext(SceneContext);
+      return null;
+    };
+
+    renderScene(
+      <Scene isActive={true} onPointerDown={onPointerDown}>
+        <Probe />
+        <div>Pointer scene</div>
+      </Scene>
+    );
+
+    fireEvent.pointerDown(screen.getByText('Pointer scene').parentElement!, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+      button: 0,
+    });
+
+    expect(onPointerDown).toHaveBeenCalledTimes(1);
+    expect((contextValue as SceneContextType | null)?.isDragging).toBe(false);
+  });
+
   // Reset mocks before each test
   beforeEach(() => {
     jest.clearAllMocks();
@@ -297,6 +354,43 @@ describe('Scene Component', () => {
         visible: true,
         progress: 1,
       });
+    });
+
+    it('does not synthesize a visibility event when only the callback identity changes', () => {
+      const firstVisibilityChange = jest.fn();
+      const nextVisibilityChange = jest.fn();
+      const timelineState = {
+        phase: 'hold' as const,
+        enterProgress: 1,
+        exitProgress: 0,
+        sceneProgress: 0.5,
+        rangeStart: 0,
+        rangeEnd: 600,
+        rangeLength: 600,
+        enterLength: 100,
+        exitLength: 100,
+      };
+      const renderWithCallback = (onVisibilityChange: typeof firstVisibilityChange) => (
+        <CineViewProvider designSize={750}>
+          <Scene
+            runtimeMode="scroll"
+            isActive={true}
+            sceneIndex={2}
+            callbacks={{ onVisibilityChange }}
+            scrollRuntime={{ timelineState }}
+          >
+            <div>Stable Visibility Content</div>
+          </Scene>
+        </CineViewProvider>
+      );
+
+      const { rerender } = render(renderWithCallback(firstVisibilityChange));
+      expect(firstVisibilityChange).toHaveBeenCalledTimes(1);
+
+      rerender(renderWithCallback(nextVisibilityChange));
+
+      expect(firstVisibilityChange).toHaveBeenCalledTimes(1);
+      expect(nextVisibilityChange).not.toHaveBeenCalled();
     });
 
     it('should keep a scene-scoped fixed host in scroll mode', () => {
@@ -617,7 +711,7 @@ describe('Scene Component', () => {
         expect.stringContaining('Fix: Wrap your Scene components inside a <CineView> component')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('<CineView mode="drag" config={{ width: 750, height: 1334 }}>')
+        expect.stringContaining('<CineView mode="drag" config={{ size: 750 }}>')
       );
 
       consoleSpy.mockRestore();
@@ -1105,7 +1199,7 @@ describe('Scene Component', () => {
       };
 
       render(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene>
               <TestChild />
@@ -1307,7 +1401,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Scene isActive={false}>
             <TestChild />
           </Scene>
@@ -1527,7 +1621,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>
@@ -1554,7 +1648,7 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
@@ -1578,7 +1672,7 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
@@ -1602,7 +1696,7 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designWidth={750} designHeight={750}>
+        <CineViewProvider designSize={750}>
           <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>

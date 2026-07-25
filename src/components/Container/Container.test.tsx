@@ -7,8 +7,7 @@ import { Container } from './Container';
 import { CineViewProvider } from '../../context/CineViewContext';
 
 const defaultProviderProps = {
-  designWidth: 750,
-  designHeight: 800,
+  designSize: 750,
 };
 
 function renderWithCineView(
@@ -163,6 +162,31 @@ describe('Container', () => {
         padding: '20px',
         borderRadius: '10px',
         fontSize: '16px',
+      });
+    });
+
+    it('width/height 便捷 props 应该覆盖 style 中冲突的尺寸', () => {
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 375,
+      });
+
+      const { getByTestId } = renderWithCineView(
+        <Container
+          width={200}
+          height={100}
+          style={{ width: 600, height: 500, padding: 20 }}
+          data-testid="container"
+        >
+          <div>Content</div>
+        </Container>
+      );
+
+      expect(getByTestId('container')).toHaveStyle({
+        width: '100px',
+        height: '50px',
+        padding: '10px',
       });
     });
   });

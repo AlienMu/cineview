@@ -6,8 +6,8 @@ import type { CineViewRef } from '../../types';
 import { CineViewRuntimeContext } from './runtimeContext';
 import {
   SceneScrollRuntimeContext,
-  SceneScrollTimelineContext,
   SceneScrollTakeoverContext,
+  useSceneScrollTimeline,
 } from '../Scene/sceneScrollRuntime';
 
 jest.mock('../../hooks/useImagePreloader', () => ({
@@ -104,6 +104,7 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
   );
 };
 
+(TestScene as typeof TestScene & { cineViewScene?: boolean }).cineViewScene = true;
 TestScene.displayName = 'Scene';
 
 function ScrollBudgetProbe({
@@ -139,7 +140,7 @@ function ScrollBudgetProbe({
 }
 
 function ZoneProgressProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useContext(SceneScrollTimelineContext);
+  const timeline = useSceneScrollTimeline();
   const progress = timeline?.zoneStates[zoneId]?.progressPx ?? 0;
 
   return <output data-testid={`${zoneId}-progress`}>{progress}</output>;
@@ -322,8 +323,7 @@ async function flushAnimationFrame(): Promise<void> {
 }
 
 const config = {
-  width: 750,
-  height: 1334,
+  size: 750,
 };
 
 afterEach(async () => {

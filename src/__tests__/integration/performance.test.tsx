@@ -74,8 +74,26 @@ jest.mock('framer-motion', () => ({
     return { stop: jest.fn() };
   },
   motion: {
-    div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
-      <div {...props}>{children}</div>
+    div: React.forwardRef<
+      HTMLDivElement,
+      React.PropsWithChildren<{
+        initial?: unknown;
+        animate?: unknown;
+        style?: React.CSSProperties;
+        className?: string;
+        onPanStart?: unknown;
+        onPan?: unknown;
+        onPanEnd?: unknown;
+      }>
+    >(
+      (
+        { children, onPanStart: _onPanStart, onPan: _onPan, onPanEnd: _onPanEnd, ...props },
+        ref
+      ) => (
+        <div ref={ref} {...(props as React.HTMLAttributes<HTMLDivElement>)}>
+          {children}
+        </div>
+      )
     ),
   },
   AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
@@ -148,7 +166,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           {scenes}
         </CineView>
@@ -189,7 +207,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           {scenes}
         </CineView>
@@ -264,7 +282,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 50 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           {scenes}
         </CineView>
@@ -314,7 +332,7 @@ describe('性能测试', () => {
       );
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ width: 750, height: 750 }}>
+        <CineView ref={cineViewRef} config={{ size: 750 }}>
           <Scene assets={{ preloadImages: images.slice(0, 12) }}>
             <h1>首屏场景</h1>
           </Scene>
@@ -386,7 +404,7 @@ describe('性能测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
             <h1>首屏</h1>
@@ -424,7 +442,7 @@ describe('性能测试', () => {
       const onLoadProgress = jest.fn();
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }} callbacks={{ onLoadProgress }}>
+        <CineView config={{ size: 750 }} callbacks={{ onLoadProgress }}>
           <Scene
             assets={{
               preloadImages: ['https://example.com/valid.jpg', 'https://invalid-url/image.jpg'],
@@ -490,7 +508,7 @@ describe('性能测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
@@ -534,7 +552,7 @@ describe('性能测试', () => {
         <CineView
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
@@ -562,11 +580,7 @@ describe('性能测试', () => {
 
     test('应该在性能模式下启用性能监控', async () => {
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef}
-          config={{ width: 750, height: 750 }}
-          performance={{ monitor: true }}
-        >
+        <CineView ref={cineViewRef} config={{ size: 750 }} performance={{ monitor: true }}>
           <Scene>
             <h1>性能监控测试</h1>
           </Scene>
@@ -611,7 +625,7 @@ describe('性能测试', () => {
       const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Animate exitAnimation="fade-out">
               <h1>拖拽性能测试</h1>
@@ -646,7 +660,7 @@ describe('性能测试', () => {
 
     test('应该正确处理动画延迟链而不阻塞主线程', async () => {
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Animate
               animateId="anim1"
@@ -711,7 +725,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -772,7 +786,7 @@ describe('性能测试', () => {
 
     test('应该在组件卸载时清理所有资源', async () => {
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }} performance={{ monitor: true }}>
+        <CineView config={{ size: 750 }} performance={{ monitor: true }}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -809,7 +823,7 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>{animations}</Scene>
         </CineView>
       );
@@ -841,7 +855,7 @@ describe('性能测试', () => {
       const startTime = performance.now();
 
       const TestApp = () => (
-        <CineView config={{ width: 750, height: 750 }}>
+        <CineView config={{ size: 750 }}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>
               <Animate enterAnimation="fade-in">
@@ -879,7 +893,7 @@ describe('性能测试', () => {
           ref={cineViewRef}
           mode="drag"
           modes={{ drag: { direction: 'y', transitionDuration: 300 } }}
-          config={{ width: 750, height: 750 }}
+          config={{ size: 750 }}
           performance={{ monitor: true }}
         >
           <Scene>

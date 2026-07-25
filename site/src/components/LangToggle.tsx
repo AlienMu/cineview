@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import { useI18n } from '../i18n';
 
 /**
@@ -5,12 +6,14 @@ import { useI18n } from '../i18n';
  * 一个地球图标 + 当前可切到的语言短码。GitHub/导航全部下放到页内。
  */
 export function LangToggle(): JSX.Element {
+  const { pathname } = useLocation();
   const { t, lang, toggleLang } = useI18n();
+  const className = pathname === '/drag' ? 'lang-toggle lang-toggle--drag' : 'lang-toggle';
 
   return (
     <button
       type="button"
-      className="lang-toggle"
+      className={className}
       onClick={toggleLang}
       aria-label={t('nav.langLabel')}
       title={t('nav.langLabel')}

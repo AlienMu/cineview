@@ -8,8 +8,11 @@
  *
  * 抽取自 DirectScrollCineView 内联实现，逐字保持几何/拖拽/自动隐藏行为不变。
  */
-import React, { useCallback, useEffect, useRef } from 'react';
-import { clamp } from './directScrollHelpers';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { clamp, normalizeKeyboardDeltaPx } from './directScrollHelpers';
+import type { ScrollExternalStore } from './scrollExternalStore';
+
+const EMPTY_SCROLL_OFFSET_SUBSCRIBE = (): (() => void) => () => undefined;
 import type { ScrollbarConfig, SlideDirection } from '../../types';
 
 export interface ScrollbarOverlayProps {
@@ -20,6 +23,8 @@ export interface ScrollbarOverlayProps {
   scrollContentSpan: number;
   /** 当前原生滚动偏移（未 clamp，组件内 clamp 到可滚动范围）。 */
   scrollOffset: number;
+  /** Optional live offset store; keeps the root scroll component out of the frame loop. */
+  scrollOffsetStore?: ScrollExternalStore<number>;
   /** 是否正在滚动（驱动 autoHide 淡入淡出）。 */
   isScrolling: boolean;
   /** 已解析的滚动条配置对象（width/inset/colors/autoHide）。 */
@@ -32,17 +37,27 @@ export function ScrollbarOverlay({
   direction,
   viewportSpan,
   scrollContentSpan,
-  scrollOffset,
+  scrollOffset: initialScrollOffset,
+  scrollOffsetStore,
   isScrolling,
   config,
   onScrollToOffset,
 }: ScrollbarOverlayProps): JSX.Element | null {
-  const scrollbarAutoHide = config.autoHide ?? false;
-  const scrollbarThickness = Math.max(config.width ?? 16, 10);
-  const scrollbarInset = Math.max(config.inset ?? 2, 0);
-  const scrollbarTrackColor = config.trackColor ?? 'rgba(80, 102, 142, 0.3)';
-  const scrollbarThumbColor = config.thumbColor ?? 'rgba(52, 79, 132, 0.94)';
-  const scrollbarThumbBorder = config.thumbHoverColor ?? 'rgba(255, 255, 255, 0.92)';
+  const fallbackScrollOffset = useCallback(() => initialScrollOffset, [initialScrollOffset]);
+  const scrollOffset = useSyncExternalStore(
+    scrollOffsetStore?.subscribe ?? EMPTY_SCROLL_OFFSET_SUBSCRIBE,
+    scrollOffsetStore?.getSnapshot ?? fallbackScrollOffset,
+    scrollOffsetStore?.getSnapshot ?? fallbackScrollOffset
+  );
+  const scrollbarAutoHide = config.autoHide ?? true;
+  const scrollbarAriaLabel = config.ariaLabel ?? 'CineView scroll position';
+  const scrollbarThickness = Math.max(config.width ?? 6, 4);
+  const scrollbarRadius = Math.max(config.radius ?? 999, 0);
+  const scrollbarInset = Math.max(config.inset ?? 0, 0);
+  const scrollbarTrackColor = config.trackColor ?? 'transparent';
+  const scrollbarThumbColor = config.thumbColor ?? 'rgba(255, 255, 255, 0.28)';
+  const scrollbarThumbBorder = config.thumbHoverColor ?? 'rgba(255, 255, 255, 0.42)';
+  const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false);
 
   const nativeScrollableSpan = Math.max(scrollContentSpan - viewportSpan, 0);
   const currentNativeScrollOffset = clamp(scrollOffset, 0, nativeScrollableSpan);
@@ -64,6 +79,25 @@ export function ScrollbarOverlay({
       : 0;
 
   const scrollbarDragCleanupRef = useRef<(() => void) | null>(null);
+
+  const handleScrollbarKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>): void => {
+      const delta = normalizeKeyboardDeltaPx(event.key, event.shiftKey, viewportSpan);
+      if (delta === 0) {
+        return;
+      }
+
+      const targetOffset =
+        delta === Number.POSITIVE_INFINITY
+          ? nativeScrollableSpan
+          : delta === Number.NEGATIVE_INFINITY
+            ? 0
+            : clamp(currentNativeScrollOffset + delta, 0, nativeScrollableSpan);
+      onScrollToOffset(targetOffset);
+      event.preventDefault();
+    },
+    [currentNativeScrollOffset, nativeScrollableSpan, onScrollToOffset, viewportSpan]
+  );
 
   const handleScrollbarMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -144,7 +178,6 @@ export function ScrollbarOverlay({
 
   return (
     <div
-      aria-hidden="true"
       data-cineview-scrollbar-overlay="true"
       style={{
         position: 'absolute',
@@ -155,7 +188,7 @@ export function ScrollbarOverlay({
         // scrolling, driven by isScrolling (idle timer flips it
         // false ~120ms after the last scroll input). Without
         // autoHide it stays fully visible.
-        opacity: scrollbarAutoHide ? (isScrolling ? 1 : 0) : 1,
+        opacity: scrollbarAutoHide ? (isScrolling || hasKeyboardFocus ? 1 : 0) : 1,
         // Asymmetric fade: snap visible the instant scrolling
         // starts (isScrolling flips true), then drift out gently
         // after it stops. A single symmetric duration can't both
@@ -170,8 +203,18 @@ export function ScrollbarOverlay({
       }}
     >
       <div
+        role="scrollbar"
+        aria-label={scrollbarAriaLabel}
+        aria-orientation={direction === 'x' ? 'horizontal' : 'vertical'}
+        aria-valuemin={0}
+        aria-valuemax={Math.round(nativeScrollableSpan)}
+        aria-valuenow={Math.round(currentNativeScrollOffset)}
+        tabIndex={0}
         data-cineview-scrollbar-rail="true"
         onMouseDown={handleScrollbarMouseDown}
+        onKeyDown={handleScrollbarKeyDown}
+        onFocus={() => setHasKeyboardFocus(true)}
+        onBlur={() => setHasKeyboardFocus(false)}
         style={
           direction === 'x'
             ? {
@@ -180,12 +223,14 @@ export function ScrollbarOverlay({
                 top: Math.max(viewportSpan - scrollbarThickness - scrollbarInset, 0),
                 width: railLength,
                 height: scrollbarThickness,
-                borderRadius: scrollbarThickness,
+                borderRadius: scrollbarRadius,
                 background: scrollbarTrackColor,
                 boxShadow:
                   '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
                 pointerEvents: 'auto',
                 cursor: 'pointer',
+                outline: hasKeyboardFocus ? '2px solid rgba(24, 119, 242, 0.95)' : 'none',
+                outlineOffset: 2,
               }
             : {
                 position: 'absolute',
@@ -193,12 +238,14 @@ export function ScrollbarOverlay({
                 right: scrollbarInset,
                 width: scrollbarThickness,
                 height: railLength,
-                borderRadius: scrollbarThickness,
+                borderRadius: scrollbarRadius,
                 background: scrollbarTrackColor,
                 boxShadow:
                   '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
                 pointerEvents: 'auto',
                 cursor: 'pointer',
+                outline: hasKeyboardFocus ? '2px solid rgba(24, 119, 242, 0.95)' : 'none',
+                outlineOffset: 2,
               }
         }
       >
@@ -212,7 +259,7 @@ export function ScrollbarOverlay({
                   top: 0,
                   width: thumbLength,
                   height: scrollbarThickness,
-                  borderRadius: scrollbarThickness,
+                  borderRadius: scrollbarRadius,
                   background: scrollbarThumbColor,
                   boxShadow: `0 0 0 1px ${scrollbarThumbBorder}, 0 10px 24px rgba(53, 74, 116, 0.16)`,
                   cursor: 'grab',
@@ -223,7 +270,7 @@ export function ScrollbarOverlay({
                   left: 0,
                   width: scrollbarThickness,
                   height: thumbLength,
-                  borderRadius: scrollbarThickness,
+                  borderRadius: scrollbarRadius,
                   background: scrollbarThumbColor,
                   boxShadow: `0 0 0 1px ${scrollbarThumbBorder}, 0 10px 24px rgba(53, 74, 116, 0.16)`,
                   cursor: 'grab',

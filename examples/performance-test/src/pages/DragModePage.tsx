@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { CineView } from 'cineview';
 import type { CineViewRef } from 'cineview';
 import ExperienceOverlayChrome from '../components/ExperienceOverlayChrome';
+import { ProfileBoundary } from '../components/ProfileBoundary';
 import { renderDragScenes } from '../components/PagedScenes';
 import { PERFORMANCE_EXPERIENCE } from '../content/performanceExperience';
 import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
@@ -25,19 +26,21 @@ export default function DragModePage(): JSX.Element {
       subtitle="Weighted vertical chapters with deliberate release, settle, and premium product staging."
       totalScenes={PERFORMANCE_EXPERIENCE.sections.length}
     >
-      <CineView
-        ref={cineViewRef}
-        callbacks={{
-          onLoadProgress: (progress) => setLoadProgress(progress),
-          onDragCommit: (detail) => setCurrentScene(detail.targetSceneIndex),
-        }}
-        config={{ width: 1440, height: 1080, unit: 'px' }}
-        mode="drag"
-        modes={{ drag: { direction: 'y', transitionDuration: 920 } }}
-        performance={{ monitor: monitorOpen }}
-      >
-        {renderDragScenes(PERFORMANCE_EXPERIENCE.sections)}
-      </CineView>
+      <ProfileBoundary id="cineview-runtime">
+        <CineView
+          ref={cineViewRef}
+          callbacks={{
+            onLoadProgress: (progress) => setLoadProgress(progress),
+            onDragCommit: (detail) => setCurrentScene(detail.targetSceneIndex),
+          }}
+          config={{ size: 1440 }}
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 920 } }}
+          performance={{ monitor: monitorOpen }}
+        >
+          {renderDragScenes(PERFORMANCE_EXPERIENCE.sections)}
+        </CineView>
+      </ProfileBoundary>
     </ExperienceOverlayChrome>
   );
 }

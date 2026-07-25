@@ -394,28 +394,25 @@ export function useAnimateDrag({
   }, [enterVariant, exitVariant]);
 
   useEffect(() => {
-    if (
-      !sceneContext?.registerAnimate ||
-      !sceneContext?.unregisterAnimate ||
-      !sceneContext?.getCalculatedDelay ||
-      !enterVariant
-    ) {
+    const registerAnimate = sceneContext?.registerAnimate;
+    const unregisterAnimate = sceneContext?.unregisterAnimate;
+    const getCalculatedDelay = sceneContext?.getCalculatedDelay;
+    if (!registerAnimate || !unregisterAnimate || !getCalculatedDelay || !enterVariant) {
       return;
     }
 
-    sceneContext.registerAnimate(componentId, {
+    registerAnimate(componentId, {
       delay,
       duration: enterDuration,
       waitFor,
     });
 
-    calculatedDelayRef.current = sceneContext.getCalculatedDelay(componentId);
+    calculatedDelayRef.current = getCalculatedDelay(componentId);
 
     return () => {
-      sceneContext.unregisterAnimate(componentId);
+      unregisterAnimate(componentId);
     };
   }, [
-    sceneContext,
     sceneContext?.registerAnimate,
     sceneContext?.unregisterAnimate,
     sceneContext?.getCalculatedDelay,

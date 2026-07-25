@@ -1,4 +1,5 @@
-import { ReactNode } from 'react';
+import type { HTMLAttributes, ReactElement, ReactNode } from 'react';
+import type { MotionValue } from 'framer-motion';
 
 // ============================================================================
 // Basic Types
@@ -38,18 +39,16 @@ export type SceneStackMode = 'replace' | 'cover';
 
 export interface CineViewDesignConfig {
   /**
-   * Preferred modern API.
-   * Design draft width.
+   * 设计稿尺寸基准（设计 px）。这是全站唯一的换算尺子：
+   * `scale = viewportWidth / size`，坐标（Position）、盒模型（Container）等设计长度
+   * 全部乘同一个 `scale`（认宽不认高，绝不形变）。scroll takeover 的时间预算仍按
+   * `1ms = 1px` 结算；场景绝对跨度回退 DOM 实测，不引入第二把高度尺子。
+   *
+   * 对齐 Figma / 设计稿的通用标准：填一个设计稿宽度（默认 750，移动端标准稿），
+   * 之后所有设计 px 数值都以此为基准换算到任意视口。不再有独立的高度基准——
+   * 纵向超出交给自然文档流 / 滚动延展。
    */
-  width?: number;
-  /**
-   * Preferred modern API.
-   * Design draft height. Canvas height reference only — NOT part of the
-   * px2vw scale (which is width-only: `scale = viewport / width`). Used by
-   * scroll-mode numeric-length → scroll-budget conversion (viewport-extent
-   * semantics), see directScrollHelpers.resolveTakeoverSceneSpan.
-   */
-  height?: number;
+  size?: number;
 }
 
 export interface DragThresholdConfig {
@@ -93,6 +92,7 @@ export interface ScrollModeConfig {
 
 export interface ScrollbarConfig {
   enabled?: boolean;
+  ariaLabel?: string;
   width?: number;
   radius?: number;
   inset?: number;
@@ -397,7 +397,7 @@ export interface CineViewScrollRef extends CineViewRef {
 /**
  * Scene 组件 Props
  */
-export interface SceneProps {
+export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   sceneId?: string;
   layout?: {
     width?: number | string;
@@ -430,7 +430,7 @@ export interface SceneProps {
 /**
  * Animate 组件 Props
  */
-export interface AnimateProps {
+interface AnimateBaseProps {
   animateId?: string; // 组件唯一标识
   enterAnimation?: AnimationType; // 进入动画类型
   exitAnimation?: AnimationType; // 离开动画类型
@@ -468,7 +468,7 @@ export interface AnimateProps {
     // bottom edge by `enterMargin`; exit fires when its top reaches within
     // `exitMargin` of the top edge. Oversized elements (taller than
     // viewport - enterMargin) fall back to a center/70% rule. Both are design
-    // px (run through scaleY) and default to the CineView-level scroll config
+    // px (run through the single-ruler scale) and default to the CineView-level scroll config
     // (`modes.scroll.enterMargin` / `exitMargin`), which defaults to 50.
     enterMargin?: number;
     exitMargin?: number;
@@ -481,12 +481,22 @@ export interface AnimateProps {
    * 时间驱动、不随滚动/拖拽 scrub（需要 scrub 的逐元素揭示改用 render-prop 的
    * `enterProgress`）。用于 visibility 入场：打字机、列表级联、字母波浪等。
    */
-  stagger?: {
-    each?: number; // 每子元素间隔 ms，默认 40
-    from?: 'first' | 'last' | 'center'; // 起始方向，默认 'first'
-  };
-  children: ReactNode | ((state: AnimateRenderState) => ReactNode);
 }
+
+export interface AnimateStaggerConfig {
+  each?: number; // 每子元素间隔 ms，默认 40
+  from?: 'first' | 'last' | 'center'; // 起始方向，默认 'first'
+}
+
+export type AnimateProps =
+  | (AnimateBaseProps & {
+      stagger: AnimateStaggerConfig;
+      children: ReactElement;
+    })
+  | (AnimateBaseProps & {
+      stagger?: never;
+      children: ReactNode | ((state: AnimateRenderState) => ReactNode);
+    });
 
 /**
  * render-prop children 接收的动画状态。进度天然跟随当前时间轴来源：
@@ -495,6 +505,20 @@ export interface AnimateProps {
 export interface AnimateRenderState {
   enterProgress: number; // 0..1，0=初始帧，1=完全进入
   phase: 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
+}
+
+export type AnimatePhase = AnimateRenderState['phase'];
+export type AnimateTimelineDriver = 'drag' | 'scroll' | 'visibility';
+
+/**
+ * Stable, read-only zero-render view of the nearest Animate timeline.
+ * MotionValue updates bypass React rendering; the object exposes no writer.
+ */
+export interface AnimateTimeline {
+  readonly driver: AnimateTimelineDriver;
+  readonly progress: MotionValue<number>;
+  readonly signedProgress: MotionValue<number>;
+  readonly phase: MotionValue<AnimatePhase>;
 }
 
 export interface ScrollTimelineState {
@@ -512,7 +536,10 @@ export interface ScrollTimelineState {
 /**
  * Position 组件 Props
  */
-export interface PositionProps {
+export interface PositionProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'children' | 'style' | 'className'
+> {
   at?: {
     x?: number;
     y?: number;
@@ -524,7 +551,7 @@ export interface PositionProps {
      * - `'center-x'`：仅水平居中（`y` 仍为绝对设计坐标）
      * - `'center-y'`：仅垂直居中（`x` 仍为绝对设计坐标）
      *
-     * 居中后 `x` / `y` 改作「相对中心的偏移量」（设计 px，经双轴换算）：
+     * 居中后 `x` / `y` 改作「相对中心的偏移量」（设计 px，经单尺子 `scale` 换算）：
      * 例如 `anchor: 'center', x: 0, y: -100` 表示水平居中、垂直居中再上移 100。
      * 被居中的轴忽略 `offsetX` / `offsetY` 相对定位链。
      */
@@ -543,7 +570,10 @@ export interface PositionProps {
  * width/height 与 style 内的所有长度量（padding/margin/gap/borderRadius/fontSize/...）
  * 均按设计 px 经单尺子 `convert` 自动换算。
  */
-export interface ContainerProps {
+export interface ContainerProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'children' | 'style' | 'className'
+> {
   width?: number; // 容器宽度（设计 px）
   height?: number; // 容器高度（设计 px）
   children: ReactNode;

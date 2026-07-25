@@ -95,9 +95,7 @@ export default function PerformanceMonitor({
             <MetricRow
               label="Frame"
               value={metrics ? `${metrics.avgFrameTime.toFixed(2)} ms` : '--'}
-              tone={
-                metrics ? metricTone(metrics.avgFrameTime, 16.67, 33.33, true) : '#D9E3EE'
-              }
+              tone={metrics ? metricTone(metrics.avgFrameTime, 16.67, 33.33, true) : '#D9E3EE'}
             />
             <MetricRow
               label="Memory"

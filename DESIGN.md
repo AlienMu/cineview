@@ -386,27 +386,27 @@ graph TD
     A --> C[场景管理器]
     A --> D[事件系统]
     A --> E[图片预加载器]
-    
+
     C --> F[Scene 场景组件]
     F --> G[滑动控制器]
     F --> H[场景动画控制器]
     F --> R[Drag 引擎]
-    
+
     F --> I[Animate 动画组件]
     F --> J[Position 定位组件]
-    
+
     I --> K[动画库集成层]
     I --> L[动画延迟关联管理器]
-    
+
     R --> I
-    
+
     B --> M[尺寸换算上下文]
     M --> J
     M --> F
-    
+
     E --> N[首屏图片加载]
     E --> O[后续场景静默加载]
-    
+
     D --> P[生命周期事件]
     D --> Q[API 方法]
 ```
@@ -418,17 +418,17 @@ graph TD
     A[CineView] --> B[Scene 1]
     A --> C[Scene 2]
     A --> D[Scene N]
-    
+
     B --> E[Animate]
     B --> F[Position]
     B --> G[自定义内容]
-    
+
     E --> H[子元素]
     F --> I[子元素]
-    
+
     C --> J[Animate]
     C --> K[Position]
-    
+
     style A fill:#e1f5ff
     style B fill:#fff4e1
     style C fill:#fff4e1
@@ -450,34 +450,34 @@ sequenceDiagram
     participant A1 as Animate 组件 (Scene 1)
     participant A2 as Animate 组件 (Scene 2)
     participant TH as 智能阈值判断器
-    
+
     Note over SC1: Drag 模式下 Scene 不执行 enter/exit 视觉动画
     Note over A1,A2: 每个 Scene 持有自己的 element 轨（elementElapsedMotion），元素只读本场景的轨
-    
+
     User->>SC1: 开始拖拽 (onDragStart)
     SC1->>SC1: 创建/维护全局 renderProgress（render 轨）
     SC1->>A1: 注册到 animateRegistry
     SC2->>A2: 注册到 animateRegistry，计算 delay；SC2 持有自己的 element 轨
-    
+
     loop 拖拽过程中
         User->>SC1: 拖拽移动 (onDrag)
         SC1->>DE: 计算全局 renderProgress（render 轨，驱动页面位移）
         SC2->>SC2: useElementTrack 跟手写 element 轨 elapsed = min(r × dragTimeScale×100, T_self)（绝对标尺）
-        
+
         par 实时动画同步
             DE->>A1: 当前场景元素按 render 位移映射退场进度
             Note over A1: 当前场景仅负责元素退场（读 render 位移），不做 Scene 级补间
-            
+
             A2->>A2: incoming 元素读 SC2 自己的 element 轨算 localProgress
             Note over A2: localProgress = f(element轨.elapsed, delay, duration)
             Note over A2: 元素未到 delay 前保持 initial
         end
     end
-    
+
     User->>SC1: 释放拖拽 (onDragEnd)
     SC1->>TH: 获取速度和进度
     TH->>TH: 综合累计位移方向 + 末端反向速度判定
-    
+
     alt 进度 > 阈值 (切换)
         SC1->>DE: 发布 dragRelease{mode:settle}（释放瞬间，并行）
         par 两条独立时钟并行
@@ -488,7 +488,7 @@ sequenceDiagram
         SC1-->>User: 场景切换完成（= 页面过渡完成）
         Note over SC2: element 轨跨 commit 不重挂、不打断、连续补完到 T_self（独立可中断线，无公共回调）
         SC2->>SC1: element 轨到 T_self → completeDragTransition 仅做状态清理（清 dragRelease/direction/scalars）
-        
+
     else 进度 <= 阈值 (回弹)
         SC1->>DE: 发布 dragRelease{mode:bounce}
         par 一起平滑回 0
@@ -507,24 +507,24 @@ sequenceDiagram
     participant SC1 as Scene 1 (上一个)
     participant SC2 as Scene 2 (当前)
     participant DE as Drag Engine
-    
+
     Note over SC2: 场景状态: active
     Note over SC2: sceneOffset = 0
     Note over SC1: sceneOffset = -1
-    
+
     User->>SC2: 向后拖拽 (向下滑动)
     SC2->>DE: 计算负向 renderProgress（render 轨）
-    
+
     par 双向动画同步
         DE->>SC2: 当前场景元素按 render 位移执行退场或回退
         SC1->>SC1: 上一场景（incoming）读自己的 element 轨重新进入
     end
-    
+
     User->>SC2: 释放拖拽
-    
+
     alt 超过阈值 (返回上一场景)
         Note over SC2,SC1: Scene 自身仅分页位移，视觉动画全部由 Animate 完成
-        
+
     else 未超过阈值 (回弹)
         Note over SC2,SC1: 各元素按本地时间轴回退
     end
@@ -537,6 +537,7 @@ sequenceDiagram
 **目的**: 提供全局配置上下文，作为唯一模式入口，并承接模式配置、滚动条配置、性能策略和统一回调
 
 **接口**:
+
 ```typescript
 // CineViewProps 是按 mode 判别的共用体：mode 决定可写哪些 callbacks。
 // mode 省略 → 'drag'（维持现默认）；mode='scroll' 必须显式写。
@@ -556,13 +557,15 @@ interface CineViewBaseProps {
 }
 
 interface CineViewDesignConfig {
-  width: number;                     // 设计稿宽度（px2vw 单尺子的唯一基准：scale = viewportWidth / width）
-  height: number;                    // 设计稿画布高度；仅描述画布 + scroll 场景「数字长度→滚动预算」换算基准（视口-extent 语义），不参与 scale
+  size?: number; // 设计稿尺寸基准（设计 px，默认 750）
+  // 全站唯一换算尺子：scale = viewportWidth / size。坐标（Position）、
+  // 盒模型（Container）等设计长度全部乘同一个 scale（认宽不认高，绝不形变）。
+  // scroll takeover 时间预算仍为 1ms=1px；绝对场景跨度回退 DOM 实测。
 }
 
 interface DragModeConfig {
-  direction?: 'x' | 'y';             // default: 'y'
-  transitionDuration?: number;       // default: 800
+  direction?: 'x' | 'y'; // default: 'y'
+  transitionDuration?: number; // default: 800
   threshold?: {
     minVelocity?: number;
     maxVelocity?: number;
@@ -573,22 +576,22 @@ interface DragModeConfig {
 }
 
 interface ScrollModeConfig {
-  direction?: 'x' | 'y';             // default: 'y'
-  zoneTrigger?: 'center-lock';       // default: 'center-lock'
+  direction?: 'x' | 'y'; // default: 'y'
+  zoneTrigger?: 'center-lock'; // default: 'center-lock'
   sceneSizing?: 'content' | 'screen'; // default: 'content'
-  enterMargin?: number;              // default: 50 (design px) — visibility-driven enter gate
-  exitMargin?: number;               // default: 50 (design px) — visibility-driven exit gate
+  enterMargin?: number; // default: 50 (design px) — visibility-driven enter gate
+  exitMargin?: number; // default: 50 (design px) — visibility-driven exit gate
 }
 
 interface ScrollbarConfig {
-  enabled?: boolean;                 // default: false
-  width?: number;                    // default: 6
-  radius?: number;                   // default: 999
-  inset?: number;                    // default: 0
-  trackColor?: string;               // default: 'transparent'
-  thumbColor?: string;               // default: 'rgba(255,255,255,0.28)'
-  thumbHoverColor?: string;          // default: 'rgba(255,255,255,0.42)'
-  autoHide?: boolean;                // default: true
+  enabled?: boolean; // default: false
+  width?: number; // default: 6
+  radius?: number; // default: 999
+  inset?: number; // default: 0
+  trackColor?: string; // default: 'transparent'
+  thumbColor?: string; // default: 'rgba(255,255,255,0.28)'
+  thumbHoverColor?: string; // default: 'rgba(255,255,255,0.42)'
+  autoHide?: boolean; // default: true
 }
 
 // 回调表面是「扁平 + 按 mode 判别」的：consumer 写哪些回调由 `mode` 决定。
@@ -597,18 +600,18 @@ interface ScrollbarConfig {
 // scroll } 分组消费（regroupCallbacks 把扁平对象拆回分组形，~30 个读点不变）。
 
 interface CineViewCommonCallbacks {
-  onReady?: (api: CineViewRef) => void;       // 仅挂载后触发一次；活动场景/zone 变化不得重触发（drag/scroll 两端一致）
+  onReady?: (api: CineViewRef) => void; // 仅挂载后触发一次；活动场景/zone 变化不得重触发（drag/scroll 两端一致）
   onLoadProgress?: (progress: number) => void;
   onSceneWillChange?: (detail: SceneChangeDetail) => void;
-  onSceneDidChange?: (detail: SceneChangeDetail) => void;   // 切换完成 = render commit（属性 6）
+  onSceneDidChange?: (detail: SceneChangeDetail) => void; // 切换完成 = render commit（属性 6）
   onError?: (detail: CineViewErrorDetail) => void;
 }
 
 interface CineViewDragCallbacks {
-  onDragStart?: (detail: DragDetail) => void;        // 手势专属
-  onDragProgress?: (detail: DragDetail) => void;     // 手势专属
+  onDragStart?: (detail: DragDetail) => void; // 手势专属
+  onDragProgress?: (detail: DragDetail) => void; // 手势专属
   onDragCommit?: (detail: DragCommitDetail) => void; // 所有 drag 切换提交（手势 + ref.goToScene）
-  onDragCancel?: (detail: DragDetail) => void;       // 手势专属
+  onDragCancel?: (detail: DragDetail) => void; // 手势专属
 }
 
 interface CineViewScrollCallbacks {
@@ -632,10 +635,7 @@ interface CineViewPerformanceConfig {
 
 interface CineViewRef {
   goToScene: (index: number, animated?: boolean) => void;
-  goToZone?: (
-    zoneId: string,
-    options?: { align?: 'center'; animated?: boolean }
-  ) => void;
+  goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
   refreshLayout?: () => void;
   preload?: (targets?: Array<number | string>) => Promise<void>;
   getCurrentScene: () => number;
@@ -644,6 +644,7 @@ interface CineViewRef {
 ```
 
 **职责**:
+
 - 创建响应式尺寸换算上下文
 - 作为 `drag / scroll` 的唯一模式入口
 - 统一托管 mode-specific 默认值
@@ -669,6 +670,7 @@ interface CineViewRef {
 **目的**: 表示一个场景 section，负责内容布局、可视边界和 scene-owned layer 宿主
 
 **接口**:
+
 ```typescript
 interface SceneProps {
   sceneId?: string;
@@ -697,74 +699,71 @@ interface SceneProps {
 }
 
 interface DragThresholdConfig {
-  minVelocity?: number;      // 最小速度（px/s），默认 0
-  maxVelocity?: number;      // 最大速度（px/s），默认 1000
-  minThreshold?: number;     // 最小阈值（快速滑动），默认 0.15
-  maxThreshold?: number;     // 最大阈值（慢速滑动），默认 0.3
+  minVelocity?: number; // 最小速度（px/s），默认 0
+  maxVelocity?: number; // 最大速度（px/s），默认 1000
+  minThreshold?: number; // 最小阈值（快速滑动），默认 0.15
+  maxThreshold?: number; // 最大阈值（慢速滑动），默认 0.3
   animationDuration?: number; // 完成/回弹动画时长（秒），默认 0.8
 }
 
-type AnimationType = 
-  | PresetAnimation
-  | CustomAnimation
-  | ComposedAnimation;
+type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation;
 
 // 预设动画类型
 type PresetAnimation =
   // 基础动画
-  | 'fade'              // 淡入淡出
-  | 'fade-in'           // 淡入
-  | 'fade-out'          // 淡出
+  | 'fade' // 淡入淡出
+  | 'fade-in' // 淡入
+  | 'fade-out' // 淡出
   // 滑动动画
-  | 'slide-up'          // 向上滑动
-  | 'slide-down'        // 向下滑动
-  | 'slide-left'        // 向左滑动
-  | 'slide-right'       // 向右滑动
+  | 'slide-up' // 向上滑动
+  | 'slide-down' // 向下滑动
+  | 'slide-left' // 向左滑动
+  | 'slide-right' // 向右滑动
   // 缩放动画
-  | 'zoom-in'           // 放大
-  | 'zoom-out'          // 缩小
-  | 'scale-up'          // 放大（弹性）
-  | 'scale-down'        // 缩小（弹性）
+  | 'zoom-in' // 放大
+  | 'zoom-out' // 缩小
+  | 'scale-up' // 放大（弹性）
+  | 'scale-down' // 缩小（弹性）
   // 旋转动画
-  | 'rotate'            // 旋转
-  | 'rotate-in'         // 旋转进入
-  | 'rotate-out'        // 旋转退出
-  | 'spin'              // 持续旋转
+  | 'rotate' // 旋转
+  | 'rotate-in' // 旋转进入
+  | 'rotate-out' // 旋转退出
+  | 'spin' // 持续旋转
   // 翻转动画
-  | 'flip'              // 翻转
-  | 'flip-x'            // 水平翻转
-  | 'flip-y'            // 垂直翻转
+  | 'flip' // 翻转
+  | 'flip-x' // 水平翻转
+  | 'flip-y' // 垂直翻转
   // 弹跳动画
-  | 'bounce'            // 弹跳
-  | 'bounce-in'         // 弹跳进入
-  | 'bounce-out'        // 弹跳退出
+  | 'bounce' // 弹跳
+  | 'bounce-in' // 弹跳进入
+  | 'bounce-out' // 弹跳退出
   // 闪烁动画
-  | 'blink'             // 闪烁
-  | 'flash'             // 快速闪烁
-  | 'pulse'             // 脉冲
+  | 'blink' // 闪烁
+  | 'flash' // 快速闪烁
+  | 'pulse' // 脉冲
   // 抖动动画
-  | 'shake'             // 抖动
-  | 'shake-x'           // 水平抖动
-  | 'shake-y'           // 垂直抖动
-  | 'vibrate'           // 震动
-  | 'jello'             // 果冻抖动
+  | 'shake' // 抖动
+  | 'shake-x' // 水平抖动
+  | 'shake-y' // 垂直抖动
+  | 'vibrate' // 震动
+  | 'jello' // 果冻抖动
   // 模糊动画
-  | 'blur-in'           // 模糊进入
-  | 'blur-out'          // 模糊退出
-  | 'focus-in'          // 聚焦进入
+  | 'blur-in' // 模糊进入
+  | 'blur-out' // 模糊退出
+  | 'focus-in' // 聚焦进入
   // 弹性动画
-  | 'elastic'           // 弹性
-  | 'rubber-band'       // 橡皮筋
-  | 'wobble'            // 摇摆
-  | 'swing'             // 摆动
+  | 'elastic' // 弹性
+  | 'rubber-band' // 橡皮筋
+  | 'wobble' // 摇摆
+  | 'swing' // 摆动
   // 特殊效果
-  | 'heartbeat'         // 心跳
-  | 'tada'              // 惊喜
-  | 'wave'              // 波浪
-  | 'roll-in'           // 滚动进入
-  | 'roll-out'          // 滚动退出
-  | 'hinge'             // 铰链
-  | 'jack-in-the-box'   // 弹簧盒
+  | 'heartbeat' // 心跳
+  | 'tada' // 惊喜
+  | 'wave' // 波浪
+  | 'roll-in' // 滚动进入
+  | 'roll-out' // 滚动退出
+  | 'hinge' // 铰链
+  | 'jack-in-the-box' // 弹簧盒
   // 无动画
   | 'none';
 
@@ -778,8 +777,8 @@ interface CustomAnimation {
 // 组合动画
 interface ComposedAnimation {
   animations: (PresetAnimation | CustomAnimation)[];
-  mode?: 'sequential' | 'parallel';  // 顺序执行 | 并行执行
-  delay?: number[];                   // 每个动画的延迟（仅 sequential 模式）
+  mode?: 'sequential' | 'parallel'; // 顺序执行 | 并行执行
+  delay?: number[]; // 每个动画的延迟（仅 sequential 模式）
 }
 
 // Framer Motion 变体
@@ -811,10 +810,11 @@ type FramerMotionVariant = {
 **目的**: 在 `Scene` 上声明该 scene 会在 scroll 模式下接管局部滚动，并为内部 scroll-driven 动画提供统一时间轴
 
 **接口**:
+
 ```typescript
 interface SceneScrollConfig {
   zoneId?: string;
-  trigger?: 'center-lock';             // default: 'center-lock'
+  trigger?: 'center-lock'; // default: 'center-lock'
 }
 ```
 
@@ -846,6 +846,7 @@ interface SceneScrollConfig {
 **目的**: 为子元素提供统一动画语义，并以渐进方式支持 scene、scroll、visibility 三类驱动
 
 **接口**:
+
 ```typescript
 interface AnimateProps {
   animateId?: string;
@@ -853,12 +854,12 @@ interface AnimateProps {
   exitAnimation?: AnimationType;
   infiniteAnimation?: AnimationType;
   duration?: {
-    enter?: number;                     // default: 800
-    exit?: number;                      // default: 800
+    enter?: number; // default: 800
+    exit?: number; // default: 800
   };
   timeline?: {
     driver?: 'auto' | 'scene' | 'scroll' | 'visibility'; // default: 'auto'
-    delay?: number;                     // default: 0
+    delay?: number; // default: 0
     waitFor?: string;
     zoneId?: string;
     phase?: {
@@ -867,9 +868,9 @@ interface AnimateProps {
     };
   };
   visibility?: {
-    replayOnReenter?: boolean;          // default: true
-    enterMargin?: number;               // 设计 px，默认继承 modes.scroll.enterMargin（=50）
-    exitMargin?: number;                // 设计 px，默认继承 modes.scroll.exitMargin（=50）
+    replayOnReenter?: boolean; // default: true
+    enterMargin?: number; // 设计 px，默认继承 modes.scroll.enterMargin（=50）
+    exitMargin?: number; // 设计 px，默认继承 modes.scroll.exitMargin（=50）
   };
   children: React.ReactNode;
 }
@@ -880,13 +881,13 @@ interface AnimateProps {
 框架支持三种动画方式：
 
 1. **预设动画**:
+
 ```tsx
-<Animate enterAnimation="shake">
-  内容
-</Animate>
+<Animate enterAnimation="shake">内容</Animate>
 ```
 
 2. **Framer Motion variant subset 自定义动画**:
+
 ```tsx
 <Animate
   enterAnimation={{
@@ -897,9 +898,9 @@ interface AnimateProps {
       rotate: 360,
       transition: {
         duration: 1,
-        ease: 'cubic-bezier(0.4, 0, 0.2, 1)'
-      }
-    }
+        ease: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      },
+    },
   }}
 >
   内容
@@ -907,6 +908,7 @@ interface AnimateProps {
 ```
 
 3. **组合动画**:
+
 ```tsx
 // 顺序执行：先淡入，再抖动
 <Animate
@@ -968,10 +970,12 @@ interface AnimateProps {
 关联延迟通过 `waitFor` 参数实现，允许一个动画等待另一个动画完全执行完毕后再开始。
 
 **核心概念**:
+
 - **动画实际执行时间** = 延迟时间 + 动画时长
 - 关联延迟就是等待前置动画的实际执行时间，然后再加上自己的延迟
 
 **计算公式**:
+
 ```
 组件的实际开始时间 = 自身 delay + 关联组件的实际执行时间
 
@@ -980,6 +984,7 @@ interface AnimateProps {
 ```
 
 **示例**:
+
 ```tsx
 // 组件1: 延迟 2s，动画 1s
 // 实际开始时间 = 2s
@@ -1003,6 +1008,7 @@ interface AnimateProps {
 ```
 
 **时间轴示意**:
+
 ```
 时间轴: 0s -------- 2s -------- 3s -------- 5s -------- 6s -------- 8s -------- 9s
         |           |           |           |           |           |           |
@@ -1010,6 +1016,7 @@ interface AnimateProps {
 ```
 
 **职责**:
+
 - 统一消费当前 mode 的时间语义
 - 默认以“最少声明”工作：
   - drag 下默认跟随 scene
@@ -1027,6 +1034,20 @@ interface AnimateProps {
 3. 默认值要偏向普通用户：
    - 没写 `timeline.driver` 时，不应该意外把元素卷入 scroll takeover 时间轴。
 
+**stagger 组合语义**:
+
+1. `waitFor` / `timeline.delay` 先决定整个 stagger 组的起点；组被放行后，直接子元素按
+   `stagger.each` 与 `stagger.from` 错峰。
+2. `stagger` 必须搭配一个具体 React 容器元素；render-prop children 与多个并列根节点由
+   TypeScript 拒绝，禁止运行时静默忽略。
+3. 子项显式 `transition.duration` 优先；未声明时用 `duration.enter` 作为子项时长。
+4. 有效组时长固定为
+   `max(duration.enter, staggerTail + itemDuration)`，其中 `staggerTail` 是最后一个子项的
+   起始延迟。registry、drag element track、visibility 完成通知与 scroll zone budget 必须
+   消费同一个有效时长；下游 `waitFor` 不得在最后一个子项视觉完成前启动。
+5. `exitAnimation` 对 stagger 子项逐项生效并计入有效 exit 时长；`infiniteAnimation` 在整组
+   入场完成后运行。纯文本节点必须原样保留，不得因 stagger 过滤而丢失内容。
+
 ### 组件 3.5: AnimateVideo（进度驱动帧擦除，2026-07-13）
 
 **目的**: 让视频成为「进度驱动帧擦除」资源——drag/scroll 位置即 `currentTime`，反向天然倒放。
@@ -1037,6 +1058,7 @@ interface AnimateProps {
 > 决定，而非帧数组保证；若日后确需丝滑逐帧，再引入「图片序列」路径而非 GIF。）
 
 **架构裁决**:
+
 1. 它是 `Animate` 的**薄封装（facade）**，内部渲染 `<Animate>` 并用其 render-prop
    拿 `enterProgress` 馈送给 `VideoFrameRenderer`。**`Animate` 仍是唯一 progress owner**，
    帧擦除是一个新的进度消费者，不新增所有权、不读 drag/scroll context。
@@ -1046,25 +1068,30 @@ interface AnimateProps {
    时间轴让 `enterProgress` 0→1，但不给外层叠加任何淡入/位移——scrub 本身即动画。
 4. 擦除跨度 = 自身进入预算段（= `duration.enter`，scroll 下经 `sceneScrollBudget`
    映射为真实 px，1ms=1px），可与其他元素共存一个 zone 并参与排序。
-5. **最小参数面**：`src`/`style`/尺寸 + `animateId` + `duration.enter` + `timeline.{delay,waitFor}`
-   + `visibility.{replayOnReenter,enterMargin,exitMargin}`。不暴露 `enterAnimation`/
-   `exitAnimation`/`stagger`/`driver`（驱动跟随 CineView mode 自动）。tsc fixture 守卫。
+5. **最小参数面**：`src`/`style`/尺寸 + `preload` + `animateId` + `duration.enter` + `timeline.{delay,waitFor}`
+   - `visibility.{replayOnReenter,enterMargin,exitMargin}`。不暴露 `enterAnimation`/
+     `exitAnimation`/`stagger`/`driver`（驱动跟随 CineView mode 自动）。tsc fixture 守卫。
 
 **播放**: 原生 `<video muted playsInline>` + `currentTime`，**零库**。倒放平滑度取决于
 用户视频编码（普通 mp4 往回 seek 偶顿），非组件可解。
 
 **预加载**:
+
 - 新建 `mediaPreloadCache`（video blob，LRU 字节预算淘汰，默认 128MB，淘汰 revoke objectURL）。
 - 首屏媒体经 `useImagePreloader` 路由到 `preloadMedia` → 进入同一优先级批次，
   `priorityComplete` 天然等首屏 video buffer 完才 fire，纳入冷启动门控
   （符合本文档「首屏进入只依赖首屏关键媒体」「preload 负责媒体准备」原则）。
 - `Scene.assets.preloadImages`、`CineView.preload()` 逐字透传媒体 URL，无需新 API。
+- `AnimateVideo preload={false}` 禁止组件挂载时自行抢占网络；后场景应同时把 URL 声明到
+  `Scene.assets.preloadImages`，由 CineView 的后台队列加载。缓存完成后 renderer 切换到
+  objectURL。默认 `preload=true` 保持 standalone/首屏直接使用的便利性。
 
 ### 组件 4: Position（定位组件）
 
 **目的**: 提供 scene 内定位与 scene-scoped fixed layer 定位，并修正坐标体系的可维护性
 
 **接口**:
+
 ```typescript
 interface PositionProps {
   at?: {
@@ -1074,14 +1101,15 @@ interface PositionProps {
     offsetY?: number;
   };
   layer?: {
-    fixed?: boolean;                    // default: false
+    fixed?: boolean; // default: false
   };
   children: React.ReactNode;
 }
 ```
 
 **职责**:
-- 从 `CineView.config` 获取宽高设计基准
+
+- 从 `CineView.config` 获取单一设计尺寸基准
 - 计算响应式定位值
 - 处理绝对定位和相对定位的优先级
 - 维护相对定位的累加计算链
@@ -1089,7 +1117,7 @@ interface PositionProps {
 
 **产品裁决**:
 
-1. `Position` 坐标换算采用 px2vw 单尺子（`convert = size * scale`，`scale = viewportWidth / designWidth`）：x / y 共用同一 `scale`（认宽不认高）。设计稿只有一个单位（设计 px），故不再按轴向拆成 `scaleX` / `scaleY`——这样正方形永远是正方形，绝不形变；纵向超出视口的部分交给自然文档流 / 滚动延展。
+1. `Position` 坐标换算采用 px2vw 单尺子（`convert = size * scale`，`scale = viewportWidth / config.size`）：x / y 共用同一 `scale`（认宽不认高）。设计稿只有一个单位（设计 px），故不再按轴向拆成 `scaleX` / `scaleY`——这样正方形永远是正方形，绝不形变；纵向超出视口的部分交给自然文档流 / 滚动延展。
 2. `fixed` 语义应明确属于 `layer` 配置，而不是与坐标字段平铺。
 
 ## 数据模型
@@ -1097,53 +1125,54 @@ interface PositionProps {
 ### 模型 1: CineViewContext
 
 ```typescript
-interface CineViewContext {
-  designWidth: number;
-  designHeight: number;   // 仅作设计画布高度描述值；不参与 scale 计算
-  mode: 'drag' | 'scroll';
-  viewportWidth: number;
-  viewportHeight: number; // 独立视口量（vh 解析 / 一屏参考高度），不经过 scale
-  scale: number;          // px2vw 单尺子：viewportWidth / designWidth
+// 运行时 context 只暴露换算内核（见 src/context/CineViewContext.tsx）
+interface CineViewContextValue {
+  scale: number; // px2vw 单尺子：viewportWidth / designSize
   convert: (size: number) => number; // size * scale，所有长度量共用
 }
+// Provider 私有输入：designSize（= config.size，默认 750），只跟踪 viewportWidth。
 ```
 
 **换算模型（px2vw 单尺子，认宽不认高）**:
-- 设计稿只有一个单位（设计 px）。整张画布锁定 `scale = viewportWidth / designWidth` 等比缩放——横向 1px 与纵向 1px 乘同一个 `scale`，正方形永远是正方形，圆永远是圆，绝不形变。
-- 高度方向超出的部分交给自然文档流 / 滚动延展（与 scroll 模式天然契合）。
-- `unit` 字段已删除（1.0.0 后 breaking）：只有设计 px 一个单位，`rem`/`vw` 选项与该理念矛盾且从不被换算内核消费。
+
+- 设计稿只有一个单位（设计 px），由唯一基准 `config.size` 描述。整张画布锁定 `scale = viewportWidth / size` 等比缩放——横向 1px 与纵向 1px 乘同一个 `scale`，正方形永远是正方形，圆永远是圆，绝不形变。
+- CineView 根节点提供长度型 CSS 变量 `--cineview-unit: ${scale}px`，表示当前 1 个设计 px；外部 CSS 用 `calc(设计值 * var(--cineview-unit))` 消费，不重复计算 viewport / size。
+- 不再有独立的高度基准（`config.height` 已删除，breaking）：纵向超出视口的部分交给自然文档流 / 滚动延展（与 scroll 模式天然契合）。
+- `config.unit` 字段已删除（1.0.0 后 breaking）：只有设计 px 一个单位，`rem`/`vw` 选项与该理念矛盾且从不被换算内核消费。
 
 **验证规则**:
-- designWidth 和 designHeight 必须大于 0
-- viewportWidth 和 viewportHeight 必须大于 0
-- scale 根据 viewportWidth / designWidth 计算（不依赖高度）
+
+- size（config.size）必须大于 0
+- viewportWidth 必须大于 0
+- scale 根据 viewportWidth / size 计算（不依赖高度）
 - 坐标（Position x/y）、尺寸（Container width/height）、盒模型长度（padding/gap/borderRadius/fontSize 等）全部经同一 `convert` 换算
 
 ### 模型 2: SceneState
 
 ```typescript
 interface SceneState {
-  currentIndex: number;                 // 当前场景索引
-  totalScenes: number;                  // 总场景数
-  mode: 'drag' | 'scroll';              // 当前根模式
-  isAnimating: boolean;                 // 是否正在 release / settle 动画中
-  isDragging: boolean;                  // 是否正在拖拽中（drag 模式）
-  dragProgress: number;                 // 拖拽进度 0-1（drag 模式）
-  direction: 'forward' | 'backward';    // 切换方向
+  currentIndex: number; // 当前场景索引
+  totalScenes: number; // 总场景数
+  mode: 'drag' | 'scroll'; // 当前根模式
+  isAnimating: boolean; // 是否正在 release / settle 动画中
+  isDragging: boolean; // 是否正在拖拽中（drag 模式）
+  dragProgress: number; // 拖拽进度 0-1（drag 模式）
+  direction: 'forward' | 'backward'; // 切换方向
   sceneStatus: 'initial' | 'entering' | 'active' | 'exiting'; // 场景状态机
-  sceneOffset: number;                  // 场景偏移量（0=当前，1=下一个，-1=上一个）
+  sceneOffset: number; // 场景偏移量（0=当前，1=下一个，-1=上一个）
   animateRegistry: Map<string, AnimateInfo>; // 当前场景内注册的 Animate 组件信息
 }
 
 interface AnimateInfo {
-  delay: number;                        // 元素延迟（ms）
-  duration: number;                     // 动画时长（ms）
-  waitFor?: string;                     // 关联元素 ID
-  calculatedDelay: number;              // 计算后的总延迟（ms）
+  delay: number; // 元素延迟（ms）
+  duration: number; // 动画时长（ms）
+  waitFor?: string; // 关联元素 ID
+  calculatedDelay: number; // 计算后的总延迟（ms）
 }
 ```
 
 **场景状态机**:
+
 ```
 initial → entering → active → exiting → initial
 
@@ -1156,6 +1185,7 @@ initial → entering → active → exiting → initial
 ```
 
 **验证规则**:
+
 - currentIndex 范围: 0 <= currentIndex < totalScenes
 - isDragging 为 true 时允许拖拽进度更新（drag 模式）
 - dragProgress 范围: 0 <= dragProgress <= 1
@@ -1170,15 +1200,16 @@ initial → entering → active → exiting → initial
 interface AnimationRegistry {
   [animateId: string]: {
     status: 'pending' | 'playing' | 'completed';
-    startTime: number;              // 实际开始时间（相对于场景激活）
-    duration: number;               // 动画时长
-    executionTime: number;          // 实际执行时间 = startTime + duration
-    waitFor?: string;               // 关联的组件 ID
+    startTime: number; // 实际开始时间（相对于场景激活）
+    duration: number; // 动画时长
+    executionTime: number; // 实际执行时间 = startTime + duration
+    waitFor?: string; // 关联的组件 ID
   };
 }
 ```
 
 **验证规则**:
+
 - animateId 必须唯一
 - waitFor 引用的 animateId 必须存在
 - 不允许循环依赖（A waitFor B, B waitFor A）
@@ -1190,14 +1221,15 @@ interface AnimationRegistry {
 interface PreloadState {
   totalImages: number;
   loadedImages: number;
-  progress: number;                     // 0-100
+  progress: number; // 0-100
   firstSceneLoaded: boolean;
   allLoaded: boolean;
 }
 ```
 
 **验证规则**:
-- progress = (loadedImages / totalImages) * 100
+
+- progress = (loadedImages / totalImages) \* 100
 - firstSceneLoaded 为 true 后，首屏关键媒体进入可运行态；首屏布局本身不依赖该标记才渲染
 - loadedImages <= totalImages
 
@@ -1311,7 +1343,7 @@ interface PreloadState {
    - 验证弹性动画（elastic/rubber-band/wobble/swing）
    - 验证特殊效果（heartbeat/tada/wave/roll/hinge/jack-in-the-box）
 
-4. **Position 组件测试**
+5. **Position 组件测试**
    - 验证绝对定位计算
    - 验证相对定位累加
    - 验证优先级处理（绝对定位优先）
@@ -1321,14 +1353,14 @@ interface PreloadState {
    - 验证边界值处理
    - 验证窗口 resize 响应
 
-5. **Hooks 测试**
+6. **Hooks 测试**
    - CineViewContext: 验证 px2vw 单尺子换算（`convert`）、窗口 resize 监听
    - useSceneManager: 验证场景切换、索引管理、动画状态
    - useAnimationRegistry: 验证动画注册、依赖检测、状态管理
    - useDragProgress: 验证拖拽进度计算、节流处理
    - useImagePreloader: 验证图片加载、进度计算、错误处理
 
-6. **Utils 测试**
+7. **Utils 测试**
    - styleConvert: 验证 px2vw 单尺子长度键换算、无量纲属性排除、边界值
    - gestureDetector: 验证触摸/鼠标事件检测、方向判断
    - dependencyChecker: 验证循环依赖检测、依赖链分析
@@ -1337,14 +1369,14 @@ interface PreloadState {
    - performanceMonitor: 验证性能指标收集
    - animationParser: 验证自定义动画解析与 variant subset 归一化
 
-7. **动画组合器测试**
+8. **动画组合器测试**
    - 验证顺序执行组合动画
    - 验证并行执行组合动画
    - 验证组合动画延迟配置
    - 验证混合预设和自定义动画
    - 验证组合动画进度控制
 
-7. **Context 测试**
+9. **Context 测试**
    - 验证 Context 创建和传递
    - 验证 Context 更新触发重渲染
    - 验证 Context 默认值
@@ -1352,6 +1384,7 @@ interface PreloadState {
 **覆盖率目标**: 90% 以上（语句、分支、函数、行覆盖率均需达到 90%+）
 
 **测试配置**:
+
 ```javascript
 // jest.config.js
 module.exports = {
@@ -1361,17 +1394,17 @@ module.exports = {
     'src/**/*.{ts,tsx}',
     '!src/**/*.test.{ts,tsx}',
     '!src/**/*.d.ts',
-    '!src/index.ts'
+    '!src/index.ts',
   ],
   coverageThreshold: {
     global: {
       statements: 90,
       branches: 90,
       functions: 90,
-      lines: 90
-    }
+      lines: 90,
+    },
   },
-  coverageReporters: ['text', 'lcov', 'html']
+  coverageReporters: ['text', 'lcov', 'html'],
 };
 ```
 
@@ -1382,8 +1415,8 @@ module.exports = {
 **属性测试策略**:
 
 1. **尺寸换算属性**
-   - 属性: 对于任意设计稿宽高和视口宽高，横纵向换算比例应分别保持一致
-   - 生成器: 随机 designWidth/designHeight (300-4000), viewportWidth/viewportHeight (320-3840)
+   - 属性: 对于任意设计稿尺寸与视口宽度，换算比例 `scale = viewportWidth / size` 保持一致（单尺子，认宽不认高）
+   - 生成器: 随机 designSize (300-4000), viewportWidth (320-3840)
 
 2. **场景索引属性**
    - 属性: 场景切换后，currentIndex 始终在有效范围内
@@ -1535,6 +1568,7 @@ module.exports = {
 ### 代码清晰性原则
 
 **单一职责原则 (SRP)**:
+
 - 每个组件、函数、模块只负责一个明确的功能
 - 组件拆分：CineView（容器）、Scene（场景）、Animate（动画）、Position（定位）各司其职
 - 工具函数独立：styleConvert、gestureDetector、dependencyChecker 等
@@ -1569,6 +1603,7 @@ module.exports = {
 ### 逻辑复用策略
 
 **自定义 Hooks 复用**:
+
 ```typescript
 // 响应式尺寸换算（px2vw 单尺子，经 CineViewContext 提供 convert）
 useCineViewContext() // → { scale, convert, viewportWidth, ... }
@@ -1587,9 +1622,10 @@ useDragProgress(slideDirection)
 ```
 
 **工具函数复用**:
+
 ```typescript
 // 尺寸转换（被多个组件使用，px2vw 单尺子）
-convert(size: number, scale: number): number  // scale = viewportWidth / designWidth
+convert(size: number, scale: number): number  // scale = viewportWidth / designSize
 
 // 手势检测（Scene 组件使用）
 detectGesture(event: TouchEvent | MouseEvent): GestureType
@@ -1603,6 +1639,7 @@ debounce(fn: Function, delay: number): Function
 ```
 
 **动画预设复用**:
+
 ```typescript
 // 基础动画构建器
 createFadeAnimation(direction: 'in' | 'out'): AnimationConfig
@@ -1614,33 +1651,35 @@ composeAnimations(animations: Animation[], mode: 'sequential' | 'parallel'): Com
 ```
 
 **Context 复用**:
+
 ```typescript
 // 全局上下文（避免 prop drilling）
 CineViewContext: {
-  designWidth, designHeight, scale, convert,
-  currentScene, totalScenes, goToScene
+  (designSize, scale, convert, currentScene, totalScenes, goToScene);
 }
 
 // Scene 上下文（子组件共享）
 SceneContext: {
-  mode, isDragging, dragProgress,
-  registerAnimate, unregisterAnimate
+  (mode, isDragging, dragProgress, registerAnimate, unregisterAnimate);
 }
 ```
 
 ### 代码组织原则
 
 **模块化设计**:
+
 - 按功能分层：components / hooks / utils / animations / context / types
 - 每个模块独立导出，避免循环依赖
 - 使用 barrel exports（index.ts）统一导出
 
 **DRY 原则（Don't Repeat Yourself）**:
+
 - 重复逻辑提取为函数或 Hook
 - 相似动画使用工厂函数生成
 - 配置项使用常量或枚举
 
 **关注点分离**:
+
 - UI 逻辑与业务逻辑分离
 - 动画定义与动画执行分离
 - 状态管理与视图渲染分离
@@ -1648,6 +1687,7 @@ SceneContext: {
 ### 类型安全
 
 **严格的 TypeScript 配置**:
+
 ```json
 {
   "compilerOptions": {
@@ -1662,6 +1702,7 @@ SceneContext: {
 ```
 
 **类型定义规范**:
+
 - 所有公共 API 必须有明确的类型定义
 - 避免使用 `any`，使用 `unknown` 或泛型
 - 使用联合类型和类型守卫确保类型安全
@@ -1670,11 +1711,12 @@ SceneContext: {
 ### 注释规范
 
 **JSDoc 注释**:
+
 ```typescript
 /**
  * 转换设计稿尺寸为实际尺寸（px2vw 单尺子，认宽不认高）
  * @param size - 设计稿中的尺寸值
- * @param scale - 缩放比例（= viewportWidth / designWidth）
+ * @param scale - 缩放比例（= viewportWidth / designSize）
  * @returns 转换后的实际尺寸
  * @example
  * convert(100, 0.5) // 返回 50
@@ -1685,6 +1727,7 @@ function convert(size: number, scale: number): number {
 ```
 
 **代码注释原则**:
+
 - 注释"为什么"而不是"是什么"
 - 复杂算法必须添加注释
 - 公共 API 必须有 JSDoc 注释
@@ -1693,10 +1736,14 @@ function convert(size: number, scale: number): number {
 ### 错误处理规范
 
 **统一的错误处理**:
+
 ```typescript
 // 自定义错误类
 class CineViewError extends Error {
-  constructor(message: string, public code: string) {
+  constructor(
+    message: string,
+    public code: string
+  ) {
     super(message);
     this.name = 'CineViewError';
   }
@@ -1707,7 +1754,7 @@ const ErrorCodes = {
   INVALID_SCENE_INDEX: 'INVALID_SCENE_INDEX',
   CIRCULAR_DEPENDENCY: 'CIRCULAR_DEPENDENCY',
   INVALID_ANIMATION: 'INVALID_ANIMATION',
-  IMAGE_LOAD_FAILED: 'IMAGE_LOAD_FAILED'
+  IMAGE_LOAD_FAILED: 'IMAGE_LOAD_FAILED',
 } as const;
 
 // 错误处理函数
@@ -1722,12 +1769,14 @@ function handleError(error: Error, context: string): void {
 ### 性能优化规范
 
 **React 性能优化**:
+
 - 使用 `React.memo` 避免不必要的重渲染
 - 使用 `useMemo` 缓存计算结果
 - 使用 `useCallback` 缓存函数引用
 - 避免在渲染函数中创建新对象或数组
 
 **代码示例**:
+
 ```typescript
 // 使用 memo 优化组件
 export const Scene = React.memo<SceneProps>(({ children, ...props }) => {
@@ -1736,13 +1785,16 @@ export const Scene = React.memo<SceneProps>(({ children, ...props }) => {
 
 // 使用 useMemo 缓存计算（px2vw 单尺子：只认宽度）
 const scale = useMemo(() => {
-  return viewportWidth / designWidth;
-}, [viewportWidth, designWidth]);
+  return viewportWidth / designSize;
+}, [viewportWidth, designSize]);
 
 // 使用 useCallback 缓存回调
-const handleDrag = useCallback((progress: number) => {
-  updateAnimationProgress(progress);
-}, [updateAnimationProgress]);
+const handleDrag = useCallback(
+  (progress: number) => {
+    updateAnimationProgress(progress);
+  },
+  [updateAnimationProgress]
+);
 ```
 
 ## 依赖
@@ -1757,6 +1809,7 @@ const handleDrag = useCallback((progress: number) => {
 **推荐使用**: **Framer Motion**
 
 **理由**:
+
 - React 生态最流行的动画库
 - 声明式 API，易于集成
 - 性能优秀，支持手势
@@ -1766,11 +1819,13 @@ const handleDrag = useCallback((progress: number) => {
 - 内置动画进度控制 API
 
 **集成方式**:
+
 - 预设动画使用 Framer Motion 的内置变体
 - 自定义动画支持 Framer Motion 变体语法
 - 不再支持原生 Web Animations API `keyframes/options` 作为公共自定义动画输入；需要使用 `initial`、`animate`、`exit` 和 `transition`
 
 **替代方案**:
+
 - **react-spring**: 基于物理的动画，更自然
 - **GSAP**: 功能强大，但体积较大
 - **Web Animations API**: 可由业务侧自行使用，但不作为 CineView 公共 `CustomAnimation` 输入格式
@@ -1910,15 +1965,7 @@ cineview/
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
-  "keywords": [
-    "react",
-    "ui",
-    "framework",
-    "animation",
-    "fullscreen",
-    "slider",
-    "cinematic"
-  ],
+  "keywords": ["react", "ui", "framework", "animation", "fullscreen", "slider", "cinematic"],
   "author": "",
   "license": "MIT",
   "repository": {
@@ -1937,6 +1984,7 @@ cineview/
 ### Vite 配置要点
 
 **vite.config.ts** 关键配置：
+
 ```typescript
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -1949,38 +1997,39 @@ export default defineConfig({
     react(),
     dts({ include: ['src'] }),
     compression({ algorithm: 'gzip' }),
-    visualizer({ open: true, gzipSize: true })
+    visualizer({ open: true, gzipSize: true }),
   ],
   build: {
     lib: {
       entry: 'src/index.ts',
       name: 'CineView',
       formats: ['es', 'umd'],
-      fileName: (format) => `cineview.${format}.js`
+      fileName: (format) => (format === 'umd' ? 'cineview.umd.js' : 'cineview.es.mjs'),
     },
     rollupOptions: {
       external: ['react', 'react-dom'],
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM'
-        }
-      }
+          'react-dom': 'ReactDOM',
+        },
+      },
     },
     minify: 'terser',
     terserOptions: {
       compress: {
         drop_console: true,
-        drop_debugger: true
-      }
-    }
-  }
+        drop_debugger: true,
+      },
+    },
+  },
 });
 ```
 
 ### ESLint 配置
 
 **.eslintrc.js**:
+
 ```javascript
 module.exports = {
   parser: '@typescript-eslint/parser',
@@ -1989,7 +2038,7 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react/recommended',
     'plugin:react-hooks/recommended',
-    'prettier'
+    'prettier',
   ],
   plugins: ['@typescript-eslint', 'react', 'react-hooks'],
   rules: {
@@ -1999,19 +2048,20 @@ module.exports = {
     'react/prop-types': 'off',
     'react/react-in-jsx-scope': 'off',
     'react-hooks/rules-of-hooks': 'error',
-    'react-hooks/exhaustive-deps': 'warn'
+    'react-hooks/exhaustive-deps': 'warn',
   },
   settings: {
     react: {
-      version: 'detect'
-    }
-  }
+      version: 'detect',
+    },
+  },
 };
 ```
 
 ### Prettier 配置
 
 **.prettierrc**:
+
 ```json
 {
   "semi": true,
@@ -2028,19 +2078,17 @@ module.exports = {
 ### lint-staged 配置
 
 **.lintstagedrc**:
+
 ```json
 {
-  "*.{ts,tsx}": [
-    "eslint --fix",
-    "prettier --write",
-    "jest --bail --findRelatedTests"
-  ]
+  "*.{ts,tsx}": ["eslint --fix", "prettier --write", "jest --bail --findRelatedTests"]
 }
 ```
 
 ### Husky Git Hooks
 
 **.husky/pre-commit**:
+
 ```bash
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
@@ -2049,6 +2097,7 @@ pnpm lint-staged
 ```
 
 **.husky/pre-push**:
+
 ```bash
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
@@ -2059,7 +2108,7 @@ pnpm run test:coverage
 
 ## 正确性属性
 
-*属性是一种特征或行为，应该在系统的所有有效执行中保持为真——本质上是关于系统应该做什么的形式化陈述。属性作为人类可读规范和机器可验证正确性保证之间的桥梁。*
+_属性是一种特征或行为，应该在系统的所有有效执行中保持为真——本质上是关于系统应该做什么的形式化陈述。属性作为人类可读规范和机器可验证正确性保证之间的桥梁。_
 
 ### 属性 1: 尺寸换算一致性
 
@@ -2068,11 +2117,12 @@ pnpm run test:coverage
 **验证需求**: 需求 1.5
 
 **形式化表达**:
+
 ```
-∀ designWidth dw, viewportWidth vw, elementWidth ew:
-  convertedWidth = (ew / dw) * vw
-  
-验证: convertedWidth / vw = ew / dw
+∀ designSize ds, viewportWidth vw, elementLength el:
+  convertedLength = (el / ds) * vw
+
+验证: convertedLength / vw = el / ds
 ```
 
 ### 属性 2: 场景索引边界安全
@@ -2082,6 +2132,7 @@ pnpm run test:coverage
 **验证需求**: 需求 2.7
 
 **形式化表达**:
+
 ```
 ∀ operation op, currentIndex i, totalScenes n:
   0 ≤ i < n (初始状态)
@@ -2095,16 +2146,17 @@ pnpm run test:coverage
 **验证需求**: 需求 8.4, 8.5
 
 **形式化表达**:
+
 ```
 ∀ animations A, B, C:
   A.waitFor = B.id ∧ B.waitFor = C.id
-  
+
   定义实际执行时间:
   executionTime(X) = startTime(X) + X.duration
-  
+
   定义实际开始时间:
   startTime(X) = X.delay + (X.waitFor ? executionTime(waitForTarget) : 0)
-  
+
   则:
   startTime(A) = A.delay + executionTime(B)
   startTime(B) = B.delay + executionTime(C)
@@ -2118,6 +2170,7 @@ pnpm run test:coverage
 **验证需求**: 需求 11.6
 
 **形式化表达**:
+
 ```
 ∀ time t1, t2:
   t1 < t2 ⟹ progress(t1) ≤ progress(t2)
@@ -2131,6 +2184,7 @@ pnpm run test:coverage
 **验证需求**: 需求 10.4
 
 **形式化表达**:
+
 ```
 ∀ components C1, C2, ..., Cn:
   Ci.offsetX 存在 ⟹ Ci.finalX = Σ(Cj.x + Cj.offsetX) for j ∈ [1, i]
@@ -2149,6 +2203,7 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 3.2
 
 **形式化表达**:
+
 ```
 ∀ time t, scene S_out (outgoing), S_in (incoming):
   mode = 'drag' ∧ releaseInProgress(t)
@@ -2173,6 +2228,7 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 3.4
 
 **形式化表达**:
+
 ```
 ∀ time t, state s:
   s.isAnimating = true ⟹ ¬canStartNewTransition(t)
@@ -2185,6 +2241,7 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 8.6
 
 **形式化表达**:
+
 ```
 ∀ animations A1, A2, ..., An:
   ¬∃ 路径 P: A1 → A2 → ... → An → A1
@@ -2198,6 +2255,7 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 4.3, 4.4
 
 **形式化表达**:
+
 ```
 ∀ time t, scene S, dragProgress p:
   mode = 'drag' ∧ S.isDragging = true
@@ -2214,11 +2272,12 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 4.5, 4.6
 
 **形式化表达**:
+
 ```
 ∀ scene S, time t:
   mode = 'drag' ∧ isDragging = true
   ⟹ ¬S.enterAnimationTriggered
-  
+
   mode = 'drag' ∧ isDragging = false ∧ transitionCompleted
   ⟹ S.enterAnimationTriggered
 ```
@@ -2230,6 +2289,7 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 14.10
 
 **形式化表达**:
+
 ```
 ∀ frame f, frameTime t:
   normalLoad ⟹ t ≤ 16.67ms
@@ -2243,6 +2303,7 @@ element 轨**一条到底，跨 commit 不中断**：commit 只改 `currentScene
 **验证需求**: 需求 15.4
 
 **形式化表达**:
+
 ```
 size(mainBundle.gzip) ≤ 50KB
 ```
@@ -2254,11 +2315,11 @@ size(mainBundle.gzip) ≤ 50KB
 **验证需求**: 需求 22.1, 22.2, 22.3, 22.4, 22.5
 
 **形式化表达**:
+
 ```
 ∀ metric m ∈ {statements, branches, functions, lines}:
   coverage(m) ≥ 90%
 ```
-
 
 ### 属性 14: Drag 模式延迟门控正确性（单时间轴 + 绝对拖拽标尺 `dragTimeScale`，2026-06-30 终版）
 
@@ -2277,6 +2338,7 @@ elapsed = min( r × (dragTimeScale × 100), T_self )      // r = |拖拽比例| 
 ```
 
 `dragTimeScale` = 每 1% 拖拽对应的 ms（`modes.drag.dragTimeScale`，默认 **100**，即满程 100% → 10000ms）。拖拽**速度**与动画时长**解耦**：时钟以固定创作速率推进，clamp 到 `T_self`。是否「拖到底动画播完」取决于 `dragTimeScale×100` 与 `T_self` 的相对大小，二者皆可承受（用户确认）：
+
 - `dragTimeScale×100 ≥ T_self`（标尺长于动画 / 动画短）：拖到 `T_self/(dragTimeScale×100)` 比例动画即全播完，之后纯页面滑动，松手即定格（settle `remaining ≤ 0` 立即完成，**无续跑尾巴**）。
 - `dragTimeScale×100 < T_self`（标尺短于动画 / 长动画 + 低标尺）：拖到底动画也播不完，**settle 从释放 elapsed 实时续跑补完到 `T_self`**（保留两轨跨 commit 连续补完）。
 
@@ -2287,6 +2349,7 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.7, 4.8
 
 **形式化表达**:
+
 ```
 ∀ animate A, calculatedDelay d, enterDuration e:
   单一 element 轨 elapsed m, T_self = getTimelineDuration()
@@ -2318,12 +2381,13 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.9
 
 **形式化表达**:
+
 ```
 ∀ velocity v1, v2:
   v1 < v2 ⟹ threshold(v1) > threshold(v2)
-  
+
   threshold(v) = maxThreshold - (v / maxVelocity) * (maxThreshold - minThreshold)
-  
+
   其中:
   minThreshold = 0.15 (快速滑动)
   maxThreshold = 0.3 (慢速滑动)
@@ -2337,6 +2401,7 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.10
 
 **形式化表达**（单时间轴，2026-06-30 起；回退即共享 elapsed `m` 减小，对称性在元素自身入场窗口 `[d, d+e]` 内成立。所有元素同读共享 `m`，无 waitFor/无 waitFor 一视同仁）:
+
 ```
 ∀ animate A, calculatedDelay d, enterDuration e:
   element 轨共享 elapsed m
@@ -2360,6 +2425,7 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.11
 
 **形式化表达**:
+
 ```
 ∀ scene S, state s, nextState s':
   validTransitions = {
@@ -2369,7 +2435,7 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
     (exiting, initial),
     (exiting, active)  // 回弹情况
   }
-  
+
   transition(s, s') ⟹ (s, s') ∈ validTransitions
 ```
 
@@ -2380,6 +2446,7 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.12
 
 **形式化表达**:
+
 ```
 ∀ scene S, dragProgress p:
   (S.isFirstScene ∧ p < 0) ⟹ p ≥ -0.2
@@ -2393,12 +2460,13 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.13
 
 **形式化表达**:
+
 ```
 ∀ scene S1, S2, dragProgress p:
   // 向前拖拽：S1 → S2
   sceneOffset(S1) = 0 ∧ sceneOffset(S2) = 1 ∧ p > 0
   ⟹ S1.exitAnimationProgress = p ∧ S2.enterAnimationProgress = p
-  
+
   // 向后拖拽：S2 → S1
   sceneOffset(S2) = 0 ∧ sceneOffset(S1) = -1 ∧ p < 0
   ⟹ S2.exitAnimationProgress = |p| ∧ S1.enterAnimationProgress = |p|
@@ -2411,6 +2479,7 @@ settle / 冷启动 / 程序化 enter 仍用真实 ms 推进同一条时钟（读
 **验证需求**: 需求 4.14
 
 **形式化表达**:
+
 ```
 ∀ visualMotion v1, v2, ε > 0:
   |v1 - v2| < δ ⟹ |transform(v1) - transform(v2)| < ε

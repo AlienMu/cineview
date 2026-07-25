@@ -3,8 +3,16 @@
   "version": "1.0.0",
   "description": "React UI framework for creating cinematic full-screen sliding pages",
   "main": "dist/cineview.umd.js",
-  "module": "dist/cineview.es.js",
+  "module": "dist/cineview.es.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/cineview.es.mjs",
+      "require": "./dist/cineview.umd.js"
+    }
+  },
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -14,18 +22,24 @@
     "build:verify": "pnpm run build && node scripts/verify-build.js",
     "preview": "vite preview",
     "test": "jest",
+    "test:examples": "pnpm --dir examples/performance-test test",
+    "quality:duplicates": "jscpd --config .jscpd.json src",
+    "verify:failure-injection": "node scripts/verify-failure-injection.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:coverage:watch": "jest --coverage --watch",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"examples/performance-test/**/*.{ts,tsx,js,mjs,json}\" \".github/**/*.{yml,yaml}\" \"*.{ts,js,json,md}\" \"scripts/*.{js,mjs}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"examples/performance-test/**/*.{ts,tsx,js,mjs,json}\" \".github/**/*.{yml,yaml}\" \"*.{ts,js,json,md}\" \"scripts/*.{js,mjs}\"",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "pnpm run type-check && pnpm run lint && pnpm run test:coverage && pnpm run build:verify",
+    "type-check:site": "pnpm --dir site type-check",
+    "type-check:examples": "pnpm --dir examples/performance-test type-check",
+    "prepublishOnly": "pnpm verify",
     "prepare": "husky install",
     "analyze": "vite build && open stats.html",
-    "lighthouse": "lighthouse http://localhost:3000 --view"
+    "lighthouse": "lighthouse http://localhost:3000 --view",
+    "verify": "pnpm format:check && pnpm type-check && pnpm type-check:site && pnpm type-check:examples && pnpm lint && pnpm test:coverage --runInBand && pnpm test:examples && pnpm quality:duplicates && pnpm build:verify && pnpm verify:failure-injection"
   },
   "peerDependencies": {
     "framer-motion": ">=10.0.0",
@@ -34,7 +48,6 @@
   },
   "devDependencies": {
     "@fast-check/jest": "^1.0.0",
-    "framer-motion": "^11.0.0",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.0.0",
@@ -50,9 +63,11 @@
     "eslint-plugin-react": "^7.0.0",
     "eslint-plugin-react-hooks": "^4.0.0",
     "fast-check": "^4.6.0",
+    "framer-motion": "^11.0.0",
     "husky": "^8.0.0",
     "jest": "^29.0.0",
     "jest-environment-jsdom": "^29.0.0",
+    "jscpd": "4.0.5",
     "lint-staged": "^15.0.0",
     "prettier": "^3.0.0",
     "react": "^18.0.0",
@@ -80,5 +95,8 @@
     "type": "git",
     "url": "https://github.com/AlienMu/cineview.git"
   },
-  "packageManager": "pnpm@10.22.0"
+  "packageManager": "pnpm@10.22.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

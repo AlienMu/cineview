@@ -59,4 +59,17 @@ describe('AnimateVideo facade', () => {
     });
     expect(spy).toHaveBeenCalledWith('/w.mp4', 'video');
   });
+
+  it('can defer preload to the owning Scene resource queue', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    const spy = jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    const { container } = render(<AnimateVideo src="/later.mp4" preload={false} />);
+
+    await waitFor(() => {
+      expect(container.querySelector('video')).not.toBeNull();
+    });
+    expect(spy).not.toHaveBeenCalled();
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'none');
+  });
 });

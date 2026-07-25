@@ -5,10 +5,7 @@ interface ExperienceHeaderProps {
   subtitle: string;
 }
 
-export default function ExperienceHeader({
-  mode,
-  subtitle,
-}: ExperienceHeaderProps): JSX.Element {
+export default function ExperienceHeader({ mode, subtitle }: ExperienceHeaderProps): JSX.Element {
   return (
     <div
       style={{

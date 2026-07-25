@@ -1,10 +1,4 @@
-export type ExperienceSectionId =
-  | 'hero'
-  | 'highlights'
-  | 'specs'
-  | 'details'
-  | 'scenarios'
-  | 'cta';
+export type ExperienceSectionId = 'hero' | 'highlights' | 'specs' | 'details' | 'scenarios' | 'cta';
 
 export interface ExperienceStat {
   label: string;
@@ -145,7 +139,11 @@ export const PERFORMANCE_EXPERIENCE = {
         height: 480,
       },
       primaryStats: [
-        { label: 'Input matrix', value: '12G-SDI / HDMI 2.1', detail: 'Dual path ingest and loop-out' },
+        {
+          label: 'Input matrix',
+          value: '12G-SDI / HDMI 2.1',
+          detail: 'Dual path ingest and loop-out',
+        },
         { label: 'Color pipeline', value: '12-bit 4:4:4', detail: 'Reference LUT and QC overlays' },
         { label: 'Ingress seal', value: 'IP54', detail: 'Dust and splash tolerant body' },
       ],
@@ -184,7 +182,11 @@ export const PERFORMANCE_EXPERIENCE = {
       primaryStats: [
         { label: 'Service time', value: '4 min', detail: 'Tool-light module swap' },
         { label: 'Thermal headroom', value: '+18%', detail: 'Across sustained waveform use' },
-        { label: 'Encoder wheel', value: '72 detents', detail: 'Positive feedback without chatter' },
+        {
+          label: 'Encoder wheel',
+          value: '72 detents',
+          detail: 'Positive feedback without chatter',
+        },
       ],
       secondaryPoints: [
         'Front glass floats above the chassis to reduce palm grease transfer',

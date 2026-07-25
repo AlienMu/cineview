@@ -1,8 +1,9 @@
-import { createContext } from 'react';
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 import type {
   ResolvedSceneScrollSequence,
   SceneScrollAnimationRegistration,
 } from './sceneScrollBudget';
+import type { ScrollExternalStore } from '../CineView/scrollExternalStore';
 
 export interface SceneScrollTimelineState {
   zoneId: string;
@@ -34,17 +35,43 @@ export interface SceneScrollRuntimeContextValue {
 // Per-frame zone timeline snapshot. Lives in its own context so the reactive
 // data path (progress) re-renders consumers without touching the stable
 // registration API above.
-export interface SceneScrollZoneTimeline {
+export interface SceneScrollZoneTimelineSnapshot {
   version: number;
   zoneStates: Record<string, SceneScrollTimelineState>;
 }
 
+export interface SceneScrollZoneTimeline {
+  version?: number;
+  zoneStates?: Record<string, SceneScrollTimelineState>;
+  store?: ScrollExternalStore<SceneScrollZoneTimelineSnapshot>;
+}
+
 // Merged shape consumed by useAnimateScroll: the stable registration API plus
 // the live timeline snapshot. Animate composes this from the two contexts.
-export type SceneScrollZoneRuntime = SceneScrollRuntimeContextValue & SceneScrollZoneTimeline;
+export type SceneScrollZoneRuntime = SceneScrollRuntimeContextValue &
+  SceneScrollZoneTimelineSnapshot;
 
 export const SceneScrollRuntimeContext = createContext<SceneScrollRuntimeContextValue | null>(null);
 
 export const SceneScrollTimelineContext = createContext<SceneScrollZoneTimeline | null>(null);
 
 export const SceneScrollTakeoverContext = createContext<string | null>(null);
+
+const EMPTY_SUBSCRIBE = (): (() => void) => () => undefined;
+
+export function useSceneScrollTimeline(enabled = true): SceneScrollZoneTimelineSnapshot {
+  const timeline = useContext(SceneScrollTimelineContext);
+  const fallback = useMemo<SceneScrollZoneTimelineSnapshot>(
+    () => ({
+      version: timeline?.version ?? 0,
+      zoneStates: timeline?.zoneStates ?? {},
+    }),
+    [timeline]
+  );
+  const fallbackGetter = useCallback(() => fallback, [fallback]);
+  const store = enabled ? timeline?.store : undefined;
+  const subscribe = store?.subscribe ?? EMPTY_SUBSCRIBE;
+  const getSnapshot = store?.getSnapshot ?? fallbackGetter;
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}

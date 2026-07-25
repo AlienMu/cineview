@@ -24,9 +24,11 @@ export default function SceneNavigation({
         transform: 'translateX(-50%)',
         zIndex: 12000,
         display: 'flex',
+        flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 16,
+        rowGap: 8,
         padding: '12px 14px',
         borderRadius: 8,
         background: 'rgba(255,255,255,0.82)',
@@ -36,7 +38,17 @@ export default function SceneNavigation({
         width: 'min(960px, calc(100vw - 36px))',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          flex: '1 1 auto',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          minWidth: 0,
+        }}
+      >
         <a href="#/" style={linkStyle}>
           Hub
         </a>
@@ -47,7 +59,8 @@ export default function SceneNavigation({
             style={{
               ...linkStyle,
               background: route.id === mode ? 'rgba(112, 168, 255, 0.18)' : 'transparent',
-              borderColor: route.id === mode ? 'rgba(112, 168, 255, 0.34)' : 'rgba(100, 124, 170, 0.16)',
+              borderColor:
+                route.id === mode ? 'rgba(112, 168, 255, 0.34)' : 'rgba(100, 124, 170, 0.16)',
               color: route.id === mode ? '#2F60C9' : '#4C5E84',
             }}
           >
@@ -56,7 +69,17 @@ export default function SceneNavigation({
         ))}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          flex: '1 1 auto',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          minWidth: 0,
+        }}
+      >
         <button
           onClick={() => onGoToScene(Math.max(currentScene - 1, 0))}
           disabled={currentScene === 0}
