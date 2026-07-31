@@ -69,4 +69,4 @@
 ## Reproducibility Note
 
 - 任何最终 `PASS` 都必须标注证据基线：工作树快照或用户授权后的提交 SHA。
-- 提交前可得出的最强结论是“当前工作树快照门禁与独立验收通过”；完整门通过并创建 framework-only commit 后，再以该 SHA 作为可复现结论基线。
+- 完整门禁与独立验收通过后的 framework-only 可复现基线为 commit `a4005a9ae9f9ef1ae2f133dd31af7ea16ba9e49a`，tree `f69a9cc2e3dec05c0e2f466a8a247255e916b6d1`；不含 `site/` 或临时 probe/验收输出。
