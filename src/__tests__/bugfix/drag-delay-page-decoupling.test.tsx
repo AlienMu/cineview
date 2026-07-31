@@ -189,10 +189,16 @@ function renderDragApp(onSceneDidChange?: jest.Mock) {
   return cineViewRef;
 }
 
-function dragUp(surface: HTMLElement, fromY: number, toY: number) {
+async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  const ownershipY = fromY - 8;
+  const targetY = toY - 8;
   fireEvent.mouseDown(surface, { clientX: 375, clientY: fromY });
-  fireEvent.mouseMove(surface, { clientX: 375, clientY: toY });
-  fireEvent.mouseUp(surface, { clientX: 375, clientY: toY });
+  fireEvent.mouseMove(surface, { clientX: 375, clientY: ownershipY });
+  fireEvent.mouseMove(surface, { clientX: 375, clientY: targetY });
+  fireEvent.mouseUp(surface, { clientX: 375, clientY: targetY });
 }
 
 describe('drag delay / page-transition decoupling', () => {
@@ -211,7 +217,7 @@ describe('drag delay / page-transition decoupling', () => {
     animateCalls.length = 0;
     // Release at a partial progress that switches (jsdom viewport ~768px;
     // dragging 620 -> 120 is ~65%).
-    dragUp(surface, 620, 120);
+    await dragUp(surface, 620, 120);
 
     // The render lane animates renderProgress (a plain number, currentProgress
     // -> targetProgress = 1). Its duration is the page slide and must be bounded
@@ -233,7 +239,7 @@ describe('drag delay / page-transition decoupling', () => {
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     animateCalls.length = 0;
-    dragUp(surface, 620, 120);
+    await dragUp(surface, 620, 120);
 
     // Completing ONLY the page-slide (render) lane must be enough to commit the
     // scene change. The long element timeline (2500ms) then continues on the

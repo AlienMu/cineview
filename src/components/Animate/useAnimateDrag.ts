@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MotionValue, useMotionValue, useTransform } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
 import type { SceneContextType } from './Animate';
+import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
 import {
   clamp,
   getDefaultValue,
@@ -87,10 +88,9 @@ function debugDrag(message: string, details?: Record<string, unknown>): void {
 
 function resolveDirection(sceneContext: SceneContextType): 'forward' | 'backward' {
   // Direction is only needed for the outgoing/exit lerp. The enter source is the
-  // element track (elapsed ms) which is direction-agnostic, so we derive from the
-  // render position sign. (The old snapshot-direction read is deleted — the global
-  // snapshot no longer exists.)
-  return (sceneContext.renderProgress ?? 0) >= 0 ? 'forward' : 'backward';
+  // element track (elapsed ms) which is direction-agnostic, so derive it from the
+  // React-owned signed render snapshot.
+  return resolveRenderProgress(sceneContext) >= 0 ? 'forward' : 'backward';
 }
 
 function resolveElementElapsed(sceneContext: SceneContextType): number {
@@ -98,11 +98,25 @@ function resolveElementElapsed(sceneContext: SceneContextType): number {
 }
 
 function resolveRenderProgress(sceneContext: SceneContextType): number {
-  return sceneContext.renderProgress ?? 0;
+  return sceneContext.renderProgressMotion?.get() ?? sceneContext.renderProgress ?? 0;
+}
+
+function resolvePlaybackSnapshot(
+  sceneContext: SceneContextType
+): DragSceneTransaction | PreparedSceneSnapshot | null {
+  if (sceneContext.dragTransaction) return sceneContext.dragTransaction;
+  if (sceneContext.firstSceneEnterActive === true) {
+    return sceneContext.preparedSnapshot ?? null;
+  }
+  return null;
 }
 
 function resolveSceneTimelineDuration(sceneContext: SceneContextType): number {
-  return sceneContext.getTimelineDuration?.() ?? sceneContext.sceneTransitionDuration;
+  return (
+    resolvePlaybackSnapshot(sceneContext)?.registrySnapshot.timelineDuration ??
+    sceneContext.getTimelineDuration?.() ??
+    sceneContext.sceneTransitionDuration
+  );
 }
 
 function resolveTransitionProgress(sceneContext: SceneContextType): number {
@@ -115,8 +129,10 @@ function resolveTransitionProgress(sceneContext: SceneContextType): number {
 }
 
 function resolveSharedTimelineDuration(sceneContext: SceneContextType): number {
-  const shared = sceneContext.sharedTimelineDurationMs ?? 0;
   const own = resolveSceneTimelineDuration(sceneContext);
+  if (resolvePlaybackSnapshot(sceneContext)) return own;
+
+  const shared = sceneContext.sharedTimelineDurationMs ?? 0;
   return shared > 0 ? shared : own;
 }
 
@@ -134,8 +150,8 @@ function resolveSharedTimelineDuration(sceneContext: SceneContextType): number {
 // This is the original two-track (2026-06-25) behaviour. SHORT elements settle
 // EARLY (a 200ms element reaches 1 while the shared clock is only part-way to
 // T_self) — this is ACCEPTED: the user trades early settle for correct waitFor
-// serialisation, and decouples drag SPEED from the clock via `dragTimeScale` (the
-// follow-finger write in useElementTrack maps drag % to an absolute ms scale, not
+// serialisation, and decouples drag SPEED from the clock via the resolved `time`
+// mapping scale (the follow-finger write maps drag % to absolute milliseconds, not
 // to T_self), so the clock advances slowly enough that early settle is gentle.
 //
 // The same formula serves all drivers (follow-finger, settle, cold-start,
@@ -172,7 +188,7 @@ function resolveVisualState(
   // Single shared timeline: every element reads the same elapsed `m` and gates on
   // its own calculatedDelay/enterDuration. waitFor/delay sequencing is correct via
   // calculatedDelay; short elements settle early (accepted). The drivers differ only
-  // in how `m` advances (follow-finger uses the dragTimeScale absolute clock).
+  // in how `m` advances (follow-finger uses the resolved mapping scale).
   const enterLocalProgress = resolveEnterLocalProgress(
     elementElapsedMs,
     calculatedDelay,
@@ -190,9 +206,35 @@ function resolveVisualState(
   };
 
   if (sceneContext.sceneOffset === 0 && sceneContext.isActive) {
+    // An enter can be genuinely in flight for this active scene: the
+    // first-screen cold-start window, a settle continuation that crossed the
+    // commit and is still running on this (now active) scene, or a programmatic
+    // 'enter' replay (goToScene). All are reachable only for the sole offset-0
+    // scene, so a mode check suffices (no index compare).
+    const coldStartActive = sceneContext.firstSceneEnterActive === true;
+    const settlePending = sceneContext.dragRelease?.mode === 'settle';
+    const programmaticEnterPending = sceneContext.dragRelease?.mode === 'enter';
+    const enterInFlight = coldStartActive || settlePending || programmaticEnterPending;
+
     // Active scene that is sliding away (drag or release render travel): exit
     // follows the render position, unchanged from the prior model.
     if (sceneContext.isDragging || renderProgress > EPSILON) {
+      // D-F1: a rush re-grab holds the pointer down while the render lane is
+      // still at 0 and this scene's enter continuation is live (its settle was
+      // preempted in place by H2). Until the finger actually MOVES the render
+      // lane, keep reading the enter track (frozen at the preempt point)
+      // instead of flashing to the outgoing resolution (which sits at the
+      // terminal animate values at renderProgress 0). The first real movement
+      // hands off to the outgoing exit scrub as before. For a scene at rest
+      // (no enter in flight) this branch is unreachable, so plain drags are
+      // untouched.
+      if (renderProgress <= EPSILON && enterInFlight) {
+        return {
+          ...baseState,
+          mode: 'enter',
+          localProgress: enterLocalProgress,
+        };
+      }
       const outgoingDuration = Math.max(exitDuration, 1);
       const renderElapsedMs = renderProgress * sceneContext.sceneTransitionDuration;
       return {
@@ -203,23 +245,13 @@ function resolveVisualState(
     }
 
     // Idle active scene. Read the element track ONLY while an enter is genuinely
-    // in flight for this scene: the first-screen cold-start window, or a settle
-    // continuation that crossed the commit and is still running on this (now
-    // active) scene. Otherwise the scene is at rest. The track value itself stays
-    // continuous across the commit (same per-scene MotionValue), so this is the
-    // continuous-completion read — never a replay. settlePending is reachable in
-    // this idle-active state only for the post-commit target scene (the sole
-    // offset-0 scene), so a mode check is sufficient.
-    const coldStartActive = sceneContext.firstSceneEnterActive === true;
-    const settlePending = sceneContext.dragRelease?.mode === 'settle';
-    // Programmatic navigation publishes an 'enter' directive whose target is the
-    // now-active scene; its element track replays 0->T. This idle-active branch
-    // is only reachable for the sole offset-0 scene, which IS that target, so a
-    // mode check suffices (no index compare). Read the track for the enter lerp
-    // instead of snapping to rest, so ref-driven goToScene/nextScene/prevScene
-    // plays the authored enter timeline.
-    const programmaticEnterPending = sceneContext.dragRelease?.mode === 'enter';
-    if (coldStartActive || settlePending || programmaticEnterPending) {
+    // in flight for this scene. Otherwise the scene is at rest. The track value
+    // itself stays continuous across the commit (same per-scene MotionValue), so
+    // this is the continuous-completion read — never a replay. For the
+    // programmatic 'enter' directive, reading the track (instead of snapping to
+    // rest) lets ref-driven goToScene/nextScene/prevScene play the authored
+    // enter timeline.
+    if (enterInFlight) {
       return {
         ...baseState,
         mode: 'enter',
@@ -252,6 +284,27 @@ function resolveVisualState(
     mode: 'hidden',
     projectedSceneElapsedMs: 0,
     localProgress: 0,
+  };
+}
+
+function resolvePlaybackVisualState(
+  sceneContext: SceneContextType,
+  calculatedDelay: number,
+  enterDuration: number,
+  exitDuration: number,
+  excludedFromPlayback: boolean
+): DragVisualState {
+  const state = resolveVisualState(sceneContext, calculatedDelay, enterDuration, exitDuration);
+  if (!excludedFromPlayback) return state;
+
+  // An Animate mounted after the immutable playback snapshot was captured is
+  // deliberately excluded from this activation. Render its authored terminal
+  // state without adding it to, or extending, the in-flight timeline.
+  return {
+    ...state,
+    mode: 'rest',
+    localProgress: 1,
+    projectedSceneElapsedMs: state.sceneTimelineDurationMs,
   };
 }
 
@@ -345,11 +398,27 @@ export function useAnimateDrag({
   exitDuration,
   waitFor,
 }: UseAnimateDragParams): UseAnimateDragReturn {
-  const calculatedDelayRef = useRef(0);
+  const playbackSnapshot = sceneContext ? resolvePlaybackSnapshot(sceneContext) : null;
+  const frozenRegistration = playbackSnapshot?.registrySnapshot.registrations.get(componentId);
+  const frozenEnterVariant = playbackSnapshot?.enterVariantsByAnimateId.get(componentId) ?? null;
+  const isExcludedFromPlayback = Boolean(
+    playbackSnapshot && (!frozenRegistration || !frozenEnterVariant)
+  );
+  const playbackEnterDuration = frozenRegistration?.duration ?? enterDuration;
+  const playbackCalculatedDelay =
+    playbackSnapshot?.registrySnapshot.calculatedDelays.get(componentId) ?? 0;
+  const resolvedEnterVariant = frozenEnterVariant ?? enterVariant;
+  const calculatedDelayRef = useRef(playbackCalculatedDelay);
+  // The transaction view updates its release seed while the finger moves. Keep
+  // registration lifetime independent from that view identity: the live registry
+  // compiles the NEXT prepared snapshot and must not unregister/re-register every
+  // drag frame merely because the current immutable transaction view advanced.
+  const playbackSnapshotRef = useRef(playbackSnapshot);
+  playbackSnapshotRef.current = playbackSnapshot;
   const variantsRef = useRef<CachedVariants>({
-    enterInitial: {},
-    enterAnimate: {},
-    exitTarget: {},
+    enterInitial: (resolvedEnterVariant?.initial as VariantRecord) || {},
+    enterAnimate: (resolvedEnterVariant?.animate as VariantRecord) || {},
+    exitTarget: (exitVariant?.exit as VariantRecord) || {},
   });
 
   // Compute the initial visual motion value synchronously during render
@@ -364,7 +433,13 @@ export function useAnimateDrag({
   // null the effect early-returns and the transforms ignore visualMotion, so
   // a seed of 0 is correct in that case.
   const initialVisualState = sceneContext
-    ? resolveVisualState(sceneContext, calculatedDelayRef.current, enterDuration, exitDuration)
+    ? resolvePlaybackVisualState(
+        sceneContext,
+        calculatedDelayRef.current,
+        playbackEnterDuration,
+        exitDuration,
+        isExcludedFromPlayback
+      )
     : null;
   const initialVisualMotion = initialVisualState
     ? initialVisualState.mode === 'outgoing'
@@ -383,34 +458,102 @@ export function useAnimateDrag({
   const lastDebugBucketRef = useRef<string | null>(null);
   const lastModeRef = useRef<string | null>(null);
   const lastDelayPhaseRef = useRef<string | null>(null);
+  const playbackWarningRef = useRef<{
+    identity: symbol | PreparedSceneSnapshot | null;
+    categories: Set<'dynamic-mount' | 'mutation'>;
+  }>({ identity: null, categories: new Set() });
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development' || !playbackSnapshot) return;
+
+    const identity =
+      'transactionId' in playbackSnapshot ? playbackSnapshot.transactionId : playbackSnapshot;
+    if (playbackWarningRef.current.identity !== identity) {
+      playbackWarningRef.current = { identity, categories: new Set() };
+    }
+
+    const warnOnce = (category: 'dynamic-mount' | 'mutation', message: string): void => {
+      if (playbackWarningRef.current.categories.has(category)) return;
+      playbackWarningRef.current.categories.add(category);
+      console.warn(message);
+    };
+
+    if (isExcludedFromPlayback && sceneContext?.isActive && sceneContext.sceneOffset === 0) {
+      warnOnce(
+        'dynamic-mount',
+        `[CineView Warning] Animate "${componentId}" mounted after the active Scene playback snapshot was captured. ` +
+          'It remains at its authored terminal state for this activation and will join the next activation.'
+      );
+      return;
+    }
+
+    if (!frozenRegistration || !frozenEnterVariant || !enterVariant) return;
+    const orchestrationChanged =
+      frozenRegistration.delay !== delay ||
+      frozenRegistration.duration !== enterDuration ||
+      frozenRegistration.waitFor !== waitFor ||
+      frozenRegistration.driver !== 'drag';
+    const enterVisualChanged = frozenEnterVariant !== enterVariant;
+    if (orchestrationChanged || enterVisualChanged) {
+      warnOnce(
+        'mutation',
+        `[CineView Warning] Animate "${componentId}" changed its drag choreography or enter visual during an active transaction. ` +
+          'The current transaction remains frozen; the new values take effect on the next activation.'
+      );
+    }
+  }, [
+    componentId,
+    delay,
+    enterDuration,
+    enterVariant,
+    frozenEnterVariant,
+    frozenRegistration,
+    isExcludedFromPlayback,
+    playbackSnapshot,
+    sceneContext?.isActive,
+    sceneContext?.sceneOffset,
+    waitFor,
+  ]);
 
   useEffect(() => {
     variantsRef.current = {
-      enterInitial: (enterVariant?.initial as VariantRecord) || {},
-      enterAnimate: (enterVariant?.animate as VariantRecord) || {},
-      // When no explicit exitAnimation is authored, derive exit from the same
+      enterInitial: (resolvedEnterVariant?.initial as VariantRecord) || {},
+      enterAnimate: (resolvedEnterVariant?.animate as VariantRecord) || {},
+      // Exit remains render-lane authored data; the prepared snapshot freezes the
+      // enter timeline that the element track actually drives.
       exitTarget: (exitVariant?.exit as VariantRecord) || {},
     };
-  }, [enterVariant, exitVariant]);
+    if (playbackSnapshot) {
+      calculatedDelayRef.current = playbackCalculatedDelay;
+    }
+  }, [exitVariant, playbackCalculatedDelay, playbackSnapshot, resolvedEnterVariant]);
 
   useEffect(() => {
     const registerAnimate = sceneContext?.registerAnimate;
     const unregisterAnimate = sceneContext?.unregisterAnimate;
     const getCalculatedDelay = sceneContext?.getCalculatedDelay;
-    if (!registerAnimate || !unregisterAnimate || !getCalculatedDelay || !enterVariant) {
+    if (!registerAnimate || !getCalculatedDelay || !enterVariant) {
       return;
     }
 
-    registerAnimate(componentId, {
+    const lease = registerAnimate(componentId, {
       delay,
       duration: enterDuration,
       waitFor,
+      driver: 'drag',
     });
+    lease?.setEnterVariant?.(enterVariant);
 
-    calculatedDelayRef.current = getCalculatedDelay(componentId);
+    if (!playbackSnapshotRef.current) {
+      calculatedDelayRef.current = lease?.getCalculatedDelay?.() ?? getCalculatedDelay(componentId);
+    }
 
     return () => {
-      unregisterAnimate(componentId);
+      if (lease?.dispose) {
+        lease.dispose();
+      } else {
+        unregisterAnimate?.(componentId);
+      }
     };
   }, [
     sceneContext?.registerAnimate,
@@ -427,22 +570,22 @@ export function useAnimateDrag({
     if (!sceneContext) return;
 
     const updateVisualMotion = (): void => {
-      // Live-refresh the cascaded delay. The registration effect seeds this once,
-      // but the registry recomputes whenever ANOTHER Animate registers — and a
-      // waitFor target commonly registers AFTER its dependent (async variant parse
-      // order is non-deterministic). The first read can therefore be a stale
-      // pre-dependency value (the missing-dependency branch in registry.ts drops
-      // the cascade, leaving only the element's own delay). Re-reading here, on
-      // every element-track change, lets the gate use the final cascaded delay.
-      const liveDelay = sceneContext.getCalculatedDelay?.(componentId);
-      if (typeof liveDelay === 'number') {
-        calculatedDelayRef.current = liveDelay;
+      // During playback the prepared snapshot is the sole orchestration source.
+      // Live registry reads are allowed only while compiling the next snapshot.
+      if (playbackSnapshot) {
+        calculatedDelayRef.current = playbackCalculatedDelay;
+      } else {
+        const liveDelay = sceneContext.getCalculatedDelay?.(componentId);
+        if (typeof liveDelay === 'number') {
+          calculatedDelayRef.current = liveDelay;
+        }
       }
-      const state = resolveVisualState(
+      const state = resolvePlaybackVisualState(
         sceneContext,
         calculatedDelayRef.current,
-        enterDuration,
-        exitDuration
+        playbackEnterDuration,
+        exitDuration,
+        isExcludedFromPlayback
       );
       const nextValue =
         state.mode === 'outgoing'
@@ -539,13 +682,12 @@ export function useAnimateDrag({
     };
 
     updateVisualMotion();
-    if (!sceneContext.sharedElapsedMotion) {
-      return;
-    }
-
-    const unsubscribe = sceneContext.sharedElapsedMotion.on('change', () => updateVisualMotion());
+    const unsubscribes = [
+      sceneContext.sharedElapsedMotion?.on('change', updateVisualMotion),
+      sceneContext.renderProgressMotion?.on('change', updateVisualMotion),
+    ].filter((unsubscribe): unsubscribe is () => void => typeof unsubscribe === 'function');
     return () => {
-      unsubscribe();
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }, [
     sceneContext,
@@ -554,6 +696,11 @@ export function useAnimateDrag({
     componentId,
     enterDuration,
     exitDuration,
+    isExcludedFromPlayback,
+    playbackCalculatedDelay,
+    playbackEnterDuration,
+    playbackSnapshot,
+    sceneContext?.renderProgressMotion,
     sceneContext?.renderProgress,
     sceneContext?.isDragging,
     sceneContext?.isActive,
@@ -581,11 +728,12 @@ export function useAnimateDrag({
     }
 
     const update = (): void => {
-      const state = resolveVisualState(
+      const state = resolvePlaybackVisualState(
         sceneContext,
         calculatedDelayRef.current,
-        enterDuration,
-        exitDuration
+        playbackEnterDuration,
+        exitDuration,
+        isExcludedFromPlayback
       );
       const shouldRun =
         sceneContext.isActive &&
@@ -597,21 +745,22 @@ export function useAnimateDrag({
     };
 
     update();
-    if (!sceneContext.sharedElapsedMotion) {
-      return;
-    }
-
-    const unsubscribe = sceneContext.sharedElapsedMotion.on('change', update);
+    const unsubscribes = [
+      sceneContext.sharedElapsedMotion?.on('change', update),
+      sceneContext.renderProgressMotion?.on('change', update),
+    ].filter((unsubscribe): unsubscribe is () => void => typeof unsubscribe === 'function');
     return () => {
-      unsubscribe();
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }, [
     sceneContext,
-    enterDuration,
+    playbackEnterDuration,
+    isExcludedFromPlayback,
     exitDuration,
     sceneContext?.isActive,
     sceneContext?.sceneOffset,
     sceneContext?.isDragging,
+    sceneContext?.renderProgressMotion,
     sceneContext?.renderProgress,
     sceneContext?.dragRelease,
     sceneContext?.firstSceneEnterActive,

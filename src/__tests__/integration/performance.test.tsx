@@ -627,7 +627,7 @@ describe('性能测试', () => {
       const TestApp = () => (
         <CineView config={{ size: 750 }}>
           <Scene>
-            <Animate exitAnimation="fade-out">
+            <Animate enterAnimation="fade-in" exitAnimation="fade-out">
               <h1>拖拽性能测试</h1>
             </Animate>
           </Scene>

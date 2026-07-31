@@ -77,4 +77,106 @@ describe('ScrollbarOverlay', () => {
       'horizontal'
     );
   });
+
+  function dispatchPointer(
+    target: EventTarget,
+    type: string,
+    clientY: number,
+    pointerId = 7
+  ): void {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY });
+    Object.defineProperties(event, {
+      pointerId: { configurable: true, value: pointerId },
+      pointerType: { configurable: true, value: 'touch' },
+    });
+    target.dispatchEvent(event);
+  }
+
+  function renderPointerScrollbar(onScrollToOffset: jest.Mock): HTMLElement {
+    render(
+      <ScrollbarOverlay
+        direction="y"
+        viewportSpan={100}
+        scrollContentSpan={300}
+        scrollOffset={0}
+        isScrolling={false}
+        config={{ autoHide: false }}
+        onScrollToOffset={onScrollToOffset}
+      />
+    );
+
+    const scrollbar = screen.getByRole('scrollbar', { name: 'CineView scroll position' });
+    jest.spyOn(scrollbar, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 6,
+      bottom: 100,
+      left: 0,
+      width: 6,
+      height: 100,
+      toJSON: () => ({}),
+    });
+    return scrollbar;
+  }
+
+  it('supports touch and pen dragging through pointer events', () => {
+    const onScrollToOffset = jest.fn();
+    const scrollbar = renderPointerScrollbar(onScrollToOffset);
+
+    dispatchPointer(scrollbar, 'pointerdown', 10);
+    dispatchPointer(window, 'pointermove', 60);
+    dispatchPointer(window, 'pointerup', 60);
+
+    expect(onScrollToOffset).toHaveBeenCalled();
+    const lastCall = onScrollToOffset.mock.calls[onScrollToOffset.mock.calls.length - 1];
+    expect(lastCall?.[0]).toBeGreaterThan(0);
+  });
+
+  it('does not let a second pointer take over an active thumb drag', () => {
+    const onScrollToOffset = jest.fn();
+    const scrollbar = renderPointerScrollbar(onScrollToOffset);
+
+    dispatchPointer(scrollbar, 'pointerdown', 10, 1);
+    dispatchPointer(scrollbar, 'pointerdown', 10, 2);
+    onScrollToOffset.mockClear();
+
+    dispatchPointer(window, 'pointermove', 60, 1);
+    dispatchPointer(window, 'pointerup', 60, 1);
+
+    expect(onScrollToOffset).toHaveBeenCalledTimes(1);
+    expect(onScrollToOffset.mock.calls[0]?.[0]).toBeGreaterThan(0);
+  });
+
+  it('ignores secondary mouse buttons and non-primary pointers', () => {
+    const onScrollToOffset = jest.fn();
+    const scrollbar = renderPointerScrollbar(onScrollToOffset);
+
+    const rightClick = new MouseEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      clientY: 60,
+    });
+    Object.defineProperties(rightClick, {
+      pointerId: { configurable: true, value: 1 },
+      pointerType: { configurable: true, value: 'mouse' },
+      isPrimary: { configurable: true, value: true },
+    });
+    scrollbar.dispatchEvent(rightClick);
+
+    const secondaryTouch = new MouseEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      clientY: 60,
+    });
+    Object.defineProperties(secondaryTouch, {
+      pointerId: { configurable: true, value: 2 },
+      pointerType: { configurable: true, value: 'touch' },
+      isPrimary: { configurable: true, value: false },
+    });
+    scrollbar.dispatchEvent(secondaryTouch);
+
+    expect(onScrollToOffset).not.toHaveBeenCalled();
+  });
 });

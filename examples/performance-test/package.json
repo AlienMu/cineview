@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:acceptance": "vite build --config vite.acceptance.config.ts",
     "profile:browser": "node profile-browser.mjs",
+    "acceptance:drag": "node acceptance-drag.mjs",
+    "acceptance:scroll": "node acceptance-scroll.mjs",
+    "acceptance:browser": "pnpm acceptance:drag && pnpm acceptance:scroll",
+    "acceptance:failure-injection": "node verify-browser-failure-injection.mjs",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "format": "pnpm --dir ../.. exec prettier --write \"examples/performance-test/**/*.{ts,tsx,js,mjs,json}\"",

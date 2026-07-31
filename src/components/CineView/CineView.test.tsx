@@ -25,8 +25,8 @@ const MockScene: React.FC<MockSceneProps> = ({ children }) => {
 (MockScene as React.FC & { displayName?: string }).displayName = 'Scene';
 
 // Mock performance monitor
-jest.mock('../../utils/performanceMonitor', () => ({
-  performanceMonitor: {
+jest.mock('../../utils/performanceMonitor', () => {
+  const performanceMonitor = {
     start: jest.fn(),
     stop: jest.fn(),
     getMetrics: jest.fn(() => ({
@@ -36,8 +36,15 @@ jest.mock('../../utils/performanceMonitor', () => ({
       bundleSize: 45,
     })),
     reset: jest.fn(),
-  },
-}));
+  };
+  return {
+    performanceMonitor,
+    acquirePerformanceMonitoring: jest.fn(() => {
+      performanceMonitor.start();
+      return () => performanceMonitor.stop();
+    }),
+  };
+});
 
 // Mock image preloader hook
 jest.mock('../../hooks/useImagePreloader', () => ({

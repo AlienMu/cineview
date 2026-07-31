@@ -4,7 +4,6 @@
  *  - line 147: memorySamples 超过 maxMemorySamples(8) 时 shift()
  *  - line 163: getBundleSizeKb 命中已缓存(>0)分支
  *  - line 177: estimateBundleSizeKb 在 resource entries 为空时 return 0
- *  - line 218-219: isPerformanceGood()
  *  - line 227: createPerformanceMonitor()
  *  - line 270: getGlobalPerformanceMonitor()
  */
@@ -70,16 +69,15 @@ describe('performanceMonitor extra branches', () => {
       value: getEntriesSpy,
     });
 
-    // reset() runs estimateBundleSizeKb() and caches the (>0) result.
-    monitor.reset();
-    const callsAfterReset = getEntriesSpy.mock.calls.length;
-    expect(callsAfterReset).toBeGreaterThan(0);
+    monitor.getMetrics();
+    const callsAfterFirstRead = getEntriesSpy.mock.calls.length;
+    expect(callsAfterFirstRead).toBeGreaterThan(0);
 
     // getMetrics() -> getBundleSizeKb() sees cachedBundleSizeKb > 0 and returns it
     // WITHOUT re-estimating, so getEntriesByType is not called again.
     const metrics = monitor.getMetrics();
     expect(metrics.bundleSize).toBeCloseTo(100, 1);
-    expect(getEntriesSpy.mock.calls.length).toBe(callsAfterReset);
+    expect(getEntriesSpy.mock.calls.length).toBe(callsAfterFirstRead);
 
     if (originalGetEntriesByType) {
       Object.defineProperty(performance, 'getEntriesByType', {
@@ -101,8 +99,6 @@ describe('performanceMonitor extra branches', () => {
       value: () => [] as unknown as PerformanceEntry[],
     });
 
-    // reset() -> estimateBundleSizeKb() with empty entries -> return 0
-    monitor.reset();
     const metrics = monitor.getMetrics();
     expect(metrics.bundleSize).toBe(0);
 
@@ -114,46 +110,6 @@ describe('performanceMonitor extra branches', () => {
     } else {
       delete (performance as { getEntriesByType?: unknown }).getEntriesByType;
     }
-  });
-
-  it('reports performance as good when fps >= 55 (line 218-219)', () => {
-    // Seed frame times that yield a high fps. avgFrameTime ~16ms -> fps ~60 -> good.
-    // Drive measure() via start()/stop() with controlled now() deltas.
-    const nowSpy = jest.spyOn(performance, 'now');
-    let t = 0;
-    nowSpy.mockImplementation(() => t);
-
-    // requestAnimationFrame stub that does not actually loop (we manually seed).
-    const rafSpy = jest
-      .spyOn(window, 'requestAnimationFrame')
-      .mockReturnValue(1 as unknown as number);
-
-    monitor.start(); // first measure(): deltaTime 0, pushes one frame time of 0
-    t = 16; // advance 16ms
-    // trigger one more measure via the rAF callback the monitor scheduled
-    const measureCb = rafSpy.mock.calls[0]?.[0] as FrameRequestCallback | undefined;
-    if (measureCb) measureCb(16);
-
-    const good = monitor.isPerformanceGood();
-    expect(typeof good).toBe('boolean');
-    monitor.stop();
-  });
-
-  it('reports performance as not good when frame times are slow (line 218-219 false branch)', () => {
-    const nowSpy = jest.spyOn(performance, 'now');
-    let t = 0;
-    nowSpy.mockImplementation(() => t);
-    const rafSpy = jest
-      .spyOn(window, 'requestAnimationFrame')
-      .mockReturnValue(1 as unknown as number);
-
-    monitor.start();
-    t = 100; // a 100ms frame -> ~10fps
-    const measureCb = rafSpy.mock.calls[0]?.[0] as FrameRequestCallback | undefined;
-    if (measureCb) measureCb(100);
-
-    expect(monitor.isPerformanceGood()).toBe(false);
-    monitor.stop();
   });
 
   it('createPerformanceMonitor returns a fresh instance (line 227)', () => {

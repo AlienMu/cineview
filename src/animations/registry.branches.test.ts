@@ -1,4 +1,4 @@
-import { buildAnimationRegistrySnapshot } from './registry';
+import { buildAnimationRegistrySnapshot, type AnimateRegistrationInfo } from './registry';
 
 describe('animation registry branch coverage', () => {
   it('deduplicates identical issues from repeated duplicate ids', () => {
@@ -108,7 +108,119 @@ describe('animation registry branch coverage', () => {
     expect(snapshot.issues).toEqual([
       { type: 'circular-dependency', animateId: 'a', cycle: ['a', 'b', 'a'] },
     ]);
-    expect(snapshot.calculatedDelays.get('a')).toBe(34);
-    expect(snapshot.calculatedDelays.get('b')).toBe(13);
+    expect(snapshot.calculatedDelays.get('a')).toBe(1);
+    expect(snapshot.calculatedDelays.get('b')).toBe(2);
+    expect(snapshot.timelineDuration).toBe(22);
+  });
+
+  it('fails open a three-node cycle while preserving a downstream dependency on one member', () => {
+    const registrations = new Map([
+      ['downstream', { delay: 4, duration: 40, waitFor: 'a', driver: 'visibility' as const }],
+      ['a', { delay: 1, duration: 10, waitFor: 'b', driver: 'visibility' as const }],
+      ['b', { delay: 2, duration: 20, waitFor: 'c', driver: 'visibility' as const }],
+      ['c', { delay: 3, duration: 30, waitFor: 'a', driver: 'visibility' as const }],
+    ]);
+
+    const first = buildAnimationRegistrySnapshot({ baseDuration: 0, registrations });
+    const second = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map(registrations),
+    });
+
+    expect(first.calculatedDelays).toEqual(
+      new Map([
+        ['a', 1],
+        ['c', 3],
+        ['b', 2],
+        ['downstream', 15],
+      ])
+    );
+    expect(first.timelineDuration).toBe(55);
+    expect([...first.calculatedDelays.values()].every(Number.isFinite)).toBe(true);
+    expect(first.issues).toEqual([
+      { type: 'circular-dependency', animateId: 'a', cycle: ['a', 'b', 'c', 'a'] },
+    ]);
+    expect(second.calculatedDelays).toEqual(first.calculatedDelays);
+    expect(second.issues).toEqual(first.issues);
+  });
+
+  it('reports the same canonical cycle for every registration order', () => {
+    const entries: Array<readonly [string, AnimateRegistrationInfo]> = [
+      ['a', { delay: 1, duration: 10, waitFor: 'b', driver: 'visibility' as const }],
+      ['b', { delay: 2, duration: 20, waitFor: 'c', driver: 'visibility' as const }],
+      ['c', { delay: 3, duration: 30, waitFor: 'a', driver: 'visibility' as const }],
+      ['downstream', { delay: 4, duration: 40, waitFor: 'a', driver: 'visibility' as const }],
+    ];
+    const permutations = entries.reduce<Array<(typeof entries)[number][]>>(
+      (current, entry) =>
+        current.flatMap((permutation) =>
+          Array.from({ length: permutation.length + 1 }, (_unused, index) => [
+            ...permutation.slice(0, index),
+            entry,
+            ...permutation.slice(index),
+          ])
+        ),
+      [[]]
+    );
+
+    const observedSnapshots = permutations.map((registrationOrder) =>
+      buildAnimationRegistrySnapshot({
+        baseDuration: 0,
+        registrations: new Map(registrationOrder),
+      })
+    );
+    const observedIssues = observedSnapshots.map((snapshot) => snapshot.issues);
+
+    expect(observedIssues).toHaveLength(24);
+    expect(observedIssues).toEqual(
+      Array.from({ length: 24 }, () => [
+        { type: 'circular-dependency', animateId: 'a', cycle: ['a', 'b', 'c', 'a'] },
+      ])
+    );
+    observedSnapshots.forEach((snapshot) => {
+      expect(Object.fromEntries(snapshot.calculatedDelays)).toEqual({
+        a: 1,
+        b: 2,
+        c: 3,
+        downstream: 15,
+      });
+      expect(snapshot.timelineDuration).toBe(55);
+    });
+  });
+
+  it('treats an incompatible mixed-driver edge as a stable fail-open cycle break', () => {
+    const registrations = new Map([
+      ['scroll-a', { delay: 5, duration: 100, waitFor: 'visibility-b', driver: 'scroll' as const }],
+      [
+        'visibility-b',
+        { delay: 7, duration: 50, waitFor: 'scroll-a', driver: 'visibility' as const },
+      ],
+    ]);
+
+    const first = buildAnimationRegistrySnapshot({ baseDuration: 0, registrations });
+    const second = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map(registrations),
+    });
+
+    expect(first.calculatedDelays).toEqual(
+      new Map([
+        ['scroll-a', 5],
+        ['visibility-b', 7],
+      ])
+    );
+    expect(first.timelineDuration).toBe(105);
+    expect([...first.calculatedDelays.values()].every(Number.isFinite)).toBe(true);
+    expect(first.issues).toEqual([
+      {
+        type: 'incompatible-driver',
+        animateId: 'scroll-a',
+        waitFor: 'visibility-b',
+        followerDriver: 'scroll',
+        leaderDriver: 'visibility',
+      },
+    ]);
+    expect(second.calculatedDelays).toEqual(first.calculatedDelays);
+    expect(second.issues).toEqual(first.issues);
   });
 });

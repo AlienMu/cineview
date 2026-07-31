@@ -13,6 +13,7 @@
 import {
   buildSceneTimelineState,
   clamp,
+  resolveDesignDimensions,
   normalizeKeyboardDeltaPx,
   normalizeTouchDeltaPx,
   normalizeWheelDeltaPx,
@@ -97,6 +98,17 @@ describe('resolveScrollIntentOffset', () => {
     expect(result).toBe(300);
   });
 
+  it('从 segmentStart 正向跨完整 segment 时先进入段内', () => {
+    const segments: CenterLockSegment[] = [{ segmentStart: 100, segmentEnd: 300 }];
+    const result = resolveScrollIntentOffset({
+      currentOffset: 100,
+      deltaPx: 1000,
+      maxNativeOffset: 1000,
+      segments,
+    });
+    expect(result).toBe(101);
+  });
+
   it('反向大输入跨完整 segment 时钳到 segmentEnd-1', () => {
     const segments: CenterLockSegment[] = [{ segmentStart: 100, segmentEnd: 300 }];
     // 从段后(400)一跃到段前(50)，必须先落到段内 segmentEnd-1=299
@@ -119,6 +131,17 @@ describe('resolveScrollIntentOffset', () => {
       segments,
     });
     expect(result).toBe(100);
+  });
+
+  it('从 segmentEnd 反向跨完整 segment 时先进入段内', () => {
+    const segments: CenterLockSegment[] = [{ segmentStart: 100, segmentEnd: 300 }];
+    const result = resolveScrollIntentOffset({
+      currentOffset: 300,
+      deltaPx: -1000,
+      maxNativeOffset: 1000,
+      segments,
+    });
+    expect(result).toBe(299);
   });
 
   it('小幅输入（< 边界 epsilon）直接返回 target，不触发段判定', () => {
@@ -394,5 +417,47 @@ describe('buildSceneTimelineState', () => {
     const state = buildSceneTimelineState(layout, 200, 100);
     // (250-100)/(500-100)=150/400=0.375
     expect(state?.sceneProgress).toBeCloseTo(0.375, 5);
+  });
+});
+
+describe('resolveDesignDimensions（A2：config 兜底 + 非法 size 回退）', () => {
+  let errorSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    // 非法 size 走 console.error（保持 drag 根既有 'Invalid config.size' 诊断契约）。
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  it('config 缺省时回退 750，且无诊断（缺省是合法用法）', () => {
+    // 修复前：config.size 直接解引用，undefined config 抛 TypeError。
+    expect(resolveDesignDimensions(undefined)).toEqual({ designSize: 750 });
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('size 未提供时回退 750，无诊断', () => {
+    expect(resolveDesignDimensions({})).toEqual({ designSize: 750 });
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('size=0 回退 750 并发 dev 诊断（修复前 0 ?? 750 === 0 → Infinity scale）', () => {
+    expect(resolveDesignDimensions({ size: 0 })).toEqual({ designSize: 750 });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid config.size'));
+  });
+
+  it('负数 / NaN / Infinity 一律回退 750', () => {
+    expect(resolveDesignDimensions({ size: -10 })).toEqual({ designSize: 750 });
+    expect(resolveDesignDimensions({ size: Number.NaN })).toEqual({ designSize: 750 });
+    expect(resolveDesignDimensions({ size: Number.POSITIVE_INFINITY })).toEqual({
+      designSize: 750,
+    });
+  });
+
+  it('合法正数原样返回，无诊断', () => {
+    expect(resolveDesignDimensions({ size: 600 })).toEqual({ designSize: 600 });
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

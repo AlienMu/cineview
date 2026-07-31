@@ -8,7 +8,7 @@ import {
   getPerformanceMetrics,
   startPerformanceMonitoring,
   stopPerformanceMonitoring,
-  resetPerformanceMetrics,
+  acquirePerformanceMonitoring,
 } from './performanceMonitor';
 
 describe('PerformanceMonitor', () => {
@@ -117,21 +117,6 @@ describe('PerformanceMonitor', () => {
         if (decimalPart) {
           expect(decimalPart.length).toBeLessThanOrEqual(2);
         }
-        monitor.stop();
-        done();
-      }, 100);
-    });
-  });
-
-  describe('reset', () => {
-    it('should reset metrics to initial state', (done) => {
-      monitor.start();
-
-      setTimeout(() => {
-        monitor.reset();
-        const metrics = monitor.getMetrics();
-        expect(metrics.fps).toBe(0);
-        expect(metrics.avgFrameTime).toBe(0);
         monitor.stop();
         done();
       }, 100);
@@ -295,6 +280,26 @@ describe('Singleton instance and convenience functions', () => {
     stopPerformanceMonitoring();
   });
 
+  describe('acquirePerformanceMonitoring', () => {
+    it('keeps the global monitor running until the last consumer releases it', () => {
+      const startSpy = jest.spyOn(performanceMonitor, 'start');
+      const stopSpy = jest.spyOn(performanceMonitor, 'stop');
+
+      const releaseFirst = acquirePerformanceMonitoring();
+      const releaseSecond = acquirePerformanceMonitoring();
+      expect(startSpy).toHaveBeenCalledTimes(1);
+
+      releaseFirst();
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      releaseSecond();
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+
+      releaseSecond();
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('startPerformanceMonitoring', () => {
     it('should start monitoring using singleton', () => {
       const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
@@ -330,21 +335,6 @@ describe('Singleton instance and convenience functions', () => {
         const metrics = getPerformanceMetrics();
         expect(metrics.fps).toBeGreaterThan(0);
         expect(metrics.avgFrameTime).toBeGreaterThan(0);
-        stopPerformanceMonitoring();
-        done();
-      }, 100);
-    });
-  });
-
-  describe('resetPerformanceMetrics', () => {
-    it('should reset metrics using singleton', (done) => {
-      startPerformanceMonitoring();
-
-      setTimeout(() => {
-        resetPerformanceMetrics();
-        const metrics = getPerformanceMetrics();
-        expect(metrics.fps).toBe(0);
-        expect(metrics.avgFrameTime).toBe(0);
         stopPerformanceMonitoring();
         done();
       }, 100);
@@ -422,10 +412,6 @@ describe('Edge cases', () => {
     const metrics = monitor.getMetrics();
     expect(metrics.fps).toBe(0);
     expect(metrics.avgFrameTime).toBe(0);
-  });
-
-  it('should handle reset before starting', () => {
-    expect(() => monitor.reset()).not.toThrow();
   });
 
   it('should handle multiple start/stop cycles', (done) => {

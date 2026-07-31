@@ -171,7 +171,7 @@ function renderDragApp(onSceneDidChange?: jest.Mock) {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600, dragTimeScale: 25 } }}
+      modes={{ drag: { direction: 'y', transitionDuration: 600, unit: 'time', scale: 25 } }}
       config={{ size: 750 }}
       callbacks={{ onSceneDidChange }}
     >
@@ -208,10 +208,16 @@ function renderDragApp(onSceneDidChange?: jest.Mock) {
   return cineViewRef;
 }
 
-function dragUp(surface: HTMLElement, fromY: number, toY: number) {
+async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  const ownershipY = fromY - 8;
+  const targetY = toY - 8;
   fireEvent.mouseDown(surface, { clientX: 375, clientY: fromY });
-  fireEvent.mouseMove(surface, { clientX: 375, clientY: toY });
-  fireEvent.mouseUp(surface, { clientX: 375, clientY: toY });
+  fireEvent.mouseMove(surface, { clientX: 375, clientY: ownershipY });
+  fireEvent.mouseMove(surface, { clientX: 375, clientY: targetY });
+  fireEvent.mouseUp(surface, { clientX: 375, clientY: targetY });
 }
 
 function findRenderLane(): AnimateCall | undefined {
@@ -234,7 +240,7 @@ describe('drag continuous cross-commit completion', () => {
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     animateCalls.length = 0;
-    dragUp(surface, 620, 120); // ~65% partial release
+    await dragUp(surface, 620, 120); // ~65% partial release
 
     // Complete ONLY the render (page-slide) lane. The long element timeline lane
     // is left only partway (not flushed).

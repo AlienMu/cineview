@@ -42,3 +42,15 @@ pnpm-debug.log*
 
 # Bundle analysis output
 stats.html
+
+# Local acceptance artifacts (screenshots / traces written by verification scripts)
+output
+.playwright-cli
+examples/performance-test/acceptance-shots
+examples/performance-test/dist-acceptance
+
+# One-off probe + screenshot scripts kept out of the repo
+/.probe-*.mjs
+/.v1-*
+shot*.cjs
+examples/performance-test/profile-browser.mjs

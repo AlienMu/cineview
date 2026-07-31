@@ -52,9 +52,18 @@ export interface UseFirstSceneEnterParams {
   getPreloadCounts: () => { loadedCount: number; totalCount: number };
 }
 
+export type FirstSceneActivationKind = 'ready' | 'static';
+
 export interface UseFirstSceneEnterResult {
   firstSceneEnterActive: boolean;
   firstSceneEnterReady: boolean;
+  /**
+   * Monotonic one-shot signal for the first Scene's formal activation. Asset
+   * readiness and the default timeout fallback activate; a handled timeout or
+   * pointer preemption does not.
+   */
+  firstSceneActivationToken: number;
+  firstSceneActivationKind: FirstSceneActivationKind | null;
   /** Clears the window once the first scene's enter pass reaches its terminal. */
   handleComplete: () => void;
 }
@@ -70,6 +79,9 @@ export function useFirstSceneEnter({
 }: UseFirstSceneEnterParams): UseFirstSceneEnterResult {
   const [firstSceneEnterActive, setFirstSceneEnterActive] = useState<boolean>(() => enabled);
   const [firstSceneEnterReady, setFirstSceneEnterReady] = useState<boolean>(false);
+  const [firstSceneActivationToken, setFirstSceneActivationToken] = useState(0);
+  const [firstSceneActivationKind, setFirstSceneActivationKind] =
+    useState<FirstSceneActivationKind | null>(null);
   const ranRef = useRef(false);
   const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -91,18 +103,25 @@ export function useFirstSceneEnter({
     if (ranRef.current) return;
     if (!hasFirstScene) return;
 
+    const activateFirstScene = (kind: FirstSceneActivationKind): void => {
+      setFirstSceneActivationKind(kind);
+      setFirstSceneActivationToken((current) => current + 1);
+    };
+
     const startEnter = (): void => {
       // The effect cleanup always clears a pending timer before this body
       // re-runs, and the timer callback no-ops once ranRef is set — so no
       // explicit clearTimeout is needed here.
       ranRef.current = true;
       setFirstSceneEnterReady(true);
+      activateFirstScene('ready');
     };
 
     const settleStatically = (): void => {
       ranRef.current = true;
       setFirstSceneEnterReady(false);
       setFirstSceneEnterActive(false);
+      activateFirstScene('static');
     };
 
     if (priorityComplete) {
@@ -159,5 +178,11 @@ export function useFirstSceneEnter({
     setFirstSceneEnterActive(false);
   }, []);
 
-  return { firstSceneEnterActive, firstSceneEnterReady, handleComplete };
+  return {
+    firstSceneEnterActive,
+    firstSceneEnterReady,
+    firstSceneActivationToken,
+    firstSceneActivationKind,
+    handleComplete,
+  };
 }

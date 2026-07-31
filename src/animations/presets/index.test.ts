@@ -1,9 +1,13 @@
 import {
+  PRESET_LOAD_TIMEOUT_MS,
+  PresetLoadError,
   getPresetAnimation,
+  getPresetCategoryState,
   loadAnimationModule,
   preloadAnimationCategory,
   preloadAllAnimations,
   clearAnimationCache,
+  setPresetCategoryLoaderForTests,
 } from './index';
 
 // devWarn/devError (used for unknown-preset / load-failure diagnostics) only
@@ -19,6 +23,10 @@ afterAll(() => {
 describe('animations/presets/index', () => {
   beforeEach(() => {
     clearAnimationCache();
+  });
+
+  afterEach(() => {
+    setPresetCategoryLoaderForTests(null);
   });
 
   describe('loadAnimationModule', () => {
@@ -103,6 +111,40 @@ describe('animations/presets/index', () => {
 
       expect(module1).toBe(module2);
     });
+
+    it('times out a stalled category as transient and allows a retry', async () => {
+      jest.useFakeTimers();
+      const fadeModule = {
+        fade: {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 },
+        },
+      };
+      const loader = jest
+        .fn()
+        .mockImplementationOnce(() => new Promise(() => undefined))
+        .mockResolvedValueOnce(fadeModule);
+      setPresetCategoryLoaderForTests(loader);
+
+      try {
+        const stalled = getPresetAnimation('fade');
+        const rejection = expect(stalled).rejects.toMatchObject({
+          code: 'ANIMATION_ASSET_LOAD_FAILED',
+          permanent: false,
+        });
+
+        await jest.advanceTimersByTimeAsync(PRESET_LOAD_TIMEOUT_MS);
+        await rejection;
+        expect(getPresetCategoryState('fade')).toBe('failed-transient');
+
+        await expect(getPresetAnimation('fade')).resolves.toBe(fadeModule.fade);
+        expect(loader).toHaveBeenCalledTimes(2);
+        expect(getPresetCategoryState('fade')).toBe('success');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   describe('getPresetAnimation', () => {
@@ -124,36 +166,86 @@ describe('animations/presets/index', () => {
       expect(animation).toHaveProperty('exit');
     });
 
-    it('should return null for unknown animation', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+    it('caches unknown preset names as permanent INVALID_ANIMATION failures', async () => {
+      const first = getPresetAnimation('unknown');
+      const second = getPresetAnimation('unknown');
 
-      const animation = await getPresetAnimation('unknown' as never);
-
-      expect(animation).toBeNull();
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
+      await expect(first).rejects.toMatchObject({
+        code: 'INVALID_ANIMATION',
+        permanent: true,
+        presetName: 'unknown',
+      });
+      await expect(second).rejects.toBeInstanceOf(PresetLoadError);
     });
 
-    it('should handle load errors gracefully', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('coalesces concurrent requests for the same category', async () => {
+      let resolveModule!: (module: Record<string, never>) => void;
+      const loader = jest.fn(
+        () =>
+          new Promise<Record<string, never>>((resolve) => {
+            resolveModule = resolve;
+          })
+      );
+      setPresetCategoryLoaderForTests(loader);
 
-      // Mock loadAnimationModule to throw error
-      const indexModule = await import('./index');
-      jest.spyOn(indexModule, 'loadAnimationModule').mockRejectedValueOnce(new Error('Load error'));
+      const fade = getPresetAnimation('fade');
+      const fadeIn = getPresetAnimation('fade-in');
+      expect(loader).toHaveBeenCalledTimes(1);
+      expect(getPresetCategoryState('fade')).toBe('pending');
 
-      const animation = await getPresetAnimation('fade');
+      resolveModule({
+        fade: {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 },
+        },
+        'fade-in': {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 },
+        },
+      } as never);
 
-      expect(animation).toBeNull();
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
+      await expect(fade).resolves.toBeDefined();
+      await expect(fadeIn).resolves.toBeDefined();
+      expect(getPresetCategoryState('fade')).toBe('success');
     });
 
-    it('should return null when animation not found in module', async () => {
-      // This tests the case where the module loads but doesn't contain the animation
-      const animation = await getPresetAnimation('fade');
-      expect(animation).not.toBeNull();
+    it('does not cache transient failures and retries the category', async () => {
+      const loader = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('chunk unavailable'))
+        .mockResolvedValueOnce({
+          fade: {
+            initial: { opacity: 0 },
+            animate: { opacity: 1 },
+            exit: { opacity: 0 },
+          },
+        });
+      setPresetCategoryLoaderForTests(loader);
+
+      await expect(getPresetAnimation('fade')).rejects.toMatchObject({
+        code: 'ANIMATION_ASSET_LOAD_FAILED',
+        permanent: false,
+      });
+      expect(getPresetCategoryState('fade')).toBe('failed-transient');
+
+      await expect(getPresetAnimation('fade')).resolves.toBeDefined();
+      expect(loader).toHaveBeenCalledTimes(2);
+      expect(getPresetCategoryState('fade')).toBe('success');
+    });
+
+    it('caches a missing export as a permanent failure', async () => {
+      const loader = jest.fn().mockResolvedValue({});
+      setPresetCategoryLoaderForTests(loader);
+
+      await expect(getPresetAnimation('fade')).rejects.toMatchObject({
+        code: 'INVALID_ANIMATION',
+        permanent: true,
+        presetName: 'fade',
+      });
+      await expect(getPresetAnimation('fade')).rejects.toBeInstanceOf(PresetLoadError);
+      expect(loader).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -203,6 +295,61 @@ describe('animations/presets/index', () => {
       // Load again - should not be from cache
       const module = await loadAnimationModule('fade');
       expect(module).toBeDefined();
+    });
+
+    it('isolates an old in-flight request from the new cache epoch', async () => {
+      let resolveOld!: (module: Record<string, never>) => void;
+      let resolveCurrent!: (module: Record<string, never>) => void;
+      const oldModule = {
+        fade: {
+          initial: { opacity: 0 },
+          animate: { opacity: 0.4 },
+          exit: { opacity: 0 },
+        },
+      };
+      const currentModule = {
+        fade: {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 },
+        },
+      };
+      const loader = jest
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Record<string, never>>((resolve) => {
+              resolveOld = resolve;
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise<Record<string, never>>((resolve) => {
+              resolveCurrent = resolve;
+            })
+        );
+      setPresetCategoryLoaderForTests(loader);
+
+      const oldRequest = loadAnimationModule('fade');
+      clearAnimationCache();
+      const currentRequest = loadAnimationModule('fade');
+      expect(loader).toHaveBeenCalledTimes(2);
+      expect(getPresetCategoryState('fade')).toBe('pending');
+
+      resolveOld(oldModule as never);
+      await expect(oldRequest).resolves.toBe(oldModule);
+
+      // The obsolete request must neither publish success nor delete the current
+      // epoch's in-flight entry when its finally handler runs.
+      expect(getPresetCategoryState('fade')).toBe('pending');
+      expect(loadAnimationModule('fade')).toBe(currentRequest);
+      expect(loader).toHaveBeenCalledTimes(2);
+
+      resolveCurrent(currentModule as never);
+      await expect(currentRequest).resolves.toBe(currentModule);
+      expect(getPresetCategoryState('fade')).toBe('success');
+      await expect(loadAnimationModule('fade')).resolves.toBe(currentModule);
+      expect(loader).toHaveBeenCalledTimes(2);
     });
   });
 

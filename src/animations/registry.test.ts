@@ -49,6 +49,39 @@ describe('animation registry', () => {
     });
   });
 
+  it('reports an incompatible scroll-to-visibility dependency and fails open', () => {
+    const snapshot = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map([
+        ['leader', { delay: 10, duration: 200, driver: 'visibility' }],
+        ['follower', { delay: 25, duration: 100, waitFor: 'leader', driver: 'scroll' }],
+      ]),
+    });
+
+    expect(snapshot.calculatedDelays.get('follower')).toBe(25);
+    expect(snapshot.issues).toContainEqual({
+      type: 'incompatible-driver',
+      animateId: 'follower',
+      waitFor: 'leader',
+      followerDriver: 'scroll',
+      leaderDriver: 'visibility',
+    });
+  });
+
+  it('allows a visibility follower to observe a scroll leader without folding its budget', () => {
+    const snapshot = buildAnimationRegistrySnapshot({
+      baseDuration: 0,
+      registrations: new Map([
+        ['leader', { delay: 10, duration: 100, driver: 'scroll' }],
+        ['follower', { delay: 25, duration: 50, waitFor: 'leader', driver: 'visibility' }],
+      ]),
+    });
+
+    expect(snapshot.issues).toEqual([]);
+    expect(snapshot.calculatedDelays.get('follower')).toBe(25);
+    expect(snapshot.timelineDuration).toBe(110);
+  });
+
   it('reports duplicate ids supplied by the registration owner', () => {
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 200,

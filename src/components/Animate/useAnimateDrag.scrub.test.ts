@@ -18,8 +18,8 @@
  *   - SHORT elements settle EARLY (a 200ms element reaches 1 while the shared
  *     clock is only part-way to T_self). This is ACCEPTED: the trade is correct
  *     waitFor serialisation. The "feel" is tuned by decoupling drag SPEED from
- *     the clock via dragTimeScale (useElementTrack maps drag % to an absolute ms
- *     rate, tested separately), NOT by changing this read formula.
+ *     the clock via the resolved time mapping scale (useElementTrack maps drag %
+ *     to an absolute-ms rate, tested separately), NOT by changing this formula.
  *
  * Confirm RED by reverting the formula (e.g. divide by a scene-wide duration, or
  * drop the delay gate) before trusting these.

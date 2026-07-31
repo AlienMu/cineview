@@ -74,7 +74,8 @@ function resolveTiming(
   animateId: string,
   registrations: Map<string, SceneScrollAnimationRegistration>,
   cache: Map<string, SceneScrollAnimationTiming>,
-  chain: Set<string>
+  chain: Set<string>,
+  circularFollowers: Set<string>
 ): SceneScrollAnimationTiming {
   const cached = cache.get(animateId);
   if (cached) {
@@ -98,6 +99,9 @@ function resolveTiming(
   }
 
   if (chain.has(animateId)) {
+    const chainIds = [...chain];
+    const cycleStart = chainIds.indexOf(animateId);
+    chainIds.slice(cycleStart).forEach((cycleId) => circularFollowers.add(cycleId));
     const fallback = {
       animateId,
       startMs: clampToNonNegative(registration.delay),
@@ -116,9 +120,19 @@ function resolveTiming(
 
   chain.add(animateId);
 
-  const predecessorEnd = registration.waitFor
-    ? resolveTiming(registration.waitFor, registrations, cache, chain).totalEndMs
-    : 0;
+  let predecessorEnd = 0;
+  if (registration.waitFor) {
+    const predecessor = resolveTiming(
+      registration.waitFor,
+      registrations,
+      cache,
+      chain,
+      circularFollowers
+    );
+    if (!circularFollowers.has(animateId)) {
+      predecessorEnd = predecessor.totalEndMs;
+    }
+  }
   const startMs = predecessorEnd + clampToNonNegative(registration.delay);
   const enterDuration = Math.max(clampToNonNegative(registration.enterDuration), 1);
   const exitDuration = clampToNonNegative(registration.exitDuration);
@@ -148,9 +162,10 @@ export function resolveSceneScrollAnimationBudgets(
   registrations: Map<string, SceneScrollAnimationRegistration>
 ): ResolvedSceneScrollSequence {
   const cache = new Map<string, SceneScrollAnimationTiming>();
+  const circularFollowers = new Set<string>();
 
   registrations.forEach((_, animateId) => {
-    resolveTiming(animateId, registrations, cache, new Set<string>());
+    resolveTiming(animateId, registrations, cache, new Set<string>(), circularFollowers);
   });
 
   let totalDurationMs = 0;

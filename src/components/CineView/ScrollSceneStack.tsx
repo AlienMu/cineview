@@ -1,19 +1,12 @@
-import React, { useSyncExternalStore } from 'react';
+import React from 'react';
 import type { SceneAuthoringCompatProps } from './directScrollHelpers';
 import { isSceneElement } from './directScrollHelpers';
 import type { GroupedCallbacks } from './regroupCallbacks';
-import type { ScrollExternalStore } from './scrollExternalStore';
-import {
-  EMPTY_SCROLL_SCENE_SNAPSHOT,
-  ScrollSceneSlot,
-  type ScrollSceneRenderSnapshot,
-} from './ScrollSceneSlot';
-
-export type ScrollSceneSnapshotMap = ReadonlyMap<number, ScrollSceneRenderSnapshot>;
+import { ScrollSceneSlot, type ScrollSceneSnapshotStore } from './ScrollSceneSlot';
 
 interface ScrollSceneStackProps {
   childrenArray: React.ReactNode[];
-  store: ScrollExternalStore<ScrollSceneSnapshotMap>;
+  store: ScrollSceneSnapshotStore;
   setWrapperRef: (sceneIndex: number, node: HTMLDivElement | null) => void;
   scrollCallbacks?: GroupedCallbacks['scroll'];
 }
@@ -24,7 +17,6 @@ export function ScrollSceneStack({
   setWrapperRef,
   scrollCallbacks,
 }: ScrollSceneStackProps): JSX.Element {
-  const snapshots = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   let sceneIndex = 0;
 
   return (
@@ -39,7 +31,7 @@ export function ScrollSceneStack({
           <ScrollSceneSlot
             key={child.key ?? `scene-${currentSceneIndex}`}
             child={child as React.ReactElement<SceneAuthoringCompatProps>}
-            snapshot={snapshots.get(currentSceneIndex) ?? EMPTY_SCROLL_SCENE_SNAPSHOT}
+            store={store}
             sceneIndex={currentSceneIndex}
             setWrapperRef={setWrapperRef}
             scrollCallbacks={scrollCallbacks}

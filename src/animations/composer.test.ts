@@ -40,6 +40,13 @@ jest.mock('./animationParser', () => ({
           exit: { opacity: 0 },
         });
       }
+      if (animation === 'instant') {
+        return Promise.resolve({
+          initial: { opacity: 0 },
+          animate: { opacity: 1, transition: { duration: 0 } },
+          exit: { opacity: 0 },
+        });
+      }
     }
     if (typeof animation === 'object' && 'animate' in animation) {
       return Promise.resolve({
@@ -173,7 +180,7 @@ describe('composer', () => {
           animations: ['bare' as PresetAnimation],
         });
 
-        expect(result?.animate).toEqual({ opacity: 1, transition: { delay: 0 } });
+        expect(result?.animate).toEqual({ opacity: 1, transition: { opacity: { delay: 0 } } });
       });
     });
 
@@ -237,7 +244,103 @@ describe('composer', () => {
           animations: ['bare' as PresetAnimation],
         });
 
-        expect(result?.animate).toEqual({ opacity: 1, transition: { delay: 0 } });
+        expect(result?.animate).toEqual({ opacity: 1, transition: { opacity: { delay: 0 } } });
+      });
+    });
+
+    describe('per-value transition orchestration (E-E1)', () => {
+      it('sequential: each property keeps its own step delay instead of last-wins', async () => {
+        const result = await composeAnimation({
+          mode: 'sequential',
+          animations: ['fade', { animate: { scale: 1.2 } } as CustomAnimation],
+        });
+
+        // fade 的 opacity 从 0s 开始,第二步的 scale 在 fade 结束(1s)后才开始:
+        // 普通 Object.assign 合并会让 transition last-wins,opacity 的 delay 0 丢失。
+        expect(result?.animate).toEqual({
+          opacity: 1,
+          scale: 1.2,
+          transition: {
+            opacity: { duration: 1, delay: 0 },
+            scale: { duration: 1, delay: 1 },
+          },
+        });
+      });
+
+      it('sequential: a shared property takes the last writer value AND its transition', async () => {
+        const result = await composeAnimation({
+          mode: 'sequential',
+          animations: ['fade', 'slide-up'],
+        });
+
+        const animate = result?.animate as { transition: Record<string, unknown> };
+        expect(animate.transition.opacity).toEqual({ duration: 0.5, delay: 1 });
+        expect(animate.transition.y).toEqual({ duration: 0.5, delay: 1 });
+      });
+
+      it('parallel: per-value delays from delays[] survive the merge', async () => {
+        const result = await composeAnimation({
+          mode: 'parallel',
+          animations: ['fade', { animate: { scale: 1.2 } } as CustomAnimation],
+          delays: [0, 200],
+        });
+
+        expect(result?.animate).toEqual({
+          opacity: 1,
+          scale: 1.2,
+          transition: {
+            opacity: { duration: 1, delay: 0 },
+            scale: { duration: 1, delay: 0.2 },
+          },
+        });
+      });
+    });
+
+    describe('delays alignment when invalid animations are skipped (E-E2)', () => {
+      it('keeps delays matched to authored positions, not compacted indices', async () => {
+        const result = await composeAnimation({
+          mode: 'sequential',
+          animations: ['not-a-real-animation' as PresetAnimation, 'fade'],
+          delays: [999000, 500],
+        });
+
+        const animate = result?.animate as { transition: Record<string, unknown> };
+        // fade 是作者书写的第 2 项 → 用 delays[1]=500ms;压缩下标会错取 delays[0]=999s。
+        expect(animate.transition.opacity).toEqual({ duration: 1, delay: 0.5 });
+      });
+
+      it('parallel: delays stay aligned across a skipped invalid entry', async () => {
+        const result = await composeAnimation({
+          mode: 'parallel',
+          animations: ['not-a-real-animation' as PresetAnimation, 'fade'],
+          delays: [999000, 200],
+        });
+
+        const animate = result?.animate as { transition: Record<string, unknown> };
+        expect(animate.transition.opacity).toEqual({ duration: 1, delay: 0.2 });
+      });
+    });
+
+    describe('sequential duration accumulation (E-E3)', () => {
+      it('honours a real transition.duration of zero (not coerced to 1s)', async () => {
+        const result = await composeAnimation({
+          mode: 'sequential',
+          animations: ['instant' as PresetAnimation, { animate: { scale: 2 } } as CustomAnimation],
+        });
+
+        const animate = result?.animate as { transition: Record<string, unknown> };
+        // instant 的 duration=0 → 第二步从 0s 开始(旧的 `|| 1` 会把 0 当 1 累计)。
+        expect(animate.transition.scale).toEqual({ duration: 1, delay: 0 });
+      });
+
+      it('falls back to the documented 1s assumption for steps without a duration', async () => {
+        const result = await composeAnimation({
+          mode: 'sequential',
+          animations: ['bare' as PresetAnimation, { animate: { scale: 2 } } as CustomAnimation],
+        });
+
+        const animate = result?.animate as { transition: Record<string, unknown> };
+        expect(animate.transition.scale).toEqual({ duration: 1, delay: 1 });
       });
     });
 

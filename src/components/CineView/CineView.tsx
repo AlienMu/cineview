@@ -7,27 +7,43 @@ import React, {
   forwardRef,
   useRef,
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   useMemo,
   Children,
 } from 'react';
+import { useMotionValue } from 'framer-motion';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { useSceneManager, type DragReleaseInput } from '../../hooks/useSceneManager';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
-import { performanceMonitor } from '../../utils/performanceMonitor';
+import { acquirePerformanceMonitoring } from '../../utils/performanceMonitor';
 import { DirectScrollCineView } from './DirectScrollCineView';
 import { DragSceneStack } from './DragSceneStack';
+import type {
+  DragRenderLane,
+  DragTakeoverSnapshot,
+  SceneActivationKind,
+  SceneActivationRecord,
+} from '../Scene/types';
+import {
+  DragPreparedSceneStore,
+  type DragSceneTransaction,
+  type PreparedSceneInvalidation,
+  type PreparedSceneSnapshot,
+} from '../Scene/dragPreparedState';
 import {
   resolveDesignDimensions,
   isLegacyDisplayNameSceneElement,
   isSceneElement,
 } from './directScrollHelpers';
 import { getScenePreloadImages } from './preloadTargets';
+import { resolveDragTimelineConfig } from '../../utils/dragTimelineMapping';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
 import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
 import { useCineViewImperativeApi } from './useCineViewImperativeApi';
+import { DEFAULT_SLIDE_DURATION } from '../../types';
 import type {
   AnimationType,
   CineViewErrorCode,
@@ -59,11 +75,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-// Default drag time scale: ms per 1% of drag. Full drag (100%) advances the
-// element clock by `100 * DEFAULT_DRAG_TIME_SCALE` ms (= 10000ms), independent of
-// the scene's authored animation length. Override via `modes.drag.dragTimeScale`.
-const DEFAULT_DRAG_TIME_SCALE = 10;
-
 function createScrollbarCss(): string {
   return `
     [data-cineview-container="true"] {
@@ -87,14 +98,19 @@ function getSceneSettleDuration(
   rootMode: ScrollMode,
   modes: CineViewProps['modes'] | undefined
 ): number {
+  // A10: the settle fallback shares DEFAULT_SLIDE_DURATION (800) — the same
+  // default the Scene slide itself uses (helpers.ts) — instead of a divergent
+  // local 500 that would fire setAnimating(false) before the slide finished.
   if (rootMode === 'drag') {
     return Math.max(
-      modes?.drag?.transitionDuration ?? sceneProps.sceneTransitionDuration ?? 500,
+      modes?.drag?.transitionDuration ??
+        sceneProps.sceneTransitionDuration ??
+        DEFAULT_SLIDE_DURATION,
       0
     );
   }
 
-  return Math.max(sceneProps.sceneTransitionDuration ?? 500, 0);
+  return Math.max(sceneProps.sceneTransitionDuration ?? DEFAULT_SLIDE_DURATION, 0);
 }
 
 function collectScenePreloadPlan(
@@ -172,23 +188,17 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const cleanupTimersRef = useRef<Set<NodeJS.Timeout>>(new Set());
 
   // 收集所有 Scene 子组件
-  const scenes = useMemo(() => {
+  const [scenes, hasLegacyDisplayNameScene] = useMemo(() => {
     const sceneArray: React.ReactElement[] = [];
+    let hasLegacyScene = false;
     Children.forEach(children, (child) => {
       if (isSceneElement(child)) {
         sceneArray.push(child);
+      } else if (process.env.NODE_ENV === 'development' && isLegacyDisplayNameSceneElement(child)) {
+        hasLegacyScene = true;
       }
     });
-    return sceneArray;
-  }, [children]);
-  const hasLegacyDisplayNameScene = useMemo(() => {
-    let found = false;
-    Children.forEach(children, (child) => {
-      if (isLegacyDisplayNameSceneElement(child)) {
-        found = true;
-      }
-    });
-    return found;
+    return [sceneArray, hasLegacyScene] as const;
   }, [children]);
 
   const totalScenes = scenes.length;
@@ -202,10 +212,46 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   );
   const resolvedCallbacksRef = useRef(resolvedCallbacks);
   const dragSessionActiveRef = useRef(false);
+  // Internal-only re-grab candidate hold. This is deliberately separate from
+  // isDragging/public callbacks: pointer-down may pause a live continuation,
+  // but ownership does not exist until the directional gate succeeds.
+  const candidateSuspendedRef = useRef(false);
+  const [candidateSuspended, setCandidateSuspended] = useState(false);
+  const elementContinuationScenesRef = useRef<Set<number>>(new Set());
+  const blockedDirectionsThisPressRef = useRef<Set<'forward' | 'backward'>>(new Set());
+  // The single global render-lane slot (D-F1/D-F7): the in-flight settle
+  // page-slide or bounce tween, registered by whichever scene's drag engine
+  // created it so a new gesture starting on ANY scene's engine can take it
+  // over — stop it in place and scrub on from the frozen position (a rush
+  // re-grab mid-slide lands the pointerdown on a different engine than the
+  // lane's creator).
+  const dragRenderLaneRef = useRef<DragRenderLane | null>(null);
+  const dragTakeoverSnapshotRef = useRef<DragTakeoverSnapshot | null>(null);
+  const dragTakeoverTokenRef = useRef(0);
+  const pendingRenderRebaseRef = useRef(false);
+  const preparedSceneStoreRef = useRef(new DragPreparedSceneStore());
+  const [dragTransaction, setDragTransaction] = useState<DragSceneTransaction | null>(null);
+  const dragTransactionRef = useRef<DragSceneTransaction | null>(null);
   const lastDragProgressRef = useRef(0);
   const pendingDragCancelRef = useRef<{ sceneIndex: number; signedProgress: number } | null>(null);
+  const reportedInvalidDragConfigRef = useRef<Set<string>>(new Set());
   const hasSyncedPreloadPlanRef = useRef(false);
   const lastPreloadSignatureRef = useRef<string | null>(null);
+  const activationSequenceRef = useRef(0);
+  const [sceneActivations, setSceneActivations] = useState<
+    ReadonlyMap<number, SceneActivationRecord>
+  >(() => new Map());
+  const activateScene = useCallback((sceneIndex: number, kind: SceneActivationKind): void => {
+    const record: SceneActivationRecord = {
+      token: ++activationSequenceRef.current,
+      kind,
+    };
+    setSceneActivations((current) => {
+      const next = new Map(current);
+      next.set(sceneIndex, record);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     resolvedCallbacksRef.current = resolvedCallbacks;
@@ -252,6 +298,36 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       });
     }
   }, [emitError, resolvedRootMode, totalScenes]);
+
+  useEffect(() => {
+    if (resolvedRootMode !== 'drag') return;
+
+    scenes.forEach((scene, sceneIndex) => {
+      const sceneProps = scene.props as SceneAuthoringCompatProps;
+      resolveDragTimelineConfig(modes?.drag, sceneProps.drag, ({ field, value }) => {
+        const dedupeKey = `${sceneIndex}:${field}`;
+        if (reportedInvalidDragConfigRef.current.has(dedupeKey)) return;
+        reportedInvalidDragConfigRef.current.add(dedupeKey);
+        emitError('INVALID_DRAG_CONFIG', `Invalid drag ${field}; using the safe default.`, {
+          sceneIndex,
+          field,
+          value,
+        });
+      });
+
+      const enabled = sceneProps.drag?.enabled;
+      if (enabled !== undefined && typeof enabled !== 'boolean') {
+        const dedupeKey = `${sceneIndex}:enabled`;
+        if (reportedInvalidDragConfigRef.current.has(dedupeKey)) return;
+        reportedInvalidDragConfigRef.current.add(dedupeKey);
+        emitError('INVALID_DRAG_CONFIG', 'Invalid drag enabled flag; using true.', {
+          sceneIndex,
+          field: 'enabled',
+          value: enabled,
+        });
+      }
+    });
+  }, [emitError, modes?.drag, resolvedRootMode, scenes]);
 
   const resolvedPerformance = useMemo<CineViewPerformanceConfig>(
     () => ({
@@ -303,6 +379,10 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     initialScene: 0,
     mode: resolvedRootMode,
     onBeforeChange: emitSceneWillChange,
+    onCommit: (sceneIndex, _previousIndex, kind) => {
+      if (resolvedRootMode !== 'drag') return;
+      activateScene(sceneIndex, kind === 'drag' ? 'commit' : 'programmatic');
+    },
     onAfterChange: (sceneIndex, previousIndex) => {
       emitSceneDidChange(sceneIndex, previousIndex ?? currentSceneRef.current);
     },
@@ -321,9 +401,18 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     sharedTimelineDurationMs,
     dragRelease,
   } = sceneState;
+  const renderProgressMotion = useMotionValue(0);
+  const dragTimelineProgressMotion = useMotionValue(0);
 
   currentSceneRef.current = currentScene;
   scenesRef.current = scenes;
+
+  useLayoutEffect(() => {
+    if (!pendingRenderRebaseRef.current) return;
+    pendingRenderRebaseRef.current = false;
+    renderProgressMotion.set(0);
+    dragTimelineProgressMotion.set(0);
+  }, [currentScene, dragTimelineProgressMotion, renderProgressMotion]);
 
   // 监听场景切换，在动画完成后调用 setAnimating(false)
   useEffect(() => {
@@ -354,43 +443,237 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   useEffect(() => {
     if (resolvedRootMode === 'drag') return;
     dragSessionActiveRef.current = false;
+    candidateSuspendedRef.current = false;
+    setCandidateSuspended(false);
+    elementContinuationScenesRef.current.clear();
+    blockedDirectionsThisPressRef.current.clear();
     lastDragProgressRef.current = 0;
     pendingDragCancelRef.current = null;
+    const transaction = dragTransactionRef.current;
+    if (transaction) {
+      preparedSceneStoreRef.current.releaseTransaction(transaction.transactionId);
+      dragTransactionRef.current = null;
+      setDragTransaction(null);
+    }
   }, [resolvedRootMode]);
+
+  const activateDragTransaction = useCallback(
+    (next: DragSceneTransaction | null): DragSceneTransaction | null => {
+      if (!next) return null;
+      const previous = dragTransactionRef.current;
+      const shouldPublish =
+        !previous || previous.transactionId !== next.transactionId || previous.phase !== next.phase;
+      if (previous && previous.transactionId !== next.transactionId) {
+        preparedSceneStoreRef.current.releaseTransaction(previous.transactionId);
+      }
+      dragTransactionRef.current = next;
+      if (shouldPublish) {
+        setDragTransaction(next);
+      }
+      return next;
+    },
+    []
+  );
+
+  const releaseActiveDragTransaction = useCallback((transactionId?: symbol): void => {
+    const current = dragTransactionRef.current;
+    if (!current || (transactionId && current.transactionId !== transactionId)) return;
+    preparedSceneStoreRef.current.releaseTransaction(current.transactionId);
+    dragTransactionRef.current = null;
+    setDragTransaction(null);
+  }, []);
+
+  const handlePreparedScene = useCallback((snapshot: PreparedSceneSnapshot): void => {
+    preparedSceneStoreRef.current.publishPrepared(snapshot);
+  }, []);
+
+  const handlePreparedSceneInvalidated = useCallback(
+    (invalidation: PreparedSceneInvalidation): void => {
+      preparedSceneStoreRef.current.invalidatePrepared(invalidation);
+    },
+    []
+  );
+
+  const handleElementContinuationChange = useCallback(
+    (sceneIndex: number, active: boolean): void => {
+      if (active) {
+        elementContinuationScenesRef.current.add(sceneIndex);
+      } else {
+        elementContinuationScenesRef.current.delete(sceneIndex);
+      }
+    },
+    []
+  );
+
+  const handlePointerSessionStart = useCallback((): void => {
+    blockedDirectionsThisPressRef.current.clear();
+  }, []);
+
+  const handleDragCandidateSuspension = useCallback(
+    (suspended: boolean): boolean => {
+      if (!suspended) {
+        candidateSuspendedRef.current = false;
+        setCandidateSuspended(false);
+        // Tap/cancel/rejected ownership never receives an authoritative base.
+        // A successful owner writes baseRatio synchronously before clearing the hold.
+        if (dragTakeoverSnapshotRef.current?.baseRatio === null) {
+          dragTakeoverSnapshotRef.current = null;
+        }
+        return false;
+      }
+
+      if (resolvedRootMode !== 'drag') return false;
+      const hasContinuation =
+        dragRenderLaneRef.current !== null || elementContinuationScenesRef.current.size > 0;
+      if (!hasContinuation) return false;
+
+      dragTakeoverSnapshotRef.current = {
+        token: ++dragTakeoverTokenRef.current,
+        sceneIndices: [...elementContinuationScenesRef.current],
+        staleRatio: dragTimelineProgressMotion.get(),
+        baseRatio: null,
+      };
+      candidateSuspendedRef.current = true;
+      setCandidateSuspended(true);
+      return true;
+    },
+    [dragTimelineProgressMotion, resolvedRootMode]
+  );
+
+  const abortSupersededTransaction = useCallback(
+    (nextTargetSceneIndex: number | null): void => {
+      const previous = dragTransactionRef.current;
+      if (!previous || previous.targetSceneIndex === nextTargetSceneIndex) return;
+
+      // Retarget is an internal transaction terminal, not a pointer-session
+      // terminal. Stop waiting for the old element arm before its frozen source is
+      // released; otherwise the old join can never close after replacement.
+      sceneActions.abortDragContinuation();
+      elementContinuationScenesRef.current.delete(previous.targetSceneIndex);
+    },
+    [sceneActions]
+  );
+
+  const handleDragOwnershipRequest = useCallback(
+    (direction: 'forward' | 'backward'): boolean => {
+      if (resolvedRootMode !== 'drag') return false;
+      const isReGrab = candidateSuspendedRef.current;
+      const hadActiveSession = dragSessionActiveRef.current;
+      if (hadActiveSession && !isReGrab) return false;
+
+      const fromIndex = currentSceneRef.current;
+      const targetSceneIndex = fromIndex + (direction === 'forward' ? 1 : -1);
+      const isPhysicalBoundary = targetSceneIndex < 0 || targetSceneIndex >= totalScenes;
+
+      if (!isPhysicalBoundary) {
+        const targetScene = scenes[targetSceneIndex];
+        const targetProps = targetScene?.props as SceneAuthoringCompatProps | undefined;
+        if (targetProps?.drag?.enabled === false) {
+          if (!blockedDirectionsThisPressRef.current.has(direction)) {
+            blockedDirectionsThisPressRef.current.add(direction);
+            resolvedCallbacksRef.current.drag?.onDragBlocked?.({
+              fromIndex,
+              targetSceneIndex,
+              direction,
+            });
+          }
+          return false;
+        }
+
+        const prepared = preparedSceneStoreRef.current.getPrepared(targetSceneIndex);
+        if (!prepared) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(
+              `[CineView Warning] Drag ${direction} from Scene ${fromIndex} was not acquired because target Scene ${targetSceneIndex} is not internally ready.`
+            );
+          }
+          return false;
+        }
+
+        const transaction = preparedSceneStoreRef.current.beginTransaction(
+          targetSceneIndex,
+          'driving',
+          0
+        );
+        if (!transaction) return false;
+        abortSupersededTransaction(targetSceneIndex);
+        if (!activateDragTransaction(transaction)) return false;
+      } else if (isReGrab) {
+        // Boundary ownership still permanently preempts the held continuation,
+        // but deliberately creates no element transaction.
+        abortSupersededTransaction(null);
+        releaseActiveDragTransaction();
+      }
+
+      // Clear the hold synchronously at the ownership boundary. The engine also
+      // publishes false after this callback; keeping this local makes the root
+      // invariant independent of callback ordering and Framer/native hand-off.
+      candidateSuspendedRef.current = false;
+      setCandidateSuspended(false);
+
+      if (!hadActiveSession) {
+        dragSessionActiveRef.current = true;
+        lastDragProgressRef.current = 0;
+        pendingDragCancelRef.current = null;
+        resolvedCallbacksRef.current.drag?.onDragStart?.({
+          sceneIndex: fromIndex,
+          progress: 0,
+          direction,
+        });
+      }
+      return true;
+    },
+    [
+      abortSupersededTransaction,
+      activateDragTransaction,
+      releaseActiveDragTransaction,
+      resolvedRootMode,
+      scenes,
+      totalScenes,
+    ]
+  );
 
   const handleDragProgressChange = useCallback(
     (progress: number): void => {
-      sceneActions.setDragProgress(progress);
       if (resolvedRootMode !== 'drag' || !dragSessionActiveRef.current) return;
 
       const signedProgress = progress === 0 ? 0 : clamp(progress, -1, 1);
       if (signedProgress === lastDragProgressRef.current) return;
 
       lastDragProgressRef.current = signedProgress;
+      if (signedProgress !== 0) {
+        const targetSceneIndex = currentSceneRef.current + (signedProgress > 0 ? 1 : -1);
+        // A physical boundary owns only the render rubber-band. Never let an
+        // out-of-range target reach the prepared transaction store.
+        if (targetSceneIndex >= 0 && targetSceneIndex < totalScenes) {
+          const transaction = preparedSceneStoreRef.current.beginTransaction(
+            targetSceneIndex,
+            'driving',
+            Math.abs(signedProgress)
+          );
+          if (transaction) {
+            abortSupersededTransaction(targetSceneIndex);
+            activateDragTransaction(transaction);
+          }
+        }
+      }
       resolvedCallbacksRef.current.drag?.onDragProgress?.({
         sceneIndex: currentSceneRef.current,
         progress: Math.abs(signedProgress),
         direction: signedProgress > 0 ? 'forward' : signedProgress < 0 ? 'backward' : null,
       });
     },
-    [resolvedRootMode, sceneActions]
+    [abortSupersededTransaction, activateDragTransaction, resolvedRootMode, totalScenes]
   );
 
   const handleDraggingChange = useCallback(
     (dragging: boolean): void => {
+      if (!dragging) {
+        dragTakeoverSnapshotRef.current = null;
+      }
       sceneActions.setIsDragging(dragging);
-      if (resolvedRootMode !== 'drag' || !dragging || dragSessionActiveRef.current) return;
-
-      dragSessionActiveRef.current = true;
-      lastDragProgressRef.current = 0;
-      pendingDragCancelRef.current = null;
-      resolvedCallbacksRef.current.drag?.onDragStart?.({
-        sceneIndex: currentSceneRef.current,
-        progress: 0,
-        direction: null,
-      });
     },
-    [resolvedRootMode, sceneActions]
+    [sceneActions]
   );
 
   const handleDragRelease = useCallback(
@@ -407,6 +690,32 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     },
     [sceneActions]
   );
+
+  // The manager injects the release token and also creates programmatic `enter`
+  // directives internally, so the committed state is the single phase authority.
+  useEffect(() => {
+    if (resolvedRootMode !== 'drag') return;
+    if (dragRelease) {
+      const phase =
+        dragRelease.mode === 'settle'
+          ? 'settling'
+          : dragRelease.mode === 'bounce'
+            ? 'bouncing'
+            : 'programmatic';
+      activateDragTransaction(
+        preparedSceneStoreRef.current.beginTransaction(
+          dragRelease.targetSceneIndex,
+          phase,
+          dragRelease.mode === 'enter' ? 0 : (dragRelease.progressRatio ?? 0)
+        )
+      );
+      return;
+    }
+
+    if (dragTransactionRef.current?.phase !== 'driving') {
+      releaseActiveDragTransaction();
+    }
+  }, [activateDragTransaction, dragRelease, releaseActiveDragTransaction, resolvedRootMode]);
 
   const handleDragReset = useCallback((): void => {
     if (resolvedRootMode === 'drag' && dragSessionActiveRef.current) {
@@ -428,8 +737,22 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
               : null,
       });
     }
+
+    // A post-commit settle survives a tap/reset until the incoming element arm
+    // completes. Driving/bouncing transactions are terminal on reset.
+    if (dragTransactionRef.current?.phase !== 'settling') {
+      releaseActiveDragTransaction();
+    }
+    renderProgressMotion.set(0);
+    dragTimelineProgressMotion.set(0);
     sceneActions.resetDragInteraction();
-  }, [resolvedRootMode, sceneActions]);
+  }, [
+    dragTimelineProgressMotion,
+    releaseActiveDragTransaction,
+    renderProgressMotion,
+    resolvedRootMode,
+    sceneActions,
+  ]);
 
   useEffect(() => {
     const root = containerRef.current;
@@ -547,6 +870,8 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const {
     firstSceneEnterActive,
     firstSceneEnterReady,
+    firstSceneActivationToken,
+    firstSceneActivationKind,
     handleComplete: handleFirstSceneEnterComplete,
   } = useFirstSceneEnter({
     enabled: scenes.length > 0,
@@ -557,6 +882,18 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     emitRecoverableError,
     getPreloadCounts,
   });
+  const consumedFirstSceneActivationRef = useRef(0);
+  useEffect(() => {
+    if (
+      resolvedRootMode !== 'drag' ||
+      firstSceneActivationToken <= consumedFirstSceneActivationRef.current ||
+      firstSceneActivationKind === null
+    ) {
+      return;
+    }
+    consumedFirstSceneActivationRef.current = firstSceneActivationToken;
+    activateScene(0, firstSceneActivationKind);
+  }, [activateScene, firstSceneActivationKind, firstSceneActivationToken, resolvedRootMode]);
 
   // 初始化
   useEffect(() => {
@@ -581,10 +918,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       return;
     }
 
-    performanceMonitor.start();
-    return (): void => {
-      performanceMonitor.stop();
-    };
+    return acquirePerformanceMonitoring();
   }, [resolvedPerformance.monitor]);
 
   useEffect(() => {
@@ -646,65 +980,50 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       timelineDuration?: number
     ) => {
       const activeSceneIndex = currentScene;
-      // Two-track model: there is no global element scalar to read. The engine
-      // passes the committed elapsed (for the public onDragCommit callback only);
-      // the element timeline itself lives on each scene's own track.
-      const elapsedMs = Math.max(0, committedElapsedMs ?? 0);
       const targetSceneIndex =
         direction === 'forward' ? activeSceneIndex + 1 : activeSceneIndex - 1;
-      const normalizedDragProgress = Math.max(
-        0,
-        Math.min(progressRatio ?? dragTimelineProgress, 1)
-      );
-      void progressRatio;
 
-      if (direction === 'forward') {
-        if (resolvedRootMode === 'drag') {
-          dragSessionActiveRef.current = false;
-          lastDragProgressRef.current = 0;
-          pendingDragCancelRef.current = null;
-          resolvedCallbacksRef.current.drag?.onDragCommit?.({
-            sceneIndex: activeSceneIndex,
-            targetSceneIndex,
-            progress: normalizedDragProgress,
-            direction,
-            elapsedMs,
-            timelineDurationMs: timelineDuration,
-          });
-          sceneActions.commitDragSceneChange(
-            'forward',
-            normalizedDragProgress,
-            elapsedMs,
-            timelineDuration
-          );
-        } else {
-          sceneActions.nextScene();
-        }
-      } else {
-        if (resolvedRootMode === 'drag') {
-          dragSessionActiveRef.current = false;
-          lastDragProgressRef.current = 0;
-          pendingDragCancelRef.current = null;
-          resolvedCallbacksRef.current.drag?.onDragCommit?.({
-            sceneIndex: activeSceneIndex,
-            targetSceneIndex,
-            progress: normalizedDragProgress,
-            direction,
-            elapsedMs,
-            timelineDurationMs: timelineDuration,
-          });
-          sceneActions.commitDragSceneChange(
-            'backward',
-            normalizedDragProgress,
-            elapsedMs,
-            timelineDuration
-          );
-        } else {
-          sceneActions.prevScene();
-        }
+      if (resolvedRootMode !== 'drag') {
+        if (direction === 'forward') sceneActions.nextScene();
+        else sceneActions.prevScene();
+        return;
       }
+
+      const transaction = dragTransactionRef.current;
+      const capturedTransaction =
+        transaction?.targetSceneIndex === targetSceneIndex ? transaction : null;
+      const normalizedDragProgress = capturedTransaction
+        ? capturedTransaction.releaseSeed.progressRatio
+        : Math.max(0, Math.min(progressRatio ?? dragTimelineProgressMotion.get(), 1));
+      const elapsedMs = capturedTransaction
+        ? capturedTransaction.releaseSeed.elapsedMs
+        : Math.max(0, committedElapsedMs ?? 0);
+      const timelineDurationMs = capturedTransaction
+        ? capturedTransaction.registrySnapshot.timelineDuration
+        : Math.max(0, timelineDuration ?? 0);
+
+      dragSessionActiveRef.current = false;
+      lastDragProgressRef.current = 0;
+      pendingDragCancelRef.current = null;
+      resolvedCallbacksRef.current.drag?.onDragCommit?.({
+        sceneIndex: activeSceneIndex,
+        targetSceneIndex,
+        progress: normalizedDragProgress,
+        direction,
+        elapsedMs,
+        timelineDurationMs,
+      });
+      pendingRenderRebaseRef.current = true;
+      sceneActions.commitDragSceneChange(
+        direction,
+        normalizedDragProgress,
+        elapsedMs,
+        timelineDurationMs
+      );
+      // The transaction remains alive across the render commit. The incoming
+      // element track releases it only after reaching the captured T_self.
     },
-    [sceneActions, currentScene, resolvedRootMode, dragTimelineProgress]
+    [sceneActions, currentScene, dragTimelineProgressMotion, resolvedRootMode]
   );
 
   // 开发环境检查
@@ -721,17 +1040,11 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         );
       }
 
-      // 检查设计稿尺寸
-      if (designSize <= 0) {
-        console.error('[CineView] Invalid config.size. It must be greater than 0.');
-      }
-
-      // 性能调试模式
-      if (resolvedPerformance.monitor) {
-        performanceMonitor.start();
-      }
+      // 设计稿尺寸校验已并入 resolveDesignDimensions（兜底 750 并对显式非法值
+      // console.error），designSize <= 0 在此不可达；性能监控由上方专用 effect
+      // 负责 start/stop（此处曾有一个无 stop 的重复 start，已删）。
     }
-  }, [hasLegacyDisplayNameScene, totalScenes, designSize, resolvedPerformance.monitor]);
+  }, [hasLegacyDisplayNameScene, totalScenes]);
 
   // 容器样式
   const containerStyle: React.CSSProperties = {
@@ -778,13 +1091,15 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
               totalScenes={totalScenes}
               mode={resolvedRootMode}
               dragConfig={modes?.drag}
-              dragTimeScale={modes?.drag?.dragTimeScale ?? DEFAULT_DRAG_TIME_SCALE}
               dragProgress={dragProgress}
               dragTimelineProgress={dragTimelineProgress}
               renderProgress={renderProgress}
+              renderProgressMotion={renderProgressMotion}
+              timelineProgressMotion={dragTimelineProgressMotion}
               isDragging={isDragging}
               sharedTimelineDurationMs={sharedTimelineDurationMs}
               dragRelease={dragRelease}
+              sceneActivations={sceneActivations}
               firstSceneEnterActive={firstSceneEnterActive}
               firstSceneEnterReady={firstSceneEnterReady}
               direction={direction}
@@ -793,9 +1108,23 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
               viewportHeight={viewportHeight}
               sceneActions={sceneActions}
               sceneWrapperRefs={sceneWrapperRefs}
+              renderLaneRef={dragRenderLaneRef}
+              takeoverSnapshot={dragTakeoverSnapshotRef}
+              candidateSuspended={candidateSuspended}
+              onCandidateSuspensionChange={handleDragCandidateSuspension}
+              onElementContinuationChange={handleElementContinuationChange}
+              onPointerSessionStart={handlePointerSessionStart}
+              dragTransaction={dragTransaction}
+              onPrepared={handlePreparedScene}
+              onPreparedInvalidated={handlePreparedSceneInvalidated}
+              onOwnershipRequest={handleDragOwnershipRequest}
+              onTransactionComplete={releaseActiveDragTransaction}
               onSceneChange={handleSceneChange}
               onDragProgressChange={handleDragProgressChange}
+              onRenderProgressChange={undefined}
+              onDragTimelineProgressChange={(progress) => dragTimelineProgressMotion.set(progress)}
               onDraggingChange={handleDraggingChange}
+              onSharedTimelineDurationChange={sceneActions.setSharedTimelineDurationMs}
               onDragRelease={handleDragRelease}
               onDragReset={handleDragReset}
               onFirstSceneEnterComplete={handleFirstSceneEnterComplete}

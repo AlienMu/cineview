@@ -7,6 +7,8 @@ import {
   inferMediaKind,
   isMediaPreloaded,
   getVideoObjectUrl,
+  acquireVideoObjectUrl,
+  releaseVideoObjectUrl,
   preloadMedia,
   subscribeToPreloadedMedia,
   setMediaByteBudget,
@@ -21,6 +23,8 @@ beforeEach(() => {
   revoked.length = 0;
   (global as unknown as { fetch: unknown }).fetch = jest.fn((url: string) =>
     Promise.resolve({
+      ok: true,
+      status: 200,
       blob: () => Promise.resolve({ size: url.includes('big') ? 100 * 1024 * 1024 : 1024 } as Blob),
     })
   );
@@ -87,6 +91,60 @@ describe('preloadMedia — dedup & guards', () => {
   });
 });
 
+describe('preloadMedia — HTTP failure & timeout (E-A1 / E-A4)', () => {
+  it('rejects a non-ok response, keeps every ready set clean, and allows retry', async () => {
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: false,
+        status: 404,
+        blob: () => Promise.resolve({ size: 5 } as Blob),
+      })
+    );
+    await expect(preloadMedia('/missing.mp4')).rejects.toThrow(/404/);
+    // 失败不得进入任何「已就绪」缓存集合:否则 readyUrls 含该 src,永久污染无法重试。
+    expect(isMediaPreloaded('/missing.mp4')).toBe(false);
+    expect(getVideoObjectUrl('/missing.mp4')).toBeUndefined();
+    // in-flight 已清理 → 重试可再次发起并成功。
+    await expect(preloadMedia('/missing.mp4')).resolves.toBeUndefined();
+    expect(isMediaPreloaded('/missing.mp4')).toBe(true);
+    expect(global.fetch as jest.Mock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not notify subscribers for a non-ok response', async () => {
+    const seen: string[] = [];
+    const unsub = subscribeToPreloadedMedia((u) => seen.push(u));
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        blob: () => Promise.resolve({ size: 5 } as Blob),
+      })
+    );
+    await expect(preloadMedia('/boom.mp4')).rejects.toThrow(/500/);
+    expect(seen).toEqual([]);
+    unsub();
+  });
+
+  it('aborts a hung fetch after the timeout and settles as a retryable failure', async () => {
+    jest.useFakeTimers();
+    try {
+      (global.fetch as jest.Mock).mockImplementationOnce(
+        (_url: string, init?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('AbortError')));
+          })
+      );
+      const pending = preloadMedia('/hung.mp4');
+      const settled = expect(pending).rejects.toThrow(/timed out/);
+      jest.advanceTimersByTime(30_000);
+      await settled;
+      expect(isMediaPreloaded('/hung.mp4')).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
 describe('LRU eviction', () => {
   it('evicts least-recently-used entries past the byte budget and revokes urls', async () => {
     setMediaByteBudget(50 * 1024 * 1024); // 50MB
@@ -94,6 +152,21 @@ describe('LRU eviction', () => {
     await preloadMedia('/big.mp4'); // 100MB → over budget, evicts clip.mp4
     expect(isMediaPreloaded('/big.mp4')).toBe(true);
     expect(isMediaPreloaded('/clip.mp4')).toBe(false);
+    expect(revoked).toContain('blob:mock-0');
+  });
+});
+
+describe('LRU active leases', () => {
+  it('does not revoke an objectURL while a mounted consumer holds it', async () => {
+    await preloadMedia('/held.mp4');
+    expect(acquireVideoObjectUrl('/held.mp4')).toBe('blob:mock-0');
+
+    setMediaByteBudget(0);
+    expect(getVideoObjectUrl('/held.mp4')).toBe('blob:mock-0');
+    expect(revoked).not.toContain('blob:mock-0');
+
+    releaseVideoObjectUrl('/held.mp4');
+    expect(getVideoObjectUrl('/held.mp4')).toBeUndefined();
     expect(revoked).toContain('blob:mock-0');
   });
 });

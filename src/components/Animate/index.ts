@@ -10,7 +10,6 @@ export type {
 } from './Animate';
 export type {
   AnimateInternalProps,
-  AnimateLegacyCompatProps,
   NormalizedAnimateSemantics,
   NormalizedAnimateTimeline,
   NormalizedAnimateVisibility,

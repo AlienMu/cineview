@@ -67,8 +67,8 @@ function createSceneContext(overrides?: Partial<SceneContextType>): SceneContext
   };
 }
 
-describe('Animate semantic bridge', () => {
-  it('prefers grouped duration and timeline props over legacy flat fields in drag mode', async () => {
+describe('Animate grouped semantics', () => {
+  it('registers grouped duration and timeline props in drag mode', async () => {
     const sceneContext = createSceneContext({ mode: 'drag' });
 
     render(
@@ -78,9 +78,6 @@ describe('Animate semantic bridge', () => {
           enterAnimation="fade-in"
           duration={{ enter: 420 }}
           timeline={{ delay: 110, waitFor: 'grouped-anchor' }}
-          enterDuration={999}
-          delay={777}
-          waitFor="legacy-anchor"
         >
           <div>Grouped priority</div>
         </Animate>
@@ -92,11 +89,12 @@ describe('Animate semantic bridge', () => {
         delay: 110,
         duration: 420,
         waitFor: 'grouped-anchor',
+        driver: 'drag',
       });
     });
   });
 
-  it('prefers grouped duration and timeline props over legacy flat fields in drag mode', async () => {
+  it('keeps grouped orchestration stable with an explicit drag timeline', async () => {
     const sceneContext = createSceneContext({
       mode: 'drag',
       dragTimelineProgress: 0,
@@ -111,9 +109,6 @@ describe('Animate semantic bridge', () => {
           enterAnimation="fade-in"
           duration={{ enter: 360 }}
           timeline={{ delay: 95, waitFor: 'drag-grouped-anchor' }}
-          enterDuration={999}
-          delay={777}
-          waitFor="drag-legacy-anchor"
         >
           <div>Grouped drag priority</div>
         </Animate>
@@ -125,6 +120,7 @@ describe('Animate semantic bridge', () => {
         delay: 95,
         duration: 360,
         waitFor: 'drag-grouped-anchor',
+        driver: 'drag',
       });
     });
   });

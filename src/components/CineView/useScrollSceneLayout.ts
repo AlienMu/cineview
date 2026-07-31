@@ -1,6 +1,7 @@
 import { useCallback, useRef, type MutableRefObject, type RefObject } from 'react';
 import type { ScrollModeConfig, SlideDirection } from '../../types';
 import {
+  areSceneLayoutsEqual,
   getRelativeOffset,
   getSceneTransitionConfig,
   resolveRootSceneStackMode,
@@ -97,14 +98,8 @@ export function useScrollSceneLayout({
       const sceneStart = wrapper ? getRelativeOffset(wrapper, root, direction) : 0;
       const sceneEnd = sceneStart + flowSpan;
       const centerLockOffset = Math.max(sceneStart + visualSpan / 2 - viewportSpan / 2, 0);
-      const hasEnter = Boolean(
-        transitionConfig.enterAnimation && transitionConfig.enterAnimation !== 'none' && index > 0
-      );
-      const hasExit = Boolean(
-        transitionConfig.exitAnimation &&
-        transitionConfig.exitAnimation !== 'none' &&
-        index < scenes.length - 1
-      );
+      const hasEnter = Boolean(transitionConfig.enterAnimation && index > 0);
+      const hasExit = Boolean(transitionConfig.exitAnimation && index < scenes.length - 1);
       const requestedEnterLength = Math.max(
         0,
         transitionConfig.scrollEnterLength ?? (hasEnter ? transitionConfig.transitionDurationMs : 0)
@@ -132,9 +127,11 @@ export function useScrollSceneLayout({
       };
     });
 
-    sceneLayoutsRef.current = nextLayouts;
+    sceneLayoutsRef.current = areSceneLayoutsEqual(sceneLayoutsRef.current, nextLayouts)
+      ? sceneLayoutsRef.current
+      : nextLayouts;
     updateSceneRenderSnapshotsRef.current(scrollOffsetRef.current);
-    return nextLayouts;
+    return sceneLayoutsRef.current;
   }, [
     direction,
     getViewportSpan,

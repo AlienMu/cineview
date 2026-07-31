@@ -54,12 +54,12 @@ describe('AnimateVideo public API typing', () => {
     expect(result).toEqual({ success: true });
   });
 
-  it('rejects enterAnimation/stagger on AnimateVideo (scrub is the animation)', () => {
+  it('rejects stagger while accepting explicit media animation controls', () => {
     const result = compileFixture('animate-video-illegal-props.fixture.tsx');
     expect(result.success).toBe(false);
     if (result.success) {
       return;
     }
-    expect(result.output).toContain('enterAnimation');
+    expect(result.output).toContain('stagger');
   });
 });

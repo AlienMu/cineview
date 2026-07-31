@@ -17,7 +17,7 @@
 import { Children, isValidElement, useState } from 'react';
 import type { ReactElement } from 'react';
 import { motion, MotionValue, useMotionValueEvent } from 'framer-motion';
-import type { ParsedAnimationVariant } from '../../types';
+import type { AnimatePhase, ParsedAnimationVariant } from '../../types';
 import type { DragVisualState } from './useAnimateDrag';
 
 type StaggerFrom = 'first' | 'last' | 'center';
@@ -95,7 +95,8 @@ export function renderStaggerTree(
   phase: boolean | StaggerPhase,
   itemDurationMs?: number,
   exitVariant?: ParsedAnimationVariant | null,
-  exitItemDurationMs?: number
+  exitItemDurationMs?: number,
+  instant = false
 ): ReactElement {
   const children = Children.toArray((container.props as { children?: React.ReactNode }).children);
   const items = getStaggerItems(container);
@@ -110,13 +111,15 @@ export function renderStaggerTree(
     initial: variant.initial,
     animate: (i: number) => ({
       ...variant.animate,
-      transition: {
-        ...authoredTransition,
-        ...(authoredTransition.duration === undefined && itemDurationMs !== undefined
-          ? { duration: Math.max(itemDurationMs, 0) / 1000 }
-          : {}),
-        delay: orderFor(i, count, from) * eachSec,
-      },
+      transition: instant
+        ? { ...authoredTransition, duration: 0, delay: 0 }
+        : {
+            ...authoredTransition,
+            ...(authoredTransition.duration === undefined && itemDurationMs !== undefined
+              ? { duration: Math.max(itemDurationMs, 0) / 1000 }
+              : {}),
+            delay: orderFor(i, count, from) * eachSec,
+          },
     }),
     exit: (i: number): Record<string, unknown> => {
       const exitTarget = (exitVariant?.exit ?? variant.initial) as Record<string, unknown>;
@@ -209,6 +212,37 @@ export function ScrollStagger({
     itemDurationMs,
     exitVariant,
     exitItemDurationMs
+  );
+}
+
+// drag + sceneControlled=false: arrival phase owns the real-time start. A static
+// first-screen fallback reveals already-mounted children at their terminal frame.
+export function ArrivalStagger({
+  container,
+  variant,
+  each,
+  from,
+  itemDurationMs,
+  phaseMotion,
+  staticReveal,
+}: CommonProps & {
+  phaseMotion: MotionValue<AnimatePhase>;
+  staticReveal: boolean;
+}): ReactElement {
+  const derive = (phase: AnimatePhase): StaggerPhase =>
+    phase === 'entering' || phase === 'entered' ? 'animate' : 'initial';
+  const [phase, setPhase] = useState<StaggerPhase>(() => derive(phaseMotion.get()));
+  useMotionValueEvent(phaseMotion, 'change', (next) => setPhase(derive(next)));
+  return renderStaggerTree(
+    container,
+    variant,
+    each,
+    from,
+    phase,
+    itemDurationMs,
+    undefined,
+    undefined,
+    staticReveal
   );
 }
 

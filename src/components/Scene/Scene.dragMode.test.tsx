@@ -12,6 +12,21 @@ import { resolveDragTouchAction } from './helpers';
 // Mock Framer Motion
 jest.mock('framer-motion', () => {
   const React = jest.requireActual('react') as typeof import('react');
+  const createMotionValueStub = (initial: number) => {
+    let current = initial;
+    const listeners = new Set<(value: number) => void>();
+    return {
+      get: jest.fn(() => current),
+      set: jest.fn((value: number) => {
+        current = value;
+        listeners.forEach((listener) => listener(value));
+      }),
+      on: jest.fn((_event: string, listener: (value: number) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }),
+    };
+  };
   const MotionDiv = React.forwardRef<
     HTMLDivElement,
     React.HTMLAttributes<HTMLDivElement> & {
@@ -28,7 +43,11 @@ jest.mock('framer-motion', () => {
 
   return {
     __esModule: true,
-    useMotionValue: jest.fn(),
+    useMotionValue: jest.fn((initial: number) => {
+      const motionRef = React.useRef<ReturnType<typeof createMotionValueStub> | null>(null);
+      if (motionRef.current === null) motionRef.current = createMotionValueStub(initial);
+      return motionRef.current;
+    }),
     useAnimation: jest.fn(() => ({
       start: jest.fn().mockResolvedValue(undefined),
       stop: jest.fn(),
@@ -50,10 +69,6 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useMotionValue as jest.Mock).mockReturnValue({
-      get: jest.fn(() => 0),
-      set: jest.fn(),
-    });
     (animate as jest.Mock).mockImplementation((value, target, options) => {
       if (
         typeof value === 'object' &&

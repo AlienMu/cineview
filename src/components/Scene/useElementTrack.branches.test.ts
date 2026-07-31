@@ -99,12 +99,12 @@ function renderTrack(params: Partial<Params> & Pick<Params, 'elementElapsedMotio
     firstSceneEnterReady: false,
     getTimelineDuration: () => 800,
     timelineDurationState: 800,
-    // Follow-finger now uses an ABSOLUTE ms scale (dragTimeScale ms per 1%) instead
+    // Follow-finger uses the ABSOLUTE `time` mapping scale (ms per 1%) instead
     // of r * T_self. These mechanism tests want the old r * T_self mapping so their
     // seeded elapsed values (e.g. 0.5 -> 400 at T_self 800) still hold, so pin the
     // scale to T_self/100 = 8 (full span 800 == T_self). The absolute-scale behaviour
     // itself is covered separately in useElementTrack.test.ts.
-    dragTimeScale: 8,
+    dragMappingConfig: { unit: 'time', scale: 8 },
     onSettleComplete: undefined,
     onColdStartComplete: undefined,
     ...params,
@@ -227,6 +227,220 @@ describe('useElementTrack — release directive guards', () => {
     expect(onSettleComplete).toHaveBeenCalledTimes(1);
   });
 
+  it('holds a settle during a candidate and resumes it once from the frozen elapsed', () => {
+    const motion = createMotionValueStub(0);
+    const onSettleComplete = jest.fn();
+    const onElementContinuationChange = jest.fn();
+    const baseParams: Params = {
+      slideMode: 'drag',
+      isActive: false,
+      sceneIndex: 1,
+      sceneOffset: 1,
+      globalDirection: 'forward',
+      globalIsDragging: false,
+      candidateSuspended: false,
+      globalRenderProgress: 0.5,
+      globalDragTimelineProgress: 0.5,
+      dragRelease: {
+        token: 29,
+        mode: 'settle',
+        direction: 'forward',
+        targetSceneIndex: 1,
+        progressRatio: 0.5,
+      },
+      firstSceneEnterReady: false,
+      elementElapsedMotion: motion as never,
+      getTimelineDuration: () => 800,
+      timelineDurationState: 800,
+      dragMappingConfig: { unit: 'time', scale: 8 },
+      onElementContinuationChange,
+      onSettleComplete,
+      onColdStartComplete: undefined,
+    };
+    const { rerender } = renderHook((p: Params) => useElementTrack(p), {
+      initialProps: baseParams,
+    });
+
+    const initialSettle = animateCalls.find((call) => call.target === 800);
+    expect(initialSettle).toBeDefined();
+    expect(onElementContinuationChange.mock.calls).toEqual([[true]]);
+    initialSettle!.fireUpdate(520);
+    expect(motion.get()).toBe(520);
+
+    rerender({ ...baseParams, candidateSuspended: true });
+    expect(initialSettle!.stopped).toBe(true);
+    expect(animateCalls.filter((call) => call.target === 800)).toHaveLength(1);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true]]);
+    expect(onSettleComplete).not.toHaveBeenCalled();
+
+    rerender({ ...baseParams, candidateSuspended: false });
+    const settles = animateCalls.filter((call) => call.target === 800);
+    expect(settles).toHaveLength(2);
+    expect(settles[1].readCurrent()).toBe(520);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true]]);
+    expect(onSettleComplete).not.toHaveBeenCalled();
+
+    settles[1].complete();
+    expect(motion.get()).toBe(800);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true], [false]]);
+    expect(onSettleComplete).toHaveBeenCalledTimes(1);
+    initialSettle!.fireComplete();
+    expect(onSettleComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds a bounce during a candidate and resumes it once from the frozen elapsed', () => {
+    const motion = createMotionValueStub(0);
+    const onElementContinuationChange = jest.fn();
+    const baseParams: Params = {
+      slideMode: 'drag',
+      isActive: false,
+      sceneIndex: 1,
+      sceneOffset: 1,
+      globalDirection: 'forward',
+      globalIsDragging: false,
+      candidateSuspended: false,
+      globalRenderProgress: 0.5,
+      globalDragTimelineProgress: 0.5,
+      dragRelease: {
+        token: 30,
+        mode: 'bounce',
+        direction: 'forward',
+        targetSceneIndex: 1,
+        progressRatio: 0.5,
+      },
+      firstSceneEnterReady: false,
+      elementElapsedMotion: motion as never,
+      getTimelineDuration: () => 800,
+      timelineDurationState: 800,
+      dragMappingConfig: { unit: 'time', scale: 8 },
+      onElementContinuationChange,
+      onSettleComplete: undefined,
+      onColdStartComplete: undefined,
+    };
+    const { rerender } = renderHook((p: Params) => useElementTrack(p), {
+      initialProps: baseParams,
+    });
+
+    const initialBounce = animateCalls.find((call) => call.target === 0);
+    expect(initialBounce).toBeDefined();
+    expect(initialBounce!.readCurrent()).toBe(400);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true]]);
+    initialBounce!.fireUpdate(260);
+    expect(motion.get()).toBe(260);
+
+    rerender({ ...baseParams, candidateSuspended: true });
+    expect(initialBounce!.stopped).toBe(true);
+    expect(animateCalls.filter((call) => call.target === 0)).toHaveLength(1);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true]]);
+
+    rerender({ ...baseParams, candidateSuspended: false });
+    const bounces = animateCalls.filter((call) => call.target === 0);
+    expect(bounces).toHaveLength(2);
+    expect(bounces[1].readCurrent()).toBe(260);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true]]);
+
+    bounces[1].complete();
+    expect(motion.get()).toBe(0);
+    expect(onElementContinuationChange.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('preserves the frozen element frame when a candidate becomes a rush re-grab owner', () => {
+    const motion = createMotionValueStub(0);
+    const dragRelease: DragRelease = {
+      token: 30,
+      mode: 'settle',
+      direction: 'forward',
+      targetSceneIndex: 1,
+      progressRatio: 0.5,
+    };
+    const takeoverSnapshot: NonNullable<Params['takeoverSnapshot']> = { current: null };
+    const full: Params = {
+      slideMode: 'drag',
+      isActive: false,
+      sceneIndex: 1,
+      sceneOffset: 1,
+      globalDirection: 'forward',
+      globalIsDragging: false,
+      candidateSuspended: false,
+      globalRenderProgress: 0.5,
+      globalDragTimelineProgress: 0.5,
+      dragRelease,
+      firstSceneEnterReady: false,
+      elementElapsedMotion: motion as never,
+      getTimelineDuration: () => 800,
+      timelineDurationState: 800,
+      dragMappingConfig: { unit: 'time', scale: 8 },
+      takeoverSnapshot,
+      onSettleComplete: undefined,
+      onColdStartComplete: undefined,
+    };
+    const { rerender } = renderHook((p: Params) => useElementTrack(p), {
+      initialProps: full,
+    });
+
+    const settle = animateCalls.find((call) => call.target === 800);
+    expect(settle).toBeDefined();
+    settle!.fireUpdate(520);
+    expect(motion.get()).toBe(520);
+
+    takeoverSnapshot.current = {
+      token: 1,
+      sceneIndices: [1],
+      staleRatio: 0.5,
+      baseRatio: null,
+    };
+    rerender({ ...full, candidateSuspended: true });
+    expect(settle!.stopped).toBe(true);
+    expect(motion.get()).toBe(520);
+
+    // The ownership boundary synchronously publishes the frozen render base.
+    takeoverSnapshot.current = { ...takeoverSnapshot.current!, baseRatio: 0.8 };
+
+    // React may first commit the candidate release while the public drag state is
+    // still false. The synchronous non-null base marks this as successful
+    // ownership, so the frozen element frame must survive that intermediate commit.
+    rerender({
+      ...full,
+      candidateSuspended: false,
+      globalIsDragging: false,
+      globalRenderProgress: 0.5,
+      globalDragTimelineProgress: 0.5,
+    });
+    expect(motion.get()).toBe(520);
+
+    // Chromium may then commit isDragging + the frozen render position before the
+    // timeline ratio update. This stale-ratio frame must be ignored exactly once.
+    rerender({
+      ...full,
+      candidateSuspended: false,
+      globalIsDragging: true,
+      globalRenderProgress: 0.8,
+      globalDragTimelineProgress: 0.5,
+    });
+    expect(motion.get()).toBe(520);
+
+    // The following base-ratio commit is still zero finger delta.
+    rerender({
+      ...full,
+      candidateSuspended: false,
+      globalIsDragging: true,
+      globalRenderProgress: 0.8,
+      globalDragTimelineProgress: 0.8,
+    });
+    expect(motion.get()).toBe(520);
+
+    // Only movement after ownership advances the frozen element frame. With an
+    // 800ms full mapping, 0.8 -> 0.9 contributes 80ms: 520 -> 600.
+    rerender({
+      ...full,
+      candidateSuspended: false,
+      globalIsDragging: true,
+      globalRenderProgress: 0.9,
+      globalDragTimelineProgress: 0.9,
+    });
+    expect(motion.get()).toBe(600);
+  });
+
   it('a live drag preempts an in-flight settle in place and pegs an incoming track to r*T', () => {
     // Mount with a settle in flight (controlsRef populated). Then a live drag on
     // an incoming scene re-runs the follow-finger effect: it STOPS the in-flight
@@ -257,7 +471,7 @@ describe('useElementTrack — release directive guards', () => {
       // Scale chosen so the absolute follow-finger map (r * scale * 100) equals
       // r * T_self (800), reproducing the legacy ratio map this test was written
       // against — exercises the settle/preempt MECHANISM, not the scale value.
-      dragTimeScale: 8,
+      dragMappingConfig: { unit: 'time', scale: 8 },
       onSettleComplete: undefined,
       onColdStartComplete: undefined,
     };
@@ -425,7 +639,7 @@ describe('useElementTrack — stale-token guards (superseded tweens are no-ops)'
       elementElapsedMotion: motion as never,
       getTimelineDuration: () => 800,
       timelineDurationState: 800,
-      dragTimeScale: 8,
+      dragMappingConfig: { unit: 'time', scale: 8 },
       onSettleComplete,
       onColdStartComplete: undefined,
     };
@@ -489,7 +703,7 @@ describe('useElementTrack — stale-token guards (superseded tweens are no-ops)'
       elementElapsedMotion: motion as never,
       getTimelineDuration: () => 800,
       timelineDurationState: 800,
-      dragTimeScale: 8,
+      dragMappingConfig: { unit: 'time', scale: 8 },
       onSettleComplete: undefined,
       onColdStartComplete: undefined,
     };

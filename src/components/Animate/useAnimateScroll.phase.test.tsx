@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { StrictMode, useLayoutEffect, useRef, type ReactNode } from 'react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import {
@@ -8,7 +8,14 @@ import {
   SceneScrollTakeoverContext,
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollAnimationRegistration } from '../Scene/sceneScrollBudget';
 import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { useScrollZoneRegistry } from '../CineView/useScrollZoneRegistry';
+import {
+  useSceneAnimationRegistry,
+  type SceneAnimationRegistrationLease,
+  type WaitForOutcome,
+} from '../Scene/useSceneAnimationRegistry';
 
 const animationControlsRegistry: Array<{
   start: jest.Mock;
@@ -152,45 +159,246 @@ function createScrollSceneContext(): SceneContextType {
   };
 }
 
-// A standalone per-scene enter-completion bus mirroring Scene.tsx's
-// markAnimateEntered/subscribeAnimateEntered. Spread into a scene context to
-// exercise the visibility waitFor path end-to-end: a follower subscribes to its
-// leader, and the leader's 'entered' phase fires the follower's launch. Tests
-// can also drive markAnimateEntered directly to simulate a leader that already
-// completed before the follower mounts.
-function createPhaseBus(): {
-  markAnimateEntered: (id: string, entered: boolean) => void;
-  subscribeAnimateEntered: (leaderId: string, cb: () => void) => () => void;
+function ProductionRegistrySceneProvider({
+  children,
+  reportError,
+}: {
+  children: ReactNode;
+  reportError?: jest.Mock;
+}): JSX.Element {
+  const registry = useSceneAnimationRegistry({ sceneIndex: 0, baseDuration: 800, reportError });
+  return (
+    <SceneContext.Provider value={{ ...createScrollSceneContext(), ...registry }}>
+      {children}
+    </SceneContext.Provider>
+  );
+}
+
+// Lightweight lease registry for timing-focused tests. Production integration
+// cases below use useSceneAnimationRegistry directly; this harness only supplies
+// owner/generation leases and targeted completion notifications.
+function createLeaseHarness(): {
+  context: Pick<SceneContextType, 'registerAnimate'>;
+  complete: (id: string) => void;
+  publishSpy: jest.Mock;
+  subscriberCount: () => number;
 } {
-  const entered = new Set<string>();
-  const subs = new Map<string, Set<() => void>>();
-  return {
-    markAnimateEntered: (id: string, isEntered: boolean): void => {
-      if (!isEntered) {
-        entered.delete(id);
-        return;
-      }
-      entered.add(id);
-      const cbs = subs.get(id);
-      if (cbs) {
-        subs.delete(id);
-        cbs.forEach((cb) => cb());
-      }
-    },
-    subscribeAnimateEntered: (leaderId: string, cb: () => void): (() => void) => {
-      if (entered.has(leaderId)) {
-        cb();
-        return () => {};
-      }
-      let cbs = subs.get(leaderId);
-      if (!cbs) {
-        cbs = new Set();
-        subs.set(leaderId, cbs);
-      }
-      cbs.add(cb);
-      return () => {
-        cbs?.delete(cb);
+  let generation = 0;
+  const completed = new Set<string>();
+  const generations = new Map<string, number>();
+  const subscribers = new Map<string, Set<(outcome: WaitForOutcome) => void>>();
+  const publishSpy = jest.fn();
+
+  const complete = (id: string): void => {
+    if (completed.has(id)) return;
+    completed.add(id);
+    const listeners = subscribers.get(id);
+    if (!listeners) return;
+    subscribers.delete(id);
+    listeners.forEach((listener) =>
+      listener({
+        kind: 'satisfied',
+        source: 'completed',
+        leaderId: id,
+        generation: generations.get(id),
+      })
+    );
+  };
+
+  const registerAnimate = jest.fn(
+    (id: string, info: Parameters<SceneContextType['registerAnimate']>[1]) => {
+      const leaseGeneration = ++generation;
+      generations.set(id, leaseGeneration);
+      let disposed = false;
+      let published = false;
+
+      const lease: SceneAnimationRegistrationLease = {
+        animateId: id,
+        generation: leaseGeneration,
+        getCalculatedDelay: () => info.delay,
+        observeWaitFor: (listener) => {
+          if (!info.waitFor) {
+            listener({ kind: 'satisfied', source: 'none' });
+            return () => undefined;
+          }
+          if (completed.has(info.waitFor)) {
+            listener({
+              kind: 'satisfied',
+              source: 'completed',
+              leaderId: info.waitFor,
+              generation: generations.get(info.waitFor),
+            });
+            return () => undefined;
+          }
+          listener({
+            kind: 'pending',
+            leaderId: info.waitFor,
+            generation: generations.get(info.waitFor),
+          });
+          let listeners = subscribers.get(info.waitFor);
+          if (!listeners) {
+            listeners = new Set();
+            subscribers.set(info.waitFor, listeners);
+          }
+          listeners.add(listener);
+          return () => {
+            listeners?.delete(listener);
+            if (listeners?.size === 0) subscribers.delete(info.waitFor!);
+          };
+        },
+        publishEnterCompleted: () => {
+          if (disposed || published) return;
+          published = true;
+          publishSpy(id, leaseGeneration);
+          complete(id);
+        },
+        dispose: () => {
+          disposed = true;
+        },
       };
+      return lease;
+    }
+  );
+
+  return {
+    context: { registerAnimate },
+    complete,
+    publishSpy,
+    subscriberCount: () =>
+      [...subscribers.values()].reduce((total, listeners) => total + listeners.size, 0),
+  };
+}
+
+interface ZoneOwnerLifecycleController {
+  cleanupOwnerA: () => void;
+  getBudgetDuration: () => number | undefined;
+  hasBudget: () => boolean;
+  setProgress: (progressPx: number) => void;
+}
+
+function ProductionZoneOwnerHarness({
+  showLeader,
+  onReady,
+}: {
+  showLeader: boolean;
+  onReady: (controller: ZoneOwnerLifecycleController) => void;
+}): JSX.Element {
+  const scrollOffsetRef = useRef(0);
+  const measureSceneLayoutsRef = useRef<(() => void) | null>(null);
+  const updateSceneRenderSnapshotsRef = useRef<(nativeOffset: number) => void>(() => undefined);
+  const zoneRegistry = useScrollZoneRegistry({
+    scrollOffsetRef,
+    measureSceneLayoutsRef,
+    updateSceneRenderSnapshotsRef,
+  });
+  const animationRegistry = useSceneAnimationRegistry({ sceneIndex: 0, baseDuration: 800 });
+  const ownerARef = useRef<SceneScrollAnimationRegistration | null>(null);
+  const { syncZoneState, zoneAnimationsRef, zoneRuntimeValue, zoneTimelineValue } = zoneRegistry;
+
+  useLayoutEffect(() => {
+    const runtime = zoneRuntimeValue;
+    runtime.registerZone('owner-zone', { sceneIndex: 0, trigger: 'center-lock' });
+    ownerARef.current = runtime.registerZoneAnimation('owner-zone', {
+      animateId: 'shared-zone-leader',
+      delay: 0,
+      enterDuration: 100,
+      exitDuration: 0,
+    });
+
+    const cleanupOwnerA = (): void => {
+      const owner = ownerARef.current;
+      if (!owner) return;
+      ownerARef.current = null;
+      runtime.unregisterZoneAnimation('owner-zone', 'shared-zone-leader', owner);
+    };
+
+    onReady({
+      cleanupOwnerA,
+      getBudgetDuration: () =>
+        zoneAnimationsRef.current.get('owner-zone')?.get('shared-zone-leader')?.enterDuration,
+      hasBudget: () =>
+        zoneAnimationsRef.current.get('owner-zone')?.has('shared-zone-leader') ?? false,
+      setProgress: (progressPx) => {
+        syncZoneState('owner-zone', (current) =>
+          current
+            ? {
+                ...current,
+                progressPx,
+                active: true,
+                direction: 'forward',
+              }
+            : null
+        );
+      },
+    });
+
+    return () => {
+      cleanupOwnerA();
+      runtime.unregisterZone('owner-zone', 0);
+    };
+  }, [onReady, syncZoneState, zoneAnimationsRef, zoneRuntimeValue]);
+
+  return (
+    <SceneContext.Provider value={{ ...createScrollSceneContext(), ...animationRegistry }}>
+      <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
+        <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
+          {showLeader ? (
+            <SceneScrollTakeoverContext.Provider value="owner-zone">
+              <Animate
+                animateId="shared-zone-leader"
+                enterAnimation="fade-in"
+                duration={{ enter: 200 }}
+              >
+                <div>Replacement zone leader</div>
+              </Animate>
+            </SceneScrollTakeoverContext.Provider>
+          ) : null}
+          <Animate
+            animateId="owner-lifecycle-follower"
+            enterAnimation="fade-in"
+            duration={{ enter: 20 }}
+            timeline={{ sceneControlled: false, waitFor: 'shared-zone-leader' }}
+          >
+            {({ phase }) => <output data-testid="owner-lifecycle-follower-phase">{phase}</output>}
+          </Animate>
+        </SceneScrollTimelineContext.Provider>
+      </SceneScrollRuntimeContext.Provider>
+    </SceneContext.Provider>
+  );
+}
+
+function installAnimationFrameHarness(): {
+  flush: () => void;
+  pendingCount: () => number;
+  cancelSpy: jest.SpyInstance;
+  restore: () => void;
+} {
+  let nextHandle = 1;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  const requestSpy = jest
+    .spyOn(window, 'requestAnimationFrame')
+    .mockImplementation((callback: FrameRequestCallback) => {
+      const handle = nextHandle++;
+      callbacks.set(handle, callback);
+      return handle;
+    });
+  const cancelSpy = jest
+    .spyOn(window, 'cancelAnimationFrame')
+    .mockImplementation((handle: number) => {
+      callbacks.delete(handle);
+    });
+
+  return {
+    flush: () => {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      pending.forEach((callback) => callback(performance.now()));
+    },
+    pendingCount: () => callbacks.size,
+    cancelSpy,
+    restore: () => {
+      requestSpy.mockRestore();
+      cancelSpy.mockRestore();
     },
   };
 }
@@ -526,6 +734,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       <SceneContext.Provider value={sceneContext}>
         <Animate
           animateId="visibility-probe"
+          enterAnimation="fade-in"
           exitAnimation="fade-out"
           timeline={{ sceneControlled: false }}
         >
@@ -823,6 +1032,394 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
+  it('statically reveals first-screen visibility content after an unhandled preload timeout', async () => {
+    const pendingContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      firstSceneEnterActive: true,
+      firstSceneEnterReady: false,
+    };
+    const staticFallbackContext: SceneContextType = {
+      ...pendingContext,
+      firstSceneEnterActive: false,
+    };
+
+    const { rerender } = render(
+      <SceneContext.Provider value={pendingContext}>
+        <Animate
+          animateId="first-screen-timeout-probe"
+          enterAnimation="fade-in"
+          duration={{ enter: 60 }}
+          timeline={{ sceneControlled: false }}
+        >
+          <article>First screen timeout content</article>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-cineview-animate-id="first-screen-timeout-probe"]')
+      ).not.toBeNull();
+      // Pending assets, including a consumer-handled timeout, stay at the
+      // authored initial frame.
+      expect(readMotionOpacity()).toBe(0);
+    });
+
+    rerender(
+      <SceneContext.Provider value={staticFallbackContext}>
+        <Animate
+          animateId="first-screen-timeout-probe"
+          enterAnimation="fade-in"
+          duration={{ enter: 60 }}
+          timeline={{ sceneControlled: false }}
+        >
+          <article>First screen timeout content</article>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    // The default timeout fallback is deliberately static: no geometry gate,
+    // delay or tween may leave the first screen blank.
+    await waitFor(() => {
+      expect(readMotionOpacity()).toBe(1);
+    });
+  });
+
+  it('does not mistake an unpublished scroll snapshot for the static-timeout fallback', async () => {
+    const unknownContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      firstSceneEnterGateKnown: false,
+      firstSceneEnterActive: false,
+      firstSceneEnterReady: false,
+    };
+    const staticFallbackContext: SceneContextType = {
+      ...unknownContext,
+      firstSceneEnterGateKnown: true,
+    };
+
+    const renderProbe = (context: SceneContextType): JSX.Element => (
+      <SceneContext.Provider value={context}>
+        <Animate
+          animateId="unknown-first-screen-gate"
+          enterAnimation="fade-in"
+          duration={{ enter: 60 }}
+          timeline={{ sceneControlled: false }}
+        >
+          <article>Unknown first-screen gate</article>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    const { rerender } = render(renderProbe(unknownContext));
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-cineview-animate-id="unknown-first-screen-gate"]')
+      ).not.toBeNull();
+    });
+    const host = document.querySelector(
+      '[data-cineview-animate-host="unknown-first-screen-gate"]'
+    ) as HTMLElement;
+    host.getBoundingClientRect = () => createHostRect(300, 700);
+
+    // This measurement is essential: without a real box the hook bails after the
+    // branch decision, so deleting the gateKnown guard can look green by accident.
+    await flushScroll(window);
+    expect(readMotionOpacity()).toBe(0);
+
+    rerender(renderProbe(staticFallbackContext));
+    await waitFor(() => {
+      expect(readMotionOpacity()).toBe(1);
+    });
+  });
+
+  it('re-arms the one-shot static fallback after returning to a pending gate', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const pendingContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      firstSceneEnterGateKnown: true,
+      firstSceneEnterActive: true,
+      firstSceneEnterReady: false,
+    };
+    const staticContext: SceneContextType = {
+      ...pendingContext,
+      firstSceneEnterActive: false,
+    };
+    const renderProbe = (context: SceneContextType): JSX.Element => (
+      <SceneContext.Provider value={context}>
+        <Animate
+          animateId="timeout-rearm-probe"
+          enterAnimation="fade-in"
+          timeline={{ sceneControlled: false }}
+        >
+          <article>Timeout re-arm content</article>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+    try {
+      const { rerender } = render(renderProbe(staticContext));
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="timeout-rearm-probe"]')
+        ).not.toBeNull();
+      });
+      const host = document.querySelector(
+        '[data-cineview-animate-host="timeout-rearm-probe"]'
+      ) as HTMLElement;
+      // Outside the normal enter gate: only the explicit static fallback may reveal it.
+      host.getBoundingClientRect = () => createHostRect(1200, 1300);
+      await flushScroll(window);
+      await waitFor(() => expect(readMotionOpacity()).toBe(1));
+
+      rerender(renderProbe(pendingContext));
+      await waitFor(() => expect(readMotionOpacity()).toBe(0));
+
+      rerender(renderProbe(staticContext));
+      await waitFor(() => expect(readMotionOpacity()).toBe(1));
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('owns the fallback measurement before an overlapping exit gate can run', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const pendingContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      firstSceneEnterGateKnown: true,
+      firstSceneEnterActive: true,
+      firstSceneEnterReady: false,
+    };
+    const staticContext: SceneContextType = {
+      ...pendingContext,
+      firstSceneEnterActive: false,
+    };
+    const renderProbe = (context: SceneContextType): JSX.Element => (
+      <SceneContext.Provider value={context}>
+        <Animate
+          animateId="timeout-fallback-frame-probe"
+          enterAnimation="fade-in"
+          exitAnimation="fade-out"
+          duration={{ exit: 40 }}
+          timeline={{ sceneControlled: false }}
+        >
+          {({ phase }) => <output data-testid="timeout-fallback-phase">{phase}</output>}
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+    try {
+      const { rerender } = render(renderProbe(pendingContext));
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="timeout-fallback-frame-probe"]')
+        ).not.toBeNull();
+      });
+      const host = document.querySelector(
+        '[data-cineview-animate-host="timeout-fallback-frame-probe"]'
+      ) as HTMLElement;
+      // Already beyond the top exit gate. The fallback's own measurement must still
+      // render terminal and return; only a later measurement may author an exit.
+      host.getBoundingClientRect = () => createHostRect(-500, -100);
+      await flushScroll(window);
+      rerender(renderProbe(staticContext));
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+        expect(screen.getByTestId('timeout-fallback-phase')).toHaveTextContent('entered');
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('publishes static fallback completion so a normal waitFor follower can enter', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const harness = createLeaseHarness();
+    const leaderContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      ...harness.context,
+      firstSceneEnterGateKnown: true,
+      firstSceneEnterActive: false,
+      firstSceneEnterReady: false,
+    };
+    const followerContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      ...harness.context,
+    };
+    const readOpacityFor = (id: string): number => {
+      const node = screen
+        .getAllByTestId('motion-div')
+        .find((candidate) => candidate.getAttribute('data-cineview-animate-id') === id);
+      return Number(node?.getAttribute('data-opacity') ?? '0');
+    };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+    try {
+      render(
+        <>
+          <SceneContext.Provider value={leaderContext}>
+            <Animate
+              animateId="timeout-static-leader"
+              enterAnimation="fade-in"
+              timeline={{ sceneControlled: false }}
+            >
+              <article>Static leader</article>
+            </Animate>
+          </SceneContext.Provider>
+          <SceneContext.Provider value={followerContext}>
+            <Animate
+              animateId="timeout-waitfor-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'timeout-static-leader' }}
+            >
+              <article>WaitFor follower</article>
+            </Animate>
+          </SceneContext.Provider>
+        </>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="timeout-waitfor-follower"]')
+        ).not.toBeNull();
+      });
+      const leaderHost = document.querySelector(
+        '[data-cineview-animate-host="timeout-static-leader"]'
+      ) as HTMLElement;
+      const followerHost = document.querySelector(
+        '[data-cineview-animate-host="timeout-waitfor-follower"]'
+      ) as HTMLElement;
+      leaderHost.getBoundingClientRect = () => createHostRect(200, 400);
+      followerHost.getBoundingClientRect = () => createHostRect(420, 620);
+      await flushScroll(window);
+
+      await waitFor(() => expect(readOpacityFor('timeout-static-leader')).toBe(1));
+      await waitFor(() => expect(readOpacityFor('timeout-waitfor-follower')).toBe(1));
+      expect(harness.publishSpy.mock.calls.some(([id]) => id === 'timeout-static-leader')).toBe(
+        true
+      );
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('keeps authored exit behavior after the timeout static reveal', async () => {
+    const originalInnerHeight = window.innerHeight;
+    let hostRect = createHostRect(300, 700);
+    const staticFallbackContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      firstSceneEnterGateKnown: true,
+      firstSceneEnterActive: false,
+      firstSceneEnterReady: false,
+    };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={staticFallbackContext}>
+          <Animate
+            animateId="timeout-exit-probe"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            duration={{ enter: 60, exit: 60 }}
+            timeline={{ sceneControlled: false }}
+          >
+            <article>Timeout exit content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="timeout-exit-probe"]')
+        ).not.toBeNull();
+      });
+      const host = document.querySelector(
+        '[data-cineview-animate-host="timeout-exit-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => hostRect;
+      await flushScroll(window);
+      await waitFor(() => expect(readMotionOpacity()).toBe(1));
+
+      hostRect = createHostRect(-500, -100);
+      await flushScroll(window);
+      await waitFor(() => expect(readMotionOpacity()).toBe(0));
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('starts visibility infinite motion after the timeout static reveal', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const staticFallbackContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      firstSceneEnterGateKnown: true,
+      firstSceneEnterActive: false,
+      firstSceneEnterReady: false,
+    };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={staticFallbackContext}>
+          <Animate
+            animateId="timeout-infinite-probe"
+            enterAnimation="fade-in"
+            infiniteAnimation="pulse"
+            timeline={{ sceneControlled: false }}
+          >
+            <article>Timeout infinite content</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-id="timeout-infinite-probe"]')
+        ).not.toBeNull();
+      });
+      const host = document.querySelector(
+        '[data-cineview-animate-host="timeout-infinite-probe"]'
+      ) as HTMLElement;
+      host.getBoundingClientRect = () => createHostRect(300, 700);
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+        expect(
+          animationControlsRegistry.some((controls) =>
+            controls.start.mock.calls.some(([payload]) =>
+              expect
+                .objectContaining({ transition: expect.objectContaining({ repeat: Infinity }) })
+                .asymmetricMatch(payload)
+            )
+          )
+        ).toBe(true);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
   it('reveals a first-screen element pinned to the viewport bottom on cold start (within enterMargin)', async () => {
     // First-screen cold reveal: an element authored at the bottom of the first
     // screen (e.g. a scroll hint) sits fully inside the viewport but with its
@@ -870,6 +1467,58 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       await flushScroll(window);
 
       await waitFor(() => {
+        expect(readMotionOpacity()).toBe(1);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('preserves the first-screen margin bypass across waitFor and own delay rechecks', async () => {
+    const originalInnerHeight = window.innerHeight;
+    const harness = createLeaseHarness();
+    harness.complete('cold-start-leader');
+    const sceneContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      ...harness.context,
+      firstSceneEnterReady: true,
+    };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="first-screen-delayed-follower"
+            enterAnimation="fade-in"
+            duration={{ enter: 60 }}
+            timeline={{ sceneControlled: false, waitFor: 'cold-start-leader', delay: 40 }}
+          >
+            {({ phase }) => <output data-testid="first-screen-delayed-phase">{phase}</output>}
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-host="first-screen-delayed-follower"]')
+        ).not.toBeNull();
+      });
+      const host = document.querySelector(
+        '[data-cineview-animate-host="first-screen-delayed-follower"]'
+      ) as HTMLElement;
+      // Fully inside the first screen but deliberately outside the strict bottom
+      // margin gate. Async dependency/delay wakeups must retain the cold-start
+      // eligibility rather than cancelling this attempt back to idle.
+      host.getBoundingClientRect = () => createHostRect(900, 990);
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('first-screen-delayed-phase')).toHaveTextContent('entered');
         expect(readMotionOpacity()).toBe(1);
       });
     } finally {
@@ -1397,13 +2046,13 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
   it('holds a visibility waitFor follower at its initial frame until the leader actually enters', async () => {
     // New waitFor model (visibility): the follower's gate can be satisfied, but
-    // it must NOT play until its leader publishes 'entered' on the per-scene bus.
+    // it must NOT play until its leader lease publishes enter completion.
     // Here the leader never enters, so the follower stays at its initial frame
     // (opacity 0) even though its own gate is satisfied and its own delay is tiny.
     const originalInnerHeight = window.innerHeight;
     const hostRect = createHostRect(300, 700); // fully inside, enter gate satisfied
-    const bus = createPhaseBus();
-    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...bus };
+    const harness = createLeaseHarness();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
@@ -1413,10 +2062,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="waitfor-visibility-probe"
             enterAnimation="fade-in"
-            delay={40}
-            waitFor="leader"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ sceneControlled: false, delay: 40, waitFor: 'leader' }}
           >
             <article>WaitFor visibility content</article>
           </Animate>
@@ -1441,10 +2088,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="waitfor-visibility-probe"
             enterAnimation="fade-in"
-            delay={40}
-            waitFor="leader"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ sceneControlled: false, delay: 40, waitFor: 'leader' }}
           >
             <article>WaitFor visibility content</article>
           </Animate>
@@ -1473,10 +2118,10 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     // tiny own delay must enter promptly (well under any chain-length timeout).
     const originalInnerHeight = window.innerHeight;
     const hostRect = createHostRect(300, 700);
-    const bus = createPhaseBus();
-    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...bus };
+    const harness = createLeaseHarness();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
     // Leader already completed its enter before the follower ever scrolls in.
-    bus.markAnimateEntered('leader', true);
+    harness.complete('leader');
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
@@ -1486,10 +2131,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="late-follower"
             enterAnimation="fade-in"
-            delay={20}
-            waitFor="leader"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ sceneControlled: false, delay: 20, waitFor: 'leader' }}
           >
             <article>Late follower content</article>
           </Animate>
@@ -1526,8 +2169,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     const originalInnerHeight = window.innerHeight;
     const leaderRect = createHostRect(200, 400);
     const followerRect = createHostRect(420, 620);
-    const bus = createPhaseBus();
-    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...bus };
+    const harness = createLeaseHarness();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
@@ -1545,9 +2188,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="cascade-follower"
             enterAnimation="fade-in"
-            waitFor="cascade-leader"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ sceneControlled: false, waitFor: 'cascade-leader' }}
           >
             <article>Cascade follower</article>
           </Animate>
@@ -1806,6 +2448,902 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         (900 - 1400 * 0.44) / (1400 * (1 - 0.44)),
         5
       );
+    });
+  });
+});
+
+describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 cross-driver waitFor)', () => {
+  beforeEach(() => {
+    animationControlsRegistry.length = 0;
+  });
+
+  function readOpacityFor(id: string): number {
+    const node = screen
+      .getAllByTestId('motion-div')
+      .find((n) => n.getAttribute('data-cineview-animate-id') === id);
+    return Number(node?.getAttribute('data-opacity') ?? '0');
+  }
+
+  it('shows an infiniteAnimation-only element inside a takeover zone at its entered rest frame and runs its loop', async () => {
+    // S-F6: no authored enter/exit -> no zone budget. The old code held such an
+    // element at the initial frame (visualMotion 0 -> empty-variant default
+    // opacity 0), so an infiniteAnimation-only element was permanently invisible
+    // inside a takeover zone AND its infinite loop never started (budget lookup
+    // pinned shouldRunInfinite to false). It must instead rest at its entered
+    // frame with the loop gated by the scene runtime state.
+    const sceneContext = createScrollSceneContext();
+
+    const renderTree = (overrides: Partial<SceneContextType> = {}): JSX.Element => (
+      <SceneContext.Provider value={{ ...sceneContext, ...overrides }}>
+        <ScrollZoneProviders runtime={createZoneRuntime(0, 1)}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate animateId="pulse-only" infiniteAnimation="pulse">
+              <div>Persistent pulse</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </ScrollZoneProviders>
+      </SceneContext.Provider>
+    );
+
+    const { rerender } = render(renderTree());
+
+    // Rest state: entered frame (empty-variant defaults -> opacity 1), even at
+    // zone progress 0.
+    await waitFor(() => {
+      expect(readOpacityFor('pulse-only')).toBe(1);
+    });
+
+    // Infinite loop starts while the scene runtime allows it (runtimeState
+    // undefined here = not gated).
+    await waitFor(() => {
+      expect(
+        animationControlsRegistry.some((controls) => controls.start.mock.calls.length > 0)
+      ).toBe(true);
+    });
+
+    // Scene leaves the stage -> the loop stops (phase/viewport gating intact).
+    const startedControls = animationControlsRegistry.find(
+      (controls) => controls.start.mock.calls.length > 0
+    );
+    const stopCallsBefore = startedControls?.stop.mock.calls.length ?? 0;
+    rerender(renderTree({ runtimeState: 'covered' }));
+    await waitFor(() => {
+      expect(startedControls?.stop.mock.calls.length ?? 0).toBeGreaterThan(stopCallsBefore);
+    });
+  });
+
+  it('still holds an explicitly-animated zone element at its initial frame before its enter segment', async () => {
+    // S-F6 must not leak into elements WITH an authored enterAnimation: at zone
+    // progress 0 they rest at the initial frame (opacity 0), not the entered one.
+    const sceneContext = createScrollSceneContext();
+
+    render(
+      <SceneContext.Provider value={sceneContext}>
+        <ScrollZoneProviders runtime={createZoneRuntime(0, 1)}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate animateId="intro" enterAnimation="fade-in">
+              <div>Zone intro</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </ScrollZoneProviders>
+      </SceneContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-cineview-animate-id="intro"]')).not.toBeNull();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(readOpacityFor('intro')).toBe(0);
+  });
+
+  it('wakes a visibility waitFor follower when its zone-driven leader completes its enter segment', async () => {
+    // S-F8 deadlock: completion used to be published only by the visibility
+    // path. A zone-driven leader therefore never completed its registry lease,
+    // so a visibility follower was pinned at opacity 0 forever. Crossing the
+    // leader's enter end must publish completion and release the follower.
+    const originalInnerHeight = window.innerHeight;
+    const harness = createLeaseHarness();
+    const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
+    const followerRect = createHostRect(300, 700);
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      render(
+        <SceneContext.Provider value={sceneContext}>
+          <ScrollZoneProviders runtime={createZoneRuntime(300, 1)}>
+            <SceneScrollTakeoverContext.Provider value="zone-1">
+              <Animate animateId="intro" enterAnimation="fade-in">
+                <div>Zone leader</div>
+              </Animate>
+            </SceneScrollTakeoverContext.Provider>
+          </ScrollZoneProviders>
+          <Animate
+            animateId="zone-follower"
+            enterAnimation="fade-in"
+            duration={{ enter: 60, exit: 60 }}
+            timeline={{ sceneControlled: false, waitFor: 'intro' }}
+          >
+            <article>Cross-driver follower</article>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          document.querySelector('[data-cineview-animate-host="zone-follower"]')
+        ).not.toBeNull();
+      });
+
+      // Leader already scrubbed past its enter end (progress 300 >= enter end
+      // 100) -> entered frame.
+      await waitFor(() => {
+        expect(readOpacityFor('intro')).toBe(1);
+      });
+
+      const followerHost = document.querySelector(
+        '[data-cineview-animate-host="zone-follower"]'
+      ) as HTMLElement;
+      followerHost.getBoundingClientRect = () => followerRect;
+      await flushScroll(window);
+
+      // The follower's gate fires, it subscribes to 'intro' on the bus, and the
+      // zone leader's published completion releases it immediately.
+      await waitFor(() => {
+        expect(readOpacityFor('zone-follower')).toBe(1);
+      });
+      // Let the enter tween's onComplete (setPhase/setShouldRunInfiniteState)
+      // land inside an act scope instead of leaking past the test.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('publishes zone enter-completion exactly once and never retracts it on reverse scrub', async () => {
+    // Idempotence (hot-path red line): the zone effect re-runs on every scroll
+    // frame, but the lease must publish only on the first crossing of the enter
+    // end. Reverse-scrubbing back inside the enter segment must not retract the
+    // generation-scoped "has entered at least once" completion fact.
+    const originalInnerHeight = window.innerHeight;
+    const harness = createLeaseHarness();
+    const sceneContext: SceneContextType = {
+      ...createScrollSceneContext(),
+      ...harness.context,
+    };
+    const followerRect = createHostRect(300, 700);
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    const renderTree = (progressPx: number, version: number): JSX.Element => (
+      <SceneContext.Provider value={sceneContext}>
+        <ScrollZoneProviders runtime={createZoneRuntime(progressPx, version)}>
+          <SceneScrollTakeoverContext.Provider value="zone-1">
+            <Animate animateId="intro" enterAnimation="fade-in">
+              <div>Zone leader</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </ScrollZoneProviders>
+        <Animate
+          animateId="late-zone-follower"
+          enterAnimation="fade-in"
+          duration={{ enter: 60, exit: 60 }}
+          timeline={{ sceneControlled: false, waitFor: 'intro' }}
+        >
+          <article>Late cross-driver follower</article>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    try {
+      const { rerender } = render(renderTree(300, 1));
+
+      await waitFor(() => {
+        expect(readOpacityFor('intro')).toBe(1);
+      });
+      const introPublishes = (): unknown[][] =>
+        harness.publishSpy.mock.calls.filter(([id]) => id === 'intro');
+      await waitFor(() => {
+        expect(introPublishes()).toHaveLength(1);
+      });
+
+      // Reverse scrub back inside (50) and further within (40) the enter
+      // segment: no re-publish, no retraction.
+      rerender(renderTree(50, 2));
+      rerender(renderTree(40, 3));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      });
+      expect(introPublishes()).toHaveLength(1);
+
+      // A follower whose gate fires AFTER the reverse scrub still launches: the
+      // completion fact persists on the registration generation.
+      const followerHost = document.querySelector(
+        '[data-cineview-animate-host="late-zone-follower"]'
+      ) as HTMLElement;
+      followerHost.getBoundingClientRect = () => followerRect;
+      await flushScroll(window);
+
+      await waitFor(() => {
+        expect(readOpacityFor('late-zone-follower')).toBe(1);
+      });
+      // Settle the enter tween's onComplete inside act (see the deadlock test).
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  it('keeps the replacement owner budget through stale cleanup, releases its follower, then removes it on owner cleanup', async () => {
+    const originalInnerHeight = window.innerHeight;
+    let controller!: ZoneOwnerLifecycleController;
+    const onReady = (nextController: ZoneOwnerLifecycleController): void => {
+      controller = nextController;
+    };
+
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+    try {
+      const { rerender } = render(<ProductionZoneOwnerHarness showLeader onReady={onReady} />);
+
+      await waitFor(() => {
+        expect(controller.getBudgetDuration()).toBe(200);
+        expect(
+          document.querySelector('[data-cineview-animate-host="owner-lifecycle-follower"]')
+        ).not.toBeNull();
+      });
+
+      const followerHost = document.querySelector(
+        '[data-cineview-animate-host="owner-lifecycle-follower"]'
+      ) as HTMLElement;
+      followerHost.getBoundingClientRect = () => createHostRect(300, 700);
+      await flushScroll(window);
+      expect(screen.getByTestId('owner-lifecycle-follower-phase')).toHaveTextContent('waiting');
+
+      act(() => controller.cleanupOwnerA());
+      expect(controller.getBudgetDuration()).toBe(200);
+
+      act(() => controller.setProgress(200));
+      await waitFor(() => {
+        expect(readOpacityFor('shared-zone-leader')).toBe(1);
+        expect(screen.getByTestId('owner-lifecycle-follower-phase')).toHaveTextContent('entered');
+        expect(readOpacityFor('owner-lifecycle-follower')).toBe(1);
+      });
+
+      rerender(<ProductionZoneOwnerHarness showLeader={false} onReady={onReady} />);
+      await waitFor(() => {
+        expect(controller.hasBudget()).toBe(false);
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
+  describe('visibility waitFor liveness', () => {
+    it('survives StrictMode setup-cleanup-setup without phantom dependency diagnostics', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const reportError = jest.fn();
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        render(
+          <StrictMode>
+            <ProductionRegistrySceneProvider reportError={reportError}>
+              <Animate
+                animateId="strict-leader"
+                enterAnimation="fade-in"
+                duration={{ enter: 20 }}
+                timeline={{ sceneControlled: false }}
+              >
+                {({ phase }) => <output data-testid="strict-leader-phase">{phase}</output>}
+              </Animate>
+              <Animate
+                animateId="strict-follower"
+                enterAnimation="fade-in"
+                duration={{ enter: 20 }}
+                timeline={{ sceneControlled: false, waitFor: 'strict-leader' }}
+              >
+                {({ phase }) => <output data-testid="strict-follower-phase">{phase}</output>}
+              </Animate>
+            </ProductionRegistrySceneProvider>
+          </StrictMode>
+        );
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="strict-follower"]')
+          ).not.toBeNull();
+        });
+        const leaderHost = document.querySelector(
+          '[data-cineview-animate-host="strict-leader"]'
+        ) as HTMLElement;
+        const followerHost = document.querySelector(
+          '[data-cineview-animate-host="strict-follower"]'
+        ) as HTMLElement;
+        leaderHost.getBoundingClientRect = () => createHostRect(200, 400);
+        followerHost.getBoundingClientRect = () => createHostRect(500, 700);
+        await flushScroll(window);
+
+        await waitFor(() => {
+          expect(screen.getByTestId('strict-leader-phase')).toHaveTextContent('entered');
+          expect(screen.getByTestId('strict-follower-phase')).toHaveTextContent('entered');
+        });
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+        expect(reportError).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('clears dependency subscribers, delay timers, and targeted rechecks on waiting unmount', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const animationFrames = installAnimationFrameHarness();
+      const harness = createLeaseHarness();
+      harness.complete('delay-ready-leader');
+      const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
+      let unmount: (() => void) | undefined;
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        ({ unmount } = render(
+          <SceneContext.Provider value={sceneContext}>
+            <Animate
+              animateId="subscriber-waiting-follower"
+              enterAnimation="fade-in"
+              timeline={{ sceneControlled: false, waitFor: 'never-ready-leader' }}
+            >
+              {({ phase }) => <output data-testid="subscriber-waiting-phase">{phase}</output>}
+            </Animate>
+            <Animate
+              animateId="recheck-waiting-follower"
+              enterAnimation="fade-in"
+              timeline={{ sceneControlled: false, waitFor: 'recheck-ready-leader' }}
+            >
+              {({ phase }) => <output data-testid="recheck-waiting-phase">{phase}</output>}
+            </Animate>
+            <Animate
+              animateId="timer-waiting-follower"
+              enterAnimation="fade-in"
+              timeline={{
+                sceneControlled: false,
+                waitFor: 'delay-ready-leader',
+                delay: 1000,
+              }}
+            >
+              {({ phase }) => <output data-testid="timer-waiting-phase">{phase}</output>}
+            </Animate>
+          </SceneContext.Provider>
+        ));
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="timer-waiting-follower"]')
+          ).not.toBeNull();
+        });
+        [
+          'subscriber-waiting-follower',
+          'recheck-waiting-follower',
+          'timer-waiting-follower',
+        ].forEach((animateId, index) => {
+          const host = document.querySelector(
+            `[data-cineview-animate-host="${animateId}"]`
+          ) as HTMLElement;
+          host.getBoundingClientRect = () => createHostRect(200 + index * 180, 340 + index * 180);
+        });
+
+        const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+        const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+        try {
+          act(() => animationFrames.flush());
+          expect(screen.getByTestId('subscriber-waiting-phase')).toHaveTextContent('waiting');
+          expect(screen.getByTestId('recheck-waiting-phase')).toHaveTextContent('waiting');
+          expect(screen.getByTestId('timer-waiting-phase')).toHaveTextContent('waiting');
+          expect(harness.subscriberCount()).toBe(2);
+
+          act(() => animationFrames.flush());
+          const delayCallIndex = setTimeoutSpy.mock.calls.findIndex(([, delay]) => delay === 1000);
+          expect(delayCallIndex).toBeGreaterThanOrEqual(0);
+          const delayHandle = setTimeoutSpy.mock.results[delayCallIndex]?.value;
+
+          act(() => harness.complete('recheck-ready-leader'));
+          expect(harness.subscriberCount()).toBe(1);
+          expect(animationFrames.pendingCount()).toBe(1);
+
+          act(() => unmount?.());
+          unmount = undefined;
+
+          expect(harness.subscriberCount()).toBe(0);
+          expect(animationFrames.pendingCount()).toBe(0);
+          expect(animationFrames.cancelSpy).toHaveBeenCalled();
+          expect(clearTimeoutSpy).toHaveBeenCalledWith(delayHandle);
+        } finally {
+          setTimeoutSpy.mockRestore();
+          clearTimeoutSpy.mockRestore();
+        }
+      } finally {
+        unmount?.();
+        animationFrames.restore();
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('fails open through the production registry when a missing dependency is already stable', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const reportError = jest.fn();
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        render(
+          <ProductionRegistrySceneProvider reportError={reportError}>
+            <Animate
+              animateId="production-missing-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'production-missing-leader' }}
+            >
+              {({ phase }) => <output data-testid="production-missing-phase">{phase}</output>}
+            </Animate>
+          </ProductionRegistrySceneProvider>
+        );
+
+        await waitFor(() => {
+          expect(reportError).toHaveBeenCalledWith(
+            expect.objectContaining({ code: 'INVALID_ANIMATION' })
+          );
+        });
+
+        const host = document.querySelector(
+          '[data-cineview-animate-host="production-missing-follower"]'
+        ) as HTMLElement;
+        host.getBoundingClientRect = () => createHostRect(300, 700);
+        await flushScroll(window);
+
+        await waitFor(() => {
+          expect(screen.getByTestId('production-missing-phase')).toHaveTextContent('entered');
+          expect(readOpacityFor('production-missing-follower')).toBe(1);
+        });
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('fails open through the production registry when a dependency cycle is already stable', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const reportError = jest.fn();
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        render(
+          <ProductionRegistrySceneProvider reportError={reportError}>
+            <Animate
+              animateId="production-cycle-a"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'production-cycle-b' }}
+            >
+              {({ phase }) => <output data-testid="production-cycle-a-phase">{phase}</output>}
+            </Animate>
+            <Animate
+              animateId="production-cycle-b"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'production-cycle-a' }}
+            >
+              {({ phase }) => <output data-testid="production-cycle-b-phase">{phase}</output>}
+            </Animate>
+          </ProductionRegistrySceneProvider>
+        );
+
+        await waitFor(() => {
+          expect(reportError).toHaveBeenCalledWith(
+            expect.objectContaining({ code: 'CIRCULAR_DEPENDENCY' })
+          );
+        });
+
+        const firstHost = document.querySelector(
+          '[data-cineview-animate-host="production-cycle-a"]'
+        ) as HTMLElement;
+        const secondHost = document.querySelector(
+          '[data-cineview-animate-host="production-cycle-b"]'
+        ) as HTMLElement;
+        firstHost.getBoundingClientRect = () => createHostRect(200, 400);
+        secondHost.getBoundingClientRect = () => createHostRect(500, 700);
+        await flushScroll(window);
+
+        await waitFor(() => {
+          expect(screen.getByTestId('production-cycle-a-phase')).toHaveTextContent('entered');
+          expect(screen.getByTestId('production-cycle-b-phase')).toHaveTextContent('entered');
+          expect(readOpacityFor('production-cycle-a')).toBe(1);
+          expect(readOpacityFor('production-cycle-b')).toBe(1);
+        });
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('does not carry entered completion into a rebuilt registration generation', async () => {
+      const originalInnerHeight = window.innerHeight;
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      const renderTree = (leaderDelay: number, showFollower: boolean): JSX.Element => (
+        <ProductionRegistrySceneProvider>
+          <Animate
+            animateId="reregistered-leader"
+            enterAnimation="fade-in"
+            duration={{ enter: 40 }}
+            timeline={{ sceneControlled: false, delay: leaderDelay }}
+          >
+            {({ phase }) => <output data-testid="reregistered-leader-phase">{phase}</output>}
+          </Animate>
+          {showFollower ? (
+            <Animate
+              animateId="reregistered-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'reregistered-leader' }}
+            >
+              {({ phase }) => <output data-testid="reregistered-follower-phase">{phase}</output>}
+            </Animate>
+          ) : null}
+        </ProductionRegistrySceneProvider>
+      );
+
+      try {
+        const { rerender } = render(renderTree(0, false));
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="reregistered-leader"]')
+          ).not.toBeNull();
+        });
+        const leaderHost = document.querySelector(
+          '[data-cineview-animate-host="reregistered-leader"]'
+        ) as HTMLElement;
+        leaderHost.getBoundingClientRect = () => createHostRect(200, 400);
+        await flushScroll(window);
+        await waitFor(() => {
+          expect(screen.getByTestId('reregistered-leader-phase')).toHaveTextContent('entered');
+        });
+
+        // Changing timing rebuilds the owner's registration generation without
+        // replaying its already-completed visual tween.
+        rerender(renderTree(60, false));
+        await act(async () => {
+          await Promise.resolve();
+        });
+        rerender(renderTree(60, true));
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="reregistered-follower"]')
+          ).not.toBeNull();
+        });
+        const followerHost = document.querySelector(
+          '[data-cineview-animate-host="reregistered-follower"]'
+        ) as HTMLElement;
+        followerHost.getBoundingClientRect = () => createHostRect(500, 700);
+        await flushScroll(window);
+
+        expect(screen.getByTestId('reregistered-follower-phase')).toHaveTextContent('waiting');
+        expect(readOpacityFor('reregistered-follower')).toBe(0);
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('does not carry exited leader history into a rebuilt registration generation', async () => {
+      const originalInnerHeight = window.innerHeight;
+      let leaderRect = createHostRect(200, 400);
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      const renderTree = (leaderDelay: number, showFollower: boolean): JSX.Element => (
+        <ProductionRegistrySceneProvider>
+          <Animate
+            animateId="exited-reregistered-leader"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            duration={{ enter: 40, exit: 40 }}
+            timeline={{ sceneControlled: false, delay: leaderDelay }}
+          >
+            {({ phase }) => <output data-testid="exited-reregistered-leader-phase">{phase}</output>}
+          </Animate>
+          {showFollower ? (
+            <Animate
+              animateId="exited-reregistered-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'exited-reregistered-leader' }}
+            >
+              {({ phase }) => (
+                <output data-testid="exited-reregistered-follower-phase">{phase}</output>
+              )}
+            </Animate>
+          ) : null}
+        </ProductionRegistrySceneProvider>
+      );
+
+      try {
+        const { rerender } = render(renderTree(0, false));
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="exited-reregistered-leader"]')
+          ).not.toBeNull();
+        });
+        const leaderHost = document.querySelector(
+          '[data-cineview-animate-host="exited-reregistered-leader"]'
+        ) as HTMLElement;
+        leaderHost.getBoundingClientRect = () => leaderRect;
+        await flushScroll(window);
+        await waitFor(() => {
+          expect(screen.getByTestId('exited-reregistered-leader-phase')).toHaveTextContent(
+            'entered'
+          );
+        });
+
+        leaderRect = createHostRect(-400, -200);
+        await flushScroll(window);
+        await waitFor(() => {
+          expect(screen.getByTestId('exited-reregistered-leader-phase')).toHaveTextContent(
+            'exited'
+          );
+        });
+
+        rerender(renderTree(60, false));
+        await act(async () => {
+          await Promise.resolve();
+        });
+        rerender(renderTree(60, true));
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="exited-reregistered-follower"]')
+          ).not.toBeNull();
+        });
+        const followerHost = document.querySelector(
+          '[data-cineview-animate-host="exited-reregistered-follower"]'
+        ) as HTMLElement;
+        followerHost.getBoundingClientRect = () => createHostRect(500, 700);
+        await flushScroll(window);
+
+        expect(screen.getByTestId('exited-reregistered-follower-phase')).toHaveTextContent(
+          'waiting'
+        );
+        expect(readOpacityFor('exited-reregistered-follower')).toBe(0);
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('does not let an older enter tween complete a newer registration lease', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const harness = createLeaseHarness();
+      const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      const renderTree = (leaderDelay: number): JSX.Element => (
+        <SceneContext.Provider value={sceneContext}>
+          <Animate
+            animateId="stale-tween-leader"
+            enterAnimation="fade-in"
+            duration={{ enter: 120 }}
+            timeline={{ sceneControlled: false, delay: leaderDelay }}
+          >
+            {({ phase }) => <output data-testid="stale-tween-leader-phase">{phase}</output>}
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      try {
+        const { rerender } = render(renderTree(0));
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="stale-tween-leader"]')
+          ).not.toBeNull();
+        });
+        const leaderHost = document.querySelector(
+          '[data-cineview-animate-host="stale-tween-leader"]'
+        ) as HTMLElement;
+        leaderHost.getBoundingClientRect = () => createHostRect(200, 400);
+        await flushScroll(window);
+        await waitFor(() => {
+          expect(screen.getByTestId('stale-tween-leader-phase')).toHaveTextContent('entering');
+        });
+
+        rerender(renderTree(20));
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 160));
+        });
+
+        expect(harness.publishSpy).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('exposes waiting instead of entering before the leader completes', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const harness = createLeaseHarness();
+      const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        render(
+          <SceneContext.Provider value={sceneContext}>
+            <Animate
+              animateId="waiting-phase-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'waiting-phase-leader' }}
+            >
+              {({ phase }) => <output data-testid="waiting-phase">{phase}</output>}
+            </Animate>
+          </SceneContext.Provider>
+        );
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="waiting-phase-follower"]')
+          ).not.toBeNull();
+        });
+        const host = document.querySelector(
+          '[data-cineview-animate-host="waiting-phase-follower"]'
+        ) as HTMLElement;
+        host.getBoundingClientRect = () => createHostRect(300, 700);
+        await flushScroll(window);
+
+        expect(screen.getByTestId('waiting-phase')).toHaveTextContent('waiting');
+        expect(readMotionOpacity()).toBe(0);
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('cancels a pending dependency wait when the follower leaves its enter gate', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const harness = createLeaseHarness();
+      const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
+      let hostRect = createHostRect(300, 700);
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        render(
+          <SceneContext.Provider value={sceneContext}>
+            <Animate
+              animateId="dependency-cancel-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'dependency-cancel-leader' }}
+            >
+              {({ phase }) => <output data-testid="dependency-cancel-phase">{phase}</output>}
+            </Animate>
+          </SceneContext.Provider>
+        );
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="dependency-cancel-follower"]')
+          ).not.toBeNull();
+        });
+        const host = document.querySelector(
+          '[data-cineview-animate-host="dependency-cancel-follower"]'
+        ) as HTMLElement;
+        host.getBoundingClientRect = () => hostRect;
+        await flushScroll(window);
+        expect(screen.getByTestId('dependency-cancel-phase')).toHaveTextContent('waiting');
+
+        hostRect = createHostRect(1100, 1500);
+        await flushScroll(window);
+        act(() => harness.complete('dependency-cancel-leader'));
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 80));
+        });
+
+        expect(screen.getByTestId('dependency-cancel-phase')).toHaveTextContent('idle');
+        expect(readMotionOpacity()).toBe(0);
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
+    });
+
+    it('cancels its own pending delay when the follower leaves its enter gate', async () => {
+      const originalInnerHeight = window.innerHeight;
+      const harness = createLeaseHarness();
+      harness.complete('delay-cancel-leader');
+      const sceneContext: SceneContextType = { ...createScrollSceneContext(), ...harness.context };
+      let hostRect = createHostRect(300, 700);
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+
+      try {
+        render(
+          <SceneContext.Provider value={sceneContext}>
+            <Animate
+              animateId="delay-cancel-follower"
+              enterAnimation="fade-in"
+              duration={{ enter: 40 }}
+              timeline={{ sceneControlled: false, waitFor: 'delay-cancel-leader', delay: 80 }}
+            >
+              {({ phase }) => <output data-testid="delay-cancel-phase">{phase}</output>}
+            </Animate>
+          </SceneContext.Provider>
+        );
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('[data-cineview-animate-host="delay-cancel-follower"]')
+          ).not.toBeNull();
+        });
+        const host = document.querySelector(
+          '[data-cineview-animate-host="delay-cancel-follower"]'
+        ) as HTMLElement;
+        host.getBoundingClientRect = () => hostRect;
+        await flushScroll(window);
+        expect(screen.getByTestId('delay-cancel-phase')).toHaveTextContent('waiting');
+
+        hostRect = createHostRect(1100, 1500);
+        await flushScroll(window);
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 140));
+        });
+
+        expect(screen.getByTestId('delay-cancel-phase')).toHaveTextContent('idle');
+        expect(readMotionOpacity()).toBe(0);
+      } finally {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: originalInnerHeight,
+        });
+      }
     });
   });
 });

@@ -10,7 +10,7 @@ import React, {
 import { CineViewProvider } from '../../context/CineViewContext';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
-import { performanceMonitor } from '../../utils/performanceMonitor';
+import { acquirePerformanceMonitoring, performanceMonitor } from '../../utils/performanceMonitor';
 import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
 import type {
   CineViewErrorCode,
@@ -23,6 +23,7 @@ import type {
 import {
   createScrollbarCss,
   getRelativeOffset,
+  isEditableOrInteractiveScrollKeyTarget,
   isLegacyDisplayNameSceneElement,
   isSceneElement,
   isScrollDebugEnabled,
@@ -72,18 +73,36 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const updateSceneRenderSnapshotsRef = useRef<(nativeOffset: number) => void>(() => undefined);
     const activeSceneIndexRef = useRef(0);
     const scrollDirectionRef = useRef<ScrollInputDirection | null>(null);
-    const childrenArray = useMemo(() => Children.toArray(children), [children]);
-    const scenes = useMemo(
-      () =>
-        childrenArray.filter((child): child is React.ReactElement<SceneAuthoringCompatProps> =>
-          isSceneElement(child)
-        ),
-      [childrenArray]
-    );
-    const hasLegacyDisplayNameScene = useMemo(
-      () => childrenArray.some((child) => isLegacyDisplayNameSceneElement(child)),
-      [childrenArray]
-    );
+    const [childrenArray, scenes, duplicateScrollZones, hasLegacyDisplayNameScene] = useMemo(() => {
+      const owners = new Map<string, number>();
+      const duplicates: Array<readonly [zoneId: string, ownerSceneIndex: number]> = [];
+      const sceneElements: React.ReactElement<SceneAuthoringCompatProps>[] = [];
+      let hasLegacyScene = false;
+      const sanitizedChildren = Children.toArray(children).map((child) => {
+        hasLegacyScene ||=
+          process.env.NODE_ENV === 'development' && isLegacyDisplayNameSceneElement(child);
+        if (!isSceneElement(child)) return child;
+        const currentSceneIndex = sceneElements.length;
+        const scene = child as React.ReactElement<SceneAuthoringCompatProps>;
+        let sanitizedScene = scene;
+        if (scene.props.scroll) {
+          const authoredZoneId = scene.props.scroll.zoneId ?? scene.props.sceneId;
+          if (authoredZoneId !== undefined) {
+            const ownerSceneIndex = owners.get(authoredZoneId);
+            if (ownerSceneIndex === undefined) {
+              owners.set(authoredZoneId, currentSceneIndex);
+            } else {
+              duplicates[currentSceneIndex] = [authoredZoneId, ownerSceneIndex];
+              sanitizedScene = React.cloneElement(scene, { scroll: undefined });
+            }
+          }
+        }
+        sceneElements.push(sanitizedScene);
+        return sanitizedScene;
+      });
+
+      return [sanitizedChildren, sceneElements, duplicates, hasLegacyScene] as const;
+    }, [children]);
     const { viewportSize, viewportSizeRef, getViewportSpan, updateViewportMetrics } =
       useScrollViewport({ rootRef: containerRef, direction });
     const {
@@ -160,6 +179,39 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       },
       [resolvedCallbacks.common]
     );
+    // Mirrors the drag root (CineView.tsx): an empty scroll root is a
+    // recoverable authoring error, not a silent blank page.
+    const totalScenes = scenes.length;
+    useEffect(() => {
+      if (totalScenes === 0) {
+        emitRecoverableError('NO_SCENES', 'CineView requires at least one Scene child.', {
+          mode: 'scroll',
+        });
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(
+            '[CineView] NO_SCENES: the scroll root has no Scene children; nothing will render.'
+          );
+        }
+      }
+    }, [emitRecoverableError, totalScenes]);
+    const reportedDuplicateScrollZonesRef = useRef<typeof duplicateScrollZones>();
+    useEffect(() => {
+      if (reportedDuplicateScrollZonesRef.current === duplicateScrollZones) return;
+      reportedDuplicateScrollZonesRef.current = duplicateScrollZones;
+      duplicateScrollZones.forEach(([zoneId, ownerSceneIndex], rejectedSceneIndex) => {
+        const message = `Duplicate scroll zone id "${zoneId}".`;
+        emitRecoverableError('INVALID_COMPONENT_HIERARCHY', message, {
+          reason: 'duplicate-scroll-zone',
+          zoneId,
+          ownerSceneIndex,
+          rejectedSceneIndex,
+        });
+        if (process.env.NODE_ENV !== 'production') {
+          console.error(`[CineView] INVALID_COMPONENT_HIERARCHY: ${message}`);
+        }
+      });
+    }, [duplicateScrollZones, emitRecoverableError]);
+
     const getPreloadCounts = useCallback(
       () => ({
         loadedCount: preloadCountsRef.current.loadedCount,
@@ -167,7 +219,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       }),
       []
     );
-    const { firstSceneEnterReady } = useFirstSceneEnter({
+    const { firstSceneEnterActive, firstSceneEnterReady } = useFirstSceneEnter({
       enabled: scenes.length > 0,
       hasFirstScene: Boolean(scenes[0]),
       priorityComplete: preloadState.priorityComplete,
@@ -203,6 +255,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       isScrollingStateRef,
       direction,
       sceneSizing: resolvedScrollConfig.sceneSizing,
+      firstSceneEnterActive,
       firstSceneEnterReady,
       exposeTakeoverDebugData,
       scrollOffsetRef,
@@ -217,6 +270,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       applyNativeScrollDelta,
       applyNativeScrollbarOffset,
       goToScrollZone,
+      beginProgrammaticScroll,
     } = useNativeScrollController({
       rootRef: containerRef,
       direction,
@@ -237,15 +291,71 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       zoneRuntimeVersion,
     });
 
+    // S-F4 (DESIGN measurement rule #3): async images/fonts growing a scene
+    // used to leave every sceneStart/segmentStart stale until the next
+    // gesture's first frame re-measured. Observe the scene wrappers; on a size
+    // change outside a gesture, re-measure and programmatically resync
+    // (fromGesture=false). Mid-gesture changes are deferred to gesture end to
+    // keep the "measure once at gesture start" invariant — no per-frame
+    // measurement is added to the scroll hot path. The rAF merge coalesces
+    // bursts and keeps layout reads/writes out of the observer callback
+    // (avoids ResizeObserver loop errors).
+    const pendingContentRemeasureRef = useRef(false);
+    const contentRemeasureFrameRef = useRef<number | null>(null);
+    const runContentRemeasure = useCallback((): void => {
+      pendingContentRemeasureRef.current = false;
+      updateViewportMetrics();
+      measureSceneLayouts();
+      syncNativeScrollState();
+    }, [measureSceneLayouts, syncNativeScrollState, updateViewportMetrics]);
+
+    useEffect(() => {
+      if (typeof ResizeObserver === 'undefined') {
+        return undefined;
+      }
+
+      const observer = new ResizeObserver(() => {
+        if (contentRemeasureFrameRef.current !== null) {
+          return;
+        }
+        contentRemeasureFrameRef.current = window.requestAnimationFrame(() => {
+          contentRemeasureFrameRef.current = null;
+          if (isScrollingStateRef.current) {
+            pendingContentRemeasureRef.current = true;
+            return;
+          }
+          runContentRemeasure();
+        });
+      });
+      sceneWrapperRefs.current.forEach((wrapper) => {
+        if (wrapper) observer.observe(wrapper);
+      });
+
+      return (): void => {
+        if (contentRemeasureFrameRef.current !== null) {
+          window.cancelAnimationFrame(contentRemeasureFrameRef.current);
+          contentRemeasureFrameRef.current = null;
+        }
+        observer.disconnect();
+      };
+    }, [runContentRemeasure, sceneWrapperRefs, scenes]);
+
+    // Gesture-deferred remeasure: the controller flips isScrolling false
+    // ~120ms after the last input frame; flush any resize captured mid-gesture
+    // then.
+    useEffect(() => {
+      if (isScrolling || !pendingContentRemeasureRef.current) {
+        return;
+      }
+      runContentRemeasure();
+    }, [isScrolling, runContentRemeasure]);
+
     useEffect(() => {
       if (!performance?.monitor) {
         return;
       }
 
-      performanceMonitor.start();
-      return (): void => {
-        performanceMonitor.stop();
-      };
+      return acquirePerformanceMonitoring();
     }, [performance?.monitor]);
 
     useEffect(() => {
@@ -261,6 +371,16 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const getRuntimeApi = useCallback(
       (): CineViewRef => ({
         goToScene: (index: number, animated = true): void => {
+          if (index < 0 || index >= scenes.length) {
+            // Mirror the drag side (useSceneManager) instead of a silent no-op.
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn(
+                `[CineView] Invalid scene index: ${index}. Must be between 0 and ${scenes.length - 1}`
+              );
+            }
+            return;
+          }
+
           const root = containerRef.current;
           const wrapper = sceneWrapperRefs.current[index];
           if (!root || !wrapper) {
@@ -268,6 +388,11 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           }
 
           const offset = getRelativeOffset(wrapper, root, direction);
+          // S-F2: goToScene is self-issued navigation — mark it programmatic
+          // so its scroll frames crossing a takeover segment aren't treated as
+          // a user gesture and clamped to the segment boundary (the corrective
+          // auto scrollTo would abort a smooth animation mid-way).
+          beginProgrammaticScroll(offset);
           root.scrollTo({
             top: direction === 'x' ? undefined : offset,
             left: direction === 'x' ? offset : undefined,
@@ -294,11 +419,13 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
         getPerformanceMetrics: (): PerformanceMetrics => performanceMonitor.getMetrics(),
       }),
       [
+        beginProgrammaticScroll,
         direction,
         goToScrollZone,
         measureSceneLayouts,
         preloadActions,
         resolvedTargetPreloadImages,
+        scenes.length,
         sceneWrapperRefs,
         startPreload,
         syncNativeScrollState,
@@ -375,7 +502,22 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
                   tabIndex={0}
                   onScroll={() => syncNativeScrollState(true)}
                   onKeyDownCapture={(event) => {
-                    if (event.defaultPrevented) {
+                    if (
+                      event.defaultPrevented ||
+                      !(event.target instanceof Element) ||
+                      event.target.closest('[data-cineview-container="true"]') !==
+                        event.currentTarget
+                    ) {
+                      return;
+                    }
+
+                    // Focus can legitimately live inside the container (unlike
+                    // the window-level handler, no activeElement === body
+                    // requirement here). Release scroll keys to editable and
+                    // interactive targets — otherwise Space / arrows typed into
+                    // an input/textarea/select/contentEditable get swallowed by
+                    // preventDefault below.
+                    if (isEditableOrInteractiveScrollKeyTarget(event.target, event.key)) {
                       return;
                     }
 

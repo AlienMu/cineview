@@ -1,26 +1,106 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   buildAnimationRegistrySnapshot,
+  freezeAnimationRegistrySnapshot,
+  isWaitForDriverCompatible,
   type AnimateRegistrationInfo,
+  type AnimateTimelineDriver,
   type AnimationRegistryIssue,
   type AnimationRegistrySnapshot,
+  type FrozenAnimationRegistrySnapshot,
 } from '../../animations/registry';
+import type { ParsedAnimationVariant } from '../../types';
 import type { CineViewRuntimeContextValue } from '../CineView/runtimeContext';
 
 interface UseSceneAnimationRegistryParams {
   sceneIndex: number;
   baseDuration: number;
   reportError?: CineViewRuntimeContextValue['reportError'];
+  onStableSnapshot?: (
+    snapshot: FrozenAnimationRegistrySnapshot,
+    revision: number,
+    enterVariantsByAnimateId: ReadonlyMap<string, ParsedAnimationVariant>
+  ) => void;
+}
+
+export interface ScenePreparationLease {
+  /** Publish synchronously when this generation parsed and registered successfully. */
+  complete: () => void;
+  /** Release a superseded/unmounted generation without publishing a transient snapshot. */
+  cancel: () => void;
+}
+
+export type WaitForInvalidReason =
+  | 'missing'
+  | 'cycle'
+  | 'duplicate'
+  | 'leader-unregistered'
+  | 'incompatible-driver';
+
+export type WaitForOutcome =
+  | { kind: 'pending'; leaderId: string; generation?: number }
+  | {
+      kind: 'satisfied';
+      source: 'none' | 'completed';
+      leaderId?: string;
+      generation?: number;
+    }
+  | { kind: 'invalid'; leaderId: string; reason: WaitForInvalidReason };
+
+export interface SceneAnimationRegistrationLease {
+  readonly animateId: string;
+  readonly generation: number;
+  getCalculatedDelay: () => number;
+  setEnterVariant?: (variant: ParsedAnimationVariant) => void;
+  observeWaitFor: (listener: (outcome: WaitForOutcome) => void) => () => void;
+  publishEnterCompleted: () => void;
+  dispose: () => void;
+}
+
+export interface SceneAnimationDriverDeclarationLease {
+  dispose: () => void;
 }
 
 export interface SceneAnimationRegistryPort {
   timelineDuration: number;
-  registerAnimate: (id: string, info: AnimateRegistrationInfo) => void;
+  isStable: boolean;
+  beginPreparation: () => ScenePreparationLease;
+  registerAnimate: (id: string, info: AnimateRegistrationInfo) => SceneAnimationRegistrationLease;
+  /** Declare a non-scene driver for dependency diagnostics without extending T_self. */
+  declareAnimateDriver: (
+    id: string,
+    driver: AnimateTimelineDriver
+  ) => SceneAnimationDriverDeclarationLease;
+  /** Legacy registration adapter for callers not yet migrated to lease.dispose(). */
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (animateId: string) => number;
-  markAnimateEntered: (id: string, entered: boolean) => void;
-  subscribeAnimateEntered: (leaderId: string, cb: () => void) => () => void;
   getTimelineDuration: () => number;
+}
+
+interface RegistrationRecord {
+  token: symbol;
+  id: string;
+  generation: number;
+  info: AnimateRegistrationInfo;
+  enterVariant: ParsedAnimationVariant | null;
+  enterCompleted: boolean;
+  disposed: boolean;
+}
+
+interface DriverDeclarationRecord {
+  token: symbol;
+  id: string;
+  driver: AnimateTimelineDriver;
+  disposed: boolean;
+}
+
+interface WaitForSubscription {
+  follower: RegistrationRecord;
+  listener: (outcome: WaitForOutcome) => void;
+  leaderId: string;
+  sawLeader: boolean;
+  lastSignature: string | null;
+  terminal: boolean;
 }
 
 function getIssueKey(issue: AnimationRegistryIssue): string {
@@ -31,15 +111,71 @@ function getIssueKey(issue: AnimationRegistryIssue): string {
       return `${issue.type}:${issue.animateId}:${issue.cycle.join('>')}`;
     case 'duplicate-id':
       return `${issue.type}:${issue.animateId}`;
+    case 'incompatible-driver':
+      return `${issue.type}:${issue.animateId}:${issue.waitFor}:${issue.followerDriver}:${issue.leaderDriver}`;
   }
+}
+
+function outcomeSignature(outcome: WaitForOutcome): string {
+  if (outcome.kind === 'invalid') {
+    return `${outcome.kind}:${outcome.leaderId}:${outcome.reason}`;
+  }
+  return `${outcome.kind}:${outcome.leaderId ?? ''}:${outcome.generation ?? ''}:${outcome.kind === 'satisfied' ? outcome.source : ''}`;
+}
+
+function getLatestRecord(records: Map<symbol, RegistrationRecord>): RegistrationRecord | undefined {
+  let latest: RegistrationRecord | undefined;
+  records.forEach((record) => {
+    latest = record;
+  });
+  return latest;
+}
+
+function mapsEqual<K, V>(
+  left: ReadonlyMap<K, V>,
+  right: ReadonlyMap<K, V>,
+  valuesEqual: (leftValue: V, rightValue: V) => boolean = Object.is
+): boolean {
+  if (left.size !== right.size) return false;
+  for (const [key, leftValue] of left) {
+    const rightValue = right.get(key);
+    if (rightValue === undefined || !valuesEqual(leftValue, rightValue)) return false;
+  }
+  return true;
+}
+
+function registrySnapshotsEqual(
+  left: AnimationRegistrySnapshot,
+  right: AnimationRegistrySnapshot
+): boolean {
+  return (
+    left.timelineDuration === right.timelineDuration &&
+    mapsEqual(left.registrations, right.registrations, (leftInfo, rightInfo) =>
+      Boolean(
+        leftInfo.delay === rightInfo.delay &&
+        leftInfo.duration === rightInfo.duration &&
+        leftInfo.waitFor === rightInfo.waitFor &&
+        leftInfo.driver === rightInfo.driver
+      )
+    ) &&
+    mapsEqual(left.calculatedDelays, right.calculatedDelays) &&
+    left.issues.length === right.issues.length &&
+    left.issues.every((issue, index) => getIssueKey(issue) === getIssueKey(right.issues[index]))
+  );
 }
 
 export function useSceneAnimationRegistry({
   sceneIndex,
   baseDuration,
   reportError,
+  onStableSnapshot,
 }: UseSceneAnimationRegistryParams): SceneAnimationRegistryPort {
+  const ownersByIdRef = useRef<Map<string, Map<symbol, RegistrationRecord>>>(new Map());
+  const driverDeclarationsByIdRef = useRef<Map<string, Map<symbol, DriverDeclarationRecord>>>(
+    new Map()
+  );
   const registrationsRef = useRef<Map<string, AnimateRegistrationInfo>>(new Map());
+  const declaredDriversRef = useRef<Map<string, AnimateTimelineDriver>>(new Map());
   const duplicateIdsRef = useRef<Set<string>>(new Set());
   const snapshotRef = useRef<AnimationRegistrySnapshot>(
     buildAnimationRegistrySnapshot({
@@ -49,12 +185,24 @@ export function useSceneAnimationRegistry({
   );
   const reportedIssuesRef = useRef<Set<string>>(new Set());
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const enteredIdsRef = useRef<Set<string>>(new Set());
-  const enteredSubscriptionsRef = useRef<Map<string, Set<() => void>>>(new Map());
+  const subscriptionsByLeaderRef = useRef<Map<string, Set<WaitForSubscription>>>(new Map());
+  const generationRef = useRef(0);
+  const preparationCountRef = useRef(0);
+  const stableRevisionRef = useRef(0);
+  const lastPublishedSnapshotRef = useRef<AnimationRegistrySnapshot | null>(null);
+  const lastPublishedVariantsRef = useRef<ReadonlyMap<string, ParsedAnimationVariant> | null>(null);
+  const mountedRef = useRef(true);
   const reportErrorRef = useRef(reportError);
   reportErrorRef.current = reportError;
+  const onStableSnapshotRef = useRef(onStableSnapshot);
+  onStableSnapshotRef.current = onStableSnapshot;
   const timelineDurationRef = useRef(baseDuration);
   const [timelineDuration, setTimelineDuration] = useState(baseDuration);
+  const [isStable, setIsStable] = useState(false);
+
+  const markUnstable = useCallback((): void => {
+    if (mountedRef.current) setIsStable(false);
+  }, []);
 
   const reportIssues = useCallback(
     (issues: AnimationRegistryIssue[]): void => {
@@ -75,6 +223,7 @@ export function useSceneAnimationRegistry({
           devWarning =
             `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
             `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor.\n` +
+            `Fallback: The invalid dependency is ignored so the animation can continue.\n` +
             `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`;
         } else if (issue.type === 'circular-dependency') {
           code = 'CIRCULAR_DEPENDENCY';
@@ -82,14 +231,27 @@ export function useSceneAnimationRegistry({
           devWarning =
             `[CineView Warning] Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
             `Problem: Animate waitFor chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
+            `Fallback: The invalid dependency is ignored so the animations can continue.\n` +
             `Fix: Remove the circular waitFor reference so each Animate starts after an earlier independent animation.\n`;
-        } else {
+        } else if (issue.type === 'duplicate-id') {
           code = 'INVALID_COMPONENT_HIERARCHY';
           message = `More than one Animate component registered animateId "${issue.animateId}" in Scene ${sceneIndex}.`;
           devWarning =
             `[CineView Warning] Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
             `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
+            `Fallback: Dependents ignore the ambiguous dependency and continue.\n` +
             `Fix: Give each Animate component in a Scene a unique animateId.\n`;
+        } else {
+          code = 'INVALID_ANIMATION';
+          message =
+            `Animate "${issue.animateId}" uses ${issue.followerDriver} waitFor "${issue.waitFor}" ` +
+            `driven by ${issue.leaderDriver} in Scene ${sceneIndex}; this dependency direction is incompatible.`;
+          devWarning =
+            `[CineView Warning] Incompatible animation dependency in Scene ${sceneIndex}.\n\n` +
+            `Problem: ${issue.followerDriver} Animate "${issue.animateId}" cannot waitFor ` +
+            `${issue.leaderDriver} Animate "${issue.waitFor}".\n` +
+            `Fallback: The incompatible dependency is ignored so the animation can continue.\n` +
+            `Fix: Keep both animations on one compatible driver or remove the waitFor edge.\n`;
         }
 
         reportErrorRef.current?.({ code, message, context: { sceneIndex } });
@@ -99,50 +261,273 @@ export function useSceneAnimationRegistry({
     [sceneIndex]
   );
 
-  const scheduleValidation = useCallback((): void => {
-    if (validationTimerRef.current !== null) {
-      clearTimeout(validationTimerRef.current);
-    }
+  const syncSelectedRegistrations = useCallback((): void => {
+    registrationsRef.current.clear();
+    declaredDriversRef.current.clear();
+    duplicateIdsRef.current.clear();
 
-    validationTimerRef.current = setTimeout(() => {
-      validationTimerRef.current = null;
-      const snapshot = buildAnimationRegistrySnapshot({
-        baseDuration,
-        registrations: registrationsRef.current,
-        duplicateIds: duplicateIdsRef.current,
+    ownersByIdRef.current.forEach((owners, id) => {
+      const latest = getLatestRecord(owners);
+      if (latest) registrationsRef.current.set(id, latest.info);
+      if (owners.size > 1) duplicateIdsRef.current.add(id);
+    });
+
+    driverDeclarationsByIdRef.current.forEach((declarations, id) => {
+      let latest: DriverDeclarationRecord | undefined;
+      declarations.forEach((declaration) => {
+        if (!declaration.disposed) latest = declaration;
       });
-      snapshotRef.current = snapshot;
-      reportIssues(snapshot.issues);
-    }, 0);
-  }, [baseDuration, reportIssues]);
+      if (latest) declaredDriversRef.current.set(id, latest.driver);
+    });
+  }, []);
 
   const rebuildSnapshot = useCallback((): AnimationRegistrySnapshot => {
+    syncSelectedRegistrations();
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration,
       registrations: registrationsRef.current,
+      declaredDrivers: declaredDriversRef.current,
       duplicateIds: duplicateIdsRef.current,
     });
     snapshotRef.current = snapshot;
     timelineDurationRef.current = snapshot.timelineDuration;
-    setTimelineDuration((previous) =>
-      previous === snapshot.timelineDuration ? previous : snapshot.timelineDuration
-    );
-    scheduleValidation();
+    if (mountedRef.current) {
+      setTimelineDuration((previous) =>
+        previous === snapshot.timelineDuration ? previous : snapshot.timelineDuration
+      );
+    }
     return snapshot;
-  }, [baseDuration, scheduleValidation]);
+  }, [baseDuration, syncSelectedRegistrations]);
+
+  const hasCycleForFollower = useCallback((followerId: string): boolean => {
+    return snapshotRef.current.issues.some(
+      (issue) => issue.type === 'circular-dependency' && issue.cycle.includes(followerId)
+    );
+  }, []);
+
+  const evaluateSubscription = useCallback(
+    (subscription: WaitForSubscription, stable: boolean): WaitForOutcome => {
+      const { follower, leaderId } = subscription;
+      const leaderOwners = ownersByIdRef.current.get(leaderId);
+      const declaredLeaderDriver = declaredDriversRef.current.get(leaderId);
+
+      if (!leaderOwners || leaderOwners.size === 0) {
+        if (
+          stable &&
+          declaredLeaderDriver !== undefined &&
+          follower.info.driver !== undefined &&
+          !isWaitForDriverCompatible(follower.info.driver, declaredLeaderDriver)
+        ) {
+          subscription.sawLeader = true;
+          return { kind: 'invalid', leaderId, reason: 'incompatible-driver' };
+        }
+        return stable
+          ? {
+              kind: 'invalid',
+              leaderId,
+              reason: subscription.sawLeader ? 'leader-unregistered' : 'missing',
+            }
+          : { kind: 'pending', leaderId };
+      }
+
+      subscription.sawLeader = true;
+      const leader = getLatestRecord(leaderOwners)!;
+
+      if (stable && hasCycleForFollower(follower.id)) {
+        return { kind: 'invalid', leaderId, reason: 'cycle' };
+      }
+      if (stable && leaderOwners.size > 1) {
+        return { kind: 'invalid', leaderId, reason: 'duplicate' };
+      }
+      if (
+        stable &&
+        follower.info.driver !== undefined &&
+        leader.info.driver !== undefined &&
+        !isWaitForDriverCompatible(follower.info.driver, leader.info.driver)
+      ) {
+        return { kind: 'invalid', leaderId, reason: 'incompatible-driver' };
+      }
+      if (leader.enterCompleted) {
+        return {
+          kind: 'satisfied',
+          source: 'completed',
+          leaderId,
+          generation: leader.generation,
+        };
+      }
+      return { kind: 'pending', leaderId, generation: leader.generation };
+    },
+    [hasCycleForFollower]
+  );
+
+  const emitOutcome = useCallback(
+    (subscription: WaitForSubscription, outcome: WaitForOutcome): void => {
+      if (subscription.terminal) return;
+      const signature = outcomeSignature(outcome);
+      if (subscription.lastSignature === signature) return;
+      subscription.lastSignature = signature;
+      subscription.listener(outcome);
+      if (outcome.kind !== 'pending') subscription.terminal = true;
+    },
+    []
+  );
+
+  const reconcileSubscriptions = useCallback(
+    (stable: boolean): void => {
+      subscriptionsByLeaderRef.current.forEach((subscriptions) => {
+        [...subscriptions].forEach((subscription) => {
+          if (subscription.follower.disposed || subscription.terminal) {
+            subscriptions.delete(subscription);
+            return;
+          }
+          emitOutcome(subscription, evaluateSubscription(subscription, stable));
+          if (subscription.terminal) subscriptions.delete(subscription);
+        });
+      });
+      subscriptionsByLeaderRef.current.forEach((subscriptions, leaderId) => {
+        if (subscriptions.size === 0) subscriptionsByLeaderRef.current.delete(leaderId);
+      });
+    },
+    [emitOutcome, evaluateSubscription]
+  );
+
+  const publishStableSnapshot = useCallback((snapshot: AnimationRegistrySnapshot): void => {
+    if (preparationCountRef.current !== 0 || !mountedRef.current) return;
+
+    const enterVariantsByAnimateId = new Map<string, ParsedAnimationVariant>();
+    ownersByIdRef.current.forEach((owners, animateId) => {
+      const current = getLatestRecord(owners);
+      if (current?.enterVariant) {
+        enterVariantsByAnimateId.set(animateId, current.enterVariant);
+      }
+    });
+
+    const previousSnapshot = lastPublishedSnapshotRef.current;
+    const previousVariants = lastPublishedVariantsRef.current;
+    const unchanged =
+      previousSnapshot !== null &&
+      previousVariants !== null &&
+      registrySnapshotsEqual(previousSnapshot, snapshot) &&
+      mapsEqual(previousVariants, enterVariantsByAnimateId);
+
+    setIsStable(true);
+    if (unchanged) return;
+
+    stableRevisionRef.current += 1;
+    lastPublishedSnapshotRef.current = snapshot;
+    lastPublishedVariantsRef.current = new Map(enterVariantsByAnimateId);
+    onStableSnapshotRef.current?.(
+      freezeAnimationRegistrySnapshot(snapshot),
+      stableRevisionRef.current,
+      enterVariantsByAnimateId
+    );
+  }, []);
+
+  const flushStableValidation = useCallback((): void => {
+    if (preparationCountRef.current !== 0 || !mountedRef.current) return;
+    if (validationTimerRef.current !== null) {
+      clearTimeout(validationTimerRef.current);
+      validationTimerRef.current = null;
+    }
+
+    const snapshot = rebuildSnapshot();
+    reportIssues(snapshot.issues);
+    reconcileSubscriptions(true);
+    publishStableSnapshot(snapshot);
+  }, [publishStableSnapshot, rebuildSnapshot, reconcileSubscriptions, reportIssues]);
+
+  const scheduleValidation = useCallback((): void => {
+    markUnstable();
+    if (validationTimerRef.current !== null) clearTimeout(validationTimerRef.current);
+    validationTimerRef.current = setTimeout(() => {
+      validationTimerRef.current = null;
+      flushStableValidation();
+    }, 0);
+  }, [flushStableValidation, markUnstable]);
+
+  const beginPreparation = useCallback((): ScenePreparationLease => {
+    preparationCountRef.current += 1;
+    markUnstable();
+    let released = false;
+
+    const release = (): boolean => {
+      if (released) return false;
+      released = true;
+      preparationCountRef.current = Math.max(0, preparationCountRef.current - 1);
+      return preparationCountRef.current === 0;
+    };
+
+    return {
+      complete: (): void => {
+        if (!release()) return;
+        // All CURRENT parsed Animate generations in this Scene have registered
+        // their variants. Publish synchronously before the next pointer event can
+        // acquire drag ownership; a timer-only publish leaves a one-task window
+        // where release has no transaction to consume.
+        flushStableValidation();
+      },
+      cancel: (): void => {
+        if (!release()) return;
+        // StrictMode tears down the first effect generation before immediately
+        // starting its replacement. Publishing synchronously here would expose a
+        // transient empty T=0 snapshot, consume scene 0's cold-start one-shot, and
+        // leave the real generation at its terminal frame. Defer reconciliation:
+        // a replacement preparation blocks the timer, while a genuine unmount is
+        // still validated after all registration cleanup in this task completes.
+        scheduleValidation();
+      },
+    };
+  }, [flushStableValidation, markUnstable, scheduleValidation]);
+
+  const removeFollowerSubscriptions = useCallback((record: RegistrationRecord): void => {
+    subscriptionsByLeaderRef.current.forEach((subscriptions, leaderId) => {
+      subscriptions.forEach((subscription) => {
+        if (subscription.follower.token === record.token) subscriptions.delete(subscription);
+      });
+      if (subscriptions.size === 0) subscriptionsByLeaderRef.current.delete(leaderId);
+    });
+  }, []);
+
+  const disposeRecord = useCallback(
+    (record: RegistrationRecord): void => {
+      if (record.disposed) return;
+      record.disposed = true;
+      removeFollowerSubscriptions(record);
+      const owners = ownersByIdRef.current.get(record.id);
+      owners?.delete(record.token);
+      if (owners?.size === 0) ownersByIdRef.current.delete(record.id);
+      rebuildSnapshot();
+      scheduleValidation();
+    },
+    [rebuildSnapshot, removeFollowerSubscriptions, scheduleValidation]
+  );
 
   const registerAnimate = useCallback(
-    (id: string, info: AnimateRegistrationInfo): void => {
-      if (registrationsRef.current.has(id)) duplicateIdsRef.current.add(id);
-      registrationsRef.current.set(id, info);
+    (id: string, info: AnimateRegistrationInfo): SceneAnimationRegistrationLease => {
+      const record: RegistrationRecord = {
+        token: Symbol(id),
+        id,
+        generation: ++generationRef.current,
+        info,
+        enterVariant: null,
+        enterCompleted: false,
+        disposed: false,
+      };
+      let owners = ownersByIdRef.current.get(id);
+      if (!owners) {
+        owners = new Map();
+        ownersByIdRef.current.set(id, owners);
+      }
+      owners.set(record.token, record);
+      rebuildSnapshot();
+      scheduleValidation();
 
-      const snapshot = rebuildSnapshot();
-      const calculatedDelay = snapshot.calculatedDelays.get(id) ?? info.delay;
       if (
         process.env.NODE_ENV === 'development' &&
         typeof window !== 'undefined' &&
         (window as Window & { __CINEVIEW_DRAG_DEBUG__?: boolean }).__CINEVIEW_DRAG_DEBUG__
       ) {
+        const calculatedDelay = snapshotRef.current.calculatedDelays.get(id) ?? info.delay;
         console.log(
           `[Scene ${sceneIndex}] Registered ${id}: delay=${info.delay}ms, calculated=${calculatedDelay}ms, duration=${info.duration}ms`
         );
@@ -155,17 +540,115 @@ export function useSceneAnimationRegistry({
             `Recommendation: Consider reducing the number of animated elements or splitting into multiple scenes.`
         );
       }
+
+      return {
+        animateId: id,
+        generation: record.generation,
+        getCalculatedDelay: (): number =>
+          snapshotRef.current.calculatedDelays.get(id) ?? record.info.delay,
+        setEnterVariant: (variant): void => {
+          if (record.disposed) return;
+          const currentOwners = ownersByIdRef.current.get(id);
+          if (!currentOwners?.has(record.token)) return;
+          record.enterVariant = variant;
+          scheduleValidation();
+        },
+        observeWaitFor: (listener): (() => void) => {
+          if (!record.info.waitFor) {
+            listener({ kind: 'satisfied', source: 'none' });
+            return () => undefined;
+          }
+          const subscription: WaitForSubscription = {
+            follower: record,
+            listener,
+            leaderId: record.info.waitFor,
+            sawLeader: false,
+            lastSignature: null,
+            terminal: false,
+          };
+          let subscriptions = subscriptionsByLeaderRef.current.get(subscription.leaderId);
+          if (!subscriptions) {
+            subscriptions = new Set();
+            subscriptionsByLeaderRef.current.set(subscription.leaderId, subscriptions);
+          }
+          subscriptions.add(subscription);
+          // Registration changes reconcile at the end of the current task so a
+          // follower mounted before its leader does not observe a phantom missing
+          // edge. Once that stable pass has completed, a late gate observer must
+          // consume the current terminal result immediately; otherwise a missing or
+          // cyclic dependency can remain pending forever with no future mutation to
+          // trigger another reconcile.
+          const registryIsStable =
+            preparationCountRef.current === 0 && validationTimerRef.current === null;
+          emitOutcome(subscription, evaluateSubscription(subscription, registryIsStable));
+          return () => {
+            subscription.terminal = true;
+            subscriptions?.delete(subscription);
+            if (subscriptions?.size === 0) {
+              subscriptionsByLeaderRef.current.delete(subscription.leaderId);
+            }
+          };
+        },
+        publishEnterCompleted: (): void => {
+          if (record.disposed || record.enterCompleted) return;
+          const currentOwners = ownersByIdRef.current.get(id);
+          if (!currentOwners?.has(record.token)) return;
+          record.enterCompleted = true;
+          reconcileSubscriptions(false);
+        },
+        dispose: (): void => disposeRecord(record),
+      };
     },
-    [rebuildSnapshot, sceneIndex]
+    [
+      disposeRecord,
+      emitOutcome,
+      evaluateSubscription,
+      rebuildSnapshot,
+      reconcileSubscriptions,
+      sceneIndex,
+      scheduleValidation,
+    ]
+  );
+
+  const declareAnimateDriver = useCallback(
+    (id: string, driver: AnimateTimelineDriver): SceneAnimationDriverDeclarationLease => {
+      const record: DriverDeclarationRecord = {
+        token: Symbol(id),
+        id,
+        driver,
+        disposed: false,
+      };
+      let declarations = driverDeclarationsByIdRef.current.get(id);
+      if (!declarations) {
+        declarations = new Map();
+        driverDeclarationsByIdRef.current.set(id, declarations);
+      }
+      declarations.set(record.token, record);
+      rebuildSnapshot();
+      scheduleValidation();
+
+      return {
+        dispose: (): void => {
+          if (record.disposed) return;
+          record.disposed = true;
+          const current = driverDeclarationsByIdRef.current.get(id);
+          current?.delete(record.token);
+          if (current?.size === 0) driverDeclarationsByIdRef.current.delete(id);
+          rebuildSnapshot();
+          scheduleValidation();
+        },
+      };
+    },
+    [rebuildSnapshot, scheduleValidation]
   );
 
   const unregisterAnimate = useCallback(
     (id: string): void => {
-      registrationsRef.current.delete(id);
-      duplicateIdsRef.current.delete(id);
-      rebuildSnapshot();
+      const owners = ownersByIdRef.current.get(id);
+      const latest = owners ? getLatestRecord(owners) : undefined;
+      if (latest) disposeRecord(latest);
     },
-    [rebuildSnapshot]
+    [disposeRecord]
   );
 
   const getCalculatedDelay = useCallback((animateId: string): number => {
@@ -176,66 +659,47 @@ export function useSceneAnimationRegistry({
     );
   }, []);
 
-  const markAnimateEntered = useCallback((id: string, entered: boolean): void => {
-    if (!entered) {
-      enteredIdsRef.current.delete(id);
-      return;
-    }
-
-    enteredIdsRef.current.add(id);
-    const subscriptions = enteredSubscriptionsRef.current.get(id);
-    if (!subscriptions) return;
-    enteredSubscriptionsRef.current.delete(id);
-    subscriptions.forEach((callback) => callback());
-  }, []);
-
-  const subscribeAnimateEntered = useCallback(
-    (leaderId: string, callback: () => void): (() => void) => {
-      if (enteredIdsRef.current.has(leaderId)) {
-        callback();
-        return () => undefined;
-      }
-
-      let subscriptions = enteredSubscriptionsRef.current.get(leaderId);
-      if (!subscriptions) {
-        subscriptions = new Set();
-        enteredSubscriptionsRef.current.set(leaderId, subscriptions);
-      }
-      subscriptions.add(callback);
-      return () => subscriptions?.delete(callback);
-    },
-    []
-  );
-
   const getTimelineDuration = useCallback((): number => timelineDurationRef.current, []);
 
   useEffect(() => {
+    scheduleValidation();
+  }, [baseDuration, scheduleValidation]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const ownersById = ownersByIdRef.current;
+    const driverDeclarationsById = driverDeclarationsByIdRef.current;
     const registrations = registrationsRef.current;
+    const declaredDrivers = declaredDriversRef.current;
     const duplicateIds = duplicateIdsRef.current;
     const reportedIssues = reportedIssuesRef.current;
-    const enteredIds = enteredIdsRef.current;
-    const enteredSubscriptions = enteredSubscriptionsRef.current;
+    const subscriptionsByLeader = subscriptionsByLeaderRef.current;
 
     return (): void => {
+      mountedRef.current = false;
       if (validationTimerRef.current !== null) {
         clearTimeout(validationTimerRef.current);
         validationTimerRef.current = null;
       }
+      preparationCountRef.current = 0;
+      ownersById.clear();
+      driverDeclarationsById.clear();
       registrations.clear();
+      declaredDrivers.clear();
       duplicateIds.clear();
       reportedIssues.clear();
-      enteredIds.clear();
-      enteredSubscriptions.clear();
+      subscriptionsByLeader.clear();
     };
   }, []);
 
   return {
     timelineDuration,
+    isStable,
+    beginPreparation,
     registerAnimate,
+    declareAnimateDriver,
     unregisterAnimate,
     getCalculatedDelay,
-    markAnimateEntered,
-    subscribeAnimateEntered,
     getTimelineDuration,
   };
 }

@@ -213,20 +213,20 @@ describe('useElementTrack programmatic "enter" directive (ref nav)', () => {
   });
 });
 
-describe('useElementTrack follow-finger absolute dragTimeScale', () => {
+describe('useElementTrack follow-finger time mapping scale', () => {
   beforeEach(() => {
     animateCalls.length = 0;
   });
 
   // The follow-finger write maps drag percent to an ABSOLUTE ms rate
-  // (dragTimeScale ms per 1%), NOT to r * T_self. This decouples the shared clock
+  // (`unit: time` scale in ms per 1%), NOT to r * T_self. This decouples the shared clock
   // from the scene's own timeline so short elements no longer race to terminal
   // just because the drag fraction is large. The write is synchronous (motion.set),
   // so assert on motion.get() directly.
   function dragTo(
     motion: { get: () => number; set: (n: number) => void },
     r: number,
-    opts: { dragTimeScale?: number; tSelf: number }
+    opts: { mappingScale?: number; tSelf: number }
   ): void {
     renderHook(() =>
       useElementTrack({
@@ -243,7 +243,7 @@ describe('useElementTrack follow-finger absolute dragTimeScale', () => {
         elementElapsedMotion: motion as never,
         getTimelineDuration: () => opts.tSelf,
         timelineDurationState: opts.tSelf,
-        dragTimeScale: opts.dragTimeScale,
+        dragMappingConfig: { unit: 'time', scale: opts.mappingScale ?? 10 },
         onSettleComplete: undefined,
         onColdStartComplete: undefined,
       })
@@ -251,37 +251,37 @@ describe('useElementTrack follow-finger absolute dragTimeScale', () => {
   }
 
   it('maps drag percent by the absolute scale, NOT by r * T_self', () => {
-    // dragTimeScale 100 ms/1% -> full span 10_000ms. At r=0.5 the elapsed is
-    // 0.5 * 10_000 = 5000ms, clamped to T_self. With a LONG T_self (20_000) the
-    // clamp does not bite: elapsed = 5000, NOT r*T_self (which would be 10_000).
+    // `unit: time, scale: 100` means 100ms/1%, or a 10_000ms full span. At r=0.5
+    // the elapsed is 5000ms. With a long T_self (20_000) the clamp does not bite:
+    // elapsed stays 5000, NOT r*T_self (which would be 10_000).
     const motion = createMotionValueStub(0);
-    dragTo(motion, 0.5, { dragTimeScale: 100, tSelf: 20_000 });
+    dragTo(motion, 0.5, { mappingScale: 100, tSelf: 20_000 });
     expect(motion.get()).toBeCloseTo(5000);
   });
 
-  it('defaults to 100 ms per 1% when dragTimeScale is omitted', () => {
+  it('defaults to the shared time mapping scale (10ms per 1%) when scale is omitted', () => {
+    // Regression: the fallback must match DEFAULT_DRAG_TIMELINE_SCALE.time (10),
+    // not a divergent local default.
     const motion = createMotionValueStub(0);
     dragTo(motion, 0.25, { tSelf: 20_000 });
-    // 0.25 * (100 * 100) = 2500.
-    expect(motion.get()).toBeCloseTo(2500);
+    // 0.25 * (10 * 100) = 250.
+    expect(motion.get()).toBeCloseTo(250);
   });
 
   it('clamps the elapsed to T_self so the track never reports past terminal', () => {
-    // Short scene (T_self 2000) with the default scale: r=0.5 would be 5000ms,
+    // Short scene (T_self 2000) with a 100ms/1% scale: r=0.5 would be 5000ms,
     // but the clamp pins it to T_self 2000 (element already fully settled — the
     // accepted early-settle behaviour).
     const motion = createMotionValueStub(0);
-    dragTo(motion, 0.5, { tSelf: 2000 });
+    dragTo(motion, 0.5, { mappingScale: 100, tSelf: 2000 });
     expect(motion.get()).toBe(2000);
   });
 
   it('a lower scale keeps a long animation from fully playing out mid-drag', () => {
-    // dragTimeScale 10 ms/1% -> full span 1000ms. Even dragged fully (r=1) the
-    // elapsed is only 1000ms, far below a 5000ms T_self — the drag cannot finish
-    // the animation, settle continues the rest. This is the user's "long
-    // animation, low scale, not fully played out" case.
+    // A 10ms/1% scale has a 1000ms full span. Even dragged fully (r=1), elapsed
+    // remains far below a 5000ms T_self, so settle continues the remainder.
     const motion = createMotionValueStub(0);
-    dragTo(motion, 1, { dragTimeScale: 10, tSelf: 5000 });
+    dragTo(motion, 1, { mappingScale: 10, tSelf: 5000 });
     expect(motion.get()).toBeCloseTo(1000);
   });
 });

@@ -4,6 +4,7 @@
  */
 
 import { parseAnimation } from './animationParser';
+import { isPresetLoadError } from './presets';
 import { devError } from '../utils/devLog';
 import type { ComposedAnimation, CustomAnimation, ParsedAnimationVariant } from '../types';
 import type { Variant } from 'framer-motion';
@@ -30,7 +31,7 @@ export const validateComposedAnimation = (animation: ComposedAnimation): boolean
 };
 
 /**
- * 合并多个 Variant 对象
+ * 合并多个 Variant 对象（用于 initial / exit：不携带时间编排的静态帧）
  */
 const mergeVariants = (variants: Variant[]): Variant => {
   const merged: Variant = {};
@@ -42,6 +43,67 @@ const mergeVariants = (variants: Variant[]): Variant => {
   return merged;
 };
 
+// 顺序编排中,子动画若未声明 transition.duration,按此时长(秒)累计下一步的起始
+// delay。framer-motion 的隐式时长由弹簧/默认 tween 决定,编排期无法读出,故取 1s
+// 作为文档化假设;显式声明的 duration(含 0)一律用真实值。
+const DEFAULT_SEQUENTIAL_STEP_DURATION_S = 1;
+
+/** 解析后带原始下标的子动画:delays[] 必须按作者书写位置对应,与无效项被跳过无关。 */
+interface IndexedParsedAnimation {
+  variant: ParsedAnimationVariant;
+  sourceIndex: number;
+}
+
+/** 一个编排步骤:animate 的值(不含 transition 键)+ 该步骤自己的 transition。 */
+interface TimedVariantStep {
+  values: Record<string, unknown>;
+  transition: Record<string, unknown>;
+}
+
+const parseIndexedAnimations = async (
+  animations: Array<string | CustomAnimation>
+): Promise<IndexedParsedAnimation[]> => {
+  const parsedAnimations: IndexedParsedAnimation[] = [];
+
+  for (let i = 0; i < animations.length; i++) {
+    const parsed = await parseAnimation(animations[i]);
+    if (parsed) {
+      parsedAnimations.push({ variant: parsed, sourceIndex: i });
+    }
+  }
+
+  return parsedAnimations;
+};
+
+/** 拆出 animate 的值与 transition(值里不保留 transition 键)。 */
+const splitAnimateVariant = (variant: ParsedAnimationVariant): TimedVariantStep => {
+  const { transition, ...values } = variant.animate as Record<string, unknown>;
+  return { values, transition: (transition as Record<string, unknown>) || {} };
+};
+
+/**
+ * 把多个步骤合并成单个 animate variant,transition 采用 framer-motion 的
+ * per-value 形式(`transition: { opacity: {...}, y: {...} }`),让每个属性携带
+ * 自己所属子动画的 delay/duration。普通 Object.assign 合并会让 `transition`
+ * 作为普通键 last-wins → 除最后一项外逐步累计的 delay 全部丢失,编排失效。
+ * 同名属性 last-wins,其 transition 也随之取最后写入者,与值语义一致。
+ * (drag/scroll scrub 路径按值 lerp、忽略 transition;本形状服务时间驱动路径。)
+ */
+const mergeTimedVariants = (steps: TimedVariantStep[]): Record<string, unknown> => {
+  const merged: Record<string, unknown> = {};
+  const perValueTransition: Record<string, unknown> = {};
+
+  steps.forEach(({ values, transition }) => {
+    Object.entries(values).forEach(([key, value]) => {
+      merged[key] = value;
+      perValueTransition[key] = transition;
+    });
+  });
+
+  merged.transition = perValueTransition;
+  return merged;
+};
+
 /**
  * 处理顺序执行的组合动画
  */
@@ -49,56 +111,38 @@ const composeSequentialAnimation = async (
   animations: Array<string | CustomAnimation>,
   delays: number[] = []
 ): Promise<ParsedAnimationVariant> => {
-  const parsedAnimations: ParsedAnimationVariant[] = [];
-  let totalDelay = 0;
-
-  // 解析所有动画
-  for (let i = 0; i < animations.length; i++) {
-    const animation = animations[i];
-    const parsed = await parseAnimation(animation);
-
-    if (parsed) {
-      parsedAnimations.push(parsed);
-    }
-  }
+  const parsedAnimations = await parseIndexedAnimations(animations);
 
   if (parsedAnimations.length === 0) {
     throw new Error('No valid animations in sequential composition');
   }
 
   // 构建顺序动画
-  const initial = parsedAnimations[0].initial;
-  const exit = parsedAnimations[parsedAnimations.length - 1].exit;
+  const initial = parsedAnimations[0].variant.initial;
+  const exit = parsedAnimations[parsedAnimations.length - 1].variant.exit;
 
-  // 创建动画序列
-  const animateVariants: Variant[] = [];
-
-  parsedAnimations.forEach((anim, index) => {
-    const customDelay = delays[index] || 0;
-    const animateObj = anim.animate as Record<string, unknown>;
-    const transition = (animateObj.transition as Record<string, unknown>) || {};
-
-    const variant = {
-      ...animateObj,
-      transition: {
-        ...transition,
-        delay: totalDelay + customDelay / 1000,
-      },
+  // 创建动画序列:每步的 delay = 前序步骤(duration + customDelay)之和 + 本步 customDelay
+  let totalDelay = 0;
+  const steps: TimedVariantStep[] = parsedAnimations.map(({ variant, sourceIndex }) => {
+    const customDelay = delays[sourceIndex] || 0;
+    const { values, transition } = splitAnimateVariant(variant);
+    const stepTransition = {
+      ...transition,
+      delay: totalDelay + customDelay / 1000,
     };
 
-    animateVariants.push(variant);
-
-    // 累加延迟（假设每个动画默认 1 秒）
-    const duration = (transition.duration as number) || 1;
+    const duration =
+      typeof transition.duration === 'number'
+        ? transition.duration
+        : DEFAULT_SEQUENTIAL_STEP_DURATION_S;
     totalDelay += duration + customDelay / 1000;
-  });
 
-  // 合并所有动画变体
-  const animate = mergeVariants(animateVariants);
+    return { values, transition: stepTransition };
+  });
 
   return {
     initial,
-    animate: animate as Record<string, unknown>,
+    animate: mergeTimedVariants(steps),
     exit,
   };
 };
@@ -110,42 +154,31 @@ const composeParallelAnimation = async (
   animations: Array<string | CustomAnimation>,
   delays: number[] = []
 ): Promise<ParsedAnimationVariant> => {
-  const parsedAnimations: ParsedAnimationVariant[] = [];
-
-  // 解析所有动画
-  for (let i = 0; i < animations.length; i++) {
-    const animation = animations[i];
-    const parsed = await parseAnimation(animation);
-
-    if (parsed) {
-      parsedAnimations.push(parsed);
-    }
-  }
+  const parsedAnimations = await parseIndexedAnimations(animations);
 
   if (parsedAnimations.length === 0) {
     throw new Error('No valid animations in parallel composition');
   }
 
   // 合并所有动画的 initial、animate、exit
-  const initialVariants = parsedAnimations.map((anim) => anim.initial as Variant);
-  const animateVariants = parsedAnimations.map((anim, index) => {
-    const customDelay = delays[index] || 0;
-    const animateObj = anim.animate as Record<string, unknown>;
-    const transition = (animateObj.transition as Record<string, unknown>) || {};
+  const initialVariants = parsedAnimations.map(({ variant }) => variant.initial as Variant);
+  const steps: TimedVariantStep[] = parsedAnimations.map(({ variant, sourceIndex }) => {
+    const customDelay = delays[sourceIndex] || 0;
+    const { values, transition } = splitAnimateVariant(variant);
 
     return {
-      ...animateObj,
+      values,
       transition: {
         ...transition,
         delay: customDelay / 1000,
       },
     };
   });
-  const exitVariants = parsedAnimations.map((anim) => anim.exit as Variant);
+  const exitVariants = parsedAnimations.map(({ variant }) => variant.exit as Variant);
 
   return {
     initial: mergeVariants(initialVariants) as Record<string, unknown>,
-    animate: mergeVariants(animateVariants) as Record<string, unknown>,
+    animate: mergeTimedVariants(steps),
     exit: mergeVariants(exitVariants) as Record<string, unknown>,
   };
 };
@@ -172,6 +205,9 @@ export const composeAnimation = async (
 
     return null;
   } catch (error) {
+    if (isPresetLoadError(error)) {
+      throw error;
+    }
     devError('Failed to compose animation:', error);
     return null;
   }

@@ -50,6 +50,8 @@ export function useCineViewImperativeApi({
           targetSceneIndex: index,
           progress: 1,
           direction: index > activeSceneIndex ? 'forward' : 'backward',
+          elapsedMs: 0,
+          timelineDurationMs: 0,
         });
       }
 

@@ -58,19 +58,28 @@ export interface DragThresholdConfig {
   maxRatio?: number;
 }
 
+export type DragTimelineUnit = 'time' | 'percent';
+
+export interface SceneDragConfig {
+  /** Whether this Scene may become the target of a user drag. Defaults to true. */
+  enabled?: boolean;
+  /** Drag-distance mapping unit. Defaults to `time`. */
+  unit?: DragTimelineUnit;
+  /**
+   * Per-drag-percent scale. `time` means milliseconds; `percent` means percent of
+   * this Scene's compiled element timeline. Defaults to 10 / 1 respectively.
+   */
+  scale?: number;
+}
+
 export interface DragModeConfig {
   direction?: SlideDirection;
   transitionDuration?: number;
   threshold?: DragThresholdConfig;
-  // Follow-finger element-timeline scale: how many ms of element-timeline elapsed
-  // ONE percent of drag advances. The element clock during a live drag is
-  // `dragPercent(0..1) * 100 * dragTimeScale`, i.e. full drag (100%) = 100 *
-  // dragTimeScale ms — INDEPENDENT of the scene's authored animation length,
-  // delay, or waitFor. Lower it to make the timeline crawl (a long animation then
-  // won't fully play within one drag; settle finishes the remainder on release);
-  // raise it to play more of the timeline per unit drag. Defaults to 100 (so
-  // 1% = 100ms, full drag = 10000ms).
-  dragTimeScale?: number;
+  /** Root default mapping unit for Scene element timelines. */
+  unit?: DragTimelineUnit;
+  /** Root default mapping scale; interpreted according to `unit`. */
+  scale?: number;
   // Max time to wait for first-screen priority images before the first-scene
   // enter animation is allowed to start. On timeout a FIRST_SCENE_TIMEOUT error
   // is emitted; if the consumer does not call preventDefault() the framework
@@ -117,7 +126,9 @@ export interface SceneChangeDetail {
  * - `FIRST_SCENE_TIMEOUT`：首屏优先资源等待超时（可恢复，带 preventDefault）。
  * - `INVALID_ANIMATION`：Animate 的 waitFor 指向不存在的组件。
  * - `CIRCULAR_DEPENDENCY`：Animate 的 waitFor 链存在循环。
- * - `INVALID_COMPONENT_HIERARCHY`：同一 Scene 内出现重复的 animateId。
+ * - `INVALID_COMPONENT_HIERARCHY`：组件树内出现重复的 animateId 或 authored scroll zone identity。
+ * - `INVALID_DRAG_CONFIG`：drag unit / scale / enabled 配置非法（可恢复）。
+ * - `ANIMATION_ASSET_LOAD_FAILED`：动画预设资源加载失败（可重试）。
  */
 export type CineViewErrorCode =
   | 'NO_SCENES'
@@ -125,7 +136,9 @@ export type CineViewErrorCode =
   | 'FIRST_SCENE_TIMEOUT'
   | 'INVALID_ANIMATION'
   | 'CIRCULAR_DEPENDENCY'
-  | 'INVALID_COMPONENT_HIERARCHY';
+  | 'INVALID_COMPONENT_HIERARCHY'
+  | 'INVALID_DRAG_CONFIG'
+  | 'ANIMATION_ASSET_LOAD_FAILED';
 
 export interface CineViewErrorDetail {
   code: CineViewErrorCode;
@@ -144,10 +157,20 @@ export interface DragDetail {
   direction?: 'forward' | 'backward' | null;
 }
 
+export interface DragStartDetail extends Omit<DragDetail, 'direction'> {
+  direction: 'forward' | 'backward';
+}
+
+export interface DragBlockedDetail {
+  fromIndex: number;
+  targetSceneIndex: number;
+  direction: 'forward' | 'backward';
+}
+
 export interface DragCommitDetail extends DragDetail {
   targetSceneIndex: number;
-  elapsedMs?: number;
-  timelineDurationMs?: number;
+  elapsedMs: number;
+  timelineDurationMs: number;
 }
 
 export interface ZoneDetail {
@@ -180,8 +203,10 @@ export interface CineViewCommonCallbacks {
 }
 
 export interface CineViewDragCallbacks {
-  onDragStart?: (detail: DragDetail) => void;
+  /** Fires only after the first direction-qualified move acquires drag ownership. */
+  onDragStart?: (detail: DragStartDetail) => void;
   onDragProgress?: (detail: DragDetail) => void;
+  onDragBlocked?: (detail: DragBlockedDetail) => void;
   onDragCommit?: (detail: DragCommitDetail) => void;
   onDragCancel?: (detail: DragDetail) => void;
 }
@@ -285,9 +310,7 @@ export type PresetAnimation =
   | 'roll-in'
   | 'roll-out'
   | 'hinge'
-  | 'jack-in-the-box'
-  // 无动画
-  | 'none';
+  | 'jack-in-the-box';
 
 /**
  * 解析后的动画变体（Framer Motion 格式）
@@ -331,7 +354,11 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
  * by the active mode.
  */
 export interface CineViewBaseProps {
-  config: CineViewDesignConfig;
+  /**
+   * 设计稿尺寸基准配置。可缺省：缺省时等价于 `{ size: 750 }`（移动端标准稿宽），
+   * 即 `scale = viewportWidth / 750`。
+   */
+  config?: CineViewDesignConfig;
   modes?: {
     drag?: DragModeConfig;
     scroll?: ScrollModeConfig;
@@ -417,6 +444,7 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
   assets?: {
     preloadImages?: string[];
   };
+  drag?: SceneDragConfig;
   scroll?: {
     zoneId?: string;
     trigger?: 'center-lock';
@@ -432,9 +460,7 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
  */
 interface AnimateBaseProps {
   animateId?: string; // 组件唯一标识
-  enterAnimation?: AnimationType; // 进入动画类型
-  exitAnimation?: AnimationType; // 离开动画类型
-  infiniteAnimation?: AnimationType; // 无限循环动画
+  exitAnimation?: AnimationType; // 离开动画类型（必须与 enter 或 infinite 共存）
   duration?: {
     enter?: number;
     exit?: number;
@@ -445,12 +471,11 @@ interface AnimateBaseProps {
      *
      * - **`true` + 位于带 `scroll` 接管配置的 `Scene`（继承到 zoneId）内** → 由该 zone 的
      *   真实滚动预算（progressPx）驱动，可配合 `phase`（scroll 接管）。
-     * - **`true` + 不在 zone 内**（如普通 scroll 内容，或 drag 模式）→ 优雅降级为可见性闸门：
-     *   动画由元素进入/离开视口触发，按 `duration` 播放，受 `visibility.enterMargin/exitMargin`
-     *   控制。
-     * - **`false`** → 强制独立走可见性闸门，即使身处 `Scene.scroll` zone 内也不被接管。
-     *
-     * drag 模式下场景恒接管场景级进退场时间轴，本字段对 drag 无实际效果。
+     * - **`true` + scroll 模式且不在 zone 内** → 优雅降级为可见性闸门，由元素进出视口触发。
+     * - **`true` + drag 模式** → 由 Scene 的共享元素时间轴驱动。
+     * - **`false` + scroll 模式** → 强制独立走可见性闸门，即使身处 zone 内也不被接管。
+     * - **`false` + drag 模式** → Scene 正式到场后按真实时间独立播放；不参与 Scene registry、
+     *   `waitFor` 或 `T_self`，并忽略 `exitAnimation`。
      */
     sceneControlled?: boolean;
     delay?: number;
@@ -473,14 +498,6 @@ interface AnimateBaseProps {
     enterMargin?: number;
     exitMargin?: number;
   };
-  /**
-   * 子元素错峰入场编排。设定后，`children` 的每个**直接子元素**由 framer 原生
-   * `staggerChildren` 逐个揭示，各子元素用 `enterAnimation` 的变体（绕过 enter/exit
-   * 的 10 属性白名单，可用任意 framer 可动画属性，如 `clipPath`/`width`）。
-   *
-   * 时间驱动、不随滚动/拖拽 scrub（需要 scrub 的逐元素揭示改用 render-prop 的
-   * `enterProgress`）。用于 visibility 入场：打字机、列表级联、字母波浪等。
-   */
 }
 
 export interface AnimateStaggerConfig {
@@ -488,15 +505,35 @@ export interface AnimateStaggerConfig {
   from?: 'first' | 'last' | 'center'; // 起始方向，默认 'first'
 }
 
+type EnterAnimationRequired = {
+  enterAnimation: AnimationType;
+  infiniteAnimation?: AnimationType;
+};
+
+type InfiniteOnly = {
+  enterAnimation?: never;
+  infiniteAnimation: AnimationType;
+};
+
 export type AnimateProps =
-  | (AnimateBaseProps & {
-      stagger: AnimateStaggerConfig;
-      children: ReactElement;
-    })
-  | (AnimateBaseProps & {
-      stagger?: never;
-      children: ReactNode | ((state: AnimateRenderState) => ReactNode);
-    });
+  | (AnimateBaseProps &
+      EnterAnimationRequired & {
+        /**
+         * 子元素错峰入场编排。设定后，`children` 的每个**直接子元素**由 framer 原生
+         * `staggerChildren` 逐个揭示，各子元素用 `enterAnimation` 的变体（绕过 enter/exit
+         * 的 10 属性白名单，可用任意 framer 可动画属性，如 `clipPath`/`width`）。
+         *
+         * 时间驱动、不随滚动/拖拽 scrub（需要 scrub 的逐元素揭示改用 render-prop 的
+         * `enterProgress`）。用于 visibility 入场：打字机、列表级联、字母波浪等。
+         */
+        stagger: AnimateStaggerConfig;
+        children: ReactElement;
+      })
+  | (AnimateBaseProps &
+      (EnterAnimationRequired | InfiniteOnly) & {
+        stagger?: never;
+        children: ReactNode | ((state: AnimateRenderState) => ReactNode);
+      });
 
 /**
  * render-prop children 接收的动画状态。进度天然跟随当前时间轴来源：
@@ -504,21 +541,38 @@ export type AnimateProps =
  */
 export interface AnimateRenderState {
   enterProgress: number; // 0..1，0=初始帧，1=完全进入
-  phase: 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
+  phase: 'idle' | 'waiting' | 'entering' | 'entered' | 'exiting' | 'exited';
 }
 
 export type AnimatePhase = AnimateRenderState['phase'];
 export type AnimateTimelineDriver = 'drag' | 'scroll' | 'visibility';
+export type AnimateTimelineSource =
+  | 'idle'
+  | 'gesture'
+  | 'continuation'
+  | 'programmatic'
+  | 'scroll'
+  | 'visibility';
+
+export interface AnimateTimelineFrame {
+  progress: number;
+  signedProgress: number;
+  phase: AnimatePhase;
+  source: AnimateTimelineSource;
+}
 
 /**
  * Stable, read-only zero-render view of the nearest Animate timeline.
  * MotionValue updates bypass React rendering; the object exposes no writer.
  */
 export interface AnimateTimeline {
+  readonly mode: ScrollMode;
   readonly driver: AnimateTimelineDriver;
   readonly progress: MotionValue<number>;
   readonly signedProgress: MotionValue<number>;
   readonly phase: MotionValue<AnimatePhase>;
+  /** Atomic progress/phase/ownership snapshot for imperative consumers. */
+  readonly frame: MotionValue<AnimateTimelineFrame>;
 }
 
 export interface ScrollTimelineState {
@@ -579,55 +633,6 @@ export interface ContainerProps extends Omit<
   children: ReactNode;
   style?: React.CSSProperties; // 额外样式；数值型长度量按设计 px 换算
   className?: string; // CSS 类名
-}
-
-// ============================================================================
-// Data Model Types
-// ============================================================================
-
-/**
- * Scene 状态
- */
-export interface SceneState {
-  currentIndex: number; // 当前场景索引
-  totalScenes: number; // 总场景数
-  isAnimating: boolean; // 是否正在动画中
-  isDragging: boolean; // 是否正在拖拽中（drag 模式）
-  isScrolling: boolean; // 是否正在滚动过渡中（scroll 模式）
-  dragProgress: number; // 拖拽进度 0-1（drag 模式）
-  scrollProgress: number; // 滚动推进进度 0-1（scroll 模式）
-  direction: 'forward' | 'backward'; // 切换方向
-  mode: ScrollMode; // 当前场景的滚动模式
-  animateRegistry: Set<string>; // 当前场景内注册的 Animate 组件 ID 集合
-}
-
-/**
- * 动画注册表项
- */
-export interface AnimationRegistryItem {
-  status: 'pending' | 'playing' | 'completed';
-  startTime: number; // 实际开始时间（相对于场景激活）
-  duration: number; // 动画时长
-  executionTime: number; // 实际执行时间 = startTime + duration
-  waitFor?: string; // 关联的组件 ID
-}
-
-/**
- * 动画注册表
- */
-export interface AnimationRegistry {
-  [animateId: string]: AnimationRegistryItem;
-}
-
-/**
- * 图片预加载状态
- */
-export interface PreloadState {
-  totalImages: number;
-  loadedImages: number;
-  progress: number; // 0-100
-  firstSceneLoaded: boolean;
-  allLoaded: boolean;
 }
 
 // ============================================================================

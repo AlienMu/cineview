@@ -6,6 +6,10 @@ import { useCineViewContext } from '../../context/CineViewContext';
 import type { SceneContextType } from './Animate';
 import type { ResolvedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
 import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
+import type {
+  SceneAnimationRegistrationLease,
+  WaitForOutcome,
+} from '../Scene/useSceneAnimationRegistry';
 import {
   clamp,
   getDefaultValue,
@@ -17,6 +21,7 @@ import {
   type VariantRecord,
 } from './animateInterpolation';
 import {
+  scheduleVisibilityRecheck,
   subscribeVisibilityMeasurement,
   type VisibilityRootMeasurement,
 } from './visibilityScheduler';
@@ -56,7 +61,7 @@ type AnimatedProperty = AnimatableProperty;
 const DEFAULT_GATE_MARGIN_PX = 50;
 const VISIBILITY_EXIT_EPSILON = 1e-6;
 
-export type GatePhase = 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
+export type GatePhase = 'idle' | 'waiting' | 'entering' | 'entered' | 'exiting' | 'exited';
 export type GateAction = 'enter' | 'exit' | null;
 
 /**
@@ -256,13 +261,6 @@ export function useAnimateScroll({
   const [hostVersion, setHostVersion] = useState(0);
   const registerZoneAnimation = zoneRuntime?.registerZoneAnimation;
   const unregisterZoneAnimation = zoneRuntime?.unregisterZoneAnimation;
-  const zoneRuntimeVersion = zoneRuntime?.version;
-  // Per-scene enter-completion bus (visibility waitFor). markEntered publishes
-  // this element's entered/left state; subscribeEntered lets a follower wait for
-  // its leader to actually finish instead of re-deriving the delay from
-  // calculatedDelay (which double-counts the leader on the gate-relative clock).
-  const markAnimateEntered = sceneContext?.markAnimateEntered;
-  const subscribeAnimateEntered = sceneContext?.subscribeAnimateEntered;
   const hasParsedEnter = Boolean(
     enterVariant?.animate && Object.keys(enterVariant.animate as Record<string, unknown>).length > 0
   );
@@ -296,33 +294,49 @@ export function useAnimateScroll({
   // animate frame visually) then tweens to -1, so it never passes through 0
   // (which would flash the initial frame).
   const phaseRef = useRef<GatePhase>('idle');
-  // Mirror of phaseRef as a MotionValue so the render-prop bridge can subscribe to
-  // phase changes. `.set()` is a no-op cost for non-subscribers, so this adds no
-  // re-render to Animates that don't use function children.
   const phaseMotion = useMotionValue<GatePhase>('idle');
   const setPhase = useCallback(
-    (p: GatePhase): void => {
-      phaseRef.current = p;
-      phaseMotion.set(p);
-      // Publish entered/left to the per-scene bus so followers gated on this id
-      // (visibility waitFor) can wake exactly when it completes. entered=true on
-      // 'entered'; false on any non-entered phase (idle/entering/exiting/exited)
-      // so a re-entering leader re-arms its followers.
-      markAnimateEntered?.(componentId, p === 'entered');
+    (phase: GatePhase): void => {
+      phaseRef.current = phase;
+      phaseMotion.set(phase);
     },
-    [phaseMotion, markAnimateEntered, componentId]
+    [phaseMotion]
   );
+  const registrationLeaseRef = useRef<SceneAnimationRegistrationLease | null>(null);
   const tweenControlsRef = useRef<{ stop: () => void } | null>(null);
+  const tweenTokenRef = useRef(0);
+  const zoneEnteredPublishedRef = useRef(false);
   const enterDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Unsubscribe handle for an in-flight waitFor-leader subscription (visibility).
   const waitForUnsubRef = useRef<(() => void) | null>(null);
+  const recheckCancelRef = useRef<(() => void) | null>(null);
+  const runVisibilityUpdateRef = useRef<(measurement?: VisibilityRootMeasurement) => void>(
+    () => {}
+  );
+  const waitingTokenRef = useRef(0);
+  const waitingAttemptRef = useRef<{
+    token: number;
+    origin: 'idle' | 'exited' | 'exiting';
+    dependencyReady: boolean;
+    delayStarted: boolean;
+    delayReady: boolean;
+    coldStartBypass: boolean;
+  } | null>(null);
   const initializedRef = useRef(false);
+  // A default first-screen timeout performs one static reveal. This ref makes
+  // that recovery an initialization event rather than a permanent gate, so
+  // later measurements can still drive exit/re-entry and infinite lifecycle.
+  const staticFallbackAppliedRef = useRef(false);
 
-  const stopTween = useCallback(() => {
-    if (tweenControlsRef.current) {
-      tweenControlsRef.current.stop();
-      tweenControlsRef.current = null;
-    }
+  const publishEnterCompleted = useCallback(
+    (lease: SceneAnimationRegistrationLease | null): void => {
+      lease?.publishEnterCompleted();
+    },
+    []
+  );
+
+  const clearPendingEnter = useCallback((): void => {
+    waitingTokenRef.current += 1;
+    waitingAttemptRef.current = null;
     if (enterDelayTimerRef.current) {
       clearTimeout(enterDelayTimerRef.current);
       enterDelayTimerRef.current = null;
@@ -331,56 +345,110 @@ export function useAnimateScroll({
       waitForUnsubRef.current();
       waitForUnsubRef.current = null;
     }
+    if (recheckCancelRef.current) {
+      recheckCancelRef.current();
+      recheckCancelRef.current = null;
+    }
+  }, []);
+
+  const stopTween = useCallback(() => {
+    tweenTokenRef.current += 1;
+    if (tweenControlsRef.current) {
+      tweenControlsRef.current.stop();
+      tweenControlsRef.current = null;
+    }
+    clearPendingEnter();
+  }, [clearPendingEnter]);
+
+  const scheduleCurrentGateRecheck = useCallback((): void => {
+    const hostElement = hostRef.current;
+    const ownerWindow = hostElement?.ownerDocument?.defaultView;
+    if (!ownerWindow) return;
+    recheckCancelRef.current?.();
+    recheckCancelRef.current = scheduleVisibilityRecheck(ownerWindow, () => {
+      recheckCancelRef.current = null;
+      runVisibilityUpdateRef.current();
+    });
   }, []);
 
   const runEnterTween = useCallback(() => {
-    stopTween();
+    clearPendingEnter();
     setPhase('entering');
-    // Re-enter from an exited/exiting state starts from the initial frame so the
-    // enter animation replays from the top, not from the exit frame.
     if (visualMotion.get() < 0) {
       visualMotion.set(0);
     }
-    const launch = (): void => {
-      const controls = animate(visualMotion, 1, {
-        duration: Math.max(enterDuration, 0) / 1000,
-        ease: 'easeInOut',
-        onComplete: () => {
-          tweenControlsRef.current = null;
-          setPhase('entered');
-          setShouldRunInfiniteState(true);
-        },
-      });
-      tweenControlsRef.current = controls;
-    };
-    // After the (optional) leader-completion wait, delay by this element's OWN
-    // delay only. The leader's delay+duration is NOT re-added here: on the
-    // visibility gate each element runs its own clock, so the shared-clock
-    // calculatedDelay would double-count the leader (see the phase bus above).
-    const launchAfterOwnDelay = (): void => {
+    const completionLease = registrationLeaseRef.current;
+    const tweenToken = ++tweenTokenRef.current;
+    const controls = animate(visualMotion, 1, {
+      duration: Math.max(enterDuration, 0) / 1000,
+      ease: 'easeInOut',
+      onComplete: () => {
+        if (tweenTokenRef.current !== tweenToken) return;
+        tweenControlsRef.current = null;
+        setPhase('entered');
+        publishEnterCompleted(completionLease);
+        setShouldRunInfiniteState(true);
+      },
+    });
+    tweenControlsRef.current = controls;
+  }, [clearPendingEnter, enterDuration, publishEnterCompleted, setPhase, visualMotion]);
+
+  const beginEnterAttempt = useCallback(
+    (coldStartBypass = false): void => {
+      const currentPhase = phaseRef.current;
+      const origin: 'idle' | 'exited' | 'exiting' =
+        currentPhase === 'exited' ? 'exited' : currentPhase === 'exiting' ? 'exiting' : 'idle';
+      stopTween();
+      const attempt = {
+        token: ++waitingTokenRef.current,
+        origin,
+        dependencyReady: !waitFor,
+        delayStarted: false,
+        delayReady: false,
+        coldStartBypass,
+      };
+      waitingAttemptRef.current = attempt;
+      setPhase('waiting');
+      setShouldRunInfiniteState(false);
+
+      const handleOutcome = (outcome: WaitForOutcome): void => {
+        if (waitingAttemptRef.current?.token !== attempt.token || outcome.kind === 'pending')
+          return;
+        attempt.dependencyReady = true;
+        waitForUnsubRef.current = null;
+        scheduleCurrentGateRecheck();
+      };
+
+      if (!waitFor) return;
+      const lease = registrationLeaseRef.current;
+      if (lease) {
+        waitForUnsubRef.current = lease.observeWaitFor(handleOutcome);
+      } else {
+        handleOutcome({ kind: 'invalid', leaderId: waitFor, reason: 'missing' });
+      }
+    },
+    [scheduleCurrentGateRecheck, setPhase, stopTween, waitFor]
+  );
+
+  const advanceEnterAttempt = useCallback((): void => {
+    const attempt = waitingAttemptRef.current;
+    if (!attempt || !attempt.dependencyReady) return;
+    if (!attempt.delayStarted) {
+      attempt.delayStarted = true;
       if (delay > 0) {
+        const token = attempt.token;
         enterDelayTimerRef.current = setTimeout(() => {
           enterDelayTimerRef.current = null;
-          launch();
+          if (waitingAttemptRef.current?.token !== token) return;
+          attempt.delayReady = true;
+          scheduleCurrentGateRecheck();
         }, delay);
-      } else {
-        launch();
+        return;
       }
-    };
-    // waitFor gates on the LEADER actually completing. subscribeAnimateEntered
-    // fires the callback immediately if the leader already entered (the "leader
-    // long done" case — no re-wait), else once it does. No waitFor → straight to
-    // the own-delay launch.
-    if (waitFor && subscribeAnimateEntered) {
-      waitForUnsubRef.current = subscribeAnimateEntered(waitFor, () => {
-        waitForUnsubRef.current = null;
-        launchAfterOwnDelay();
-      });
-    } else {
-      launchAfterOwnDelay();
+      attempt.delayReady = true;
     }
-    setShouldRunInfiniteState(false);
-  }, [delay, enterDuration, stopTween, setPhase, visualMotion, waitFor, subscribeAnimateEntered]);
+    if (attempt.delayReady) runEnterTween();
+  }, [delay, runEnterTween, scheduleCurrentGateRecheck]);
 
   const runExitTween = useCallback(() => {
     stopTween();
@@ -394,10 +462,12 @@ export function useAnimateScroll({
     if (visualMotion.get() >= 0) {
       visualMotion.set(-VISIBILITY_EXIT_EPSILON);
     }
+    const tweenToken = ++tweenTokenRef.current;
     const controls = animate(visualMotion, -1, {
       duration: Math.max(exitDuration, 0) / 1000,
       ease: 'easeInOut',
       onComplete: () => {
+        if (tweenTokenRef.current !== tweenToken) return;
         tweenControlsRef.current = null;
         setPhase('exited');
       },
@@ -416,14 +486,45 @@ export function useAnimateScroll({
         return;
       }
 
-      // First-screen cold-start hold: scene 0 elements wait for priority assets
-      // (firstSceneEnterReady === false). undefined = not gated (non-first scene).
+      // First-screen gate has four distinguishable states:
+      //   known=false               -> the scroll store has not published yet;
+      //                                hold initial without consuming the gate.
+      //   active=true, ready=false  -> assets are pending (or timeout was handled);
+      //                                hold initial.
+      //   ready=true                -> play the authored visibility enter.
+      //   active=false, ready=false -> default timeout recovery: reveal terminal
+      //                                once, then resume normal exit/infinite life.
+      // Undefined remains the non-first-scene, ungated path.
+      const firstSceneGateKnown = sceneContext?.firstSceneEnterGateKnown;
       const firstSceneReady = sceneContext?.firstSceneEnterReady;
-      if (firstSceneReady === false) {
+      const firstSceneActive = sceneContext?.firstSceneEnterActive;
+      if (firstSceneGateKnown === false) {
+        stopTween();
         visualMotion.set(0);
         setPhase('idle');
         setShouldRunInfiniteState(false);
         return;
+      }
+      if (firstSceneReady === false && firstSceneActive === true) {
+        staticFallbackAppliedRef.current = false;
+        stopTween();
+        visualMotion.set(0);
+        setPhase('idle');
+        setShouldRunInfiniteState(false);
+        return;
+      }
+
+      const applyStaticFallback =
+        firstSceneReady === false &&
+        firstSceneActive === false &&
+        !staticFallbackAppliedRef.current;
+      if (applyStaticFallback) {
+        staticFallbackAppliedRef.current = true;
+        initializedRef.current = true;
+        stopTween();
+        visualMotion.set(1);
+        setPhase('entered');
+        publishEnterCompleted(registrationLeaseRef.current);
       }
 
       const rect = hostElement.getBoundingClientRect();
@@ -477,6 +578,15 @@ export function useAnimateScroll({
       // satisfied on this path.
       const enterGate = isOversized ? rawEnterGate && !exitGate : rawEnterGate;
       const aboveTop = relBottom <= 0;
+      const onScreen = relBottom > 0 && relTop < vh;
+
+      // Static timeout recovery owns this measurement: show the terminal frame
+      // even when the element currently overlaps an exit band. Future measurements
+      // rejoin the normal gate machine, so authored exit/re-entry remains available.
+      if (applyStaticFallback) {
+        setShouldRunInfiniteState(resolveInfiniteActive('entered', onScreen));
+        return;
+      }
 
       // First measurement: if the element is already scrolled past the top, reveal
       // it at its terminal (entered) frame without replaying an enter tween. It is
@@ -488,6 +598,7 @@ export function useAnimateScroll({
           stopTween();
           visualMotion.set(1);
           setPhase('entered');
+          publishEnterCompleted(registrationLeaseRef.current);
           setShouldRunInfiniteState(resolveInfiniteActive('entered', false));
           return;
         }
@@ -504,22 +615,42 @@ export function useAnimateScroll({
         // strict margins). Later measures fall through to the normal margin-gated
         // machine, so scroll-driven enter/exit is unchanged.
         if (firstSceneReady === true && !isOversized && relTop >= 0 && relBottom <= vh) {
-          runEnterTween();
+          beginEnterAttempt(true);
+          advanceEnterAttempt();
           return;
         }
       }
 
-      // Phase-transition decision is a pure function (resolveGatePhaseAction) so
-      // the overlap-band hysteresis mutex can be proven deterministically in tests
-      // without the framer-motion mock collapsing the mid-exit flash frame.
-      const action = resolveGatePhaseAction(phaseRef.current, enterGate, exitGate, {
-        hasExplicitExit,
-        replayOnReenter,
-      });
-      if (action === 'enter') {
-        runEnterTween();
-      } else if (action === 'exit') {
-        runExitTween();
+      // A waiting attempt is not a running tween. Every measurement revalidates
+      // eligibility; leaving the gate cancels all pending dependency/delay work.
+      if (phaseRef.current === 'waiting') {
+        const attempt = waitingAttemptRef.current;
+        const coldStartEligible =
+          attempt?.coldStartBypass === true &&
+          firstSceneReady === true &&
+          !isOversized &&
+          relTop >= 0 &&
+          relBottom <= vh;
+        if (!attempt || (!coldStartEligible && (!enterGate || exitGate))) {
+          const origin = attempt?.origin ?? 'idle';
+          clearPendingEnter();
+          setPhase(origin);
+        } else {
+          advanceEnterAttempt();
+        }
+      } else {
+        // Phase-transition decision is a pure function (resolveGatePhaseAction) so
+        // the overlap-band hysteresis mutex can be proven deterministically in tests.
+        const action = resolveGatePhaseAction(phaseRef.current, enterGate, exitGate, {
+          hasExplicitExit,
+          replayOnReenter,
+        });
+        if (action === 'enter') {
+          beginEnterAttempt();
+          advanceEnterAttempt();
+        } else if (action === 'exit') {
+          runExitTween();
+        }
       }
 
       // Reconcile infinite-animation activity against on-screen visibility every
@@ -529,47 +660,62 @@ export function useAnimateScroll({
       // pulse) running off-screen forever (wasted work). resolveInfiniteActive
       // pauses it whenever the element is not intersecting the viewport, and a
       // later measure that brings it back on-screen (still 'entered') resumes it.
-      const onScreen = relBottom > 0 && relTop < vh;
       setShouldRunInfiniteState(resolveInfiniteActive(phaseRef.current, onScreen));
     },
     [
+      advanceEnterAttempt,
+      beginEnterAttempt,
+      clearPendingEnter,
       enterMarginPx,
       exitMarginPx,
       hasExplicitExit,
       isScrollDriven,
+      publishEnterCompleted,
       replayOnReenter,
-      runEnterTween,
       runExitTween,
+      sceneContext?.firstSceneEnterGateKnown,
+      sceneContext?.firstSceneEnterActive,
       sceneContext?.firstSceneEnterReady,
       setPhase,
       stopTween,
       visualMotion,
     ]
   );
+  runVisibilityUpdateRef.current = runVisibilityUpdate;
 
-  // Register into the scene registry for duplicate/cycle validation and the
-  // drag/scroll-zone timelineDuration fold. The visibility path no longer reads
-  // calculatedDelay (it observes leader completion via the enter bus instead),
-  // so getCalculatedDelay is not consumed here.
+  // Register once per authored timing configuration. The returned lease owns
+  // completion, dependency observation and disposal for this exact generation.
   useEffect(() => {
     const registerAnimate = sceneContext?.registerAnimate;
     const unregisterAnimate = sceneContext?.unregisterAnimate;
-    if (!registerAnimate || !unregisterAnimate || (!hasExplicitEnter && !hasExplicitExit)) {
+    if (!registerAnimate || (!hasExplicitEnter && !hasExplicitExit)) {
       return;
     }
 
-    registerAnimate(componentId, {
+    const lease = registerAnimate(componentId, {
       delay,
       duration: hasExplicitEnter ? enterDuration : exitDuration,
       waitFor,
+      driver: isScrollDriven ? 'scroll' : 'visibility',
     });
+    registrationLeaseRef.current = lease ?? null;
+    zoneEnteredPublishedRef.current = false;
 
     return () => {
-      unregisterAnimate(componentId);
+      clearPendingEnter();
+      if (registrationLeaseRef.current === lease) {
+        registrationLeaseRef.current = null;
+      }
+      if (lease?.dispose) {
+        lease.dispose();
+      } else {
+        unregisterAnimate?.(componentId);
+      }
     };
   }, [
     sceneContext?.registerAnimate,
     sceneContext?.unregisterAnimate,
+    clearPendingEnter,
     componentId,
     delay,
     enterDuration,
@@ -577,6 +723,7 @@ export function useAnimateScroll({
     waitFor,
     hasExplicitEnter,
     hasExplicitExit,
+    isScrollDriven,
   ]);
 
   useEffect(() => {
@@ -605,7 +752,7 @@ export function useAnimateScroll({
       return;
     }
 
-    registerZoneAnimation(zoneId, {
+    const registrationOwner = registerZoneAnimation(zoneId, {
       animateId: componentId,
       delay,
       enterDuration,
@@ -622,7 +769,7 @@ export function useAnimateScroll({
     });
 
     return () => {
-      unregisterZoneAnimation(zoneId, componentId);
+      unregisterZoneAnimation(zoneId, componentId, registrationOwner);
     };
   }, [
     componentId,
@@ -642,6 +789,24 @@ export function useAnimateScroll({
 
   useEffect(() => {
     if (isScrollDriven) {
+      // S-F6: an Animate with no authored enter/exit (e.g. infiniteAnimation
+      // only) never registers a zone budget, so the budget lookup below can
+      // never succeed. Holding it at the initial frame (visualMotion 0) made it
+      // permanently invisible inside a takeover zone (empty variants default
+      // opacity to 0 at the initial frame) while the exact same element rendered
+      // fine on the visibility path. There is nothing to scrub for it — it rests
+      // at its entered frame (localProgress = 1 semantics: empty-variant
+      // defaults resolve to opacity 1 / neutral transform). Phase mirrors the
+      // rest state so the render-prop bridge and the per-scene enter bus see it
+      // as entered (a follower waitFor-ing it is not deadlocked).
+      if (!hasExplicitEnter && !hasExplicitExit) {
+        visualMotion.set(1);
+        if (phaseRef.current !== 'entered') {
+          setPhase('entered');
+        }
+        return;
+      }
+
       if (!zoneRuntime || !zoneId) {
         // driver === 'scroll' now implies mode==='scroll' + sceneControlled +
         // an inherited zoneId (see Animate.tsx resolve), so a scroll-driven
@@ -671,6 +836,16 @@ export function useAnimateScroll({
           : resolvePhaseBoundaryPx(phaseEnd, fallbackEndPx, fallbackStartPx, fallbackEndPx),
         phaseStartPx + 1
       );
+
+      // Publish enter completion through this registration's lease the first
+      // time progress crosses the element's enter end. A visibility follower
+      // can then observe the same generation-scoped completion fact used by
+      // other drivers. Ref-gated to publish exactly once and never retract on
+      // reverse scrub. Missing targets are diagnosed by the scene registry.
+      if (progressPx >= phaseEndPx && !zoneEnteredPublishedRef.current) {
+        zoneEnteredPublishedRef.current = true;
+        publishEnterCompleted(registrationLeaseRef.current);
+      }
 
       if (progressPx <= phaseStartPx) {
         visualMotion.set(0);
@@ -723,6 +898,7 @@ export function useAnimateScroll({
     isScrollDriven,
     visualMotion,
     enterDuration,
+    publishEnterCompleted,
     phaseStart,
     phaseEnd,
     hasExplicitEnter,
@@ -730,7 +906,7 @@ export function useAnimateScroll({
     replayOnReenter,
     sceneContext?.scrollProgress,
     sceneContext?.scrollTimelineState,
-    zoneRuntimeVersion,
+    setPhase,
     hostVersion,
     runVisibilityUpdate,
   ]);
@@ -771,6 +947,17 @@ export function useAnimateScroll({
           runtimeState !== 'parked' &&
           runtimeState !== 'exiting');
 
+      // S-F6: an infinite-only element (no authored enter/exit) has no zone
+      // budget by design — it rests at its entered frame (see the visualMotion
+      // effect above), so its loop is gated purely by the scene runtime state:
+      // running while the scene is on stage (active/entering), stopped when
+      // covered/inactive/parked/exiting. Without this branch the budget lookup
+      // below pinned shouldRunInfinite to false forever.
+      if (!hasExplicitEnter && !hasExplicitExit) {
+        setShouldRunInfiniteState(runtimeAllowsInfinite);
+        return;
+      }
+
       if (!zoneState || !budget || !runtimeAllowsInfinite) {
         setShouldRunInfiniteState(false);
         return;
@@ -799,13 +986,13 @@ export function useAnimateScroll({
   }, [
     componentId,
     hasExplicitEnter,
+    hasExplicitExit,
     isScrollDriven,
     phaseEnd,
     phaseStart,
     sceneContext?.runtimeState,
     zoneId,
     zoneRuntime,
-    zoneRuntime?.version,
   ]);
 
   const opacity = useNumericValue(visualMotion, variantsRef, 'opacity');

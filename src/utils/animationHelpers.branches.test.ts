@@ -182,6 +182,45 @@ describe('interpolateVariant — type-conversion branches', () => {
   });
 });
 
+describe('interpolateVariant — multi-value string endpoints (E-E8)', () => {
+  it('returns equal string endpoints verbatim instead of collapsing them via parseFloat', () => {
+    // transformOrigin '50% 100%' 两端相同:旧代码走 % 分支 parseFloat 取 50 →
+    // 输出 '50%',双值坍缩成单值。相等端点必须原样返回。
+    const result = interpolateVariant(
+      { transformOrigin: '50% 100%' },
+      { transformOrigin: '50% 100%' },
+      0.5
+    );
+    expect(result.transformOrigin).toBe('50% 100%');
+  });
+
+  it('returns equal multi-value px endpoints unchanged', () => {
+    expect(interpolateVariant({ x: '10px 20px' }, { x: '10px 20px' }, 0.3).x).toBe('10px 20px');
+  });
+
+  it('threshold-switches unequal multi-token unit strings instead of collapsing them', () => {
+    // 端点不等的多值字符串无法单值插值:退化为 0.5 阈值切换,而不是 parseFloat
+    // 坍缩('50% 0%' → '50%' 会改变 transformOrigin 的语义)。
+    const below = interpolateVariant(
+      { transformOrigin: '50% 0%' },
+      { transformOrigin: '50% 100%' },
+      0.25
+    );
+    expect(below.transformOrigin).toBe('50% 0%');
+
+    const above = interpolateVariant(
+      { transformOrigin: '50% 0%' },
+      { transformOrigin: '50% 100%' },
+      0.75
+    );
+    expect(above.transformOrigin).toBe('50% 100%');
+  });
+
+  it('returns equal numeric endpoints via the early exit', () => {
+    expect(interpolateVariant({ x: 5 }, { x: 5 }, 0.42).x).toBe(5);
+  });
+});
+
 describe('parseAnimationSafely', () => {
   const originalEnv = process.env.NODE_ENV;
 

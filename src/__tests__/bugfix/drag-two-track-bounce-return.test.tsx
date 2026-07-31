@@ -114,7 +114,13 @@ jest.mock('framer-motion', () => {
       stop: jest.fn(),
       set: jest.fn(),
     }),
-    useMotionValue: (initial: number) => createMotionValueStub(initial),
+    useMotionValue: (initial: number) => {
+      const ref = React.useRef(null);
+      if (ref.current === null) {
+        ref.current = createMotionValueStub(initial);
+      }
+      return ref.current;
+    },
     motionValue: (initial: number) => createMotionValueStub(initial),
     useTransform: (source: any, transform: (value: number) => number) => {
       const motionValue = createMotionValueStub(transform(source.get()));
@@ -219,6 +225,9 @@ describe('drag two-track bounce return (I1)', () => {
     await act(async () => {
       drainColdStart();
     });
+    await act(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
 
     // Sub-threshold drag, released short of the switch threshold. Bare fireEvents
     // (NOT wrapped in a single act) so React flushes between move and up — the
@@ -227,8 +236,9 @@ describe('drag two-track bounce return (I1)', () => {
     // viewport: enough to pull scene 1 partway in, under the ~30% rest threshold.
     const s0 = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     fireEvent.mouseDown(s0, { clientX: 375, clientY: 620 });
-    fireEvent.mouseMove(s0, { clientX: 375, clientY: 520 });
-    fireEvent.mouseUp(s0, { clientX: 375, clientY: 520 });
+    fireEvent.mouseMove(s0, { clientX: 375, clientY: 612 });
+    fireEvent.mouseMove(s0, { clientX: 375, clientY: 512 });
+    fireEvent.mouseUp(s0, { clientX: 375, clientY: 512 });
 
     // No scene change: the bounce does not cross the threshold.
     expect(cineViewRef.current?.getCurrentScene()).toBe(0);
@@ -236,10 +246,18 @@ describe('drag two-track bounce return (I1)', () => {
     // Both bounce lanes are motion-value animates toward 0; they are told apart
     // by fromValue. The RENDER track bounces dragProgressMotion (a drag fraction,
     // |fromValue| < 1) back to 0 — the page slides back into place.
-    const renderReturn = animateCalls.find(
-      (c) => c.kind === 'motion-value' && c.target === 0 && Math.abs(c.fromValue) < 1
-    );
-    expect(renderReturn).toBeDefined();
+    let renderReturn: AnimateCall | undefined;
+    let elementReturn: AnimateCall | undefined;
+    await waitFor(() => {
+      renderReturn = animateCalls.find(
+        (c) => c.kind === 'motion-value' && c.target === 0 && Math.abs(c.fromValue) < 1
+      );
+      elementReturn = animateCalls.find(
+        (c) => c.kind === 'motion-value' && c.target === 0 && c.fromValue > 1
+      );
+      expect(renderReturn).toBeDefined();
+      expect(elementReturn).toBeDefined();
+    });
 
     // IN PARALLEL, the incoming scene's ELEMENT track (elapsed ms, fromValue ≫ 1
     // ≈ r·T) also returns to 0 — the partially-entered content un-enters. The
@@ -249,10 +267,6 @@ describe('drag two-track bounce return (I1)', () => {
     // it stopped is mock-timing noise — the render bounce's onComplete never fires
     // under the mock, so isDragging stays true and the follow-finger effect
     // re-stops it. The runtime created exactly the right lane.)
-    const elementReturn = animateCalls.find(
-      (c) => c.kind === 'motion-value' && c.target === 0 && c.fromValue > 1
-    );
-    expect(elementReturn).toBeDefined();
     expect(elementReturn!.fromValue).toBeGreaterThan(1);
     expect(elementReturn!.target).toBe(0);
     // Sanity: the incoming element track must NOT be driven toward terminal T on a

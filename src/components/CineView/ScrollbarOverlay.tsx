@@ -99,13 +99,24 @@ export function ScrollbarOverlay({
     [currentNativeScrollOffset, nativeScrollableSpan, onScrollToOffset, viewportSpan]
   );
 
-  const handleScrollbarMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (nativeScrollableSpan <= 0 || typeof window === 'undefined') {
+  const handleScrollbarPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const isSecondaryMouseButton = event.pointerType === 'mouse' && event.button !== 0;
+      if (
+        nativeScrollableSpan <= 0 ||
+        typeof window === 'undefined' ||
+        isSecondaryMouseButton ||
+        event.isPrimary === false
+      ) {
         return;
       }
 
       event.preventDefault();
+      // One active pointer owns the thumb drag until pointerup/cancel. A second
+      // finger or pen must not cancel the first pointer's listeners or jump the rail.
+      if (scrollbarDragCleanupRef.current) {
+        return;
+      }
 
       const railRect = event.currentTarget.getBoundingClientRect();
       const trackLength = direction === 'x' ? railRect.width : railRect.height;
@@ -144,23 +155,30 @@ export function ScrollbarOverlay({
         return;
       }
 
-      const handleMove = (moveEvent: MouseEvent): void => {
+      const pointerId = event.pointerId;
+      const handleMove = (moveEvent: PointerEvent): void => {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
         commitPointer(direction === 'x' ? moveEvent.clientX : moveEvent.clientY);
       };
-
-      const handleUp = (): void => {
-        window.removeEventListener('mousemove', handleMove);
-        window.removeEventListener('mouseup', handleUp);
-        scrollbarDragCleanupRef.current = null;
+      const cleanup = (): void => {
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleEnd);
+        window.removeEventListener('pointercancel', handleEnd);
+        if (scrollbarDragCleanupRef.current === cleanup) {
+          scrollbarDragCleanupRef.current = null;
+        }
       };
+      function handleEnd(endEvent: PointerEvent): void {
+        if (endEvent.pointerId === pointerId) cleanup();
+      }
 
-      // Tear down any drag still attached from a prior mousedown that never
-      // received its mouseup, then track this drag's cleanup so an unmount
-      // mid-drag does not leak the window listeners.
-      scrollbarDragCleanupRef.current?.();
-      scrollbarDragCleanupRef.current = handleUp;
-      window.addEventListener('mousemove', handleMove);
-      window.addEventListener('mouseup', handleUp);
+      // The guard above guarantees there is no active owner here. Track this drag
+      // so pointerup, pointercancel, and unmount all remove the same listeners.
+      scrollbarDragCleanupRef.current = cleanup;
+      window.addEventListener('pointermove', handleMove, { passive: false });
+      window.addEventListener('pointerup', handleEnd);
+      window.addEventListener('pointercancel', handleEnd);
     },
     [currentNativeScrollOffset, direction, nativeScrollableSpan, onScrollToOffset, thumbLength]
   );
@@ -211,7 +229,7 @@ export function ScrollbarOverlay({
         aria-valuenow={Math.round(currentNativeScrollOffset)}
         tabIndex={0}
         data-cineview-scrollbar-rail="true"
-        onMouseDown={handleScrollbarMouseDown}
+        onPointerDown={handleScrollbarPointerDown}
         onKeyDown={handleScrollbarKeyDown}
         onFocus={() => setHasKeyboardFocus(true)}
         onBlur={() => setHasKeyboardFocus(false)}
@@ -228,6 +246,7 @@ export function ScrollbarOverlay({
                 boxShadow:
                   '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
                 pointerEvents: 'auto',
+                touchAction: 'none',
                 cursor: 'pointer',
                 outline: hasKeyboardFocus ? '2px solid rgba(24, 119, 242, 0.95)' : 'none',
                 outlineOffset: 2,
@@ -243,6 +262,7 @@ export function ScrollbarOverlay({
                 boxShadow:
                   '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
                 pointerEvents: 'auto',
+                touchAction: 'none',
                 cursor: 'pointer',
                 outline: hasKeyboardFocus ? '2px solid rgba(24, 119, 242, 0.95)' : 'none',
                 outlineOffset: 2,

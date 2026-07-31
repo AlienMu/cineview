@@ -628,7 +628,7 @@ describe('跨平台兼容性测试', () => {
           config={{ size: 750 }}
         >
           <Scene>
-            <Animate animateId="drag-test" exitAnimation="fade-out">
+            <Animate animateId="drag-test" enterAnimation="fade-in" exitAnimation="fade-out">
               <h1>Drag 场景</h1>
             </Animate>
           </Scene>

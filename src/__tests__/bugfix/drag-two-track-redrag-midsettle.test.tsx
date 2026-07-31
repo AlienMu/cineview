@@ -174,7 +174,7 @@ function renderDragApp() {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600, dragTimeScale: 25 } }}
+      modes={{ drag: { direction: 'y', transitionDuration: 600, unit: 'time', scale: 25 } }}
       config={{ size: 750 }}
     >
       <Scene
@@ -219,10 +219,16 @@ function renderDragApp() {
   return cineViewRef;
 }
 
-function dragUp(surface: HTMLElement, fromY: number, toY: number) {
+async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  const ownershipY = fromY - 8;
+  const targetY = toY - 8;
   fireEvent.mouseDown(surface, { clientX: 375, clientY: fromY });
-  fireEvent.mouseMove(surface, { clientX: 375, clientY: toY });
-  fireEvent.mouseUp(surface, { clientX: 375, clientY: toY });
+  fireEvent.mouseMove(surface, { clientX: 375, clientY: ownershipY });
+  fireEvent.mouseMove(surface, { clientX: 375, clientY: targetY });
+  fireEvent.mouseUp(surface, { clientX: 375, clientY: targetY });
 }
 
 function drainColdStart(): void {
@@ -252,7 +258,7 @@ describe('drag two-track re-drag mid-settle (RED4)', () => {
     // Partial release 0 -> 1 (~65%). Creates the render lane + scene-1 element
     // continuation toward T ≈ 2500ms.
     const s0 = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
-    dragUp(s0, 620, 120);
+    await dragUp(s0, 620, 120);
 
     // Complete ONLY the render (page-slide) lane -> commit to scene 1. The
     // element continuation stays in flight (not flushed).

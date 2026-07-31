@@ -80,6 +80,9 @@ export interface NormalizedSceneProps {
   globalDirection: 'forward' | 'backward' | null;
   globalIsSceneAnimating: boolean;
   globalSharedTimelineDurationMs: number;
+  globalActivationToken: number;
+  globalActivationKind: NonNullable<SceneInternalProps['sceneRuntime']>['activationKind'] | null;
+  globalFirstSceneEnterGateKnown: boolean;
   globalFirstSceneEnterActive: boolean;
   globalFirstSceneEnterReady: boolean;
   globalViewportWidth: number;
@@ -164,6 +167,12 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
     globalDirection: props.sceneRuntime?.transitionDirection ?? null,
     globalIsSceneAnimating: props.sceneRuntime?.isSceneAnimating ?? false,
     globalSharedTimelineDurationMs: props.sceneRuntime?.sharedTimelineDurationMs ?? 0,
+    globalActivationToken: props.sceneRuntime?.activationToken ?? 0,
+    globalActivationKind: props.sceneRuntime?.activationKind ?? null,
+    // Legacy/standalone Scene callers have no snapshot sentinel, so absence means
+    // the gate is already known. ScrollSceneSlot explicitly sends false only for
+    // its pre-store EMPTY snapshot.
+    globalFirstSceneEnterGateKnown: props.sceneRuntime?.firstSceneEnterGateKnown ?? true,
     globalFirstSceneEnterActive: props.sceneRuntime?.firstSceneEnterActive ?? false,
     globalFirstSceneEnterReady: props.sceneRuntime?.firstSceneEnterReady ?? false,
     globalViewportWidth: props.sceneRuntime?.viewportWidth ?? 0,

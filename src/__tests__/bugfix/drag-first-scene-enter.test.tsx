@@ -482,6 +482,62 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
     expect(latestOpacityById.copy).toBeLessThan(0.8);
   });
 
+  it('waits for the first non-empty prepared snapshot when scene 0 has no assets', async () => {
+    render(
+      <React.StrictMode>
+        <CineView
+          mode="drag"
+          modes={{ drag: { direction: 'y', transitionDuration: 680 } }}
+          config={{ size: 390 }}
+        >
+          <Scene>
+            <Animate animateId="copy" enterAnimation="fade-in" duration={{ enter: 640 }}>
+              <h1>Copy</h1>
+            </Animate>
+            <Animate
+              animateId="sub"
+              enterAnimation="slide-up"
+              duration={{ enter: 700 }}
+              timeline={{ waitFor: 'copy', delay: 80 }}
+            >
+              <p>Sub</p>
+            </Animate>
+          </Scene>
+          <Scene>
+            <Animate animateId="next" enterAnimation="fade-in" duration={{ enter: 400 }}>
+              <h1>Next</h1>
+            </Animate>
+          </Scene>
+        </CineView>
+      </React.StrictMode>
+    );
+
+    // With no priority assets, firstSceneEnterReady becomes true immediately.
+    // The empty T=0 registry snapshot must not consume the one-shot before the
+    // async presets register and publish the real scene-0 playback snapshot.
+    await waitFor(() => {
+      expect(latestOpacityById.copy).toBeDefined();
+      expect(latestOpacityById.sub).toBeDefined();
+    });
+    await waitFor(() => {
+      const live = driverControllers.filter((controller) => !controller.stopped);
+      expect(live.some((controller) => controller.target >= 1420)).toBe(true);
+    });
+
+    const active = driverControllers
+      .filter((controller) => !controller.stopped && controller.target >= 1420)
+      .pop();
+    expect(active).toBeDefined();
+    act(() => {
+      active!.onUpdate?.(320);
+    });
+    await waitFor(() => {
+      expect(latestOpacityById.copy).toBeGreaterThan(0.1);
+    });
+    expect(latestOpacityById.copy).toBeLessThan(0.9);
+    expect(latestOpacityById.sub).toBeLessThan(0.01);
+  });
+
   // --- Spec 2: timeout + preventDefault() called --------------------------
   it('emits FIRST_SCENE_TIMEOUT with preventDefault(); when called, scene stays at initial', async () => {
     let captured: CineViewErrorDetail | null = null;

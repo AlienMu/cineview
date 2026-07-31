@@ -1,7 +1,8 @@
-import React, { createRef } from 'react';
+import React, { act, createRef, useContext } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
+import { CineView, Scene } from '../../index';
+import { SceneContext } from '../../components/Animate/Animate';
 import type { CineViewRef } from '../../types';
 
 jest.mock('framer-motion', () => {
@@ -169,27 +170,11 @@ describe('drag mode live-release regression', () => {
         callbacks={{ onSceneDidChange }}
       >
         <Scene transition={{ exitDuration: 800 }}>
-          <Position at={{ x: 375, y: 220 }}>
-            <Animate
-              animateId="drag-scene-1-title"
-              enterAnimation="fade-in"
-              duration={{ enter: 600 }}
-            >
-              <h1>Drag Scene 1</h1>
-            </Animate>
-          </Position>
+          <h1>Drag Scene 1</h1>
         </Scene>
 
         <Scene transition={{ exitDuration: 800 }}>
-          <Position at={{ x: 375, y: 220 }}>
-            <Animate
-              animateId="drag-scene-2-title"
-              enterAnimation="fade-in"
-              duration={{ enter: 600 }}
-            >
-              <h1>Drag Scene 2</h1>
-            </Animate>
-          </Position>
+          <h1>Drag Scene 2</h1>
         </Scene>
       </CineView>
     );
@@ -197,6 +182,9 @@ describe('drag mode live-release regression', () => {
     await waitFor(() => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(0);
       expect(screen.getByText('Drag Scene 1')).toBeInTheDocument();
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
 
     const activeSceneWrapper = document.querySelector(
@@ -207,6 +195,9 @@ describe('drag mode live-release regression', () => {
     expect(activeSceneSurface).not.toBeNull();
 
     fireEvent.mouseDown(activeSceneSurface!, { clientX: 375, clientY: 620 });
+    // First direction-qualified frame acquires ownership and becomes the zero
+    // baseline. Candidate slop before this frame must not move either track.
+    fireEvent.mouseMove(activeSceneSurface!, { clientX: 375, clientY: 520 });
     fireEvent.mouseMove(activeSceneSurface!, { clientX: 375, clientY: 120 });
     fireEvent.mouseUp(activeSceneSurface!, { clientX: 375, clientY: 120 });
 
@@ -217,5 +208,101 @@ describe('drag mode live-release regression', () => {
       expect(cineViewRef.current?.getCurrentScene()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
+  });
+
+  it('does not rerender Scene subtrees for each owned pointer-move frame', async () => {
+    const renderCounts = [0, 0];
+    const RenderProbe = ({ sceneIndex }: { sceneIndex: number }): JSX.Element => {
+      const sceneContext = useContext(SceneContext);
+      void sceneContext?.renderProgress;
+      renderCounts[sceneIndex] += 1;
+      return <span>{`hot-path-scene-${sceneIndex}`}</span>;
+    };
+
+    render(
+      <CineView
+        mode="drag"
+        modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
+        config={{ size: 750 }}
+      >
+        <Scene>
+          <RenderProbe sceneIndex={0} />
+        </Scene>
+        <Scene>
+          <RenderProbe sceneIndex={1} />
+        </Scene>
+      </CineView>
+    );
+
+    await screen.findByText('hot-path-scene-0');
+    await act(async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const activeSceneSurface = document.querySelector(
+      '[data-scene-index="0"] > *'
+    ) as HTMLElement | null;
+    expect(activeSceneSurface).not.toBeNull();
+
+    fireEvent.mouseDown(activeSceneSurface!, { clientX: 375, clientY: 620 });
+    fireEvent.mouseMove(activeSceneSurface!, { clientX: 375, clientY: 520 });
+    const afterOwnership = [...renderCounts];
+
+    fireEvent.mouseMove(activeSceneSurface!, { clientX: 375, clientY: 460 });
+    fireEvent.mouseMove(activeSceneSurface!, { clientX: 375, clientY: 400 });
+    fireEvent.mouseMove(activeSceneSurface!, { clientX: 375, clientY: 340 });
+
+    expect(renderCounts).toEqual(afterOwnership);
+    fireEvent.mouseUp(activeSceneSurface!, { clientX: 375, clientY: 340 });
+  });
+
+  it('latches a business-disabled target for one press without starting a drag session', async () => {
+    const cineViewRef = createRef<CineViewRef>();
+    const onDragBlocked = jest.fn();
+    const onDragStart = jest.fn();
+    const onDragCancel = jest.fn();
+    const onDragCommit = jest.fn();
+
+    render(
+      <CineView
+        ref={cineViewRef}
+        mode="drag"
+        modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
+        config={{ size: 750 }}
+        callbacks={{ onDragBlocked, onDragStart, onDragCancel, onDragCommit }}
+      >
+        <Scene>
+          <div>Enabled source</div>
+        </Scene>
+        <Scene drag={{ enabled: false }}>
+          <div>Disabled target</div>
+        </Scene>
+      </CineView>
+    );
+
+    await waitFor(() => {
+      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(screen.getByText('Enabled source')).toBeInTheDocument();
+    });
+
+    const surface = document.querySelector('[data-scene-index="0"]')?.firstElementChild;
+    expect(surface).toBeInstanceOf(HTMLElement);
+
+    fireEvent.mouseDown(surface!, { clientX: 375, clientY: 620 });
+    fireEvent.mouseMove(surface!, { clientX: 375, clientY: 520 });
+    fireEvent.mouseMove(surface!, { clientX: 375, clientY: 420 });
+    fireEvent.mouseMove(surface!, { clientX: 375, clientY: 320 });
+    fireEvent.mouseUp(surface!, { clientX: 375, clientY: 320 });
+
+    expect(onDragBlocked).toHaveBeenCalledTimes(1);
+    expect(onDragBlocked).toHaveBeenCalledWith({
+      fromIndex: 0,
+      targetSceneIndex: 1,
+      direction: 'forward',
+    });
+    expect(onDragStart).not.toHaveBeenCalled();
+    expect(onDragCancel).not.toHaveBeenCalled();
+    expect(onDragCommit).not.toHaveBeenCalled();
+    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
   });
 });

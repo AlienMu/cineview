@@ -45,10 +45,9 @@ describe('resolveSceneScrollAnimationBudgets — uncovered timing branches', () 
     expect(resolved.totalBudgetPx).toBe(200);
   });
 
-  it('breaks a circular waitFor chain with a delay+enter fallback for the revisited node', () => {
-    // 'a' waitFor 'b', 'b' waitFor 'a'. Resolving 'a' recurses into 'b', which
-    // recurses back into 'a' while 'a' is still on the chain — that revisit takes
-    // the cycle-break fallback (delay + enter only, no exit).
+  it('fails open every edge in a circular waitFor chain', () => {
+    // 'a' waitFor 'b', 'b' waitFor 'a'. Both dependency edges are invalid, so
+    // each animation keeps only its own delay and duration.
     const registrations = makeRegistrations([
       { animateId: 'a', delay: 10, enterDuration: 200, exitDuration: 0, waitFor: 'b' },
       { animateId: 'b', delay: 20, enterDuration: 300, exitDuration: 0, waitFor: 'a' },
@@ -56,17 +55,38 @@ describe('resolveSceneScrollAnimationBudgets — uncovered timing branches', () 
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
 
-    // The revisited 'a' fallback (startMs=delay 10, enterEnd=10+200=210) feeds 'b':
-    // b.startMs = 210 + delay 20 = 230, b.enterEnd = 230 + 300 = 530.
-    expect(resolved.budgets.b.startMs).toBe(230);
-    expect(resolved.budgets.b.totalEndMs).toBe(530);
+    expect(resolved.budgets.b.startMs).toBe(20);
+    expect(resolved.budgets.b.totalEndMs).toBe(320);
+    expect(resolved.budgets.a.startMs).toBe(10);
+    expect(resolved.budgets.a.totalEndMs).toBe(210);
+    expect(resolved.totalDurationMs).toBe(320);
+  });
 
-    // The outer 'a' resolution then uses b.totalEndMs (530) as its predecessor:
-    // a.startMs = 530 + 10 = 540, a.enterEnd = 540 + 200 = 740.
-    expect(resolved.budgets.a.startMs).toBe(540);
-    expect(resolved.budgets.a.totalEndMs).toBe(740);
+  it('keeps an outside follower downstream of a three-node cycle free of cyclic timing', () => {
+    const registrations = makeRegistrations([
+      {
+        animateId: 'downstream',
+        delay: 7,
+        enterDuration: 50,
+        exitDuration: 0,
+        waitFor: 'a',
+      },
+      { animateId: 'a', delay: 10, enterDuration: 20, exitDuration: 5, waitFor: 'b' },
+      { animateId: 'b', delay: 20, enterDuration: 30, exitDuration: 5, waitFor: 'c' },
+      { animateId: 'c', delay: 30, enterDuration: 40, exitDuration: 5, waitFor: 'a' },
+    ]);
 
-    expect(resolved.totalDurationMs).toBe(740);
+    const resolved = resolveSceneScrollAnimationBudgets(registrations);
+
+    expect(resolved.budgets.a).toMatchObject({ startMs: 10, totalEndMs: 35 });
+    expect(resolved.budgets.b).toMatchObject({ startMs: 20, totalEndMs: 55 });
+    expect(resolved.budgets.c).toMatchObject({ startMs: 30, totalEndMs: 75 });
+    expect(resolved.budgets.downstream).toMatchObject({ startMs: 42, totalEndMs: 92 });
+    expect(resolved.totalDurationMs).toBe(92);
+    expect(resolved.totalBudgetPx).toBe(92);
+    expect(
+      Object.values(resolved.budgets).every((budget) => Number.isFinite(budget.totalEndMs))
+    ).toBe(true);
   });
 
   it('clamps a negative enterDuration up to the minimum 1ms enter window', () => {

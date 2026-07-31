@@ -37,6 +37,7 @@ export function regroupCallbacks(flat: FlatCallbacks | undefined): GroupedCallba
     drag: {
       onDragStart: flat.onDragStart,
       onDragProgress: flat.onDragProgress,
+      onDragBlocked: flat.onDragBlocked,
       onDragCommit: flat.onDragCommit,
       onDragCancel: flat.onDragCancel,
     },

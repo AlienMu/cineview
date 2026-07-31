@@ -9,7 +9,7 @@ import type { CineViewRef } from '../../types';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
-  useSceneScrollTimeline,
+  useSceneScrollZoneTimeline,
 } from '../Scene/sceneScrollRuntime';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 
@@ -243,8 +243,8 @@ jest.mock('../../hooks/useImagePreloader', () => ({
   ]),
 }));
 
-jest.mock('../../utils/performanceMonitor', () => ({
-  performanceMonitor: {
+jest.mock('../../utils/performanceMonitor', () => {
+  const performanceMonitor = {
     start: jest.fn(),
     stop: jest.fn(),
     getMetrics: jest.fn(() => ({
@@ -254,8 +254,15 @@ jest.mock('../../utils/performanceMonitor', () => ({
       bundleSize: 12,
     })),
     reset: jest.fn(),
-  },
-}));
+  };
+  return {
+    performanceMonitor,
+    acquirePerformanceMonitoring: jest.fn(() => {
+      performanceMonitor.start();
+      return () => performanceMonitor.stop();
+    }),
+  };
+});
 
 function ScrollBudgetProbe({
   animateId,
@@ -272,7 +279,7 @@ function ScrollBudgetProbe({
       return;
     }
 
-    runtime.registerZoneAnimation(zoneId, {
+    const registrationOwner = runtime.registerZoneAnimation(zoneId, {
       animateId,
       delay: 0,
       enterDuration,
@@ -280,7 +287,7 @@ function ScrollBudgetProbe({
     });
 
     return () => {
-      runtime.unregisterZoneAnimation(zoneId, animateId);
+      runtime.unregisterZoneAnimation(zoneId, animateId, registrationOwner);
     };
   }, [animateId, enterDuration, runtime, zoneId]);
 
@@ -288,28 +295,24 @@ function ScrollBudgetProbe({
 }
 
 function ZoneProgressProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useSceneScrollTimeline();
-  const progress = timeline?.zoneStates[zoneId]?.progressPx ?? 0;
+  const progress = useSceneScrollZoneTimeline(zoneId)?.progressPx ?? 0;
 
   return <output data-testid={`${zoneId}-progress`}>{progress}</output>;
 }
 
 function ZoneTotalBudgetProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useSceneScrollTimeline();
-  const total = timeline?.zoneStates[zoneId]?.totalBudgetPx ?? -1;
+  const total = useSceneScrollZoneTimeline(zoneId)?.totalBudgetPx ?? -1;
   return <output data-testid={`${zoneId}-total`}>{total}</output>;
 }
 
 function ZoneActiveProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useSceneScrollTimeline();
-  const active = timeline?.zoneStates[zoneId]?.active ?? false;
+  const active = useSceneScrollZoneTimeline(zoneId)?.active ?? false;
 
   return <output data-testid={`${zoneId}-active`}>{String(active)}</output>;
 }
 
 function ZoneBudgetKeysProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useSceneScrollTimeline();
-  const keys = Object.keys(timeline?.zoneStates[zoneId]?.sequence.budgets ?? {}).sort();
+  const keys = Object.keys(useSceneScrollZoneTimeline(zoneId)?.sequence.budgets ?? {}).sort();
 
   return <output data-testid={`${zoneId}-budget-keys`}>{keys.join(',')}</output>;
 }
@@ -358,7 +361,7 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
     });
 
     return () => {
-      runtime.unregisterZone(zoneId);
+      runtime.unregisterZone(zoneId, sceneIndex);
     };
   }, [runtime, sceneIndex, scroll, zoneId]);
 
@@ -367,12 +370,12 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
       return;
     }
 
-    runtime.setZoneElement(zoneId, zoneRef.current);
+    runtime.setZoneElement(zoneId, sceneIndex, zoneRef.current);
 
     return () => {
-      runtime.setZoneElement(zoneId, null);
+      runtime.setZoneElement(zoneId, sceneIndex, null);
     };
-  }, [runtime, zoneId]);
+  }, [runtime, sceneIndex, zoneId]);
 
   return (
     <SceneScrollTakeoverContext.Provider value={zoneId}>
@@ -586,6 +589,37 @@ function getExpectedThumbOffsetForNativeOffset({
     : 0;
 }
 
+function dispatchPointerEvent(
+  target: EventTarget,
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+  {
+    clientX,
+    clientY,
+    pointerId = 1,
+    pointerType = 'mouse',
+    button = 0,
+    buttons = type === 'pointerup' || type === 'pointercancel' ? 0 : 1,
+  }: {
+    clientX: number;
+    clientY: number;
+    pointerId?: number;
+    pointerType?: string;
+    button?: number;
+    buttons?: number;
+  }
+): void {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    clientX: { value: clientX },
+    clientY: { value: clientY },
+    pointerId: { value: pointerId },
+    pointerType: { value: pointerType },
+    button: { value: button },
+    buttons: { value: buttons },
+  });
+  target.dispatchEvent(event);
+}
+
 function dragScrollbarThumbToNativeOffset({
   container,
   nativeOffset,
@@ -629,20 +663,15 @@ function dragScrollbarThumbToNativeOffset({
       toJSON: () => undefined,
     }) as DOMRect;
 
-  fireEvent.mouseDown(thumb, {
-    button: 0,
+  dispatchPointerEvent(thumb, 'pointerdown', {
     clientX: centerX,
     clientY: railRect.top + offset + length / 2,
   });
-
-  fireEvent.mouseMove(window, {
-    buttons: 1,
+  dispatchPointerEvent(window, 'pointermove', {
     clientX: centerX,
     clientY: railRect.top + targetOffset + length / 2,
   });
-
-  fireEvent.mouseUp(window, {
-    button: 0,
+  dispatchPointerEvent(window, 'pointerup', {
     clientX: centerX,
     clientY: railRect.top + targetOffset + length / 2,
   });
@@ -691,8 +720,7 @@ function clickScrollbarRailToNativeOffset({
       toJSON: () => undefined,
     }) as DOMRect;
 
-  fireEvent.mouseDown(rail, {
-    button: 0,
+  dispatchPointerEvent(rail, 'pointerdown', {
     clientX: centerX,
     clientY: railRect.top + targetOffset + length / 2,
   });
@@ -1971,16 +1999,13 @@ describe('DirectScrollCineView', () => {
 
       await wheelAndFlush(root, -90000);
 
-      // CHARACTERIZATION: design/test-name expects the first reverse wheel re-entry frame to stay near
-      // completion (progress >1620, zone re-activated) once the takeover is fully completed. The
-      // implementation instead releases ownership at segmentEnd and a reverse wheel collapses progress
-      // to 0 with active=false, snapping scrollTop back to the segmentStart anchor (2200 == sceneTop;
-      // old phantom conversion put it at ~2074.81). This is the P0 "scroll reverse re-entry" bug.
-      // Flagged for browser-acceptance lane.
+      // A completed endpoint is outside the consumable open interval. One large reverse intent must
+      // first produce a segment-interior frame instead of collapsing directly to segmentStart.
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2200, 3);
-        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
-        expect(readOutputNumber('zone-1-progress')).toBe(0);
+        expect(root.scrollTop).toBeCloseTo(2599, 3);
+        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+        expect(readOutputNumber('zone-1-progress')).toBeGreaterThan(0);
+        expect(readOutputNumber('zone-1-progress')).toBeLessThan(400);
       });
     });
 
@@ -2110,23 +2135,18 @@ describe('DirectScrollCineView', () => {
           deltaMode: 0,
         });
         fireEvent.scroll(root);
-        fireEvent.wheel(root, {
-          deltaY: -90000,
-          deltaMode: 0,
-        });
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: design/test-name expects the reverse waterfall to stay armed across the
-      // sceneEnd scroll correction's zero-delta scroll event (zone-1 active, progress retracting from
-      // ~440). The implementation instead loses takeover ownership entirely after the forward pass
-      // completes: the large reverse wheel runs native scroll all the way to the top (scrollTop 0,
-      // progress 0, zone inactive). This is the P0 reverse re-entry bug. Flagged for browser-acceptance lane.
-      expect(root.scrollTop).toBe(0);
+      expect(root.scrollTop).toBe(2639);
+      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+      expect(readOutputNumber('zone-1-progress')).toBe(439);
+
+      await wheelAndFlush(root, -90000);
+      expect(root.scrollTop).toBe(2200);
       expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
       expect(readOutputNumber('zone-1-progress')).toBe(0);
 
-      await flushAnimationFrame();
       await wheelAndFlush(root, -90000);
 
       await waitFor(() => {
@@ -2215,13 +2235,15 @@ describe('DirectScrollCineView', () => {
 
       await completeTakeoverForward(root, () => readOutputNumber('zone-3-progress'), 440);
 
-      // Single-ruler geometry: takeover visualSpan == measured span == viewport, so each center-lock
-      // anchor sits exactly at its scene top (zone-3 segmentStart = 5000, zone-1 segmentStart = 2200).
-      // The implementation does NOT re-arm zone-3 on reverse re-entry: the first reverse wheel collapses
-      // zone-3 progress to 0 and parks scrollTop at zone-3 segmentStart (5000) without activating it;
-      // the second reverse wheel jumps past zone-3 entirely to zone-1's segmentEnd (2600 - 1 = 2599) and
-      // arms zone-1 near completion (progress 399). (Legacy height-based conversion put zone-3 at
-      // ~4874.81 and zone-1 segmentEnd at ~2473.81.)
+      // The current owner must consume its reverse endpoint frame and reach its anchor before an
+      // earlier crossed segment can acquire the next reverse intent.
+      await wheelAndFlush(root, -90000);
+      await waitFor(() => {
+        expect(root.scrollTop).toBeCloseTo(5439, 3);
+        expect(screen.getByTestId('zone-3-active')).toHaveTextContent('true');
+        expect(readOutputNumber('zone-3-progress')).toBeCloseTo(439, 0);
+      });
+
       await wheelAndFlush(root, -90000);
       await waitFor(() => {
         expect(root.scrollTop).toBeCloseTo(5000, 3);
@@ -2297,18 +2319,12 @@ describe('DirectScrollCineView', () => {
       });
       await flushAnimationFrame();
 
-      // CHARACTERIZATION: design/test-name expects a reverse scrollbar drag back into the completed
-      // zone to keep the first re-entry frame near completion (progress > 1620 of budget, active).
-      // This is the P0 reverse re-entry bug: dragging the thumb back collapses progress to 0 and
-      // leaves the zone inactive, parking scrollTop at the segment anchor. Flagged for
-      // browser-acceptance lane.
-      // Single-ruler geometry: takeover visualSpan == measured span == viewport, so the center-lock
-      // anchor (segmentStart) sits exactly at sceneTop (2200). Legacy height-based conversion put
-      // it at ~2074.81.
+      // Scrollbar and wheel intents share the same reducer: the first reverse crossing from the
+      // completed endpoint must land inside the segment near completion.
       await waitFor(() => {
-        expect(root.scrollTop).toBeCloseTo(2200, 3);
-        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
-        expect(readOutputNumber('zone-1-progress')).toBe(0);
+        expect(root.scrollTop).toBeCloseTo(2599, 3);
+        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+        expect(readOutputNumber('zone-1-progress')).toBeCloseTo(399, 0);
       });
     });
 
@@ -2571,7 +2587,22 @@ describe('DirectScrollCineView', () => {
         expect(readOutputNumber('zone-1-progress')).toBe(100);
       });
 
-      // Drag the thumb above the anchor: zone deactivates and progress collapses to 0.
+      // The first reverse drag from the completed endpoint must stop inside the segment.
+      act(() => {
+        dragScrollbarThumbToNativeOffset({
+          container,
+          nativeOffset: 2100,
+          contentSpan,
+        });
+      });
+      await flushAnimationFrame();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+        expect(readOutputNumber('zone-1-progress')).toBe(99);
+      });
+
+      // A later reverse intent may now consume the remaining segment and reach the anchor.
       act(() => {
         dragScrollbarThumbToNativeOffset({
           container,
@@ -3055,8 +3086,8 @@ describe('DirectScrollCineView', () => {
     const initial = getThumbMetrics(container);
 
     act(() => {
-      fireEvent.mouseDown(thumb, {
-        button: 0,
+      dispatchPointerEvent(thumb, 'pointerdown', {
+        pointerId: 11,
         clientX: railRect.left + railRect.width / 2,
         clientY: railRect.top + initial.offset + initial.length / 2,
       });
@@ -3066,13 +3097,13 @@ describe('DirectScrollCineView', () => {
     // clearly lower clientY moves the thumb down; the original target of 180 coincided with the grab
     // point and produced zero movement (a stale test input, not a behavioral expectation).
     act(() => {
-      fireEvent.mouseMove(window, {
-        buttons: 1,
+      dispatchPointerEvent(window, 'pointermove', {
+        pointerId: 11,
         clientX: railRect.left + railRect.width / 2,
         clientY: 600,
       });
-      fireEvent.mouseUp(window, {
-        button: 0,
+      dispatchPointerEvent(window, 'pointerup', {
+        pointerId: 11,
         clientX: railRect.left + railRect.width / 2,
         clientY: 600,
       });
@@ -3085,7 +3116,7 @@ describe('DirectScrollCineView', () => {
     });
   });
 
-  it('removes window mousemove/mouseup listeners when unmounted mid scrollbar drag', () => {
+  it('removes window pointer listeners when unmounted mid scrollbar drag', () => {
     const addSpy = jest.spyOn(window, 'addEventListener');
     const removeSpy = jest.spyOn(window, 'removeEventListener');
 
@@ -3145,31 +3176,34 @@ describe('DirectScrollCineView', () => {
 
     const initial = getThumbMetrics(container);
 
-    // Begin a thumb drag: this attaches window mousemove + mouseup listeners.
+    // Begin a thumb drag: this attaches window pointermove/up/cancel listeners.
     act(() => {
-      fireEvent.mouseDown(thumb, {
-        button: 0,
+      dispatchPointerEvent(thumb, 'pointerdown', {
+        pointerId: 12,
         clientX: railRect.left + railRect.width / 2,
         clientY: railRect.top + initial.offset + initial.length / 2,
       });
     });
 
-    const attachedMove = addSpy.mock.calls.filter(([type]) => type === 'mousemove').length;
-    const attachedUp = addSpy.mock.calls.filter(([type]) => type === 'mouseup').length;
+    const attachedMove = addSpy.mock.calls.filter(([type]) => type === 'pointermove').length;
+    const attachedUp = addSpy.mock.calls.filter(([type]) => type === 'pointerup').length;
+    const attachedCancel = addSpy.mock.calls.filter(([type]) => type === 'pointercancel').length;
     expect(attachedMove).toBeGreaterThan(0);
     expect(attachedUp).toBeGreaterThan(0);
+    expect(attachedCancel).toBeGreaterThan(0);
 
-    // Unmount WHILE the drag is still active (no mouseup yet). The component must
-    // clean up the window listeners on unmount, otherwise the handlers and their
-    // closures leak.
+    // Unmount while the pointer is still active. All window listeners and their
+    // captured geometry must be released even if no pointerup arrives.
     act(() => {
       unmount();
     });
 
-    const removedMove = removeSpy.mock.calls.filter(([type]) => type === 'mousemove').length;
-    const removedUp = removeSpy.mock.calls.filter(([type]) => type === 'mouseup').length;
+    const removedMove = removeSpy.mock.calls.filter(([type]) => type === 'pointermove').length;
+    const removedUp = removeSpy.mock.calls.filter(([type]) => type === 'pointerup').length;
+    const removedCancel = removeSpy.mock.calls.filter(([type]) => type === 'pointercancel').length;
     expect(removedMove).toBeGreaterThanOrEqual(attachedMove);
     expect(removedUp).toBeGreaterThanOrEqual(attachedUp);
+    expect(removedCancel).toBeGreaterThanOrEqual(attachedCancel);
 
     addSpy.mockRestore();
     removeSpy.mockRestore();
@@ -3834,14 +3868,8 @@ describe('DirectScrollCineView', () => {
 
     onZoneEnter.mockClear();
 
-    // CHARACTERIZATION (P0 reverse re-entry bug, CLAUDE.md): after jumping native scroll to 3300 (well
-    // past the completed segment) a small reverse wheel does NOT replay the completed takeover at
-    // sceneEnd. The native jump first snaps back to segmentEnd (2300) completing progress, then the
-    // reverse wheel of -110 crosses back out above segmentStart, so the zone deactivates, progress
-    // collapses to 0, and scrollTop parks on the segmentStart anchor (2200). onZoneEnter does not
-    // re-fire. Single-ruler geometry: segmentStart = sceneTop = 2200, segmentEnd = 2200 + budget(100) =
-    // 2300 (old phantom conversion put these at ~2074.81 / ~2174.81). The design contract (re-enter near
-    // completion, active, partial progress) is still violated. Flagged for browser-acceptance lane.
+    // Native reconciliation parks at the completed endpoint. The next reverse intent must publish
+    // an interior frame near completion instead of collapsing directly to the anchor.
     act(() => {
       root.scrollTop = 3300;
       fireEvent.scroll(root);
@@ -3855,11 +3883,11 @@ describe('DirectScrollCineView', () => {
     });
     await flushAnimationFrame();
     await waitFor(() => {
-      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('false');
-      expect(readOutputNumber('zone-1-progress')).toBe(0);
-      expect(root.scrollTop).toBe(2200);
+      expect(screen.getByTestId('zone-1-active')).toHaveTextContent('true');
+      expect(readOutputNumber('zone-1-progress')).toBe(99);
+      expect(root.scrollTop).toBe(2299);
     });
-    expect(onZoneEnter).not.toHaveBeenCalled();
+    expect(onZoneEnter).toHaveBeenCalledTimes(1);
   });
 
   it('does not jump native scrollTop back to anchor when reverse re-entering a completed takeover from sceneEnd', async () => {
@@ -6141,5 +6169,475 @@ describe('DirectScrollCineView', () => {
     } finally {
       addEventListenerSpy.mockRestore();
     }
+  });
+
+  // S-F5: onZoneProgress threshold baseline must be the last REPORTED value.
+  // Slow scrolling (≤0.5px per frame) used to reset the baseline every sync and
+  // starve the callback; terminal 0 / full values within 0.5px of the previous
+  // frame were swallowed.
+  it('reports zone progress during slow sub-threshold scrolling and always reports the exact endpoints', async () => {
+    const onZoneProgress = jest.fn();
+    const { container } = render(
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onZoneProgress }}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene
+          sceneId="scene-1"
+          sceneHeight={1000}
+          scroll={{ zoneId: 'zone-slow', trigger: 'center-lock' }}
+          sceneRuntime={{ sceneIndex: 1 }}
+        >
+          <ScrollBudgetProbe animateId="slow-anim" enterDuration={240} />
+          <ZoneProgressProbe zoneId="zone-slow" />
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000],
+      sceneHeights: [1000, 1000],
+    });
+    act(() => {
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+
+    const segment = getTakeoverSegment(container, 1);
+    const segmentStart = segment.start;
+    const totalBudget = segment.distance;
+    expect(totalBudget).toBe(240);
+
+    const zoneCalls = (): Array<{ progress: number }> =>
+      onZoneProgress.mock.calls
+        .map(([payload]) => payload as { zoneId: string; progress: number })
+        .filter((payload) => payload.zoneId === 'zone-slow');
+
+    // Park exactly at the segment anchor, then creep forward 0.4px per frame.
+    act(() => {
+      root.scrollTop = segmentStart;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    onZoneProgress.mockClear();
+
+    for (let step = 1; step <= 10; step += 1) {
+      act(() => {
+        root.scrollTop = segmentStart + step * 0.4;
+        fireEvent.scroll(root);
+      });
+      await flushAnimationFrame();
+    }
+
+    // 4px of accumulated slow movement must have produced at least one report
+    // (the old per-frame baseline swallowed every one of them).
+    const slowReports = zoneCalls();
+    expect(slowReports.length).toBeGreaterThan(0);
+    expect(Math.max(...slowReports.map((call) => call.progress))).toBeGreaterThan(0);
+
+    // Jump near completion, then close the final ≤0.5px: the exact full value
+    // must be forced through.
+    act(() => {
+      root.scrollTop = segmentStart + totalBudget - 0.3;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    act(() => {
+      root.scrollTop = segmentStart + totalBudget;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    expect(zoneCalls()[zoneCalls().length - 1]?.progress).toBe(1);
+
+    // Reverse back to the anchor: the exact 0 endpoint must be forced through.
+    act(() => {
+      root.scrollTop = segmentStart + 0.3;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    act(() => {
+      root.scrollTop = segmentStart;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    expect(zoneCalls()[zoneCalls().length - 1]?.progress).toBe(0);
+  });
+
+  // S-F2: programmatic smooth scrolling (goToZone / goToScene with
+  // behavior:'smooth') must not be treated as a user gesture by the anti-skip
+  // intent clamp. The clamp's corrective behavior:'auto' scrollTo aborts an
+  // in-flight smooth scroll per the CSSOM spec, stranding the user mid-way.
+  describe('programmatic smooth scrolling (S-F2)', () => {
+    // Emulates real browser smooth scrolling in jsdom: scrollTo(smooth) arms a
+    // target, frames are driven manually via stepFrame, and any
+    // scrollTo(auto) while a smooth scroll is in flight aborts it (CSSOM).
+    function installSmoothScrollEmulation(root: HTMLDivElement): {
+      isAnimating: () => boolean;
+      autoAborts: () => number;
+      stepFrame: (stepPx: number) => boolean;
+    } {
+      let smoothTarget: number | null = null;
+      let autoAborts = 0;
+
+      root.scrollTo = ((optionsOrX?: ScrollToOptions | number, y?: number) => {
+        if (typeof optionsOrX === 'number') {
+          root.scrollLeft = optionsOrX;
+          if (typeof y === 'number') {
+            root.scrollTop = y;
+          }
+          return;
+        }
+
+        const top = optionsOrX?.top;
+        if (typeof top !== 'number') {
+          return;
+        }
+        if (optionsOrX?.behavior === 'smooth') {
+          smoothTarget = top;
+          return;
+        }
+        if (smoothTarget !== null) {
+          smoothTarget = null;
+          autoAborts += 1;
+        }
+        root.scrollTop = top;
+      }) as HTMLElement['scrollTo'];
+
+      return {
+        isAnimating: () => smoothTarget !== null,
+        autoAborts: () => autoAborts,
+        stepFrame: (stepPx: number): boolean => {
+          if (smoothTarget === null) {
+            return false;
+          }
+
+          const remaining = smoothTarget - root.scrollTop;
+          const step = Math.sign(remaining) * Math.min(stepPx, Math.abs(remaining));
+          root.scrollTop += step;
+          if (Math.abs(root.scrollTop - smoothTarget) < 0.5) {
+            smoothTarget = null;
+          }
+          return true;
+        },
+      };
+    }
+
+    async function driveSmoothFrames(
+      root: HTMLDivElement,
+      emulation: { stepFrame: (stepPx: number) => boolean },
+      stepPx: number,
+      maxFrames = 64
+    ): Promise<void> {
+      for (let frame = 0; frame < maxFrames; frame += 1) {
+        let advanced = false;
+        act(() => {
+          advanced = emulation.stepFrame(stepPx);
+          if (advanced) {
+            fireEvent.scroll(root);
+          }
+        });
+        if (!advanced) {
+          return;
+        }
+        await flushAnimationFrame();
+      }
+    }
+
+    // Layout: scene-0 plain (0..1000), scene-1 takeover zone-mid budget 400
+    // (segment 1000..1400, flow 1400), scene-2 takeover zone-target budget 100
+    // (top 2400, segment 2400..2500). scrollHeight 3500, max offset 2500.
+    async function renderSmoothScrollPage(): Promise<{
+      ref: React.RefObject<CineViewRef>;
+      container: HTMLElement;
+      root: HTMLDivElement;
+      midSegment: { start: number; end: number; distance: number };
+      targetSegment: { start: number; end: number; distance: number };
+    }> {
+      const ref = createRef<CineViewRef>();
+      const { container } = render(
+        <DirectScrollCineView ref={ref} config={config}>
+          <TestScene sceneId="scene-0" sceneHeight={1000}>
+            <div>Scene 0</div>
+          </TestScene>
+          <TestScene
+            sceneId="scene-1"
+            sceneHeight={1000}
+            scroll={{ zoneId: 'zone-mid', trigger: 'center-lock' }}
+            sceneRuntime={{ sceneIndex: 1 }}
+          >
+            <ScrollBudgetProbe animateId="mid-anim" enterDuration={400} />
+            <ZoneProgressProbe zoneId="zone-mid" />
+            <div>Scene 1</div>
+          </TestScene>
+          <TestScene
+            sceneId="scene-2"
+            sceneHeight={1000}
+            scroll={{ zoneId: 'zone-target', trigger: 'center-lock' }}
+            sceneRuntime={{ sceneIndex: 2 }}
+          >
+            <ScrollBudgetProbe animateId="target-anim" enterDuration={100} />
+            <ZoneProgressProbe zoneId="zone-target" />
+            <div>Scene 2</div>
+          </TestScene>
+        </DirectScrollCineView>
+      );
+
+      const root = container.querySelector('.cineview-container') as HTMLDivElement;
+      await flushAnimationFrame();
+      installScrollGeometry({
+        container: root,
+        sceneTops: [0, 1000, 2400],
+        sceneHeights: [1000, 1000, 1000],
+      });
+      act(() => {
+        fireEvent.scroll(root);
+      });
+      await flushAnimationFrame();
+
+      const midSegment = getTakeoverSegment(container, 1);
+      const targetSegment = getTakeoverSegment(container, 2);
+      expect(midSegment.start).toBe(1000);
+      expect(midSegment.end).toBe(1400);
+      expect(targetSegment.start).toBe(2400);
+
+      return { ref, container, root, midSegment, targetSegment };
+    }
+
+    it('lets a smooth goToZone cross an intermediate takeover segment and reach the target zone', async () => {
+      const { ref, root, targetSegment } = await renderSmoothScrollPage();
+      const emulation = installSmoothScrollEmulation(root);
+
+      act(() => {
+        ref.current?.goToZone?.('zone-target');
+      });
+      await flushAnimationFrame();
+      expect(emulation.isAnimating()).toBe(true);
+
+      await driveSmoothFrames(root, emulation, 300);
+
+      // The reducer must not have issued a corrective auto scrollTo (which
+      // would abort the smooth scroll and strand the user mid-segment).
+      expect(emulation.autoAborts()).toBe(0);
+      expect(root.scrollTop).toBe(targetSegment.start);
+      // The crossed zone's timeline was driven through by the pass-through
+      // frames (100% consumed), and the target zone sits armed at its anchor.
+      expect(readOutputNumber('zone-mid-progress')).toBe(400);
+      expect(readOutputNumber('zone-target-progress')).toBe(0);
+    });
+
+    it('lets a smooth goToScene cross an intermediate takeover segment and reach the scene', async () => {
+      const { ref, root } = await renderSmoothScrollPage();
+      const emulation = installSmoothScrollEmulation(root);
+
+      act(() => {
+        ref.current?.goToScene(2);
+      });
+      await flushAnimationFrame();
+      expect(emulation.isAnimating()).toBe(true);
+
+      await driveSmoothFrames(root, emulation, 300);
+
+      expect(emulation.autoAborts()).toBe(0);
+      expect(root.scrollTop).toBe(2400);
+    });
+
+    it('stops the smooth animation and returns control to the user on wheel input', async () => {
+      const { ref, root, midSegment } = await renderSmoothScrollPage();
+      const emulation = installSmoothScrollEmulation(root);
+
+      act(() => {
+        ref.current?.goToZone?.('zone-target');
+      });
+      await flushAnimationFrame();
+
+      // Two smooth frames land mid-flight at 600, still animating.
+      await driveSmoothFrames(root, emulation, 300, 2);
+      expect(root.scrollTop).toBe(600);
+      expect(emulation.isAnimating()).toBe(true);
+
+      // Real user input must reclaim control: the in-flight smooth scroll is
+      // stopped with an explicit auto scrollTo, then the wheel delta applies.
+      await wheelAndFlush(root, 100);
+      expect(emulation.isAnimating()).toBe(false);
+      expect(emulation.autoAborts()).toBe(1);
+      expect(root.scrollTop).toBe(700);
+
+      // And the anti-skip clamp is back in force for user gestures: a giant
+      // flick gets pinned to the first in-segment frame instead of skipping.
+      await wheelAndFlush(root, 90000);
+      expect(root.scrollTop).toBe(midSegment.start + 1);
+    });
+
+    it('keeps the synchronous animated:false goToZone path intact', async () => {
+      const { ref, root, targetSegment } = await renderSmoothScrollPage();
+      const emulation = installSmoothScrollEmulation(root);
+
+      act(() => {
+        ref.current?.goToZone?.('zone-target', { animated: false });
+      });
+      await flushAnimationFrame();
+
+      expect(emulation.isAnimating()).toBe(false);
+      expect(root.scrollTop).toBe(targetSegment.start);
+      expect(readOutputNumber('zone-target-progress')).toBe(0);
+    });
+  });
+
+  // S-F4: DESIGN measurement rule #3 — new nodes, async assets and layout
+  // changes must retrigger measurement. Without a content-level
+  // ResizeObserver, an async image/font growing a scene left every
+  // sceneStart/segmentStart stale until the next gesture's first frame.
+  describe('content-level resize remeasure (S-F4)', () => {
+    class MockResizeObserver {
+      static instances: MockResizeObserver[] = [];
+      callback: ResizeObserverCallback;
+      observed: Element[] = [];
+      disconnect = jest.fn();
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+        MockResizeObserver.instances.push(this);
+      }
+
+      observe(element: Element): void {
+        this.observed.push(element);
+      }
+
+      unobserve(): void {}
+
+      trigger(): void {
+        this.callback([], this as unknown as ResizeObserver);
+      }
+    }
+
+    const originalResizeObserver = (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+
+    beforeEach(() => {
+      MockResizeObserver.instances = [];
+      (globalThis as { ResizeObserver?: unknown }).ResizeObserver = MockResizeObserver;
+    });
+
+    afterEach(() => {
+      (globalThis as { ResizeObserver?: unknown }).ResizeObserver = originalResizeObserver;
+    });
+
+    function triggerContentResize(): void {
+      act(() => {
+        MockResizeObserver.instances.forEach((instance) => instance.trigger());
+      });
+    }
+
+    function renderResizePage(): { container: HTMLElement; unmount: () => void } {
+      const { container, unmount } = render(
+        <DirectScrollCineView config={config}>
+          <TestScene sceneId="scene-0" sceneHeight={1000}>
+            <div>Scene 0</div>
+          </TestScene>
+          <TestScene
+            sceneId="scene-1"
+            sceneHeight={1000}
+            scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+            sceneRuntime={{ sceneIndex: 1 }}
+          >
+            <ScrollBudgetProbe animateId="resize-anim" enterDuration={100} />
+            <ZoneProgressProbe zoneId="zone-1" />
+            <div>Scene 1</div>
+          </TestScene>
+        </DirectScrollCineView>
+      );
+
+      return { container, unmount };
+    }
+
+    it('observes the scene wrappers and re-measures on content resize outside a gesture', async () => {
+      const { container } = renderResizePage();
+      const root = container.querySelector('.cineview-container') as HTMLDivElement;
+      await flushAnimationFrame();
+
+      // The scene wrappers must be under content-size observation.
+      expect(MockResizeObserver.instances.some((instance) => instance.observed.length > 0)).toBe(
+        true
+      );
+
+      installScrollGeometry({
+        container: root,
+        sceneTops: [0, 1000],
+        sceneHeights: [1000, 1000],
+      });
+      // The mount measurement ran before the real geometry existed; a content
+      // resize alone (no gesture) must retrigger measurement + resync.
+      triggerContentResize();
+      await flushAnimationFrame();
+      await waitFor(() => {
+        expect(getTakeoverSegment(container, 1).start).toBe(1000);
+      });
+
+      // Scene 0 grows taller (async image/font), pushing scene 1 down.
+      installScrollGeometry({
+        container: root,
+        sceneTops: [0, 1800],
+        sceneHeights: [1800, 1000],
+      });
+      triggerContentResize();
+      await flushAnimationFrame();
+      await waitFor(() => {
+        expect(getTakeoverSegment(container, 1).start).toBe(1800);
+      });
+    });
+
+    it('defers a mid-gesture content resize to gesture end', async () => {
+      const { container } = renderResizePage();
+      const root = container.querySelector('.cineview-container') as HTMLDivElement;
+      await flushAnimationFrame();
+
+      installScrollGeometry({
+        container: root,
+        sceneTops: [0, 1000],
+        sceneHeights: [1000, 1000],
+      });
+      triggerContentResize();
+      await flushAnimationFrame();
+      await waitFor(() => {
+        expect(getTakeoverSegment(container, 1).start).toBe(1000);
+      });
+
+      // Begin a real gesture: its first frame measured the old geometry and
+      // the gesture is now in its 120ms idle window.
+      await wheelAndFlush(root, 10);
+
+      // Content grows mid-gesture: the remeasure must NOT interrupt the
+      // gesture ("measure once at gesture start" invariant)...
+      installScrollGeometry({
+        container: root,
+        sceneTops: [0, 1800],
+        sceneHeights: [1800, 1000],
+      });
+      triggerContentResize();
+      await flushAnimationFrame();
+      expect(getTakeoverSegment(container, 1).start).toBe(1000);
+
+      // ...and must flush once the gesture idles out.
+      await waitFor(() => {
+        expect(getTakeoverSegment(container, 1).start).toBe(1800);
+      });
+    });
+
+    it('disconnects the content ResizeObserver on unmount', async () => {
+      const { unmount } = renderResizePage();
+      await flushAnimationFrame();
+
+      const observing = MockResizeObserver.instances.filter(
+        (instance) => instance.observed.length > 0
+      );
+      expect(observing.length).toBeGreaterThan(0);
+
+      unmount();
+
+      const lastObserver = observing[observing.length - 1];
+      expect(lastObserver.disconnect).toHaveBeenCalled();
+    });
   });
 });

@@ -98,4 +98,77 @@ describe('resolveSceneScrollAnimationBudgets', () => {
     expect(resolved.budgets.details.startMs).toBe(650);
     expect(resolved.budgets.details.totalEndMs).toBe(850);
   });
+
+  it('fails open dependency cycles without adding cyclic predecessor time', () => {
+    const registrations = new Map<string, SceneScrollAnimationRegistration>();
+    registrations.set('a', {
+      animateId: 'a',
+      delay: 1,
+      enterDuration: 10,
+      exitDuration: 0,
+      waitFor: 'b',
+    });
+    registrations.set('b', {
+      animateId: 'b',
+      delay: 2,
+      enterDuration: 20,
+      exitDuration: 0,
+      waitFor: 'a',
+    });
+
+    const resolved = resolveSceneScrollAnimationBudgets(registrations);
+
+    expect(resolved.budgets.a.startMs).toBe(1);
+    expect(resolved.budgets.a.totalEndMs).toBe(11);
+    expect(resolved.budgets.b.startMs).toBe(2);
+    expect(resolved.budgets.b.totalEndMs).toBe(22);
+    expect(resolved.totalDurationMs).toBe(22);
+    expect(resolved.totalBudgetPx).toBe(22);
+  });
+
+  it('keeps every member of a three-node cycle on its own finite timing', () => {
+    const registrations = new Map<string, SceneScrollAnimationRegistration>([
+      [
+        'a',
+        {
+          animateId: 'a',
+          delay: 1,
+          enterDuration: 10,
+          exitDuration: 1,
+          waitFor: 'b',
+        },
+      ],
+      [
+        'b',
+        {
+          animateId: 'b',
+          delay: 2,
+          enterDuration: 20,
+          exitDuration: 2,
+          waitFor: 'c',
+        },
+      ],
+      [
+        'c',
+        {
+          animateId: 'c',
+          delay: 3,
+          enterDuration: 30,
+          exitDuration: 3,
+          waitFor: 'a',
+        },
+      ],
+    ]);
+
+    const resolved = resolveSceneScrollAnimationBudgets(registrations);
+
+    expect(resolved.budgets.a).toMatchObject({ startMs: 1, totalEndMs: 12 });
+    expect(resolved.budgets.b).toMatchObject({ startMs: 2, totalEndMs: 24 });
+    expect(resolved.budgets.c).toMatchObject({ startMs: 3, totalEndMs: 36 });
+    expect(resolved.totalDurationMs).toBe(36);
+    expect(resolved.totalBudgetPx).toBe(36);
+    expect(
+      Object.values(resolved.budgets).every((budget) => Number.isFinite(budget.totalEndMs))
+    ).toBe(true);
+  });
 });

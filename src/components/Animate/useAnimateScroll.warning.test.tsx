@@ -298,10 +298,6 @@ describe('useAnimateScroll orphan warning', () => {
                 delay: 90,
                 waitFor: 'intro',
               }}
-              enterDuration={999}
-              exitDuration={888}
-              delay={777}
-              waitFor="legacy"
             >
               <div>Timeline registration</div>
             </Animate>

@@ -32,6 +32,9 @@ jest.mock('./presets', () => ({
     if (name === 'invalid') {
       return Promise.reject(new Error('Invalid animation'));
     }
+    if (name === 'ghost') {
+      return Promise.reject(new Error('Unknown preset animation: ghost'));
+    }
     return Promise.resolve({
       initial: { opacity: 0, transformOrigin: 'bottom center' },
       animate: { opacity: 1, transformOrigin: 'bottom center' },
@@ -163,15 +166,12 @@ describe('animationParser', () => {
       });
     });
 
-    it('returns null for invalid preset animation', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('propagates preset load failures so the consumer can classify them', async () => {
+      await expect(parsePresetAnimation('invalid')).rejects.toThrow('Invalid animation');
+    });
 
-      const result = await parsePresetAnimation('invalid');
-
-      expect(result).toBeNull();
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
+    it('does not normalize a missing preset result into a fake animation', async () => {
+      await expect(parsePresetAnimation('ghost')).rejects.toThrow();
     });
   });
 

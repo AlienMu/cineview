@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useSyncExternalStore } from 'react';
 import { buildSceneTimelineState } from './directScrollHelpers';
 import type {
   SceneAuthoringCompatProps,
@@ -8,6 +8,7 @@ import type {
 import type { ScrollModeConfig } from '../../types';
 import type { GroupedCallbacks } from './regroupCallbacks';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
+import type { KeyedScrollExternalStore } from './scrollExternalStore';
 
 export interface ScrollSceneRenderSnapshot {
   sceneLayout: SceneLayoutInfo | null;
@@ -21,6 +22,8 @@ export interface ScrollSceneRenderSnapshot {
   activeSceneIndex: number;
   viewportWidth: number;
   viewportHeight: number;
+  firstSceneEnterGateKnown: boolean;
+  firstSceneEnterActive: boolean;
   firstSceneEnterReady: boolean;
   direction: 'x' | 'y';
   sceneCount: number;
@@ -41,6 +44,8 @@ export const EMPTY_SCROLL_SCENE_SNAPSHOT: ScrollSceneRenderSnapshot = {
   activeSceneIndex: 0,
   viewportWidth: 0,
   viewportHeight: 0,
+  firstSceneEnterGateKnown: false,
+  firstSceneEnterActive: false,
   firstSceneEnterReady: false,
   direction: 'y',
   sceneCount: 0,
@@ -49,9 +54,16 @@ export const EMPTY_SCROLL_SCENE_SNAPSHOT: ScrollSceneRenderSnapshot = {
   takeoverSceneSpan: null,
 };
 
+export type ScrollSceneSnapshotList = readonly (ScrollSceneRenderSnapshot | undefined)[];
+export type ScrollSceneSnapshotStore = KeyedScrollExternalStore<
+  ScrollSceneSnapshotList,
+  number,
+  ScrollSceneRenderSnapshot
+>;
+
 interface ScrollSceneSlotProps {
   child: React.ReactElement<SceneAuthoringCompatProps>;
-  snapshot: ScrollSceneRenderSnapshot;
+  store: ScrollSceneSnapshotStore;
   sceneIndex: number;
   setWrapperRef: (sceneIndex: number, node: HTMLDivElement | null) => void;
   scrollCallbacks?: GroupedCallbacks['scroll'];
@@ -70,38 +82,18 @@ export function areScrollSceneRenderSnapshotsEqual(
       previousTimeline.phase === nextTimeline.phase &&
       previousTimeline.enterProgress === nextTimeline.enterProgress &&
       previousTimeline.exitProgress === nextTimeline.exitProgress &&
-      previousTimeline.sceneProgress === nextTimeline.sceneProgress &&
-      previousTimeline.rangeStart === nextTimeline.rangeStart &&
-      previousTimeline.rangeEnd === nextTimeline.rangeEnd &&
-      previousTimeline.rangeLength === nextTimeline.rangeLength &&
-      previousTimeline.enterLength === nextTimeline.enterLength &&
-      previousTimeline.exitLength === nextTimeline.exitLength);
+      previousTimeline.sceneProgress === nextTimeline.sceneProgress);
   const previousZone = previous.sceneZoneState;
   const nextZone = next.sceneZoneState;
-  const zoneEqual =
-    previousZone === nextZone ||
-    (previousZone !== null &&
-      nextZone !== null &&
-      previousZone.zoneId === nextZone.zoneId &&
-      previousZone.progressPx === nextZone.progressPx &&
-      previousZone.totalBudgetPx === nextZone.totalBudgetPx &&
-      previousZone.active === nextZone.active &&
-      previousZone.direction === nextZone.direction &&
-      previousZone.sequence === nextZone.sequence);
   const viewportOffsetBelongsToLiveScene =
-    previous.isCurrent ||
-    next.isCurrent ||
-    previous.isBackdropActive ||
-    next.isBackdropActive ||
-    previousZone?.active === true ||
-    nextZone?.active === true;
+    previous.isCurrent || next.isCurrent || previous.isBackdropActive || next.isBackdropActive;
   const viewportOffsetEqual =
     !viewportOffsetBelongsToLiveScene ||
     previous.visualViewportOffset === next.visualViewportOffset;
 
   return (
     previous.sceneLayout === next.sceneLayout &&
-    zoneEqual &&
+    previousZone === nextZone &&
     timelineEqual &&
     previous.isCurrent === next.isCurrent &&
     previous.isBackdropActive === next.isBackdropActive &&
@@ -111,6 +103,8 @@ export function areScrollSceneRenderSnapshotsEqual(
     previous.activeSceneIndex === next.activeSceneIndex &&
     previous.viewportWidth === next.viewportWidth &&
     previous.viewportHeight === next.viewportHeight &&
+    previous.firstSceneEnterGateKnown === next.firstSceneEnterGateKnown &&
+    previous.firstSceneEnterActive === next.firstSceneEnterActive &&
     previous.firstSceneEnterReady === next.firstSceneEnterReady &&
     previous.direction === next.direction &&
     previous.sceneCount === next.sceneCount &&
@@ -122,11 +116,20 @@ export function areScrollSceneRenderSnapshotsEqual(
 
 export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   child,
-  snapshot,
+  store,
   sceneIndex,
   setWrapperRef,
   scrollCallbacks,
 }: ScrollSceneSlotProps): JSX.Element {
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribeKey(sceneIndex, listener),
+    [sceneIndex, store]
+  );
+  const getSnapshot = useCallback(
+    () => store.getKeySnapshot(sceneIndex) ?? EMPTY_SCROLL_SCENE_SNAPSHOT,
+    [sceneIndex, store]
+  );
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const {
     sceneLayout,
     sceneZoneState,
@@ -139,6 +142,8 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
     activeSceneIndex,
     viewportWidth,
     viewportHeight,
+    firstSceneEnterGateKnown,
+    firstSceneEnterActive,
     firstSceneEnterReady,
     direction,
     sceneCount,
@@ -191,6 +196,8 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
         sharedTimelineDurationMs: 0,
         viewportWidth,
         viewportHeight,
+        firstSceneEnterGateKnown,
+        firstSceneEnterActive,
         firstSceneEnterReady,
       },
       scrollRuntime: {

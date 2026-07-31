@@ -3,7 +3,7 @@
  * 管理场景索引和切换逻辑
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ScrollMode } from '../types';
 
 function isScrollDebugEnabled(): boolean {
@@ -74,6 +74,11 @@ export interface UseSceneManagerOptions {
   initialScene?: number;
   mode?: ScrollMode;
   onBeforeChange?: (from: number, to: number) => void;
+  /**
+   * Fires at the authoritative index commit. Unlike onAfterChange, this is not a
+   * lifecycle notification and is used internally to mint Scene activation tokens.
+   */
+  onCommit?: (sceneIndex: number, previousIndex: number, kind: 'drag' | 'programmatic') => void;
   onAfterChange?: (sceneIndex: number, previousIndex?: number) => void;
 }
 
@@ -111,6 +116,8 @@ export interface SceneManagerActions {
   setSharedTimelineDurationMs: (duration: number) => void;
   setDragRelease: (release: DragReleaseInput | null) => void;
   resetDragInteraction: () => void;
+  /** Ends a superseded settle/bounce join without changing the current render position. */
+  abortDragContinuation: () => void;
   resetScrollInteraction: () => void;
   commitDragSceneChange: (
     direction: 'forward' | 'backward',
@@ -126,7 +133,14 @@ export interface SceneManagerActions {
 export const useSceneManager = (
   options: UseSceneManagerOptions
 ): [SceneManagerState, SceneManagerActions] => {
-  const { totalScenes, initialScene = 0, mode = 'drag', onBeforeChange, onAfterChange } = options;
+  const {
+    totalScenes,
+    initialScene = 0,
+    mode = 'drag',
+    onBeforeChange,
+    onCommit,
+    onAfterChange,
+  } = options;
 
   const [currentScene, setCurrentScene] = useState<number>(
     Math.max(0, Math.min(initialScene, totalScenes - 1))
@@ -178,8 +192,35 @@ export const useSceneManager = (
   // after its window closed) cannot record a phantom early-settle and pollute the
   // next transition's cleanup join.
   const expectedSettleRef = useRef<boolean>(false);
+  // In-flight PROGRAMMATIC animated goToScene bookkeeping (D-F6). Records the
+  // true from-index (so setAnimating(false) — the settle-timer close — can pass
+  // it to onAfterChange instead of letting CineView fall back to the ALREADY
+  // UPDATED currentSceneRef, which produced fromIndex === toIndex) and the token
+  // of the 'enter' directive this goToScene published (so the timer clears ONLY
+  // its own directive — never a real gesture's release that superseded it while
+  // the timer was still pending, which would snap the incoming elements).
+  const programmaticNavRef = useRef<{ fromScene: number; releaseToken: number | null } | null>(
+    null
+  );
 
   currentSceneRef.current = currentScene;
+
+  // B2: runtime children shrink (conditional rendering removing scenes) can
+  // leave the active index out of range — blank viewport — and CineView's
+  // settle effect early-returns on the missing scene so isAnimating would hang
+  // forever. Re-clamp the active index and unhang the animation flag; no
+  // onAfterChange is fabricated (nothing "completed", a scene was removed).
+  useEffect(() => {
+    const maxIndex = Math.max(totalScenes - 1, 0);
+    if (currentSceneRef.current <= maxIndex) return;
+    setCurrentScene(maxIndex);
+    if (animatingRef.current) {
+      setIsAnimating(false);
+      animatingRef.current = false;
+      setDirection(null);
+      programmaticNavRef.current = null;
+    }
+  }, [totalScenes]);
 
   // Cleans up the drag-transition state: clears the lingering drag scalars, the
   // direction, and the release directive. This is CLEANUP ONLY — it no longer
@@ -264,11 +305,14 @@ export const useSceneManager = (
         direction: newDirection,
       });
       setCurrentScene(index);
+      onCommit?.(index, currentScene, 'programmatic');
 
       // 如果需要动画
       if (animated) {
         setIsAnimating(true);
         animatingRef.current = true;
+        // D-F6: remember the true from-index for the settle-timer close.
+        programmaticNavRef.current = { fromScene: currentScene, releaseToken: null };
         // Drag mode: programmatic navigation must still play the destination
         // scene's element-timeline enter. Gesture/release nav drives the element
         // track via a release directive; a bare setCurrentScene does not, so the
@@ -280,6 +324,7 @@ export const useSceneManager = (
         // by CineView's animated-settle timer -> setAnimating(false).
         if (mode === 'drag') {
           dragReleaseTokenRef.current += 1;
+          programmaticNavRef.current.releaseToken = dragReleaseTokenRef.current;
           setDragRelease({
             token: dragReleaseTokenRef.current,
             mode: 'enter',
@@ -288,11 +333,11 @@ export const useSceneManager = (
           });
         }
       } else {
-        // 立即触发 onAfterChange
-        onAfterChange?.(index);
+        // 立即触发 onAfterChange（携带真实 from-index）
+        onAfterChange?.(index, currentScene);
       }
     },
-    [currentScene, totalScenes, mode, onBeforeChange, onAfterChange]
+    [currentScene, totalScenes, mode, onBeforeChange, onCommit, onAfterChange]
   );
 
   // 下一个场景
@@ -333,34 +378,84 @@ export const useSceneManager = (
       setIsAnimating(animating);
       animatingRef.current = animating;
 
-      // 动画结束时触发 onAfterChange
+      // 动画结束时触发 onAfterChange（D-F6: 携带 goToScene 记录的真实 from-index，
+      // 否则 CineView 回退到已更新的 currentSceneRef，产出 from === to）
       if (!animating) {
-        onAfterChange?.(currentScene);
+        const programmaticNav = programmaticNavRef.current;
+        programmaticNavRef.current = null;
+        if (programmaticNav) {
+          onAfterChange?.(currentScene, programmaticNav.fromScene);
+        } else {
+          onAfterChange?.(currentScene);
+        }
         setDirection(null);
-        // Clear any programmatic 'enter' directive (goToScene). The destination
+        // Clear the programmatic 'enter' directive (goToScene): the destination
         // scene's element track has reached T by now; leaving the directive set
         // would keep useAnimateDrag in 'enter' mode reading a settled track.
-        setDragRelease(null);
+        // D-F6: clear ONLY the directive THIS goToScene published (token
+        // compare). If the settle timer expires during a LATER real gesture's
+        // settle, that release carries a newer token and must stay live —
+        // clearing it would snap the incoming scene's elements to rest.
+        const releaseToken = programmaticNav?.releaseToken;
+        if (releaseToken != null) {
+          setDragRelease((prev) => (prev !== null && prev.token === releaseToken ? null : prev));
+        }
       }
     },
     [currentScene, onAfterChange]
   );
 
   const resetDragInteraction = useCallback(() => {
+    // D-F1: a settle join can still be OUTSTANDING when a gesture-level reset
+    // arrives — a tap lands after the commit (tiny progress -> onDragReset)
+    // while the committed-to scene's element track is still completing
+    // (preempted in place by H2). The live settle `dragRelease` and the join
+    // refs must SURVIVE that reset: clearing the directive here snaps the
+    // incoming scene's mid-enter elements to terminal (useAnimateDrag keeps
+    // the cross-commit continuation alive only while dragRelease.mode ===
+    // 'settle'), and clearing the join refs corrupts the pending cleanup join.
+    // D-F7: preservation requires the render arm to have COMMITTED
+    // (pendingTransitionFromRef). A settle whose page-slide was taken over by
+    // a rush re-grab and then scrubbed back to rest is ABANDONED pre-commit —
+    // its render arm will never come, so preserving it would resume the
+    // element continuation toward a transition that no longer exists and hang
+    // the join (a stale early-settle then corrupts the NEXT commit's cleanup).
+    // Plain aborts still tear everything down: a bounce release publishes
+    // first and flips expectedSettleRef to false before its onComplete calls
+    // this.
+    const settleJoinOutstanding =
+      expectedSettleRef.current && pendingTransitionFromRef.current !== null;
     debugSceneManager('resetDragInteraction', {
       currentScene: currentSceneRef.current,
+      settleJoinOutstanding,
     });
-    // Abort path (bounce / reset): no transition is pending, so tear down the
-    // join state too or a stale early-settle flag would leak into the next one.
-    pendingTransitionFromRef.current = null;
-    settleArrivedRef.current = false;
-    expectedSettleRef.current = false;
+    if (!settleJoinOutstanding) {
+      // Abort path (bounce / reset / abandoned pre-commit settle): no
+      // transition is pending, so tear down the join state too or a stale
+      // early-settle flag would leak into the next one.
+      pendingTransitionFromRef.current = null;
+      settleArrivedRef.current = false;
+      expectedSettleRef.current = false;
+      setDragRelease(null);
+    }
     setDragProgress(0);
     setDragTimelineProgress(0);
     setRenderProgress(0);
     setIsDragging(false);
     setSharedTimelineDurationMs(0);
+  }, []);
+
+  const abortDragContinuation = useCallback(() => {
+    // Internal retarget/abort: stop waiting for the superseded element arm and
+    // remove its release directive, but preserve the live render position and
+    // pointer-session state. The replacement gesture becomes the sole writer.
+    pendingTransitionFromRef.current = null;
+    settleArrivedRef.current = false;
+    expectedSettleRef.current = false;
     setDragRelease(null);
+    setDirection(null);
+    setDragTimelineProgress(0);
+    setSharedTimelineDurationMs(0);
   }, []);
 
   const resetScrollInteraction = useCallback(() => {
@@ -416,6 +511,7 @@ export const useSceneManager = (
       setDragTimelineProgress(normalizedProgressRatio);
       pendingTransitionFromRef.current = fromScene;
       setCurrentScene(targetScene);
+      onCommit?.(targetScene, fromScene, 'drag');
       onAfterChange?.(targetScene, fromScene);
       setDragProgress(0);
       setRenderProgress(0);
@@ -437,7 +533,14 @@ export const useSceneManager = (
         cleanupAfterTransition();
       }
     },
-    [cleanupAfterTransition, onAfterChange, onBeforeChange, resetDragInteraction, totalScenes]
+    [
+      cleanupAfterTransition,
+      onAfterChange,
+      onBeforeChange,
+      onCommit,
+      resetDragInteraction,
+      totalScenes,
+    ]
   );
 
   // Element arm of the join. Called by the incoming scene (via
@@ -579,6 +682,7 @@ export const useSceneManager = (
     setSharedTimelineDurationMs,
     setDragRelease: publishDragRelease,
     resetDragInteraction,
+    abortDragContinuation,
     resetScrollInteraction,
     commitDragSceneChange,
     completeDragTransition,

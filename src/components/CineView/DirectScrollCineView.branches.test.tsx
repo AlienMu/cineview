@@ -7,7 +7,7 @@ import { CineViewRuntimeContext } from './runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
-  useSceneScrollTimeline,
+  useSceneScrollZoneTimeline,
 } from '../Scene/sceneScrollRuntime';
 
 jest.mock('../../hooks/useImagePreloader', () => ({
@@ -28,8 +28,8 @@ jest.mock('../../hooks/useImagePreloader', () => ({
   ]),
 }));
 
-jest.mock('../../utils/performanceMonitor', () => ({
-  performanceMonitor: {
+jest.mock('../../utils/performanceMonitor', () => {
+  const performanceMonitor = {
     start: jest.fn(),
     stop: jest.fn(),
     getMetrics: jest.fn(() => ({
@@ -39,8 +39,15 @@ jest.mock('../../utils/performanceMonitor', () => ({
       bundleSize: 12,
     })),
     reset: jest.fn(),
-  },
-}));
+  };
+  return {
+    performanceMonitor,
+    acquirePerformanceMonitoring: jest.fn(() => {
+      performanceMonitor.start();
+      return () => performanceMonitor.stop();
+    }),
+  };
+});
 
 interface TestSceneProps {
   children?: React.ReactNode;
@@ -65,7 +72,7 @@ interface TestSceneProps {
 const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneRuntime }) => {
   const runtime = useContext(SceneScrollRuntimeContext);
   const zoneRef = React.useRef<HTMLDivElement>(null);
-  const zoneId = scroll?.zoneId ?? sceneId ?? null;
+  const zoneId = scroll ? (scroll.zoneId ?? sceneId ?? null) : null;
   const sceneIndex = sceneRuntime?.sceneIndex ?? 0;
 
   useEffect(() => {
@@ -79,7 +86,7 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
     });
 
     return () => {
-      runtime.unregisterZone(zoneId);
+      runtime.unregisterZone(zoneId, sceneIndex);
     };
   }, [runtime, sceneIndex, scroll, zoneId]);
 
@@ -88,12 +95,12 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
       return;
     }
 
-    runtime.setZoneElement(zoneId, zoneRef.current);
+    runtime.setZoneElement(zoneId, sceneIndex, zoneRef.current);
 
     return () => {
-      runtime.setZoneElement(zoneId, null);
+      runtime.setZoneElement(zoneId, sceneIndex, null);
     };
-  }, [runtime, zoneId]);
+  }, [runtime, sceneIndex, zoneId]);
 
   return (
     <SceneScrollTakeoverContext.Provider value={zoneId}>
@@ -124,7 +131,7 @@ function ScrollBudgetProbe({
       return;
     }
 
-    runtime.registerZoneAnimation(zoneId, {
+    const registrationOwner = runtime.registerZoneAnimation(zoneId, {
       animateId,
       delay: 0,
       enterDuration,
@@ -132,7 +139,7 @@ function ScrollBudgetProbe({
     });
 
     return () => {
-      runtime.unregisterZoneAnimation(zoneId, animateId);
+      runtime.unregisterZoneAnimation(zoneId, animateId, registrationOwner);
     };
   }, [animateId, enterDuration, exitDuration, runtime, zoneId]);
 
@@ -140,8 +147,7 @@ function ScrollBudgetProbe({
 }
 
 function ZoneProgressProbe({ zoneId }: { zoneId: string }): JSX.Element {
-  const timeline = useSceneScrollTimeline();
-  const progress = timeline?.zoneStates[zoneId]?.progressPx ?? 0;
+  const progress = useSceneScrollZoneTimeline(zoneId)?.progressPx ?? 0;
 
   return <output data-testid={`${zoneId}-progress`}>{progress}</output>;
 }
@@ -1047,6 +1053,9 @@ describe('DirectScrollCineView — branch coverage', () => {
     });
 
     it('no-ops goToScene for an unknown index', async () => {
+      // B11: the out-of-range no-op now emits a dev warning (asserted in the
+      // dedicated regression test below); spy it so the console guard stays quiet.
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       const ref = createRef<CineViewRef>();
       const { container } = render(
         <DirectScrollCineView ref={ref} config={config}>
@@ -1069,6 +1078,7 @@ describe('DirectScrollCineView — branch coverage', () => {
       await flushAnimationFrame();
 
       expect(root.scrollTop).toBe(0);
+      warnSpy.mockRestore();
     });
 
     it('moves to a registered scroll zone via goToZone and no-ops for an unknown zone', async () => {
@@ -1253,5 +1263,276 @@ describe('DirectScrollCineView — branch coverage', () => {
       // Scenes are still mounted and measured after the resize pass.
       expect(root.querySelectorAll('[data-scene-index]').length).toBe(2);
     });
+  });
+});
+
+describe('DirectScrollCineView — review remediation regressions', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // S-F1: viewport center parked in a gap BETWEEN scene ranges (plain document
+  // flow interleaved between scenes) must resolve to the NEAREST scene, not
+  // fall back to the last one.
+  it('resolves the nearest scene when the viewport center sits in a gap between scenes', async () => {
+    const ref = createRef<CineViewRef>();
+    const { container } = render(
+      <DirectScrollCineView ref={ref} config={config}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+        <TestScene sceneId="scene-2" sceneHeight={1000}>
+          <div>Scene 2</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    // Gaps: scene ranges [0,1000) [3000,4000) [6000,7000).
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 3000, 6000],
+      sceneHeights: [1000, 1000, 1000],
+    });
+
+    // Center = 700 + 500 = 1200 → in the gap right after scene 0 (distance 200)
+    // and far from scene 1 (1800) / scene 2 (4800). The old fallback reported
+    // the LAST scene (index 2) for any center past scene 0's start.
+    act(() => {
+      root.scrollTop = 700;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    expect(ref.current?.getCurrentScene()).toBe(0);
+
+    // Center = 2700 → gap before scene 1, nearest scene 1 (300 vs 1700).
+    act(() => {
+      root.scrollTop = 2200;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    expect(ref.current?.getCurrentScene()).toBe(1);
+
+    // Containment still wins outright.
+    act(() => {
+      root.scrollTop = 2800;
+      fireEvent.scroll(root);
+    });
+    await flushAnimationFrame();
+    expect(ref.current?.getCurrentScene()).toBe(1);
+  });
+
+  // S-F3: the container's onKeyDownCapture must release scroll keys to
+  // editable targets focused INSIDE the container (no activeElement === body
+  // requirement here, unlike the window-level handler).
+  it('does not swallow Space or arrow keys typed into editable fields inside the container', async () => {
+    const { container } = render(
+      <DirectScrollCineView config={config}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <input data-testid="text-field" type="text" />
+          <textarea data-testid="text-area" />
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+        <TestScene sceneId="scene-2" sceneHeight={1000}>
+          <div>Scene 2</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000, 2000],
+      sceneHeights: [1000, 1000, 1000],
+    });
+
+    const input = container.querySelector('[data-testid="text-field"]') as HTMLInputElement;
+    const textarea = container.querySelector('[data-testid="text-area"]') as HTMLTextAreaElement;
+
+    // Space in a focused input: must NOT be preventDefaulted into a page scroll.
+    let spaceNotPrevented = true;
+    act(() => {
+      input.focus();
+      spaceNotPrevented = fireEvent.keyDown(input, { key: ' ' });
+    });
+    await flushAnimationFrame();
+    expect(spaceNotPrevented).toBe(true);
+    expect(root.scrollTop).toBe(0);
+
+    // ArrowDown in a focused textarea: same contract.
+    let arrowNotPrevented = true;
+    act(() => {
+      textarea.focus();
+      arrowNotPrevented = fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+    });
+    await flushAnimationFrame();
+    expect(arrowNotPrevented).toBe(true);
+    expect(root.scrollTop).toBe(0);
+
+    // Guard must not be overbroad: a non-editable focused target inside the
+    // container still scrolls through the capture handler.
+    act(() => {
+      root.focus();
+      fireEvent.keyDown(root, { key: ' ' });
+    });
+    await flushAnimationFrame();
+    expect(root.scrollTop).toBeCloseTo(860, 0);
+  });
+
+  // S-F13: programmatic syncs (mount / resize / refreshLayout) must not enter
+  // the scrolling state — the autoHide scrollbar used to flash for 120ms.
+  it('does not flash the autoHide scrollbar overlay on programmatic refreshLayout', async () => {
+    const ref = createRef<CineViewRef>();
+    const { container } = render(
+      <DirectScrollCineView ref={ref} config={config} scrollbar={{ enabled: true, autoHide: true }}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000],
+      sceneHeights: [1000, 1000],
+    });
+
+    // Programmatic resync — not a gesture.
+    act(() => {
+      ref.current?.refreshLayout();
+    });
+
+    const overlay = root.parentElement?.querySelector(
+      '[data-cineview-scrollbar-overlay="true"]'
+    ) as HTMLDivElement;
+    expect(overlay).not.toBeNull();
+    // Old behavior: isScrolling flipped true for 120ms → opacity '1' (flash).
+    expect(overlay.style.opacity).toBe('0');
+
+    // Real gestures still light the overlay.
+    act(() => {
+      root.scrollTop = 200;
+      fireEvent.scroll(root);
+    });
+    expect(overlay.style.opacity).toBe('1');
+  });
+
+  // A3: the scroll root must emit NO_SCENES like the drag root does.
+  it('emits NO_SCENES through onError when the scroll root has no Scene children', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onError = jest.fn();
+    render(
+      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onError }}>
+        <div>not a scene</div>
+      </DirectScrollCineView>
+    );
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'NO_SCENES' }));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('NO_SCENES'));
+    warnSpy.mockRestore();
+  });
+
+  it('rejects duplicate authored zone ids and keeps only the first takeover shell', () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onError = jest.fn();
+    const ref = createRef<CineViewRef>();
+    const { container } = render(
+      <DirectScrollCineView ref={ref} config={config} mode="scroll" callbacks={{ onError }}>
+        <TestScene sceneId="first" scroll={{ zoneId: 'duplicate-zone' }}>
+          First
+        </TestScene>
+        <TestScene sceneId="second" scroll={{ zoneId: 'duplicate-zone' }}>
+          Second
+        </TestScene>
+        <TestScene sceneId="third">Third</TestScene>
+      </DirectScrollCineView>
+    );
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_COMPONENT_HIERARCHY',
+        context: expect.objectContaining({
+          reason: 'duplicate-scroll-zone',
+          zoneId: 'duplicate-zone',
+          ownerSceneIndex: 0,
+          rejectedSceneIndex: 1,
+        }),
+      })
+    );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('duplicate-zone'));
+    expect(container.querySelectorAll('[data-cineview-takeover-shell]')).toHaveLength(1);
+    expect(
+      container.querySelector('[data-scene-index="1"] [data-cineview-scroll-zone]')
+    ).toBeNull();
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000, 2600],
+      sceneHeights: [1000, 1600, 1000],
+    });
+    act(() => {
+      ref.current?.refreshLayout();
+      root.scrollTop = 1928;
+      fireEvent.scroll(root);
+    });
+    expect(ref.current?.getCurrentScene()).toBe(1);
+    errorSpy.mockRestore();
+  });
+
+  // B11: out-of-range goToScene must warn in dev instead of a silent no-op
+  // (mirrors useSceneManager on the drag side).
+  it('warns on an out-of-range goToScene index instead of silently no-oping', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const ref = createRef<CineViewRef>();
+    const { container } = render(
+      <DirectScrollCineView ref={ref} config={config}>
+        <TestScene sceneId="scene-0" sceneHeight={1000}>
+          <div>Scene 0</div>
+        </TestScene>
+        <TestScene sceneId="scene-1" sceneHeight={1000}>
+          <div>Scene 1</div>
+        </TestScene>
+      </DirectScrollCineView>
+    );
+
+    const root = container.querySelector('.cineview-container') as HTMLDivElement;
+    installScrollGeometry({
+      container: root,
+      sceneTops: [0, 1000],
+      sceneHeights: [1000, 1000],
+    });
+
+    act(() => {
+      ref.current?.goToScene(99);
+    });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid scene index: 99'));
+
+    warnSpy.mockClear();
+    act(() => {
+      ref.current?.goToScene(-1);
+    });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid scene index: -1'));
+
+    // Valid index: no warning, scroll moves.
+    warnSpy.mockClear();
+    act(() => {
+      ref.current?.goToScene(1, false);
+    });
+    await flushAnimationFrame();
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(root.scrollTop).toBeGreaterThan(0);
+
+    warnSpy.mockRestore();
   });
 });

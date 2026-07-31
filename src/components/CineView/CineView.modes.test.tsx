@@ -23,6 +23,9 @@ import { createRef, useState } from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { CineView } from './CineView';
 import type { CineViewRef } from '../../types';
+import type { MotionValue } from 'framer-motion';
+import { freezeAnimationRegistrySnapshot } from '../../animations/registry';
+import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 
 const act = (globalThis as unknown as { act: typeof import('@testing-library/react').act }).act;
@@ -38,8 +41,9 @@ type CapturedSceneProps = {
   dragRuntime?: {
     onDraggingChange: (v: boolean) => void;
     onProgressChange: (v: number) => void;
-    onRenderProgressChange: (v: number) => void;
+    renderProgressMotion: MotionValue<number>;
     onTimelineProgressChange: (v: number) => void;
+    onSharedTimelineDurationChange: (v: number) => void;
     onCommit: (
       direction: 'forward' | 'backward',
       progressRatio?: number,
@@ -54,6 +58,12 @@ type CapturedSceneProps = {
     }) => void;
     onActivationComplete: () => void;
     onReset: () => void;
+    onPrepared: (snapshot: PreparedSceneSnapshot) => void;
+    onOwnershipRequest: (direction: 'forward' | 'backward') => boolean;
+    onCandidateSuspensionChange: (suspended: boolean) => boolean;
+    onElementContinuationChange: (active: boolean) => void;
+    onPointerSessionStart: () => void;
+    transaction?: DragSceneTransaction | null;
     [k: string]: unknown;
   };
   scrollRuntime?: { [k: string]: unknown };
@@ -62,7 +72,6 @@ type CapturedSceneProps = {
 };
 
 const captured: Record<number, CapturedSceneProps> = {};
-
 const DriverScene: React.FC<CapturedSceneProps> = (props) => {
   const index = props.sceneRuntime?.sceneIndex ?? 0;
   captured[index] = props;
@@ -74,8 +83,8 @@ const DriverScene: React.FC<CapturedSceneProps> = (props) => {
 // ---------------------------------------------------------------------------
 // performanceMonitor mock (mirrors existing CineView.test.tsx).
 // ---------------------------------------------------------------------------
-jest.mock('../../utils/performanceMonitor', () => ({
-  performanceMonitor: {
+jest.mock('../../utils/performanceMonitor', () => {
+  const performanceMonitor = {
     start: jest.fn(),
     stop: jest.fn(),
     getMetrics: jest.fn(() => ({
@@ -85,8 +94,15 @@ jest.mock('../../utils/performanceMonitor', () => ({
       bundleSize: 45,
     })),
     reset: jest.fn(),
-  },
-}));
+  };
+  return {
+    performanceMonitor,
+    acquirePerformanceMonitoring: jest.fn(() => {
+      performanceMonitor.start();
+      return () => performanceMonitor.stop();
+    }),
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Configurable useImagePreloader mock. Captures the latest options so tests can
@@ -121,6 +137,31 @@ jest.mock('../../hooks/useImagePreloader', () => ({
 }));
 
 const defaultConfig = { size: 750 };
+
+function createPreparedSnapshot(sceneIndex: number): PreparedSceneSnapshot {
+  return {
+    sceneIndex,
+    instanceId: Symbol(`driver-scene-${sceneIndex}`),
+    revision: 1,
+    enabled: true,
+    mapping: { unit: 'time', scale: 10 },
+    registrySnapshot: freezeAnimationRegistrySnapshot({
+      registrations: new Map(),
+      calculatedDelays: new Map(),
+      issues: [],
+      timelineDuration: 100,
+    }),
+    enterVariantsByAnimateId: new Map(),
+  };
+}
+
+function acquireInjectedForwardDrag(): boolean {
+  const runtime = captured[0].dragRuntime!;
+  runtime.onPrepared(createPreparedSnapshot(1));
+  const acquired = runtime.onOwnershipRequest('forward');
+  if (acquired) runtime.onDraggingChange(true);
+  return acquired;
+}
 
 // ResizeObserver capture so the viewport-measure effect's RO branch is exercised.
 class MockResizeObserver {
@@ -192,7 +233,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[0]).toBeDefined());
 
       act(() => {
-        captured[0].dragRuntime!.onDraggingChange(true);
+        expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.1);
       });
       act(() => {
@@ -216,7 +257,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[0]).toBeDefined());
 
       act(() => {
-        captured[0].dragRuntime!.onDraggingChange(true);
+        expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.1);
         captured[0].dragRuntime!.onProgressChange(0.35);
         captured[0].dragRuntime!.onProgressChange(0.6);
@@ -242,7 +283,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[0]).toBeDefined());
 
       act(() => {
-        captured[0].dragRuntime!.onDraggingChange(true);
+        expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.25);
         captured[0].dragRuntime!.onProgressChange(-0.25);
       });
@@ -273,12 +314,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
       // 开始拖拽 + 进度变化
       act(() => {
-        captured[0].dragRuntime!.onDraggingChange(true);
+        expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.5);
       });
 
       expect(onDragStart).toHaveBeenCalledWith(
-        expect.objectContaining({ sceneIndex: 0, progress: 0, direction: null })
+        expect.objectContaining({ sceneIndex: 0, progress: 0, direction: 'forward' })
       );
       expect(onDragProgress).toHaveBeenCalledWith(
         expect.objectContaining({ sceneIndex: 0, progress: 0.5, direction: 'forward' })
@@ -321,7 +362,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[0]).toBeDefined());
 
       act(() => {
-        captured[0].dragRuntime!.onDraggingChange(true);
+        expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.7);
         captured[0].dragRuntime!.onDraggingChange(false);
         captured[0].dragRuntime!.onRelease({
@@ -350,7 +391,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[0]).toBeDefined());
 
       act(() => {
-        captured[0].dragRuntime!.onDraggingChange(true);
+        expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.4);
         captured[0].dragRuntime!.onRelease({
           mode: 'bounce',
@@ -368,6 +409,166 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         progress: 0.4,
         direction: 'forward',
       });
+    });
+
+    it('同一按压 forward 被拒后可反向获权，且 onDragStart 只反映最终方向', async () => {
+      const onDragStart = jest.fn();
+      const ref = createRef<CineViewRef>();
+
+      render(
+        <CineView ref={ref} mode="drag" config={defaultConfig} callbacks={{ onDragStart }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+          <DriverScene {...({ drag: { enabled: false } } as object)}>S3</DriverScene>
+        </CineView>
+      );
+
+      act(() => ref.current?.goToScene(1, false));
+      await waitFor(() => expect(captured[1]).toBeDefined());
+
+      const runtime = captured[1].dragRuntime!;
+      act(() => {
+        runtime.onPrepared(createPreparedSnapshot(0));
+        runtime.onPointerSessionStart();
+        expect(runtime.onOwnershipRequest('forward')).toBe(false);
+        expect(runtime.onOwnershipRequest('backward')).toBe(true);
+      });
+
+      expect(onDragStart).toHaveBeenCalledTimes(1);
+      expect(onDragStart).toHaveBeenCalledWith(
+        expect.objectContaining({ sceneIndex: 1, direction: 'backward' })
+      );
+    });
+
+    it('仅 element continuation 活跃时也能同步建立可逆 Candidate hold', async () => {
+      render(
+        <CineView mode="drag" config={defaultConfig}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+      await waitFor(() => expect(captured[1]).toBeDefined());
+
+      const runtime = captured[1].dragRuntime!;
+      act(() => runtime.onElementContinuationChange(true));
+      let suspended = false;
+      act(() => {
+        suspended = runtime.onCandidateSuspensionChange(true);
+      });
+      expect(suspended).toBe(true);
+      expect(runtime.transaction ?? null).toBeNull();
+
+      act(() => {
+        runtime.onCandidateSuspensionChange(false);
+        runtime.onElementContinuationChange(false);
+        suspended = runtime.onCandidateSuspensionChange(true);
+      });
+      expect(suspended).toBe(false);
+    });
+
+    it('onDragBlocked 在一次按压内按方向去重，并在下一次按压重新开放', async () => {
+      const onDragBlocked = jest.fn();
+      const ref = createRef<CineViewRef>();
+
+      render(
+        <CineView ref={ref} mode="drag" config={defaultConfig} callbacks={{ onDragBlocked }}>
+          <DriverScene {...({ drag: { enabled: false } } as object)}>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+          <DriverScene {...({ drag: { enabled: false } } as object)}>S3</DriverScene>
+        </CineView>
+      );
+
+      act(() => ref.current?.goToScene(1, false));
+      await waitFor(() => expect(captured[1]).toBeDefined());
+      const runtime = captured[1].dragRuntime!;
+
+      act(() => {
+        runtime.onPointerSessionStart();
+        expect(runtime.onOwnershipRequest('forward')).toBe(false);
+        expect(runtime.onOwnershipRequest('forward')).toBe(false);
+        expect(runtime.onOwnershipRequest('backward')).toBe(false);
+        expect(runtime.onOwnershipRequest('backward')).toBe(false);
+      });
+      expect(onDragBlocked).toHaveBeenCalledTimes(2);
+      expect(onDragBlocked.mock.calls.map(([detail]) => detail.direction)).toEqual([
+        'forward',
+        'backward',
+      ]);
+
+      act(() => {
+        runtime.onPointerSessionStart();
+        expect(runtime.onOwnershipRequest('forward')).toBe(false);
+      });
+      expect(onDragBlocked).toHaveBeenCalledTimes(3);
+    });
+
+    it('物理边界只建立 render ownership，不创建越界 element transaction', async () => {
+      const onDragStart = jest.fn();
+      render(
+        <CineView mode="drag" config={defaultConfig} callbacks={{ onDragStart }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+      await waitFor(() => expect(captured[0]).toBeDefined());
+      const runtime = captured[0].dragRuntime!;
+
+      act(() => {
+        runtime.onPointerSessionStart();
+        expect(runtime.onOwnershipRequest('backward')).toBe(true);
+        runtime.onProgressChange(-0.5);
+      });
+
+      expect(onDragStart).toHaveBeenCalledTimes(1);
+      expect(captured[0].dragRuntime?.transaction ?? null).toBeNull();
+    });
+
+    it('post-commit settle 反向 retarget 会清旧 join，旧 completion 不得释放新事务', async () => {
+      const onDragCommit = jest.fn();
+      render(
+        <CineView mode="drag" config={defaultConfig} callbacks={{ onDragCommit }}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      act(() => {
+        expect(acquireInjectedForwardDrag()).toBe(true);
+        captured[0].dragRuntime!.onProgressChange(0.7);
+        captured[0].dragRuntime!.onRelease({
+          mode: 'settle',
+          direction: 'forward',
+          targetSceneIndex: 1,
+          progressRatio: 0.7,
+        });
+        captured[0].dragRuntime!.onCommit('forward', 0.7, 70, 100);
+      });
+      await waitFor(() =>
+        expect(captured[1].dragRuntime?.transaction).toEqual(
+          expect.objectContaining({ targetSceneIndex: 1, phase: 'settling' })
+        )
+      );
+
+      const oldCompletion = captured[1].dragRuntime!.onActivationComplete;
+      act(() => {
+        captured[1].dragRuntime!.onElementContinuationChange(true);
+        captured[1].dragRuntime!.onPrepared(createPreparedSnapshot(0));
+        captured[1].dragRuntime!.onPointerSessionStart();
+        expect(captured[1].dragRuntime!.onCandidateSuspensionChange(true)).toBe(true);
+        expect(captured[1].dragRuntime!.onOwnershipRequest('backward')).toBe(true);
+      });
+      await waitFor(() =>
+        expect(captured[0].dragRuntime?.transaction).toEqual(
+          expect.objectContaining({ targetSceneIndex: 0, phase: 'driving' })
+        )
+      );
+
+      act(() => oldCompletion());
+      expect(captured[0].dragRuntime?.transaction).toEqual(
+        expect.objectContaining({ targetSceneIndex: 0, phase: 'driving' })
+      );
+      expect(onDragCommit).toHaveBeenCalledTimes(1);
     });
 
     it('dragRuntime.onCommit 在 forward / backward 都补发 onDragCommit 并携带 elapsedMs', async () => {
@@ -430,7 +631,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[0]).toBeDefined());
 
       act(() => {
-        captured[0].dragRuntime!.onRenderProgressChange(-0.5);
+        captured[0].dragRuntime!.renderProgressMotion.set(-0.5);
       });
 
       // 场景 0 在 renderProgress<0 时 clampProgress=0 → translate 仍为 0%
@@ -455,7 +656,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(captured[1]).toBeDefined());
 
       act(() => {
-        captured[1].dragRuntime!.onRenderProgressChange(0.5);
+        captured[1].dragRuntime!.renderProgressMotion.set(0.5);
       });
 
       const scene1 = container.querySelector('[data-scene-index="1"]') as HTMLDivElement;
@@ -474,6 +675,69 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
       const scene0 = container.querySelector('[data-scene-index="0"]') as HTMLDivElement;
       expect(scene0.style.transform).toBe('translate3d(0%, 0, 0)');
+    });
+
+    it('将根映射与 Scene 整组覆盖解析后注入真实 dragRuntime', async () => {
+      render(
+        <CineView
+          mode="drag"
+          config={defaultConfig}
+          modes={{ drag: { unit: 'percent', scale: 0.5 } }}
+        >
+          <DriverScene>S-root</DriverScene>
+          <DriverScene {...({ drag: { scale: 2 } } as object)}>S-scene</DriverScene>
+        </CineView>
+      );
+
+      await waitFor(() => expect(captured[1]).toBeDefined());
+      expect(captured[0].dragRuntime?.dragMappingConfig).toEqual({
+        unit: 'percent',
+        scale: 0.5,
+      });
+      expect(captured[1].dragRuntime?.dragMappingConfig).toEqual({ unit: 'time', scale: 2 });
+    });
+
+    it('非法 drag 配置按 Scene 与字段去重上报 INVALID_DRAG_CONFIG', async () => {
+      const onError = jest.fn();
+      const invalidRootModes = {
+        drag: { unit: 'frames', scale: 3 },
+      } as unknown as React.ComponentProps<typeof CineView>['modes'];
+      const invalidSceneProps = {
+        drag: { scale: -5, enabled: 'yes' },
+      } as object;
+      const view = (
+        <CineView
+          mode="drag"
+          config={defaultConfig}
+          modes={invalidRootModes}
+          callbacks={{ onError }}
+        >
+          <DriverScene>S-root-invalid</DriverScene>
+          <DriverScene {...invalidSceneProps}>S-scene-invalid</DriverScene>
+        </CineView>
+      );
+      const { rerender } = render(view);
+
+      await waitFor(() => {
+        const dragErrors = onError.mock.calls
+          .map(([detail]) => detail)
+          .filter((detail) => detail.code === 'INVALID_DRAG_CONFIG');
+        expect(dragErrors).toHaveLength(3);
+        expect(dragErrors.map((detail) => detail.context)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ sceneIndex: 0, field: 'unit', value: 'frames' }),
+            expect.objectContaining({ sceneIndex: 1, field: 'scale', value: -5 }),
+            expect.objectContaining({ sceneIndex: 1, field: 'enabled', value: 'yes' }),
+          ])
+        );
+      });
+
+      rerender(view);
+      expect(
+        onError.mock.calls
+          .map(([detail]) => detail)
+          .filter((detail) => detail.code === 'INVALID_DRAG_CONFIG')
+      ).toHaveLength(3);
     });
 
     it('onActivationComplete 在非首屏场景走 completeDragTransition（不抛错）', async () => {
@@ -783,6 +1047,76 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(performanceMonitor.start).toHaveBeenCalled();
       unmount();
       expect(performanceMonitor.stop).toHaveBeenCalled();
+    });
+  });
+
+  describe('animated goToScene settle 关闭（A10 / D-F6）', () => {
+    it('settle 兜底为 DEFAULT_SLIDE_DURATION(800)，onSceneDidChange 携带真实 fromIndex', () => {
+      jest.useFakeTimers();
+      try {
+        const onSceneDidChange = jest.fn();
+        const ref = createRef<CineViewRef>();
+        render(
+          <CineView ref={ref} mode="drag" config={defaultConfig} callbacks={{ onSceneDidChange }}>
+            <DriverScene>S1</DriverScene>
+            <DriverScene>S2</DriverScene>
+          </CineView>
+        );
+
+        act(() => {
+          ref.current?.goToScene(1, true);
+        });
+
+        // A10: 旧兜底 500ms 会在这里提前触发 settle（与 DEFAULT_SLIDE_DURATION
+        // 800 的滑动本体脱节）；统一后 799ms 时 settle 尚未关闭。
+        act(() => {
+          jest.advanceTimersByTime(799);
+        });
+        expect(onSceneDidChange).not.toHaveBeenCalled();
+
+        act(() => {
+          jest.advanceTimersByTime(1);
+        });
+        // D-F6: settle 关闭时必须报告真实 fromIndex（旧实现回退到已更新的
+        // currentSceneRef，产出 fromIndex === toIndex === 1、direction null）。
+        expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+        expect(onSceneDidChange).toHaveBeenCalledWith(
+          expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
+        );
+      } finally {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe('动态 children 收缩（B2）', () => {
+    it('渲染中移除 active scene 时索引被重钳，视口不悬空', async () => {
+      const ref = createRef<CineViewRef>();
+      const { rerender } = render(
+        <CineView ref={ref} mode="drag" config={defaultConfig}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+          <DriverScene>S3</DriverScene>
+        </CineView>
+      );
+
+      act(() => {
+        ref.current?.goToScene(2, false);
+      });
+      expect(ref.current?.getCurrentScene()).toBe(2);
+
+      // 条件渲染移除了当前 active 的第三个 scene。
+      rerender(
+        <CineView ref={ref} mode="drag" config={defaultConfig}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+
+      await waitFor(() => {
+        expect(ref.current?.getCurrentScene()).toBe(1);
+      });
     });
   });
 });

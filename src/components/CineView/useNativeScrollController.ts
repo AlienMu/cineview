@@ -53,7 +53,14 @@ export interface NativeScrollControllerPort {
   applyNativeScrollDelta: (deltaPx: number) => boolean;
   applyNativeScrollbarOffset: (targetOffset: number) => void;
   goToScrollZone: (zoneId: string, options?: { animated?: boolean }) => void;
+  beginProgrammaticScroll: (targetOffset: number) => void;
 }
+
+// S-F2: arrival threshold for programmatic (self-issued) scrolls. Browsers
+// land smooth-scroll animations on — or within a subpixel of — the requested
+// offset, so 1px reliably detects completion without false positives from
+// pass-through frames.
+const PROGRAMMATIC_SCROLL_ARRIVAL_EPSILON_PX = 1;
 
 export function useNativeScrollController({
   rootRef,
@@ -77,7 +84,19 @@ export function useNativeScrollController({
   const scrollingIdleTimerRef = useRef<number | null>(null);
   const isScrollingGestureRef = useRef(false);
   const previousScrollOffsetRef = useRef(0);
+  // S-F2: in-flight programmatic scroll target (goToZone / goToScene). While
+  // set, scroll frames are self-issued — not user gestures — so
+  // syncNativeScrollState must skip the anti-skip intent clamp for them: its
+  // corrective behavior:'auto' scrollTo would abort the in-flight smooth
+  // scroll per the CSSOM spec, stranding the user mid-way. Cleared on arrival
+  // (|offset − target| ≤ epsilon) or by any real user input.
+  const programmaticScrollTargetRef = useRef<number | null>(null);
   const previousZoneStatesRef = useRef<Record<string, SceneScrollTimelineState>>({});
+  // onZoneProgress threshold baseline. Must be the LAST REPORTED value, not the
+  // last synced frame: previousZoneStatesRef is overwritten every sync, so slow
+  // scrolling (≤0.5px per frame) would reset the baseline each frame and starve
+  // the callback forever. Mutated in place — no per-frame allocation.
+  const lastReportedZoneProgressRef = useRef<Record<string, number>>({});
   const lastReportedSceneRef = useRef(0);
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollContentSpan, setScrollContentSpan] = useState(1);
@@ -135,21 +154,64 @@ export function useNativeScrollController({
     [direction, getMaxNativeOffset, rootRef]
   );
 
+  const beginProgrammaticScroll = useCallback(
+    (targetOffset: number): void => {
+      programmaticScrollTargetRef.current = clamp(targetOffset, 0, getMaxNativeOffset());
+    },
+    [getMaxNativeOffset]
+  );
+
+  // Any real user input (wheel / touch / keyboard / scrollbar) reclaims
+  // control from an in-flight programmatic smooth scroll: stop the animation
+  // where it is (a behavior:'auto' scrollTo aborts it per CSSOM), re-anchor
+  // the delta baseline at the real offset, and drop the in-flight flag so the
+  // gesture goes through the normal anti-skip intent clamp again.
+  const cancelProgrammaticScrollForUserInput = useCallback((): void => {
+    if (programmaticScrollTargetRef.current === null) return;
+
+    programmaticScrollTargetRef.current = null;
+    const root = rootRef.current;
+    if (!root) return;
+
+    const rawOffset = clamp(
+      direction === 'x' ? root.scrollLeft : root.scrollTop,
+      0,
+      getMaxNativeOffset()
+    );
+    setNativeOffset(rawOffset);
+    previousScrollOffsetRef.current = rawOffset;
+  }, [direction, getMaxNativeOffset, rootRef, setNativeOffset]);
+
   const updateActiveScene = useCallback(
     (nativeOffset: number): void => {
       const layouts = sceneLayoutsRef.current;
       if (layouts.length === 0) return;
 
       const viewportCenter = nativeOffset + getViewportSpan() / 2;
-      const containingIndex = layouts.findIndex(
-        (layout) => viewportCenter >= layout.sceneStart && viewportCenter < layout.sceneEnd
-      );
-      const nearestIndex =
-        containingIndex !== -1
-          ? containingIndex
-          : viewportCenter < layouts[0].sceneStart
-            ? 0
-            : layouts.length - 1;
+      // Containment wins outright; otherwise (viewport center parked in a gap
+      // between scene ranges — plain document-flow content interleaved between
+      // scenes) pick the scene whose range is CLOSEST to the center. The old
+      // fallback jumped to layouts.length - 1 for any center past scene 0's
+      // start, wrongly reporting the last scene while sitting right after an
+      // early one.
+      let nearestIndex = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < layouts.length; index += 1) {
+        const layout = layouts[index];
+        if (viewportCenter >= layout.sceneStart && viewportCenter < layout.sceneEnd) {
+          nearestIndex = index;
+          break;
+        }
+
+        const distance =
+          viewportCenter < layout.sceneStart
+            ? layout.sceneStart - viewportCenter
+            : viewportCenter - layout.sceneEnd;
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      }
       if (activeSceneIndexRef.current === nearestIndex) return;
 
       const previousIndex = lastReportedSceneRef.current;
@@ -182,12 +244,16 @@ export function useNativeScrollController({
   const syncZoneStatesFromNativeOffset = useCallback(
     (nativeOffset: number, inputDirection: ScrollInputDirection | null): void => {
       const previousStates = previousZoneStatesRef.current;
+      const currentStates = zoneStatesRef.current;
       const nextStates: Record<string, SceneScrollTimelineState> = {};
 
-      Object.entries(zoneStatesRef.current).forEach(([zoneId, state]) => {
+      Object.entries(currentStates).forEach(([zoneId, state]) => {
         const layout = sceneLayoutsRef.current[state.sceneIndex];
         if (!layout || state.totalBudgetPx <= 0) {
-          nextStates[zoneId] = { ...state, progressPx: 0, active: false, direction: null };
+          nextStates[zoneId] =
+            state.progressPx === 0 && !state.active && state.direction === null
+              ? state
+              : { ...state, progressPx: 0, active: false, direction: null };
           return;
         }
 
@@ -203,35 +269,28 @@ export function useNativeScrollController({
           nativeOffset < layout.segmentEnd - 0.5 &&
           progressPx > 0.5 &&
           progressPx < state.totalBudgetPx - 0.5;
-        nextStates[zoneId] = {
+        const nextState: SceneScrollTimelineState = {
           ...state,
           progressPx,
           active,
           direction: active ? inputDirection : null,
         };
+        nextStates[zoneId] =
+          state.progressPx === nextState.progressPx &&
+          state.active === nextState.active &&
+          state.direction === nextState.direction
+            ? state
+            : nextState;
       });
 
-      const currentStates = zoneStatesRef.current;
       const nextEntries = Object.entries(nextStates);
       const unchanged =
         Object.keys(currentStates).length === nextEntries.length &&
-        nextEntries.every(([zoneId, nextState]) => {
-          const currentState = currentStates[zoneId];
-          return (
-            currentState?.progressPx === nextState.progressPx &&
-            currentState.active === nextState.active &&
-            currentState.direction === nextState.direction &&
-            currentState.totalBudgetPx === nextState.totalBudgetPx
-          );
-        });
+        nextEntries.every(([zoneId, nextState]) => currentStates[zoneId] === nextState);
 
       if (!unchanged) {
         zoneStatesRef.current = nextStates;
-        const currentTimeline = timelineStoreRef.current.getSnapshot();
-        timelineStoreRef.current.setSnapshot({
-          version: currentTimeline.version,
-          zoneStates: nextStates,
-        });
+        timelineStoreRef.current.setSnapshot(nextStates);
       }
       updateSceneRenderSnapshotsRef.current(nativeOffset);
       previousZoneStatesRef.current = nextStates;
@@ -241,7 +300,17 @@ export function useNativeScrollController({
         const meta = zoneRegistryRef.current.get(zoneId);
         if (!meta) return;
 
-        if (!previousState || Math.abs(previousState.progressPx - state.progressPx) > 0.5) {
+        const lastReportedProgressPx = lastReportedZoneProgressRef.current[zoneId];
+        const atBoundary = state.progressPx === 0 || state.progressPx === state.totalBudgetPx;
+        // Report against the last reported value (accumulated movement), and
+        // always force the terminal 0 / full values through so consumers see
+        // the exact endpoints even when the final frame moved ≤ 0.5px.
+        const shouldReport =
+          lastReportedProgressPx === undefined ||
+          Math.abs(lastReportedProgressPx - state.progressPx) > 0.5 ||
+          (atBoundary && lastReportedProgressPx !== state.progressPx);
+        if (shouldReport) {
+          lastReportedZoneProgressRef.current[zoneId] = state.progressPx;
           callbacks.scroll?.onZoneProgress?.({
             zoneId,
             sceneIndex: meta.sceneIndex,
@@ -280,8 +349,24 @@ export function useNativeScrollController({
       }
       const rawOffset = direction === 'x' ? root.scrollLeft : root.scrollTop;
       const previousOffset = previousScrollOffsetRef.current;
-      const resolvedOffset = resolveNativeScrollIntent(previousOffset, rawOffset - previousOffset);
-      if (Math.abs(resolvedOffset - rawOffset) > 0.5) setNativeOffset(resolvedOffset);
+      const programmaticTarget = programmaticScrollTargetRef.current;
+      let resolvedOffset: number;
+      if (programmaticTarget !== null) {
+        // S-F2: programmatic smooth-scroll frame. The animation is continuous,
+        // so every crossed takeover segment naturally produces in-segment
+        // frames — the anti-skip clamp (built to bound user gestures) must not
+        // run: its corrective auto scrollTo would abort the smooth scroll.
+        // Follow the real offset so the delta baseline stays frame-sized.
+        resolvedOffset = clamp(rawOffset, 0, getMaxNativeOffset());
+        if (
+          Math.abs(resolvedOffset - programmaticTarget) <= PROGRAMMATIC_SCROLL_ARRIVAL_EPSILON_PX
+        ) {
+          programmaticScrollTargetRef.current = null;
+        }
+      } else {
+        resolvedOffset = resolveNativeScrollIntent(previousOffset, rawOffset - previousOffset);
+        if (Math.abs(resolvedOffset - rawOffset) > 0.5) setNativeOffset(resolvedOffset);
+      }
 
       const nextDirection =
         Math.abs(resolvedOffset - previousOffset) <= 0.5
@@ -293,19 +378,26 @@ export function useNativeScrollController({
       scrollOffsetRef.current = resolvedOffset;
       scrollOffsetStore.setSnapshot(resolvedOffset);
       scrollDirectionRef.current = nextDirection;
-      isScrollingStateRef.current = true;
-      setIsScrolling((current) => (current ? current : true));
+      // Only real gestures enter the scrolling state. Programmatic syncs
+      // (mount / resize / refreshLayout) used to flip isScrolling true for
+      // 120ms, flashing the autoHide scrollbar and false-reporting
+      // isSceneAnimating. They also must not reset an in-flight gesture's
+      // idle timer.
+      if (fromGesture) {
+        isScrollingStateRef.current = true;
+        setIsScrolling((current) => (current ? current : true));
 
-      if (scrollingIdleTimerRef.current !== null) {
-        window.clearTimeout(scrollingIdleTimerRef.current);
+        if (scrollingIdleTimerRef.current !== null) {
+          window.clearTimeout(scrollingIdleTimerRef.current);
+        }
+        scrollingIdleTimerRef.current = window.setTimeout(() => {
+          isScrollingStateRef.current = false;
+          setIsScrolling(false);
+          isScrollingGestureRef.current = false;
+          scrollingIdleTimerRef.current = null;
+          updateSceneRenderSnapshotsRef.current(scrollOffsetRef.current);
+        }, 120);
       }
-      scrollingIdleTimerRef.current = window.setTimeout(() => {
-        isScrollingStateRef.current = false;
-        setIsScrolling(false);
-        isScrollingGestureRef.current = false;
-        scrollingIdleTimerRef.current = null;
-        updateSceneRenderSnapshotsRef.current(scrollOffsetRef.current);
-      }, 120);
 
       syncZoneStatesFromNativeOffset(resolvedOffset, nextDirection);
       updateActiveScene(resolvedOffset);
@@ -320,6 +412,7 @@ export function useNativeScrollController({
     },
     [
       direction,
+      getMaxNativeOffset,
       getViewportSpan,
       isScrollingStateRef,
       measureSceneLayouts,
@@ -341,6 +434,7 @@ export function useNativeScrollController({
       const root = rootRef.current;
       if (!root || deltaPx === 0) return false;
 
+      cancelProgrammaticScrollForUserInput();
       const currentOffset = direction === 'x' ? root.scrollLeft : root.scrollTop;
       const nextOffset = resolveNativeScrollIntent(currentOffset, deltaPx);
       if (Math.abs(nextOffset - currentOffset) <= 0.5) return false;
@@ -349,11 +443,19 @@ export function useNativeScrollController({
       syncNativeScrollState(true);
       return true;
     },
-    [direction, resolveNativeScrollIntent, rootRef, setNativeOffset, syncNativeScrollState]
+    [
+      cancelProgrammaticScrollForUserInput,
+      direction,
+      resolveNativeScrollIntent,
+      rootRef,
+      setNativeOffset,
+      syncNativeScrollState,
+    ]
   );
 
   const applyNativeScrollbarOffset = useCallback(
     (targetOffset: number): void => {
+      cancelProgrammaticScrollForUserInput();
       const root = rootRef.current;
       const currentOffset = root
         ? direction === 'x'
@@ -364,6 +466,7 @@ export function useNativeScrollController({
       syncNativeScrollState(true);
     },
     [
+      cancelProgrammaticScrollForUserInput,
       direction,
       resolveNativeScrollIntent,
       rootRef,
@@ -380,10 +483,26 @@ export function useNativeScrollController({
       const layout = state ? sceneLayoutsRef.current[state.sceneIndex] : null;
       if (!root || !layout) return;
 
+      if (options?.animated !== false) {
+        // S-F2: smooth navigation. Mark the in-flight target and let the
+        // browser's smooth-scroll frames drive zone/timeline state through
+        // syncNativeScrollState. Do NOT pre-seed previousScrollOffsetRef with
+        // the target — that made the first smooth frame look like a giant
+        // reverse gesture, and the intent clamp's corrective auto scrollTo
+        // aborted the smooth scroll mid-way.
+        beginProgrammaticScroll(layout.centerLockOffset);
+        root.scrollTo({
+          top: direction === 'x' ? undefined : layout.centerLockOffset,
+          left: direction === 'x' ? layout.centerLockOffset : undefined,
+          behavior: 'smooth',
+        });
+        return;
+      }
+
       root.scrollTo({
         top: direction === 'x' ? undefined : layout.centerLockOffset,
         left: direction === 'x' ? layout.centerLockOffset : undefined,
-        behavior: options?.animated === false ? 'auto' : 'smooth',
+        behavior: 'auto',
       });
       previousScrollOffsetRef.current = layout.centerLockOffset;
       scrollOffsetRef.current = layout.centerLockOffset;
@@ -392,6 +511,7 @@ export function useNativeScrollController({
       updateActiveScene(layout.centerLockOffset);
     },
     [
+      beginProgrammaticScroll,
       direction,
       rootRef,
       sceneLayoutsRef,
@@ -416,6 +536,7 @@ export function useNativeScrollController({
         window.clearTimeout(scrollingIdleTimerRef.current);
         scrollingIdleTimerRef.current = null;
       }
+      programmaticScrollTargetRef.current = null;
     };
   }, []);
 
@@ -444,5 +565,6 @@ export function useNativeScrollController({
     applyNativeScrollDelta,
     applyNativeScrollbarOffset,
     goToScrollZone,
+    beginProgrammaticScroll,
   };
 }

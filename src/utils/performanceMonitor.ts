@@ -10,18 +10,46 @@ import type { PerformanceMetrics } from '../types';
 export type { PerformanceMetrics };
 
 export class PerformanceMonitor {
-  private frameCount: number = 0;
-  private lastTime: number = performance.now();
-  private frameTimes: number[] = [];
-  private readonly maxFrameTimeSamples: number = 60;
-  private memorySamples: number[] = [];
-  private readonly maxMemorySamples: number = 8;
-  private readonly memorySampleIntervalMs: number = 1000;
-  private lastMemorySampleTime: number = 0;
-  private cachedMemoryUsage: number | undefined = undefined;
-  private cachedBundleSizeKb: number = 0;
-  private rafId: number | null = null;
-  private isMonitoring: boolean = false;
+  declare private frameCount: number;
+  declare private lastTime: number;
+  declare private frameTimes: number[];
+  declare private memorySamples: number[];
+  declare private lastMemorySampleTime: number;
+  declare private cachedMemoryUsage: number | undefined;
+  declare private cachedBundleSizeKb: number;
+  declare private rafId: number | null;
+  declare private isMonitoring: boolean;
+  declare private measure: () => void;
+
+  constructor() {
+    this.frameCount = 0;
+    this.lastTime = performance.now();
+    this.frameTimes = [];
+    this.memorySamples = [];
+    this.lastMemorySampleTime = 0;
+    this.cachedMemoryUsage = undefined;
+    this.cachedBundleSizeKb = 0;
+    this.rafId = null;
+    this.isMonitoring = false;
+    this.measure = (): void => {
+      if (!this.isMonitoring) return;
+
+      const currentTime = performance.now();
+      const deltaTime = currentTime - this.lastTime;
+
+      this.frameCount++;
+      this.frameTimes.push(deltaTime);
+
+      // 保持固定数量的样本
+      if (this.frameTimes.length > 60) {
+        this.frameTimes.shift();
+      }
+
+      this.sampleMemory(currentTime);
+      this.lastTime = currentTime;
+      this.rafId = requestAnimationFrame(this.measure);
+    };
+  }
 
   /**
    * 开始监控性能
@@ -54,25 +82,6 @@ export class PerformanceMonitor {
   /**
    * 测量帧性能
    */
-  private measure = (): void => {
-    if (!this.isMonitoring) return;
-
-    const currentTime = performance.now();
-    const deltaTime = currentTime - this.lastTime;
-
-    this.frameCount++;
-    this.frameTimes.push(deltaTime);
-
-    // 保持固定数量的样本
-    if (this.frameTimes.length > this.maxFrameTimeSamples) {
-      this.frameTimes.shift();
-    }
-
-    this.sampleMemory(currentTime);
-    this.lastTime = currentTime;
-    this.rafId = requestAnimationFrame(this.measure);
-  };
-
   /**
    * 获取当前性能指标
    */
@@ -130,7 +139,7 @@ export class PerformanceMonitor {
       return;
     }
 
-    if (!force && currentTime - this.lastMemorySampleTime < this.memorySampleIntervalMs) {
+    if (!force && currentTime - this.lastMemorySampleTime < 1000) {
       return;
     }
 
@@ -139,7 +148,7 @@ export class PerformanceMonitor {
     const memoryInMb = usedJSHeapSize / (1024 * 1024);
 
     this.memorySamples.push(memoryInMb);
-    if (this.memorySamples.length > this.maxMemorySamples) {
+    if (this.memorySamples.length > 8) {
       this.memorySamples.shift();
     }
 
@@ -193,27 +202,6 @@ export class PerformanceMonitor {
 
     return Math.round((bundleBytes / 1024) * 10) / 10;
   }
-
-  /**
-   * 重置监控数据
-   */
-  reset(): void {
-    this.frameCount = 0;
-    this.frameTimes = [];
-    this.memorySamples = [];
-    this.lastTime = performance.now();
-    this.lastMemorySampleTime = 0;
-    this.cachedMemoryUsage = undefined;
-    this.cachedBundleSizeKb = this.estimateBundleSizeKb();
-  }
-
-  /**
-   * 检查性能是否良好
-   */
-  isPerformanceGood(): boolean {
-    const metrics = this.getMetrics();
-    return metrics.fps >= 55; // 接近 60fps 认为性能良好
-  }
 }
 
 /**
@@ -227,8 +215,30 @@ export const createPerformanceMonitor = (): PerformanceMonitor => {
  * 单例性能监控器（用于全局监控）
  */
 const globalMonitor = new PerformanceMonitor();
+let globalMonitorLeaseCount = 0;
 
 export const performanceMonitor = globalMonitor;
+
+/**
+ * 为一个挂载中的 CineView 实例租用页面级性能监控。
+ * 第一个租约启动监控，最后一个租约释放后才停止；release 幂等。
+ */
+export const acquirePerformanceMonitoring = (): (() => void) => {
+  globalMonitorLeaseCount += 1;
+  if (globalMonitorLeaseCount === 1) {
+    globalMonitor.start();
+  }
+
+  let released = false;
+  return (): void => {
+    if (released) return;
+    released = true;
+    globalMonitorLeaseCount = Math.max(globalMonitorLeaseCount - 1, 0);
+    if (globalMonitorLeaseCount === 0) {
+      globalMonitor.stop();
+    }
+  };
+};
 
 /**
  * 开始性能监控（使用单例）
@@ -249,13 +259,6 @@ export const stopPerformanceMonitoring = (): void => {
  */
 export const getPerformanceMetrics = (): PerformanceMetrics => {
   return globalMonitor.getMetrics();
-};
-
-/**
- * 重置性能指标（使用单例）
- */
-export const resetPerformanceMetrics = (): void => {
-  globalMonitor.reset();
 };
 
 /**

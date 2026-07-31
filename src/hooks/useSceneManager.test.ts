@@ -195,7 +195,8 @@ describe('useSceneManager', () => {
         actions.goToScene(2, false);
       });
 
-      expect(onAfterChange).toHaveBeenCalledWith(2);
+      // D-F6: the non-animated path carries the true from-index too.
+      expect(onAfterChange).toHaveBeenCalledWith(2, 0);
     });
 
     it('should set isAnimating when animated is true', () => {
@@ -697,7 +698,9 @@ describe('useSceneManager', () => {
         actions.setDragTimelineProgress(0.4);
         actions.setRenderProgress(0.4);
         actions.setIsDragging(true);
-        actions.setDragRelease({ mode: 'settle', direction: 'forward', targetSceneIndex: 3 });
+        // Bounce release: the settle join is NOT outstanding, so the reset
+        // performs the full teardown (directive cleared).
+        actions.setDragRelease({ mode: 'bounce', direction: 'forward', targetSceneIndex: 3 });
         actions.resetDragInteraction();
       });
 
@@ -708,6 +711,49 @@ describe('useSceneManager', () => {
       expect(state.renderProgress).toBe(0);
       expect(state.isDragging).toBe(false);
       expect(state.dragRelease).toBeNull();
+    });
+
+    it('preserves an outstanding settle release across a gesture-level reset (D-F1)', () => {
+      // Rush re-grab tap: the previous release's settle join is still open (the
+      // committed-to scene's element track is completing, preempted in place by
+      // the new gesture) when the tap ends in resetDragInteraction. The live
+      // settle directive must SURVIVE — clearing it would snap the mid-enter
+      // elements to terminal (useAnimateDrag reads dragRelease.mode === 'settle'
+      // to keep the cross-commit continuation alive).
+      const { result } = renderHook(() =>
+        useSceneManager({
+          totalScenes: 4,
+          initialScene: 2,
+          mode: 'drag',
+        })
+      );
+
+      act(() => {
+        const [, actions] = result.current;
+        actions.setDragRelease({ mode: 'settle', direction: 'forward', targetSceneIndex: 3 });
+        actions.commitDragSceneChange('forward', 0.6);
+        // The rush re-grab + tap: dragging turned on, then the tiny-progress
+        // release resets the interaction.
+        actions.setIsDragging(true);
+        actions.resetDragInteraction();
+      });
+
+      const [state, actions] = result.current;
+      expect(state.currentScene).toBe(3);
+      expect(state.isDragging).toBe(false);
+      expect(state.dragProgress).toBe(0);
+      // The settle directive survives the reset.
+      expect(state.dragRelease).toEqual(
+        expect.objectContaining({ mode: 'settle', targetSceneIndex: 3 })
+      );
+
+      // The join still closes normally once the element track reaches T.
+      act(() => {
+        actions.completeDragTransition();
+      });
+      const [closed] = result.current;
+      expect(closed.dragRelease).toBeNull();
+      expect(closed.direction).toBeNull();
     });
 
     it('should reset drag interaction when a committed target scene is out of bounds', () => {
@@ -786,6 +832,130 @@ describe('useSceneManager', () => {
 
       // Should not throw
       expect(result.current[0].currentScene).toBe(2);
+    });
+  });
+
+  // D-F6: programmatic animated goToScene — the settle-timer close
+  // (setAnimating(false)) must report the TRUE from-index and must not clobber a
+  // real gesture's release directive that superseded the 'enter' directive.
+  describe('programmatic goToScene settle close (D-F6)', () => {
+    it('passes the recorded from-index to onAfterChange at the settle close', () => {
+      const onAfterChange = jest.fn();
+      const { result } = renderHook(() =>
+        useSceneManager({ totalScenes: 3, mode: 'drag', onAfterChange })
+      );
+
+      act(() => {
+        result.current[1].goToScene(1, true);
+      });
+      expect(onAfterChange).not.toHaveBeenCalled();
+
+      act(() => {
+        result.current[1].setAnimating(false);
+      });
+
+      // Previously onAfterChange fired with only (1): CineView then fell back to
+      // its already-updated currentSceneRef and emitted fromIndex === toIndex.
+      expect(onAfterChange).toHaveBeenCalledTimes(1);
+      expect(onAfterChange).toHaveBeenCalledWith(1, 0);
+    });
+
+    it('the settle close clears its own enter directive', () => {
+      const { result } = renderHook(() => useSceneManager({ totalScenes: 3, mode: 'drag' }));
+
+      act(() => {
+        result.current[1].goToScene(1, true);
+      });
+      expect(result.current[0].dragRelease?.mode).toBe('enter');
+
+      act(() => {
+        result.current[1].setAnimating(false);
+      });
+      expect(result.current[0].dragRelease).toBeNull();
+    });
+
+    it('a late settle timer does NOT clear a real gesture release that superseded the enter directive', () => {
+      const { result } = renderHook(() => useSceneManager({ totalScenes: 3, mode: 'drag' }));
+
+      // Programmatic nav publishes the 'enter' directive and arms the timer.
+      act(() => {
+        result.current[1].goToScene(1, true);
+      });
+
+      // Before the timer expires, a real gesture releases: its settle directive
+      // (newer token) replaces the 'enter' directive.
+      act(() => {
+        result.current[1].setDragRelease({
+          mode: 'settle',
+          direction: 'forward',
+          targetSceneIndex: 2,
+          progressRatio: 0.5,
+        });
+      });
+      const gestureRelease = result.current[0].dragRelease;
+      expect(gestureRelease?.mode).toBe('settle');
+
+      // The stale goToScene timer fires. It must only clear ITS OWN directive
+      // (token compare) — clearing the live settle release would snap the
+      // incoming scene's element track to rest mid-continuation.
+      act(() => {
+        result.current[1].setAnimating(false);
+      });
+      expect(result.current[0].dragRelease).toBe(gestureRelease);
+    });
+  });
+
+  // B2: runtime children shrink — conditional rendering can reduce totalScenes
+  // below the active index; the manager must re-clamp and unhang isAnimating.
+  describe('runtime totalScenes shrink (B2)', () => {
+    it('re-clamps the active index when scenes are removed at runtime', () => {
+      const { result, rerender } = renderHook(
+        (props: { totalScenes: number }) => useSceneManager({ ...props, mode: 'drag' }),
+        { initialProps: { totalScenes: 3 } }
+      );
+
+      act(() => {
+        result.current[1].goToScene(2, false);
+      });
+      expect(result.current[0].currentScene).toBe(2);
+
+      rerender({ totalScenes: 2 });
+      expect(result.current[0].currentScene).toBe(1);
+    });
+
+    it('unhangs isAnimating when the transition target scene is removed', () => {
+      const { result, rerender } = renderHook(
+        (props: { totalScenes: number }) => useSceneManager({ ...props, mode: 'drag' }),
+        { initialProps: { totalScenes: 3 } }
+      );
+
+      act(() => {
+        result.current[1].goToScene(2, true);
+      });
+      expect(result.current[0].isAnimating).toBe(true);
+      expect(result.current[0].currentScene).toBe(2);
+
+      // The active scene disappears: without the re-clamp effect the index stays
+      // out of range (blank viewport) and CineView's settle effect early-returns
+      // on the missing scene, so isAnimating hangs forever.
+      rerender({ totalScenes: 2 });
+      expect(result.current[0].currentScene).toBe(1);
+      expect(result.current[0].isAnimating).toBe(false);
+      expect(result.current[0].direction).toBeNull();
+    });
+
+    it('keeps an in-range index untouched when scenes shrink above it', () => {
+      const { result, rerender } = renderHook(
+        (props: { totalScenes: number }) => useSceneManager({ ...props, mode: 'drag' }),
+        { initialProps: { totalScenes: 4 } }
+      );
+
+      act(() => {
+        result.current[1].goToScene(1, false);
+      });
+
+      rerender({ totalScenes: 3 });
+      expect(result.current[0].currentScene).toBe(1);
     });
   });
 });

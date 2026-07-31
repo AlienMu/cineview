@@ -39,6 +39,11 @@ export interface UseImagePreloaderActions {
   addUrls: (urls: string[], priority?: boolean) => void;
 }
 
+// 图片加载超时:对既不 onload 也不 onerror 的挂起请求,超时后按加载失败
+// {success:false} 结算。否则一张挂起的 priority 图会冻结 progress、阻塞
+// background 队列、让 priorityComplete 永不放行(首屏门卡死)。
+const IMAGE_LOAD_TIMEOUT_MS = 15_000;
+
 function uniqueUrls(urls: string[]): string[] {
   return Array.from(new Set(urls.filter((url) => url.length > 0)));
 }
@@ -150,23 +155,35 @@ export const useImagePreloader = (
       const controller = new AbortController();
       abortControllersRef.current.set(url, controller);
 
-      const cleanup = (): void => {
+      let settled = false;
+      let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+      // 单一结算出口:清理监听/定时器并 resolve,幂等(load/error/abort/timeout
+      // 竞争时只有第一个生效)。
+      const settle = (result: ImageLoadResult): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timeoutTimer !== null) {
+          clearTimeout(timeoutTimer);
+          timeoutTimer = null;
+        }
         abortControllersRef.current.delete(url);
+        resolve(result);
       };
 
       img.onload = (): void => {
-        cleanup();
         markImageAsPreloaded(url);
-        resolve({ url, success: true });
+        settle({ url, success: true });
       };
 
       img.onerror = (): void => {
         const error = new Error(`Failed to load image: ${url}`);
-        cleanup();
         if (activeRunIdRef.current === runId) {
           onErrorRef.current?.(url, error);
         }
-        resolve({ url, success: false, error });
+        settle({ url, success: false, error });
       };
 
       // Validates Requirement 26.3: Support AbortController for cancellation
@@ -174,9 +191,22 @@ export const useImagePreloader = (
       controller.signal.addEventListener('abort', (): void => {
         // Clear the image src to stop loading
         img.src = '';
-        cleanup();
-        resolve({ url, success: false, error: new Error('Image load aborted') });
+        settle({ url, success: false, error: new Error('Image load aborted') });
       });
+
+      // 挂起请求(既不 load 也不 error)超时:按加载失败结算并停止加载,
+      // 保证 progress / priorityComplete 不被一张挂起图永久卡死。
+      timeoutTimer = setTimeout(() => {
+        timeoutTimer = null;
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+        const error = new Error(`Image load timed out after ${IMAGE_LOAD_TIMEOUT_MS}ms: ${url}`);
+        if (activeRunIdRef.current === runId) {
+          onErrorRef.current?.(url, error);
+        }
+        settle({ url, success: false, error });
+      }, IMAGE_LOAD_TIMEOUT_MS);
 
       img.src = url;
     });
@@ -288,15 +318,21 @@ export const useImagePreloader = (
           break;
         }
 
-        for (let i = 0; i < priorityBatch.length; i++) {
-          const url = priorityBatch[i];
-          const result = await loadImage(url, runId);
+        // Priority 批并发加载:priorityComplete 的等待时间取决于最慢一张,而非各图
+        // 之和(旧实现逐张串行 await)。逐张 settle 即 commit(保持进度递增与
+        // priorityComplete 尽早放行);runId 守卫防止被 reset/unmount 取代的 run 提交。
+        await Promise.all(
+          priorityBatch.map(async (url) => {
+            const result = await loadImage(url, runId);
+            if (activeRunIdRef.current !== runId) {
+              return;
+            }
+            commitResult(url, result);
+          })
+        );
 
-          if (activeRunIdRef.current !== runId) {
-            return;
-          }
-
-          commitResult(url, result);
+        if (activeRunIdRef.current !== runId) {
+          return;
         }
 
         const backgroundResults = await Promise.all(

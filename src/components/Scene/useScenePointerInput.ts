@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { PointerEventHandler } from 'react';
 import type { PanInfo } from 'framer-motion';
 import { useNativePointerDrag } from './useNativePointerDrag';
@@ -7,7 +7,11 @@ type PanEvent = MouseEvent | TouchEvent | PointerEvent;
 
 interface UseScenePointerInputParams {
   enabled: boolean;
-  onDragStart: () => void;
+  axis: 'x' | 'y';
+  onCandidateStart?: () => boolean;
+  onCandidateEnd?: () => void;
+  onPointerSessionStart?: () => void;
+  onDragStart: (direction: 'forward' | 'backward') => boolean;
   onPan: (event: PanEvent, info: PanInfo) => void;
   onPanEnd: (event: PanEvent, info: PanInfo) => void;
   authoredPointerDown?: PointerEventHandler<HTMLDivElement>;
@@ -28,6 +32,10 @@ export interface ScenePointerInput {
 
 export function useScenePointerInput({
   enabled,
+  axis,
+  onCandidateStart,
+  onCandidateEnd,
+  onPointerSessionStart,
   onDragStart,
   onPan,
   onPanEnd,
@@ -38,6 +46,10 @@ export function useScenePointerInput({
 }: UseScenePointerInputParams): ScenePointerInput {
   const nativePointerDrag = useNativePointerDrag({
     enabled,
+    axis,
+    onCandidateStart,
+    onCandidateEnd,
+    onPointerSessionStart,
     onStart: onDragStart,
     onPan,
     onEnd: onPanEnd,
@@ -81,27 +93,127 @@ export function useScenePointerInput({
     },
     [authoredPointerCancel, nativePointerCancel]
   );
-  const onFramerPanStart = useCallback((): void => {
-    if (!nativePointerDrag.isActiveRef.current) {
-      onDragStart();
+  const framerCandidateRef = useRef<{
+    ownsGesture: boolean;
+    candidateSuspended: boolean;
+    baseline: number;
+    rejectedDirections: Set<'forward' | 'backward'>;
+  }>({
+    ownsGesture: false,
+    candidateSuspended: false,
+    baseline: 0,
+    rejectedDirections: new Set(),
+  });
+  const onCandidateEndRef = useRef(onCandidateEnd);
+  onCandidateEndRef.current = onCandidateEnd;
+  const clearFramerCandidate = useCallback((resumeSuspension: boolean): void => {
+    const candidate = framerCandidateRef.current;
+    if (resumeSuspension && !candidate.ownsGesture && candidate.candidateSuspended) {
+      onCandidateEndRef.current?.();
     }
-  }, [nativePointerDrag.isActiveRef, onDragStart]);
+    framerCandidateRef.current = {
+      ownsGesture: false,
+      candidateSuspended: false,
+      baseline: 0,
+      rejectedDirections: new Set(),
+    };
+  }, []);
+  const onFramerPanStart = useCallback((): void => {
+    if (nativePointerDrag.isActiveRef.current) {
+      clearFramerCandidate(true);
+      return;
+    }
+    // A replacement Framer sequence must release an unresolved candidate from
+    // the previous one before taking a fresh reversible hold.
+    clearFramerCandidate(true);
+    onPointerSessionStart?.();
+    framerCandidateRef.current = {
+      ownsGesture: false,
+      candidateSuspended: onCandidateStart?.() ?? false,
+      baseline: 0,
+      rejectedDirections: new Set(),
+    };
+  }, [
+    clearFramerCandidate,
+    nativePointerDrag.isActiveRef,
+    onCandidateStart,
+    onPointerSessionStart,
+  ]);
   const onFramerPan = useCallback(
     (event: PanEvent, info: PanInfo): void => {
-      if (!nativePointerDrag.isActiveRef.current) {
-        onPan(event, info);
+      if (nativePointerDrag.isActiveRef.current) {
+        clearFramerCandidate(true);
+        return;
       }
+
+      const candidate = framerCandidateRef.current;
+      const axisOffset = axis === 'y' ? info.offset.y : info.offset.x;
+      const crossOffset = axis === 'y' ? info.offset.x : info.offset.y;
+      if (!candidate.ownsGesture) {
+        if (Math.abs(axisOffset) < 1 || Math.abs(axisOffset) <= Math.abs(crossOffset)) return;
+        const direction: 'forward' | 'backward' = axisOffset < 0 ? 'forward' : 'backward';
+        if (candidate.rejectedDirections.has(direction)) return;
+        if (!candidate.candidateSuspended) {
+          candidate.candidateSuspended = onCandidateStart?.() ?? false;
+        }
+        if (!onDragStart(direction)) {
+          candidate.rejectedDirections.add(direction);
+          if (candidate.candidateSuspended) {
+            onCandidateEnd?.();
+            candidate.candidateSuspended = false;
+          }
+          return;
+        }
+        candidate.ownsGesture = true;
+        candidate.baseline = axisOffset;
+        return;
+      }
+
+      const rebasedOffset = axisOffset - candidate.baseline;
+      onPan(event, {
+        ...info,
+        offset:
+          axis === 'y'
+            ? { x: info.offset.x, y: rebasedOffset }
+            : { x: rebasedOffset, y: info.offset.y },
+      });
     },
-    [nativePointerDrag.isActiveRef, onPan]
+    [
+      axis,
+      clearFramerCandidate,
+      nativePointerDrag.isActiveRef,
+      onCandidateEnd,
+      onCandidateStart,
+      onDragStart,
+      onPan,
+    ]
   );
   const onFramerPanEnd = useCallback(
     (event: PanEvent, info: PanInfo): void => {
-      if (!nativePointerDrag.isActiveRef.current) {
-        onPanEnd(event, info);
+      if (nativePointerDrag.isActiveRef.current) {
+        clearFramerCandidate(true);
+        return;
       }
+      const candidate = framerCandidateRef.current;
+      if (!candidate.ownsGesture) {
+        clearFramerCandidate(true);
+        return;
+      }
+      const axisOffset = axis === 'y' ? info.offset.y : info.offset.x;
+      const rebasedOffset = axisOffset - candidate.baseline;
+      onPanEnd(event, {
+        ...info,
+        offset:
+          axis === 'y'
+            ? { x: info.offset.x, y: rebasedOffset }
+            : { x: rebasedOffset, y: info.offset.y },
+      });
+      clearFramerCandidate(false);
     },
-    [nativePointerDrag.isActiveRef, onPanEnd]
+    [axis, clearFramerCandidate, nativePointerDrag.isActiveRef, onPanEnd]
   );
+
+  useEffect(() => () => clearFramerCandidate(true), [clearFramerCandidate]);
 
   return {
     onPointerDown,

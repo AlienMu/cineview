@@ -10,9 +10,13 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const os = require('os');
 const { execFileSync } = require('child_process');
+const React = require('react');
+const { renderToStaticMarkup } = require('react-dom/server');
 
 const DIST_DIR = path.join(__dirname, '../dist');
 const PACKAGE_JSON = path.join(__dirname, '../package.json');
+const MINIFY_SCRIPT =
+  process.env.CINEVIEW_MINIFY_SCRIPT || path.join(__dirname, 'minify-library-entries.mjs');
 const MAX_BUNDLE_SIZE_KB = Number(process.env.CINEVIEW_MAX_BUNDLE_SIZE_KB || 50); // 主包最大 gzip 大小 (KB)
 
 // ANSI 颜色代码
@@ -52,10 +56,56 @@ function hasPublicApiShape(mod) {
     mod.CineView &&
     mod.Scene &&
     mod.Animate &&
+    mod.AnimateVideo &&
     mod.Position &&
     mod.Container &&
     mod.Image
   );
+}
+
+function assertAnimateVideoMarkup(mod, label) {
+  const markup = renderToStaticMarkup(
+    React.createElement(mod.AnimateVideo, {
+      src: '/clip.mp4',
+      poster: '/poster.jpg',
+      'aria-label': 'dist-video',
+      preload: false,
+      playbackRate: 1.25,
+      scrubRange: [0, 6],
+      duration: { enter: 200, exit: 100 },
+    })
+  );
+  for (const attribute of [
+    'src="/clip.mp4"',
+    'poster="/poster.jpg"',
+    'aria-label="dist-video"',
+    'preload="none"',
+  ]) {
+    if (!markup.includes(attribute)) {
+      throw new Error(`${label} AnimateVideo lost public attribute ${attribute}`);
+    }
+  }
+}
+
+function checkMinifierStrategy() {
+  log('\n11. 检查入口压缩策略:', 'yellow');
+  try {
+    const source = fs.readFileSync(MINIFY_SCRIPT, 'utf8');
+    const coversBothEntries =
+      source.includes("fileName: 'cineview.es.mjs'") &&
+      source.includes("fileName: 'cineview.umd.js'");
+    const identifierOnly =
+      /mangle\s*:\s*\{[^}]*toplevel\s*:\s*true[^}]*\}/s.test(source) &&
+      !/\bproperties\s*:/.test(source);
+    if (!coversBothEntries || !identifierOnly) {
+      throw new Error('minifier must cover ESM/UMD and must not enable property mangling');
+    }
+    log('  ✓ ESM/UMD 仅压缩标识符，公开对象属性保持稳定', 'green');
+    return true;
+  } catch (error) {
+    log(`  ✗ 入口压缩策略失败: ${error.message}`, 'red');
+    return false;
+  }
 }
 
 function checkPackageExports() {
@@ -98,7 +148,8 @@ async function checkConsumerSmoke() {
     if (!hasPublicApiShape(cjs)) {
       throw new Error('UMD export shape missing public components');
     }
-    log("  ✓ require('cineview') 入口可消费", 'green');
+    assertAnimateVideoMarkup(cjs, 'UMD');
+    log("  ✓ require('cineview') 入口可消费，AnimateVideo 属性语义完整", 'green');
   } catch (error) {
     log(`  ✗ require smoke 失败: ${error.message}`, 'red');
     passed = false;
@@ -109,7 +160,8 @@ async function checkConsumerSmoke() {
     if (!hasPublicApiShape(esm)) {
       throw new Error('ESM export shape missing public components');
     }
-    log("  ✓ import('cineview') 入口可消费", 'green');
+    assertAnimateVideoMarkup(esm, 'ESM');
+    log("  ✓ import('cineview') 入口可消费，AnimateVideo 属性语义完整", 'green');
   } catch (error) {
     log(`  ✗ import smoke 失败: ${error.message}`, 'red');
     passed = false;
@@ -298,12 +350,14 @@ async function main() {
   const consumerSmokePassed = await checkConsumerSmoke();
   const peerAndSourceMapsPassed = checkPeerExternalizationAndSourceMaps();
   const packedTarballPassed = checkPackedTarballConsumer();
+  const minifierStrategyPassed = checkMinifierStrategy();
   hasErrors =
     hasErrors ||
     !packageExportsPassed ||
     !consumerSmokePassed ||
     !peerAndSourceMapsPassed ||
-    !packedTarballPassed;
+    !packedTarballPassed ||
+    !minifierStrategyPassed;
 
   // 总结
   log('\n=== 验证总结 ===\n', 'blue');

@@ -27,7 +27,11 @@ export function useScrollInputBindings({
     const root = rootRef.current;
     if (!root) return;
 
+    const ownsEventTarget = (target: EventTarget | null): boolean =>
+      target instanceof Element && target.closest('[data-cineview-container="true"]') === root;
+
     const handleWheel = (event: WheelEvent): void => {
+      if (event.defaultPrevented || !ownsEventTarget(event.target)) return;
       const delta = direction === 'x' ? event.deltaX : event.deltaY;
       const normalizedDelta = normalizeWheelDeltaPx(delta, event.deltaMode, getViewportSpan());
       if (normalizedDelta === 0) return;
@@ -39,6 +43,7 @@ export function useScrollInputBindings({
     };
 
     const handleTouchStart = (event: TouchEvent): void => {
+      if (!ownsEventTarget(event.target)) return;
       const touch = event.touches[0];
       if (touch) touchStartRef.current = { x: touch.clientX, y: touch.clientY };
     };
@@ -46,6 +51,11 @@ export function useScrollInputBindings({
     const handleTouchMove = (event: TouchEvent): void => {
       const touch = event.touches[0];
       if (!touch || !touchStartRef.current) return;
+
+      if (event.defaultPrevented || !ownsEventTarget(event.target)) {
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+        return;
+      }
 
       const rawDelta =
         direction === 'x'
@@ -57,9 +67,10 @@ export function useScrollInputBindings({
         return;
       }
 
-      if (normalizedDelta !== 0 && applyNativeScrollDelta(normalizedDelta)) {
-        if (event.cancelable) event.preventDefault();
+      if (normalizedDelta !== 0) {
+        const consumed = applyNativeScrollDelta(normalizedDelta);
         touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+        if (consumed && event.cancelable) event.preventDefault();
       }
     };
 
@@ -87,7 +98,7 @@ export function useScrollInputBindings({
     if (typeof window === 'undefined') return;
 
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (shouldIgnoreGlobalScrollKey(event)) return;
+      if (event.defaultPrevented || shouldIgnoreGlobalScrollKey(event)) return;
 
       const normalizedDelta = normalizeKeyboardDeltaPx(
         event.key,

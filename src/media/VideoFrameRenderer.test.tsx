@@ -2,8 +2,10 @@
  * VideoFrameRenderer 单测:渲染 <video muted playsInline>、progress → currentTime seek、
  * 就绪后换 objectURL、单尺子换算。jsdom 的 video.duration/currentTime 需 mock。
  */
-import { render, act } from '@testing-library/react';
+import { createRef } from 'react';
+import { render, act, fireEvent } from '@testing-library/react';
 import { motionValue } from 'framer-motion';
+import type { AnimateTimelineFrame } from '../types';
 import { CineViewProvider } from '../context/CineViewContext';
 import { VideoFrameRenderer } from './VideoFrameRenderer';
 import * as cache from '../hooks/mediaPreloadCache';
@@ -32,6 +34,13 @@ beforeEach(() => {
   currentTimeSetters = [];
   Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 750 });
   Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 1334 });
+  // Renderer objectURL reads are leases now. Most tests mock the cache getter;
+  // proxy acquire through that getter so fixtures preserve the production
+  // acquire/release contract instead of bypassing it.
+  jest
+    .spyOn(cache, 'acquireVideoObjectUrl')
+    .mockImplementation((src) => cache.getVideoObjectUrl(src));
+  jest.spyOn(cache, 'releaseVideoObjectUrl').mockImplementation(() => undefined);
 });
 
 afterEach(() => {
@@ -146,6 +155,43 @@ describe('VideoFrameRenderer', () => {
     expect(video.getAttribute('src')).toBe('blob:ready');
   });
 
+  it('drops the previous objectURL immediately when src changes to an uncached video', () => {
+    jest
+      .spyOn(cache, 'getVideoObjectUrl')
+      .mockImplementation((src) => (src === '/old.mp4' ? 'blob:old' : undefined));
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(5, 1);
+
+    const { container, rerender } = render(<VideoFrameRenderer src="/old.mp4" progress={0} />);
+    expect(container.querySelector('video')).toHaveAttribute('src', 'blob:old');
+
+    rerender(<VideoFrameRenderer src="/new.mp4" progress={0} />);
+
+    expect(container.querySelector('video')).toHaveAttribute('src', '/new.mp4');
+  });
+
+  it('releases objectURL leases on source change and unmount', () => {
+    jest
+      .spyOn(cache, 'getVideoObjectUrl')
+      .mockImplementation((src) => `blob:${src.replace('/', '')}`);
+    const acquireSpy = jest
+      .spyOn(cache, 'acquireVideoObjectUrl')
+      .mockImplementation((src) => `blob:${src.replace('/', '')}`);
+    const releaseSpy = jest.spyOn(cache, 'releaseVideoObjectUrl');
+    stubVideoTiming(5, 1);
+
+    const { rerender, unmount } = render(<VideoFrameRenderer src="/old.mp4" progress={0} />);
+    expect(acquireSpy).toHaveBeenCalledWith('/old.mp4');
+
+    rerender(<VideoFrameRenderer src="/new.mp4" progress={0} />);
+    expect(releaseSpy).toHaveBeenCalledWith('/old.mp4');
+    expect(acquireSpy).toHaveBeenCalledWith('/new.mp4');
+
+    unmount();
+    expect(releaseSpy).toHaveBeenCalledWith('/new.mp4');
+  });
+
   it('applies px2vw conversion to numeric dimensions', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:z');
     stubVideoTiming(5, 1);
@@ -177,6 +223,7 @@ describe('VideoFrameRenderer', () => {
 
   it('reuses an already-preloaded objectURL without subscribing (early return)', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:existing');
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(true);
     const subSpy = jest.spyOn(cache, 'subscribeToPreloadedMedia');
     const preSpy = jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
     stubVideoTiming(5, 1);
@@ -282,5 +329,198 @@ describe('VideoFrameRenderer', () => {
     render(<VideoFrameRenderer src="" progress={0} />);
     expect(subSpy).not.toHaveBeenCalled();
     expect(preSpy).not.toHaveBeenCalled();
+  });
+
+  it('forwards the video ref, poster, playbackRate, and native media events', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:native');
+    stubVideoTiming(10, 1);
+    const ref = createRef<HTMLVideoElement>();
+    const onPlay = jest.fn();
+    const onPause = jest.fn();
+    const onEnded = jest.fn();
+    const onTimeUpdate = jest.fn();
+    const onError = jest.fn();
+
+    const { container } = render(
+      <VideoFrameRenderer
+        ref={ref}
+        src="/native.mp4"
+        progress={0}
+        poster="/poster.jpg"
+        playbackRate={1.5}
+        onPlay={onPlay}
+        onPause={onPause}
+        onEnded={onEnded}
+        onTimeUpdate={onTimeUpdate}
+        onError={onError}
+      />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+
+    expect(ref.current).toBe(video);
+    expect(video).toHaveAttribute('poster', '/poster.jpg');
+    expect(video.playbackRate).toBe(1.5);
+    fireEvent.play(video);
+    fireEvent.pause(video);
+    fireEvent.ended(video);
+    fireEvent.timeUpdate(video);
+    fireEvent.error(video);
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onPause).toHaveBeenCalledTimes(1);
+    expect(onEnded).toHaveBeenCalledTimes(1);
+    expect(onTimeUpdate).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses atomic timeline frames to pause native playback before gesture seeking', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:ownership');
+    stubVideoTiming(10, 1);
+    const pauseSpy = jest
+      .spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer src="/ownership.mp4" progress={0} timelineFrame={frame} />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    fireEvent.play(video);
+    currentTimeSetters = [];
+
+    act(() => {
+      frame.set({ progress: 0.4, signedProgress: 0.4, phase: 'entering', source: 'gesture' });
+    });
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(currentTimeSetters).toEqual([4]);
+  });
+
+  it('hands a partial scrub range to native play once and absorbs rejection', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:handoff');
+    stubVideoTiming(10, 1);
+    const playSpy = jest
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    render(
+      <VideoFrameRenderer
+        src="/handoff.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+      />
+    );
+    currentTimeSetters = [];
+
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'gesture' });
+      await Promise.resolve();
+    });
+    act(() => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'continuation' });
+    });
+
+    expect(currentTimeSetters).toEqual([6]);
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('pauses on outgoing frames without mapping exit progress to currentTime', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:outgoing');
+    stubVideoTiming(10, 1);
+    const pauseSpy = jest
+      .spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 1,
+      signedProgress: 1,
+      phase: 'entered',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer src="/outgoing.mp4" progress={1} timelineFrame={frame} />
+    );
+    fireEvent.play(container.querySelector('video') as HTMLVideoElement);
+    currentTimeSetters = [];
+
+    act(() => {
+      frame.set({ progress: 0.4, signedProgress: 0.4, phase: 'exiting', source: 'idle' });
+      frame.set({ progress: 0.8, signedProgress: 0.8, phase: 'exiting', source: 'idle' });
+    });
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(currentTimeSetters).toEqual([]);
+  });
+
+  it('allows an external play after automatic play rejection', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:retry');
+    stubVideoTiming(10, 1);
+    jest
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
+    const pauseSpy = jest
+      .spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer src="/retry.mp4" progress={0} timelineFrame={frame} scrubRange={[0, 6]} />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'gesture' });
+      await Promise.resolve();
+    });
+    fireEvent.play(video);
+
+    expect(pauseSpy).not.toHaveBeenCalled();
+  });
+
+  it('restores the native playbackRate default when the prop is removed', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:rate');
+    stubVideoTiming(10, 1);
+    const { container, rerender } = render(
+      <VideoFrameRenderer src="/rate.mp4" progress={0} playbackRate={1.5} />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    expect(video.playbackRate).toBe(1.5);
+
+    rerender(<VideoFrameRenderer src="/rate.mp4" progress={0} />);
+    expect(video.playbackRate).toBe(1);
+  });
+
+  it('reactivates an ended mounted video when a new enter frame starts', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:reenter');
+    stubVideoTiming(10, 1);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 1,
+      signedProgress: 1,
+      phase: 'entered',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer src="/reenter.mp4" progress={1} timelineFrame={frame} />
+    );
+    fireEvent.ended(container.querySelector('video') as HTMLVideoElement);
+    currentTimeSetters = [];
+
+    act(() => {
+      frame.set({ progress: 0.2, signedProgress: 0.2, phase: 'entering', source: 'programmatic' });
+    });
+
+    expect(currentTimeSetters).toEqual([2]);
   });
 });

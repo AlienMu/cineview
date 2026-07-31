@@ -10,6 +10,7 @@ import { SceneContext } from '../Animate/Animate';
 import type { SceneContextType } from '../Animate/Animate';
 import { CineViewRuntimeContext } from '../CineView/runtimeContext';
 import type { AnimationType } from '../../types';
+import type { DragRenderLane } from './types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => {
@@ -222,6 +223,50 @@ describe('Scene Component', () => {
 
     expect(onPointerDown).toHaveBeenCalledTimes(1);
     expect((contextValue as SceneContextType | null)?.isDragging).toBe(false);
+  });
+
+  it('keeps an inactive incoming scene hit-testable while a shared release lane can be taken over', () => {
+    const suspend = jest.fn();
+    const renderLaneRef: React.MutableRefObject<DragRenderLane | null> = {
+      current: {
+        kind: 'settle',
+        ownerSceneIndex: 0,
+        stop: jest.fn(),
+        suspend,
+        resume: jest.fn(),
+        preempt: jest.fn(),
+        getCurrent: () => 0.6,
+      },
+    };
+
+    renderScene(
+      <Scene
+        sceneRuntime={{
+          mode: 'drag',
+          isActive: false,
+          sceneIndex: 1,
+          totalScenes: 3,
+          currentSceneIndex: 0,
+        }}
+        dragRuntime={{
+          renderLane: renderLaneRef,
+          onCandidateSuspensionChange: () => true,
+        }}
+      >
+        <div>Incoming takeover scene</div>
+      </Scene>
+    );
+
+    const scene = screen.getByText('Incoming takeover scene').parentElement!;
+    expect(scene.style.pointerEvents).toBe('auto');
+
+    fireEvent.pointerDown(scene, {
+      pointerId: 41,
+      clientX: 100,
+      clientY: 100,
+      button: 0,
+    });
+    expect(suspend).toHaveBeenCalledTimes(1);
   });
 
   // Reset mocks before each test
@@ -475,6 +520,27 @@ describe('Scene Component', () => {
 
       expect(contextValue!.mode).toBe('drag');
     });
+
+    it('forwards scroll first-scene readiness without a drag prepared snapshot', () => {
+      let contextValue: SceneContextType | null = null;
+
+      const TestChild = (): JSX.Element => {
+        contextValue = useContext(SceneContext);
+        return <div>Scroll first scene</div>;
+      };
+
+      renderScene(
+        <Scene
+          mode="scroll"
+          sceneRuntime={{ mode: 'scroll', sceneIndex: 0, firstSceneEnterReady: true }}
+        >
+          <TestChild />
+        </Scene>
+      );
+
+      expect(contextValue!.mode).toBe('scroll');
+      expect(contextValue!.firstSceneEnterReady).toBe(true);
+    });
   });
 
   describe('9.3 Drag Mode', () => {
@@ -513,14 +579,18 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test').parentElement!;
 
-      // Start drag
+      // Pointer-down creates only a candidate. The first directional move
+      // acquires ownership and becomes the new zero baseline.
       fireEvent.touchStart(sceneElement, {
         touches: [{ clientX: 100, clientY: 100 }],
       });
-
+      expect(contextValue!.isDragging).toBe(false);
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: 100, clientY: 101 }],
+      });
       expect(contextValue!.isDragging).toBe(true);
 
-      // Move halfway
+      // A later frame writes progress relative to the ownership baseline.
       fireEvent.touchMove(sceneElement, {
         touches: [{ clientX: 100, clientY: 500 }],
       });
@@ -601,12 +671,15 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Start drag
+      // Pointer-down is a candidate; this first directional frame acquires ownership.
       fireEvent.touchStart(sceneElement, {
         touches: [{ clientX: 100, clientY: 0 }],
       });
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: 100, clientY: 1 }],
+      });
 
-      // Drag more than 50%
+      // Drag more than 50% from the ownership baseline.
       fireEvent.touchMove(sceneElement, {
         touches: [{ clientX: 100, clientY: 700 }],
       });
@@ -678,7 +751,12 @@ describe('Scene Component', () => {
         touches: [{ clientX: 0, clientY: 100 }],
       });
 
-      // Move horizontally
+      // First axial move only claims ownership and becomes the zero baseline
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: 2, clientY: 100 }],
+      });
+
+      // Second same-direction move produces the relative progress
       fireEvent.touchMove(sceneElement, {
         touches: [{ clientX: 400, clientY: 100 }],
       });
@@ -822,7 +900,11 @@ describe('Scene Component', () => {
       mockParse.mockResolvedValueOnce(null); // exitAnimation returns null
 
       renderScene(
-        <Scene sceneIndex={3} enterAnimation={'invalid-animation' as unknown as AnimationType}>
+        <Scene
+          mode="scroll"
+          sceneIndex={3}
+          enterAnimation={'invalid-animation' as unknown as AnimationType}
+        >
           <div>Test</div>
         </Scene>
       );
@@ -858,7 +940,11 @@ describe('Scene Component', () => {
       mockParse.mockRejectedValueOnce(mockError); // exitAnimation fails
 
       renderScene(
-        <Scene sceneIndex={4} exitAnimation={'invalid-animation' as unknown as AnimationType}>
+        <Scene
+          mode="scroll"
+          sceneIndex={4}
+          exitAnimation={'invalid-animation' as unknown as AnimationType}
+        >
           <div>Test</div>
         </Scene>
       );
@@ -904,13 +990,15 @@ describe('Scene Component', () => {
       mockParse.mockRejectedValueOnce(mockError);
 
       renderScene(
-        <Scene enterAnimation={'invalid-animation' as unknown as AnimationType}>
+        <Scene mode="scroll" enterAnimation={'invalid-animation' as unknown as AnimationType}>
           <div>Test</div>
         </Scene>
       );
 
-      // Wait a bit to ensure no error is logged
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Flush the rejected parse and its React state updates before asserting.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
 
       expect(consoleSpy).not.toHaveBeenCalled();
 
@@ -953,7 +1041,7 @@ describe('Scene Component', () => {
       mockParse.mockRejectedValueOnce(new Error('Parse error'));
 
       renderScene(
-        <Scene enterAnimation={'invalid' as unknown as AnimationType}>
+        <Scene mode="scroll" enterAnimation={'invalid' as unknown as AnimationType}>
           <div>Test Content</div>
         </Scene>
       );
@@ -1261,6 +1349,17 @@ describe('Scene Component', () => {
         ],
       });
 
+      // Press alone is still a candidate — no ownership, so not dragging yet
+      expect(contextValue!.isDragging).toBe(false);
+
+      // First axial move (from the first touch point) claims ownership
+      fireEvent.touchMove(sceneElement, {
+        touches: [
+          { clientX: 100, clientY: 140 },
+          { clientX: 200, clientY: 200 },
+        ],
+      });
+
       expect(contextValue!.isDragging).toBe(true);
     });
 
@@ -1329,13 +1428,18 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test').parentElement!;
 
-      // Start mouse drag
+      // Start mouse drag — press alone is only a candidate
       fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 0 });
+
+      expect(contextValue!.isDragging).toBe(false);
+
+      // First axial move claims ownership and becomes the zero baseline
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 40 });
 
       expect(contextValue!.isDragging).toBe(true);
 
-      // Move mouse
-      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 400 });
+      // Second same-direction move produces the relative progress
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 440 });
 
       await waitFor(() => {
         expect(contextValue!.dragProgressMotion.get()).toBeLessThan(0);
@@ -1360,11 +1464,14 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement!;
 
-      // Start mouse drag
+      // Start mouse drag — press alone is only a candidate
       fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 0 });
 
-      // Drag more than 50%
-      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 700 });
+      // First axial move claims ownership and becomes the zero baseline
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 40 });
+
+      // Drag more than 50% relative to the ownership baseline
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 740 });
 
       // End drag
       fireEvent.mouseUp(sceneElement);
@@ -1409,6 +1516,40 @@ describe('Scene Component', () => {
       );
 
       // Registry should be cleared (we can't directly test this, but the effect should run)
+    });
+
+    it('warns once and does not parse Scene transitions in drag mode', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+      const warningSpy = jest.spyOn(console, 'warn').mockImplementation();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const composerModule = require('../../animations/composer');
+      const parseSpy = jest.spyOn(composerModule, 'parseAnimationWithComposition');
+
+      const { rerender } = renderScene(
+        <Scene mode="drag" sceneIndex={2} enterAnimation="fade-in" exitAnimation="fade-out">
+          <div>Ignored drag transitions</div>
+        </Scene>
+      );
+
+      rerender(
+        <CineViewProvider designSize={750}>
+          <Scene mode="drag" sceneIndex={2} enterAnimation="fade-in" exitAnimation="fade-out">
+            <div>Ignored drag transitions</div>
+          </Scene>
+        </CineViewProvider>
+      );
+      await flushAnimationParsing();
+
+      expect(parseSpy).not.toHaveBeenCalled();
+      expect(warningSpy).toHaveBeenCalledTimes(1);
+      expect(warningSpy).toHaveBeenCalledWith(
+        expect.stringContaining('ignores enterAnimation and exitAnimation in drag mode')
+      );
+
+      parseSpy.mockRestore();
+      warningSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
     });
 
     it('should handle enterAnimation with exitVariant in drag mode', async () => {
@@ -1459,11 +1600,14 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test').parentElement!;
 
-      // Start mouse drag
+      // Start mouse drag — press alone is only a candidate
       fireEvent.mouseDown(sceneElement, { clientX: 0, clientY: 100 });
 
-      // Move horizontally
-      fireEvent.mouseMove(sceneElement, { clientX: 400, clientY: 100 });
+      // First axial move claims ownership and becomes the zero baseline
+      fireEvent.mouseMove(sceneElement, { clientX: 40, clientY: 100 });
+
+      // Move horizontally relative to the ownership baseline
+      fireEvent.mouseMove(sceneElement, { clientX: 440, clientY: 100 });
 
       await waitFor(() => {
         expect(contextValue!.dragProgressMotion.get()).toBeLessThan(0);
@@ -1724,18 +1868,25 @@ describe('Additional Branch Coverage Tests', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement;
 
-      // Simulate touch drag
+      // Simulate touch drag — press alone is only a candidate
       fireEvent.touchStart(sceneElement!, {
         touches: [{ clientX: 0, clientY: 0 }],
       });
 
-      // Drag more than 50% of viewport height
-      const dragDistance = window.innerHeight * 0.6;
+      // First axial move claims ownership and becomes the zero baseline
       fireEvent.touchMove(sceneElement!, {
-        touches: [{ clientX: 0, clientY: dragDistance }],
+        touches: [{ clientX: 0, clientY: 10 }],
       });
 
-      fireEvent.touchEnd(sceneElement!);
+      // Drag more than 50% of viewport height past the ownership baseline
+      const dragDistance = window.innerHeight * 0.6;
+      fireEvent.touchMove(sceneElement!, {
+        touches: [{ clientX: 0, clientY: 10 + dragDistance }],
+      });
+
+      fireEvent.touchEnd(sceneElement!, {
+        changedTouches: [{ clientX: 0, clientY: 10 + dragDistance }],
+      });
 
       await waitFor(() => {
         expect(onSceneChange).toHaveBeenCalledWith('backward');
@@ -1782,20 +1933,26 @@ describe('Additional Branch Coverage Tests', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement;
 
-      // Simulate mouse drag
+      // Simulate mouse drag — press alone is only a candidate
       fireEvent.mouseDown(sceneElement!, {
         clientX: 0,
         clientY: 0,
       });
 
-      // Drag more than 50% of viewport height
+      // First axial move claims ownership and becomes the zero baseline
+      fireEvent.mouseMove(sceneElement!, {
+        clientX: 0,
+        clientY: 10,
+      });
+
+      // Drag more than 50% of viewport height past the ownership baseline
       const dragDistance = window.innerHeight * 0.6;
       fireEvent.mouseMove(sceneElement!, {
         clientX: 0,
-        clientY: dragDistance,
+        clientY: 10 + dragDistance,
       });
 
-      fireEvent.mouseUp(sceneElement!);
+      fireEvent.mouseUp(sceneElement!, { clientX: 0, clientY: 10 + dragDistance });
 
       await waitFor(() => {
         expect(onSceneChange).toHaveBeenCalledWith('backward');
@@ -1980,17 +2137,22 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
       const dragDistance = window.innerWidth * 0.6;
 
-      // Simulate rightward horizontal drag (backward)
+      // Simulate rightward horizontal drag (backward) — press is candidate only
       fireEvent.touchStart(sceneElement, {
         touches: [{ clientX: 0, clientY: 100 }],
       });
 
+      // First axial move claims ownership and becomes the zero baseline
       fireEvent.touchMove(sceneElement, {
-        touches: [{ clientX: dragDistance, clientY: 100 }],
+        touches: [{ clientX: 10, clientY: 100 }],
+      });
+
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: 10 + dragDistance, clientY: 100 }],
       });
 
       fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: dragDistance, clientY: 100 }],
+        changedTouches: [{ clientX: 10 + dragDistance, clientY: 100 }],
       });
 
       await waitFor(() => {
@@ -2011,10 +2173,12 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
       const dragDistance = window.innerWidth * 0.6;
 
-      // Simulate rightward mouse drag (backward)
+      // Simulate rightward mouse drag (backward) — press is candidate only,
+      // the first axial move claims ownership and becomes the zero baseline
       fireEvent.mouseDown(sceneElement, { clientX: 0, clientY: 100 });
-      fireEvent.mouseMove(sceneElement, { clientX: dragDistance, clientY: 100 });
-      fireEvent.mouseUp(sceneElement, { clientX: dragDistance, clientY: 100 });
+      fireEvent.mouseMove(sceneElement, { clientX: 10, clientY: 100 });
+      fireEvent.mouseMove(sceneElement, { clientX: 10 + dragDistance, clientY: 100 });
+      fireEvent.mouseUp(sceneElement, { clientX: 10 + dragDistance, clientY: 100 });
 
       await waitFor(() => {
         expect(onSceneChange).toHaveBeenCalledWith('backward');
@@ -2213,17 +2377,22 @@ describe('Comprehensive Branch Coverage Tests', () => {
 
       const dragDistance = window.innerHeight * 0.6;
 
-      // Simulate downward vertical drag (backward)
+      // Simulate downward vertical drag (backward) — press is candidate only,
+      // the first axial move claims ownership and becomes the zero baseline
       fireEvent.touchStart(sceneElement, {
         touches: [{ clientX: 100, clientY: 0 }],
       });
 
       fireEvent.touchMove(sceneElement, {
-        touches: [{ clientX: 100, clientY: dragDistance }],
+        touches: [{ clientX: 100, clientY: 10 }],
+      });
+
+      fireEvent.touchMove(sceneElement, {
+        touches: [{ clientX: 100, clientY: 10 + dragDistance }],
       });
 
       fireEvent.touchEnd(sceneElement, {
-        changedTouches: [{ clientX: 100, clientY: dragDistance }],
+        changedTouches: [{ clientX: 100, clientY: 10 + dragDistance }],
       });
 
       await waitFor(() => {
@@ -2244,10 +2413,12 @@ describe('Comprehensive Branch Coverage Tests', () => {
 
       const dragDistance = window.innerHeight * 0.6;
 
-      // Simulate downward mouse drag (backward)
+      // Simulate downward mouse drag (backward) — press is candidate only,
+      // the first axial move claims ownership and becomes the zero baseline
       fireEvent.mouseDown(sceneElement, { clientX: 100, clientY: 0 });
-      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: dragDistance });
-      fireEvent.mouseUp(sceneElement, { clientX: 100, clientY: dragDistance });
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 10 });
+      fireEvent.mouseMove(sceneElement, { clientX: 100, clientY: 10 + dragDistance });
+      fireEvent.mouseUp(sceneElement, { clientX: 100, clientY: 10 + dragDistance });
 
       await waitFor(() => {
         expect(onSceneChange).toHaveBeenCalledWith('backward');

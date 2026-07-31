@@ -203,6 +203,7 @@ describe('Scene scroll runtime bridge', () => {
     });
     expect(zoneRuntime.setZoneElement).toHaveBeenCalledWith(
       'hero-sequence',
+      0,
       expect.any(HTMLDivElement)
     );
   });

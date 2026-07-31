@@ -18,14 +18,23 @@ import { motion, MotionValue, useAnimation, useMotionValue } from 'framer-motion
 import type {
   AnimatePhase,
   AnimateTimeline,
+  AnimateTimelineFrame,
+  AnimateTimelineSource,
   ParsedAnimationVariant,
   ScrollMode,
   ScrollTimelineState,
 } from '../../types';
 import type { AnimateRegistrationInfo } from '../../animations/registry';
-import { parseAnimationSafely } from '../../utils/animationHelpers';
+import type {
+  SceneAnimationDriverDeclarationLease,
+  SceneAnimationRegistrationLease,
+  ScenePreparationLease,
+} from '../Scene/useSceneAnimationRegistry';
+import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
+import { parseAnimationSafely, type AnimationParseFailure } from '../../utils/animationHelpers';
 import { useAnimateDrag, type DragVisualState } from './useAnimateDrag';
 import { useAnimateScroll } from './useAnimateScroll';
+import { useAnimateArrival } from './useAnimateArrival';
 import {
   normalizeAnimateSemantics,
   type AnimateInternalProps,
@@ -36,6 +45,7 @@ import { ScrollRenderBridge, DragRenderBridge } from './AnimateRenderBridge';
 import {
   ScrollStagger,
   DragStagger,
+  ArrivalStagger,
   countStaggerItems,
   resolveStaggerTiming,
 } from './StaggerContainer';
@@ -50,9 +60,10 @@ import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
-  useSceneScrollTimeline,
+  useSceneScrollZoneTimeline,
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
+import { useStructurallyStableValue } from '../../utils/useStructurallyStableValue';
 
 export type SceneRuntimeState =
   | 'inactive'
@@ -74,6 +85,9 @@ export interface SceneBaseRuntimeContext {
   sceneState: 'initial' | 'entering' | 'active' | 'exiting';
   sceneOffset: number;
   sceneTransitionDuration: number;
+  /** Monotonic formal-arrival token for this Scene in drag mode. */
+  activationToken?: number;
+  activationKind?: 'ready' | 'static' | 'commit' | 'programmatic' | null;
   getTimelineDuration?: () => number;
   enterDuration: number;
 }
@@ -81,6 +95,11 @@ export interface SceneBaseRuntimeContext {
 export interface SceneDragRuntimeContext {
   isDragging: boolean;
   dragProgressMotion: MotionValue<number>;
+  renderProgressMotion?: MotionValue<number>;
+  /** CineView-owned immutable playback transaction for this target Scene. */
+  dragTransaction?: DragSceneTransaction | null;
+  /** Latest stable local compilation; used only for cold-start/standalone capture. */
+  preparedSnapshot?: PreparedSceneSnapshot | null;
   dragTimelineProgress?: number;
   // The per-scene element track (elapsed ms of THIS scene's enter timeline),
   // owned and driven by the scene's own useElementTrack. This is the UNIFIED
@@ -91,6 +110,9 @@ export interface SceneDragRuntimeContext {
   // `mode` to decide whether the post-commit active scene is still entering.
   dragRelease?: DragRelease | null;
   sharedTimelineDurationMs?: number;
+  // False only for the scroll stack's pre-publication empty snapshot. This keeps
+  // an unknown gate distinct from the explicit static-fallback state.
+  firstSceneEnterGateKnown?: boolean;
   // True only while the first mounted scene is playing its one-shot cold-start
   // enter animation, driven by the scene's own element track once first-screen
   // priority images are ready. Lets the active offset-0 scene resolve through the
@@ -114,18 +136,19 @@ export interface SceneScrollRuntimeBridgeContext {
 }
 
 export interface SceneAnimationRegistryContext {
-  registerAnimate: (id: string, info: AnimateRegistrationInfo) => void;
+  beginPreparation?: () => ScenePreparationLease;
+  registerAnimate: (
+    id: string,
+    info: AnimateRegistrationInfo
+  ) => SceneAnimationRegistrationLease | void;
+  /** Declare a non-scene driver for dependency diagnostics without extending T_self. */
+  declareAnimateDriver?: (
+    id: string,
+    driver: 'drag' | 'scroll' | 'visibility'
+  ) => SceneAnimationDriverDeclarationLease;
+  /** Compatibility cleanup for contexts that do not return a lease. */
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (id: string) => number;
-  // Per-scene enter-phase bus for the visibility driver's waitFor. An element
-  // marks itself entered/not-entered; a follower subscribes to its leader's
-  // completion. This gives visibility (which has no shared timeline axis) a way
-  // to start its own delay only AFTER the leader actually finished — instead of
-  // re-waiting the whole calculatedDelay chain from its own gate-fire instant.
-  markAnimateEntered?: (id: string, entered: boolean) => void;
-  // Invokes cb once the leader is entered (immediately if already entered).
-  // Returns an unsubscribe to drop the pending subscription on teardown/preempt.
-  subscribeAnimateEntered?: (leaderId: string, cb: () => void) => () => void;
 }
 
 export type SceneContextType = SceneBaseRuntimeContext &
@@ -134,6 +157,49 @@ export type SceneContextType = SceneBaseRuntimeContext &
   SceneAnimationRegistryContext;
 
 export const SceneContext = createContext<SceneContextType | null>(null);
+
+const IDLE_TIMELINE_FRAME: AnimateTimelineFrame = Object.freeze({
+  progress: 0,
+  signedProgress: 0,
+  phase: 'idle',
+  source: 'idle',
+});
+
+function resolveDragTimelineSource(
+  sceneContext: SceneContextType | null,
+  state: DragVisualState | null
+): AnimateTimelineSource {
+  if (!state) {
+    return 'idle';
+  }
+
+  // A formal transaction remains the authoritative clock owner through its
+  // terminal visual frame. In particular, a bounce reaches hidden/0 before the
+  // transaction is released; publishing that final frame as idle would make
+  // imperative consumers miss the last continuation write back to zero.
+  switch (sceneContext?.dragTransaction?.phase) {
+    case 'driving':
+      return 'gesture';
+    case 'settling':
+    case 'bouncing':
+      return 'continuation';
+    case 'programmatic':
+      return 'programmatic';
+    default:
+      break;
+  }
+
+  if (
+    sceneContext?.dragRelease?.mode === 'settle' ||
+    sceneContext?.dragRelease?.mode === 'bounce'
+  ) {
+    return 'continuation';
+  }
+  if (sceneContext?.dragRelease?.mode === 'enter' || sceneContext?.firstSceneEnterActive) {
+    return 'programmatic';
+  }
+  return 'idle';
+}
 
 let animateIdCounter = 0;
 
@@ -145,12 +211,6 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   duration,
   timeline,
   visibility,
-  enterDuration,
-  exitDuration,
-  delay,
-  waitFor,
-  scrollPhaseStart,
-  scrollPhaseEnd,
   stagger,
   children,
 }) => {
@@ -158,26 +218,56 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const id = componentId.current;
   const sceneContext = useContext(SceneContext);
   const cineViewRuntime = useCineViewRuntimeContext();
+  const reportRuntimeError = cineViewRuntime?.reportError;
   const zoneRuntime = useContext(SceneScrollRuntimeContext);
   const inheritedZoneId = useContext(SceneScrollTakeoverContext);
 
   const [enterVariant, setEnterVariant] = useState<ParsedAnimationVariant | null>(null);
   const [exitVariant, setExitVariant] = useState<ParsedAnimationVariant | null>(null);
   const [infiniteVariant, setInfiniteVariant] = useState<ParsedAnimationVariant | null>(null);
+  const [settledParseGeneration, setSettledParseGeneration] = useState(0);
+  const parseGenerationRef = useRef(0);
+  const settledParseInputsRef = useRef<{
+    enterAnimation: typeof enterAnimation;
+    exitAnimation: typeof exitAnimation;
+    infiniteAnimation: typeof infiniteAnimation;
+  } | null>(null);
+  const arrivalDiagnosticKeysRef = useRef<Set<string>>(new Set());
+  const preparationLeaseRef = useRef<{
+    generation: number;
+    lease: ScenePreparationLease;
+  } | null>(null);
+  const stableEnterAnimation = useStructurallyStableValue(enterAnimation);
+  const stableExitAnimation = useStructurallyStableValue(exitAnimation);
+  const stableInfiniteAnimation = useStructurallyStableValue(infiniteAnimation);
   const dragInfiniteControls = useAnimation();
   const scrollInfiniteControls = useAnimation();
-  const normalizedSemantics = normalizeAnimateSemantics({
-    duration,
-    timeline,
-    visibility,
-    enterDuration,
-    exitDuration,
-    delay,
-    waitFor,
-    scrollPhaseStart,
-    scrollPhaseEnd,
-  });
+  const normalizedSemantics = normalizeAnimateSemantics({ duration, timeline, visibility });
   const mode = sceneContext?.mode ?? cineViewRuntime?.mode ?? 'drag';
+  const authoredDragArrival =
+    mode === 'drag' && normalizedSemantics.timeline.sceneControlled === false;
+  // Driver selection is frozen for one formal Scene activation. Prop updates during
+  // a pass are authoring for the next activation (or remount), never a live handoff.
+  const driverSelectionRef = useRef<{ token: number; mode: ScrollMode; arrival: boolean } | null>(
+    null
+  );
+  const activationSelectionToken =
+    mode === 'drag' && sceneContext?.isActive ? (sceneContext.activationToken ?? 0) : 0;
+  if (
+    driverSelectionRef.current === null ||
+    driverSelectionRef.current.mode !== mode ||
+    driverSelectionRef.current.token !== activationSelectionToken ||
+    (activationSelectionToken === 0 && driverSelectionRef.current.arrival !== authoredDragArrival)
+  ) {
+    driverSelectionRef.current = {
+      token: activationSelectionToken,
+      mode,
+      arrival: authoredDragArrival,
+    };
+  }
+  const isDragArrival = mode === 'drag' && driverSelectionRef.current.arrival;
+  const beginPreparation = sceneContext?.beginPreparation;
+  const declareAnimateDriver = sceneContext?.declareAnimateDriver;
   // Resolve sceneControlled + mode + inherited zoneId down to a concrete driver.
   // scroll driver only when: scroll mode, sceneControlled (default), and actually
   // inside a Scene.scroll zone. Everything else (drag mode, no zone, or explicit
@@ -187,97 +277,259 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     const isSceneScroll = mode === 'scroll' && sceneControlled && Boolean(inheritedZoneId);
     return { ...rest, driver: isSceneScroll ? 'scroll' : 'visibility' };
   }, [inheritedZoneId, mode, normalizedSemantics.timeline]);
-  const liveZoneTimeline = useSceneScrollTimeline(resolvedTimeline.driver === 'scroll');
   const normalizedEnterDuration = normalizedSemantics.duration.enter;
   const normalizedExitDuration = normalizedSemantics.duration.exit;
   const normalizedDelay = resolvedTimeline.delay;
   const normalizedWaitFor = resolvedTimeline.waitFor;
   const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
+  const liveZoneState = useSceneScrollZoneTimeline(
+    resolvedZoneId,
+    resolvedTimeline.driver === 'scroll'
+  );
+  const arrivalPlaybackToken =
+    isDragArrival && sceneContext?.isActive ? (sceneContext.activationToken ?? 0) : 0;
+  const currentAuthoringParseReady =
+    settledParseGeneration > 0 &&
+    settledParseInputsRef.current?.enterAnimation === stableEnterAnimation &&
+    settledParseInputsRef.current?.exitAnimation === stableExitAnimation &&
+    settledParseInputsRef.current?.infiniteAnimation === stableInfiniteAnimation;
+  const arrivalRenderSnapshotRef = useRef<{
+    token: number;
+    ready: boolean;
+    enterVariant: ParsedAnimationVariant | null;
+    exitVariant: ParsedAnimationVariant | null;
+    infiniteVariant: ParsedAnimationVariant | null;
+    hasAuthoredEnterAnimation: boolean;
+    enterDuration: number;
+    exitDuration: number;
+    delay: number;
+    stagger: typeof stagger;
+  } | null>(null);
+  const captureArrivalRenderSnapshot = (): void => {
+    arrivalRenderSnapshotRef.current = {
+      token: arrivalPlaybackToken,
+      ready: currentAuthoringParseReady,
+      enterVariant: currentAuthoringParseReady ? enterVariant : null,
+      exitVariant: currentAuthoringParseReady ? exitVariant : null,
+      infiniteVariant: currentAuthoringParseReady ? infiniteVariant : null,
+      hasAuthoredEnterAnimation: Boolean(stableEnterAnimation),
+      enterDuration: normalizedEnterDuration,
+      exitDuration: normalizedExitDuration,
+      delay: normalizedDelay,
+      stagger,
+    };
+  };
+  const arrivalSnapshot = arrivalRenderSnapshotRef.current;
+  if (
+    isDragArrival &&
+    (arrivalPlaybackToken === 0 ||
+      arrivalSnapshot === null ||
+      arrivalSnapshot.token !== arrivalPlaybackToken ||
+      (!arrivalSnapshot.ready && currentAuthoringParseReady))
+  ) {
+    captureArrivalRenderSnapshot();
+  }
+  const activeArrivalSnapshot = isDragArrival ? arrivalRenderSnapshotRef.current : null;
+  const renderEnterVariant = activeArrivalSnapshot?.ready
+    ? activeArrivalSnapshot.enterVariant
+    : isDragArrival
+      ? null
+      : enterVariant;
+  const renderExitVariant = activeArrivalSnapshot?.ready
+    ? activeArrivalSnapshot.exitVariant
+    : isDragArrival
+      ? null
+      : exitVariant;
+  const renderInfiniteVariant = activeArrivalSnapshot?.ready
+    ? activeArrivalSnapshot.infiniteVariant
+    : isDragArrival
+      ? null
+      : infiniteVariant;
+  const renderEnterDuration = activeArrivalSnapshot?.enterDuration ?? normalizedEnterDuration;
+  const renderExitDuration = activeArrivalSnapshot?.exitDuration ?? normalizedExitDuration;
+  const renderDelay = activeArrivalSnapshot?.delay ?? normalizedDelay;
+  const renderStagger = activeArrivalSnapshot?.stagger ?? stagger;
+
+  useEffect(() => {
+    if (!isDragArrival) return;
+    const lease: SceneAnimationDriverDeclarationLease | undefined = declareAnimateDriver?.(
+      id,
+      'visibility'
+    );
+    return () => lease?.dispose();
+  }, [declareAnimateDriver, id, isDragArrival]);
+
+  useEffect(() => {
+    if (!isDragArrival) return;
+
+    const reportIgnoredField = (field: 'waitFor' | 'exitAnimation', message: string): void => {
+      const key = `${id}:${field}`;
+      if (arrivalDiagnosticKeysRef.current.has(key)) return;
+      arrivalDiagnosticKeysRef.current.add(key);
+      reportRuntimeError?.({
+        code: 'INVALID_ANIMATION',
+        message,
+        context: { componentId: id, field, driver: 'visibility', mode: 'drag' },
+      });
+      if (process.env.NODE_ENV === 'development') console.warn(`[CineView Warning] ${message}`);
+    };
+
+    if (normalizedWaitFor) {
+      reportIgnoredField(
+        'waitFor',
+        `Animate "${id}" ignores waitFor in drag mode when timeline.sceneControlled is false.`
+      );
+    }
+    if (stableExitAnimation) {
+      reportIgnoredField(
+        'exitAnimation',
+        `Animate "${id}" ignores exitAnimation in drag mode when timeline.sceneControlled is false.`
+      );
+    }
+  }, [id, isDragArrival, normalizedWaitFor, reportRuntimeError, stableExitAnimation]);
+
   const isRenderProp = typeof children === 'function';
+  const activeStagger = isDragArrival ? renderStagger : stagger;
   const staggerContainer =
-    stagger && !isRenderProp && enterVariant && isValidElement(children)
+    activeStagger && !isRenderProp && renderEnterVariant && isValidElement(children)
       ? (children as ReactElement)
       : null;
   const staggerActive = Boolean(staggerContainer);
-  const staggerEach = stagger?.each ?? 40;
-  const staggerFrom = stagger?.from ?? 'first';
+  const staggerEach = activeStagger?.each ?? 40;
+  const staggerFrom = activeStagger?.from ?? 'first';
   const staggerTiming = useMemo(
     () =>
-      staggerContainer && enterVariant
+      staggerContainer && renderEnterVariant
         ? resolveStaggerTiming(
-            enterVariant,
-            normalizedEnterDuration,
+            renderEnterVariant,
+            renderEnterDuration,
             staggerEach,
             staggerFrom,
             countStaggerItems(staggerContainer)
           )
         : null,
-    [enterVariant, normalizedEnterDuration, staggerContainer, staggerEach, staggerFrom]
+    [renderEnterDuration, renderEnterVariant, staggerContainer, staggerEach, staggerFrom]
   );
   const staggerExitTiming = useMemo(
     () =>
-      staggerContainer && exitVariant
+      staggerContainer && renderExitVariant
         ? resolveStaggerTiming(
-            exitVariant,
-            normalizedExitDuration,
+            renderExitVariant,
+            renderExitDuration,
             staggerEach,
             staggerFrom,
             countStaggerItems(staggerContainer),
             'exit'
           )
         : null,
-    [exitVariant, normalizedExitDuration, staggerContainer, staggerEach, staggerFrom]
+    [renderExitDuration, renderExitVariant, staggerContainer, staggerEach, staggerFrom]
   );
-  const effectiveEnterDuration = staggerTiming?.effectiveDurationMs ?? normalizedEnterDuration;
-  const effectiveExitDuration = staggerExitTiming?.effectiveDurationMs ?? normalizedExitDuration;
+  const effectiveEnterDuration = staggerTiming?.effectiveDurationMs ?? renderEnterDuration;
+  const effectiveExitDuration = staggerExitTiming?.effectiveDurationMs ?? renderExitDuration;
   const scrollZoneRuntime = useMemo<SceneScrollZoneRuntime | null>(
     () =>
       zoneRuntime
         ? {
             ...zoneRuntime,
-            version: liveZoneTimeline?.version ?? 0,
-            zoneStates: liveZoneTimeline?.zoneStates ?? {},
+            zoneStates: resolvedZoneId && liveZoneState ? { [resolvedZoneId]: liveZoneState } : {},
           }
         : null,
-    [liveZoneTimeline, zoneRuntime]
+    [liveZoneState, resolvedZoneId, zoneRuntime]
   );
 
   useEffect(() => {
-    if (!enterAnimation && !exitAnimation && !infiniteAnimation) {
-      setEnterVariant((current) => (current === null ? current : null));
-      setExitVariant((current) => (current === null ? current : null));
-      setInfiniteVariant((current) => (current === null ? current : null));
-      return;
-    }
+    const generation = ++parseGenerationRef.current;
+    const isCurrentGeneration = (): boolean => parseGenerationRef.current === generation;
+    const completePreparation = (): void => {
+      const current = preparationLeaseRef.current;
+      if (!current || current.generation !== generation) return;
+      current.lease.complete();
+      preparationLeaseRef.current = null;
+    };
+    const cancelPreparation = (): void => {
+      const current = preparationLeaseRef.current;
+      if (!current || current.generation !== generation) return;
+      current.lease.cancel();
+      preparationLeaseRef.current = null;
+    };
 
-    let cancelled = false;
+    // Replacing an unresolved generation (including React StrictMode's probe
+    // generation) is cancellation, not successful preparation. Completing it
+    // would synchronously publish a transient empty snapshot before this new
+    // generation has parsed and registered its variants.
+    preparationLeaseRef.current?.lease.cancel();
+    preparationLeaseRef.current = null;
+    const preparationLease = mode === 'drag' && !isDragArrival ? beginPreparation?.() : undefined;
+    preparationLeaseRef.current = preparationLease ? { generation, lease: preparationLease } : null;
+    const reportFailure = (failure: AnimationParseFailure): void => {
+      if (!isCurrentGeneration()) return;
+      reportRuntimeError?.(failure);
+    };
+
+    // A new authoring generation must never display a previous generation's
+    // variant while its preset chunk is pending or after it fails open.
+    setEnterVariant(null);
+    setExitVariant(null);
+    setInfiniteVariant(null);
+    setSettledParseGeneration(0);
+
+    if (!stableEnterAnimation && !stableInfiniteAnimation) {
+      reportRuntimeError?.({
+        code: 'INVALID_ANIMATION',
+        message: `Animate "${id}" requires enterAnimation or infiniteAnimation.`,
+        context: {
+          componentId: id,
+          hasExitAnimation: Boolean(stableExitAnimation),
+        },
+      });
+      completePreparation();
+      return () => {
+        completePreparation();
+        if (isCurrentGeneration()) parseGenerationRef.current += 1;
+      };
+    }
 
     const parseAnimations = async (): Promise<void> => {
       const [enter, exit, infinite] = await Promise.all([
-        parseAnimationSafely(enterAnimation, id, 'enter'),
-        parseAnimationSafely(exitAnimation, id, 'exit'),
-        parseAnimationSafely(infiniteAnimation, id, 'infinite'),
+        parseAnimationSafely(stableEnterAnimation, id, 'enter', reportFailure),
+        parseAnimationSafely(stableExitAnimation, id, 'exit', reportFailure),
+        parseAnimationSafely(stableInfiniteAnimation, id, 'infinite', reportFailure),
       ]);
 
-      if (cancelled) {
-        return;
-      }
-
-      if (enter) setEnterVariant(enter as ParsedAnimationVariant);
-      if (exit) setExitVariant(exit as ParsedAnimationVariant);
-      if (infinite) setInfiniteVariant(infinite as ParsedAnimationVariant);
+      if (!isCurrentGeneration()) return;
+      settledParseInputsRef.current = {
+        enterAnimation: stableEnterAnimation,
+        exitAnimation: stableExitAnimation,
+        infiniteAnimation: stableInfiniteAnimation,
+      };
+      setEnterVariant((enter as ParsedAnimationVariant) ?? null);
+      setExitVariant((exit as ParsedAnimationVariant) ?? null);
+      setInfiniteVariant((infinite as ParsedAnimationVariant) ?? null);
+      setSettledParseGeneration(generation);
     };
 
-    parseAnimations();
+    void parseAnimations();
 
     return () => {
-      cancelled = true;
+      cancelPreparation();
+      if (isCurrentGeneration()) parseGenerationRef.current += 1;
     };
-  }, [enterAnimation, exitAnimation, infiniteAnimation, id]);
+  }, [
+    id,
+    mode,
+    isDragArrival,
+    reportRuntimeError,
+    beginPreparation,
+    stableEnterAnimation,
+    stableExitAnimation,
+    stableInfiniteAnimation,
+  ]);
 
-  // drag 模式：使用 useAnimateDrag
+  // Scene-controlled drag Animates use the shared element track. Explicit
+  // sceneControlled:false Animates use the independent post-arrival clock below
+  // and must never register into the Scene timeline / T_self.
   const dragResult = useAnimateDrag({
-    sceneContext: mode === 'drag' ? sceneContext : null,
+    sceneContext: mode === 'drag' && !isDragArrival ? sceneContext : null,
     enterVariant,
     exitVariant,
     componentId: id,
@@ -285,6 +537,17 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     enterDuration: effectiveEnterDuration,
     exitDuration: effectiveExitDuration,
     waitFor: normalizedWaitFor,
+  });
+
+  const arrivalResult = useAnimateArrival({
+    enabled: isDragArrival,
+    sceneContext: mode === 'drag' ? sceneContext : null,
+    enterVariant: renderEnterVariant,
+    hasAuthoredEnterAnimation:
+      activeArrivalSnapshot?.hasAuthoredEnterAnimation ?? Boolean(enterAnimation),
+    parseReady: activeArrivalSnapshot?.ready ?? settledParseGeneration > 0,
+    delay: renderDelay,
+    enterDuration: effectiveEnterDuration,
   });
 
   const scrollResult = useAnimateScroll({
@@ -306,24 +569,48 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     globalExitMargin: cineViewRuntime?.scrollExitMargin,
   });
 
+  // This effect is declared after useAnimateDrag, so its registration effect has
+  // already published the parsed variant into the registry before preparation is
+  // released. Failed parses still release and produce a stable snapshot without
+  // the invalid Animate.
+  useEffect(() => {
+    if (mode !== 'drag' || settledParseGeneration === 0) return;
+    const current = preparationLeaseRef.current;
+    if (!current || current.generation !== settledParseGeneration) return;
+    current.lease.complete();
+    preparationLeaseRef.current = null;
+  }, [mode, settledParseGeneration]);
+
   const publicProgress = useMotionValue(0);
   const publicSignedProgress = useMotionValue(0);
   const publicPhase = useMotionValue<AnimatePhase>('idle');
+  const publicFrame = useMotionValue<AnimateTimelineFrame>(IDLE_TIMELINE_FRAME);
 
   useEffect(() => {
-    if (mode === 'scroll') {
-      const updateVisual = (signed: number): void => {
-        publicSignedProgress.set(signed);
-        publicProgress.set(resolveScrollEnterProgress(signed));
-      };
-      const updatePhase = (phase: AnimatePhase): void => {
-        publicPhase.set(phase);
+    const driver = mode === 'scroll' || isDragArrival ? resolvedTimeline.driver : 'drag';
+    const publishFrame = (frame: AnimateTimelineFrame): void => {
+      publicProgress.set(frame.progress);
+      publicSignedProgress.set(frame.signedProgress);
+      publicPhase.set(frame.phase);
+      publicFrame.set(frame);
+    };
+
+    if (mode === 'scroll' || isDragArrival) {
+      const visualSource = isDragArrival ? arrivalResult.visualMotion : scrollResult.visualMotion;
+      const phaseSource = isDragArrival ? arrivalResult.phaseMotion : scrollResult.phaseMotion;
+      const publishCurrentFrame = (): void => {
+        const signedProgress = visualSource.get();
+        publishFrame({
+          progress: resolveScrollEnterProgress(signedProgress),
+          signedProgress,
+          phase: phaseSource.get(),
+          source: driver === 'scroll' ? 'scroll' : 'visibility',
+        });
       };
 
-      updateVisual(scrollResult.visualMotion.get());
-      updatePhase(scrollResult.phaseMotion.get());
-      const unsubscribeVisual = scrollResult.visualMotion.on('change', updateVisual);
-      const unsubscribePhase = scrollResult.phaseMotion.on('change', updatePhase);
+      publishCurrentFrame();
+      const unsubscribeVisual = visualSource.on('change', publishCurrentFrame);
+      const unsubscribePhase = phaseSource.on('change', publishCurrentFrame);
       return () => {
         unsubscribeVisual();
         unsubscribePhase();
@@ -332,61 +619,90 @@ export const Animate: React.FC<AnimateInternalProps> = ({
 
     const updateDrag = (state: DragVisualState | null): void => {
       if (!state) {
-        publicProgress.set(0);
-        publicSignedProgress.set(0);
-        publicPhase.set('idle');
+        publishFrame(IDLE_TIMELINE_FRAME);
         return;
       }
 
       const progress = Math.max(0, Math.min(1, state.localProgress));
       const signedProgress =
         state.mode === 'outgoing' ? (state.direction === 'forward' ? 1 : -1) * progress : progress;
-      publicProgress.set(progress);
-      publicSignedProgress.set(signedProgress);
-      publicPhase.set(normalizeDragPhase(state.mode, progress));
+      publishFrame({
+        progress,
+        signedProgress,
+        phase: normalizeDragPhase(state.mode, progress),
+        source: resolveDragTimelineSource(sceneContext, state),
+      });
     };
 
     updateDrag(dragResult.visualState.get());
     return dragResult.visualState.on('change', updateDrag);
   }, [
+    arrivalResult.phaseMotion,
+    arrivalResult.visualMotion,
     dragResult.visualState,
+    isDragArrival,
     mode,
+    publicFrame,
     publicPhase,
     publicProgress,
     publicSignedProgress,
+    resolvedTimeline.driver,
+    sceneContext,
     scrollResult.phaseMotion,
     scrollResult.visualMotion,
   ]);
 
   const publicTimeline = useMemo<AnimateTimeline>(
     () => ({
-      driver: mode === 'scroll' ? resolvedTimeline.driver : 'drag',
+      mode,
+      driver: mode === 'scroll' || isDragArrival ? resolvedTimeline.driver : 'drag',
       progress: publicProgress,
       signedProgress: publicSignedProgress,
       phase: publicPhase,
+      frame: publicFrame,
     }),
-    [mode, publicPhase, publicProgress, publicSignedProgress, resolvedTimeline.driver]
+    [
+      isDragArrival,
+      mode,
+      publicFrame,
+      publicPhase,
+      publicProgress,
+      publicSignedProgress,
+      resolvedTimeline.driver,
+    ]
   );
 
   useEffect(() => {
-    if (mode !== 'drag' || !infiniteVariant) return;
+    const activeInfiniteVariant = isDragArrival ? renderInfiniteVariant : infiniteVariant;
+    if (mode !== 'drag' || !activeInfiniteVariant) return;
 
-    if (!dragResult.shouldRunInfinite) {
+    const shouldRunInfinite = isDragArrival
+      ? arrivalResult.shouldRunInfinite
+      : dragResult.shouldRunInfinite;
+    if (!shouldRunInfinite) {
       dragInfiniteControls.stop();
       return;
     }
 
     dragInfiniteControls.start({
-      ...(infiniteVariant.animate as Record<string, unknown>),
+      ...(activeInfiniteVariant.animate as Record<string, unknown>),
       transition: {
-        ...(((infiniteVariant.animate as Record<string, unknown>).transition as Record<
+        ...(((activeInfiniteVariant.animate as Record<string, unknown>).transition as Record<
           string,
           unknown
         >) || {}),
         repeat: Infinity,
       },
     } as never);
-  }, [mode, infiniteVariant, dragResult.shouldRunInfinite, dragInfiniteControls]);
+  }, [
+    arrivalResult.shouldRunInfinite,
+    dragInfiniteControls,
+    dragResult.shouldRunInfinite,
+    infiniteVariant,
+    isDragArrival,
+    mode,
+    renderInfiniteVariant,
+  ]);
 
   useEffect(() => {
     if (mode !== 'scroll' || !infiniteVariant) return;
@@ -416,10 +732,10 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const plainChildren = isRenderProp ? null : (children as React.ReactNode);
   const bridgedChildren: React.ReactNode = !renderFn ? (
     plainChildren
-  ) : mode === 'scroll' ? (
+  ) : mode === 'scroll' || isDragArrival ? (
     <ScrollRenderBridge
-      signedVisual={scrollResult.visualMotion}
-      phaseMotion={scrollResult.phaseMotion}
+      signedVisual={isDragArrival ? arrivalResult.visualMotion : scrollResult.visualMotion}
+      phaseMotion={isDragArrival ? arrivalResult.phaseMotion : scrollResult.phaseMotion}
       render={renderFn}
     />
   ) : (
@@ -431,26 +747,36 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // style 中和(否则容器整体入场与子元素错峰双重动画),但 visualMotion 仍在内部跑作
   // 触发源供 stagger 订阅。render-prop 与 stagger 互斥(函数 children 无容器可拆)。
   const staggeredContent: React.ReactNode =
-    staggerContainer && enterVariant ? (
+    staggerContainer && renderEnterVariant ? (
       mode === 'scroll' ? (
         <ScrollStagger
           container={staggerContainer}
-          variant={enterVariant}
+          variant={renderEnterVariant}
           each={staggerEach}
           from={staggerFrom}
           itemDurationMs={staggerTiming?.itemDurationMs}
-          exitVariant={exitVariant}
+          exitVariant={renderExitVariant}
           exitItemDurationMs={staggerExitTiming?.itemDurationMs}
           signedVisual={scrollResult.visualMotion}
+        />
+      ) : isDragArrival ? (
+        <ArrivalStagger
+          container={staggerContainer}
+          variant={renderEnterVariant}
+          each={staggerEach}
+          from={staggerFrom}
+          itemDurationMs={staggerTiming?.itemDurationMs}
+          phaseMotion={arrivalResult.phaseMotion}
+          staticReveal={arrivalResult.staticReveal}
         />
       ) : (
         <DragStagger
           container={staggerContainer}
-          variant={enterVariant}
+          variant={renderEnterVariant}
           each={staggerEach}
           from={staggerFrom}
           itemDurationMs={staggerTiming?.itemDurationMs}
-          exitVariant={exitVariant}
+          exitVariant={renderExitVariant}
           exitItemDurationMs={staggerExitTiming?.itemDurationMs}
           visualState={dragResult.visualState}
         />
@@ -461,9 +787,13 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     <AnimateTimelineProvider value={publicTimeline}>{content}</AnimateTimelineProvider>
   );
   const scrollOuterStyle = staggerActive ? undefined : scrollResult.style;
-  const dragOuterStyle = staggerActive ? undefined : dragResult.style;
+  const dragOuterStyle = staggerActive
+    ? undefined
+    : isDragArrival
+      ? arrivalResult.style
+      : dragResult.style;
 
-  if (!enterVariant && !exitVariant && !infiniteVariant) {
+  if (!renderEnterVariant && !renderExitVariant && !renderInfiniteVariant) {
     // 无动画早退:无进度可推,函数 children 直接给初始态(否则会渲染成 [object Function])。
     return (
       <AnimateTimelineProvider value={publicTimeline}>
@@ -473,7 +803,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   }
 
   if (mode === 'scroll') {
-    if (infiniteVariant) {
+    if (renderInfiniteVariant) {
       return (
         <div data-cineview-animate-host={id}>
           <motion.div
@@ -500,7 +830,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     );
   }
 
-  if (infiniteVariant) {
+  if (renderInfiniteVariant) {
     return (
       <motion.div style={dragOuterStyle} className="cineview-animate" data-cineview-animate-id={id}>
         <motion.div animate={dragInfiniteControls}>{providedContent}</motion.div>

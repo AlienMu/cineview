@@ -8,13 +8,14 @@ import {
   type SceneLayoutInfo,
   type ScrollInputDirection,
 } from './directScrollHelpers';
-import { createScrollExternalStore, type ScrollExternalStore } from './scrollExternalStore';
+import { createKeyedScrollExternalStore } from './scrollExternalStore';
 import {
   areScrollSceneRenderSnapshotsEqual,
   EMPTY_SCROLL_SCENE_SNAPSHOT,
   type ScrollSceneRenderSnapshot,
+  type ScrollSceneSnapshotList,
+  type ScrollSceneSnapshotStore,
 } from './ScrollSceneSlot';
-import type { ScrollSceneSnapshotMap } from './ScrollSceneStack';
 import type { ScrollTimelineStore } from './useScrollZoneRegistry';
 
 interface UseScrollSceneSnapshotsParams {
@@ -27,6 +28,7 @@ interface UseScrollSceneSnapshotsParams {
   isScrollingStateRef: MutableRefObject<boolean>;
   direction: SlideDirection;
   sceneSizing: ScrollModeConfig['sceneSizing'];
+  firstSceneEnterActive: boolean;
   firstSceneEnterReady: boolean;
   exposeTakeoverDebugData: boolean;
   scrollOffsetRef: MutableRefObject<number>;
@@ -34,9 +36,25 @@ interface UseScrollSceneSnapshotsParams {
 }
 
 export interface ScrollSceneSnapshotsPort {
-  store: ScrollExternalStore<ScrollSceneSnapshotMap>;
+  store: ScrollSceneSnapshotStore;
   updateSceneRenderSnapshots: (nativeOffset: number) => void;
 }
+
+type PreviousSnapshotInputs = readonly [
+  scenes: React.ReactElement<SceneAuthoringCompatProps>[],
+  layouts: SceneLayoutInfo[],
+  zoneStates: Record<string, SceneScrollTimelineState>,
+  nativeOffset: number,
+  activeSceneIndex: number,
+  backdropSceneIndex: number | null,
+  viewportWidth: number,
+  viewportHeight: number,
+  firstSceneEnterActive: boolean,
+  firstSceneEnterReady: boolean,
+  direction: SlideDirection,
+  sceneSizing: ScrollModeConfig['sceneSizing'],
+  exposeTakeoverDebugData: boolean,
+];
 
 export function useScrollSceneSnapshots({
   scenes,
@@ -48,34 +66,136 @@ export function useScrollSceneSnapshots({
   isScrollingStateRef,
   direction,
   sceneSizing,
+  firstSceneEnterActive,
   firstSceneEnterReady,
   exposeTakeoverDebugData,
   scrollOffsetRef,
   updateSceneRenderSnapshotsRef,
 }: UseScrollSceneSnapshotsParams): ScrollSceneSnapshotsPort {
-  const storeRef = useRef(createScrollExternalStore<ScrollSceneSnapshotMap>(new Map()));
+  const storeRef = useRef(
+    createKeyedScrollExternalStore<ScrollSceneSnapshotList, number, ScrollSceneRenderSnapshot>(
+      [],
+      (snapshot, sceneIndex) => snapshot[sceneIndex]
+    )
+  );
+  const previousInputsRef = useRef<PreviousSnapshotInputs | null>(null);
+  const zoneStateBySceneIndexRef = useRef<Array<SceneScrollTimelineState | undefined>>([]);
 
   const updateSceneRenderSnapshots = useCallback(
     (nativeOffset: number): void => {
-      const timelineSnapshot = timelineStoreRef.current.getSnapshot();
-      const zoneStateBySceneIndex = new Map<number, SceneScrollTimelineState>();
-      Object.values(timelineSnapshot.zoneStates).forEach((state) => {
-        zoneStateBySceneIndex.set(state.sceneIndex, state);
-      });
-
+      const zoneStates = timelineStoreRef.current.getSnapshot();
+      const layouts = sceneLayoutsRef.current;
       const viewport = viewportSizeRef.current;
       const viewportSpan = Math.max(direction === 'x' ? viewport.width : viewport.height, 1);
       const currentIndex = activeSceneIndexRef.current;
-      const activeLayout = sceneLayoutsRef.current[currentIndex];
+      const activeLayout = layouts[currentIndex];
       const scrollBackdropSceneIndex =
         activeLayout?.stackMode === 'cover' && currentIndex > 0 ? currentIndex - 1 : null;
       const previousSnapshots = storeRef.current.getSnapshot();
-      const nextSnapshots = new Map<number, ScrollSceneRenderSnapshot>();
-      let changed = previousSnapshots.size !== scenes.length;
+      const previousInputs = previousInputsRef.current;
+      const isScrolling = isScrollingStateRef.current;
+      const scrollDirection = scrollDirectionRef.current;
+      const forceFullUpdate =
+        previousInputs === null ||
+        previousInputs[0] !== scenes ||
+        previousInputs[1] !== layouts ||
+        previousInputs[6] !== viewport.width ||
+        previousInputs[7] !== viewport.height ||
+        previousInputs[10] !== direction ||
+        previousInputs[11] !== sceneSizing ||
+        previousInputs[12] !== exposeTakeoverDebugData;
+      const dirtySceneIndices = new Set<number>();
+      const markScene = (sceneIndex: number | null): void => {
+        if (sceneIndex !== null && sceneIndex >= 0 && sceneIndex < scenes.length) {
+          dirtySceneIndices.add(sceneIndex);
+        }
+      };
+      const markActiveNeighborhood = (sceneIndex: number): void => {
+        markScene(sceneIndex - 1);
+        markScene(sceneIndex);
+        markScene(sceneIndex + 1);
+      };
 
-      scenes.forEach((scene, sceneIndex) => {
-        const sceneLayout = sceneLayoutsRef.current[sceneIndex] ?? null;
-        const sceneZoneState = zoneStateBySceneIndex.get(sceneIndex) ?? null;
+      if (forceFullUpdate) {
+        zoneStateBySceneIndexRef.current.length = 0;
+        for (const zoneId in zoneStates) {
+          const state = zoneStates[zoneId];
+          zoneStateBySceneIndexRef.current[state.sceneIndex] = state;
+        }
+        for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
+          dirtySceneIndices.add(sceneIndex);
+        }
+      } else {
+        const [
+          ,
+          ,
+          previousZoneStates,
+          previousNativeOffset,
+          previousActiveSceneIndex,
+          previousBackdropSceneIndex,
+          previousViewportWidth,
+          previousViewportHeight,
+          previousFirstSceneEnterActive,
+          previousFirstSceneEnterReady,
+        ] = previousInputs;
+        for (const zoneId in zoneStates) {
+          const state = zoneStates[zoneId];
+          const previousState = previousZoneStates[zoneId];
+          if (state === previousState) continue;
+          if (
+            previousState &&
+            previousState.sceneIndex !== state.sceneIndex &&
+            zoneStateBySceneIndexRef.current[previousState.sceneIndex] === previousState
+          ) {
+            zoneStateBySceneIndexRef.current[previousState.sceneIndex] = undefined;
+          }
+          zoneStateBySceneIndexRef.current[state.sceneIndex] = state;
+          markScene(previousState?.sceneIndex ?? null);
+          markScene(state.sceneIndex);
+        }
+        for (const zoneId in previousZoneStates) {
+          if (zoneId in zoneStates) continue;
+          const previousState = previousZoneStates[zoneId];
+          if (zoneStateBySceneIndexRef.current[previousState.sceneIndex] === previousState) {
+            zoneStateBySceneIndexRef.current[previousState.sceneIndex] = undefined;
+          }
+          markScene(previousState.sceneIndex);
+        }
+
+        const previousViewportSpan = Math.max(
+          direction === 'x' ? previousViewportWidth : previousViewportHeight,
+          1
+        );
+        for (let sceneIndex = 0; sceneIndex < layouts.length; sceneIndex += 1) {
+          const layout = layouts[sceneIndex];
+          const intersectsCurrentViewport =
+            nativeOffset < layout.sceneEnd && nativeOffset + viewportSpan > layout.sceneStart;
+          const intersectsPreviousViewport =
+            previousNativeOffset < layout.sceneEnd &&
+            previousNativeOffset + previousViewportSpan > layout.sceneStart;
+          if (intersectsCurrentViewport || intersectsPreviousViewport) markScene(sceneIndex);
+        }
+
+        markActiveNeighborhood(previousActiveSceneIndex);
+        markActiveNeighborhood(currentIndex);
+        markScene(previousBackdropSceneIndex);
+        markScene(scrollBackdropSceneIndex);
+        if (
+          previousFirstSceneEnterActive !== firstSceneEnterActive ||
+          previousFirstSceneEnterReady !== firstSceneEnterReady
+        ) {
+          markScene(0);
+        }
+      }
+
+      const nextSnapshots = forceFullUpdate ? [] : previousSnapshots.slice();
+      let changed = forceFullUpdate;
+
+      dirtySceneIndices.forEach((sceneIndex) => {
+        const scene = scenes[sceneIndex];
+        if (!scene) return;
+        const sceneLayout = layouts[sceneIndex] ?? null;
+        const sceneZoneState = zoneStateBySceneIndexRef.current[sceneIndex] ?? null;
         const isTakeoverScene = Boolean(scene.props.scroll);
         const isCurrent = sceneIndex === currentIndex || Boolean(sceneZoneState?.active);
         const isBackdropActive = scrollBackdropSceneIndex === sceneIndex;
@@ -93,6 +213,11 @@ export function useScrollSceneSnapshots({
         const takeoverSceneSpan = isTakeoverScene
           ? resolveTakeoverSceneSpan(rawTakeoverSpan, viewport.width, viewport.height)
           : null;
+        const timelineIsLive =
+          sceneTimelineState?.phase === 'enter' ||
+          sceneTimelineState?.phase === 'hold' ||
+          sceneTimelineState?.phase === 'exit';
+        const sceneIsLive = isCurrent || isBackdropActive || timelineIsLive;
         const nextSnapshot: ScrollSceneRenderSnapshot = {
           sceneLayout,
           sceneZoneState,
@@ -100,12 +225,14 @@ export function useScrollSceneSnapshots({
           isCurrent,
           isBackdropActive,
           visualViewportOffset,
-          isScrolling: isScrollingStateRef.current,
-          scrollDirection: scrollDirectionRef.current,
+          isScrolling: sceneIsLive && isScrolling,
+          scrollDirection: sceneIsLive && isScrolling ? scrollDirection : null,
           activeSceneIndex: currentIndex,
           viewportWidth: viewport.width,
           viewportHeight: viewport.height,
-          firstSceneEnterReady,
+          firstSceneEnterGateKnown: true,
+          firstSceneEnterActive: sceneIndex === 0 && firstSceneEnterActive,
+          firstSceneEnterReady: sceneIndex === 0 && firstSceneEnterReady,
           direction,
           sceneCount: scenes.length,
           sceneSizing,
@@ -113,21 +240,37 @@ export function useScrollSceneSnapshots({
           takeoverSceneSpan,
         };
 
-        const previous = previousSnapshots.get(sceneIndex) ?? EMPTY_SCROLL_SCENE_SNAPSHOT;
+        const previous = previousSnapshots[sceneIndex] ?? EMPTY_SCROLL_SCENE_SNAPSHOT;
         if (areScrollSceneRenderSnapshotsEqual(previous, nextSnapshot)) {
-          nextSnapshots.set(sceneIndex, previous);
+          nextSnapshots[sceneIndex] = previous;
         } else {
-          nextSnapshots.set(sceneIndex, nextSnapshot);
+          nextSnapshots[sceneIndex] = nextSnapshot;
           changed = true;
         }
       });
 
       if (changed) storeRef.current.setSnapshot(nextSnapshots);
+      previousInputsRef.current = [
+        scenes,
+        layouts,
+        zoneStates,
+        nativeOffset,
+        currentIndex,
+        scrollBackdropSceneIndex,
+        viewport.width,
+        viewport.height,
+        firstSceneEnterActive,
+        firstSceneEnterReady,
+        direction,
+        sceneSizing,
+        exposeTakeoverDebugData,
+      ];
     },
     [
       activeSceneIndexRef,
       direction,
       exposeTakeoverDebugData,
+      firstSceneEnterActive,
       firstSceneEnterReady,
       isScrollingStateRef,
       sceneLayoutsRef,

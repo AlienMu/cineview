@@ -14,6 +14,7 @@ import {
   type SceneScrollTimelineState,
 } from '../Scene/sceneScrollRuntime';
 import { useAnimateScroll } from './useAnimateScroll';
+import { CineViewRuntimeContext } from '../CineView/runtimeContext';
 
 const animationControlsRegistry: Array<{
   start: jest.Mock;
@@ -292,7 +293,12 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-1" delay={100} enterDuration={500} enterAnimation="fade-in">
+          <Animate
+            animateId="test-1"
+            enterAnimation="fade-in"
+            timeline={{ delay: 100 }}
+            duration={{ enter: 500 }}
+          >
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -303,6 +309,7 @@ describe('Animate Component', () => {
           delay: 100,
           duration: 500,
           waitFor: undefined,
+          driver: 'drag',
         });
       });
     });
@@ -323,6 +330,7 @@ describe('Animate Component', () => {
           delay: 0,
           duration: 600,
           waitFor: undefined,
+          driver: 'drag',
         });
       });
 
@@ -338,7 +346,11 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-3" waitFor="test-1" delay={200} enterAnimation="fade-in">
+          <Animate
+            animateId="test-3"
+            enterAnimation="fade-in"
+            timeline={{ waitFor: 'test-1', delay: 200 }}
+          >
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -349,6 +361,7 @@ describe('Animate Component', () => {
           delay: 200,
           duration: 600,
           waitFor: 'test-1',
+          driver: 'drag',
         });
       });
     });
@@ -381,6 +394,7 @@ describe('Animate Component', () => {
           delay: 0,
           duration: 920,
           waitFor: 'leader',
+          driver: 'drag',
         });
       });
     });
@@ -392,7 +406,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate animateId="test-4" delay={500} enterAnimation="fade-in">
+          <Animate animateId="test-4" enterAnimation="fade-in" timeline={{ delay: 500 }}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -513,7 +527,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" enterDuration={500}>
+          <Animate enterAnimation="fade-in" duration={{ enter: 500 }}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -728,9 +742,9 @@ describe('Animate Component', () => {
         <SceneContext.Provider value={mockContext}>
           <Animate
             enterAnimation="fade-in"
-            enterDuration={300}
             infiniteAnimation="pulse"
             animateId="test-infinite"
+            duration={{ enter: 300 }}
           >
             <div>Test Content</div>
           </Animate>
@@ -746,6 +760,7 @@ describe('Animate Component', () => {
           delay: 0,
           duration: 300,
           waitFor: undefined,
+          driver: 'drag',
         });
       });
     });
@@ -762,8 +777,7 @@ describe('Animate Component', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             infiniteAnimation="pulse"
-            enterDuration={200}
-            exitDuration={200}
+            duration={{ enter: 200, exit: 200 }}
           >
             <div>Test Content</div>
           </Animate>
@@ -787,8 +801,7 @@ describe('Animate Component', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             infiniteAnimation="pulse"
-            enterDuration={200}
-            exitDuration={200}
+            duration={{ enter: 200, exit: 200 }}
           >
             <div>Test Content</div>
           </Animate>
@@ -968,6 +981,237 @@ describe('Animate Component', () => {
         expect(screen.getByText('Test Content')).toBeInTheDocument();
       });
     });
+
+    it('keeps structurally equal inline animations stable across parent rerenders', async () => {
+      const mockContext = createMockSceneContext();
+      const createInlineAnimation = () => ({
+        initial: { opacity: 0, scale: 0.9 },
+        animate: { opacity: 1, scale: 1 },
+      });
+
+      const { rerender } = render(
+        <SceneContext.Provider value={mockContext}>
+          <Animate animateId="stable-inline" enterAnimation={createInlineAnimation()}>
+            <div>Stable inline animation</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1));
+
+      for (let index = 0; index < 3; index += 1) {
+        rerender(
+          <SceneContext.Provider value={mockContext}>
+            <Animate animateId="stable-inline" enterAnimation={createInlineAnimation()}>
+              <div>Stable inline animation</div>
+            </Animate>
+          </SceneContext.Provider>
+        );
+      }
+      await flushAnimationParsing();
+
+      expect(parseAnimationWithComposition).toHaveBeenCalledTimes(1);
+      expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1);
+      expect(mockContext.unregisterAnimate).not.toHaveBeenCalled();
+      expect(
+        screen.getByText('Stable inline animation').closest('.cineview-animate')
+      ).not.toBeNull();
+    });
+
+    it('keeps the arrival host and child mounted when authoring changes during one activation', async () => {
+      const mockContext = createMockSceneContext({
+        activationToken: 1,
+        activationKind: 'commit',
+      });
+      const initialVariant: ParsedAnimationVariant = {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      };
+      let resolveNext!: (variant: ParsedAnimationVariant) => void;
+      const nextVariant = new Promise<ParsedAnimationVariant>((resolve) => {
+        resolveNext = resolve;
+      });
+      (parseAnimationWithComposition as jest.Mock).mockImplementation((animation: string) =>
+        animation === 'slide-up' ? nextVariant : Promise.resolve(initialVariant)
+      );
+
+      const { rerender } = render(
+        <SceneContext.Provider value={mockContext}>
+          <Animate
+            animateId="arrival-authoring-freeze"
+            enterAnimation="fade-in"
+            timeline={{ sceneControlled: false }}
+          >
+            <div data-testid="arrival-frozen-child">Frozen arrival content</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Frozen arrival content').closest('.cineview-animate')
+        ).not.toBeNull();
+      });
+      const originalChild = screen.getByTestId('arrival-frozen-child');
+      const originalHost = originalChild.closest('.cineview-animate');
+      expect(originalHost).not.toBeNull();
+
+      rerender(
+        <SceneContext.Provider value={mockContext}>
+          <Animate
+            animateId="arrival-authoring-freeze"
+            enterAnimation="slide-up"
+            timeline={{ sceneControlled: false }}
+          >
+            <div data-testid="arrival-frozen-child">Frozen arrival content</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => expect(parseAnimationWithComposition).toHaveBeenCalledWith('slide-up'));
+      expect(screen.getByTestId('arrival-frozen-child')).toBe(originalChild);
+      expect(screen.getByTestId('arrival-frozen-child').closest('.cineview-animate')).toBe(
+        originalHost
+      );
+
+      await act(async () => {
+        resolveNext({
+          initial: { y: 100 },
+          animate: { y: 0 },
+          exit: { y: -100 },
+        });
+        await nextVariant;
+      });
+
+      expect(screen.getByTestId('arrival-frozen-child')).toBe(originalChild);
+      expect(screen.getByTestId('arrival-frozen-child').closest('.cineview-animate')).toBe(
+        originalHost
+      );
+    });
+
+    it('reports and fails open statically for an exit-only runtime payload', async () => {
+      const mockContext = createMockSceneContext();
+      const reportError = jest.fn();
+
+      render(
+        <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <SceneContext.Provider value={mockContext}>
+            <Animate animateId="exit-only-runtime" exitAnimation="fade-out">
+              <div>Static exit-only content</div>
+            </Animate>
+          </SceneContext.Provider>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      await waitFor(() =>
+        expect(reportError).toHaveBeenCalledWith(
+          expect.objectContaining({
+            code: 'INVALID_ANIMATION',
+            context: expect.objectContaining({
+              componentId: 'exit-only-runtime',
+              hasExitAnimation: true,
+            }),
+          })
+        )
+      );
+
+      expect(parseAnimationWithComposition).not.toHaveBeenCalled();
+      expect(mockContext.registerAnimate).not.toHaveBeenCalled();
+      expect(screen.getByText('Static exit-only content').closest('.cineview-animate')).toBeNull();
+    });
+
+    it('does not let an older successful generation overwrite or re-register the current one', async () => {
+      const mockContext = createMockSceneContext();
+      let resolveOld!: (variant: ParsedAnimationVariant) => void;
+      const oldResult = new Promise<ParsedAnimationVariant>((resolve) => {
+        resolveOld = resolve;
+      });
+      const currentVariant: ParsedAnimationVariant = {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      };
+      (parseAnimationWithComposition as jest.Mock).mockImplementation((animation: string) =>
+        animation === 'slide-up' ? oldResult : Promise.resolve(currentVariant)
+      );
+
+      const { rerender } = render(
+        <SceneContext.Provider value={mockContext}>
+          <Animate animateId="generation-success" enterAnimation="slide-up">
+            <div>Current generation</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      rerender(
+        <SceneContext.Provider value={mockContext}>
+          <Animate animateId="generation-success" enterAnimation="fade-in">
+            <div>Current generation</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      await waitFor(() => expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1));
+
+      await act(async () => {
+        resolveOld({
+          initial: { y: 100 },
+          animate: { y: 0 },
+          exit: { y: -100 },
+        });
+        await oldResult;
+      });
+
+      expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not report a rejected preset from an obsolete generation', async () => {
+      const mockContext = createMockSceneContext();
+      const reportError = jest.fn();
+      let rejectOld!: (error: Error) => void;
+      const oldResult = new Promise<ParsedAnimationVariant>((_resolve, reject) => {
+        rejectOld = reject;
+      });
+      const currentVariant: ParsedAnimationVariant = {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      };
+      (parseAnimationWithComposition as jest.Mock).mockImplementation((animation: string) =>
+        animation === 'slide-up' ? oldResult : Promise.resolve(currentVariant)
+      );
+
+      const { rerender } = render(
+        <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <SceneContext.Provider value={mockContext}>
+            <Animate animateId="generation-failure" enterAnimation="slide-up">
+              <div>Current generation</div>
+            </Animate>
+          </SceneContext.Provider>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      rerender(
+        <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <SceneContext.Provider value={mockContext}>
+            <Animate animateId="generation-failure" enterAnimation="fade-in">
+              <div>Current generation</div>
+            </Animate>
+          </SceneContext.Provider>
+        </CineViewRuntimeContext.Provider>
+      );
+
+      await waitFor(() => expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1));
+
+      await act(async () => {
+        rejectOld(new Error('obsolete chunk failure'));
+        await oldResult.catch(() => undefined);
+      });
+
+      expect(reportError).not.toHaveBeenCalled();
+      expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('8.5 Preset Animations', () => {
@@ -1048,14 +1292,14 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should support "none" animation type', async () => {
+    it('fails open for the removed "none" preset when runtime input bypasses types', async () => {
       const mockContext = createMockSceneContext({
         isActive: true,
       });
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="none">
+          <Animate enterAnimation={'none' as unknown as PresetAnimation}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -1138,7 +1382,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation={customAnimation} delay={300}>
+          <Animate enterAnimation={customAnimation} timeline={{ delay: 300 }}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -1330,7 +1574,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" delay={500} animateId="delayed">
+          <Animate enterAnimation="fade-in" animateId="delayed" timeline={{ delay: 500 }}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -1358,24 +1602,27 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" delay={0} enterDuration={500} animateId="first">
+          <Animate
+            enterAnimation="fade-in"
+            animateId="first"
+            timeline={{ delay: 0 }}
+            duration={{ enter: 500 }}
+          >
             <div>First</div>
           </Animate>
           <Animate
             enterAnimation="slide-up"
-            delay={500}
-            enterDuration={1000}
-            waitFor="first"
             animateId="second"
+            timeline={{ delay: 500, waitFor: 'first' }}
+            duration={{ enter: 1000 }}
           >
             <div>Second</div>
           </Animate>
           <Animate
             enterAnimation="zoom-in"
-            delay={500}
-            enterDuration={800}
-            waitFor="second"
             animateId="third"
+            timeline={{ delay: 500, waitFor: 'second' }}
+            duration={{ enter: 800 }}
           >
             <div>Third</div>
           </Animate>
@@ -1403,7 +1650,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" delay={0} animateId="no-delay">
+          <Animate enterAnimation="fade-in" animateId="no-delay" timeline={{ delay: 0 }}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -1432,10 +1679,10 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" enterDuration={1000} animateId="first">
+          <Animate enterAnimation="fade-in" animateId="first" duration={{ enter: 1000 }}>
             <div>First</div>
           </Animate>
-          <Animate enterAnimation="slide-up" waitFor="first" animateId="second">
+          <Animate enterAnimation="slide-up" animateId="second" timeline={{ waitFor: 'first' }}>
             <div>Second</div>
           </Animate>
         </SceneContext.Provider>
@@ -1446,12 +1693,14 @@ describe('Animate Component', () => {
           delay: 0,
           duration: 1000,
           waitFor: undefined,
+          driver: 'drag',
         });
 
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
           delay: 0,
           duration: 600,
           waitFor: 'first',
+          driver: 'drag',
         });
       });
 
@@ -1475,16 +1724,31 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" enterDuration={500} animateId="a">
+          <Animate enterAnimation="fade-in" animateId="a" duration={{ enter: 500 }}>
             <div>A</div>
           </Animate>
-          <Animate enterAnimation="slide-up" enterDuration={700} waitFor="a" animateId="b">
+          <Animate
+            enterAnimation="slide-up"
+            animateId="b"
+            timeline={{ waitFor: 'a' }}
+            duration={{ enter: 700 }}
+          >
             <div>B</div>
           </Animate>
-          <Animate enterAnimation="zoom-in" enterDuration={800} waitFor="b" animateId="c">
+          <Animate
+            enterAnimation="zoom-in"
+            animateId="c"
+            timeline={{ waitFor: 'b' }}
+            duration={{ enter: 800 }}
+          >
             <div>C</div>
           </Animate>
-          <Animate enterAnimation="rotate" enterDuration={600} waitFor="c" animateId="d">
+          <Animate
+            enterAnimation="rotate"
+            animateId="d"
+            timeline={{ waitFor: 'c' }}
+            duration={{ enter: 600 }}
+          >
             <div>D</div>
           </Animate>
         </SceneContext.Provider>
@@ -1517,10 +1781,14 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" enterDuration={1000} animateId="first">
+          <Animate enterAnimation="fade-in" animateId="first" duration={{ enter: 1000 }}>
             <div>First</div>
           </Animate>
-          <Animate enterAnimation="slide-up" delay={500} waitFor="first" animateId="second">
+          <Animate
+            enterAnimation="slide-up"
+            animateId="second"
+            timeline={{ delay: 500, waitFor: 'first' }}
+          >
             <div>Second</div>
           </Animate>
         </SceneContext.Provider>
@@ -1531,6 +1799,7 @@ describe('Animate Component', () => {
           delay: 500,
           duration: 600,
           waitFor: 'first',
+          driver: 'drag',
         });
       });
 
@@ -1555,10 +1824,10 @@ describe('Animate Component', () => {
       // For now, we just verify registration happens
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" waitFor="b" animateId="a">
+          <Animate enterAnimation="fade-in" animateId="a" timeline={{ waitFor: 'b' }}>
             <div>A</div>
           </Animate>
-          <Animate enterAnimation="slide-up" waitFor="a" animateId="b">
+          <Animate enterAnimation="slide-up" animateId="b" timeline={{ waitFor: 'a' }}>
             <div>B</div>
           </Animate>
         </SceneContext.Provider>
@@ -1569,12 +1838,14 @@ describe('Animate Component', () => {
           delay: 0,
           duration: 600,
           waitFor: 'b',
+          driver: 'drag',
         });
 
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('b', {
           delay: 0,
           duration: 600,
           waitFor: 'a',
+          driver: 'drag',
         });
       });
 
@@ -1589,13 +1860,13 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" waitFor="c" animateId="a">
+          <Animate enterAnimation="fade-in" animateId="a" timeline={{ waitFor: 'c' }}>
             <div>A</div>
           </Animate>
-          <Animate enterAnimation="slide-up" waitFor="a" animateId="b">
+          <Animate enterAnimation="slide-up" animateId="b" timeline={{ waitFor: 'a' }}>
             <div>B</div>
           </Animate>
-          <Animate enterAnimation="zoom-in" waitFor="b" animateId="c">
+          <Animate enterAnimation="zoom-in" animateId="c" timeline={{ waitFor: 'b' }}>
             <div>C</div>
           </Animate>
         </SceneContext.Provider>
@@ -1619,8 +1890,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            enterDuration={300}
-            exitDuration={300}
+            duration={{ enter: 300, exit: 300 }}
           >
             <div>Test Content</div>
           </Animate>
@@ -1642,8 +1912,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            enterDuration={300}
-            exitDuration={300}
+            duration={{ enter: 300, exit: 300 }}
           >
             <div>Test Content</div>
           </Animate>
@@ -1706,13 +1975,13 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" delay={0} animateId="anim-1">
+          <Animate enterAnimation="fade-in" animateId="anim-1" timeline={{ delay: 0 }}>
             <div>Content 1</div>
           </Animate>
-          <Animate enterAnimation="slide-up" delay={200} animateId="anim-2">
+          <Animate enterAnimation="slide-up" animateId="anim-2" timeline={{ delay: 200 }}>
             <div>Content 2</div>
           </Animate>
-          <Animate enterAnimation="zoom-in" delay={400} animateId="anim-3">
+          <Animate enterAnimation="zoom-in" animateId="anim-3" timeline={{ delay: 400 }}>
             <div>Content 3</div>
           </Animate>
         </SceneContext.Provider>
@@ -1780,7 +2049,7 @@ describe('Animate Component', () => {
 
       const { rerender } = render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" exitAnimation="fade-out" enterDuration={100}>
+          <Animate enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 100 }}>
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -1794,7 +2063,7 @@ describe('Animate Component', () => {
 
         rerender(
           <SceneContext.Provider value={toggledContext}>
-            <Animate enterAnimation="fade-in" exitAnimation="fade-out" enterDuration={100}>
+            <Animate enterAnimation="fade-in" exitAnimation="fade-out" duration={{ enter: 100 }}>
               <div>Test Content</div>
             </Animate>
           </SceneContext.Provider>

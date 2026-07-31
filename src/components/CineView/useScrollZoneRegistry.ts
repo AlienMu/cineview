@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
-import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
+import type {
+  SceneScrollRuntimeContextValue,
+  SceneScrollTimelineState,
+  SceneScrollTimelineStore,
+} from '../Scene/sceneScrollRuntime';
 import {
   areResolvedSceneScrollSequencesEqual,
   resolveSceneScrollAnimationBudgets,
   type SceneScrollAnimationRegistration,
 } from '../Scene/sceneScrollBudget';
-import { createScrollExternalStore, type ScrollExternalStore } from './scrollExternalStore';
+import { createKeyedScrollExternalStore } from './scrollExternalStore';
 
 export interface ScrollZoneRegistration {
   sceneIndex: number;
@@ -19,10 +22,7 @@ export type ScrollZoneAnimationsRef = MutableRefObject<
   Map<string, Map<string, SceneScrollAnimationRegistration>>
 >;
 export type ScrollZoneStatesRef = MutableRefObject<Record<string, SceneScrollTimelineState>>;
-export type ScrollTimelineStore = ScrollExternalStore<{
-  version: number;
-  zoneStates: Record<string, SceneScrollTimelineState>;
-}>;
+export type ScrollTimelineStore = SceneScrollTimelineStore;
 
 interface UseScrollZoneRegistryParams {
   scrollOffsetRef: MutableRefObject<number>;
@@ -58,7 +58,11 @@ export function useScrollZoneRegistry({
   );
   const zoneStatesRef = useRef<Record<string, SceneScrollTimelineState>>({});
   const timelineStoreRef = useRef<ScrollTimelineStore>(
-    createScrollExternalStore({ version: 0, zoneStates: {} })
+    createKeyedScrollExternalStore<
+      ReturnType<ScrollTimelineStore['getSnapshot']>,
+      string,
+      SceneScrollTimelineState
+    >({}, (snapshot, zoneId) => snapshot[zoneId])
   );
   const [zoneRuntimeVersion, setZoneRuntimeVersion] = useState(0);
 
@@ -112,11 +116,7 @@ export function useScrollZoneRegistry({
         zoneStatesRef.current = { ...currentStates, [zoneId]: nextState };
       }
 
-      const currentTimeline = timelineStoreRef.current.getSnapshot();
-      timelineStoreRef.current.setSnapshot({
-        version: currentTimeline.version,
-        zoneStates: zoneStatesRef.current,
-      });
+      timelineStoreRef.current.setSnapshot(zoneStatesRef.current);
       updateSceneRenderSnapshotsRef.current(scrollOffsetRef.current);
     },
     [scrollOffsetRef, updateSceneRenderSnapshotsRef]
@@ -141,22 +141,39 @@ export function useScrollZoneRegistry({
         direction: current?.direction ?? null,
         sequence,
       }));
-      const currentTimeline = timelineStoreRef.current.getSnapshot();
-      timelineStoreRef.current.setSnapshot({
-        version: currentTimeline.version + 1,
-        zoneStates: zoneStatesRef.current,
-      });
-      updateSceneRenderSnapshotsRef.current(scrollOffsetRef.current);
       setZoneRuntimeVersion((version) => version + 1);
     },
-    [scrollOffsetRef, syncZoneState, updateSceneRenderSnapshotsRef]
+    [syncZoneState]
   );
+
+  // One-shot dev diagnostic per zoneId for defensive registrations that bypass
+  // the scroll root's authored-scene preflight.
+  const warnedDuplicateZoneIdsRef = useRef(new Set<string>());
 
   const registerZone = useCallback(
     (zoneId: string, config: { sceneIndex: number; trigger: 'center-lock' }): void => {
+      const existing = zoneRegistryRef.current.get(zoneId);
+      if (existing && existing.sceneIndex !== config.sceneIndex) {
+        if (
+          process.env.NODE_ENV !== 'production' &&
+          !warnedDuplicateZoneIdsRef.current.has(zoneId)
+        ) {
+          warnedDuplicateZoneIdsRef.current.add(zoneId);
+          console.warn(
+            `[CineView] Duplicate scroll zone id "${zoneId}": scene ${config.sceneIndex} was rejected because scene ${existing.sceneIndex} already owns it. Give each Scene a unique sceneId or scroll.zoneId.`
+          );
+        }
+        return;
+      }
+
+      if (existing) {
+        recomputeZoneSequence(zoneId);
+        return;
+      }
+
       zoneRegistryRef.current.set(zoneId, {
         ...config,
-        element: zoneRegistryRef.current.get(zoneId)?.element ?? null,
+        element: null,
       });
       recomputeZoneSequence(zoneId);
     },
@@ -164,53 +181,50 @@ export function useScrollZoneRegistry({
   );
 
   const unregisterZone = useCallback(
-    (zoneId: string): void => {
+    (zoneId: string, sceneIndex: number): void => {
+      if (zoneRegistryRef.current.get(zoneId)?.sceneIndex !== sceneIndex) {
+        return;
+      }
       zoneRegistryRef.current.delete(zoneId);
       zoneAnimationsRef.current.delete(zoneId);
       syncZoneState(zoneId, () => null);
-      const currentTimeline = timelineStoreRef.current.getSnapshot();
-      timelineStoreRef.current.setSnapshot({
-        version: currentTimeline.version + 1,
-        zoneStates: zoneStatesRef.current,
-      });
-      updateSceneRenderSnapshotsRef.current(scrollOffsetRef.current);
       setZoneRuntimeVersion((version) => version + 1);
     },
-    [scrollOffsetRef, syncZoneState, updateSceneRenderSnapshotsRef]
+    [syncZoneState]
   );
 
   const setZoneElement = useCallback(
-    (zoneId: string, element: HTMLElement | null): void => {
+    (zoneId: string, sceneIndex: number, element: HTMLElement | null): void => {
       const meta = zoneRegistryRef.current.get(zoneId);
-      zoneRegistryRef.current.set(zoneId, {
-        sceneIndex: meta?.sceneIndex ?? 0,
-        trigger: meta?.trigger ?? 'center-lock',
-        element,
-      });
+      if (!meta || meta.sceneIndex !== sceneIndex) return;
+      meta.element = element;
       measureSceneLayoutsRef.current?.();
     },
     [measureSceneLayoutsRef]
   );
 
   const registerZoneAnimation = useCallback(
-    (zoneId: string, animation: SceneScrollAnimationRegistration): void => {
+    (
+      zoneId: string,
+      animation: SceneScrollAnimationRegistration
+    ): SceneScrollAnimationRegistration => {
       const existing = zoneAnimationsRef.current.get(zoneId) ?? new Map();
       existing.set(animation.animateId, animation);
       zoneAnimationsRef.current.set(zoneId, existing);
       recomputeZoneSequence(zoneId);
+      return animation;
     },
     [recomputeZoneSequence]
   );
 
   const unregisterZoneAnimation = useCallback(
-    (zoneId: string, animateId: string): void => {
+    (zoneId: string, animateId: string, owner: SceneScrollAnimationRegistration): void => {
       const existing = zoneAnimationsRef.current.get(zoneId);
-      if (!existing) {
+      if (!existing || existing.get(animateId) !== owner) {
         return;
       }
 
       existing.delete(animateId);
-      zoneAnimationsRef.current.set(zoneId, existing);
       recomputeZoneSequence(zoneId);
     },
     [recomputeZoneSequence]

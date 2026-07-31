@@ -175,7 +175,7 @@ export function resolveScrollIntentOffset({
   if (target > current) {
     const crossedSegment = segments.find(
       (segment) =>
-        current < segment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX &&
+        current <= segment.segmentStart + CENTER_LOCK_BOUNDARY_EPSILON_PX &&
         target > segment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX
     );
     if (crossedSegment) {
@@ -198,7 +198,7 @@ export function resolveScrollIntentOffset({
     .reverse()
     .find(
       (segment) =>
-        current > segment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX &&
+        current >= segment.segmentEnd - CENTER_LOCK_BOUNDARY_EPSILON_PX &&
         target < segment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX
     );
   if (crossedSegment) {
@@ -219,15 +219,25 @@ export function resolveScrollIntentOffset({
   return target;
 }
 
-export function shouldIgnoreGlobalScrollKey(event: KeyboardEvent): boolean {
-  const target = event.target;
+/**
+ * Scroll keyboard input must never hijack editable or interactive targets:
+ * all keys are released to input/textarea/select/contentEditable (typing),
+ * and Space is released to button/summary/link-like targets (activation).
+ * Shared by the window-level global handler (which additionally requires
+ * activeElement === body) and the container's onKeyDownCapture handler
+ * (where focus legitimately lives inside the container).
+ */
+export function isEditableOrInteractiveScrollKeyTarget(
+  target: EventTarget | null,
+  key: string
+): boolean {
   if (!(target instanceof Element)) {
     return false;
   }
 
   const tagName = target.tagName.toLowerCase();
   if (
-    event.key === ' ' &&
+    key === ' ' &&
     (tagName === 'button' ||
       tagName === 'summary' ||
       (tagName === 'a' && target.hasAttribute('href')) ||
@@ -243,6 +253,10 @@ export function shouldIgnoreGlobalScrollKey(event: KeyboardEvent): boolean {
     tagName === 'select' ||
     Boolean(target instanceof HTMLElement && target.isContentEditable)
   );
+}
+
+export function shouldIgnoreGlobalScrollKey(event: KeyboardEvent): boolean {
+  return isEditableOrInteractiveScrollKeyTarget(event.target, event.key);
 }
 
 export function isSceneElement(
@@ -309,12 +323,36 @@ export function isLegacyDisplayNameSceneElement(node: React.ReactNode): boolean 
   return false;
 }
 
-export function resolveDesignDimensions(config: CineViewProps['config']): {
+// Dev-only dedupe so an invalid config.size warns once per value instead of
+// once per render (resolveDesignDimensions runs on every root render).
+const warnedInvalidDesignSizes = new Set<unknown>();
+
+export function resolveDesignDimensions(config: CineViewProps['config'] | undefined): {
   designSize: number;
 } {
-  return {
-    designSize: config.size ?? 750,
-  };
+  const rawSize = config?.size;
+  if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
+    return { designSize: rawSize };
+  }
+
+  // config itself is optional (defaults to the 750 mobile design ruler). Only
+  // an explicitly provided but invalid size (0 / negative / NaN / Infinity /
+  // non-number) deserves a dev diagnostic — `0 ?? 750` used to let size: 0
+  // through and produce an Infinity scale downstream. console.error keeps the
+  // 'Invalid config.size' contract of the drag root's legacy dev check, whose
+  // designSize <= 0 branch this fallback makes unreachable.
+  if (rawSize !== undefined && process.env.NODE_ENV !== 'production') {
+    if (!warnedInvalidDesignSizes.has(rawSize)) {
+      warnedInvalidDesignSizes.add(rawSize);
+      console.error(
+        `[CineView] Invalid config.size. It must be a finite positive number; received ${String(
+          rawSize
+        )}. Falling back to the default design size 750.`
+      );
+    }
+  }
+
+  return { designSize: 750 };
 }
 
 export function getSceneTransitionConfig(sceneProps: SceneAuthoringCompatProps): {

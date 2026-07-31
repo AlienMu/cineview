@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react';
 import type {
   ResolvedSceneScrollSequence,
   SceneScrollAnimationRegistration,
 } from './sceneScrollBudget';
-import type { ScrollExternalStore } from '../CineView/scrollExternalStore';
+import type { KeyedScrollExternalStore } from '../CineView/scrollExternalStore';
 
 export interface SceneScrollTimelineState {
   zoneId: string;
@@ -26,24 +26,37 @@ export interface SceneScrollRuntimeContextValue {
       trigger: 'center-lock';
     }
   ) => void;
-  unregisterZone: (zoneId: string) => void;
-  setZoneElement: (zoneId: string, element: HTMLElement | null) => void;
-  registerZoneAnimation: (zoneId: string, animation: SceneScrollAnimationRegistration) => void;
-  unregisterZoneAnimation: (zoneId: string, animateId: string) => void;
+  unregisterZone: (zoneId: string, sceneIndex: number) => void;
+  setZoneElement: (zoneId: string, sceneIndex: number, element: HTMLElement | null) => void;
+  registerZoneAnimation: (
+    zoneId: string,
+    animation: SceneScrollAnimationRegistration
+  ) => SceneScrollAnimationRegistration;
+  unregisterZoneAnimation: (
+    zoneId: string,
+    animateId: string,
+    owner: SceneScrollAnimationRegistration
+  ) => void;
 }
 
 // Per-frame zone timeline snapshot. Lives in its own context so the reactive
 // data path (progress) re-renders consumers without touching the stable
 // registration API above.
 export interface SceneScrollZoneTimelineSnapshot {
-  version: number;
+  version?: number;
   zoneStates: Record<string, SceneScrollTimelineState>;
 }
+
+export type SceneScrollTimelineStore = KeyedScrollExternalStore<
+  Record<string, SceneScrollTimelineState>,
+  string,
+  SceneScrollTimelineState
+>;
 
 export interface SceneScrollZoneTimeline {
   version?: number;
   zoneStates?: Record<string, SceneScrollTimelineState>;
-  store?: ScrollExternalStore<SceneScrollZoneTimelineSnapshot>;
+  store?: SceneScrollTimelineStore;
 }
 
 // Merged shape consumed by useAnimateScroll: the stable registration API plus
@@ -59,19 +72,22 @@ export const SceneScrollTakeoverContext = createContext<string | null>(null);
 
 const EMPTY_SUBSCRIBE = (): (() => void) => () => undefined;
 
-export function useSceneScrollTimeline(enabled = true): SceneScrollZoneTimelineSnapshot {
+export function useSceneScrollZoneTimeline(
+  zoneId: string | null,
+  enabled = true
+): SceneScrollTimelineState | null {
   const timeline = useContext(SceneScrollTimelineContext);
-  const fallback = useMemo<SceneScrollZoneTimelineSnapshot>(
-    () => ({
-      version: timeline?.version ?? 0,
-      zoneStates: timeline?.zoneStates ?? {},
-    }),
-    [timeline]
+  const fallback = zoneId ? (timeline?.zoneStates?.[zoneId] ?? null) : null;
+  const store = enabled && zoneId ? timeline?.store : undefined;
+  const subscribe = useCallback(
+    (listener: () => void) =>
+      store && zoneId ? store.subscribeKey(zoneId, listener) : EMPTY_SUBSCRIBE(),
+    [store, zoneId]
   );
-  const fallbackGetter = useCallback(() => fallback, [fallback]);
-  const store = enabled ? timeline?.store : undefined;
-  const subscribe = store?.subscribe ?? EMPTY_SUBSCRIBE;
-  const getSnapshot = store?.getSnapshot ?? fallbackGetter;
+  const getSnapshot = useCallback(
+    () => (store && zoneId ? (store.getKeySnapshot(zoneId) ?? null) : fallback),
+    [fallback, store, zoneId]
+  );
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

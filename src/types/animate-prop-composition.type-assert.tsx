@@ -30,3 +30,32 @@ export function InvalidStaggerSiblingArray(): JSX.Element {
     </Animate>
   );
 }
+
+export function InvalidEmptyAnimate(): JSX.Element {
+  return (
+    // @ts-expect-error Animate requires enterAnimation or infiniteAnimation
+    <Animate>
+      <div />
+    </Animate>
+  );
+}
+
+export function InvalidExitOnlyAnimate(): JSX.Element {
+  return (
+    // @ts-expect-error exitAnimation cannot be the only effective animation
+    <Animate exitAnimation="fade-out">
+      <div />
+    </Animate>
+  );
+}
+
+export function InvalidInfiniteStagger(): JSX.Element {
+  return (
+    // @ts-expect-error stagger requires enterAnimation, not infiniteAnimation alone
+    <Animate infiniteAnimation="pulse" stagger={{ each: 80 }}>
+      <div>
+        <span>A</span>
+      </div>
+    </Animate>
+  );
+}

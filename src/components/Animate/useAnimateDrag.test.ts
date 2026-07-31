@@ -1,8 +1,14 @@
 import { renderHook } from '@testing-library/react';
 import type { MotionValue } from 'framer-motion';
-import { useAnimateDrag } from './useAnimateDrag';
+import {
+  buildAnimationRegistrySnapshot,
+  freezeAnimationRegistrySnapshot,
+} from '../../animations/registry';
 import type { ParsedAnimationVariant } from '../../types';
+import { DEFAULT_DRAG_TIMELINE_CONFIG } from '../../utils/dragTimelineMapping';
+import { createPreparedSceneSnapshot, DragPreparedSceneStore } from '../Scene/dragPreparedState';
 import type { SceneContextType } from './Animate';
+import { useAnimateDrag } from './useAnimateDrag';
 
 jest.mock('framer-motion', () => {
   const createMotionValueStub = (initial: number) => {
@@ -111,6 +117,12 @@ function createSceneContext(
 }
 
 describe('useAnimateDrag', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
   it('keeps delayed enter elements gated on the element-track elapsed, not render release progress', () => {
     // Element track elapsed = 320ms, which is < delay 500ms, so the element must
     // still be at its enter-initial (scale 0.2). The render release progress
@@ -175,5 +187,209 @@ describe('useAnimateDrag', () => {
 
     // Linear: lerp(0.2, 1, 0.5) = 0.6. The eased-render bug would push this to ~1.0.
     expect(result.current.scale.get()).toBeCloseTo(0.6);
+  });
+
+  it('keeps one registry lease while a transaction view advances across drag frames', () => {
+    const enterVariant = {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: {},
+    } as ParsedAnimationVariant;
+    const registrySnapshot = freezeAnimationRegistrySnapshot(
+      buildAnimationRegistrySnapshot({
+        baseDuration: 0,
+        registrations: new Map([
+          [
+            'stable-lease',
+            {
+              delay: 0,
+              duration: 500,
+              driver: 'drag' as const,
+            },
+          ],
+        ]),
+      })
+    );
+    const prepared = createPreparedSceneSnapshot({
+      sceneIndex: 1,
+      instanceId: Symbol('scene-1'),
+      revision: 1,
+      enabled: true,
+      mapping: DEFAULT_DRAG_TIMELINE_CONFIG,
+      registrySnapshot,
+      enterVariantsByAnimateId: new Map([['stable-lease', enterVariant]]),
+    });
+    const store = new DragPreparedSceneStore();
+    store.publishPrepared(prepared);
+
+    const dispose = jest.fn();
+    const registerAnimate = jest.fn(() => ({
+      animateId: 'stable-lease',
+      generation: 1,
+      getCalculatedDelay: () => 0,
+      setEnterVariant: jest.fn(),
+      observeWaitFor: () => () => undefined,
+      publishEnterCompleted: jest.fn(),
+      dispose,
+    }));
+    const sceneContext = createSceneContext(
+      { elementElapsedMs: 100 },
+      {
+        isDragging: true,
+        renderProgress: 0.1,
+        registerAnimate,
+        dragTransaction: store.beginTransaction(1, 'driving', 0.1),
+      }
+    );
+
+    const { rerender } = renderHook(
+      ({ transaction }) =>
+        useAnimateDrag({
+          sceneContext: { ...sceneContext, dragTransaction: transaction },
+          enterVariant,
+          exitVariant: null,
+          componentId: 'stable-lease',
+          delay: 0,
+          enterDuration: 500,
+          exitDuration: 200,
+        }),
+      { initialProps: { transaction: sceneContext.dragTransaction } }
+    );
+
+    for (let frame = 2; frame <= 6; frame += 1) {
+      rerender({ transaction: store.beginTransaction(1, 'driving', frame / 10) });
+    }
+
+    expect(registerAnimate).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
+  });
+
+  it('warns once when drag choreography changes during one frozen transaction', () => {
+    process.env.NODE_ENV = 'development';
+    const frozenVariant = {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: {},
+    } as ParsedAnimationVariant;
+    const liveVariant = {
+      initial: { opacity: 0.2 },
+      animate: { opacity: 1 },
+      exit: {},
+    } as ParsedAnimationVariant;
+    const registrySnapshot = freezeAnimationRegistrySnapshot(
+      buildAnimationRegistrySnapshot({
+        baseDuration: 0,
+        registrations: new Map([
+          [
+            'mutation-warning',
+            {
+              delay: 0,
+              duration: 500,
+              driver: 'drag' as const,
+            },
+          ],
+        ]),
+      })
+    );
+    const store = new DragPreparedSceneStore();
+    store.publishPrepared(
+      createPreparedSceneSnapshot({
+        sceneIndex: 1,
+        instanceId: Symbol('scene-1'),
+        revision: 1,
+        enabled: true,
+        mapping: DEFAULT_DRAG_TIMELINE_CONFIG,
+        registrySnapshot,
+        enterVariantsByAnimateId: new Map([['mutation-warning', frozenVariant]]),
+      })
+    );
+    const sceneContext = createSceneContext(
+      { elementElapsedMs: 100 },
+      {
+        isDragging: true,
+        renderProgress: 0.1,
+        dragTransaction: store.beginTransaction(1, 'driving', 0.1),
+      }
+    );
+    const warningSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    const { rerender } = renderHook(
+      ({ transaction }) =>
+        useAnimateDrag({
+          sceneContext: { ...sceneContext, dragTransaction: transaction },
+          enterVariant: liveVariant,
+          exitVariant: null,
+          componentId: 'mutation-warning',
+          delay: 20,
+          enterDuration: 600,
+          exitDuration: 200,
+        }),
+      { initialProps: { transaction: sceneContext.dragTransaction } }
+    );
+
+    rerender({ transaction: store.beginTransaction(1, 'driving', 0.2) });
+    rerender({ transaction: store.beginTransaction(1, 'driving', 0.3) });
+
+    expect(warningSpy).toHaveBeenCalledTimes(1);
+    expect(warningSpy).toHaveBeenCalledWith(expect.stringContaining('remains frozen'));
+    warningSpy.mockRestore();
+  });
+
+  it('warns once when an active Scene mounts an Animate outside its playback snapshot', () => {
+    process.env.NODE_ENV = 'development';
+    const liveVariant = {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: {},
+    } as ParsedAnimationVariant;
+    const registrySnapshot = freezeAnimationRegistrySnapshot(
+      buildAnimationRegistrySnapshot({
+        baseDuration: 0,
+        registrations: new Map(),
+      })
+    );
+    const store = new DragPreparedSceneStore();
+    store.publishPrepared(
+      createPreparedSceneSnapshot({
+        sceneIndex: 1,
+        instanceId: Symbol('scene-1'),
+        revision: 1,
+        enabled: true,
+        mapping: DEFAULT_DRAG_TIMELINE_CONFIG,
+        registrySnapshot,
+        enterVariantsByAnimateId: new Map(),
+      })
+    );
+    const sceneContext = createSceneContext(
+      { elementElapsedMs: 100 },
+      {
+        isActive: true,
+        isDragging: false,
+        sceneOffset: 0,
+        renderProgress: 0,
+        dragTransaction: store.beginTransaction(1, 'settling', 0.5),
+      }
+    );
+    const warningSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    const { rerender } = renderHook(
+      ({ transaction }) =>
+        useAnimateDrag({
+          sceneContext: { ...sceneContext, dragTransaction: transaction },
+          enterVariant: liveVariant,
+          exitVariant: null,
+          componentId: 'late-mount',
+          delay: 0,
+          enterDuration: 500,
+          exitDuration: 200,
+        }),
+      { initialProps: { transaction: sceneContext.dragTransaction } }
+    );
+
+    rerender({ transaction: store.beginTransaction(1, 'settling', 0.6) });
+
+    expect(warningSpy).toHaveBeenCalledTimes(1);
+    expect(warningSpy).toHaveBeenCalledWith(expect.stringContaining('mounted after'));
+    warningSpy.mockRestore();
   });
 });

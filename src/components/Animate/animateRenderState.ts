@@ -4,14 +4,14 @@ import type { AnimateRenderState } from '../../types';
  * render-prop 状态归一化(纯函数,导出供测试)。
  *
  * scroll 与 drag 两侧用不同的相位词汇:
- *   - scroll: `GatePhase`('idle'|'entering'|'entered'|'exiting'|'exited'),已是 5 态,直接透传。
+ *   - scroll: `GatePhase`('idle'|'waiting'|'entering'|'entered'|'exiting'|'exited'),直接透传。
  *   - drag:  `DragVisualState.mode`('rest'|'outgoing'|'enter'|'hidden')+ `localProgress`(0..1),
  *            须归一化到统一的 `AnimateRenderState.phase` 词汇。
  *
  * 两侧的 `enterProgress` 都收敛为 0..1(0=初始帧,1=完全进入)。
  */
 
-export type ScrollGatePhase = 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
+export type ScrollGatePhase = 'idle' | 'waiting' | 'entering' | 'entered' | 'exiting' | 'exited';
 export type DragVisualMode = 'rest' | 'outgoing' | 'enter' | 'hidden';
 
 const PROGRESS_SETTLED = 1 - 1e-3;

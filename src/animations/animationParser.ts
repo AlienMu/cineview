@@ -3,7 +3,7 @@
  * 解析预设动画、自定义动画，并转换为 Framer Motion 格式
  */
 
-import { getPresetAnimation, type PresetAnimationName } from './presets';
+import { getPresetAnimation } from './presets';
 import { devError, devWarn } from '../utils/devLog';
 import type { CustomAnimation, ParsedAnimationVariant } from '../types';
 
@@ -156,18 +156,9 @@ export const convertWebAnimationToVariant = normalizeCustomAnimationVariant;
 /**
  * 解析预设动画名称
  */
-export const parsePresetAnimation = async (
-  name: string
-): Promise<ParsedAnimationVariant | null> => {
-  try {
-    const presetAnim = await getPresetAnimation(name as PresetAnimationName);
-    // getPresetAnimation 返回的是 PresetAnimation 对象（包含 initial, animate, exit）
-    // 需要转换为 ParsedAnimationVariant
-    return normalizeParsedAnimationVariant(presetAnim as unknown as ParsedAnimationVariant);
-  } catch (error) {
-    devError(`Failed to parse preset animation "${name}":`, error);
-    return null;
-  }
+export const parsePresetAnimation = async (name: string): Promise<ParsedAnimationVariant> => {
+  const presetAnim = await getPresetAnimation(name);
+  return normalizeParsedAnimationVariant(presetAnim as unknown as ParsedAnimationVariant);
 };
 
 /**

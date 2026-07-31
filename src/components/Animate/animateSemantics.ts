@@ -1,25 +1,26 @@
 import { DEFAULT_ANIMATION_DURATION } from '../../types';
-import type { AnimateProps } from '../../types';
+import type { AnimateProps, AnimationType } from '../../types';
 
-export interface AnimateLegacyCompatProps {
-  enterDuration?: number;
-  exitDuration?: number;
-  delay?: number;
-  waitFor?: string;
-  scrollPhaseStart?: number;
-  scrollPhaseEnd?: number;
-}
+type WidenAnimationRequirements<T> = T extends unknown
+  ? Omit<T, 'enterAnimation' | 'infiniteAnimation'> & {
+      enterAnimation?: AnimationType;
+      infiniteAnimation?: AnimationType;
+    }
+  : never;
 
-export type AnimateInternalProps = AnimateProps & AnimateLegacyCompatProps;
+/**
+ * Runtime implementation shape. The public union requires enter or infinite,
+ * while this internal view remains defensive against JavaScript/`as any`
+ * callers so invalid configurations can fail open and report INVALID_ANIMATION.
+ */
+export type AnimateInternalProps = WidenAnimationRequirements<AnimateProps>;
 
 export interface NormalizedAnimateTimeline {
-  // Whether this element's animation timeline is controlled by an enclosing
-  // Scene's scroll takeover. Default true: inside a Scene.scroll zone it binds
-  // to that zone's real-scroll budget; outside a zone (or in drag mode) it
-  // gracefully falls back to visibility. false forces the standalone visibility
-  // gate even inside a zone. The concrete scroll-vs-visibility resolution
-  // happens in Animate.tsx (which knows the mode + inherited zoneId) and is
-  // exposed as ResolvedAnimateTimeline.
+  // Whether this element participates in its enclosing Scene's timeline. Default
+  // true: drag mode uses the Scene element track, while scroll mode binds to an
+  // inherited zone and otherwise falls back to visibility. false forces the
+  // independent visibility/arrival driver in either mode. Animate.tsx resolves
+  // the concrete runtime driver from mode + inherited zoneId.
   sceneControlled: boolean;
   delay: number;
   waitFor?: string;
@@ -59,37 +60,20 @@ export function normalizeAnimateSemantics({
   duration,
   timeline,
   visibility,
-  enterDuration,
-  exitDuration,
-  delay,
-  waitFor,
-  scrollPhaseStart,
-  scrollPhaseEnd,
-}: Pick<
-  AnimateInternalProps,
-  | 'duration'
-  | 'timeline'
-  | 'visibility'
-  | 'enterDuration'
-  | 'exitDuration'
-  | 'delay'
-  | 'waitFor'
-  | 'scrollPhaseStart'
-  | 'scrollPhaseEnd'
->): NormalizedAnimateSemantics {
+}: Pick<AnimateInternalProps, 'duration' | 'timeline' | 'visibility'>): NormalizedAnimateSemantics {
   return {
     duration: {
-      enter: duration?.enter ?? enterDuration ?? DEFAULT_ANIMATION_DURATION,
-      exit: duration?.exit ?? exitDuration ?? DEFAULT_ANIMATION_DURATION,
+      enter: duration?.enter ?? DEFAULT_ANIMATION_DURATION,
+      exit: duration?.exit ?? DEFAULT_ANIMATION_DURATION,
     },
     timeline: {
       sceneControlled: timeline?.sceneControlled ?? true,
-      delay: timeline?.delay ?? delay ?? 0,
-      waitFor: timeline?.waitFor ?? waitFor,
+      delay: timeline?.delay ?? 0,
+      waitFor: timeline?.waitFor,
       zoneId: timeline?.zoneId,
       phase: {
-        start: timeline?.phase?.start ?? scrollPhaseStart,
-        end: timeline?.phase?.end ?? scrollPhaseEnd,
+        start: timeline?.phase?.start,
+        end: timeline?.phase?.end,
       },
     },
     visibility: {

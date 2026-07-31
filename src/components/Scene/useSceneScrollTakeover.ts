@@ -41,7 +41,7 @@ export function useSceneScrollTakeover({
     });
 
     return () => {
-      unregisterZone(zoneId);
+      unregisterZone(zoneId, sceneIndex);
     };
   }, [mode, hasScrollTakeover, registerZone, unregisterZone, zoneId, sceneIndex, trigger]);
 
@@ -50,12 +50,12 @@ export function useSceneScrollTakeover({
       return;
     }
 
-    setZoneElement(zoneId, elementRef.current);
+    setZoneElement(zoneId, sceneIndex, elementRef.current);
 
     return () => {
-      setZoneElement(zoneId, null);
+      setZoneElement(zoneId, sceneIndex, null);
     };
-  }, [elementRef, mode, hasScrollTakeover, setZoneElement, zoneId]);
+  }, [elementRef, mode, hasScrollTakeover, sceneIndex, setZoneElement, zoneId]);
 
   if (mode !== 'scroll' || !scroll) {
     return null;

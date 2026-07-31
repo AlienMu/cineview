@@ -1,6 +1,7 @@
 import type {
   AnimationType,
   DragThresholdConfig,
+  DragTimelineUnit,
   SceneAnchor,
   SceneProps,
   SceneStackMode,
@@ -12,8 +13,51 @@ import type {
   DragReleaseInput,
   ScrollTransitionSnapshot,
 } from '../../hooks/useSceneManager';
+import type {
+  DragSceneTransaction,
+  PreparedSceneInvalidation,
+  PreparedSceneSnapshot,
+} from './dragPreparedState';
 
 export type SceneState = 'initial' | 'entering' | 'active' | 'exiting';
+
+/**
+ * The single global render-lane slot (D-F1/D-F7). At most ONE render-lane
+ * tween (settle page-slide or bounce) exists at a time — renderProgress has
+ * one owner. The slot lets ANY scene's drag engine take over the in-flight
+ * lane on a new pointerdown, even when the lane was created by a DIFFERENT
+ * scene's engine (a rush re-grab mid-slide lands on whichever scene covers
+ * the touch point — usually the incoming one — while the lane still belongs
+ * to the releasing engine). CineView owns one shared ref; a standalone Scene
+ * falls back to an engine-local slot.
+ */
+export interface DragRenderLane {
+  kind: 'settle' | 'bounce';
+  /** The sceneIndex of the engine that created this lane (unmount cleanup). */
+  ownerSceneIndex: number;
+  /** Permanently stop this continuation. Used by teardown and superseding lanes. */
+  stop: () => void;
+  /**
+   * Reversibly pause at the current render position. A pointer-down candidate
+   * uses this before public drag ownership exists, so commit cannot race the
+   * direction/readiness gate.
+   */
+  suspend?: () => void;
+  /** Resume a previously suspended continuation from its frozen position. */
+  resume?: () => void;
+  /** Permanently discard a suspension after a candidate acquires ownership. */
+  preempt?: () => void;
+  /** Latest frozen/rendered progress, used to seed ownership without a stale React frame. */
+  getCurrent?: () => number;
+}
+
+/** Synchronous rush re-grab baseline shared across the render and element lanes. */
+export interface DragTakeoverSnapshot {
+  readonly token: number;
+  readonly sceneIndices: readonly number[];
+  readonly staleRatio: number;
+  readonly baseRatio: number | null;
+}
 
 export interface SceneLegacyCompatProps {
   mode?: ScrollMode;
@@ -41,6 +85,13 @@ export interface SceneLegacyCompatProps {
   preloadImages?: string[];
 }
 
+export type SceneActivationKind = 'ready' | 'static' | 'commit' | 'programmatic';
+
+export interface SceneActivationRecord {
+  token: number;
+  kind: SceneActivationKind;
+}
+
 export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
   runtimeMode?: ScrollMode;
   runtimeDirection?: 'x' | 'y';
@@ -59,8 +110,14 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     isSceneAnimating?: boolean;
     sharedElapsedMs?: number;
     sharedTimelineDurationMs?: number;
+    /** Monotonic formal-arrival token for this Scene in drag mode. */
+    activationToken?: number;
+    activationKind?: SceneActivationKind | null;
     viewportWidth?: number;
     viewportHeight?: number;
+    // False only while the scroll external store has not published its first
+    // real snapshot. Prevents the empty sentinel from impersonating timeout fallback.
+    firstSceneEnterGateKnown?: boolean;
     // CineView-owned signal: the initial active scene is playing its one-shot
     // first-screen enter animation (driven by its own element track once
     // first-screen priority assets settle). Distinct from the scene-switch
@@ -76,15 +133,40 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     progress?: number;
     renderProgress?: number;
     timelineProgress?: number;
+    /** Shared per-frame render lane; the drag engine is its only writer. */
+    renderProgressMotion?: import('framer-motion').MotionValue<number>;
+    /** Shared per-frame ratio consumed by each Scene-owned element-track writer. */
+    timelineProgressMotion?: import('framer-motion').MotionValue<number>;
     isDragging?: boolean;
     release?: DragRelease | null;
     threshold?: DragThresholdConfig;
-    // Absolute follow-finger time scale: ms of element-timeline elapsed per 1% of
-    // drag (default 100 = 1% → 100ms, full drag → 10000ms). The follow-finger write
-    // maps drag % to this absolute clock instead of the scene timeline T_self, so
-    // drag SPEED is decoupled from animation length. Settle continues from the
-    // reached elapsed to T_self at real rate.
-    dragTimeScale?: number;
+    /** Root/Scene-resolved mapping; omitted only for standalone legacy callers. */
+    dragMappingConfig?: {
+      unit: DragTimelineUnit;
+      scale: number;
+    };
+    /** Frozen playback data for the target scene; null when no transaction exists. */
+    transaction?: DragSceneTransaction | null;
+    /** Publishes only fully stable Scene preparation to the CineView owner. */
+    onPrepared?: (snapshot: PreparedSceneSnapshot) => void;
+    /** Exact instance/revision invalidation; stale cleanups are ignored by the owner. */
+    onPreparedInvalidated?: (invalidation: PreparedSceneInvalidation) => void;
+    /**
+     * Synchronous candidate preflight. Ownership is granted only after the root
+     * validates the target Scene's business flag and prepared snapshot, creates
+     * the driving transaction, and emits the directional drag-start callback.
+     */
+    onOwnershipRequest?: (direction: 'forward' | 'backward') => boolean;
+    /** Internal re-grab candidate state; never exposed as a public drag session. */
+    candidateSuspended?: boolean;
+    /** Returns true when an in-flight render/element continuation was suspended. */
+    onCandidateSuspensionChange?: (suspended: boolean) => boolean;
+    /** Synchronously registers whether this Scene owns a resumable element continuation. */
+    onElementContinuationChange?: (active: boolean) => void;
+    /** Authoritative cross-lane rush re-grab baseline, written at ownership. */
+    takeoverSnapshot?: import('react').MutableRefObject<DragTakeoverSnapshot | null>;
+    /** Internal pointer-session boundary used for callback de-duplication. */
+    onPointerSessionStart?: () => void;
     onCommit?: (
       direction: 'forward' | 'backward',
       progressRatio: number,
@@ -93,6 +175,8 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     ) => void;
     onReset?: () => void;
     onActivationComplete?: () => void;
+    /** Releases only the matching frozen playback transaction. */
+    onTransactionComplete?: (transactionId: symbol) => void;
     onProgressChange?: (progress: number) => void;
     onRenderProgressChange?: (progress: number) => void;
     onTimelineProgressChange?: (progress: number) => void;
@@ -100,6 +184,11 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     onDraggingChange?: (dragging: boolean) => void;
     onSharedTimelineDurationChange?: (duration: number) => void;
     onRelease?: (release: DragReleaseInput | null) => void;
+    /**
+     * CineView-owned shared render-lane slot (see {@link DragRenderLane}).
+     * Stable ref for the lifetime of the CineView instance.
+     */
+    renderLane?: import('react').MutableRefObject<DragRenderLane | null>;
   };
   scrollRuntime?: {
     progress?: number;

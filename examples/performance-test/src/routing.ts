@@ -1,5 +1,5 @@
 export type ModeId = 'drag' | 'scroll';
-export type AppRoute = 'home' | ModeId;
+export type AppRoute = 'home' | 'acceptance-drag' | 'acceptance-scroll' | ModeId;
 
 export interface ModeRouteDefinition {
   id: ModeId;
@@ -25,6 +25,8 @@ export function parseHashRoute(hash: string): AppRoute {
 
   if (normalized === '/drag') return 'drag';
   if (normalized === '/scroll') return 'scroll';
+  if (normalized === '/acceptance/drag') return 'acceptance-drag';
+  if (normalized === '/acceptance/scroll') return 'acceptance-scroll';
 
   return 'home';
 }

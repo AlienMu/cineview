@@ -79,6 +79,7 @@ describe('useAnimateTimeline', () => {
     );
 
     const timeline = timelineRef.current!;
+    expect(timeline.mode).toBe('drag');
     expect(timeline.driver).toBe('drag');
     const firstProgress = timeline.progress;
     act(() => {
@@ -94,7 +95,158 @@ describe('useAnimateTimeline', () => {
     expect(renderCount).toBe(1);
   });
 
-  it('maps scroll signed progress and phase without a React subscription', () => {
+  it('publishes progress, phase, and gesture ownership as one atomic frame', () => {
+    const timelineRef: { current: AnimateTimeline | null } = { current: null };
+    const sceneContext = {
+      mode: 'drag',
+      isDragging: true,
+      dragTransaction: { phase: 'driving' },
+    } as SceneContextType;
+
+    render(
+      <SceneContext.Provider value={sceneContext}>
+        <Animate>
+          <TimelineProbe onRead={(value) => (timelineRef.current = value)} />
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    const timeline = timelineRef.current! as AnimateTimeline & {
+      frame: {
+        get: () => {
+          progress: number;
+          signedProgress: number;
+          phase: string;
+          source: string;
+        };
+        on: (
+          event: 'change',
+          listener: (frame: {
+            progress: number;
+            signedProgress: number;
+            phase: string;
+            source: string;
+          }) => void
+        ) => () => void;
+      };
+    };
+    const observedFrames: ReturnType<typeof timeline.frame.get>[] = [];
+    timeline.frame.on('change', (frame) => observedFrames.push(frame));
+
+    act(() => {
+      mockDragVisualState.set({
+        ...mockDragVisualState.get()!,
+        mode: 'enter',
+        localProgress: 0.5,
+      });
+    });
+
+    expect(observedFrames).toEqual([
+      {
+        progress: 0.5,
+        signedProgress: 0.5,
+        phase: 'entering',
+        source: 'gesture',
+      },
+    ]);
+  });
+
+  it.each([
+    ['settling', 'continuation'],
+    ['bouncing', 'continuation'],
+    ['programmatic', 'programmatic'],
+  ] as const)('maps a %s drag transaction to the %s source', (transactionPhase, source) => {
+    const timelineRef: { current: AnimateTimeline | null } = { current: null };
+
+    render(
+      <SceneContext.Provider
+        value={
+          {
+            mode: 'drag',
+            isDragging: false,
+            dragTransaction: { phase: transactionPhase },
+          } as SceneContextType
+        }
+      >
+        <Animate>
+          <TimelineProbe onRead={(value) => (timelineRef.current = value)} />
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    expect(
+      (
+        timelineRef.current as AnimateTimeline & {
+          frame: { get: () => { source: string } };
+        }
+      ).frame.get().source
+    ).toBe(source);
+  });
+
+  it('keeps a formal bounce transaction authoritative on its hidden terminal frame', () => {
+    const timelineRef: { current: AnimateTimeline | null } = { current: null };
+
+    render(
+      <SceneContext.Provider
+        value={
+          {
+            mode: 'drag',
+            isDragging: false,
+            dragTransaction: { phase: 'bouncing' },
+          } as SceneContextType
+        }
+      >
+        <Animate>
+          <TimelineProbe onRead={(value) => (timelineRef.current = value)} />
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    act(() => {
+      mockDragVisualState.set({
+        ...mockDragVisualState.get()!,
+        mode: 'hidden',
+        localProgress: 0,
+      });
+    });
+
+    expect(timelineRef.current?.frame.get()).toEqual({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'idle',
+      source: 'continuation',
+    });
+  });
+
+  it('does not expose candidate or suspended pointer input as gesture ownership', () => {
+    const timelineRef: { current: AnimateTimeline | null } = { current: null };
+
+    render(
+      <SceneContext.Provider
+        value={
+          {
+            mode: 'drag',
+            isDragging: true,
+            dragTransaction: null,
+          } as SceneContextType
+        }
+      >
+        <Animate>
+          <TimelineProbe onRead={(value) => (timelineRef.current = value)} />
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    expect(
+      (
+        timelineRef.current as AnimateTimeline & {
+          frame: { get: () => { source: string } };
+        }
+      ).frame.get().source
+    ).toBe('idle');
+  });
+
+  it('maps scroll signed progress, phase, and source without a React subscription', () => {
     const timelineRef: { current: AnimateTimeline | null } = { current: null };
     let renders = 0;
 
@@ -111,7 +263,9 @@ describe('useAnimateTimeline', () => {
       </SceneContext.Provider>
     );
 
-    const timeline = timelineRef.current!;
+    const timeline = timelineRef.current! as AnimateTimeline & {
+      frame: { get: () => { source: string } };
+    };
     expect(timeline.driver).toBe('visibility');
     act(() => {
       mockScrollVisualMotion.set(0.75);
@@ -121,6 +275,12 @@ describe('useAnimateTimeline', () => {
     expect(timeline.progress.get()).toBe(0.75);
     expect(timeline.signedProgress.get()).toBe(0.75);
     expect(timeline.phase.get()).toBe('entered');
+    expect(timeline.frame.get()).toEqual({
+      progress: 0.75,
+      signedProgress: 0.75,
+      phase: 'entered',
+      source: 'visibility',
+    });
     expect(renders).toBe(1);
   });
 

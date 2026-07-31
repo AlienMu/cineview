@@ -4,8 +4,20 @@
  */
 
 import { parseAnimationWithComposition } from '../animations/composer';
-import type { ParsedAnimationVariant, CustomAnimation, ComposedAnimation } from '../types';
+import { isPresetLoadError } from '../animations/presets';
+import type {
+  CineViewErrorCode,
+  ParsedAnimationVariant,
+  CustomAnimation,
+  ComposedAnimation,
+} from '../types';
 import type { PresetAnimation } from '../animations/presets';
+
+export interface AnimationParseFailure {
+  code: Extract<CineViewErrorCode, 'INVALID_ANIMATION' | 'ANIMATION_ASSET_LOAD_FAILED'>;
+  message: string;
+  context: Record<string, unknown>;
+}
 
 /**
  * Parse animation with error handling
@@ -13,17 +25,24 @@ import type { PresetAnimation } from '../animations/presets';
 export async function parseAnimationSafely(
   animation: string | CustomAnimation | ComposedAnimation | undefined,
   componentId: string,
-  animationType: 'enter' | 'exit' | 'infinite'
+  animationType: 'enter' | 'exit' | 'infinite',
+  onFailure?: (failure: AnimationParseFailure) => void
 ): Promise<ParsedAnimationVariant | PresetAnimation | null> {
   if (!animation) return null;
 
   try {
     const parsed = await parseAnimationWithComposition(animation);
-    if (parsed) {
-      return parsed;
-    } else if (process.env.NODE_ENV === 'development') {
+    if (parsed) return parsed;
+
+    const message = `Failed to parse ${animationType} animation for "${componentId}".`;
+    onFailure?.({
+      code: 'INVALID_ANIMATION',
+      message,
+      context: { componentId, animationType, animation },
+    });
+    if (process.env.NODE_ENV === 'development') {
       console.error(
-        `[CineView Error] Failed to parse ${animationType} animation for "${componentId}".\n\n` +
+        `[CineView Error] ${message}\n\n` +
           `Problem: The ${animationType}Animation configuration is invalid or malformed.\n` +
           `Fix: Ensure your animation is one of:\n` +
           `  1. A valid preset animation name (e.g., 'fade-in', 'slide-up')\n` +
@@ -32,15 +51,39 @@ export async function parseAnimationSafely(
       );
     }
   } catch (error) {
+    const failure: AnimationParseFailure = isPresetLoadError(error)
+      ? {
+          code: error.code,
+          message: error.message,
+          context: {
+            componentId,
+            animationType,
+            animation,
+            category: error.category,
+            presetName: error.presetName,
+          },
+        }
+      : {
+          code: 'INVALID_ANIMATION',
+          message: `Error parsing ${animationType} animation for "${componentId}".`,
+          context: { componentId, animationType, animation },
+        };
+    onFailure?.(failure);
     if (process.env.NODE_ENV === 'development') {
-      console.error(
-        `[CineView Error] Error parsing ${animationType} animation for "${componentId}":`,
-        error
-      );
+      console.error(`[CineView Error] ${failure.message}`, error);
     }
   }
 
   return null;
+}
+
+/**
+ * 多值字符串(空格分隔且非 transform 函数,如 transformOrigin '50% 100%')无法用
+ * parseFloat 单值插值——那会坍缩成 '50%' 之类的单值并改变语义。transform 函数串
+ * (含 '(')仍走原有的函数参数插值分支。
+ */
+function isMultiTokenString(value: unknown): boolean {
+  return typeof value === 'string' && !value.includes('(') && value.trim().includes(' ');
 }
 
 /**
@@ -68,6 +111,13 @@ export function interpolateVariant(
       return;
     }
 
+    // 相等端点原样返回:根本无需插值。这同时挡住多值字符串在下方数值分支里的
+    // parseFloat 坍缩(如 transformOrigin '50% 100%' 被坍缩成 '50%')。
+    if (startVal === endVal) {
+      result[key] = endVal;
+      return;
+    }
+
     // 如果 start 没有这个键，根据类型设置默认值
     const effectiveStartVal =
       startVal !== undefined
@@ -77,6 +127,13 @@ export function interpolateVariant(
           : typeof endVal === 'number'
             ? 0
             : '0';
+
+    // 端点不等的多值字符串同样无法单值插值:退化为 0.5 阈值切换,
+    // 避免 '50% 0%' → '50%' 这类格式/语义坍缩。
+    if (isMultiTokenString(effectiveStartVal) || isMultiTokenString(endVal)) {
+      result[key] = progress > 0.5 ? endVal : effectiveStartVal;
+      return;
+    }
 
     // 处理数字类型
     if (typeof endVal === 'number' && typeof effectiveStartVal === 'number') {

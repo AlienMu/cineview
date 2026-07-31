@@ -58,7 +58,7 @@ describe('useSceneScrollTakeover', () => {
       sceneIndex: 1,
       trigger: 'center-lock',
     });
-    expect(runtime.setZoneElement).toHaveBeenCalledWith('demo-zone', expect.any(HTMLDivElement));
+    expect(runtime.setZoneElement).toHaveBeenCalledWith('demo-zone', 1, expect.any(HTMLDivElement));
   });
 
   it('does nothing outside scroll mode', () => {
