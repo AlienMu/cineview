@@ -4,7 +4,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 const REDUCED_DURATION_MS = 80;
 const REDUCED_DURATION_SECONDS = REDUCED_DURATION_MS / 1000;
 
-type TemporalMotionTiming = {
+export type TemporalMotionTiming = {
   reduced: boolean;
   duration: (milliseconds: number) => number;
   delay: (milliseconds: number) => number;

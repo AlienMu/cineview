@@ -3,8 +3,10 @@ import path from 'node:path';
 import { motionValue } from 'framer-motion';
 import ts from 'typescript';
 import {
+  ACT2_BOARD_GATE_MS,
   ACT2_LIGHT_GATE_MS,
   ACT2_LIGHT_LAYERS,
+  ACT2_LIGHT_SET_DELAY_MS,
 } from '../../../site/src/components/temporal-drag/SlateLightRig';
 import {
   ACT2_BOARD_TIMING_MS,
@@ -87,7 +89,7 @@ describe('/drag W2 clapperboard contract', () => {
    * Both terms moved this pass: the gate 1600 -> 1100 (返工「继续加快act2画板入场时间」) and the
    * board 3600 -> 3560 (its table traded 280ms of convergence for a 240ms held-board beat).
    */
-  const ACT2_BOARD_CHAIN_END_MS = 4660;
+  const ACT2_BOARD_CHAIN_END_MS = 4370;
 
   /**
    * The ACT's tSelf, which is a DIFFERENT number from the one above and is why 3560 is not a
@@ -209,8 +211,10 @@ describe('/drag W2 clapperboard contract', () => {
 
   it('runs the slate chain inside the act, under an ambient ramp that outlasts it', () => {
     expect(ACT2_LIGHT_GATE_MS).toBe(1100);
+    expect(ACT2_LIGHT_SET_DELAY_MS).toBe(260);
+    expect(ACT2_BOARD_GATE_MS).toBe(810);
     expect(BOARD_ENTER_MS).toBe(3560);
-    expect(ACT2_LIGHT_GATE_MS + BOARD_ENTER_MS).toBe(ACT2_BOARD_CHAIN_END_MS);
+    expect(ACT2_BOARD_GATE_MS + BOARD_ENTER_MS).toBe(ACT2_BOARD_CHAIN_END_MS);
 
     // The act's REAL clock, and the relation that makes 3560 correct rather than 40ms short.
     // Computed from the lane table rather than restated, so it tracks a legitimate retune.
@@ -222,13 +226,17 @@ describe('/drag W2 clapperboard contract', () => {
     expect(ACT2_BOARD_CHAIN_END_MS).toBeLessThan(tSelf);
     // ...and the surplus is real ramp, not rounding: the key light is still climbing for over
     // half a second after the ACTION word has landed.
-    expect(tSelf - ACT2_BOARD_CHAIN_END_MS).toBe(540);
+    expect(tSelf - ACT2_BOARD_CHAIN_END_MS).toBe(830);
 
     // The gate IS the set layer's enter. This is the invariant the locked order 灯光入场 →
     // 再出现 canvas rests on: shorter and the board starts after the light has finished (a
     // visible stall), longer and particles gather over an unlit stage.
     const set = ACT2_LIGHT_LAYERS.find((layer) => layer.id === 's02-light-set');
     expect(set?.enterMs).toBe(ACT2_LIGHT_GATE_MS);
+    expect(set?.delayMs).toBe(ACT2_LIGHT_SET_DELAY_MS);
+    expect(ACT2_BOARD_GATE_MS).toBe(
+      (set?.delayMs ?? Number.NaN) + (set?.enterMs ?? Number.NaN) * 0.5
+    );
 
     // ONE owner for the number, enforced at the source level. The pair used to be a literal
     // `const LIGHT_GATE_MS = 1600` in SceneSlate matching `enterMs: 1600` in SlateLightRig:
@@ -237,14 +245,18 @@ describe('/drag W2 clapperboard contract', () => {
     // the beat as a bare literal again.
     const scene = stripComments(fs.readFileSync(SCENE_FILE, 'utf8'));
     const light = stripComments(fs.readFileSync(LIGHT_FILE, 'utf8'));
-    expect(scene).toContain("import { ACT2_LIGHT_GATE_MS, SlateLightRig } from './SlateLightRig'");
-    expect(scene).toContain('timeline={{ delay: timing.delay(ACT2_LIGHT_GATE_MS) }}');
+    expect(scene).toContain("import { ACT2_BOARD_GATE_MS, SlateLightRig } from './SlateLightRig'");
+    expect(scene).toContain('timeline={{ delay: timing.delay(ACT2_BOARD_GATE_MS) }}');
     expect(scene).toContain('enter: timing.duration(BOARD_ENTER_MS)');
     expect(scene).not.toMatch(/LIGHT_GATE_MS\s*=/);
     expect(light).toContain('enterMs: ACT2_LIGHT_GATE_MS');
+    expect(light).toContain('delayMs: ACT2_LIGHT_SET_DELAY_MS');
     // Exactly one literal spelling of the gate in the rig: its own declaration.
     expect(light.match(/\b1100\b/g)).toEqual(['1100']);
     expect(light).toMatch(/export const ACT2_LIGHT_GATE_MS = 1100;/);
+    expect(light).toContain(
+      'export const ACT2_BOARD_GATE_MS = ACT2_LIGHT_SET_DELAY_MS + ACT2_LIGHT_GATE_MS * 0.5'
+    );
 
     // The board's exit. Not exported (nothing else consumes it), so it is pinned at the source
     // level — 900ms against a 3560ms enter is the same ~25% reversibility budget the rig's lanes

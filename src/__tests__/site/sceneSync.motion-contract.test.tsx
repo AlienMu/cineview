@@ -1,12 +1,32 @@
 import { render } from '@testing-library/react';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { ReactNode } from 'react';
 import { SceneSync } from '../../../site/src/components/temporal-drag/SceneSync';
+import {
+  ACT3_FIRST_SELECTION_START_MS,
+  ACT3_CLIP_COUNT,
+  ACT3_CLIP_DEMO_DRAG_MS,
+  ACT3_CLIP_DEMO_STRIDE_MS,
+  ACT3_MEDIA_CLOCK_MS,
+  ACT3_MEDIA_SCRUB_START_MS,
+  clipDragStartMs,
+  clipSelectionStartMs,
+  resolveAct3MediaState,
+} from '../../../site/src/components/temporal-drag/act3MediaTimeline';
+
+const ROOT = path.resolve(__dirname, '../../..');
+const ACT3_MEDIA_FILE = path.join(ROOT, 'site/src/components/temporal-drag/Act3Media.tsx');
+const ACT3_CSS_FILE = path.join(ROOT, 'site/src/styles/temporal-scenes-03-05.css');
 
 interface CapturedAnimateProps {
   animateId?: string;
   enterAnimation?: {
     initial?: Record<string, unknown>;
     animate?: Record<string, unknown>;
+  };
+  exitAnimation?: {
+    exit?: Record<string, unknown>;
   };
   duration?: { enter?: number; exit?: number };
   timeline?: { delay?: number };
@@ -21,7 +41,6 @@ const OUTER_IDS = [...V1_IDS, ...V2_IDS] as const;
 const INNER_IDS = OUTER_IDS.map((id) => `${id}-fade`);
 // V1 only: each block is selected, then dragged. V2 subtitles are placed, not assembled.
 const DEMO_IDS = V1_IDS.map((id) => `${id}-demo`);
-const SELECT_IDS = V1_IDS.map((id) => `${id}-select`);
 // One badge per adjacent pair — two pairs for three clips.
 const SEAM_IDS = ['s03-clip-seam-1', 's03-clip-seam-2'] as const;
 
@@ -56,6 +75,13 @@ jest.mock('../../../site/src/components/temporal-drag/TemporalMotion', () => ({
 
 jest.mock('../../../site/src/components/temporal-drag/TimelinePlayhead', () => ({
   TimelinePlayhead: () => null,
+}));
+
+// Root Jest and the linked site package resolve separate React instances. Keep this structural
+// contract at the SceneSync boundary; native media behavior is covered by pure timeline tests
+// below and by real-browser acceptance.
+jest.mock('../../../site/src/components/temporal-drag/Act3Media', () => ({
+  Act3Media: () => <video data-s03-preview-video="" />,
 }));
 
 jest.mock('../../../site/src/components/temporal-drag/waveform/WaveformCanvas', () => ({
@@ -128,10 +154,19 @@ describe('SceneSync motion contract', () => {
     expect(firstStrokeStart).toBeGreaterThanOrEqual(lastAppearEnd);
   });
 
-  it('drags each block once, in order, with selection leading each stroke', () => {
-    render(<SceneSync />);
+  it('drags each block once, in order, with one static selection overlay per clip', () => {
+    const { container } = render(<SceneSync />);
 
     const strokeStarts = DEMO_IDS.map((id) => lane(id).timeline?.delay ?? 0);
+    const selections = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-s03-clip-selection]')
+    );
+
+    expect(selections.map((selection) => selection.dataset.s03ClipSelection)).toEqual([
+      '0',
+      '1',
+      '2',
+    ]);
 
     for (const [index, animateId] of DEMO_IDS.entries()) {
       const demo = lane(animateId);
@@ -151,22 +186,16 @@ describe('SceneSync motion contract', () => {
       expect(demo.enterAnimation?.initial?.opacity).toBe(1);
       expect(demo.enterAnimation?.animate?.opacity).toBe(1);
 
-      // Selection precedes the stroke it belongs to («选中第一块拖一下»).
-      const select = lane(SELECT_IDS[index]);
-      expect(select.timeline?.delay ?? 0).toBeLessThan(strokeStarts[index]);
-      expect(select.enterAnimation).toEqual({
-        initial: { opacity: 0 },
-        animate: { opacity: 1 },
-      });
+      expect(clipSelectionStartMs(index)).toBeLessThan(strokeStarts[index]);
     }
 
-    // Three strictly sequential strokes: each finishes before the next starts, so the track
-    // reads as a hand working left to right rather than as three blocks sliding at once.
+    // Three contiguous strokes: the next hand movement and its video scrub begin on the exact
+    // frame the previous one lands, without an authored pause between clips.
     for (let index = 1; index < strokeStarts.length; index += 1) {
       const previousEnd =
         strokeStarts[index - 1] + (lane(DEMO_IDS[index - 1]).duration?.enter ?? 0);
       expect(strokeStarts[index]).toBeGreaterThan(strokeStarts[index - 1]);
-      expect(strokeStarts[index]).toBeGreaterThanOrEqual(previousEnd);
+      expect(strokeStarts[index]).toBe(previousEnd);
     }
   });
 
@@ -215,9 +244,7 @@ describe('SceneSync motion contract', () => {
           typeof id === 'string' && (id.startsWith('s03-v1-clip-') || id.startsWith('s03-v2-sub-'))
       )
       .sort();
-    expect(capturedMotionIds).toEqual(
-      [...OUTER_IDS, ...INNER_IDS, ...DEMO_IDS, ...SELECT_IDS].sort()
-    );
+    expect(capturedMotionIds).toEqual([...OUTER_IDS, ...INNER_IDS, ...DEMO_IDS].sort());
 
     for (const outerId of OUTER_IDS) {
       const outer = lane(outerId);
@@ -245,6 +272,107 @@ describe('SceneSync motion contract', () => {
         animate: { opacity: 1, x: 0 },
       });
       expect(lane(animateId).duration?.enter).toBe(500);
+      expect(lane(animateId).timeline?.delay).toBe(clipSelectionStartMs(V2_IDS.indexOf(animateId)));
     }
+  });
+
+  it('uses one extended media clock and mounts the native preview video', () => {
+    const { container } = render(<SceneSync />);
+
+    expect(lane('s03-media-clock').duration?.enter).toBe(ACT3_MEDIA_CLOCK_MS);
+    expect(ACT3_CLIP_DEMO_DRAG_MS).toBeGreaterThanOrEqual(1_000);
+    expect(ACT3_CLIP_DEMO_STRIDE_MS).toBe(ACT3_CLIP_DEMO_DRAG_MS);
+    expect(ACT3_MEDIA_CLOCK_MS).toBe(
+      ACT3_MEDIA_SCRUB_START_MS + ACT3_CLIP_COUNT * ACT3_CLIP_DEMO_DRAG_MS
+    );
+    expect(container.querySelector('[data-s03-preview-video]')).not.toBeNull();
+  });
+
+  it('puts the V2 copy on the picture and frames the video as a centered viewport cover', () => {
+    const { container } = render(<SceneSync />);
+    const surface = container.querySelector('[data-s03-preview-surface]');
+    const pictureSubtitles = Array.from(
+      surface?.querySelectorAll<HTMLElement>('[data-s03-preview-subtitle]') ?? []
+    );
+    const css = fs.readFileSync(ACT3_CSS_FILE, 'utf8');
+
+    expect(pictureSubtitles.map((node) => node.textContent)).toEqual([
+      'dragTemporal.s03.sub1',
+      'dragTemporal.s03.sub2',
+      'dragTemporal.s03.sub3',
+    ]);
+    expect(css).toMatch(
+      /\.s03-cut-stage > \[data-cineview-animate-id='s03-preview'\][^{]*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;/s
+    );
+    expect(css).toMatch(
+      /\.s03-preview__surface > video[^{]*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*center;/s
+    );
+  });
+
+  it('uses scrub transport only, with no closing native playback owner', () => {
+    const source = fs.readFileSync(ACT3_MEDIA_FILE, 'utf8');
+
+    expect(source).not.toMatch(/\.play\s*\(/);
+    expect(source).not.toContain('requestVideoFrameCallback');
+    expect(source).not.toContain('playbackGate');
+    expect(source).not.toMatch(/addEventListener\(\s*['"]ended['"]/);
+  });
+
+  it('blurs and fades the fullscreen video plate on exit', () => {
+    render(<SceneSync />);
+
+    expect(lane('s03-preview').enterAnimation?.animate).toMatchObject({
+      opacity: 1,
+      filter: 'blur(0px)',
+    });
+    expect(lane('s03-preview').exitAnimation?.exit).toMatchObject({
+      opacity: 0,
+      filter: 'blur(18px)',
+    });
+  });
+});
+
+describe('Act 3 media timeline', () => {
+  it('keeps V1 one stroke ahead of three contiguous two-second media ranges', () => {
+    expect(resolveAct3MediaState(ACT3_FIRST_SELECTION_START_MS - 1)).toEqual({
+      mode: 'idle',
+      activeIndex: null,
+      mediaIndex: null,
+      mediaTimeSeconds: 0,
+    });
+
+    for (let index = 0; index < 3; index += 1) {
+      expect(resolveAct3MediaState(clipSelectionStartMs(index)).activeIndex).toBe(index);
+
+      const mediaStart = ACT3_MEDIA_SCRUB_START_MS + index * ACT3_CLIP_DEMO_DRAG_MS;
+      expect(resolveAct3MediaState(mediaStart)).toEqual({
+        mode: 'scrub',
+        activeIndex: Math.min(index + 1, 2),
+        mediaIndex: index,
+        mediaTimeSeconds: index * 2,
+      });
+
+      expect(resolveAct3MediaState(mediaStart + ACT3_CLIP_DEMO_DRAG_MS / 2)).toEqual(
+        expect.objectContaining({
+          mode: 'scrub',
+          mediaIndex: index,
+          mediaTimeSeconds: index * 2 + 1,
+        })
+      );
+    }
+
+    const finalScrub = resolveAct3MediaState(ACT3_MEDIA_CLOCK_MS - 1);
+    expect(finalScrub.mode).toBe('scrub');
+    expect(finalScrub.activeIndex).toBe(2);
+    expect(finalScrub.mediaTimeSeconds).toBeCloseTo(6, 2);
+  });
+
+  it('holds the final frame when the third scrub completes', () => {
+    expect(resolveAct3MediaState(ACT3_MEDIA_CLOCK_MS)).toEqual({
+      mode: 'complete',
+      activeIndex: null,
+      mediaIndex: null,
+      mediaTimeSeconds: 6,
+    });
   });
 });

@@ -4,6 +4,8 @@ import ts from 'typescript';
 import {
   createTicks,
   DIAL_SWEEP_MS,
+  formatEnglishDate,
+  ordinalSuffix,
   readDialEpoch,
   tickSweepDelay,
 } from '../../../site/src/components/temporal-drag/DialTicks';
@@ -12,6 +14,7 @@ import {
   ACT1_ENTER_MS,
   ACT1_LIVE_SPIN_SECONDS,
   createHandSweepContract,
+  createMinuteAdvanceContract,
 } from '../../../site/src/components/temporal-drag/SceneRolling';
 
 const ROOT = path.resolve(__dirname, '../../..');
@@ -21,6 +24,8 @@ const ACT1_FILES = [
 ];
 const APP_FILE = path.join(ROOT, 'site/src/App.tsx');
 const CSS_FILE = path.join(ROOT, 'site/src/styles/temporal-drag.css');
+const I18N_FILE = path.join(ROOT, 'site/src/i18n/index.tsx');
+const LANG_TOGGLE_FILE = path.join(ROOT, 'site/src/components/LangToggle.tsx');
 const ZH_FILE = path.join(ROOT, 'site/src/i18n/zh.ts');
 const EN_FILE = path.join(ROOT, 'site/src/i18n/en.ts');
 
@@ -63,16 +68,38 @@ describe('/drag W1 calibration dial contract', () => {
     jest.useRealTimers();
   });
 
-  it('samples one real-clock epoch with fractional minute-hand advance', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-07-29T12:34:45.000Z'));
+  it('samples one real-clock epoch with English date and 24-hour display', () => {
+    expect(readDialEpoch(new Date(2026, 4, 6, 12, 34, 45))).toEqual({
+      secondAngle: 270,
+      minuteAngle: 208.5,
+      hour: '12',
+      dateLabel: 'May 6th',
+    });
+    expect(readDialEpoch(new Date(2026, 4, 6, 0, 0, 0)).hour).toBe('00');
+    expect(readDialEpoch(new Date(2026, 4, 6, 23, 0, 0)).hour).toBe('23');
+  });
 
-    expect(readDialEpoch()).toEqual({ secondAngle: 270, minuteAngle: 208.5 });
+  it('formats every ordinal edge in English regardless of site language', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 31].map(ordinalSuffix)).toEqual([
+      'st',
+      'nd',
+      'rd',
+      'th',
+      'th',
+      'th',
+      'th',
+      'st',
+      'nd',
+      'rd',
+      'st',
+    ]);
+    expect(formatEnglishDate(new Date(2026, 4, 6))).toBe('May 6th');
   });
 
   it('maps the 60 independent tick lanes onto one closed 3000ms sweep', () => {
     expect(DIAL_SWEEP_MS).toBe(3000);
 
-    const ticks = createTicks(90, 240, 720, (milliseconds) => milliseconds);
+    const ticks = createTicks(240, 720, (milliseconds) => milliseconds);
     expect(ticks).toHaveLength(60);
     expect(ticks.map((tick) => tick.animateId)).toEqual(
       Array.from({ length: 60 }, (_, index) => `s01-tick-${index}`)
@@ -82,11 +109,9 @@ describe('/drag W1 calibration dial contract', () => {
       true
     );
 
-    expect(tickSweepDelay(15, 90)).toBe(0);
-    expect(tickSweepDelay(16, 90)).toBe(50);
-    expect(tickSweepDelay(14, 90)).toBe(2950);
-    expect(tickSweepDelay(0, 354)).toBe(50);
-    expect(tickSweepDelay(59, 354)).toBe(0);
+    expect(tickSweepDelay(0)).toBe(0);
+    expect(tickSweepDelay(1)).toBe(50);
+    expect(tickSweepDelay(59)).toBe(2950);
 
     const sortedDelays = ticks.map((tick) => tick.timeline.delay).sort((a, b) => a - b);
     expect(sortedDelays).toEqual(Array.from({ length: 60 }, (_, index) => index * 50));
@@ -100,6 +125,7 @@ describe('/drag W1 calibration dial contract', () => {
       number: 60,
       eyebrow: 80,
       title: 140,
+      date: 180,
       lang: 200,
       actions: 300,
     });
@@ -107,9 +133,11 @@ describe('/drag W1 calibration dial contract', () => {
       ring: 420,
       handFade: 880,
       handSweep: 3000,
+      minuteAdvance: 900,
       number: 460,
       eyebrow: 440,
       title: 560,
+      date: 460,
       lang: 400,
       actions: 460,
     });
@@ -117,10 +145,17 @@ describe('/drag W1 calibration dial contract', () => {
 
     expect(createHandSweepContract(270)).toEqual({
       enterAnimation: {
-        initial: { rotate: 270 },
-        animate: { rotate: 630 },
+        initial: { opacity: 1, rotate: 270 },
+        animate: { opacity: 1, rotate: 630 },
       },
-      exitAnimation: { exit: { rotate: 270 } },
+      exitAnimation: { exit: { opacity: 1, rotate: 270 } },
+    });
+    expect(createMinuteAdvanceContract(359.9)).toEqual({
+      enterAnimation: {
+        initial: { opacity: 1, rotate: 0 },
+        animate: { opacity: 1, rotate: 359.9 },
+      },
+      exitAnimation: { exit: { opacity: 1, rotate: 0 } },
     });
   });
 
@@ -153,7 +188,6 @@ describe('/drag W1 calibration dial contract', () => {
         ) {
           createTicksCalls += 1;
           expect(node.arguments.map((argument) => argument.getText())).toEqual([
-            'epoch.secondAngle',
             'timing.duration(TICK_ENTER_MS)',
             'timing.duration(exitMs)',
             'timing.delay',
@@ -215,7 +249,7 @@ describe('/drag W1 calibration dial contract', () => {
           jsxAttributeName(node.name) === 'infiniteAnimation' &&
           node.initializer?.getText().includes('timing.reduced') &&
           node.initializer.getText().includes('? undefined') &&
-          node.initializer.getText().includes('ACT1_LIVE_SPIN_SECONDS[variant]') &&
+          node.initializer.getText().includes('ACT1_LIVE_SPIN_SECONDS.') &&
           node.initializer.getText().includes('repeat: Infinity')
         ) {
           liveLaneBindings += 1;
@@ -254,22 +288,43 @@ describe('/drag W1 calibration dial contract', () => {
     expect(forbiddenTimelineProperties).toEqual([]);
     expect(createTicksCalls).toBe(1);
     expect(tickMapAnimateBindings).toBe(1);
-    expect(handContractCalls).toBe(1);
-    expect(handContractEnterBindings).toBe(1);
-    expect(handContractExitBindings).toBe(1);
+    expect(handContractCalls).toBe(2);
+    expect(handContractEnterBindings).toBe(2);
+    expect(handContractExitBindings).toBe(2);
     expect(epochInitializerCount).toBe(1);
-    expect(liveLaneBindings).toBe(1);
+    expect(liveLaneBindings).toBe(2);
     expect(langToggleCount).toBe(1);
     expect(gatedLangToggleCount).toBe(1);
 
     const sceneSource = stripComments(fs.readFileSync(ACT1_FILES[1], 'utf8'));
-    expect(sceneSource).toContain('<DialTicks epoch={epoch}');
+    expect(sceneSource).toContain('<DialTicks exitMs={EXIT_MS.ticks}');
     expect(sceneSource).toContain('startAngle={epoch.secondAngle}');
-    expect(sceneSource).toContain('startAngle={epoch.minuteAngle}');
+    expect(sceneSource).toContain('<RunningMinuteHand targetAngle={epoch.minuteAngle}');
+    expect(sceneSource).toContain('<GatedDate text={clock.dateLabel}');
+
+    const dial = sceneSource.slice(
+      sceneSource.indexOf('<DialShell'),
+      sceneSource.indexOf('</DialShell>')
+    );
+    const titleArea = sceneSource.slice(
+      sceneSource.indexOf('<section className="s01-title-area">'),
+      sceneSource.indexOf('</section>', sceneSource.indexOf('<section className="s01-title-area">'))
+    );
+    expect(dial).toContain('<GatedDate text={clock.dateLabel}');
+    expect(titleArea).not.toContain('<GatedDate text={clock.dateLabel}');
 
     const app = stripComments(fs.readFileSync(APP_FILE, 'utf8'));
     expect(app).toContain("const isDrag = pathname === '/drag'");
     expect(app).toContain('{isDrag || isAcceptance ? null : <LangToggle />}');
+  });
+
+  it('defaults to English unless the visitor explicitly stored a language choice', () => {
+    const source = stripComments(fs.readFileSync(I18N_FILE, 'utf8'));
+
+    expect(source).not.toContain('navigator.language');
+    expect(source).toContain("if (stored === 'zh' || stored === 'en') return stored;");
+    expect(source).toContain("return 'en';");
+    expect(stripComments(fs.readFileSync(LANG_TOGGLE_FILE, 'utf8'))).not.toMatch(/[\u3400-\u9fff]/);
   });
 
   it('keeps the deleted subtitle and directional-sector treatment out of act 1', () => {

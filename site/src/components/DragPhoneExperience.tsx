@@ -168,7 +168,8 @@ export const DragPhoneExperience = memo(function DragPhoneExperience({
           drag: {
             direction: 'y',
             transitionDuration: 680,
-            dragTimeScale: 12,
+            unit: 'time',
+            scale: 12,
           },
         }}
         callbacks={callbacks}

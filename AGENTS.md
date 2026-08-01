@@ -226,6 +226,12 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 3. **先恢复行为基线，再做架构迁移**：重构引发行为回归时，先修回归再继续拆分
 4. **验收必须多 agent 真实环境实测**：scroll/drag 交互路径不能只靠实现者自跑单测收口；必须由独立 agent 在真实浏览器环境（独立 lane）跑通用户描述的完整手势/输入路径后才算验收通过
 5. **每节点完成后立即读 task-flow**：不停在已通过节点上，检查下一个可执行节点
+6. **禁止在框架外自建框架已有的动画行为**（2026-07-26 立规，起因见下）：站点/示例是框架的门面，绕过框架等于绕过它的 phase 契约。以下为硬约束：
+   - **常驻/循环动效一律用 `Animate` 的 `infiniteAnimation`，禁止 CSS `animation: … infinite`**。CSS 无限动画不受 phase 约束，退场/离屏时照跑；`infiniteAnimation` 由 `shouldRunInfinite` 门控（见 `useAnimateScroll.ts` 的 `shouldRunInfinite` 决策注释），只在元素处于自己的 phase 且在视口内时运行。正确范例：`site/src/components/temporal-drag/DragHint.tsx`
+   - **站点组件禁止直接 import framer-motion** 做入场/退场/常驻动效。需要连续值时用 `useAnimateTimeline()` 暴露的 `progress` / `signedProgress` / `phase`（都是 MotionValue），不要自建 `useSpring`/`useTransform` 旁路——spring 有自己的时间常数，不跟随退场进度
+   - **自建 rAF 仅限 canvas 自绘**（DESIGN.md §0 许可：canvas 读 MotionValue 自绘，避免逐帧 setState），且必须订阅 `timeline.phase`、在 `exited` / `idle` 时暂停。豁免处需就近注释写明理由。参考：`clapperboard/ClapperboardCanvas.tsx`
+   - **入场用 `waitFor` 级联的，退场必须有对应的反向编排**。只写 `enterAnimation` 链而 exit 不编排，会导致所有元素 exit 同时触发（「打包回滚」），与入场的有序级联不对称
+   - **判定标准**：`tsc` 通过、单测通过、像素探针通过都**不能**证明动效体验正确——它们不覆盖「退场时循环动画是否停止」「退场是否原路退回」。这类结论必须按规则 4 在真实浏览器里逐帧确认后才能声称通过
 
 ---
 

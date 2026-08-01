@@ -1,0 +1,1154 @@
+/* Scene-specific finish layer for acts 03–05.
+ *
+ * Split out from temporal-drag.css so the three rebuilt acts can be read as units. Every
+ * continuous motion below lives on an <Animate infiniteAnimation> lane or inside a canvas
+ * that gates its own rAF on `timeline.phase`; this file only supplies geometry and paint.
+ *
+ * Two rules govern most of what looks unusual here, both from the 2026-07-29 task flow:
+ *
+ *  §1.5 rule 4 — an <Animate> that declares `infiniteAnimation` renders an EXTRA anonymous
+ *    motion.div between `.cineview-animate` and the authored child. That wrapper is
+ *    position:static with no inset, so it shrink-wraps; around absolutely-positioned content
+ *    it wraps to height 0 and every percentage translate on the loop resolves to 0px — the
+ *    animation runs and moves nothing. Every such holder below is given
+ *    `position: absolute; inset: 0`.
+ *
+ *  §8.4 — a `mix-blend-mode: screen` layer must never be clipped. Once a transform is applied
+ *    the clip edge itself pulls in from the viewport and renders as a hard bright line
+ *    sliding across the frame (measured 19.6 -> 57.6 luminance over 4 device px). The
+ *    additive layers here (act 04's corona, act 05's beam) therefore carry NO
+ *    `overflow: hidden` and no `clip-path`; they are shaped by soft gradient masks whose
+ *    ramps span whole degrees/percents, so there is no boundary to see in the first place.
+ */
+
+/* ── Act 03 · 剪辑台 (the cutting room) ───────────────────────────────────────
+ *
+ * REWRITTEN with the act. The five taped-up code strips are gone and so is every rule that
+ * dressed them: `.s03-bench` / `.s03-slot` / `.s03-scatter` / `.s03-strip*` (tape, label,
+ * code) / `.s03-timeline-bed` / `.s03-final-shell` / `.s03-track-cluster*` /
+ * `.s03-track-label` / `.s03-clip--amber|--short|--long` / `.s03-copy` / `.s03-eyebrow` /
+ * `.s03-title` / `.s03-body` / `.s03-signoff` / the `s03-copy-gate` holder. Their JSX no
+ * longer exists (SceneSync.tsx is a full rewrite), so they were dead rules, not a fallback.
+ *
+ * The act is now one object — an edit bay — and the DOM is:
+ *
+ *   main.s03-cut-stage
+ *     [s03-preview]  section.s03-preview        surface / two letterbox bars / PGM tag
+ *     section.s03-bed
+ *       [s03-ruler]  div.s03-ruler              three timecode marks
+ *       div.s03-tracks
+ *         [s03-track-v1] .s03-track-row > label + .s03-track   > 3 x .s03-clip-slot
+ *         [s03-track-a1] .s03-track-row > label + .s03-track--audio > canvas
+ *         [s03-track-v2] .s03-track-row > label + .s03-track   > 3 x .s03-clip-slot
+ *       [s03-playhead] .s03-playhead > .s03-playhead__rail > beam + readout
+ */
+.drag-temporal .s03-scene > [data-cineview-animate-id='s03-media-clock'],
+.drag-temporal .s03-scene > [data-cineview-animate-id='s03-media-clock'] > .s03-cut-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s03-cut-stage {
+  position: relative;
+  z-index: 46;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #050506;
+}
+
+/* The picture is the stage, not a monitor inside it. The timeline is composited over the
+ * lower edge, so the video remains a true viewport-sized plane at every aspect ratio. */
+.drag-temporal .s03-cut-stage > [data-cineview-animate-id='s03-preview'] {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.drag-temporal .s03-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050506;
+}
+
+/* Full-plate mount for the site-owned preview video. */
+.drag-temporal .s03-preview__surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.drag-temporal .s03-preview__surface > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #050506;
+}
+
+.drag-temporal .s03-preview__subtitles {
+  position: absolute;
+  right: 0;
+  bottom: clamp(226px, 31vh, 320px);
+  left: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 0 clamp(18px, 6cqw, 42px);
+  pointer-events: none;
+}
+
+.drag-temporal .s03-preview__subtitles > span {
+  grid-area: 1 / 1;
+  max-width: min(82vw, 760px);
+  padding: 0.38em 0.72em 0.34em;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(4, 5, 7, 0.68);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  color: #f4f1ea;
+  font-family: var(--tp-font-mono);
+  font-size: clamp(16px, 4.4cqw, 34px);
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-align: center;
+  opacity: 0;
+}
+
+.drag-temporal .s03-cut-stage[data-active-media='0'] [data-s03-preview-subtitle='0'],
+.drag-temporal .s03-cut-stage[data-active-media='1'] [data-s03-preview-subtitle='1'],
+.drag-temporal .s03-cut-stage[data-active-media='2'] [data-s03-preview-subtitle='2'] {
+  opacity: 1;
+}
+
+/* Letterbox bars: the widescreen framing inside the monitor. Static geometry. */
+.drag-temporal .s03-preview__bar {
+  display: none;
+}
+
+.drag-temporal .s03-preview__bar--top {
+  top: 0;
+}
+
+.drag-temporal .s03-preview__bar--bottom {
+  bottom: 0;
+}
+
+.drag-temporal .s03-preview__tag {
+  position: absolute;
+  top: clamp(9px, 2.6cqw, 14px);
+  left: clamp(8px, 2.4cqw, 13px);
+  z-index: 4;
+  color: rgba(232, 183, 102, 0.72);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(7px, 1.8cqw, 9px);
+  letter-spacing: 0.16em;
+  text-shadow: 0 0 10px rgba(216, 162, 74, 0.2);
+}
+
+/* ── Timeline bed: ruler, three tracks, one playhead across all of them. ──── */
+.drag-temporal .s03-bed {
+  position: absolute;
+  right: clamp(10px, 2.8cqw, 24px);
+  bottom: clamp(10px, 2.8cqw, 24px);
+  left: clamp(10px, 2.8cqw, 24px);
+  z-index: 4;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(8px, 2.4cqw, 14px);
+  min-height: 0;
+  margin: 0;
+  padding: clamp(8px, 2.4cqw, 14px) clamp(8px, 2.4cqw, 13px) clamp(26px, 7cqw, 38px);
+  border: 1px solid rgba(216, 162, 74, 0.2);
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, rgba(216, 162, 74, 0.08) 1px, transparent 1px) 0 0 / 12.5% 100%,
+    linear-gradient(180deg, rgba(18, 15, 19, 0.88), rgba(8, 7, 10, 0.96));
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.028);
+}
+
+/* `position: relative` is what the sub-second tick strip below hangs off. */
+.drag-temporal .s03-ruler {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  padding-top: clamp(7px, 2cqw, 11px);
+  border-top: 1px solid rgba(216, 162, 74, 0.4);
+  color: rgba(232, 183, 102, 0.6);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(7px, 1.9cqw, 10px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 12px rgba(216, 162, 74, 0.14);
+}
+
+/* Sub-second ticks hanging off the ruler's own rule. `4.16%` is 1/24 of the bed, i.e. one
+ * tick per two frames at the act's 25fps base — dense enough to read as a scale. */
+.drag-temporal .s03-ruler::before {
+  position: absolute;
+  top: -5px;
+  right: 0;
+  left: 0;
+  height: 8px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(232, 183, 102, 0.46) 0 1px,
+    transparent 1px 4.16%
+  );
+  content: '';
+}
+
+.drag-temporal .s03-ruler {
+  position: relative;
+}
+
+.drag-temporal .s03-ruler__mark {
+  display: block;
+}
+
+.drag-temporal .s03-tracks {
+  display: grid;
+  /* WIDTH-derived, not `1fr`. Under `repeat(3, minmax(0,1fr))` the three lanes split whatever
+   * height the viewport had left — measured 181.6px each at 844 tall, a 1.73:1 box that reads
+   * as a slab rather than a track, and one that grows taller on every taller screen while the
+   * cqw-sized detail inside it does not. Deriving the lane height from the same ruler as its
+   * own borders, labels and sprockets keeps the strip proportional at every viewport height:
+   * ~46.8px at 390 wide, i.e. about 6.7:1. The clamp floor/ceiling bound it on extreme widths.
+   * §8.5 still holds: the clamp's 30px floor is what a short viewport collapses to, and the
+   * slack now lives in the monitor's `1fr` row on the stage, which is free to shrink. */
+  grid-template-rows: repeat(3, clamp(30px, 12cqw, 56px));
+  gap: clamp(6px, 1.8cqw, 10px);
+  min-height: 0;
+}
+
+/* The track bases animate a UNIFORM `scale` (SceneSync's note: `scaleX` is not one of the
+ * drag driver's ten properties and is dropped silently). Origin at the left edge is what
+ * turns that uniform scale into "the lane widens rightward" — without it the row inflates
+ * about its own centre and reads as a zoom. Set on the host AND on any wrapper inside it,
+ * because the transform can be written on either depending on lane composition. */
+.drag-temporal .s03-tracks > [data-cineview-animate-id^='s03-track-'],
+.drag-temporal .s03-tracks > [data-cineview-animate-id^='s03-track-'] > * {
+  min-height: 0;
+  transform-origin: left center;
+}
+
+.drag-temporal .s03-track-row {
+  display: grid;
+  grid-template-columns: clamp(18px, 5cqw, 26px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(6px, 1.8cqw, 10px);
+  height: 100%;
+  min-height: 0;
+}
+
+.drag-temporal .s03-track-row__label {
+  color: rgba(232, 183, 102, 0.66);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(7px, 1.9cqw, 10px);
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 10px rgba(216, 162, 74, 0.16);
+}
+
+/* The lane itself. `position: relative` is load-bearing: every clip and subtitle inside is
+ * an absolutely-positioned slot whose left/width are AUTHORED FRACTIONS of this box
+ * (--s03-slot-left / --s03-slot-width, written by SceneSync). That is what keeps a clip's
+ * position independent of any flex/grid measurement — no JS layout read anywhere. */
+.drag-temporal .s03-track {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(216, 162, 74, 0.26);
+  border-radius: 2px;
+  background: rgba(9, 8, 11, 0.7);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.022);
+}
+
+.drag-temporal .s03-track--audio {
+  background: rgba(7, 6, 9, 0.78);
+}
+
+.drag-temporal .s03-clip-slot {
+  position: absolute;
+  top: clamp(3px, 0.9cqw, 5px);
+  bottom: clamp(3px, 0.9cqw, 5px);
+  left: var(--s03-slot-left, 0%);
+  width: var(--s03-slot-width, 10%);
+}
+
+/* Fill every nested clip/subtitle Animate holder so absolute children keep the slot footprint. */
+.drag-temporal .s03-clip-slot .cineview-animate,
+.drag-temporal .s03-clip-slot .cineview-animate > * {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s03-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid rgba(177, 189, 202, 0.32);
+  border-radius: 1px;
+  background: rgba(177, 189, 202, 0.12);
+}
+
+/* Act3Media writes exactly one active clip index; static overlays avoid a second clock. */
+.drag-temporal .s03-clip__select {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  border: 1px solid rgba(240, 198, 126, 0.92);
+  border-radius: 1px;
+  background: rgba(232, 183, 102, 0.2);
+  box-shadow:
+    0 0 0 1px rgba(240, 198, 126, 0.42),
+    0 0 16px rgba(216, 162, 74, 0.34),
+    inset 0 0 12px rgba(232, 183, 102, 0.16);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drag-temporal .s03-cut-stage[data-active-selection='0'] [data-s03-clip-selection='0'],
+.drag-temporal .s03-cut-stage[data-active-selection='1'] [data-s03-clip-selection='1'],
+.drag-temporal .s03-cut-stage[data-active-selection='2'] [data-s03-clip-selection='2'] {
+  opacity: 1;
+}
+
+/* The grab handles on the selected block's two edges. Inside the clip's own `overflow:
+ * hidden` box, so they read as part of the block rather than as decoration floating
+ * beside it. */
+.drag-temporal .s03-clip__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  display: block;
+  width: clamp(2px, 0.7cqw, 3px);
+  background: rgba(247, 226, 186, 0.94);
+  box-shadow: 0 0 8px rgba(232, 183, 102, 0.6);
+}
+
+.drag-temporal .s03-clip__handle--left {
+  left: 0;
+}
+
+.drag-temporal .s03-clip__handle--right {
+  right: 0;
+}
+
+/* Clip picture box. */
+.drag-temporal .s03-clip__surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.drag-temporal .s03-clip__surface > video,
+.drag-temporal .s03-clip__surface > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drag-temporal .s03-clip__poster {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The perforation strip along the clip's bottom edge — what marks the block as film rather
+ * than as a generic rectangle. */
+.drag-temporal .s03-clip__sprockets {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  height: clamp(3px, 1cqw, 5px);
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(199, 209, 220, 0.34) 0 2px,
+    transparent 2px 7px
+  );
+}
+
+/* The waveform lane: opacity-only, and the canvas draws its own reveal from the lane's
+ * progress. The holder has to fill the track or the canvas gets a zero box. */
+.drag-temporal .s03-track--audio > [data-cineview-animate-id='s03-waveform'],
+.drag-temporal .s03-track--audio > [data-cineview-animate-id='s03-waveform'] > * {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s03-wave-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* V2 subtitle blocks.
+ *
+ * 返工:「v2 把模糊去掉。」These carried `filter: blur(2.4px)` on the word, authored against
+ * 设计档 §3.3「模糊不可辨风格」 — subtitle blocks seen on a timeline rather than copy to read.
+ * The words are legible now; that design note is superseded for this track.
+ *
+ * NOTE for anyone re-adding a blur here: it must stay a STATIC property on the word and never
+ * an animated `filter`. `filter` IS one of the drag driver's ten animatable properties, so an
+ * animated one on this subtree composes with the lane's own transform stack and the two fight.
+ * That is why the blur lived on the inner span and not on a lane in the first place. */
+.drag-temporal .s03-subtitle {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(216, 162, 74, 0.24);
+  border-radius: 1px;
+  background: rgba(216, 162, 74, 0.1);
+  opacity: 0.34;
+}
+
+.drag-temporal .s03-cut-stage[data-active-media='0'] [data-s03-subtitle-index='0'],
+.drag-temporal .s03-cut-stage[data-active-media='1'] [data-s03-subtitle-index='1'],
+.drag-temporal .s03-cut-stage[data-active-media='2'] [data-s03-subtitle-index='2'] {
+  border-color: rgba(240, 198, 126, 0.78);
+  background: rgba(216, 162, 74, 0.22);
+  opacity: 1;
+}
+
+.drag-temporal .s03-subtitle__word {
+  color: rgba(243, 231, 213, 0.82);
+  font-family: var(--tp-font-body);
+  font-size: clamp(9px, 2.6cqw, 13px);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* ── Playhead ──────────────────────────────────────────────────────────────
+ * `Act3Media` writes inherited `--s03-play` from the preview's single transport time.
+ * Nothing here reads it as `left`: a `left` write invalidates layout every
+ * frame, so the offset is consumed as a `translate` on a BED-WIDTH box. That is the whole
+ * reason the rail exists — a percentage translate on the 1px line itself would resolve
+ * against 1px.
+ *
+ * `translate` (the standalone property), not `transform`: framer-motion owns `transform` on
+ * these holders, and the two compose in the spec's fixed order (translate, then transform)
+ * instead of overwriting each other. */
+.drag-temporal .s03-bed > [data-cineview-animate-id='s03-playhead'] {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.drag-temporal .s03-playhead {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s03-playhead__rail {
+  position: absolute;
+  /* Spans the three tracks and reaches into the bed's bottom gutter, where the readout
+   * sits. Inset horizontally by the bed's own padding so 0% and 100% of --s03-play line up
+   * with the tracks' own edges. */
+  top: clamp(28px, 8cqw, 40px);
+  right: clamp(8px, 2.4cqw, 13px);
+  bottom: clamp(4px, 1.2cqw, 7px);
+  left: calc(clamp(8px, 2.4cqw, 13px) + clamp(18px, 5cqw, 26px) + clamp(6px, 1.8cqw, 10px));
+}
+
+/* The beam holder is bed-width and carries the horizontal offset; the breath scale rides
+ * the anonymous infinite wrapper INSIDE it, so a pulsing scale can never displace the
+ * head — it only breathes the line's own thickness and glow. */
+.drag-temporal .s03-playhead__rail > [data-cineview-animate-id='s03-playhead-breath'] {
+  position: absolute;
+  inset: 0;
+  translate: var(--s03-play, 0%) 0;
+}
+
+.drag-temporal .s03-playhead__rail > [data-cineview-animate-id='s03-playhead-breath'] > * {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+}
+
+.drag-temporal .s03-playhead__beam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  width: 1px;
+}
+
+.drag-temporal .s03-playhead__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(232, 183, 102, 0.72) 10%,
+    rgba(232, 183, 102, 0.5) 88%,
+    transparent
+  );
+  box-shadow: 0 0 12px rgba(216, 162, 74, 0.22);
+}
+
+/* The diamond marker at the top of the line — the grab handle shape a deck's playhead has. */
+.drag-temporal .s03-playhead__head {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: block;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(232, 183, 102, 0.66);
+  background: rgba(20, 15, 11, 0.94);
+  box-shadow: 0 0 10px rgba(216, 162, 74, 0.24);
+  translate: -50% -50%;
+  rotate: 45deg;
+}
+
+/* The readout rides the same offset on its own bed-width holder, so the digits cannot drift
+ * away from the line they describe. */
+.drag-temporal .s03-playhead__rail > [data-cineview-animate-id='s03-timecode'] {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  translate: var(--s03-play, 0%) 0;
+}
+
+.drag-temporal .s03-playhead__readout {
+  position: absolute;
+  bottom: 0;
+  left: clamp(4px, 1.4cqw, 7px);
+  translate: calc(-1 * var(--s03-play, 0%)) 0;
+  color: rgba(232, 183, 102, 0.78);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(8px, 2.1cqw, 11px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(216, 162, 74, 0.22);
+}
+
+/* ── The seam element (stage 2 of the clip demo) ───────────────────────────
+ * Lives in the TRACK, not in a clip slot: it belongs to the boundary between two blocks
+ * rather than to either one. Positioned by the same two custom properties the slots use
+ * (--s03-slot-left / --s03-slot-width, written by ClipDemoSeam) so the seam's geometry is
+ * stated in the same units as the clips whose overlap it marks.
+ *
+ * `z-index` is load-bearing, not decoration: the seam is the last child of the track and
+ * has to paint OVER the two blocks it sits between, or a 6% band under an opaque clip is
+ * invisible no matter what its own lane does. */
+.drag-temporal .s03-seam {
+  position: absolute;
+  top: clamp(3px, 0.9cqw, 5px);
+  bottom: clamp(3px, 0.9cqw, 5px);
+  left: var(--s03-slot-left, 25%);
+  z-index: 3;
+  width: var(--s03-slot-width, 6%);
+  pointer-events: none;
+}
+
+/* The lane holder. `> *` is deliberately NOT here any more, and that is a real change rather
+ * than a tidy-up: the badge lane used to declare `infiniteAnimation`, which makes <Animate>
+ * render an extra anonymous motion.div (this file's header, §1.5 rule 4) that needed its own
+ * box. The lane is now a plain enter (one stroke, held), so there is exactly one node and
+ * `.s03-seam__band` is its direct child — already `inset: 0` on its own rule below. */
+.drag-temporal .s03-seam .cineview-animate {
+  position: absolute;
+  inset: 0;
+}
+
+/* The `opacity: 0` PRE-START RULE THAT USED TO SIT HERE IS DELETED, and it had to be: with the
+ * infinite wrapper gone, `.s03-seam .cineview-animate > *` no longer matched an anonymous
+ * motion.div — it matched `.s03-seam__band` itself. Nothing writes inline opacity onto the band
+ * (the drag lane writes the HOST), so the rule would have pinned every badge invisible for the
+ * whole act, with no error anywhere: three lanes running correctly on an element CSS had
+ * switched off. The old rule existed only because the loop-driven host had to stay at opacity 1;
+ * a plain enter lane animates its host 0 → 1 directly, so the pre-start state is the lane's
+ * `initial` and needs no CSS at all. */
+
+/* The highlight over the shared band: a cross-dissolve X drawn as two opposing ramps, so
+ * the overlap reads as one clip handing over to the other rather than as a lit rectangle. */
+.drag-temporal .s03-seam__band {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-left: 1px solid rgba(232, 183, 102, 0.62);
+  border-right: 1px solid rgba(232, 183, 102, 0.62);
+  background:
+    linear-gradient(90deg, rgba(232, 183, 102, 0.34), transparent 82%),
+    linear-gradient(270deg, rgba(232, 183, 102, 0.34), transparent 82%), rgba(216, 162, 74, 0.16);
+  box-shadow: 0 0 14px rgba(216, 162, 74, 0.3);
+}
+
+/* The transition marker a cross-dissolve carries on a timeline. Sized off the track's own
+ * ruler (cqw) like every other detail in the bed, so it stays proportional at every
+ * viewport width instead of being a fixed glyph in a width-derived lane. */
+.drag-temporal .s03-seam__mark {
+  color: rgba(247, 226, 186, 0.94);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(8px, 2.4cqw, 12px);
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(216, 162, 74, 0.55);
+}
+
+/* ── Act 04 · Optical shutter ────────────────────────────────────────────────
+ * Layered after the supplied photographic lens: black barrel, cool coated glass, blue steel
+ * leaves, and restrained violet/cyan reflections. The canvas owns only moving blade paint;
+ * all static lens material lives here. */
+.drag-temporal .tp-scene--04 {
+  --tp-sig: #72bfff;
+  --tp-sig-glow: rgba(78, 159, 255, 0.34);
+  --tp-accent: #a9d8ff;
+  --tp-accent-soft: #5a8ec7;
+  --tp-accent-dim: rgba(82, 151, 229, 0.18);
+  --tp-accent-glow: rgba(75, 145, 255, 0.32);
+  background:
+    radial-gradient(circle at 50% 47%, rgba(38, 86, 162, 0.18), transparent 38%),
+    radial-gradient(circle at 38% 28%, rgba(111, 69, 143, 0.08), transparent 30%), #030407;
+}
+
+/* Background columns. Alphas unchanged (0.16 / 0.11 / 0.21) — depth comes from the three
+ * columns sitting at different alphas, and that relationship is what was tuned. Only the
+ * hue moves. */
+.drag-temporal .s04-stream--left {
+  color: rgba(91, 164, 239, 0.16);
+}
+
+.drag-temporal .s04-stream--center {
+  color: rgba(119, 102, 196, 0.1);
+}
+
+.drag-temporal .s04-stream--right {
+  color: rgba(91, 164, 239, 0.2);
+}
+
+.drag-temporal .s04-clock {
+  isolation: isolate;
+}
+
+/* Stacking inside the clock: eclipse disc/arc at the bottom, the iris above it, digits on
+ * top. The shutter sits in front of the sun and the timecode is the instrument reading it,
+ * so the iris must not cover the readout.
+ *
+ * The z 2 rule is CORRECTNESS, not cosmetics: `.s04-eclipse__disc` is a 94%-opaque near-black
+ * circle covering exactly the barrel area, and the ring's own lane is z 1 — a lane left at
+ * `auto` loses to 1 regardless of document order, so the iris would be drawn and then hidden.
+ * It has to live here, keyed by animate-id, because `Animate` exposes no style/className for
+ * its wrapper and that wrapper is a `motion.div` carrying the drag transform stack — a
+ * stacking context, so an inner z-index is trapped inside it. */
+.drag-temporal .s04-clock > [data-cineview-animate-id='s04-progress-ring'] {
+  z-index: 1;
+}
+
+.drag-temporal .s04-clock > [data-cineview-animate-id='s04-aperture'] {
+  z-index: 2;
+}
+
+.drag-temporal .s04-clock > [data-cineview-animate-id='s04-main-timecode'] {
+  z-index: 3;
+}
+
+/* The eclipse itself. `.s04-halo*` (wash / core / breath / orbit / progress-arc) is gone:
+ * that was the old progress ring's five-layer glow stack, and the act no longer has a
+ * progress ring. */
+.drag-temporal .s04-eclipse-shell,
+.drag-temporal .s04-eclipse {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s04-eclipse-shell {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 22px 24px rgba(0, 0, 0, 0.54));
+}
+
+.drag-temporal .s04-lens__knurl,
+.drag-temporal .s04-lens__barrel,
+.drag-temporal .s04-lens__inner-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  translate: -50% -50%;
+}
+
+.drag-temporal .s04-lens__knurl {
+  width: 98%;
+  background: repeating-conic-gradient(#a7abb3 0 1deg, #1a1c20 1deg 2.4deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 0 91%, #000 91.5% 100%);
+  mask-image: radial-gradient(circle, transparent 0 91%, #000 91.5% 100%);
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.38));
+}
+
+.drag-temporal .s04-lens__barrel {
+  width: 94%;
+  border: clamp(11px, 3cqw, 17px) solid #090a0d;
+  background: radial-gradient(circle, transparent 0 64%, #111319 65% 72%, #050609 73% 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(198, 205, 220, 0.3),
+    inset 0 0 0 clamp(8px, 2.1cqw, 12px) #191c22,
+    inset 0 0 0 clamp(12px, 3cqw, 18px) #050609,
+    0 0 0 2px #343840,
+    0 0 0 5px #090a0d;
+}
+
+.drag-temporal .s04-lens__inner-ring {
+  width: 79%;
+  border: clamp(7px, 1.8cqw, 11px) solid rgba(80, 91, 109, 0.9);
+  background: transparent;
+  box-shadow:
+    0 0 0 2px rgba(7, 9, 15, 0.96),
+    0 0 0 clamp(9px, 2.2cqw, 13px) rgba(18, 22, 31, 0.98),
+    inset 0 0 12px rgba(111, 172, 255, 0.24);
+}
+
+/* Coated glass behind the blades. The moving canvas roots sit at 72% diameter, leaving the
+ * barrel rings visible around it. */
+.drag-temporal .s04-eclipse__disc {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(111, 181, 255, 0.7), transparent 24%),
+    radial-gradient(circle at 62% 66%, rgba(15, 116, 202, 0.72), transparent 44%),
+    radial-gradient(circle, #102b70 0, #07183f 58%, #020817 100%);
+  box-shadow:
+    inset 0 0 52px rgba(0, 4, 22, 0.78),
+    0 0 30px rgba(55, 123, 224, 0.22);
+  translate: -50% -50%;
+}
+
+/* The limb: the hot inner edge that lights up as totality approaches. Its `opacity` and
+ * `transform` are written INLINE per frame by EclipseGraphic (from one MotionValue), so
+ * neither is authored here — only the geometry and the light. A ring, not a disc: the glow
+ * blooms OUTWARD from the arc and leaves the interior clean for the timecode. */
+.drag-temporal .s04-eclipse__limb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 73%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(188, 219, 255, 0.58);
+  border-radius: 50%;
+  box-shadow:
+    0 0 24px 3px rgba(75, 151, 255, 0.36),
+    0 0 52px 10px rgba(107, 83, 200, 0.14);
+  translate: -50% -50%;
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+
+.drag-temporal .s04-eclipse__arc-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* The arc's drop-shadow reaches past the viewBox; `visible` keeps SVG from cutting it. */
+  overflow: visible;
+  /* Start the dash at 12 o'clock and run clockwise, so the shadow's leading edge travels
+   * the way the finger pushes it. */
+  rotate: -90deg;
+}
+
+.drag-temporal .s04-eclipse__arc {
+  fill: none;
+  stroke: #b7d9ff;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(93, 168, 255, 0.66));
+}
+
+/* Canvas and optical overlay share the exact clock box. Neither is clipped: the pure geometry
+ * keeps every blade inside its 36% barrel radius, and the DOM reflections fade within it. */
+.drag-temporal .s04-aperture-shell {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.drag-temporal .s04-aperture-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.drag-temporal .s04-lens-reflections {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.drag-temporal .s04-lens-reflection,
+.drag-temporal .s04-lens__mark {
+  position: absolute;
+  display: block;
+}
+
+.drag-temporal .s04-lens-reflection--broad {
+  top: 22%;
+  left: 25%;
+  width: 47%;
+  height: 17%;
+  border-radius: 58% 42% 54% 46%;
+  background: linear-gradient(
+    105deg,
+    rgba(219, 238, 255, 0.62),
+    rgba(171, 165, 255, 0.2) 64%,
+    transparent
+  );
+  filter: blur(2px);
+  rotate: -10deg;
+}
+
+.drag-temporal .s04-lens-reflection--strip {
+  top: 27%;
+  left: 31%;
+  width: 38%;
+  height: 7%;
+  border-radius: 50%;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(234, 245, 255, 0.28) 0 2px,
+    transparent 2px 6px
+  );
+  filter: blur(0.6px);
+  rotate: -9deg;
+}
+
+.drag-temporal .s04-lens-reflection--flare {
+  top: 19%;
+  left: 46%;
+  width: 17%;
+  height: 30%;
+  background: linear-gradient(120deg, rgba(255, 214, 229, 0.28), transparent 72%);
+  filter: blur(3px);
+  rotate: -18deg;
+}
+
+.drag-temporal .s04-lens__mark {
+  z-index: 3;
+  color: rgba(198, 205, 220, 0.5);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(6px, 1.5cqw, 9px);
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 0 #000;
+  white-space: nowrap;
+}
+
+.drag-temporal .s04-lens__mark--top {
+  top: 11.5%;
+  left: 50%;
+  translate: -50% 0;
+}
+
+.drag-temporal .s04-lens__mark--left {
+  top: 50%;
+  left: 8.5%;
+  rotate: -82deg;
+  translate: -50% -50%;
+}
+
+.drag-temporal .s04-lens__mark--right {
+  top: 50%;
+  right: 10%;
+  rotate: 84deg;
+  translate: 50% -50%;
+}
+
+.drag-temporal .s04-main-timecode {
+  position: relative;
+  z-index: 3;
+  color: #d5ecff;
+  text-shadow:
+    0 0 12px rgba(86, 162, 255, 0.52),
+    0 0 28px rgba(91, 105, 214, 0.24);
+}
+
+.drag-temporal .s04-main-timecode > .cineview-animate {
+  display: inline-block;
+  min-width: 0.58em;
+  text-align: center;
+}
+
+.drag-temporal .s04-main-timecode > .cineview-animate:nth-child(3n) {
+  min-width: 0.34em;
+  color: var(--tp-accent-soft);
+}
+
+.drag-temporal .s04-main-timecode [data-timecode-char] {
+  display: inline-block;
+}
+
+/* ── Act 05 · Curtain call ──────────────────────────────────────────────────
+ *
+ * DELETED with the act's rewrite, because their JSX is gone: `.s05-kicker` (FINAL CUT),
+ * `.s05-title` / `.s05-title__word` / `.s05-title__char`, `.s05-spotlight*`, `.s05-floor`,
+ * and all auditorium screen/wall/seat rules. The final frame is intentionally unframed:
+ * projector light and dust behind the curtain-call type.
+ *
+ * The beam is painted behind the type; there is no intervening panel or room geometry. */
+.drag-temporal .tp-scene--05 {
+  --tp-sig: #e1a45b;
+  --tp-sig-glow: rgba(225, 164, 91, 0.34);
+  --tp-accent: #e1a45b;
+  --tp-accent-soft: #eac18d;
+  --tp-accent-dim: rgba(225, 164, 91, 0.17);
+  --tp-accent-glow: rgba(225, 164, 91, 0.32);
+  background:
+    radial-gradient(ellipse 66% 58% at 14% 4%, rgba(255, 226, 183, 0.2), transparent 62%),
+    radial-gradient(ellipse 64% 40% at 50% 24%, rgba(225, 164, 91, 0.08), transparent 68%),
+    linear-gradient(180deg, #050506, #08090c 68%, #0c0d11);
+}
+
+.drag-temporal .s05-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Projector beam ────────────────────────────────────────────────────────
+ * Origin at the projection port: the enter scale reads as the beam THROWING further into
+ * the room rather than as a box inflating. Must be on the holder, since that is the box
+ * framer-motion transforms. */
+.drag-temporal .s05-stage > [data-cineview-animate-id='s05-beam'] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  transform-origin: 50% 100%;
+}
+
+/* Additive light, and therefore UNCLIPPED (§8.4). The wedge shape comes from a conic MASK
+ * whose transparent→opaque ramp spans 20 degrees on each side — a soft boundary by
+ * construction, so there is no edge to render as a bright line when the layer is scaled. */
+.drag-temporal .s05-beam {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  -webkit-mask-image: conic-gradient(
+    from -30deg at 50% 100%,
+    transparent 0deg,
+    #000 20deg,
+    #000 40deg,
+    transparent 60deg
+  );
+  mask-image: conic-gradient(
+    from -30deg at 50% 100%,
+    transparent 0deg,
+    #000 20deg,
+    #000 40deg,
+    transparent 60deg
+  );
+  pointer-events: none;
+}
+
+/* The hot lens at the beam origin. */
+.drag-temporal .s05-beam__port {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: block;
+  width: clamp(26px, 7cqw, 40px);
+  height: clamp(8px, 2.2cqw, 12px);
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(255, 244, 224, 0.5),
+    rgba(225, 164, 91, 0.14) 56%,
+    transparent 82%
+  );
+  filter: blur(3px);
+  translate: -50% 30%;
+}
+
+/* The volumetric throw. Two nested conic wedges (a hot core inside a wider falloff) plus a
+ * radial distance mask — the same construction as act 2's key beam, and for the same reason:
+ * a single flat wedge reads as a painted triangle, while a hot core inside a soft falloff
+ * reads as volume. Every stop ends in full transparency before the box, so the layer has no
+ * boundary of its own. */
+.drag-temporal .s05-beam__cone {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background:
+    conic-gradient(
+      from -22deg at 50% 100%,
+      transparent 0deg,
+      rgba(225, 164, 91, 0.05) 8deg,
+      rgba(255, 225, 178, 0.1) 18deg,
+      rgba(255, 225, 178, 0.1) 26deg,
+      rgba(225, 164, 91, 0.05) 36deg,
+      transparent 44deg
+    ),
+    conic-gradient(
+      from -10deg at 50% 100%,
+      transparent 0deg,
+      rgba(255, 236, 202, 0.09) 4deg,
+      rgba(255, 248, 232, 0.16) 10deg,
+      rgba(255, 236, 202, 0.09) 16deg,
+      transparent 20deg
+    );
+  -webkit-mask-image: radial-gradient(
+    120% 104% at 50% 100%,
+    #000 8%,
+    rgba(0, 0, 0, 0.7) 48%,
+    rgba(0, 0, 0, 0.26) 76%,
+    transparent 97%
+  );
+  mask-image: radial-gradient(
+    120% 104% at 50% 100%,
+    #000 8%,
+    rgba(0, 0, 0, 0.7) 48%,
+    rgba(0, 0, 0, 0.26) 76%,
+    transparent 97%
+  );
+}
+
+/* Dust track. 200% TALL, and that is what makes the loop seamless: ProjectorBeam renders two
+ * stacked copies of the same scatter and translates by -50%, so copy 2 lands exactly where
+ * copy 1 began. The percentage resolves against the animated box's OWN height, so the
+ * holder and the anonymous infinite wrapper inside it must both be 200% tall — a
+ * shrink-wrapped wrapper would make `-50%` mean 0px and the dust would sit still. */
+.drag-temporal .s05-beam > [data-cineview-animate-id='s05-beam-dust'] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 200%;
+}
+
+.drag-temporal .s05-beam > [data-cineview-animate-id='s05-beam-dust'] > * {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s05-beam__dust {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s05-beam__mote {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: rgba(255, 244, 224, 0.9);
+}
+
+.drag-temporal .s05-curtain-call {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: clamp(5px, 1.4cqw, 8px);
+  overflow: hidden;
+  padding: clamp(24px, 8cqw, 80px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.drag-temporal .s05-credit,
+.drag-temporal .s05-the-end {
+  margin: 0;
+}
+
+/* The credits' two nested lanes (outer travel, inner fade) both render a holder. Neither
+ * animates a percentage, so no inset is required — but the pair must stay in the grid's
+ * flow, which `display: contents` would break by promoting the <p> to a grid item with the
+ * wrong row. Left as plain boxes deliberately. */
+.drag-temporal .s05-credits {
+  display: grid;
+  gap: clamp(3px, 0.8cqw, 5px);
+  width: min(82vw, 620px);
+  max-width: 100%;
+}
+
+.drag-temporal .s05-credit {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  align-items: baseline;
+  gap: clamp(8px, 2.2cqw, 14px);
+  color: rgba(243, 231, 213, 0.92);
+  text-align: left;
+}
+
+.drag-temporal .s05-credit > span {
+  color: rgba(234, 193, 141, 0.64);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(10px, 2.6cqw, 14px);
+  letter-spacing: 0.12em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.drag-temporal .s05-credit > strong {
+  font-family: var(--tp-font-display);
+  font-size: clamp(16px, 4.2cqw, 22px);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.drag-temporal .s05-the-end {
+  margin-top: clamp(6px, 1.6cqw, 10px);
+  color: #f3e7d5;
+  font-family: var(--tp-font-mono);
+  font-size: clamp(12px, 3.2cqw, 17px);
+  letter-spacing: 0.32em;
+  text-shadow: 0 0 20px rgba(225, 164, 91, 0.35);
+}
+
+@media (max-height: 720px) {
+  .drag-temporal .s03-cut-stage {
+    padding-top: clamp(18px, 5cqw, 32px);
+  }
+
+  .drag-temporal .s05-curtain-call {
+    gap: 5px;
+  }
+
+  .drag-temporal .s05-credits {
+    gap: 4px;
+    margin-top: 5px;
+  }
+
+  .drag-temporal .s05-the-end {
+    margin-top: 6px;
+  }
+}

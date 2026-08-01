@@ -18,8 +18,7 @@ function guessDefaultLang(): Lang {
   if (typeof window === 'undefined') return 'en';
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === 'zh' || stored === 'en') return stored;
-  const nav = window.navigator.language || '';
-  return nav.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  return 'en';
 }
 
 interface I18nContextValue {

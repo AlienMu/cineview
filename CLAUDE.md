@@ -103,7 +103,7 @@ pnpm format                  # Prettier
     scroll: { direction: 'y', zoneTrigger: 'center-lock' },
   }}
   scrollbar={{ enabled: true, width: 6, autoHide: true }}
-  callbacks={{ common: { onReady }, drag: { onDragCommit }, scroll: { onZoneProgress } }}
+  callbacks={{ onReady, onZoneProgress }} // mode='scroll'：common + scroll 回调扁平传入
   performance={{ monitor: true }}
   ref={cineViewRef}
 >
@@ -148,12 +148,12 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
   enterAnimation="fade-in"
   exitAnimation="fade-out"
   duration={{ enter: 800, exit: 400 }}
-  timeline={{ driver: 'scroll', delay: 200, waitFor: 'subtitle' }}
+  timeline={{ sceneControlled: true, delay: 200, waitFor: 'subtitle' }}
   visibility={{ replayOnReenter: true }}
 >
 ```
 
-`timeline.driver` 默认 `'auto'`：drag 下跟随场景；scroll 下若在 `Scene.scroll` 内默认为 `'scroll'`，否则为 `'visibility'`。
+`timeline.sceneControlled` 默认 `true`：scroll 下位于 `Scene.scroll` 内时绑定该 scene 的 takeover 时间轴；无 takeover 时降级为 visibility。设为 `false` 可在 takeover scene 内强制使用 visibility。drag 下该字段不改变场景级时间语义。
 
 ### Position
 
@@ -226,6 +226,12 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 3. **先恢复行为基线，再做架构迁移**：重构引发行为回归时，先修回归再继续拆分
 4. **验收必须多 agent 真实环境实测**：scroll/drag 交互路径不能只靠实现者自跑单测收口；必须由独立 agent 在真实浏览器环境（独立 lane）跑通用户描述的完整手势/输入路径后才算验收通过
 5. **每节点完成后立即读 task-flow**：不停在已通过节点上，检查下一个可执行节点
+6. **禁止在框架外自建框架已有的行为（不能再犯）**：站点/示例是框架的使用方，不是第二套动画引擎。以下四条是硬规则：
+   - **常驻/循环动效一律用 `Animate` 的 `infiniteAnimation`，禁止用 CSS `animation: … infinite`**。理由不是风格：`infiniteAnimation` 由 `shouldRunInfinite` 门控（见 `useAnimateScroll.ts` 的决策注释），循环只在元素同时处于自身 phase 且在视口内时运行，离屏/退场自动 `controls.stop()`。CSS `infinite` 不受 phase 约束，会出现「其他元素都已退场、这个还在动」的破窗。正确范例：`site/src/components/temporal-drag/DragHint.tsx`。
+   - **站点组件禁止直接 import framer-motion**（`motion.*` / `useSpring` / `useTransform` 自建驱动）。需要读进度/相位时用框架出口 `useAnimateTimeline()`（`progress` / `signedProgress` / `phase` 均为 MotionValue）。自建 `useSpring` 有自己的时间常数，不跟随 exit 进度收敛。
+   - **canvas 自绘是唯一豁免**（DESIGN.md §0 许可：子元素读 MotionValue 自驱 rAF，零 per-frame setState），但**必须订阅 `timeline.phase` 并在 `exited`/`idle` 暂停 rAF**，且在文件头注释标注豁免理由。参考 `clapperboard/ClapperboardCanvas.tsx`。
+   - **入场用 `waitFor` + `delay` 做了级联编排的，退场必须有对应的反向编排**。只写 `enterAnimation` 链而不编排 exit，会导致入场逐个有序、退场全部同时触发（「打包回滚」），时序不对称。
+   - 自建 rAF/`setInterval` 驱动动画同样受本条约束；数据源型 hook（如 `useTimecode`）不算动画，不受限。
 
 ---
 

@@ -15,3 +15,10 @@ verify-*.md
 manual-inspection.mjs
 animation-verification.html
 *.png
+__*.mjs
+cap-visual.mjs
+*.cjs
+
+# Ad-hoc probe scripts (DOM/geometry/motion inspection during development).
+# Everything under site/scripts is throwaway; nothing here is wired into npm scripts.
+scripts

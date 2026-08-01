@@ -1,19 +1,21 @@
-import { useLocation } from 'react-router-dom';
 import { useI18n } from '../i18n';
 
 /**
- * 右上角浮动语言切换 — 唯一常驻 chrome（取消了顶栏，见 task-flow 阶段1变更）。
- * 一个地球图标 + 当前可切到的语言短码。GitHub/导航全部下放到页内。
+ * 浮动语言切换 — 一个地球图标 + 当前可切到的语言短码。
+ *
+ * 挂载点由**调用方**决定，本组件不再自己嗅探路由：
+ * - 普通页面（Home / Demo / Docs）各自挂在页面右上角，用 `.lang-toggle` 默认定位；
+ * - `/drag` 由 act1 的 `<Scene>` 内部挂载并包一层 `<Animate>`（见 SceneRolling
+ *   的 GatedLangToggle），因此它跟随拖拽时间轴进退场，而不是浮在五幕之上。
+ *   该场景用 `.s01-lang-slot` 承担定位，`variant` 只负责配色。
  */
-export function LangToggle(): JSX.Element {
-  const { pathname } = useLocation();
+export function LangToggle({ variant }: { variant?: 'drag' } = {}): JSX.Element {
   const { t, lang, toggleLang } = useI18n();
-  const className = pathname === '/drag' ? 'lang-toggle lang-toggle--drag' : 'lang-toggle';
 
   return (
     <button
       type="button"
-      className={className}
+      className={variant === 'drag' ? 'lang-toggle lang-toggle--drag' : 'lang-toggle'}
       onClick={toggleLang}
       aria-label={t('nav.langLabel')}
       title={t('nav.langLabel')}
@@ -32,7 +34,7 @@ export function LangToggle(): JSX.Element {
         <path d="M3 12h18" />
         <path d="M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9s1.3-6.5 3.8-9z" />
       </svg>
-      <span className="lang-toggle__code mono">{lang === 'zh' ? 'EN' : '中'}</span>
+      <span className="lang-toggle__code mono">{lang === 'zh' ? 'EN' : 'ZH'}</span>
     </button>
   );
 }

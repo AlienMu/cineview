@@ -9,10 +9,16 @@
   --tp-bg-glass: rgba(12, 10, 12, 0.72);
   --tp-ink: #ede8e0;
   --tp-ink-soft: #b4ada1;
-  /* Chrome ink (HUD/footer/corner labels). Lifted from the old #5c564e — which
-   * sat UNDER the z:50 vignette and read as near-invisible on a 390px phone — to
-   * a warm mid-grey that clears the softened vignette. */
-  --tp-ink-mute: #8b8479;
+  /* Muted ink for small mono labels. Lifted twice: first from #5c564e, which sat UNDER the
+   * z:50 vignette and read as near-invisible on a 390px phone; then from #8b8479, whose
+   * 5.33:1 against bare --tp-bg still measured only 4.00 / 3.88 in real composited pixels
+   * on ACT 1 — the ambient rig lifts the local background, so the on-paper ratio is not
+   * what ships. (Those two measurements were taken on the since-deleted `.s01-slate` and
+   * `.tp-rec` labels; the ratio they establish for muted ink over the lit act-1 plate still
+   * holds for whatever sits there.) Raising labels above the rig (z 46) fixed the elements
+   * that sit in their own boxes but could not help ones directly over the lit plate.
+   * #9a9287 is 6.42:1 bare, leaving headroom for that lift. Verified from pixels. */
+  --tp-ink-mute: #9a9287;
   --tp-ink-faint: rgba(237, 232, 224, 0.1);
 
   /* Film-grade three-color system (the teal-&-orange color-grade the subject
@@ -30,6 +36,13 @@
     74,
     0.22
   ); /* base tone: glow dialed DOWN so amber reads as the sunk resting pole */
+  /* Cool pole. Act 04 no longer consumes these two: the eclipse act was recoloured to a
+   * night-fluorescent green (#39ff88, see .tp-scene--04 in temporal-scenes-03-05.css) so the
+   * corona bloom would not read as two competing cool families. They are kept as the
+   * DOCUMENTED cool pole of the three-colour system — the roles below are the palette's
+   * contract, and deleting the token would delete the contract with it — but they currently
+   * have no consumer. Any new cool-pole element should take them rather than re-invent a
+   * value. */
   --tp-sig-teal: #409ba8; /* instrument cyan: desaturated toward a scope/monitor readout, away from brand-cyan */
   --tp-sig-teal-glow: rgba(64, 155, 168, 0.28);
   --tp-sig-rec: #e64536; /* tally red: pushed toward pure red, hue distance from amber widened so the terminal beat snaps */
@@ -127,8 +140,7 @@
       transparent 58%
     ),
     radial-gradient(ellipse 120% 80% at 50% 108%, rgba(60, 66, 82, 0.14) 0%, transparent 60%),
-    linear-gradient(90deg, transparent 49.8%, var(--tp-rule) 50%, transparent 50.2%),
-    var(--tp-bg);
+    linear-gradient(90deg, transparent 49.8%, var(--tp-rule) 50%, transparent 50.2%), var(--tp-bg);
 }
 
 .drag-temporal .tp-scene--03,
@@ -151,89 +163,60 @@
   --tp-sig: var(--tp-sig-amber);
   --tp-sig-glow: var(--tp-sig-amber-glow);
 }
+/* Act 2 is a tungsten set: dark gold only, no teal anywhere (user decree
+ * 「颜色改为暗金色不要用青色」). This block is what actually decided the colour of the
+ * eyebrow, the HUD signal and every --tp-accent consumer inside the act — recolouring
+ * the light rig alone left the copy cyan. */
 .drag-temporal .tp-scene--02 {
-  --tp-sig: var(--tp-sig-teal);
-  --tp-sig-glow: var(--tp-sig-teal-glow);
-  --tp-accent: var(--tp-sig-teal);
-  --tp-accent-soft: #4a9aa0;
-  --tp-accent-dim: rgba(94, 200, 208, 0.16);
-  --tp-accent-glow: var(--tp-sig-teal-glow);
+  --tp-sig: var(--tp-sig-amber);
+  --tp-sig-glow: var(--tp-sig-amber-glow);
+  --tp-accent: #c9a05a;
+  --tp-accent-soft: #96703a;
+  --tp-accent-dim: rgba(190, 146, 74, 0.18);
+  --tp-accent-glow: rgba(190, 146, 74, 0.24);
 }
 .drag-temporal .tp-scene--03 {
   --tp-sig: var(--tp-sig-amber);
   --tp-sig-glow: var(--tp-sig-amber-glow);
 }
-.drag-temporal .tp-scene--04 {
-  --tp-sig: var(--tp-sig-teal);
-  --tp-sig-glow: var(--tp-sig-teal-glow);
-  --tp-accent: var(--tp-sig-teal);
-  --tp-accent-soft: #4a9aa0;
-  --tp-accent-dim: rgba(94, 200, 208, 0.16);
-  --tp-accent-glow: var(--tp-sig-teal-glow);
-}
-.drag-temporal .tp-scene--05 {
-  --tp-sig: var(--tp-sig-rec);
-  --tp-sig-glow: var(--tp-sig-rec-glow);
-  --tp-accent: var(--tp-sig-rec);
-  --tp-accent-soft: #b8564a;
-  --tp-accent-dim: rgba(224, 87, 74, 0.16);
-  --tp-accent-glow: var(--tp-sig-rec-glow);
-}
+/* Acts 04 and 05 declare their own palettes in `temporal-scenes-03-05.css`, which is
+ * imported after this file. Duplicate blocks used to sit here as well, with DIFFERENT
+ * values (04 teal vs the act's fluorescent green, 05 rec-red vs its warm amber): same
+ * specificity, so the later file silently won and this copy was a decoy that made the
+ * palette look like it was authored in two places. Both are deleted; each act's colour
+ * now has exactly one declaration site. */
 
+/* One row, and only one. The chrome bands (HUD / footer) that used to own the first
+ * and third tracks are gone, so every act's inner now holds a single <main> stage —
+ * plus, on act 2, an out-of-flow light rig (position:absolute) that claims no track.
+ * `minmax(0, 1fr)` rather than `display: block` because the stages take their height
+ * from the track: s02-stage is itself a grid with a `minmax(0,1fr)` row, and
+ * s04/s05-stage are relative boxes whose whole content is absolutely positioned, so
+ * all three collapse to zero height the moment they have to shrink-wrap. Grid stretch
+ * hands them the full height for free; block would need a `height: 100%` added to each. */
 .drag-temporal .tp-scene__inner {
   display: grid;
-  grid-template-rows: clamp(42px, 12.3cqw, 64px) minmax(0, 1fr) clamp(36px, 10.3cqw, 54px);
+  grid-template-rows: minmax(0, 1fr);
   width: 100%;
   height: 100%;
 }
 
-.drag-temporal .tp-hud,
-.drag-temporal .tp-footer {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  padding-inline: var(--tp-space-4);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.drag-temporal .tp-hud {
-  border-bottom: 1px solid var(--tp-rule);
-}
-
-.drag-temporal .tp-footer {
-  border-top: 1px solid var(--tp-rule);
-  color: var(--tp-ink-mute);
-}
-
-.drag-temporal .tp-hud__left,
-.drag-temporal .tp-hud__right,
 .drag-temporal .tp-rec {
   display: flex;
   align-items: center;
-}
-
-.drag-temporal .tp-hud__left {
-  gap: var(--tp-space-3);
-}
-
-.drag-temporal .tp-hud__right {
-  gap: var(--tp-space-4);
-  color: var(--tp-ink-mute);
-}
-
-.drag-temporal .tp-rec {
   gap: var(--tp-space-2);
   color: var(--tp-ink-mute);
 }
 
 .drag-temporal .tp-rec.is-recording {
-  color: var(--tp-rec);
+  /* A lightened tally red for the LABEL only — the signal token --tp-rec stays exactly
+   * as authored and still drives the dot, act 5, and every glow, so the palette's
+   * terminal-red semantics are untouched. #e64536 is 4.95:1 on bare --tp-bg but measured
+   * 3.88:1 in composited pixels on act 1, where the ambient rig lifts the plate under it
+   * (same cause as the act-1 slate label, since deleted). 10px text needs 4.5:1, so the
+   * glyph colour is lifted to
+   * #ef5a4a (5.85:1 bare) for headroom. Same hue, ~9% lighter. */
+  color: #ef5a4a;
 }
 
 .drag-temporal .tp-rec-dot {
@@ -244,9 +227,11 @@
   background: currentColor;
 }
 
+/* The pulse itself lives on the framework's infinite lane (<Animate
+ * infiniteAnimation> in RecBadge) so it stops when the HUD leaves its phase.
+ * Only the static glow stays here; reduced-motion is handled in the component. */
 .drag-temporal .tp-rec.is-recording .tp-rec-dot {
   box-shadow: 0 0 0 var(--tp-space-1) var(--tp-rec-glow);
-  animation: tp-rec-pulse 1.8s ease-in-out infinite;
 }
 
 .drag-temporal .tp-timecode {
@@ -271,26 +256,6 @@
 .drag-temporal .tp-timecode__characters > span:nth-child(3n) {
   min-width: 0.42em;
   color: var(--tp-ink-mute);
-}
-
-.drag-temporal .tp-footer__hint {
-  overflow: hidden;
-  max-width: 62%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.drag-temporal .tp-sprocket {
-  display: block;
-  width: clamp(3px, 1cqw, 5px);
-  height: clamp(5px, 1.6cqw, 8px);
-  border-radius: 1px;
-  background: var(--tp-ink-faint);
-}
-
-.drag-temporal .tp-sprocket--end {
-  background: var(--tp-accent-dim);
-  box-shadow: inset 0 0 0 1px var(--tp-accent-soft);
 }
 
 .drag-temporal .tp-placeholder {
@@ -318,9 +283,28 @@
   letter-spacing: 0.18em;
 }
 
-.lang-toggle.lang-toggle--drag {
-  top: clamp(58px, 15vw, 76px);
-  right: clamp(12px, 3vw, 22px);
+/* The language toggle is no longer page chrome: it is mounted INSIDE act 1's <Scene>
+ * (SceneRolling's GatedLangToggle) so it scrubs with the act's own timeline instead of
+ * sitting at full opacity over all five acts.
+ *
+ * Consequence for the geometry: `.lang-toggle`'s base rule in design/global.css is
+ * `position: absolute` with its own top/right, which would now resolve against whichever
+ * positioned ancestor the drag tree happens to provide — and its self-positioning would
+ * fight the <Animate> holder that owns its transform. The slot below owns the placement;
+ * the button itself goes back into normal flow inside it. */
+.drag-temporal .s01-lang-slot {
+  position: absolute;
+  top: clamp(10px, 3cqw, 20px);
+  right: clamp(10px, 3cqw, 20px);
+  /* Above the ambient rig (z 45) for the same reason .s01-stage is: small mono type over
+   * the lit plate loses contrast under a screen-blended layer. */
+  z-index: 47;
+}
+
+.drag-temporal .lang-toggle.lang-toggle--drag {
+  position: relative;
+  top: auto;
+  right: auto;
   min-width: 44px;
   min-height: 44px;
   color: #9a948a;
@@ -330,27 +314,31 @@
 
 .drag-temporal .s01-stage {
   position: relative;
+  z-index: 46;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(var(--tp-space-4), 4.5cqw, var(--tp-space-6));
+  gap: clamp(var(--tp-space-5), 6cqw, var(--tp-space-7));
   min-height: 0;
   padding: clamp(var(--tp-space-5), 7cqw, var(--tp-space-7)) 0
     clamp(var(--tp-space-6), 8cqw, var(--tp-space-8));
   overflow: hidden;
 }
 
-.drag-temporal .s01-slate {
+.drag-temporal .s01-dial-shell {
+  position: relative;
+  --s01-dial-size: min(68cqw, 340px);
+  width: var(--s01-dial-size);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+}
+
+.drag-temporal .s01-dial-shell > .cineview-animate,
+.drag-temporal .s01-dial-shell > .cineview-animate > * {
   position: absolute;
-  top: var(--tp-space-3);
-  left: 50%;
-  margin: 0;
-  color: var(--tp-ink-mute);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.18em;
-  translate: -50% 0;
+  inset: 0;
+  transform-origin: 50% 50%;
 }
 
 .drag-temporal .s01-dial {
@@ -358,12 +346,9 @@
   /* Single size base for the whole dial. Both the tick ring AND the inner ring
    * derive their radius from this one token, so they can never drift onto two
    * different circles the way the old min(58cqw,300px) vs 45cqw/234px split did. */
-  --s01-dial-size: min(58cqw, 300px);
-  /* Radius the tick bars are seated on (center of the tick sits here). */
   --s01-ring-radius: calc(var(--s01-dial-size) * 0.4);
-  width: var(--s01-dial-size);
-  aspect-ratio: 1;
-  flex: 0 0 auto;
+  width: 100%;
+  height: 100%;
 }
 
 .drag-temporal .s01-dial > .cineview-animate,
@@ -382,13 +367,18 @@
   border-radius: 50%;
 }
 
-/* Each clock segment is a framework <Animate> (its motion.div = .cineview-animate)
- * that must FILL the dial so the 5 tick anchors inside land at dial center and the
- * segment's enter scale (0.62 -> 1, around its own center = dial center) grows them
- * outward onto the ring. Without inset:0 the wrapper would collapse and the polar
- * translateY(-radius) would measure from the wrong origin. */
-.drag-temporal .s01-dial__ticks > .cineview-animate,
-.drag-temporal .s01-tick-segment {
+/* One framework <Animate> PER TICK (60 lanes, `s01-tick-0` … `s01-tick-59`), each on an
+ * absolute delay equal to the moment the second hand crosses it. Every one of those
+ * .cineview-animate hosts must FILL the dial: the tick anchor inside is parked at the dial
+ * centre and seats itself with `rotate(--tick-angle) translateY(-radius)`, so a
+ * shrink-wrapped host would measure that polar offset from the wrong origin and the whole
+ * ring would collapse toward the top-left.
+ *
+ * This selector used to also name `.s01-tick-segment`, the wrapper of the old twelve-segment
+ * grouping. That element no longer exists — the ticks are 60 independent lanes now — so the
+ * dead half is gone. The `> .cineview-animate` half is unchanged and still load-bearing: it
+ * matches all 60 hosts, because the lane count is invisible to CSS. */
+.drag-temporal .s01-dial__ticks > .cineview-animate {
   position: absolute;
   inset: 0;
   transform-origin: 50% 50%;
@@ -411,17 +401,16 @@
 }
 
 .drag-temporal .s01-tick__bar {
-  /* Radial seating: pivot at the dial center (transform-origin 0 0 = the tick
-   * anchor), rotate to the clock angle, then push OUT by exactly the ring radius.
-   * The bar's length runs down the local +Y (back toward center) so every tick
-   * points straight at the middle and its outer tip meets the ring. */
+  /* Solid neutral ink is intentional. A translucent bar exposes the amber room
+   * light below it and turns whichever arc crosses the key light gold, recreating
+   * a false directional sector even when every tick has the same CSS rule. */
   position: absolute;
   top: 0;
   left: 0;
   display: block;
   width: 1px;
   height: clamp(7px, 2.6cqw, 12px);
-  background: var(--tp-ink-faint);
+  background: #4b4741;
   transform-origin: 0 0;
   transform: translateX(-50%) rotate(var(--tick-angle))
     translateY(calc(-1 * var(--s01-ring-radius)));
@@ -429,7 +418,7 @@
 
 .drag-temporal .s01-tick--major .s01-tick__bar {
   height: clamp(12px, 4.2cqw, 20px);
-  background: var(--tp-ink-mute);
+  background: #9a9287;
 }
 
 .drag-temporal .s01-tick__label {
@@ -441,8 +430,7 @@
   transform-origin: 0 0;
   transform: rotate(var(--tick-angle))
     translateY(calc(-1 * (var(--s01-ring-radius) - clamp(18px, 6cqw, 30px))))
-    rotate(calc(-1 * var(--tick-angle)))
-    translate(-50%, -50%);
+    rotate(calc(-1 * var(--tick-angle))) translate(-50%, -50%);
   color: var(--tp-ink-mute);
   font-family: var(--tp-font-mono);
   font-size: var(--tp-text-2xs);
@@ -451,46 +439,24 @@
 }
 
 .drag-temporal[data-drag-direction] .s01-tick {
-  scale: 0.96;
+  scale: 0.98;
   transition:
     scale 0.14s var(--tp-ease-linear-out),
     opacity 0.14s var(--tp-ease-linear-out);
 }
 
 .drag-temporal[data-drag-direction] .s01-tick__bar {
-  opacity: 0.56;
+  opacity: 0.7;
   transition:
     opacity 0.14s var(--tp-ease-linear-out),
     background 0.14s var(--tp-ease-linear-out),
     box-shadow 0.14s var(--tp-ease-linear-out);
 }
 
-.drag-temporal[data-drag-direction='forward'] .s01-tick.is-forward-sector,
-.drag-temporal[data-drag-direction='backward'] .s01-tick.is-backward-sector {
-  z-index: 2;
-  scale: 1.08;
-}
-
-.drag-temporal[data-drag-direction='forward'] .s01-tick.is-forward-sector .s01-tick__bar,
-.drag-temporal[data-drag-direction='backward'] .s01-tick.is-backward-sector .s01-tick__bar {
-  opacity: 1;
-  background: var(--tp-accent);
-  box-shadow: 0 0 7px var(--tp-accent-glow);
-}
-
-.drag-temporal[data-drag-direction='forward'] .s01-tick.is-backward-sector,
-.drag-temporal[data-drag-direction='backward'] .s01-tick.is-forward-sector {
-  scale: 0.92;
-}
-
-.drag-temporal[data-drag-direction='forward'] .s01-tick.is-backward-sector .s01-tick__bar,
-.drag-temporal[data-drag-direction='backward'] .s01-tick.is-forward-sector .s01-tick__bar {
-  opacity: 0.3;
-}
-
-.drag-temporal .s01-dial__ticks.is-calibrating {
-  animation: s01-ticks-calibrate 0.4s var(--tp-ease-in-out) both;
-}
+/* Direction used to colour one 60° sector amber while dimming the opposite side.
+ * During exit the copy cleared before the dial, leaving the broken half-ring shown in
+ * the user's screenshot. Drag feedback now comes from the whole instrument winding,
+ * so every tick stays compositionally balanced while the finger is down. */
 
 .drag-temporal .s01-inner-ring {
   /* Diameter = 2 × the tick-seat radius, so the ring line passes exactly through
@@ -513,23 +479,92 @@
   position: absolute;
   top: 50%;
   left: 50%;
+  width: 2.2ch;
+  height: 0.9em;
+  overflow: hidden;
   color: var(--tp-ink);
   font-family: var(--tp-font-display);
-  font-size: var(--tp-text-2xl);
+  font-size: clamp(52px, 17cqw, 92px);
   font-weight: 600;
   line-height: 0.82;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   translate: -50% -50%;
+}
+
+.drag-temporal .s01-center-number__value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  translate: -50% -50%;
+}
+
+/* A real hour rollover is data-driven, not part of the scene's one-shot entrance. This
+ * bounded transition runs only on the once-per-hour DOM replacement and disappears with act 1;
+ * the scene's enter/exit still belongs entirely to the surrounding CineView lane. */
+.drag-temporal .s01-center-number[data-hour-rollover] .is-previous {
+  animation: s01-hour-roll-out 480ms var(--tp-ease-linear-out) both;
+}
+
+.drag-temporal .s01-center-number[data-hour-rollover] .is-current {
+  animation: s01-hour-roll-in 480ms var(--tp-ease-linear-out) both;
+}
+
+@keyframes s01-hour-roll-out {
+  to {
+    opacity: 0;
+    transform: translateY(-72%);
+  }
+}
+
+@keyframes s01-hour-roll-in {
+  from {
+    opacity: 0;
+    transform: translateY(72%);
+  }
 }
 
 .drag-temporal .s01-hands {
   pointer-events: none;
 }
 
-.drag-temporal .s01-hands > .cineview-animate {
+/* RunningHand renders this real chain (act-1 redesign — it is now FIVE boxes deep, not
+ * three, because the hand needs two nested framework lanes: an 880ms opacity fade on the
+ * outside and the 3000ms calibration sweep inside it. One lane cannot do both, since the
+ * drag driver lerps every property by a single localProgress and ignores `times`):
+ *
+ *   .s01-hands
+ *     > .cineview-animate            outer opacity lane (no infinite → no anon wrapper)
+ *       > .s01-hand-sweep            plain span, the seam between the two lanes
+ *         > .cineview-animate        sweep lane (rotate; HAS infiniteAnimation)
+ *           > anonymous motion.div   the infinite lane's own layer (live wall-clock spin)
+ *             > .s01-hand-pivot
+ *               > .s01-hand
+ *
+ * EVERY box in that chain must fill the dial, and the reason is the same at each level: a
+ * rotate is applied about the box's own centre, so a box that shrink-wraps around a 1px
+ * hand spins the hand around a point that is not the dial centre — the historical "gold
+ * hand orbits a point above the dial" defect. The previous selector stopped at
+ * `> .cineview-animate > * > .s01-hand-pivot`, a depth that described the OLD three-box
+ * chain; with the sweep layer inserted, that third step now lands on the inner
+ * `.cineview-animate` and the pivot rule silently stopped matching. Listing the chain
+ * explicitly rather than with a descendant selector keeps that failure visible: if the
+ * depth changes again, the selector stops matching and the hand visibly mis-pivots, which
+ * is preferable to a `*` that always matches and quietly styles the wrong node. */
+.drag-temporal .s01-hands > .cineview-animate,
+.drag-temporal .s01-hands .s01-hand-sweep,
+.drag-temporal .s01-hands .s01-hand-sweep > .cineview-animate,
+.drag-temporal .s01-hands .s01-hand-sweep > .cineview-animate > *,
+.drag-temporal .s01-hands .s01-hand-sweep > .cineview-animate > * > .s01-hand-pivot,
+.drag-temporal .s01-hands .s01-hand-minute-offset > .cineview-animate,
+.drag-temporal .s01-hands .s01-hand-minute-offset > .cineview-animate > *,
+.drag-temporal .s01-hands .s01-hand-minute-offset > .cineview-animate > * > .s01-hand-pivot {
   position: absolute;
   inset: 0;
-  transform-origin: center;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 50%;
 }
 
 /* Pivot layer: fills the dial, centered, so a rotate written by framer-motion
@@ -553,16 +588,18 @@
   transform-origin: 50% 100%;
 }
 
-/* Continuous rotation lives on the `rotate` property (independent axis from the
- * bar's `transform: translateX`), so the hand is ALWAYS running even at rest.
- * Second hand sweeps a full turn; minute hand crawls ~12× slower. */
+/* Static geometry only. The continuous running tick is NOT a CSS loop: it is the
+ * framework's infinite lane (<Animate infiniteAnimation> in SceneRolling), which
+ * the framework stops via shouldRunInfinite when the scene leaves its phase. A
+ * CSS `animation: … infinite` here would keep spinning through exit — the
+ * "everything faded but the hand kept moving" bug. See rule 6 in AGENTS.md.
+ * reduced-motion is handled in the component (infiniteAnimation → undefined). */
 .drag-temporal .s01-hand--second {
   width: 1px;
   height: 22cqw;
   max-height: 114px;
   background: var(--tp-accent);
   box-shadow: 0 0 8px var(--tp-accent-glow);
-  animation: s01-hand-run 8s linear infinite;
 }
 
 .drag-temporal .s01-hand--minute {
@@ -570,14 +607,6 @@
   height: 15cqw;
   max-height: 78px;
   background: var(--tp-ink-soft);
-  animation: s01-hand-run 96s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .drag-temporal .s01-hand--second,
-  .drag-temporal .s01-hand--minute {
-    animation: none;
-  }
 }
 
 .drag-temporal .s01-hands__pin {
@@ -603,9 +632,10 @@
   flex: 0 0 auto;
 }
 
+/* `.s01-subtitle` is gone with the lane that rendered it (act 1 no longer carries a
+ * subtitle — the dial IS the explanation). Its own block below was deleted with it. */
 .drag-temporal .s01-eyebrow,
-.drag-temporal .s01-title,
-.drag-temporal .s01-subtitle {
+.drag-temporal .s01-title {
   margin: 0;
 }
 
@@ -623,15 +653,22 @@
   font-size: var(--tp-text-2xl);
   font-weight: 600;
   line-height: 0.94;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
 }
 
-.drag-temporal .s01-subtitle {
-  max-width: 24ch;
-  margin-top: var(--tp-space-3);
-  color: var(--tp-ink-soft);
-  font-size: var(--tp-text-sm);
-  line-height: 1.5;
+.drag-temporal .s01-date {
+  position: absolute;
+  top: calc(50% + clamp(42px, 12cqw, 64px));
+  left: 50%;
+  margin: 0;
+  color: var(--tp-accent-soft);
+  font-family: var(--tp-font-mono);
+  font-size: clamp(10px, 2.8cqw, 14px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  translate: -50% 0;
+  white-space: nowrap;
 }
 
 .drag-temporal .s01-actions-band {
@@ -651,67 +688,331 @@
   flex-wrap: wrap;
 }
 
-.drag-temporal .s01-corner {
-  z-index: 4;
-  color: var(--tp-ink-mute);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.12em;
-  pointer-events: none;
-}
-
-.drag-temporal .s01-corner--tr,
-.drag-temporal .s01-corner--br {
-  right: var(--tp-space-5);
-  left: auto !important;
-  text-align: right;
-}
-
-.drag-temporal .s01-corner--tr {
-  top: clamp(112px, 29cqw, 142px) !important;
-}
-
-.drag-temporal .s01-corner--bl,
-.drag-temporal .s01-corner--br {
-  top: auto !important;
-  bottom: clamp(48px, 12cqw, 70px);
-}
-
-.drag-temporal .s01-corner__copy {
-  margin: 0;
-  line-height: 1.7;
-  white-space: nowrap;
-}
-
-.drag-temporal .s01-corner__sprockets {
-  display: grid;
-  width: clamp(4px, 1.2cqw, 7px);
-  gap: var(--tp-space-3);
-}
-
-.drag-temporal .s01-corner--br .s01-corner__sprockets {
-  grid-template-columns: repeat(2, auto);
+.drag-temporal .tp-scene--02 {
+  /* Scene 02 owns a practical stage, not the calibration axis from act 1. */
+  background:
+    radial-gradient(ellipse 84% 56% at 50% 43%, rgba(150, 112, 54, 0.12), transparent 64%),
+    radial-gradient(ellipse 100% 42% at 50% 102%, rgba(216, 162, 74, 0.09), transparent 64%),
+    var(--tp-bg);
 }
 
 .drag-temporal .s02-stage {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  /* One row: the board. ACTION is not DOM copy — it is drawn as particles inside the canvas,
+   * in a band just under the board (locked: 「action 也改为粒子组成，放在板子下面一点」), and
+   * the `02 / SLATE` label that used to own an `auto` first row is gone.
+   *
+   * `minmax(0, 1fr)`, never a width-derived fixed height. This container is
+   * `container-type: inline-size`, so `cqw` cannot see viewport height: an earlier
+   * `clamp(420px, 138cqw, 580px)` board row overflowed the stage in BOTH directions on short
+   * viewports (measured 1280x720: stage row ~602px against ~600+ of content). `minmax(0, 1fr)`
+   * makes that impossible rather than unlikely — the canvas fits its art to whatever box it
+   * receives (see boxOf), so a shorter row costs board size, never clipping. */
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
-  padding: clamp(var(--tp-space-4), 5cqw, var(--tp-space-6)) var(--tp-space-4)
-    clamp(var(--tp-space-6), 8cqw, var(--tp-space-8));
+  padding: clamp(var(--tp-space-3), 4cqw, var(--tp-space-5)) var(--tp-space-4)
+    clamp(var(--tp-space-4), 5cqw, var(--tp-space-6));
   overflow: hidden;
+  isolation: isolate;
 }
 
-/* Slate scene 02: the clapperboard canvas fills the middle of the stage so the
- * particle field has real pixels to converge within. The Animate wrapper is a
- * flex child that grows; the canvas stretches to it. */
+/* Scene 02 light rig (see SlateLightRig.tsx for the temporal side).
+ *
+ * The previous dressing keyed the set with `clip-path: polygon()` + `filter: blur()`.
+ * CSS applies the filter FIRST and clips afterwards, so the blur was sliced off along
+ * two straight diagonals — the hard edges the review called out. Nothing in this block
+ * clips any more: every shape ends in a gradient that reaches full transparency before
+ * its own box, so there is no boundary to see.
+ *
+ * Depth of field is a STATIC blur, graded by distance (scene number furthest / most
+ * defocused → stands nearest / almost sharp). Static so the browser rasterises it once;
+ * the layers themselves only ever animate opacity/transform. */
+.drag-temporal .s02-scene {
+  /* Containing block for the scene-level light rig below. */
+  position: relative;
+}
+
+.drag-temporal .s02-light {
+  position: absolute;
+  inset: 0;
+  /* Scene level, so it spans the full frame with no clip edge inside it. z 0 keeps it under
+   * the stage content, which follows it in DOM order, and under the chrome band that other
+   * acts still raise to z 46 (.s01-stage / .s03-cut-stage). It used to be z:-1 inside
+   * .s02-stage, whose overflow:hidden cut the beam on a visible horizontal line near the top
+   * of the stage box. */
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Real chain rendered by <Animate> in drag mode:
+ *   .s02-light > .cineview-animate (drag lane, enter/exit scrub)
+ *     > anonymous motion.div (infinite lane) > .s02-light__layer
+ * Every transform-bearing box must fill the stage. Without this the infinite lane's
+ * anonymous div shrink-wraps to height 0 and its percentage translations resolve to
+ * 0px — the animation runs but moves nothing (the same defect as scene 04's streams,
+ * see the .s04-streams rule below). */
+.drag-temporal .s02-light > .cineview-animate,
+.drag-temporal .s02-light > .cineview-animate > *,
+.drag-temporal .s02-light > .cineview-animate > * > .s02-light__layer {
+  position: absolute;
+  inset: 0;
+}
+
+.drag-temporal .s02-light__layer {
+  position: absolute;
+  inset: 0;
+}
+
+/* Far atmosphere: two wide, low-alpha pools plus a soft floor plane, so the void has a
+ * gradient and a ground instead of being flat black. Multi-stop falloff, i.e. soft by
+ * construction rather than by blur. Dark gold only — the teal wash that used to sit on
+ * the left was struck by decree (act 2 is a tungsten set, not a monitor readout). */
+.drag-temporal .s02-light__haze {
+  background:
+    radial-gradient(
+      58% 42% at 24% 28%,
+      rgba(190, 146, 74, 0.1),
+      rgba(190, 146, 74, 0.045) 38%,
+      rgba(150, 112, 54, 0.016) 62%,
+      transparent 82%
+    ),
+    radial-gradient(
+      66% 46% at 78% 64%,
+      rgba(216, 162, 74, 0.09),
+      rgba(216, 162, 74, 0.04) 40%,
+      rgba(216, 162, 74, 0.012) 64%,
+      transparent 84%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 58%,
+      rgba(154, 146, 135, 0.03) 78%,
+      rgba(154, 146, 135, 0.055) 92%,
+      rgba(154, 146, 135, 0.02) 100%
+    );
+}
+
+/* Key beam. A 28deg conic wedge whose apex sits above the frame, with a narrower hot
+ * core inside it: the angular stops ramp over several degrees on each side, so the beam
+ * has no edge — and a radial mask fades it with distance, so it does not stop at the box
+ * either. Two nested wedges (not one) because a single flat wedge reads as a painted
+ * triangle; a hot core inside a wider falloff is what makes it read as volume. */
+/* The beam's sway rides the infinite lane, i.e. the anonymous wrapper <Animate> renders
+ * INSIDE the drag lane — so the origin has to be set on those boxes, not on the painted
+ * layer (a transform-origin on a box that is never transformed does nothing). Origin
+ * sits at the apex above the frame: a hard light pivots at its source, and the enter
+ * scale then reads as the beam reaching down rather than as the layer inflating.
+ * Scoped to the beam by id: haze/pool/bokeh scale about their own centres. */
+.drag-temporal .s02-light > [data-cineview-animate-id='s02-light-beam'],
+.drag-temporal .s02-light > [data-cineview-animate-id='s02-light-beam'] > * {
+  transform-origin: 50% -12%;
+}
+
+.drag-temporal .s02-light__beam {
+  background:
+    conic-gradient(
+      from 166deg at 50% -12%,
+      transparent 0deg,
+      rgba(236, 227, 208, 0.055) 5deg,
+      rgba(236, 227, 208, 0.115) 11deg,
+      rgba(236, 227, 208, 0.115) 17deg,
+      rgba(216, 162, 74, 0.05) 23deg,
+      transparent 28deg
+    ),
+    conic-gradient(
+      from 174deg at 50% -12%,
+      transparent 0deg,
+      rgba(236, 227, 208, 0.075) 3deg,
+      rgba(255, 248, 232, 0.16) 6deg,
+      rgba(236, 227, 208, 0.075) 9deg,
+      transparent 12deg
+    );
+  -webkit-mask-image: radial-gradient(
+    92% 104% at 50% -6%,
+    #000 10%,
+    rgba(0, 0, 0, 0.72) 46%,
+    rgba(0, 0, 0, 0.3) 74%,
+    transparent 96%
+  );
+  mask-image: radial-gradient(
+    92% 104% at 50% -6%,
+    #000 10%,
+    rgba(0, 0, 0, 0.72) 46%,
+    rgba(0, 0, 0, 0.3) 74%,
+    transparent 96%
+  );
+}
+
+/* `.s02-light__spill` (the lamp-head glow across the top of the frame) is GONE, together
+ * with its layer in SlateLightRig. It was measured as the single largest contributor to the
+ * reported 内容明显分层 — a bright horizontal stratum with a visible floor under it.
+ * Measured on a settled act 2 (390x844, luminance smoothed over a 10px baseline to remove
+ * the scanline's own 3px ripple, band = cssY 14-32 vs floor = cssY 44-58):
+ *   all layers on ....... band 41.13  floor 33.74  delta 7.39
+ *   spill stretched 70% .. band 40.49  floor 35.55  delta 4.94
+ *   spill HIDDEN ......... band 29.81  floor 26.05  delta 3.76   <- best
+ * Stretching the gradient (the previous fix, kept here for a while) halved the step;
+ * deleting the layer beats it outright. Beam + pool already carry the key light, so nothing
+ * was lost and the flat-void problem the layer was added for does not return — haze still
+ * supplies the gradient and the ground plane.
+ *
+ * Deleted in the same pass, for the same reason their JSX was: `.s02-light__viewfinder`
+ * (plus its ::before / ::after) and `.s02-light__scene-number`. Both NAMED the act instead
+ * of lighting it, and they left with the rest of the scene-labelling chrome (HUD, footer,
+ * the five `s0N` slates). The scene number's size×blur sweep is archived in the task flow:
+ * a landed-frame probe read 0% occlusion at 30-54px while a multi-frame probe read 5.08%,
+ * because the binding pose is the board OPEN, not settled. */
+
+/* Key pool: the light the board SITS IN. Flattened radial, zeroed well inside its own box.
+ *
+ * This centre used to be `at 50% 72%`, which is not the board — it is the ACTION band.
+ * Measured on a landed act 2 (390x844): mean row luminance over the word band was 49.18
+ * against 45.87 over the board itself, i.e. the brightest thing in the frame was the
+ * caption and the subject was in relative shadow. That is the reported 灯光没有指向板子,
+ * and it was a coordinate, not a taste question.
+ *
+ * The board's drawn body spans y≈214-547 css in an 844 frame, so its centre is at ~45%.
+ * The pool is aimed there and tightened (58%->52% wide, 14%->16% tall) so the falloff has
+ * decayed to nothing before it reaches the word band at 71-77%: ACTION is now lit by
+ * spill, which is what a caption under a lit subject should get. */
+.drag-temporal .s02-light__pool {
+  background: radial-gradient(
+    52% 16% at 50% 45%,
+    rgba(236, 227, 208, 0.2),
+    rgba(236, 227, 208, 0.085) 34%,
+    rgba(216, 162, 74, 0.03) 56%,
+    transparent 78%
+  );
+}
+
+/* Out-of-focus lamp highlights closest to the lens. Blur is static (rasterised once);
+ * only the parent layer drifts, on the framework's infinite lane. */
+.drag-temporal .s02-light__bokeh {
+  opacity: 0.9;
+}
+
+.drag-temporal .s02-light__mote {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(236, 227, 208, 0.16), transparent 68%);
+}
+
+.drag-temporal .s02-light__mote--1 {
+  top: 16%;
+  left: 11%;
+  width: 46px;
+  height: 46px;
+  filter: blur(7px);
+}
+
+.drag-temporal .s02-light__mote--2 {
+  top: 63%;
+  left: 82%;
+  width: 62px;
+  height: 62px;
+  background: radial-gradient(circle, rgba(216, 162, 74, 0.15), transparent 68%);
+  filter: blur(11px);
+}
+
+.drag-temporal .s02-light__mote--3 {
+  top: 78%;
+  left: 24%;
+  width: 34px;
+  height: 34px;
+  filter: blur(6px);
+}
+
+.drag-temporal .s02-light__mote--4 {
+  top: 34%;
+  left: 88%;
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle, rgba(190, 146, 74, 0.15), transparent 68%);
+  filter: blur(8px);
+}
+
+/* Hardware silhouettes — the spatial layer. Defocused as a group (they are metres
+ * behind the slate), then graded per element below so the frame reads as having depth
+ * rather than as one blurred plate. */
+.drag-temporal .s02-light__set {
+  filter: blur(1.6px);
+}
+
+.drag-temporal .s02-light__stand {
+  position: absolute;
+  top: 20%;
+  width: 1px;
+  height: 49%;
+  background: linear-gradient(180deg, rgba(154, 146, 135, 0.24), rgba(154, 146, 135, 0.04));
+  filter: blur(1.1px);
+}
+
+.drag-temporal .s02-light__stand::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 30px;
+  height: 18px;
+  border: 1px solid rgba(154, 146, 135, 0.18);
+  border-radius: 50%;
+  content: '';
+  translate: -50% -50%;
+}
+
+.drag-temporal .s02-light__stand::after {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 62px;
+  height: 1px;
+  background: rgba(154, 146, 135, 0.1);
+  box-shadow:
+    -22px -7px 0 -0.3px rgba(154, 146, 135, 0.08),
+    22px -7px 0 -0.3px rgba(154, 146, 135, 0.08);
+  content: '';
+  translate: -50% 0;
+}
+
+.drag-temporal .s02-light__stand--left {
+  left: 7%;
+  rotate: -3deg;
+}
+
+.drag-temporal .s02-light__stand--right {
+  right: 7%;
+  rotate: 3deg;
+}
+
+/* The canvas receives the central budget; copy sits immediately below it rather
+ * than being separated by a second flex gap. */
+/* The canvas takes the central row. With the copy gone the row would stretch to ~650px
+ * while the board itself is width-bound at ~350px, leaving ~150px of dead space above and
+ * below it; the max-height keeps the slate close to the ACTION line instead of floating in
+ * the middle of an empty column. */
 .drag-temporal .s02-stage > [data-cineview-animate-id='s02-clapper'] {
   position: relative;
-  flex: 1 1 auto;
+  width: 100%;
+  /* Fills the 1fr row. NOT a fixed height any more: `height: clamp(420px, 138cqw, 580px)`
+   * was width-derived (see the .s02-stage note above) and overflowed the stage on short
+   * viewports, pushing the slate label under the HUD. The canvas fits its own art to
+   * whatever box it receives, so height is the row's business, not this element's. */
+  height: 100%;
   min-height: 0;
-  margin-top: clamp(var(--tp-space-3), 4cqw, var(--tp-space-5));
+  margin-top: clamp(4px, 1.5cqw, 10px);
+}
+
+/* The board now declares an infiniteAnimation, so <Animate> renders an EXTRA anonymous
+ * motion.div between .cineview-animate and .s02-clapper (see Animate.tsx's drag branch).
+ * That wrapper shrink-wraps: with an absolutely-positioned canvas inside it, its height
+ * resolves to 0, the canvas gets no box, and the percentage translate on the idle lane
+ * resolves against 0px so the drift moves nothing. Same defect already documented for
+ * .s02-light and .s04-streams — every transform-bearing box in the chain must fill the
+ * holder. */
+.drag-temporal .s02-stage > [data-cineview-animate-id='s02-clapper'] > * {
+  position: absolute;
+  inset: 0;
 }
 
 .drag-temporal .s02-clapper {
@@ -725,317 +1026,25 @@
   height: 100%;
 }
 
-.drag-temporal .s02-slate,
-.drag-temporal .s02-eyebrow,
-.drag-temporal .s02-title,
-.drag-temporal .s03-eyebrow,
-.drag-temporal .s03-title {
-  margin: 0;
-  text-align: center;
-}
-
-.drag-temporal .s02-slate {
-  color: var(--tp-ink-mute);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.18em;
-}
-
-.drag-temporal .s02-stage > [data-cineview-animate-id='s02-eyebrow'] {
-  margin-top: clamp(var(--tp-space-4), 5cqw, var(--tp-space-5));
-}
-
-.drag-temporal .s02-eyebrow {
-  color: var(--tp-accent);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-xs);
-  letter-spacing: 0.2em;
-}
-
-.drag-temporal .s02-stage > [data-cineview-animate-id='s02-title'] {
-  margin-top: var(--tp-space-2);
-}
-
-.drag-temporal .s02-title {
-  color: var(--tp-ink);
-  font-family: var(--tp-font-display);
-  font-size: var(--tp-text-xl);
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
-}
-
-.drag-temporal .s02-stage > [data-cineview-animate-id='s03-eyebrow'] {
-  margin-top: clamp(var(--tp-space-4), 5cqw, var(--tp-space-5));
-}
-
-.drag-temporal .s03-eyebrow {
-  color: var(--tp-accent);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-xs);
-  letter-spacing: 0.2em;
-}
-
-.drag-temporal .s02-stage > [data-cineview-animate-id='s03-title'] {
-  margin-top: var(--tp-space-2);
-}
-
-.drag-temporal .s03-title {
-  max-width: min(92cqw, 460px);
-  margin-inline: auto;
-  color: var(--tp-ink);
-  font-family: var(--tp-font-display);
-  font-size: var(--tp-text-lg);
-  font-weight: 600;
-  line-height: 1.12;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-}
-
-.drag-temporal .s03-timeline {
-  position: relative;
-  width: min(88cqw, 458px);
-  height: clamp(96px, 25cqw, 130px);
-  margin: auto auto;
-}
-
-.drag-temporal .s03-timeline > [data-cineview-animate-id='timeline-base'] {
-  position: absolute;
-  top: clamp(20px, 5.2cqw, 27px);
-  right: 0;
-  left: 0;
-  transform-origin: left center;
-}
-
-.drag-temporal .s03-timeline__base {
-  display: block;
-  width: 100%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--tp-accent-soft) 12%,
-    var(--tp-accent-soft) 88%,
-    transparent
-  );
-  box-shadow: 0 0 12px var(--tp-accent-glow);
-}
-
-.drag-temporal .s03-timeline__nodes {
-  position: absolute;
-  inset: 0;
-}
-
-/* Inset distribution (v3 §6.2C): nodes at 6/28/50/72/94% instead of 0/25/50/75/100%
- * so the end node (CTA) circle + label no longer overflow the viewport edge. */
-.drag-temporal .s03-timeline__slot {
-  position: absolute;
-  top: 0;
-  width: 0;
-  height: 100%;
-}
-
-.drag-temporal .s03-timeline__slot:nth-child(1) {
-  left: 6%;
-}
-
-.drag-temporal .s03-timeline__slot:nth-child(2) {
-  left: 28%;
-}
-
-.drag-temporal .s03-timeline__slot:nth-child(3) {
-  left: 50%;
-}
-
-.drag-temporal .s03-timeline__slot:nth-child(4) {
-  left: 72%;
-}
-
-.drag-temporal .s03-timeline__slot:nth-child(5) {
-  left: 94%;
-}
-
-.drag-temporal .s03-timeline__slot > [data-cineview-animate-id^='node-'] {
-  position: absolute;
-  top: 0;
-  left: 0;
-  translate: -50% 0;
-}
-
-.drag-temporal .s03-node {
-  display: grid;
-  justify-items: center;
-  gap: var(--tp-space-2);
-  color: var(--tp-ink-mute);
-  font-family: var(--tp-font-mono);
-  transition: color 0.28s var(--tp-ease-out);
-}
-
-.drag-temporal .s03-node__glyph {
-  display: grid;
-  place-items: center;
-  width: clamp(36px, 10.3cqw, 54px);
-  aspect-ratio: 1;
-  border: 1px solid var(--tp-rule-strong);
-  border-radius: 50%;
-  background: var(--tp-bg-elevated);
-  font-size: var(--tp-text-sm);
-  box-shadow: 0 0 0 0 var(--tp-accent-glow);
-  transition:
-    color 0.28s var(--tp-ease-out),
-    border-color 0.28s var(--tp-ease-out),
-    background 0.28s var(--tp-ease-out),
-    box-shadow 0.28s var(--tp-ease-out);
-}
-
-.drag-temporal .s03-node__label {
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.12em;
-}
-
-/* Entered node: amber baseline (编排就位, v3 §6.99). */
-.drag-temporal .s03-node.is-active {
-  color: var(--tp-accent);
-}
-
-.drag-temporal .s03-node.is-active .s03-node__glyph {
-  border-color: var(--tp-accent-soft);
-  background: var(--tp-accent-dim);
-  box-shadow: 0 0 18px var(--tp-accent-glow);
-}
-
-/* Current cue: magenta 点睛 on the single node matching the panel (v3 §6.99). */
-.drag-temporal .s03-node.is-current {
-  color: var(--tp-sig-teal);
-}
-
-.drag-temporal .s03-node.is-current .s03-node__glyph {
-  border-color: var(--tp-sig-teal);
-  background: rgba(200, 111, 212, 0.16);
-  box-shadow: 0 0 22px var(--tp-sig-teal-glow);
-}
-
-.drag-temporal .s03-timeline__slot > [data-cineview-animate-id^='s03-light-'] {
-  position: absolute;
-  top: clamp(18px, 4.6cqw, 24px);
-  left: 0;
-  z-index: 3;
-  width: 100%;
-  pointer-events: none;
-}
-
-.drag-temporal .s03-light {
-  display: block;
-  width: clamp(5px, 1.5cqw, 7px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--tp-accent);
-  box-shadow: 0 0 8px 2px var(--tp-accent-glow);
-}
-
-.drag-temporal .s02-stage > [data-cineview-animate-id='s03-panel'] {
-  display: flex;
-  justify-content: center;
-  margin-top: auto;
-}
-
-.drag-temporal .s03-panel {
-  width: min(88cqw, 380px);
-  margin: 0 auto;
-  padding: var(--tp-space-4);
-  border: 1px solid var(--tp-border-glass);
-  border-radius: var(--tp-radius);
-  color: var(--tp-ink-soft);
-  background: var(--tp-bg-glass);
-  box-shadow: var(--tp-shadow-subtle);
-  backdrop-filter: blur(16px) saturate(130%);
-  -webkit-backdrop-filter: blur(16px) saturate(130%);
-}
-
-.drag-temporal .s03-panel__heading,
-.drag-temporal .s03-panel__params > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.drag-temporal .s03-panel__heading {
-  padding-bottom: var(--tp-space-3);
-  border-bottom: 1px solid var(--tp-rule);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.14em;
-}
-
-.drag-temporal .s03-panel__heading strong {
-  color: var(--tp-accent);
-  font-weight: 500;
-}
-
-.drag-temporal .s03-panel__params {
-  display: grid;
-  gap: var(--tp-space-1);
-  margin: var(--tp-space-3) 0;
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-  line-height: 1.8;
-}
-
-.drag-temporal .s03-panel__params dt,
-.drag-temporal .s03-panel__params dd {
-  margin: 0;
-}
-
-.drag-temporal .s03-panel__params dt {
-  color: var(--tp-ink-mute);
-}
-
-.drag-temporal .s03-panel__delay {
-  color: var(--tp-sig-teal);
-}
-
-.drag-temporal .s03-panel__progress {
-  height: 2px;
-  overflow: hidden;
-  background: var(--tp-rule);
-}
-
-.drag-temporal .s03-panel__progress > span {
-  display: block;
-  height: 100%;
-  background: var(--tp-accent);
-  transform-origin: left center;
-  transition: width 0.38s var(--tp-ease-out);
-}
-
-/* Scene 03 — time flux. Background streams are compositor-only CSS loops;
- * the foreground ring and marker consume CineView-owned MotionValues. */
-.drag-temporal .s03-stage {
+/* Scene 04 — 日全食. The background timecode columns scroll on the framework infinite
+ * lane (see TimeStreams); the eclipse arc, its limb glow and the headline digits all
+ * consume CineView-owned MotionValues. Geometry and layout live here; every act-04
+ * COLOUR lives in temporal-scenes-03-05.css, which is the act's single palette owner —
+ * the two files used to declare `.tp-scene--04` twice and the values drifted apart. */
+.drag-temporal .s04-stage {
   position: relative;
   min-height: 0;
   overflow: hidden;
 }
 
-.drag-temporal .s03-slate {
-  position: absolute;
-  top: var(--tp-space-4);
-  left: var(--tp-space-4);
-  z-index: 3;
-  margin: 0;
-  color: var(--tp-ink-mute);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-xs);
-  letter-spacing: 0.18em;
-}
-
-.drag-temporal .s03-streams {
+.drag-temporal .s04-streams {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
 }
 
-.drag-temporal .s03-stream {
+.drag-temporal .s04-stream {
   position: absolute;
   top: -10%;
   display: grid;
@@ -1048,26 +1057,63 @@
   will-change: transform;
 }
 
-.drag-temporal .s03-stream--left {
+/* The framework renders TWO nested nodes per <Animate>: the .cineview-animate host
+ * and, inside it, an anonymous div carrying the infinite lane's transform. That inner
+ * div is position:static with no inset, so it shrink-wraps — and because .s04-stream
+ * below is position:absolute, it wraps to height 0. `translateY(-50%)` of 0 is 0px, so
+ * the scroll loop ran every frame and moved the columns exactly nowhere: measured
+ * innerH=0 and a translateY span of 0.00px across 2.4s on all three columns. That is
+ * the "背景动画不动了" regression, and it appeared the moment the loop moved off
+ * .s04-stream (which had height) onto the framework lane.
+ * Same trap, same fix as the act-1 hands at .s01-hand-pivot above: force the transform
+ * layer to fill the host so the percentage has a box to resolve against.
+ *
+ * The descendant selector (not a child one) is load-bearing after the 2026-07-29 rework:
+ * each column is now TWO nested lanes — an outer `s04-stream-rise-*` carrying the
+ * enterAnimation rise (y 12% -> 0) and an inner `s04-stream-*` carrying the infinite
+ * scroll (y 0 -> -50%) — because both animate `y` and a single node cannot host two
+ * writers. That is four transform-bearing boxes deep, and EVERY one of them needs a box:
+ * a percentage `y` on any shrink-wrapped ancestor resolves to 0px and the lane animates
+ * nothing at all. */
+.drag-temporal .s04-streams .cineview-animate,
+.drag-temporal .s04-streams .cineview-animate > * {
+  position: absolute;
+  inset: 0;
+}
+
+/* Scroll loop moved to the framework infinite lane (<Animate infiniteAnimation>
+ * in TimeStreams) so it pauses when scene 04 leaves its phase. POSITION ONLY here.
+ * See rule 6 in AGENTS.md / CLAUDE.md.
+ *
+ * Colour lives in temporal-scenes-03-05.css, and only there. It used to be declared in
+ * BOTH files — teal here, green there — with the later import silently winning. That is a
+ * drift trap: recolouring the act (2026-07-29: teal -> night fluorescent green) would have
+ * left a dead teal triple behind that looks authoritative in this file. One owner per
+ * property. The three columns still carry three DIFFERENT alphas, which is where the
+ * depth reading comes from; the alphas are part of the colour declaration, so they moved
+ * with it. */
+.drag-temporal .s04-stream--left {
   left: 6%;
-  color: rgba(237, 232, 224, 0.04);
-  animation: s03-stream-up 24s linear infinite;
 }
 
-.drag-temporal .s03-stream--center {
+.drag-temporal .s04-stream--center {
   left: 50%;
-  color: rgba(237, 232, 224, 0.055);
   translate: -50% 0;
-  animation: s03-stream-up 14s linear infinite;
 }
 
-.drag-temporal .s03-stream--right {
+.drag-temporal .s04-stream--right {
   right: 6%;
-  color: rgba(237, 232, 224, 0.07);
-  animation: s03-stream-up 8s linear infinite;
 }
 
-.drag-temporal .s03-center {
+/* Vertical falloff so the columns fade out at the top and bottom edges instead of
+ * being clipped mid-glyph by the stage's overflow, and so they read as depth behind
+ * the centre readout rather than a flat wall of text. */
+.drag-temporal .s04-streams {
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 82%, transparent 100%);
+}
+
+.drag-temporal .s04-center {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1078,24 +1124,23 @@
   translate: -50% -52%;
 }
 
-.drag-temporal .s03-label,
-.drag-temporal .s03-equation {
+/* `.s04-equation` shared this rule until the eclipse redesign removed the three-line
+ * 「时间 = 位移 × 系数」 lane from the act. The label is the only mono line left in the
+ * centre column. */
+.drag-temporal .s04-label {
   margin: 0;
+  color: var(--tp-ink-mute);
   font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  letter-spacing: 0.22em;
   text-align: center;
 }
 
-.drag-temporal .s03-label {
-  color: var(--tp-ink-mute);
-  font-size: var(--tp-text-xs);
-  letter-spacing: 0.22em;
-}
-
-.drag-temporal .s03-clock {
+.drag-temporal .s04-clock {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(78cqw, 406px);
+  width: min(84cqw, 470px);
   aspect-ratio: 1;
   margin-block: var(--tp-space-4);
   /* Give the main-timecode flip-out exit (rotateX) real depth instead of a flat
@@ -1103,37 +1148,18 @@
   perspective: 900px;
 }
 
-.drag-temporal .s03-clock > .cineview-animate {
+.drag-temporal .s04-clock > .cineview-animate {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
 }
 
-.drag-temporal .s03-ring {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  transform: rotate(-90deg);
-}
+/* `.s04-ring` / `.s04-ring__track` / `.s04-ring__progress` are gone with the plain
+ * progress ring: act 04 is an eclipse now, and its arc/disc/limb live on `.s04-eclipse*`
+ * in temporal-scenes-03-05.css next to the rest of the act's paint. */
 
-.drag-temporal .s03-ring__track,
-.drag-temporal .s03-ring__progress {
-  fill: none;
-  stroke-width: 1.5;
-}
-
-.drag-temporal .s03-ring__track {
-  stroke: var(--tp-rule-strong);
-}
-
-.drag-temporal .s03-ring__progress {
-  stroke: var(--tp-accent);
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 5px var(--tp-accent-glow));
-}
-
-.drag-temporal .s03-main-timecode {
+.drag-temporal .s04-main-timecode {
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -1148,146 +1174,45 @@
   white-space: nowrap;
 }
 
-.drag-temporal .s03-main-timecode > span {
+.drag-temporal .s04-main-timecode > span {
   display: inline-block;
   min-width: 0.58em;
   text-align: center;
 }
 
-.drag-temporal .s03-main-timecode > span:nth-child(3n) {
+.drag-temporal .s04-main-timecode > span:nth-child(3n) {
   min-width: 0.34em;
   color: var(--tp-accent-soft);
 }
 
-.drag-temporal .s03-equation {
-  display: grid;
-  gap: var(--tp-space-2);
-  color: var(--tp-ink-mute);
-  font-size: var(--tp-text-2xs);
-  letter-spacing: 0.16em;
-}
+/* DELETED with act 04's redesign:
+ *   - `.s04-equation*`   — the 「拖拽 x scale = 元素时间」 explainer lane. The lane and its
+ *                          copy are gone from SceneFlux; the ring is the only progress
+ *                          statement the act makes now.
+ *   - `.s04-tickbar*`    — the 20-tick bottom ruler plus its follower marker. `TickBar.tsx`
+ *                          was deleted outright (设计档 §3.4): a ruler beside a ring states
+ *                          progress twice.
+ *
+ * DELETED with act 05's redesign (its type now lives in `.s05-curtain-call` /
+ * `.s05-credit*` / `.s05-the-end` in temporal-scenes-03-05.css):
+ *   - `.s05-center`      — the old centred CUT column.
+ *   - `.s05-cut-title`   — the 「CUT」 hero, replaced by the credits block.
+ *   - `.s05-accent-line` / `.s05-actions` / `.s05-sprocket*` / `.s05-leader*` — the CTA and
+ *                          reel-leader dressing that left with the act's rewrite. `.tp-btn`
+ *                          SURVIVES: act 01's actions band still uses it. */
 
-.drag-temporal .s03-equation strong {
-  color: var(--tp-ink-soft);
-  font-size: var(--tp-text-xs);
-  font-weight: 500;
-}
-
-.drag-temporal .s03-tickbar {
-  position: absolute;
-  right: var(--tp-space-5);
-  bottom: var(--tp-space-5);
-  left: var(--tp-space-5);
-  z-index: 4;
-  height: clamp(18px, 5cqw, 28px);
-}
-
-.drag-temporal .s03-tickbar > [data-cineview-animate-id='s03-ticks'],
-.drag-temporal .s03-tickbar__ticks {
-  position: absolute;
-  inset: 0;
-}
-
-.drag-temporal .s03-tickbar__ticks {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-}
-
-.drag-temporal .s03-tickbar__ticks > span {
-  display: block;
-  width: 1px;
-  height: clamp(7px, 2cqw, 10px);
-  background: var(--tp-rule-strong);
-  transform-origin: center bottom;
-}
-
-.drag-temporal .s03-tickbar__ticks > span.is-major {
-  height: clamp(11px, 3cqw, 15px);
-  background: var(--tp-ink-mute);
-}
-
-.drag-temporal .s03-tickbar__marker {
-  position: absolute;
-  bottom: 0;
-  display: block;
-  width: 2px;
-  height: clamp(14px, 3.8cqw, 20px);
-  border-radius: var(--tp-radius-pill);
-  background: var(--tp-accent);
-  box-shadow: 0 0 10px var(--tp-accent-glow);
-  translate: -50% 0;
-}
-
-/* Scene 04 — final cut */
-.drag-temporal .s04-stage {
+/* Base box for act 05's stage. The act's own paint (auditorium, beam, credits) is in
+ * temporal-scenes-03-05.css, which also re-declares this selector to add `perspective`. */
+.drag-temporal .s05-stage {
   position: relative;
   min-height: 0;
   overflow: hidden;
 }
 
-.drag-temporal .s04-slate {
-  position: absolute;
-  top: var(--tp-space-4);
-  left: var(--tp-space-4);
-  margin: 0;
-  color: var(--tp-ink-mute);
+/* Only the family lives here; act 05's own block sets every other property (and is the
+ * later of the two files, so it wins where they overlap). */
+.drag-temporal .s05-the-end {
   font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-xs);
-  letter-spacing: 0.16em;
-}
-
-.drag-temporal .s04-center {
-  position: absolute;
-  top: 54%;
-  left: 50%;
-  display: grid;
-  justify-items: center;
-  width: min(90cqw, 468px);
-  text-align: center;
-  translate: -50% -50%;
-}
-
-.drag-temporal .s04-cut-title,
-.drag-temporal .s04-the-end {
-  margin: 0;
-}
-
-.drag-temporal .s04-cut-title {
-  color: var(--tp-ink);
-  font-family: var(--tp-font-display);
-  font-size: clamp(64px, 22cqw, 118px);
-  font-weight: 600;
-  line-height: 0.84;
-  letter-spacing: -0.055em;
-}
-
-.drag-temporal .s04-accent-line {
-  display: block;
-  width: 12cqw;
-  min-width: 46px;
-  max-width: 64px;
-  height: 1px;
-  margin-top: var(--tp-space-5);
-  background: var(--tp-accent);
-  box-shadow: 0 0 12px var(--tp-accent-glow);
-  transform-origin: center;
-}
-
-.drag-temporal .s04-the-end {
-  margin-top: var(--tp-space-4);
-  color: var(--tp-ink-soft);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-xs);
-  letter-spacing: 0.34em;
-}
-
-.drag-temporal .s04-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--tp-space-3);
-  margin-top: clamp(var(--tp-space-6), 9cqw, var(--tp-space-8));
 }
 
 .drag-temporal .tp-btn {
@@ -1339,105 +1264,20 @@
   background: var(--tp-accent-soft);
 }
 
-.drag-temporal .s04-stage > [data-cineview-animate-id='s04-sprocket-strip'] {
-  position: absolute;
-  right: var(--tp-space-4);
-  bottom: var(--tp-space-5);
-  left: var(--tp-space-4);
-}
-
-.drag-temporal .s04-sprocket-strip {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  align-items: center;
-  gap: var(--tp-space-2);
-}
-
-.drag-temporal .s04-sprocket {
-  display: grid;
-  place-items: center;
-  height: clamp(8px, 2.3cqw, 12px);
-  border-radius: 2px;
-  color: transparent;
-  background: var(--tp-ink-faint);
-  font-family: var(--tp-font-mono);
-  font-size: clamp(5px, 1.3cqw, 7px);
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.drag-temporal .s04-sprocket.is-end {
-  color: var(--tp-accent);
-  background: var(--tp-accent-dim);
-  box-shadow: inset 0 0 0 1px var(--tp-accent-soft);
-}
-
-/* Continuous running hand. Rotates the `rotate` property (not `transform`, which
- * the bar uses for its translateX centering) a full turn around the dial center. */
-@keyframes s01-hand-run {
-  from {
-    rotate: 0deg;
-  }
-  to {
-    rotate: 360deg;
-  }
-}
-
-@keyframes s01-ticks-calibrate {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  25%,
-  65% {
-    opacity: 0.3;
-  }
-  45%,
-  82% {
-    opacity: 1;
-  }
-}
-
-@keyframes s03-stream-up {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-50%);
-  }
-}
-
-@keyframes tp-rec-pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
+/* s04-stream-up / tp-rec-pulse keyframes removed: those loops now ride the
+ * framework's infinite lane (<Animate infiniteAnimation> in TimeStreams /
+ * RecBadge) so they stop when the scene leaves its phase. See rule 6. */
 
 @media (max-width: 430px) {
-  .drag-temporal .tp-hud,
-  .drag-temporal .tp-footer {
-    padding-inline: var(--tp-space-3);
-    letter-spacing: 0.04em;
-  }
-
-  .drag-temporal .tp-hud__left {
-    gap: var(--tp-space-2);
-  }
-
-  .drag-temporal .tp-hud__right {
-    gap: var(--tp-space-2);
-    font-size: clamp(7px, 1.8cqw, 8px);
-    letter-spacing: 0.02em;
-  }
-
-  .drag-temporal .s03-stream--center {
-    display: none;
+  /* The centre column stays VISIBLE at phone widths. Hiding it (the previous rule)
+   * removed the middle of the three depth planes exactly at the 390px acceptance
+   * viewport, so the three-column depth this act's background is built on could never
+   * be seen in review — the design was being judged on two columns. It is not a
+   * crowding risk: it is the faintest of the three and sits behind the eclipse and the
+   * readout. Narrow it instead of deleting it. */
+  .drag-temporal .s04-stream--center {
+    font-size: clamp(7px, 1.9cqw, 9px);
+    opacity: 0.72;
   }
 }
 
@@ -1466,10 +1306,40 @@
   z-index: 45;
   pointer-events: none;
   mix-blend-mode: screen;
-  overflow: hidden;
+  /* NO `overflow: hidden` here, deliberately. It used to clip this box, and once the
+   * sink transform (scale 0.96 + y 7%) was applied the clip edge itself pulled in from
+   * the viewport — on a screen-blended layer that rendered as a hard bright line
+   * sliding down the frame (measured 19.6 → 57.6 luminance across 4 device px at the
+   * top edge). Nothing needs clipping: every child overscans by 20% and its gradients
+   * fade to transparent well before their own edges, so there is no hard boundary to
+   * hide. Keeping the box unclipped is also why the sink can ride an inner layer
+   * without rescaling each child's percentage coordinate space. */
   /* Fallback tint if --tp-sig hasn't cascaded (e.g. root); amber resting pole. */
   --tp-ambient-sig: var(--tp-sig, var(--tp-sig-amber));
 }
+
+/* The sink transform rides THIS layer rather than .tp-ambient, so the blend/stacking
+ * context above stays untransformed and the light is the only thing that moves.
+ * Viewport-sized on purpose: the children position themselves in % against it, so
+ * resizing this box would shift the whole lighting geometry. */
+.drag-temporal .tp-ambient__rig {
+  position: absolute;
+  inset: 0;
+  will-change: transform, opacity;
+}
+
+/* ── CSS `animation: … infinite` EXEMPTION: the ambient light rig ───────────
+ * Rule 6 (AGENTS.md / CLAUDE.md) says continuous loops belong on the framework's
+ * infinite lane (<Animate infiniteAnimation>) so shouldRunInfinite can freeze them
+ * when a scene leaves its phase. The four .tp-ambient__* loops below are the
+ * deliberate exception, and the reason is that they are NOT scene content: the
+ * ambient rig is a global chrome layer mounted OUTSIDE every <Scene>, so it has no
+ * phase to be gated against. Putting it on the framework lane would ask the
+ * framework which scene owns it — there is no answer, and any answer would make the
+ * room lighting flicker off during transitions, which is exactly when the frame
+ * needs to stay lit. Continuous-by-design; they only ever stop at reduced-motion
+ * (see the prefers-reduced-motion block above, `animation: none !important`).
+ * Anything that lives inside a <Scene> does NOT get this exemption. */
 
 /* Key light: a large soft off-center cone breathing in intensity, the dominant
  * source. Positioned upper-left so it rakes across the frame like a lamp. */
@@ -1577,6 +1447,12 @@
   pointer-events: none;
 }
 
+/* ── CSS `animation: … infinite` EXEMPTION: film grain ──────────────────────
+ * Same reasoning as the ambient rig above: .tp-texture is global chrome layered
+ * over the whole frame (z-index 50), outside any <Scene>, so there is no phase for
+ * shouldRunInfinite to gate against. Grain is also the one loop that must never
+ * pause — a frozen grain field stops reading as film and starts reading as a
+ * smudge on the screen. Stays on the CSS lane; stops only at reduced-motion. */
 .drag-temporal .tp-texture__grain {
   position: absolute;
   inset: -50%;
@@ -1627,36 +1503,8 @@
   }
 }
 
-.drag-temporal .s03-context {
-  margin: var(--tp-space-2) auto 0;
-  max-width: 30ch;
-  color: var(--tp-ink-soft);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-sm);
-  line-height: 1.5;
-  text-align: center;
-}
-
-/* Scene 05 empty-film-leader strip (v3 §8): countdown frames filling the upper
- * void above CUT, dim so it reads as reel leader, not primary content. */
-.drag-temporal .s04-leader {
-  position: absolute;
-  top: clamp(48px, 14cqw, 90px);
-  left: 50%;
-  display: flex;
-  gap: var(--tp-space-3);
-  translate: -50% 0;
-  opacity: 0.4;
-}
-
-.drag-temporal .s04-leader__frame {
-  display: grid;
-  place-items: center;
-  width: clamp(18px, 5cqw, 26px);
-  aspect-ratio: 3 / 4;
-  border: 1px solid var(--tp-rule-strong);
-  border-radius: 2px;
-  color: var(--tp-ink-mute);
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-2xs);
-}
+/* `.s04-context` (act 04's explanatory paragraph) and `.s05-leader` / `.s05-leader__frame`
+ * (act 05's reel-leader countdown strip above the old CUT hero) were deleted here: both
+ * acts were rewritten and neither element is rendered any more. They were the only rules
+ * left in this file after the texture keyframes, and being physically separated from their
+ * own acts is part of why they outlived them. */

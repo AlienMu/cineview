@@ -6,7 +6,7 @@ export const en: Dict = {
   'nav.demo': 'Demo',
   'nav.docs': 'Docs',
   'nav.github': 'GitHub',
-  'nav.lang': '中',
+  'nav.lang': 'ZH',
   'nav.langLabel': 'Switch language',
 
   // ── Act 1 Hero ──
@@ -219,24 +219,37 @@ export const en: Dict = {
 
   // ── /drag temporal experience (narrative copy only; film terms stay English) ──
   'dragTemporal.s01.eyebrow': 'CINEMATIC UI FRAMEWORK',
-  'dragTemporal.s01.subtitle': 'Direct every frame like a filmmaker',
   'dragTemporal.s01.footerHint': 'After release, time keeps finishing',
   'dragTemporal.s01.dialLabel': 'Temporal calibration dial',
   'dragTemporal.s01.dragHintLabel': 'Drag up or down',
   'dragTemporal.s01.actionsLabel': 'Primary navigation',
   'dragTemporal.s01.btnDocs': 'Read the docs',
   'dragTemporal.s01.btnHome': 'View on GitHub',
-  'dragTemporal.s02.eyebrow': 'SLATE · ACTION',
-  'dragTemporal.s02.title': 'Clap the board — the take begins',
   'dragTemporal.s02.footerHint': 'Mark it — scene in motion',
   'dragTemporal.s02.slateLabel': '02 / SLATE',
+  'dragTemporal.s02.actionWord': 'ACTION',
   'dragTemporal.s02.clapperLabel': 'Clapperboard forming from particles',
-  'dragTemporal.s03.eyebrow': 'DECLARATIVE TIMELINE',
-  'dragTemporal.s03.title': 'Order & position, resolved',
-  'dragTemporal.s03.footerHint': 'Elements arrive in turn',
-  'dragTemporal.s03.timelineLabel': 'Five-stage declarative timeline',
-  'dragTemporal.s03.panelLabel': 'Active cue parameters',
-  'dragTemporal.s03.contextTitle': 'Elements arrive by waitFor',
+  // The act's only on-screen text. The eyebrow/title/body1/body2/signoff keys that stood
+  // here were four paragraphs of prose, removed with the copy block they fed
+  // (「去掉文案 ... 然后给一个名称，就叫调度」).
+  'dragTemporal.s03.name': 'DIRECTING',
+  'dragTemporal.s03.footerHint': 'One timeline directs every frame',
+  'dragTemporal.s03.stripLabel': 'Five code strips taped to the cutting-room bench',
+  'dragTemporal.s03.card1': 'ENTER',
+  'dragTemporal.s03.card2': 'STAGGER',
+  'dragTemporal.s03.card3': 'HOLD',
+  'dragTemporal.s03.card4': 'EXIT',
+  'dragTemporal.s03.card5': 'REWIND',
+  // Added by the act-03 rewrite. previewLabel / timelineLabel are aria-labels — screen
+  // readers only, never painted. sub1..3 are the words on the V2 subtitle track, blurred
+  // past legibility in CSS on purpose (设计档 §3.3): subtitle blocks seen on a timeline,
+  // not copy to read. Kept as the Chinese terms' English equivalents so the blurred shapes
+  // have comparable width in both languages.
+  'dragTemporal.s03.previewLabel': 'Program preview monitor',
+  'dragTemporal.s03.timelineLabel': 'Editing timeline',
+  'dragTemporal.s03.sub1': 'CUT',
+  'dragTemporal.s03.sub2': 'DIRECT',
+  'dragTemporal.s03.sub3': 'CONTROL',
   'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
   'dragTemporal.s04.footerHint': 'Drag distance becomes time',
   'dragTemporal.s04.rulerLabel': 'Drag progress ruler',
@@ -244,5 +257,21 @@ export const en: Dict = {
   'dragTemporal.s05.btnHome': 'Back to home',
   'dragTemporal.s05.btnDocs': 'Read docs',
   'dragTemporal.s05.reelLabel': 'End of reel',
+  'dragTemporal.s05.creditsLabel': 'CineView curtain-call credits',
+  'dragTemporal.s05.title': 'The lights come down.',
+  'dragTemporal.s05.director': 'DIRECTOR',
+  'dragTemporal.s05.editor': 'EDITOR',
+  'dragTemporal.s05.cinematography': 'CINEMATOGRAPHY',
+  'dragTemporal.s05.performance': 'MOTION PERFORMANCE',
+  'dragTemporal.s05.starring': 'STARRING',
+  'dragTemporal.s05.sceneEngine': 'Scene Engine',
+  'dragTemporal.s05.timeline': 'Unified Timeline',
+  'dragTemporal.s05.scrollDrag': 'Scroll + Drag',
+  'dragTemporal.s05.motionRuntime': 'Reversible Motion Runtime',
+  'dragTemporal.s05.yourStory': 'Your Story',
+  'dragTemporal.s05.salute1': 'FRAME PERFECT',
+  'dragTemporal.s05.salute2': 'YOURS TO DIRECT',
+  'dragTemporal.s05.salute3': 'ONE CONTINUOUS TAKE',
+  'dragTemporal.s05.footerHint': 'Lights down — the story stays on the timeline',
   'dragTemporal.hud.metaLabel': 'Capture metadata',
 };

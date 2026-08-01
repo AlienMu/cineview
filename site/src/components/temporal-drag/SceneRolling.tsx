@@ -1,89 +1,276 @@
 import { Animate } from 'cineview';
-import { motion, useSpring, useTransform, type MotionValue } from 'framer-motion';
-import { memo, type ReactNode } from 'react';
-import { CornerDecoration } from './CornerDecoration';
-import { DialTicks, DIAL_TICKS_TAIL } from './DialTicks';
+import { memo, useEffect, useState, type ReactNode } from 'react';
+import { DialTicks, DIAL_SWEEP_MS, readDialEpoch, type DialEpoch } from './DialTicks';
+import { LangToggle } from '../LangToggle';
 import { useI18n } from '../../i18n';
-import { FooterBar } from './FooterBar';
-import { HeaderHUD } from './HeaderHUD';
 import { useTemporalMotion } from './TemporalMotion';
 
-type SceneRollingProps = {
-  isDragging: boolean;
-  signedDragProgress: MotionValue<number>;
-};
-
-// SEQUENCE (single framework drag timeline — 2026 rework):
-// Every entering element is a framework <Animate> reading ONE shared per-scene
-// element track. Order is expressed purely with waitFor + delay, so a single drag
-// progress drives the whole thing: drag in and the hand sweeps, the ticks latch in
-// behind it, then the ring / number / title chain; reverse-drag and it all unwinds
-// in place; leave and re-enter the scene and it replays. No mount-timer, no
-// separate exit lane — the framework's enter/exit IS the drag scrub, and it is
-// reversible + replayable by construction.
+// SEQUENCE (act 1 — calibration dial, 2026-07-29 five-act redesign):
+// The hand is the CAUSE of the ticks. Every lane is a framework <Animate> on an
+// ABSOLUTE delay against this scene's element track — no waitFor anywhere in the
+// act. The minute hand's fixed first rotation spans DIAL_SWEEP_MS and each tick's delay is
+// the moment the hand crosses it (see tickSweepDelay), so a lit tick always has a
+// visible cause. Two properties of that guarantee are load-bearing:
+//   1. drag-mode interpolation is a single two-point lerp driven by one linear
+//      localProgress (useAnimateDrag.resolvePropertyValue). Authored `ease` and
+//      per-property `times` are ignored under drag, so the hand's angle is exactly
+//      linear in elapsed ms — the same linear axis the tick delays are cut from.
+//      Alignment is structural, not tuned.
+//   2. because `times` cannot split one lane, the hand needs TWO nested lanes: an
+//      outer opacity lane (880ms, per the budget table) and an inner rotation lane
+//      (DIAL_SWEEP_MS). A single lane would either fade over three seconds or cut
+//      the sweep to 880ms and break the tick causality.
 const ROLL = {
-  // Ticks are now 12 per-segment <Animate>s (see DialTicks); the ring chains off
-  // the LAST segment so the whole ring has swept in before it draws.
-  ticks: DIAL_TICKS_TAIL,
   ring: 'dial-ring',
   number: 'dial-number',
   eyebrow: 's01-eyebrow',
   title: 's01-title',
-  subtitle: 's01-subtitle',
+  date: 's01-date',
+  lang: 's01-lang',
   actions: 's01-actions',
 } as const;
 
-// Hands are ALWAYS moving: the visual bar carries a continuous CSS spin (a real
-// running second/minute hand), and this pivot adds a drag-driven rotation OFFSET
-// on top — scrub forward and the hand leans ahead of time, reverse-drag and it
-// winds back, following the finger. The two compose because the CSS spin animates
-// the `rotate` property on the inner bar while framer-motion writes `transform`
-// (rotate) on this pivot; nested rotations around the same dial center add.
-function SweepSecondHand({ signedProgress }: { signedProgress: MotionValue<number> }): JSX.Element {
-  const target = useTransform(signedProgress, [-1, 0, 1], [-46, 0, 46]);
-  const rotate = useSpring(target, { stiffness: 160, damping: 18 });
+// Absolute enter offsets, all measured from the scene clock's zero. 0-300ms is the
+// opening-response band: ring + both hands at 0, then number/eyebrow/title/lang and
+// finally the buttons at 300, so the first perceptible finger movement always has
+// something on screen resolving.
+export const ACT1_ENTER_DELAY_MS = {
+  ring: 0,
+  hand: 0,
+  number: 60,
+  eyebrow: 80,
+  title: 140,
+  date: 180,
+  lang: 200,
+  actions: 300,
+} as const;
+
+export const ACT1_ENTER_MS = {
+  ring: 420,
+  handFade: 880,
+  handSweep: DIAL_SWEEP_MS,
+  minuteAdvance: 900,
+  number: 460,
+  eyebrow: 440,
+  title: 560,
+  date: 460,
+  lang: 400,
+  actions: 460,
+} as const;
+
+// Drag exit has no per-element delay lane: every element starts exiting together.
+// Keep the budgets in one narrow band so the complete composition leaves as a unit.
+// The previous 200-560ms spread cleared copy/buttons first and stranded the dial as
+// a giant bare "01" — exactly the broken mid-drag frame reported by the user.
+const EXIT_MS = {
+  actions: 700,
+  title: 720,
+  eyebrow: 700,
+  lang: 700,
+  number: 720,
+  ring: 720,
+  ticks: 720,
+} as const;
+
+// Real-clock rates for the live-time lane. The hand keeps running once its sweep has
+// landed, so the instrument reads as a working clock rather than a spent animation.
+export const ACT1_LIVE_SPIN_SECONDS = { second: 60, minute: 3600 } as const;
+
+function createMechanicalRotation(steps: number): { rotate: number[]; times: number[] } {
+  const rotate: number[] = [];
+  const times: number[] = [];
+
+  for (let index = 0; index < steps; index += 1) {
+    const angle = (index / steps) * 360;
+    rotate.push(angle, angle);
+    times.push(index / steps, (index + 0.92) / steps);
+  }
+  rotate.push(360);
+  times.push(1);
+
+  return { rotate, times };
+}
+
+// The live lane lives on its own nested layer, so its rotation composes with (rather
+// than overwrites) the sweep lane's angle. Its keyframes therefore start at 0 — that
+// layer's own enter landing point — satisfying the "infinite keyframes must start
+// where enter ended" rule without having to know the wall-clock angle.
+const SECOND_HAND_STEPS = createMechanicalRotation(60);
+const MINUTE_HAND_STEPS = createMechanicalRotation(60);
+
+export function createHandSweepContract(startAngle: number): {
+  enterAnimation: {
+    initial: { opacity: number; rotate: number };
+    animate: { opacity: number; rotate: number };
+  };
+  exitAnimation: { exit: { opacity: number; rotate: number } };
+} {
+  return {
+    enterAnimation: {
+      initial: { opacity: 1, rotate: startAngle },
+      animate: { opacity: 1, rotate: startAngle + 360 },
+    },
+    exitAnimation: { exit: { opacity: 1, rotate: startAngle } },
+  };
+}
+
+export function createMinuteAdvanceContract(targetAngle: number): {
+  enterAnimation: {
+    initial: { opacity: number; rotate: number };
+    animate: { opacity: number; rotate: number };
+  };
+  exitAnimation: { exit: { opacity: number; rotate: number } };
+} {
+  return {
+    enterAnimation: {
+      initial: { opacity: 1, rotate: 0 },
+      animate: { opacity: 1, rotate: targetAngle },
+    },
+    exitAnimation: { exit: { opacity: 1, rotate: 0 } },
+  };
+}
+
+/**
+ * One hand, three framework-owned layers:
+ *   1. outer  — opacity only (880ms). Fades the hand in while the sweep is already
+ *               under way, which is what the 880ms budget line buys.
+ *   2. middle — the second-hand calibration sweep from its sampled wall-clock angle
+ *               through one full turn back to the same angle. Exit unwinds it.
+ *   3. inner  — the framework infinite lane: real-rate live time, phase-gated by
+ *               shouldRunInfinite so it cannot keep ticking after the act leaves.
+ */
+function RunningSecondHand({ startAngle }: { startAngle: number }): JSX.Element {
+  const timing = useTemporalMotion();
+  const sweep = createHandSweepContract(startAngle);
   return (
-    <motion.span className="s01-hand-pivot" style={{ rotate }}>
-      <span className="s01-hand s01-hand--second" />
-    </motion.span>
+    <Animate
+      animateId="s01-hand-second"
+      enterAnimation={{ initial: { opacity: 0 }, animate: { opacity: 1 } }}
+      exitAnimation={{ exit: { opacity: 0 } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.handFade),
+        exit: timing.duration(EXIT_MS.ring),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.hand) }}
+    >
+      <span className="s01-hand-sweep s01-hand-sweep--second">
+        <Animate
+          animateId="s01-hand-second-sweep"
+          enterAnimation={sweep.enterAnimation}
+          // Reverse-drag reads animate -> initial, and a forward exit reads
+          // animate -> this target. Both therefore rewind the turn instead of
+          // continuing it: exit is the sweep played backwards, per the act spec.
+          exitAnimation={sweep.exitAnimation}
+          duration={{
+            enter: timing.duration(ACT1_ENTER_MS.handSweep),
+            exit: timing.duration(EXIT_MS.ring),
+          }}
+          timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.hand) }}
+          infiniteAnimation={
+            timing.reduced
+              ? undefined
+              : {
+                  animate: {
+                    rotate: SECOND_HAND_STEPS.rotate,
+                    transition: {
+                      duration: timing.seconds(ACT1_LIVE_SPIN_SECONDS.second),
+                      ease: 'linear',
+                      times: SECOND_HAND_STEPS.times,
+                      repeat: Infinity,
+                    },
+                  },
+                }
+          }
+        >
+          <span className="s01-hand-pivot s01-hand-pivot--second">
+            <span className="s01-hand s01-hand--second" />
+          </span>
+        </Animate>
+      </span>
+    </Animate>
   );
 }
 
-function SweepMinuteHand({ signedProgress }: { signedProgress: MotionValue<number> }): JSX.Element {
-  const target = useTransform(signedProgress, [-1, 0, 1], [-18, 0, 18]);
-  const rotate = useSpring(target, { stiffness: 160, damping: 20 });
+/**
+ * The minute hand has two sequential rotation lanes. The first is the fixed 60-to-60
+ * calibration lap that reveals the ticks; only after that lap lands does the second lane
+ * advance to the sampled minute. Their transforms compose, so minute 59 approaches but never
+ * crosses two complete turns. The live one-hour rotation begins from that settled position.
+ */
+function RunningMinuteHand({ targetAngle }: { targetAngle: number }): JSX.Element {
+  const timing = useTemporalMotion();
+  const sweep = createHandSweepContract(0);
+  const advance = createMinuteAdvanceContract(targetAngle);
+
   return (
-    <motion.span className="s01-hand-pivot" style={{ rotate }}>
-      <span className="s01-hand s01-hand--minute" />
-    </motion.span>
+    <Animate
+      animateId="s01-hand-minute"
+      enterAnimation={{ initial: { opacity: 0 }, animate: { opacity: 1 } }}
+      exitAnimation={{ exit: { opacity: 0 } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.handFade),
+        exit: timing.duration(EXIT_MS.ring),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.hand) }}
+    >
+      <span className="s01-hand-sweep s01-hand-sweep--minute">
+        <Animate
+          animateId="s01-hand-minute-sweep"
+          enterAnimation={sweep.enterAnimation}
+          exitAnimation={sweep.exitAnimation}
+          duration={{
+            enter: timing.duration(ACT1_ENTER_MS.handSweep),
+            exit: timing.duration(EXIT_MS.ring),
+          }}
+          timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.hand) }}
+        >
+          <span className="s01-hand-minute-offset">
+            <Animate
+              animateId="s01-hand-minute-advance"
+              enterAnimation={advance.enterAnimation}
+              exitAnimation={advance.exitAnimation}
+              duration={{
+                enter: timing.duration(ACT1_ENTER_MS.minuteAdvance),
+                exit: timing.duration(EXIT_MS.ring),
+              }}
+              timeline={{ delay: timing.delay(DIAL_SWEEP_MS) }}
+              infiniteAnimation={
+                timing.reduced
+                  ? undefined
+                  : {
+                      animate: {
+                        rotate: MINUTE_HAND_STEPS.rotate,
+                        transition: {
+                          duration: timing.seconds(ACT1_LIVE_SPIN_SECONDS.minute),
+                          ease: 'linear',
+                          times: MINUTE_HAND_STEPS.times,
+                          repeat: Infinity,
+                        },
+                      },
+                    }
+              }
+            >
+              <span className="s01-hand-pivot s01-hand-pivot--minute">
+                <span className="s01-hand s01-hand--minute" />
+              </span>
+            </Animate>
+          </span>
+        </Animate>
+      </span>
+    </Animate>
   );
 }
 
-// The dial gets a live drag TILT (framer-motion, reads signedDragProgress) so it
-// leans with the finger. Its enter/exit is NOT composed here — the ticks / ring /
-// number inside each own their framework <Animate>, so the dial is a pure tilt
-// wrapper. reduced-motion pins the tilt to 0.
-function GatedDial({
-  children,
-  signedDragProgress,
-  reduced,
-  label,
-}: {
-  children: ReactNode;
-  signedDragProgress: MotionValue<number>;
-  reduced: boolean;
-  label: string;
-}): JSX.Element {
-  const targetRotate = useTransform(
-    signedDragProgress,
-    [-1, 0, 1],
-    reduced ? [0, 0, 0] : [-5, 0, 5]
-  );
-  const rotate = useSpring(targetRotate, { stiffness: 180, damping: 14 });
+// The dial shell carries no lane of its own. It used to wrap everything in a 980ms
+// opacity/scale/blur takeover, which both duplicated the ring lane and smeared the
+// tick sweep behind a blur that was still resolving while ticks were lighting.
+function DialShell({ children, label }: { children: ReactNode; label: string }): JSX.Element {
   return (
-    <motion.div className="s01-dial" style={{ rotate: reduced ? 0 : rotate }} aria-label={label}>
-      {children}
-    </motion.div>
+    <div className="s01-dial-shell">
+      <div className="s01-dial" role="img" aria-label={label}>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -93,53 +280,68 @@ function GatedInnerRing(): JSX.Element {
     <Animate
       animateId={ROLL.ring}
       enterAnimation={{
-        initial: { opacity: 0, scale: 0 },
-        animate: { opacity: 1, scale: 1, transition: { ease: [0.16, 1, 0.3, 1] } },
+        initial: { opacity: 0, scale: 0.72 },
+        animate: { opacity: 1, scale: 1 },
       }}
-      exitAnimation={{ exit: { opacity: 0, scale: 0.4 } }}
-      duration={{ enter: timing.duration(360), exit: timing.duration(300) }}
-      timeline={{ waitFor: ROLL.ticks, delay: timing.delay(40) }}
+      exitAnimation={{ exit: { opacity: 0, scale: 0.72 } }}
+      duration={{ enter: timing.duration(ACT1_ENTER_MS.ring), exit: timing.duration(EXIT_MS.ring) }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.ring) }}
     >
       <div className="s01-inner-ring" />
     </Animate>
   );
 }
 
-function GatedCenterNumber(): JSX.Element {
+function GatedCenterNumber({
+  hour,
+  previousHour,
+}: {
+  hour: string;
+  previousHour: string | null;
+}): JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
       animateId={ROLL.number}
       enterAnimation={{
-        initial: { opacity: 0, scale: 0.6, filter: 'blur(14px)' },
-        animate: {
-          opacity: 1,
-          scale: 1,
-          filter: 'blur(0px)',
-          transition: { ease: [0.16, 1, 0.3, 1] },
-        },
+        initial: { opacity: 0, scale: 0.76, filter: 'blur(10px)' },
+        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
       }}
-      exitAnimation={{ exit: { opacity: 0, scale: 0.6, filter: 'blur(10px)' } }}
-      duration={{ enter: timing.duration(420), exit: timing.duration(280) }}
-      timeline={{ waitFor: ROLL.ring, delay: timing.delay(20) }}
+      exitAnimation={{ exit: { opacity: 0, scale: 1.08, filter: 'blur(8px)' } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.number),
+        exit: timing.duration(EXIT_MS.number),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.number) }}
     >
-      <span className="s01-center-number">01</span>
+      <span className="s01-center-number" data-hour-rollover={previousHour ? '' : undefined}>
+        {previousHour ? (
+          <span className="s01-center-number__value is-previous">{previousHour}</span>
+        ) : null}
+        <span className="s01-center-number__value is-current">{hour}</span>
+      </span>
     </Animate>
   );
 }
 
+// Copy, language toggle and actions are parallel lanes on the same clock. Their small
+// absolute offsets preserve editorial rhythm without making one group wait for the
+// previous group to finish; by the first commit window the whole composition exists.
 function GatedEyebrow({ text }: { text: string }): JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
       animateId={ROLL.eyebrow}
       enterAnimation={{
-        initial: { opacity: 0, y: 12 },
-        animate: { opacity: 1, y: 0, transition: { ease: [0.16, 1, 0.3, 1] } },
+        initial: { opacity: 0, x: '-24%', rotate: -2, filter: 'blur(5px)' },
+        animate: { opacity: 1, x: '0%', rotate: 0, filter: 'blur(0px)' },
       }}
-      exitAnimation={{ exit: { opacity: 0, y: -22 } }}
-      duration={{ enter: timing.duration(360), exit: timing.duration(240) }}
-      timeline={{ waitFor: ROLL.number, delay: timing.delay(40) }}
+      exitAnimation={{ exit: { opacity: 0, x: '18%', rotate: 2, filter: 'blur(4px)' } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.eyebrow),
+        exit: timing.duration(EXIT_MS.eyebrow),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.eyebrow) }}
     >
       <p className="s01-eyebrow">{text}</p>
     </Animate>
@@ -152,44 +354,113 @@ function GatedTitle(): JSX.Element {
     <Animate
       animateId={ROLL.title}
       enterAnimation={{
-        initial: { opacity: 0, y: '18%', scale: 0.92, filter: 'blur(8px)' },
-        animate: {
-          opacity: 1,
-          y: '0%',
-          scale: 1,
-          filter: 'blur(0px)',
-          transition: { ease: [0.16, 1, 0.3, 1] },
-        },
+        initial: { opacity: 0, scale: 1.16, filter: 'blur(16px)' },
+        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
       }}
-      exitAnimation={{ exit: { opacity: 0, y: '-26%', scale: 0.96 } }}
-      duration={{ enter: timing.duration(520), exit: timing.duration(300) }}
-      timeline={{ waitFor: ROLL.eyebrow, delay: timing.delay(30) }}
+      exitAnimation={{ exit: { opacity: 0, scale: 0.86, filter: 'blur(12px)' } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.title),
+        exit: timing.duration(EXIT_MS.title),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.title) }}
     >
       <h1 className="s01-title">CineView</h1>
     </Animate>
   );
 }
 
-function GatedSubtitle({ text }: { text: string }): JSX.Element {
+function GatedDate({ text }: { text: string }): JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
-      animateId={ROLL.subtitle}
+      animateId={ROLL.date}
       enterAnimation={{
-        initial: { opacity: 0, y: '100%' },
-        animate: { opacity: 1, y: '0%', transition: { ease: [0.16, 1, 0.3, 1] } },
+        initial: { opacity: 0, y: 8, filter: 'blur(4px)' },
+        animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
       }}
-      exitAnimation={{ exit: { opacity: 0, y: '-60%' } }}
-      duration={{ enter: timing.duration(420), exit: timing.duration(260) }}
-      timeline={{ waitFor: ROLL.title, delay: timing.delay(30) }}
+      exitAnimation={{ exit: { opacity: 0, y: -8, filter: 'blur(4px)' } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.date),
+        exit: timing.duration(EXIT_MS.title),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.date) }}
     >
-      <p className="s01-subtitle">{text}</p>
+      <p className="s01-date">{text}</p>
     </Animate>
   );
 }
 
-// CTA band (moved forward from the old Scene-05 ending per the redesign): the two
-// primary nav actions live in Act 1 now. Enters last, behind the subtitle.
+type LiveDialClock = {
+  hour: string;
+  dateLabel: string;
+  previousHour: string | null;
+};
+
+function useLiveDialClock(epoch: DialEpoch): LiveDialClock {
+  const [clock, setClock] = useState<LiveDialClock>({
+    hour: epoch.hour,
+    dateLabel: epoch.dateLabel,
+    previousHour: null,
+  });
+
+  useEffect(() => {
+    let timeout = 0;
+    const update = (): void => {
+      const next = readDialEpoch();
+      setClock((current) => {
+        if (current.hour === next.hour && current.dateLabel === next.dateLabel) return current;
+        return {
+          hour: next.hour,
+          dateLabel: next.dateLabel,
+          previousHour: current.hour === next.hour ? null : current.hour,
+        };
+      });
+      const now = Date.now();
+      timeout = window.setTimeout(update, 60_000 - (now % 60_000) + 20);
+    };
+
+    const now = Date.now();
+    timeout = window.setTimeout(update, 60_000 - (now % 60_000) + 20);
+    return (): void => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (!clock.previousHour) return;
+    const timeout = window.setTimeout(() => {
+      setClock((current) => ({ ...current, previousHour: null }));
+    }, 520);
+    return (): void => window.clearTimeout(timeout);
+  }, [clock.previousHour]);
+
+  return clock;
+}
+
+// The language toggle now belongs to act 1 rather than the app shell: as page-level
+// chrome it was the one element that ignored the drag timeline entirely, sitting at
+// full opacity over every act.
+function GatedLangToggle(): JSX.Element {
+  const timing = useTemporalMotion();
+  return (
+    <div className="s01-lang-slot">
+      <Animate
+        animateId={ROLL.lang}
+        enterAnimation={{
+          initial: { opacity: 0, y: '-40%', filter: 'blur(6px)' },
+          animate: { opacity: 1, y: '0%', filter: 'blur(0px)' },
+        }}
+        exitAnimation={{ exit: { opacity: 0, y: '-30%', filter: 'blur(5px)' } }}
+        duration={{
+          enter: timing.duration(ACT1_ENTER_MS.lang),
+          exit: timing.duration(EXIT_MS.lang),
+        }}
+        timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.lang) }}
+      >
+        <LangToggle variant="drag" />
+      </Animate>
+    </div>
+  );
+}
+
 function GatedActions({
   actionsLabel,
   btnHome,
@@ -204,12 +475,15 @@ function GatedActions({
     <Animate
       animateId={ROLL.actions}
       enterAnimation={{
-        initial: { opacity: 0, y: 40 },
-        animate: { opacity: 1, y: 0, transition: { ease: [0.16, 1, 0.3, 1] } },
+        initial: { opacity: 0, scale: 0.82, filter: 'blur(8px)' },
+        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
       }}
-      exitAnimation={{ exit: { opacity: 0, y: -28 } }}
-      duration={{ enter: timing.duration(420), exit: timing.duration(220) }}
-      timeline={{ waitFor: ROLL.subtitle, delay: timing.delay(30) }}
+      exitAnimation={{ exit: { opacity: 0, scale: 1.08, filter: 'blur(7px)' } }}
+      duration={{
+        enter: timing.duration(ACT1_ENTER_MS.actions),
+        exit: timing.duration(EXIT_MS.actions),
+      }}
+      timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.actions) }}
     >
       <div className="s01-actions-band">
         <nav className="s01-actions" aria-label={actionsLabel}>
@@ -225,45 +499,33 @@ function GatedActions({
   );
 }
 
-export const SceneRolling = memo(function SceneRolling({
-  isDragging,
-  signedDragProgress,
-}: SceneRollingProps): JSX.Element {
-  const timing = useTemporalMotion();
+export const SceneRolling = memo(function SceneRolling(): JSX.Element {
   const { t } = useI18n();
+  // Sampled once per mount. The hands and all 60 tick delays derive from this one
+  // reading, so they cannot disagree about where "now" is.
+  const [epoch] = useState<DialEpoch>(readDialEpoch);
+  const clock = useLiveDialClock(epoch);
 
   return (
     <div className="tp-scene__inner s01-scene">
-      <HeaderHUD
-        sceneId="rolling"
-        timecode="00:00:00:00"
-        startFrame={0}
-        rolling={true}
-        isDragging={isDragging}
-      />
-
       <main className="s01-stage">
-        <p className="s01-slate">01 / ROLLING</p>
+        <GatedLangToggle />
 
-        <GatedDial
-          signedDragProgress={signedDragProgress}
-          reduced={timing.reduced}
-          label={t('dragTemporal.s01.dialLabel')}
-        >
-          <DialTicks />
+        <DialShell label={t('dragTemporal.s01.dialLabel')}>
+          <DialTicks exitMs={EXIT_MS.ticks} />
           <GatedInnerRing />
-          <GatedCenterNumber />
+          <GatedCenterNumber hour={clock.hour} previousHour={clock.previousHour} />
+          <GatedDate text={clock.dateLabel} />
           <div className="s01-hands" aria-hidden="true">
-            <SweepSecondHand signedProgress={signedDragProgress} />
-            <SweepMinuteHand signedProgress={signedDragProgress} />
+            <RunningSecondHand startAngle={epoch.secondAngle} />
+            <RunningMinuteHand targetAngle={epoch.minuteAngle} />
             <span className="s01-hands__pin" />
           </div>
-        </GatedDial>
+        </DialShell>
 
         <section className="s01-title-area">
           <GatedEyebrow text={t('dragTemporal.s01.eyebrow')} />
           <GatedTitle />
-          <GatedSubtitle text={t('dragTemporal.s01.subtitle')} />
         </section>
 
         <GatedActions
@@ -272,13 +534,6 @@ export const SceneRolling = memo(function SceneRolling({
           btnDocs={t('dragTemporal.s01.btnDocs')}
         />
       </main>
-
-      <CornerDecoration position="tl" />
-      <CornerDecoration position="tr" />
-      <CornerDecoration position="bl" />
-      <CornerDecoration position="br" />
-
-      <FooterBar sceneId="rolling" frame={1} hint={t('dragTemporal.s01.footerHint')} />
     </div>
   );
 });

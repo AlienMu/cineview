@@ -46,7 +46,7 @@ declare a root mode.
 - `Position`: design-coordinate placement and scene-scoped fixed layers.
 - `Container`: design-coordinate box sizing.
 - `Image`: preload-aware image component.
-- `AnimateVideo`: MotionValue-driven video scrubbing without a React commit per tick.
+- `AnimateVideo`: atomic MotionValue scrubbing with explicit scrub ranges and single-writer handoff to native playback.
 
 ## Input and Accessibility
 
