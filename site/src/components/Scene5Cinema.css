@@ -1,0 +1,472 @@
+/* ============================================================================
+ * Scene 5 — Cinema Entrance（熄屏入场）
+ * 三阶段（zone 预算分数窗口）：0–0.4 熄灯 / 0.4–0.7 手机显现 / 0.7–1.0 揭幕。
+ * 呼吸与光晕的循环值由 infinite-only Animate lane 写在包装元素的 CSS 变量上
+ * （--phone-breathe / --glow-pulse，见 PhoneMockup.tsx），此处只做 calc() 消费；
+ * 本文件不得出现 `animation: … infinite`（CLAUDE.md 规则 6）。
+ * 深色值仅服务「影院熄灯」叙事，独立于 temporal-drag 的 --tp-* palette。
+ * ========================================================================== */
+
+.scene5-cinema {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* 熄灯 overlay：盖住整个场景（背景之上、星光之下），透明度由 scroll scrub 驱动。
+ * 终点 0.94（见 Scene5Cinema.tsx LIGHTS_OFF_MAX）：留一线暖底透出，不是纯黑。
+ * 用 absolute 而非 fixed：takeover scene 内 fixed 必然降级——ScrollSceneSlot 恒定给
+ * takeover content 加 transform，任何非 none 的 transform 都会成为 fixed 的包含块。
+ * 场景改为 100vh 后 sticky 壳正好一个视口且 overflow:hidden，absolute inset:0 即等价视口铺满。 */
+.scene5-cinema__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #0a0909;
+  pointer-events: none;
+}
+
+/* 输入量化频闪的修复(2026-08-10,N13):熄灯 opacity 由 scroll 1:1 scrub(880px 内
+ * 0→0.94),真实滚轮以 -120~-500px 离散档位落地 ⇒ 每档 = 全屏近黑层单帧
+ * Δopacity 0.09~0.43(实测单帧亮度跳变 +53~+97 lum),反向重滚必经此带 ⇒ 必定复现
+ * 的屏闪。修法 = 在 Animate 包装层上加 opacity transition,把每个离散档位摊成
+ * 逐帧线性斜坡(合成器侧斜坡限制器):档位 → 若干小步,单帧增量压到感知阈附近。
+ * 必须挂在包装层 [data-cineview-animate-id] 上:scrub 的 inline opacity 写在那里,
+ * 内层 .scene5-cinema__overlay 的 computed opacity 恒为 1,挂内层无效。
+ * 用 linear 而非 ease:斜坡斜率恒定 = Δtarget/时长,单帧增量有确定上界。
+ * 属 CLAUDE.md 规则 6 许可的 CSS transition(一次性插值,非 infinite 动画)。
+ *
+ * 时长取 1050ms(2026-08-10 N13-mini400/220 逐帧轨迹逐档实证):
+ * 真实滚轮序列的重定目标间隔约 ~55ms,等效斜坡速率 ≈ 档位Δopacity/时长。
+ *   300ms:-400 档单帧跳 +25.7/+20.8 lum、-220 档 +18.3 lum ⇒ 仍可见(回炉)。
+ *   650ms:-400 档带内最大 +18.3 lum、-220 档 +12.7 lum ⇒ 临界,仍偏亮(回炉)。
+ *   1050ms:目标 -400 档 ≤ ~11 lum/帧、-220 档 ≤ ~6 lum/帧(待本轮轨迹确认)。
+ * 档位落地后约 ~0.5s 追上 scrub 目标(欠阻尼一阶滞后),反向天然对称。
+ *
+ * 2026-08-10 收口实测(用户报障路径:视频出现后 → 第四幕完成 → 倒退第三幕):
+ *   熄灯带(29400–30280)修复后:-400 档最大单帧跳 5.4 lum、-120 档 8.3 lum,
+ *   用户完整路径探针(正-反 60×-400)带内零命中(阈值 15)——原频闪机制已消除。
+ *   带外残跳(29000 +45.3 / 28600 +61.2,-400 档)位于 ISSUE-B 亮带(28500–29400,
+ *   第四幕 sticky 壳滚出视口的奶白段),机制是滚动**位置**量化(内容边缘扫过采样窗),
+ *   -120 真实档位复测同带最大仅 14.3 lum ⇒ 随档位线性缩放,是正常滚动运动而非
+ *   opacity 频闪;CSS 斜坡限制器对滚动平移不适用,全局滚动平滑属框架层议题,不在本幕。 */
+[data-cineview-animate-id='cinema-lightsoff'] {
+  transition: opacity 1.05s linear;
+}
+
+/* ── 星光层：黑幕之上、视口带之下 ──────────────────────────────────────
+ * 星点是逐颗 DOM 元素（`.scene5-cinema__star`），位置在挂载时按固定种子算一次写进
+ * inline style；闪烁由 9 条 infinite lane 各写一个 `--twinkle-N`（周期互质），
+ * 每颗星读自己所属频道的那一个 —— 见 Scene5Cinema.tsx 的 TWINKLE_CHANNELS 注释。
+ * 本文件不得出现 `animation: … infinite`（CLAUDE.md 规则 6 第一条）。 */
+.scene5-cinema__stars {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.scene5-cinema__stars > [data-cineview-animate-host],
+.scene5-cinema__stars .cineview-animate {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 星野（2026-08-06 重做）────────────────────────────────────────────
+ * 每颗星是一个独立 DOM 元素，读**自己频道**的 --twinkle-N 映射到自己的 lo→hi。
+ * 旧实现是 3 层铺满视口的 radial-gradient，每层内所有星点共用一个 --twinkle
+ * ⇒ 一层里 5–8 颗星严格同相地一起亮暗，观感是「三块背景在呼吸」而非星星在闪。
+ * 逐星元素的代价是 54 个节点，收益是真正的随机性；节点全静态，零每帧 JS。
+ *
+ * `translateZ(0)` 是**修帧的必需项**（实测，勿删）：opacity 是 calc(CSS 变量) 的结果、
+ * 变量每帧被 infinite lane 改写 ⇒ 每帧样式重算 + 重绘。旧的三层全屏 gradient 方案下
+ * 1920×1080 掉到 ~46fps、2560×1440 掉到 ~30fps（连续 74 帧 >32ms），且成本
+ * **完全不进 JS 时间**（LoAF 的 JS 恒 0ms），只体现为帧间隔拉长。
+ * 提为独立合成层后 opacity 变化交由合成器，两档均 0 帧 >32ms、max 17.8ms。
+ * 现在每颗星只有几 px 大，重绘面积本就极小，但保留该提升仍是净收益。
+ * 不要加 `will-change: opacity` —— 实测与本方案同分，是零收益的反模式。
+ * 见 memory `css-var-opacity-repaints-fullscreen`。 */
+.scene5-cinema__star-field {
+  position: absolute;
+  inset: 0;
+}
+
+.scene5-cinema__star {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(250, 248, 244, 0.95);
+  /* 逐星区间：--star-t 是两条频道的加权混合（见 Scene5Cinema.tsx），lo/hi 按种子随机给。
+   * 只改振幅不改相位 —— 相位差由那个混合负责。 */
+  opacity: calc(
+    var(--star-lo, 0.2) + (var(--star-hi, 0.8) - var(--star-lo, 0.2)) * var(--star-t, 0)
+  );
+  /* ⚠️ **不要加 `transform: translateZ(0)`**（2026-08-08 实测移除）。
+   * 旧的三层全屏 gradient 方案确实需要它：那时每帧改 opacity 会让铺满视口的 gradient
+   * 整层重新光栅化，1920×1080 掉到 46fps、2560×1440 掉到 30fps，提合成层才修好。
+   * 但**逐星方案改变了前提** —— 每颗星只有 0.9–3.2px，重绘面积从「3 × 全屏」降到
+   * 「54 × 约 4px²」，合成层已无收益。消融实测（`scripts/_rv-star-perf.mjs`，1920×1080）：
+   *   有 translateZ：60.2fps / 0 帧 >32ms / **合成层 70 个**
+   *   无 translateZ：60.2fps / 0 帧 >32ms / **合成层 15 个**
+   * 帧数完全相同，而合成层少 55 个。按「不留零收益的开销」取无。
+   * 同理也不要加 `will-change: opacity`。见 memory `css-var-opacity-repaints-fullscreen`。 */
+}
+
+/* 约 38% 的星偏暖 —— 星野不该只有一种白 */
+.scene5-cinema__star.is-warm {
+  background: rgba(255, 240, 214, 0.95);
+}
+
+/* ⚠️ 放映机光锥（`.scene5-cinema__cone`）已于 2026-08-06 删除。
+ * 用户：「灯光不够柔和，太方正了 …… 如果可以，我希望不要灯光，只要闪烁的星光就行了」。
+ * 「太方正」的直接原因是它用 `clip-path: polygon(...)` 切出一个硬边梯形 ——
+ * 四条直边在极淡的暖白上依然可辨，读作一块生硬的几何色块，而不是光。
+ * 结论是整体去掉而非调软：本幕的氛围改由随机闪烁的星光独立承担。
+ * DOM 节点也已从 Scene5Cinema.tsx 移除，此处不留空规则。 */
+
+/* 视口带：场景已改为 100vh，故直接 inset:0 —— 不再需要 top:50%+translateY(-50%)。
+ * 顺带去掉了那个 transform：它会给后代 fixed/absolute 造成多余的包含块。
+ * 原 150vh 布局在上下各留 25vh 死白，正是第四/五幕「有间隔」的来源。 */
+.scene5-cinema__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+/* 手机槽位：**横向**排布 —— 手机在左、标题+副标题在右（2026-08-06 用户指令：
+ * 「不要放在顶部，太占位置了，我需要你放在旁边」）。
+ *
+ * 为什么用 flex row 而不是绝对坐标：手机高度是 90vh，右栏文本高度随语言/折行变，
+ * 两者的垂直居中与水平间距必须由布局保证。绝对坐标在语言切换或视口比例变化时必错位。
+ *
+ * 入场时序（2026-08-09 用户访谈裁决「严格串行 + 镜像退场」）：
+ *   入场：手机左移 1.1s（gap + 文本列 basis/width 位移段）→ 到位后标题 fade+微上浮
+ *         （delay 1.1s）→ 副标题 fade（delay 1.35s）。
+ *   退场：严格倒放 —— 副标题先出（delay 0）→ 标题出（delay 0.25s）→ 文字净空后
+ *         手机移回居中（位移段 delay 1.05s）。
+ * 分方向实现：transition 读的是**目标态**的 timing，故基态写退场延迟、.is-split 写
+ * 入场延迟，同一条规则覆盖两个方向。
+ * 位移与展开由 CSS transition 承担（一次性状态切换，非常驻动效，
+ * 不属 CLAUDE.md 规则 6 第一条约束的 `animation: infinite`）。 */
+.scene5-cinema__phone-slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  /* 基态 = 退场方向：位移段等文字净空（副 0.6s + 标题 0.25+0.7s ⇒ ~1.05s）再收 */
+  transition: gap 1.1s var(--ease-out) 1.05s;
+}
+
+.scene5-cinema__phone-slot.is-split {
+  gap: min(calc(72 * var(--cineview-unit)), 7vw);
+  /* 入场方向：位移段立即开始 */
+  transition-delay: 0s;
+}
+
+/* 手机列：居中态占满可用宽度并居中；分栏态收到左侧。
+ * flex-shrink:0 —— 手机是等比 90vh，绝不允许被压扁（用户要求「等宽」= 等比不形变）。 */
+.scene5-cinema__phone-col {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 文本列：居中态 width:0 完全不占位（否则手机不可能真正居中）；分栏态展开。
+ * max-width 用 ch 单位跟随字号，保证换行点稳定。
+ * ⚠️ **列本身不再拥有 opacity**（2026-08-09 时序链改造）：透明度移到标题/副标题
+ * 两个子元素上，才能各自带不同的 delay（标题 1.1s / 副标题 1.35s 入场；退场镜像）。
+ * 列只负责布局位移段（flex-basis/width），与 gap 同步 1.1s。 */
+/* ⚠️ `flex-basis` 必须是 0 而非 auto，且必须显式 `min-width: 0`：
+ * flex item 的自动最小尺寸（min-width:auto）会让它**不小于内容宽度** ——
+ * 副标题两行是长文本，basis:auto 时该列按内容撑开，把手机推到视口外
+ * （实测手机 cx 到过 3534，视口只有 1440）。`width:0` 单独写压不住，
+ * 因为 basis 优先于 width 参与 flex 计算。 */
+.scene5-cinema__text-col {
+  flex: 0 1 0;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: min(calc(20 * var(--cineview-unit)), 2.2vh);
+  /* 基态 = 退场方向：与 gap 同步等文字净空再收（见 phone-slot 注释） */
+  transition:
+    flex-basis 1.1s var(--ease-out) 1.05s,
+    width 1.1s var(--ease-out) 1.05s;
+}
+
+/* 分栏态：basis 与 width 一起给足，min-width 仍为 0（不让内容反向撑破上限）。 */
+.scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
+  flex-basis: min(calc(420 * var(--cineview-unit)), 34vw);
+  width: min(calc(420 * var(--cineview-unit)), 34vw);
+  /* 入场方向：位移段立即开始 */
+  transition-delay: 0s;
+}
+
+/* ── 窄屏回退：改**纵向**，文本落在手机**下方**（2026-08-08，对抗验收 ISSUE-D）────
+ * 缺陷：横向分栏在 390×844 彻底错位 —— 实测 `text-col` 只剩 **20px**，
+ * 标题 right=421 溢出视口右缘 31px、副标题 right=455 溢出 65px，
+ * 墨迹剖面 `segCount=1`、单段 20px 宽 ×108px 高 ⇒ 字形叠成一条竖缝，完全不可读。
+ *
+ * 成因是**两条用户要求在窄屏下物理冲突**：手机被 `height:90vh` + `aspect-ratio:332/720`
+ * 锁成 350px 宽，390px 视口只剩 40px 给文本列；`min-width:0`（那是为修「手机被推到
+ * x=3534」加的）于是让文本列塌到 20px，而不是把手机挤出去。
+ * 也就是说我上一版把失败模式从「手机被推出去」换成了「文字被压成竖缝」——
+ * 两个都是错的，只是错得不一样。
+ *
+ * 阈值取 900px：手机宽 = 0.461 × 0.9 × 视口高。要让「手机 + 可读文本列」并排，
+ * 视口宽至少得是手机宽的 ~2.2 倍。900px 以上的常见档位（1280/1440/1920/2560）
+ * 实测都够；900px 以下一律回退纵向。
+ *
+ * 为什么放**下方**而不是上方：用户原话只反对「不要放在顶部，太占位置了」，
+ * 没有反对下方；而「放旁边」在 390px 下物理上做不到。下方是最接近原意的可行位置。
+ * ⚠️ 代价（需知情）：窄屏下手机高度必须从 90vh 降到 62vh，否则 844px 高度里
+ * 760px 给手机、只剩 84px，装不下标题 + 两行副标题。这是对 D8「90vh」的**局部偏离**，
+ * 仅发生在 <900px 宽；桌面档位仍严格 90.0vh。 */
+@media (max-width: 900px) {
+  .scene5-cinema__phone-slot.is-split {
+    flex-direction: column;
+    gap: min(calc(28 * var(--cineview-unit)), 2.4vh);
+  }
+
+  /* 纵向下文本列占满宽度、按行高自然展开，不再受 34vw 挤压 */
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
+    flex-basis: auto;
+    width: min(88vw, 46ch);
+    align-items: center;
+    text-align: center;
+  }
+
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col .scene5-cinema__title-text,
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col .scene5-cinema__subtitle-text {
+    text-align: center;
+  }
+
+  /* 副标题的左侧 accent 竖线在居中排版下会显得歪，改成上方一道短横线 */
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__subtitle-text {
+    padding-left: 0;
+    padding-top: min(calc(12 * var(--cineview-unit)), 1.2vh);
+    border-left: none;
+    border-top: 2px solid rgba(225, 164, 91, 0.55);
+  }
+
+  /* 手机让出垂直空间：62vh 使 844 高视口下剩 ~320px 给文本 + 间距 */
+  .scene5-cinema__phone-slot.is-split .phone-mockup {
+    height: 62vh;
+  }
+
+  /* 窄屏纵向布局:列宽放开到 min(88vw,46ch),桌面那套「字号随列宽缩」的
+   * 约束不再成立;clamp 下限回调 20px,避免 390px 下还扛 26px 挤断行 */
+  .scene5-cinema__title-text {
+    font-size: clamp(20px, 3.75vw, 46px);
+  }
+}
+
+/* ── 第五幕标题（右栏，分栏态才出现）────────────────────────────────────
+ * ⚠️ 2026-08-06：**流光扫掠已整体删除**（用户：「文字标题不要那个残缺的动画，
+ * 总是缺一半影响视觉观看」）。
+ *
+ * 为什么它必然「缺一半」——不是没调好，是这套写法的**结构性缺陷**：
+ * 原实现用 `-webkit-text-fill-color: transparent` 把字面本身设为透明，字形颜色
+ * **完全**由 `background-image` 提供；又配 `background-size: 300% 100%` +
+ * `background-repeat: no-repeat` + `background-position: var(--cinema-beam)`。
+ * 于是背景只覆盖字面的一部分区域，**没被背景盖到的字就是纯透明的**（不是"颜色淡"，
+ * 是根本不绘制）。beam 停在 120%/-20% 的静止态更是把整块背景推到字外。
+ * 所以任何时刻都有一部分标题看不见 —— 只有当 beam 恰好扫过时那一段才现形。
+ *
+ * 现在：纯 `color` 实心绘制，不再有 background-clip / text-fill-color / beam 变量。
+ * 保留 text-shadow 的暖光晕（那是加法效果，不会吃掉字形），但改为**静态**——
+ * 常驻脉冲留给星光，标题不再参与呼吸（避免多组同相动效把画面切碎）。 */
+.scene5-cinema__title-text {
+  margin: 0;
+  font-family: var(--font-display);
+  /* 单行是硬约束(2026-08-09,N10,用户:「标题换行了」)。单位 px,不走
+   * --cineview-unit:文本列宽被 34vw 钉死,若字号仍随视口宽缩(unit=vw/1440),
+   * 1080p(1920)下 61px × 22 个 CJK 全角字 ≈ 1340px > 653px 列宽 ⇒ 必折行。
+   * 实测单行自然宽(scripts/_rv-20260809-n10n11.mjs):zh 567px / en 439px @46px。
+   * ⚠️ 46px 不是「列宽能容下」推导值,是**维持原设计字号**:zh 567px 自然宽
+   * 本来就 > 1440 下列宽 420px(min(420×1, 34vw)) —— 旧实现 nowrap 下也是
+   * 顶着列右缘放、不裁切(text-col 虽有 overflow:hidden,但 nowrap 的 <p> 是
+   * flex item,min-width:auto = 内容宽 ⇒ 列盒始终被内容撑到 567px,裁不到)。
+   * 布局余量(grid 验收矩阵):phone+gap+title 在 1280/1440/1920/2560 的
+   * 视口内分别余 +317/+428/+809/+1268px,宽屏随 vw 增长更宽松。
+   * clamp 下限 26px 保窄屏可读;nowrap 钉死单行,折行永远不再发生。 */
+  font-size: clamp(26px, 3.75vw, 46px);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.18;
+  text-align: left;
+  white-space: nowrap;
+  color: rgba(250, 248, 244, 0.96);
+  /* ⚠️ nowrap 只对 zh 成立；en 见下方 [data-lang='en'] 覆写（C10）。 */
+  text-shadow:
+    0 0 18px rgba(225, 164, 91, 0.26),
+    0 0 42px rgba(225, 164, 91, 0.1);
+  /* ── 串行出现 / 镜像退场（2026-08-09 用户访谈裁决「严格串行」）──────────
+   * 基态 = 退场方向：delay 0.25s（副标题先出，delay 0）。入场方向见下方
+   * .is-split 覆写：delay 1.1s —— 严格等手机位移段（1.1s）播完才开始。
+   * 出现手势 = fade + translateY 微上浮（用户选定）。transition 读目标态
+   * timing，故两个方向各写各的 delay。 */
+  opacity: 0;
+  transform: translateY(calc(16 * var(--cineview-unit)));
+  transition:
+    opacity 0.7s var(--ease-out) 0.25s,
+    transform 0.7s var(--ease-out) 0.25s;
+}
+
+/* ── C10：英文标题放开折行（2026-08-10 用户报障 + 裁决 B）──────────────────
+ * 缺陷：`white-space: nowrap` + `font-size: clamp(26px, 3.75vw, 46px)` 把标题焊成
+ * 单行，而字号**只跟视口宽走、与文本长度无关**。上方注释里那组「zh 567px /
+ * en 439px @46px」是按**旧英文文案**实测的；现文案 'Two modes, one system'
+ * 在 46px Fraunces 下自然宽 ≈520px+，`nowrap` 不让折行 ⇒ 直接被列右缘裁掉
+ * （用户截图：'one sy|' 后截断）。
+ *
+ * 为什么裁得到、而 zh 裁不到：上方注释说 nowrap 的 <p> 是 flex item、
+ * `min-width:auto` 会把列盒撑到内容宽 —— 但 `.scene5-cinema__text-col` 显式写了
+ * `min-width: 0`（:190）**关掉了这个撑开**，且自身 `overflow: hidden`（:191）。
+ * 于是超出 `flex-basis`（min(420u, 34vw)）的部分被裁。zh 全角字少、够窄能放下，
+ * en 23 个字符放不下 ⇒ 只有 en 显症。
+ *
+ * 裁决 B（不选「缩字号保单行」）：字号不该被文案长度绑架 —— 那样英文会比中文
+ * 小一圈，且每改一次文案都要重算。故 en 放开折行、允许两行，zh 保持单行。
+ * `text-wrap: balance` 让两行长度均衡（不至于第二行只剩一个词）。
+ *
+ * 折行后的高度余量：标题块与副标题是同一 flex column 的两个 item、靠 `gap` 排距
+ * （:195），**没有写死 y** ⇒ 标题多一行会把副标题自然推下，不会互相压叠。
+ * 这与第三幕 `.act3-titleblock` 是同一套「按实际占位排距」的做法。 */
+.scene5-cinema[data-lang='en'] .scene5-cinema__title-text {
+  white-space: normal;
+  text-wrap: balance;
+}
+
+.scene5-cinema__phone-slot.is-split .scene5-cinema__title-text {
+  opacity: 1;
+  transform: none;
+  transition-delay: 1.1s;
+}
+
+/* ── 副标题（2026-08-06 新增，用户：「副标题你需要进行设计」）────────────
+ * 设计意图：标题是「进场」的宣告，副标题要落到**这一幕在讲什么**——
+ * 观众此刻正看着一台真机在自己手里滑动，所以副标题说的是「这台手机里跑的就是它」。
+ * 排版上刻意与标题拉开层级：小两号、等宽字体、字距更开、亮度压到 0.62，
+ * 让标题保持唯一视觉重心；左侧一道 accent 竖线把两行文字系成一组（呼应
+ * .a3-panel__code 的竖线语汇，全站同源）。 */
+.scene5-cinema__subtitle-text {
+  margin: 0;
+  padding-left: min(calc(16 * var(--cineview-unit)), 1.2vw);
+  border-left: 2px solid rgba(225, 164, 91, 0.55);
+  font-family: var(--font-mono);
+  font-size: max(calc(17 * var(--cineview-unit)), 12px);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  line-height: 1.85;
+  text-align: left;
+  color: rgba(250, 248, 244, 0.62);
+  /* 文案里的 `\n` 是**有意的断行点**（两行各是一个完整意群），故必须 pre-line。
+     不写死 <br>：i18n 文案是纯字符串，中英断行位置不同，交给 CSS 更干净。 */
+  white-space: pre-line;
+  /* 串行出现 / 镜像退场：基态 = 退场方向，delay 0（最先出）；入场方向 delay
+   * 1.35s（标题 1.1s 起步后再晚 0.25s）。纯 fade，无位移（见标题块注释）。 */
+  opacity: 0;
+  transition: opacity 0.6s var(--ease-out) 0s;
+}
+
+.scene5-cinema__phone-slot.is-split .scene5-cinema__subtitle-text {
+  opacity: 1;
+  transition-delay: 1.35s;
+}
+
+/* ── 手机 mockup：设计基准 332×720（19.5:9）──────────────────────────
+ * 高度 90vh（2026-08-06 用户指令：「手机需要放大为 vh 90 高度，等宽」）。
+ * 「等宽」= 等比不形变：宽度由 `aspect-ratio` 从高度推出，不单独给 width
+ * （给了就会两个约束打架、把机身压扁）。原为 `min(720*unit, 68vh)` —— 那个 min()
+ * 让宽屏下高度被 720 设计 px 卡住、根本到不了 90vh，故直接取 90vh。 */
+.phone-mockup {
+  position: relative;
+  height: 90vh;
+  aspect-ratio: 332 / 720;
+  flex-shrink: 0;
+}
+
+/* 径向光晕：中心 rgba(225,164,91,0.08) 扩散到透明；radius 60%↔80% 用
+ * scale 1↔1.333 等价表达，脉冲值来自 --glow-pulse（5s lane） */
+.phone-mockup__glow {
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(225, 164, 91, 0.08), transparent 72%);
+  transform: scale(calc(1 + 0.333 * var(--glow-pulse, 0)));
+  opacity: calc(0.62 + 0.38 * var(--glow-pulse, 0));
+  pointer-events: none;
+}
+
+/* 边框 + 呼吸 box-shadow：12px 3px @0.20 ↔ 20px 5px @0.40，脉冲值来自
+ * --phone-breathe（3s lane） */
+.phone-mockup__frame {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(225, 164, 91, 0.35);
+  border-radius: calc(40 * var(--cineview-unit));
+  background: #0b0a0c;
+  box-shadow: 0 0 calc((12 + 8 * var(--phone-breathe, 0)) * 1px)
+    calc((3 + 2 * var(--phone-breathe, 0)) * 1px)
+    rgba(225, 164, 91, calc(0.2 + 0.2 * var(--phone-breathe, 0)));
+}
+
+.phone-mockup__screen {
+  position: absolute;
+  inset: calc(8 * var(--cineview-unit));
+  border-radius: calc(32 * var(--cineview-unit));
+  background: #060507;
+  overflow: hidden;
+}
+
+/* 摄像头岛剪影 */
+.phone-mockup__notch {
+  position: absolute;
+  top: calc(18 * var(--cineview-unit));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(88 * var(--cineview-unit));
+  height: calc(22 * var(--cineview-unit));
+  border-radius: calc(11 * var(--cineview-unit));
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* iframe 槽位：交互门未开时对指针透明（半透明 iframe 会吞掉滚轮/触摸，
+ * 卡死外层 scroll——activate 在 0.7 送达但 pointer-events 到揭幕近完成 ≥0.98
+ * 才开放，反滚 <0.92 收回，见 Scene5Cinema.tsx 交互门）。
+ * 注：下方选择器耦合框架包装 DOM（data-cineview-animate-host / .cineview-animate
+ * 为框架自有标识，DemoVideoScene.css 同款先例）：cinema-reveal lane 的包装
+ * motion 元素带 filter（对 absolute 后代形成 containing block）且自身 auto 高度，
+ * 必须让 screen 内的包装链显式撑满，槽位用普通流 100% 尺寸，避免塌缩为 0 高。 */
+.phone-mockup__screen [data-cineview-animate-host],
+.phone-mockup__screen .cineview-animate {
+  width: 100%;
+  height: 100%;
+}
+
+.scene5-cinema__iframe-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scene5-cinema__iframe-slot.is-live {
+  pointer-events: auto;
+}
+
+.scene5-cinema__iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #060507;
+}

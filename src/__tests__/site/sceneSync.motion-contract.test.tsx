@@ -5,12 +5,10 @@ import type { ReactNode } from 'react';
 import { SceneSync } from '../../../site/src/components/temporal-drag/SceneSync';
 import {
   ACT3_FIRST_SELECTION_START_MS,
-  ACT3_CLIP_COUNT,
-  ACT3_CLIP_DEMO_DRAG_MS,
-  ACT3_CLIP_DEMO_STRIDE_MS,
+  ACT3_CLIP_DURATION_SECONDS,
   ACT3_MEDIA_CLOCK_MS,
+  ACT3_MEDIA_SCRUB_DURATION_MS,
   ACT3_MEDIA_SCRUB_START_MS,
-  clipDragStartMs,
   clipSelectionStartMs,
   resolveAct3MediaState,
 } from '../../../site/src/components/temporal-drag/act3MediaTimeline';
@@ -19,11 +17,20 @@ const ROOT = path.resolve(__dirname, '../../..');
 const ACT3_MEDIA_FILE = path.join(ROOT, 'site/src/components/temporal-drag/Act3Media.tsx');
 const ACT3_CSS_FILE = path.join(ROOT, 'site/src/styles/temporal-scenes-03-05.css');
 
+/** Authored beats, mirrored from `act3MediaTimeline.ts` so the hold FRACTION can be asserted
+ *  rather than transcribed as a magic number here. */
+const SELECT_LEAD_MS = 220;
+const SEGMENT_MS = 2000;
+
 interface CapturedAnimateProps {
   animateId?: string;
   enterAnimation?: {
     initial?: Record<string, unknown>;
-    animate?: Record<string, unknown>;
+    /** `transition` is read for the `times` arrays — a keyframe track's SHAPE is part of the
+     *  contract, not just its endpoints. */
+    animate?: Record<string, unknown> & {
+      transition?: { x?: { times?: number[] } };
+    };
   };
   exitAnimation?: {
     exit?: Record<string, unknown>;
@@ -39,8 +46,18 @@ const V1_IDS = ['s03-v1-clip-1', 's03-v1-clip-2', 's03-v1-clip-3'] as const;
 const V2_IDS = ['s03-v2-sub-1', 's03-v2-sub-2', 's03-v2-sub-3'] as const;
 const OUTER_IDS = [...V1_IDS, ...V2_IDS] as const;
 const INNER_IDS = OUTER_IDS.map((id) => `${id}-fade`);
-// V1 only: each block is selected, then dragged. V2 subtitles are placed, not assembled.
-const DEMO_IDS = V1_IDS.map((id) => `${id}-demo`);
+/**
+ * V1 only, and **clips 2/3 only**. V2 subtitles are placed, not assembled.
+ *
+ * Clip 1 has no demo lane by design: its authored `left` is 0 and `CLIP_ASSEMBLY_LEFT` is also
+ * 0, so its push distance is exactly zero — a stroke lane for it would animate `x` to `0%`,
+ * which is both a no-op and a violation of this file's own `toBeLessThan(0)` assertion.
+ * (It used to sit at `left: 0.02` and perform a redundant first stroke; the block now lands
+ * flush with the track's left edge and only clips 2/3 travel to lap onto it.)
+ */
+const DRAGGED_IDS = V1_IDS.slice(1);
+const DEMO_IDS = DRAGGED_IDS.map((id) => `${id}-demo`);
+const SELECTION_IDS = DRAGGED_IDS.map((id) => `${id}-selection`);
 // One badge per adjacent pair — two pairs for three clips.
 const SEAM_IDS = ['s03-clip-seam-1', 's03-clip-seam-2'] as const;
 
@@ -109,6 +126,22 @@ function percent(value: unknown): number {
   return parsed;
 }
 
+/**
+ * The LAST keyframe of an `x` track, as a number.
+ *
+ * The demo lane authors `x` as a keyframe array now, not a single value: it holds at `0%` for
+ * the selection lead, then strokes to the pushed position (`['0%', '0%', pushed]` with a
+ * `times` array). The end state is the requirement here — where the block LANDS — so read the
+ * final entry. A bare string is still accepted so this helper works on the V2 lanes too.
+ */
+function endPercent(value: unknown): number {
+  if (Array.isArray(value)) {
+    if (value.length === 0) throw new Error('Empty keyframe array for x');
+    return percent(value[value.length - 1]);
+  }
+  return percent(value);
+}
+
 /** The authored (separated) track layout, read from the DOM rather than imported: the slots carry
  *  `--s03-slot-left` / `--s03-slot-width` as fractions of the track, which is the same geometry
  *  the push percentages are computed against. */
@@ -154,21 +187,40 @@ describe('SceneSync motion contract', () => {
     expect(firstStrokeStart).toBeGreaterThanOrEqual(lastAppearEnd);
   });
 
-  it('drags each block once, in order, with one static selection overlay per clip', () => {
+  it('drags each block once, in order, with one selection overlay lane per clip', () => {
     const { container } = render(<SceneSync />);
 
-    const strokeStarts = DEMO_IDS.map((id) => lane(id).timeline?.delay ?? 0);
-    const selections = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-s03-clip-selection]')
-    );
+    /**
+     * One selection overlay per clip — now driven by its OWN lane, not by a stage-level
+     * `data-active-selection` CSS match.
+     *
+     * The overlay used to be a static `<span data-s03-clip-selection={index}>` that CSS
+     * revealed by matching the stage's single active index. It is now wrapped in a
+     * `${clip}-selection` Animate lane whose opacity keyframes own the reveal, so the index
+     * attribute (and the three CSS index rules that consumed it) are gone. Asserting on that
+     * attribute would be pinning a mechanism that no longer exists; assert the lane instead.
+     */
+    expect(container.querySelectorAll('.s03-clip__select')).toHaveLength(DRAGGED_IDS.length);
+    for (const id of DRAGGED_IDS) {
+      const selection = lane(`${id}-selection`);
+      // Reveals and retracts within its own segment: 0 → 1 → 1 → 0.
+      expect(selection.enterAnimation?.animate?.opacity).toEqual([0, 1, 1, 0]);
+      expect(selection.infiniteAnimation).toBeUndefined();
 
-    expect(selections.map((selection) => selection.dataset.s03ClipSelection)).toEqual([
-      '0',
-      '1',
-      '2',
-    ]);
+      /**
+       * The overlay must stay WELDED to the stroke it annotates — same start, same span.
+       *
+       * Added after a mutation survived: detaching this lane (`timeline: { delay: 0 }`) made the
+       * highlight flash once at the top of the act, completely decoupled from the drag it is
+       * supposed to mark, and all 11 cases still passed. The lane was new in this rework and its
+       * two load-bearing properties (start, span) were the only ones nobody asserted.
+       */
+      const pairedDemo = lane(`${id}-demo`);
+      expect(selection.timeline?.delay).toBe(pairedDemo.timeline?.delay);
+      expect(selection.duration?.enter).toBe(pairedDemo.duration?.enter);
+    }
 
-    for (const [index, animateId] of DEMO_IDS.entries()) {
+    for (const animateId of DEMO_IDS) {
       const demo = lane(animateId);
 
       // ONE-SHOT, not a loop: 「不是持续动画，而是入场动画」. An `infiniteAnimation` here is the
@@ -180,22 +232,57 @@ describe('SceneSync motion contract', () => {
       // viewport width — a px stroke would only assemble correctly at one track width.
       expect(sortedKeys(demo.enterAnimation?.initial)).toEqual(['opacity', 'x']);
       expect(percent(demo.enterAnimation?.initial?.x)).toBe(0);
-      expect(percent(demo.enterAnimation?.animate?.x)).toBeLessThan(0);
+
+      /**
+       * The WHOLE `x` track, not just its end.
+       *
+       * Two mutations survived an end-frame-only check and are the reason this is exhaustive:
+       *  - middle keyframe set to `pushed` → the block teleports within the first 11% and then
+       *    sits still for the remaining 89% (visually: a jump, not a drag);
+       *  - the `times` midpoint set to 0 → the 220ms "selected, then dragged" hold disappears.
+       * Neither is expressible as a claim about the last frame, so both used to pass.
+       *
+       * Shape is asserted UNCONDITIONALLY (`toHaveLength(3)`), not behind `if (Array.isArray)`:
+       * a guard that only fires when the value is already an array cannot catch the structure
+       * collapsing back to a bare string.
+       */
+      const xTrack = demo.enterAnimation?.animate?.x;
+      expect(Array.isArray(xTrack)).toBe(true);
+      const track = xTrack as string[];
+      expect(track).toHaveLength(3);
+      expect(percent(track[0])).toBe(0);
+      // Beat 2 still parked: this is the hold that makes the block read as SELECTED first.
+      expect(percent(track[1])).toBe(0);
+      expect(percent(track[2])).toBeLessThan(0);
+
+      // The hold's LENGTH, as a fraction of the lane — the authored 220ms lead over a 2000ms
+      // segment. Without this the hold can be zeroed while every other assertion stays green.
+      expect(demo.enterAnimation?.animate?.transition?.x?.times).toEqual([
+        0,
+        SELECT_LEAD_MS / SEGMENT_MS,
+        1,
+      ]);
 
       // Opacity pinned on both ends: the stroke moves the block, it does not re-fade it.
       expect(demo.enterAnimation?.initial?.opacity).toBe(1);
       expect(demo.enterAnimation?.animate?.opacity).toBe(1);
-
-      expect(clipSelectionStartMs(index)).toBeLessThan(strokeStarts[index]);
     }
 
-    // Three contiguous strokes: the next hand movement and its video scrub begin on the exact
-    // frame the previous one lands, without an authored pause between clips.
-    for (let index = 1; index < strokeStarts.length; index += 1) {
-      const previousEnd =
-        strokeStarts[index - 1] + (lane(DEMO_IDS[index - 1]).duration?.enter ?? 0);
-      expect(strokeStarts[index]).toBeGreaterThan(strokeStarts[index - 1]);
-      expect(strokeStarts[index]).toBe(previousEnd);
+    /**
+     * The two strokes are EXACTLY CONTIGUOUS — stroke 2 begins on the frame stroke 1 lands.
+     *
+     * This restores a check that an earlier round deleted. Its replacement (a seam-vs-its-own-
+     * stroke ordering assertion) is strictly weaker and a mutation proved it: halving the demo
+     * lane duration opened a 1000ms dead gap between the two strokes — contradicting the file
+     * header's "Each stroke starts on the exact frame the previous one lands" — and everything
+     * stayed green, because the seam check only constrains a seam against its own stroke and
+     * says nothing about the relationship BETWEEN strokes.
+     */
+    const strokeStarts = DEMO_IDS.map((id) => lane(id).timeline?.delay ?? 0);
+    const strokeSpans = DEMO_IDS.map((id) => lane(id).duration?.enter ?? 0);
+    for (let i = 1; i < strokeStarts.length; i++) {
+      expect(strokeStarts[i]).toBeGreaterThan(strokeStarts[i - 1]);
+      expect(strokeStarts[i]).toBe(strokeStarts[i - 1] + strokeSpans[i - 1]);
     }
   });
 
@@ -207,8 +294,14 @@ describe('SceneSync motion contract', () => {
     // slot left + (push% of slot width). The old looping version returned to its start, so the
     // track never reached an assembled state at all and this check is what pins that shut.
     const slots = readV1Slots(container);
+    // Clip 1 has NO demo lane (authored flush at left: 0, zero push) — its contribution to the
+    // assembly walk is a literal 0. Only clips 2/3 carry a stroke. Indexing DEMO_IDS by the
+    // slot index would read past its end here and throw on `undefined`.
     const assembled = slots.map((slot, index) => {
-      const push = percent(lane(DEMO_IDS[index]).enterAnimation?.animate?.x) / 100;
+      const push =
+        index === 0
+          ? 0
+          : endPercent(lane(`${V1_IDS[index]}-demo`).enterAnimation?.animate?.x) / 100;
       const left = slot.left + push * slot.width;
       return { left, right: left + slot.width };
     });
@@ -227,9 +320,10 @@ describe('SceneSync motion contract', () => {
     for (const [index, seamId] of SEAM_IDS.entries()) {
       const seam = lane(seamId);
       expect(seam.infiniteAnimation).toBeUndefined();
-      const strokeEnd =
-        (lane(DEMO_IDS[index + 1]).timeline?.delay ?? 0) +
-        (lane(DEMO_IDS[index + 1]).duration?.enter ?? 0);
+      // Seam N marks the lap between clip N and clip N+1, so it waits on clip N+1's stroke —
+      // which is `DEMO_IDS[index]` now that DEMO_IDS starts at clip 2.
+      const strokeLane = lane(DEMO_IDS[index]);
+      const strokeEnd = (strokeLane.timeline?.delay ?? 0) + (strokeLane.duration?.enter ?? 0);
       expect(seam.timeline?.delay ?? 0).toBeGreaterThanOrEqual(strokeEnd);
     }
   });
@@ -244,7 +338,12 @@ describe('SceneSync motion contract', () => {
           typeof id === 'string' && (id.startsWith('s03-v1-clip-') || id.startsWith('s03-v2-sub-'))
       )
       .sort();
-    expect(capturedMotionIds).toEqual([...OUTER_IDS, ...INNER_IDS, ...DEMO_IDS].sort());
+    // Exhaustive by design: an unexpected lane here means a new animated property slipped in.
+    // `-selection` lanes are the overlay reveals for the two dragged clips (see the drag test);
+    // they exist because the overlay is no longer revealed by a stage-level CSS index match.
+    expect(capturedMotionIds).toEqual(
+      [...OUTER_IDS, ...INNER_IDS, ...DEMO_IDS, ...SELECTION_IDS].sort()
+    );
 
     for (const outerId of OUTER_IDS) {
       const outer = lane(outerId);
@@ -280,11 +379,7 @@ describe('SceneSync motion contract', () => {
     const { container } = render(<SceneSync />);
 
     expect(lane('s03-media-clock').duration?.enter).toBe(ACT3_MEDIA_CLOCK_MS);
-    expect(ACT3_CLIP_DEMO_DRAG_MS).toBeGreaterThanOrEqual(1_000);
-    expect(ACT3_CLIP_DEMO_STRIDE_MS).toBe(ACT3_CLIP_DEMO_DRAG_MS);
-    expect(ACT3_MEDIA_CLOCK_MS).toBe(
-      ACT3_MEDIA_SCRUB_START_MS + ACT3_CLIP_COUNT * ACT3_CLIP_DEMO_DRAG_MS
-    );
+    expect(ACT3_MEDIA_CLOCK_MS).toBe(ACT3_MEDIA_SCRUB_START_MS + ACT3_MEDIA_SCRUB_DURATION_MS);
     expect(container.querySelector('[data-s03-preview-video]')).not.toBeNull();
   });
 
@@ -305,7 +400,7 @@ describe('SceneSync motion contract', () => {
       /\.s03-cut-stage > \[data-cineview-animate-id='s03-preview'\][^{]*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;/s
     );
     expect(css).toMatch(
-      /\.s03-preview__surface > video[^{]*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*center;/s
+      /\[data-cineview-animate-id='s03-preview-media'\] > video[^{]*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*center;/s
     );
   });
 
@@ -327,7 +422,7 @@ describe('SceneSync motion contract', () => {
     });
     expect(lane('s03-preview').exitAnimation?.exit).toMatchObject({
       opacity: 0,
-      filter: 'blur(18px)',
+      filter: 'blur(24px)',
     });
   });
 });
@@ -336,23 +431,19 @@ describe('Act 3 media timeline', () => {
   it('keeps V1 one stroke ahead of three contiguous two-second media ranges', () => {
     expect(resolveAct3MediaState(ACT3_FIRST_SELECTION_START_MS - 1)).toEqual({
       mode: 'idle',
-      activeIndex: null,
       mediaIndex: null,
       mediaTimeSeconds: 0,
     });
 
     for (let index = 0; index < 3; index += 1) {
-      expect(resolveAct3MediaState(clipSelectionStartMs(index)).activeIndex).toBe(index);
-
-      const mediaStart = ACT3_MEDIA_SCRUB_START_MS + index * ACT3_CLIP_DEMO_DRAG_MS;
+      const mediaStart = ACT3_MEDIA_SCRUB_START_MS + index * ACT3_CLIP_DURATION_SECONDS * 1000;
       expect(resolveAct3MediaState(mediaStart)).toEqual({
         mode: 'scrub',
-        activeIndex: Math.min(index + 1, 2),
         mediaIndex: index,
         mediaTimeSeconds: index * 2,
       });
 
-      expect(resolveAct3MediaState(mediaStart + ACT3_CLIP_DEMO_DRAG_MS / 2)).toEqual(
+      expect(resolveAct3MediaState(mediaStart + (ACT3_CLIP_DURATION_SECONDS * 1000) / 2)).toEqual(
         expect.objectContaining({
           mode: 'scrub',
           mediaIndex: index,
@@ -363,14 +454,12 @@ describe('Act 3 media timeline', () => {
 
     const finalScrub = resolveAct3MediaState(ACT3_MEDIA_CLOCK_MS - 1);
     expect(finalScrub.mode).toBe('scrub');
-    expect(finalScrub.activeIndex).toBe(2);
     expect(finalScrub.mediaTimeSeconds).toBeCloseTo(6, 2);
   });
 
   it('holds the final frame when the third scrub completes', () => {
     expect(resolveAct3MediaState(ACT3_MEDIA_CLOCK_MS)).toEqual({
       mode: 'complete',
-      activeIndex: null,
       mediaIndex: null,
       mediaTimeSeconds: 6,
     });

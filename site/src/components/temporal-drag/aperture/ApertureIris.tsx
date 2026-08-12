@@ -9,9 +9,9 @@ import { ApertureCanvas } from './ApertureCanvas';
  * ── What this replaces, and why ──────────────────────────────────────────────
  * The corona held this slot: 72 filaments fired OUTWARD from the ring. On real hardware it
  * read as a starburst rather than as light, and it was cut. This is 方案 C in its place: a
- * eight-leaf aperture closing INWARD inside the same barrel. Nothing here travels outward and
- * nothing radiates — the silhouette is eight hard-edged plates converging on a shrinking
- * octagon, which is the opposite reading to the one that failed.
+ * nine-leaf aperture closing INWARD inside the same barrel. Nothing here travels outward and
+ * nothing radiates — the silhouette is nine hard-edged plates converging on a shrinking
+ * nonagon, which is the opposite reading to the one that failed.
  *
  * ── OWN LANE, not a child of the ring's ──────────────────────────────────────
  * Separate `<Animate>` for the same reason the corona had one: its schedule starts where the
@@ -34,7 +34,7 @@ function ApertureStage(): JSX.Element {
 }
 
 /** 1300 = ring completion (0 + 1200) + 100ms of air. Same slot the corona lane held. */
-const IRIS_START_MS = 1300;
+export const ACT4_IRIS_START_MS = 1300;
 /**
  * 900ms — the whole exposure, cut from 2400 (返工:「快门时间太慢了」).
  *
@@ -60,7 +60,7 @@ const IRIS_START_MS = 1300;
  * Every other lane is untouched (ring/timecode 0+1200, streams 100+1400, label 240+500), so
  * the ring still closes before the shutter fires — the mechanical order the act depends on.
  */
-const IRIS_ENTER_MS = 900;
+export const ACT4_IRIS_ENTER_MS = 900;
 /**
  * 240ms, the SHORTEST exit budget in act 04 (label 300, ring 380, timecode 400).
  *
@@ -101,10 +101,10 @@ export const ApertureIris = memo(function ApertureIris(): JSX.Element {
       enterAnimation={{ initial: { opacity: 1 }, animate: { opacity: 1 } }}
       exitAnimation={{ exit: { opacity: 1 } }}
       duration={{
-        enter: timing.duration(IRIS_ENTER_MS),
+        enter: timing.duration(ACT4_IRIS_ENTER_MS),
         exit: timing.duration(IRIS_EXIT_MS),
       }}
-      timeline={{ delay: timing.delay(IRIS_START_MS) }}
+      timeline={{ delay: timing.delay(ACT4_IRIS_START_MS) }}
     >
       {/* Fills the clock box exactly — NO overscan, unlike the corona shell's `inset: -50%`:
           nothing the iris draws reaches outward, so the canvas needs no room past the barrel.

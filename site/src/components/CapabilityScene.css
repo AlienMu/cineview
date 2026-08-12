@@ -1,20 +1,33 @@
 /* ===================================================================
-   Act 2 · Capability Showcase — 胶片带 + 舞台抽屉（v3 重做，2026-07-09）
+   Act 2 · Capability Showcase — 胶片带（v3 重做，2026-07-09）
 
    设计契约（task-flow 2026-07-09-act2-cinema-rewrite.md，规格冻结）：
-   - 贯穿签名「时间码胶囊」：左上角小胶囊，REC 红点纯 CSS 呼吸（不受编排暂停）。
+   - 贯穿签名「时间码胶囊」：左上角小胶囊，REC 红点由框架 infinite lane 驱动。
    - SHOT01 胶片带：1140×260 居中、上下齿孔条，帧格预设定格，活跃帧 scale+双层光晕。
-   - SHOT02 舞台抽屉：640×480 中央舞台，面板播完飞入左侧堆叠抽屉，右侧标题+总结。
    - 视觉延续 Act1 暖白胶片质感，全走 tokens.css 变量；1440×900 画布 + overflow:hidden。
+
+   原 SHOT02「舞台抽屉」样式已于 2026-08-04 随第三幕重构拆除，
+   新第三幕样式见 Act3DollyScene.css。共享的 .capability-full / .bg-grid /
+   .cap-slate / .cap-title 保留在本文件，由第三幕复用。
    =================================================================== */
 
+/* ⚠️ `overflow: clip` + `overflow-clip-margin` 而不是 `overflow: hidden`（C6，2026-08-10）。
+ * 用户报「阴影部分存在截断」。机制：本元素是 1440×900 设计画布且裁掉溢出，而
+ * `.film-codecard` 的投影是 `0 20u 48u` —— 卡片底边落在约 y=789，投影要到约 857，
+ * 静息时距 900 的裁切线只剩约 43px 余量。一旦卡片**下移退场**（C3 新增的
+ * 「下移 + 淡出」），投影立刻穿过 900 被切成一条硬横线。
+ * `hidden` 无法留余量；`clip` 支持 `overflow-clip-margin`，把裁切盒外扩 120px，
+ * 投影与退场位移都落在这条外扩带里。另一个好处：`clip` 不会建立滚动容器
+ * （`hidden` 会，那是 sticky/takeover 的历史雷区）。
+ * 仍然裁剪：本幕内容不得溢到相邻幕；胶带自己的窗口裁剪在 `.film-gate` 上独立生效。 */
 .capability-full {
   --cap-codecard-width: calc(620 * var(--cv-u));
 
   position: relative;
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: 120px;
   background: transparent;
 }
 
@@ -77,25 +90,20 @@
   height: calc(14 * var(--cv-u));
   background: var(--frame-line);
 }
-/* REC 红点：常驻呼吸 + 光晕。纯 CSS keyframes，挂载即播，贯穿全镜不因编排暂停。 */
+/* REC 红点：呼吸由 TimecodeAxis 的 phase-gated infiniteAnimation 驱动。 */
+.tc-capsule > [data-cineview-animate-host^='tc-rec-'] {
+  display: contents;
+}
+.tc-capsule [data-cineview-animate-id^='tc-rec-'],
+.tc-capsule [data-cineview-animate-id^='tc-rec-'] > div {
+  display: inline-flex;
+}
 .tc-capsule__rec-dot {
   width: calc(8 * var(--cv-u));
   height: calc(8 * var(--cv-u));
   border-radius: 50%;
   background: var(--rec);
   box-shadow: 0 0 0 calc(3 * var(--cv-u)) var(--rec-glow);
-  animation: rec-breathe 1.6s ease-in-out infinite;
-}
-@keyframes rec-breathe {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 0 calc(2 * var(--cv-u)) var(--rec-glow);
-  }
-  50% {
-    opacity: 0.45;
-    box-shadow: 0 0 0 calc(6 * var(--cv-u)) rgba(196, 69, 63, 0.08);
-  }
 }
 .tc-capsule__rec-label {
   color: var(--rec);
@@ -176,8 +184,18 @@
   height: calc(204 * var(--cv-u));
   overflow: hidden;
 }
-/* film track：单份满宽(100%)。铺入阶段内联 translateX(-100%→0) 从左铺满。
-   铺满后帧静止,只有齿孔条的「点」滚动(见 .film-track.is-rolling .film-track__perf)。 */
+/* x 由 film-pan Animate host 驱动；三层 wrapper 均保持 gate 尺寸。 */
+.film-gate > [data-cineview-animate-host='film-pan'],
+.film-gate [data-cineview-animate-id='film-pan'],
+.film-gate [data-cineview-animate-id='film-pan'] > div {
+  width: 100%;
+  height: 100%;
+}
+.film-gate [data-cineview-animate-id='film-pan'] {
+  will-change: transform;
+}
+/* film track：单份满宽(100%)。铺入阶段由外层 Animate 从左平移进来；
+   铺满后帧静止，只有齿孔条的点读取 infinite lane 继续滚动。 */
 .film-track {
   position: relative;
   width: 100%;
@@ -185,23 +203,13 @@
   background: rgba(250, 248, 244, 0.4);
   backdrop-filter: saturate(140%) blur(calc(4 * var(--cv-u)));
   -webkit-backdrop-filter: saturate(140%) blur(calc(4 * var(--cv-u)));
-  will-change: transform;
 }
-/* 铺满后 loop:仅齿孔条的方孔横向滚动(background-position),帧内容不动 —— 表示胶卷在转。
-   calc(40 * var(--cv-u)) 是齿孔 pattern 周期(见 .film-track__perf background-size),滚一个周期无缝循环。 */
-@keyframes film-perf-roll {
-  to {
-    background-position:
-      calc(-40 * var(--cv-u)) center,
-      0 center,
-      0 center;
-  }
-}
-.film-track.is-rolling .film-track__perf {
-  animation: film-perf-roll 1s linear infinite;
-}
+/* 铺满后的齿孔位移读取 film-pan infinite lane 的继承变量。 */
 .film-track.is-paused .film-track__perf {
-  animation-play-state: paused;
+  background-position:
+    0 center,
+    0 center,
+    0 center;
 }
 /* 齿孔条：暖陶土基边 + 一道随滚动平移的流光高光 + 亮方孔。三层叠放:
    方孔(最上) / 流光高光(中,--film-flow 定位) / 陶土基底渐变(底)。不再深黑。 */
@@ -230,7 +238,7 @@
     100% 100%;
   background-repeat: repeat-x, no-repeat, no-repeat;
   background-position:
-    0 center,
+    calc(var(--film-perf-phase, 0) * 40 * var(--cv-u)) center,
     0 center,
     0 center;
 }
@@ -255,13 +263,24 @@
     rgba(176, 118, 79, 0.5) calc(100% / 9 - calc(2 * var(--cv-u))) calc(100% / 9)
   );
 }
-/* 9 格等分：Animate host 直接作 flex 子元素 + overflow 裁剪每格动画边界 */
-.film-track__frames > [data-cineview-animate-host] {
+/* 9 格等分（C8 起改为 `.film-frame__slot` 作 flex 子元素）。
+ * 序号移出 Animate、与 Animate host 同为 slot 的子元素 ⇒ 序号不参与逐帧入场预设。
+ * slot 负责等分 + 裁剪每格动画边界；`position: relative` 是序号绝对定位的参照。 */
+.film-frame__slot {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
   display: flex;
   overflow: hidden;
+  cursor: pointer;
+}
+/* Animate host 现在填满 slot（不再自己等分） */
+.film-track__frames [data-cineview-animate-host] {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
 }
 .film-track__frames .cineview-animate {
   width: 100%;
@@ -297,16 +316,15 @@
   border-radius: 50%;
   background: transparent;
   color: var(--ink);
-  transition:
-    background 0.4s var(--ease-out),
-    color 0.4s var(--ease-out),
-    transform 0.4s var(--ease-out);
 }
 .film-frame__icon svg {
   width: calc(24 * var(--cv-u));
   height: calc(24 * var(--cv-u));
 }
-.film-frame.is-active .film-frame__icon {
+/* ⚠️ C8 起 `is-active` 挂在 `.film-frame__slot` 上（`data-film-index` 随之上提），
+ * 不再在 `.film-frame` 上 —— 序号已移出 Animate，必须能拿到选中态。
+ * 写成 `.film-frame.is-active` 会静默失效（类名永远不会同时出现在这个元素上）。 */
+.film-frame__slot.is-active .film-frame__icon {
   background: var(--accent);
   color: #fff;
   transform: scale(1.06);
@@ -318,7 +336,7 @@
   color: var(--ink);
   letter-spacing: 0.01em;
 }
-.film-frame.is-active .film-frame__name {
+.film-frame__slot.is-active .film-frame__name {
   color: var(--accent-ink);
 }
 .film-frame__no {
@@ -331,7 +349,7 @@
   color: var(--ink-mute);
   letter-spacing: 0.08em;
 }
-.film-frame.is-active .film-frame__no {
+.film-frame__slot.is-active .film-frame__no {
   color: var(--accent);
 }
 
@@ -350,18 +368,10 @@
   justify-content: center;
   gap: calc(7 * var(--cv-u));
   opacity: 0;
-  filter: blur(calc(12 * var(--cv-u)));
-  transform: scale(0.98);
-  transition:
-    opacity 0.7s var(--ease-out),
-    filter 0.7s var(--ease-out),
-    transform 0.7s var(--ease-out);
   pointer-events: none;
 }
 .film-caption.is-active {
   opacity: 1;
-  filter: blur(0);
-  transform: scale(1);
 }
 .film-caption__title {
   font-family: var(--font-display);
@@ -380,24 +390,65 @@
   white-space: nowrap;
 }
 
-/* 胶带下方：代码编辑器卡（窗口条 + code 行 + 描述行；切换用淡入上滑，非 blur） */
+/* 胶带下方：代码编辑器卡（窗口条 + code 行 + 描述行；切换用淡入上滑，非 blur）
+ *
+ * ⚠️ 底板与投影都必须**中性**（2026-08-06 修，用户报「第二幕阴影未跟随渐变」）：
+ * 本幕跨度 12040px，跨过色带 12%→40% 锚点 —— 当时背后底色一路从暖 (#fbe8dc, R−B≈+31)
+ * 走到冷 (#e7edf2, R−B≈−11)，实测（scripts/t2-shadow.mjs）背景色温跨幕变化 −24，
+ * 而卡片只跟了 **4%**（恒 +11~13）—— 因为底板是 94% 不透明的**暖**白，几乎不透背后色。
+ * 投影更是写死暖棕 rgba(168,102,63)，压在冷底上发脏。
+ * （2026-08-09 色带已整体调暖：谷段 40% 锚点改为 #ece7e2，R−B≈+10，跨幕色温差
+ * 收窄到约 +21 的暖内起伏；下方两条修法机制不变——中性件在**任何**色相底上都成立。）
+ *
+ * 修法两条：
+ *  1. 投影改**中性墨** rgba(26,24,20,·)。中性投影在任何色相底上都读作「变暗」，
+ *     天然跟随渐变；带色投影只在自己那一端好看。全站 --shadow-* token 本来就是中性，
+ *     此处原是偏离。
+ *  2. 底板降不透明度 0.94→0.84 且去暖：让 backdrop-filter 真能把背后色透上来，
+ *     卡片色温随渐变走。两端底色都很亮（L≈95%），文字对比度不受影响。
+ *  3. saturate 150%→112%：全宽卡片上过高的 saturate 会把背后色彩度拉高，
+ *     放大暖/冷差（与第三幕同一类问题，见 Act3DollyScene.css 的 --a3-plate 注释）。 */
+/* ── 底板：不透明实色 + 按幕台阶跟随色带（C5 + C7，2026-08-10）─────────────
+ * 用户报两件事，其实同一个根：
+ *   ①「存在胶带在完成的时候，panel 变回半透明的情况」
+ *   ②「panel 的 head 的背景颜色没有根据无级背景颜色变化」
+ *
+ * 旧做法把「跟随渐变」压在**半透明**上：底板 `rgba(…, 0.50)` + `backdrop-filter`，
+ * 靠透出背后色来跟色带（当年实测 0.50 → 跟随度 54%，达 35% 门槛）。代价正是 ①：
+ * 卡片**恒定半透**，从来没有「定格」的态；选中切换时 backdrop 透上来的底色跟着跳，
+ * 读作「一会儿实一会儿虚」。而 head 又写死中性墨 `rgba(26,24,20,0.05)`，与色带完全脱钩 ⇒ ②。
+ *
+ * 现改为用户裁决的 **B 台阶跟随**（grill-me：每幕一个色阶，不逐帧插值 ——
+ * 每帧写 CSS 变量 = 每帧 setState，违反 CLAUDE.md 规则 2）：
+ *   底板与 head 都吃 `--scene-plate` / `--scene-plate-bar`（见 global.css 每幕定义），
+ *   **不透明实底**，于是「跟随」由幕级台阶提供，不再依赖透明度。
+ * 顺带删掉 `backdrop-filter`：实底之下它什么也透不上来，却仍要每帧做一次
+ * 全屏读背景 + 模糊的合成工作。
+ * 与第三幕 `--a3-plate` 现在是同一套机制（那边同日按 C9 也改成了不透明实底）。
+ *
+ * 文字对比度不变：台阶色都是 L≈93–95% 的亮暖色，与 --ink (#1a1814) 对比度仍 ≈14:1，
+ * 远超 WCAG AA 的 4.5:1。
+ * 投影保持**中性墨**（历史结论不动）：中性投影在任何色相底上都读作「变暗」，
+ * 天然跟随渐变；带色投影只在自己那一端好看。 */
 .film-codecard {
   width: var(--cap-codecard-width);
   border-radius: calc(14 * var(--cv-u));
-  background: rgba(252, 247, 241, 0.94);
-  backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
-  -webkit-backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
-  border: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.28);
-  box-shadow: 0 calc(20 * var(--cv-u)) calc(48 * var(--cv-u)) rgba(168, 102, 63, 0.16);
-  overflow: hidden;
+  background: var(--scene-plate, #f8e7da);
+  border: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.12);
+  box-shadow: 0 calc(20 * var(--cv-u)) calc(48 * var(--cv-u)) rgba(26, 24, 20, 0.13);
+  /* `clip` 而非 `hidden`：内容仍不得溢出圆角，但不建立滚动容器。
+   * 卡片自身的投影画在**外面**，不受本条影响；外层裁切余量见 `.capability-full`。 */
+  overflow: clip;
 }
+/* 窗口条：吃本幕台阶色的**亮一档**，与底板同色系（C5）。
+ * 分隔线保持中性墨 —— 线条要的是「暗一点」，中性在任何色相上都成立。 */
 .film-codecard__bar {
   display: flex;
   align-items: center;
   gap: calc(8 * var(--cv-u));
   padding: calc(11 * var(--cv-u)) calc(16 * var(--cv-u));
-  background: rgba(201, 138, 106, 0.1);
-  border-bottom: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.18);
+  background: var(--scene-plate-bar, #fbefe6);
+  border-bottom: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.1);
 }
 .film-codecard__dot {
   width: calc(11 * var(--cv-u));
@@ -453,20 +504,67 @@
   color: var(--ink);
   white-space: nowrap;
   opacity: 0;
-  transform: translateY(calc(9 * var(--cv-u)));
-  transition:
-    opacity 0.5s var(--ease-out),
-    transform 0.5s var(--ease-out);
 }
-.film-codecard__code.is-active {
+/* ── hover 驱动的行切换（2026-08-12）────────────────────────────────────────
+ * 用户要求：「codeboard 的衔接动画是，一个向下淡出退场，一个向上淡入进场」。
+ *
+ * 滚动轨（`film-code-selection` 的 y 关键帧）本来就是这个方向，但它只在**滚动擦洗**时
+ * 生效。hover 走的是另一条路：`applyFilmSelection()` 切 `.is-active` 类，而这里旧样式
+ * 只有 `opacity: 0 → 1`，**既无过渡也无位移** ⇒ hover 时是硬切，看不到任何衔接动画。
+ *
+ * 方向不对称（旧行往下走、新行从上方来）无法用单条 transition 表达：基态只有一个，
+ * 而「离场终点」在下、「入场起点」在上。故：
+ *   - 基态（非 active）= **离场终点**：下移 + 透明，transition 立即生效 ⇒ 旧行下沉淡出。
+ *   - `.is-active` = 一次性 keyframe 动画，从**上方**落回原位 ⇒ 新行上方落入。
+ *     用 animation 而非 transition 正是为了让入场起点独立于基态。
+ * 入场延迟 = 淡出时长，两段串行不重叠（与滚动轨的 EPS 瞬移同一个时序意图）。
+ * ⚠️ 一次性动画（无 `infinite`），不违反 CLAUDE.md 规则 6 —— 该条禁的是常驻循环。 */
+.film-codecard__code,
+.film-codecard__desc {
+  --row-shift: calc(6 * var(--cv-u));
+  --row-fade: 200ms;
+  opacity: 0;
+  transform: translateY(var(--row-shift));
+  transition:
+    opacity var(--row-fade) ease-out,
+    transform var(--row-fade) ease-out;
+}
+
+.film-codecard__code.is-active,
+.film-codecard__desc.is-active {
   opacity: 1;
   transform: translateY(0);
+  animation: film-row-drop-in var(--row-fade) ease-out var(--row-fade) backwards;
+}
+
+@keyframes film-row-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--row-shift)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .film-codecard__code,
+  .film-codecard__desc {
+    transform: none;
+    transition: opacity 120ms linear;
+  }
+  .film-codecard__code.is-active,
+  .film-codecard__desc.is-active {
+    transform: none;
+    animation: none;
+  }
 }
 .film-codecard__desc-slot {
   position: relative;
   height: calc(22 * var(--cv-u));
   padding-top: calc(12 * var(--cv-u));
-  border-top: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.18);
+  border-top: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.1);
 }
 .film-codecard__desc {
   position: absolute;
@@ -480,409 +578,6 @@
   font-weight: 300;
   color: var(--ink-soft);
   white-space: nowrap;
-  opacity: 0;
-  transform: translateY(calc(9 * var(--cv-u)));
-  transition:
-    opacity 0.5s var(--ease-out),
-    transform 0.5s var(--ease-out);
-}
-.film-codecard__desc.is-active {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ===================================================================
-   SHOT 02 · 舞台抽屉镜
-   =================================================================== */
-
-/* 中央舞台：720×520。无占位框——面板飞入抽屉后不留空框。 */
-.stage-frame {
-  position: relative;
-  width: calc(720 * var(--cv-u));
-  height: calc(520 * var(--cv-u));
-}
-.stage-panel {
-  /* 显式 720×520 而非 inset:0：父级 Animate 的 motion.div 一旦拿到
-     x/y/scale/rotate 就会带 transform，成为绝对定位子元素的 containing
-     block；该 motion.div 唯一子元素即为绝对定位，auto 高度会塌成 0，
-     inset:0 会随之塌成 0 高并被 overflow:hidden 裁掉。显式宽高不依赖
-     containing block 尺寸解析，绕开这个塌陷。 */
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: calc(720 * var(--cv-u));
-  height: calc(520 * var(--cv-u));
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--radius-lg);
-  background: rgba(250, 248, 244, 0.9);
-  backdrop-filter: saturate(160%) blur(calc(14 * var(--cv-u)));
-  -webkit-backdrop-filter: saturate(160%) blur(calc(14 * var(--cv-u)));
-  border: calc(1 * var(--cv-u)) solid var(--frame-line);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-}
-/* 露出条：抽屉堆叠时可见的头条 —— 标签字号放大，缩到 0.42 仍可读 */
-.stage-panel__bar {
-  display: flex;
-  align-items: center;
-  gap: calc(14 * var(--cv-u));
-  padding: calc(14 * var(--cv-u)) calc(22 * var(--cv-u));
-  border-bottom: calc(1 * var(--cv-u)) solid var(--frame-line-soft);
-  background: rgba(201, 138, 106, 0.1);
-}
-.stage-panel__icon {
-  display: inline-flex;
-  color: var(--accent-ink);
-  transform: scale(1.4);
-  transform-origin: left center;
-}
-.stage-panel__label {
-  font-family: var(--font-mono);
-  font-size: calc(26 * var(--cv-u));
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0.02em;
-}
-.stage-panel__no {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--ink-mute);
-  letter-spacing: 0.1em;
-}
-.stage-panel__body {
-  flex: 1;
-  position: relative;
-  padding: calc(30 * var(--cv-u)) calc(34 * var(--cv-u));
-  transition: opacity 0.3s var(--ease-out);
-}
-.stage-panel__code {
-  display: flex;
-  align-items: center;
-  margin: 0 calc(26 * var(--cv-u)) calc(24 * var(--cv-u));
-  padding: calc(13 * var(--cv-u)) calc(18 * var(--cv-u));
-  border-radius: var(--radius-sm);
-  background: rgba(26, 24, 20, 0.055);
-  border: calc(1 * var(--cv-u)) solid var(--frame-line-soft);
-  border-left: calc(3 * var(--cv-u)) solid var(--accent);
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.stage-panel__code::before {
-  content: '›';
-  margin-right: calc(10 * var(--cv-u));
-  color: var(--accent);
-  font-weight: 700;
-}
-
-/* Panel1：waitFor 结构树（3 节点 + 2 连线逐个点亮） */
-.stage-tree {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: calc(2 * var(--cv-u));
-  padding-top: calc(14 * var(--cv-u));
-}
-.stage-tree__step {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-.stage-tree__node {
-  display: flex;
-  align-items: center;
-  gap: calc(12 * var(--cv-u));
-  padding: calc(14 * var(--cv-u)) calc(20 * var(--cv-u));
-  border-radius: var(--radius);
-  border: calc(1 * var(--cv-u)) solid var(--frame-line);
-  background: rgba(255, 255, 255, 0.72);
-  opacity: 0.32;
-  transition:
-    opacity 0.35s var(--ease-out),
-    border-color 0.35s var(--ease-out),
-    box-shadow 0.35s var(--ease-out),
-    transform 0.35s var(--ease-out);
-}
-.stage-tree__node.is-on {
-  opacity: 1;
-  border-color: var(--accent);
-  transform: translateX(calc(2 * var(--cv-u)));
-  box-shadow: 0 0 0 calc(3 * var(--cv-u)) rgba(201, 138, 106, 0.14);
-}
-.stage-tree__dot {
-  width: calc(10 * var(--cv-u));
-  height: calc(10 * var(--cv-u));
-  border-radius: 50%;
-  background: var(--frame-line);
-  transition:
-    background 0.35s var(--ease-out),
-    box-shadow 0.35s var(--ease-out);
-}
-.stage-tree__node.is-on .stage-tree__dot {
-  background: var(--accent);
-  box-shadow: 0 0 0 calc(4 * var(--cv-u)) rgba(201, 138, 106, 0.18);
-}
-.stage-tree__name {
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--ink);
-}
-.stage-tree__wait {
-  margin-left: calc(4 * var(--cv-u));
-  padding: calc(3 * var(--cv-u)) calc(9 * var(--cv-u));
-  border-radius: calc(999 * var(--cv-u));
-  background: rgba(201, 138, 106, 0.12);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--accent-ink);
-}
-.stage-tree__wire {
-  width: calc(2 * var(--cv-u));
-  height: calc(30 * var(--cv-u));
-  margin-left: calc(34 * var(--cv-u));
-  background: var(--frame-line);
-  transition: background 0.35s var(--ease-out);
-}
-.stage-tree__wire.is-on {
-  background: var(--accent);
-}
-
-/* Panel2：stagger 方块横排 */
-.stage-squares {
-  display: flex;
-  gap: calc(18 * var(--cv-u));
-  align-items: center;
-  justify-content: center;
-  padding-top: calc(104 * var(--cv-u));
-}
-.stage-squares__cell {
-  width: calc(80 * var(--cv-u));
-  height: calc(80 * var(--cv-u));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius);
-  background: linear-gradient(160deg, rgba(201, 138, 106, 0.2), rgba(201, 138, 106, 0.08));
-  border: calc(1.5 * var(--cv-u)) solid var(--accent);
-  box-shadow: 0 calc(6 * var(--cv-u)) calc(16 * var(--cv-u)) rgba(201, 138, 106, 0.12);
-  font-family: var(--font-mono);
-  font-size: var(--text-lg);
-  font-weight: 700;
-  color: var(--accent-ink);
-  opacity: 0;
-  transform: translateY(calc(14 * var(--cv-u)));
-  transition:
-    opacity 0.4s var(--ease-out),
-    transform 0.4s var(--ease-out);
-}
-.stage-squares__cell.is-on {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Panel3：Position 单尺子坐标卡 */
-.stage-coords {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.stage-coords__axis {
-  position: absolute;
-  background: var(--frame-line);
-}
-.stage-coords__axis--x {
-  left: 0;
-  right: 0;
-  top: calc(24 * var(--cv-u));
-  height: calc(1 * var(--cv-u));
-}
-.stage-coords__axis--y {
-  top: 0;
-  bottom: 0;
-  left: calc(24 * var(--cv-u));
-  width: calc(1 * var(--cv-u));
-}
-.stage-coords__card {
-  position: absolute;
-  left: calc(var(--stage-card-x) * var(--cv-u));
-  top: calc(var(--stage-card-y) * var(--cv-u));
-  display: flex;
-  align-items: center;
-  gap: calc(10 * var(--cv-u));
-  padding: calc(10 * var(--cv-u)) calc(16 * var(--cv-u));
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.94);
-  border: calc(1 * var(--cv-u)) solid var(--frame-line);
-  box-shadow: var(--shadow-sm);
-  opacity: 0;
-  transform: translateY(calc(10 * var(--cv-u)));
-  transition:
-    opacity 0.35s var(--ease-out),
-    transform 0.35s var(--ease-out),
-    border-color 0.35s var(--ease-out),
-    box-shadow 0.35s var(--ease-out);
-}
-.stage-coords__card.is-on {
-  opacity: 1;
-  transform: translateY(0);
-  border-color: var(--accent);
-  box-shadow: 0 calc(8 * var(--cv-u)) calc(22 * var(--cv-u)) rgba(26, 24, 20, 0.12);
-}
-.stage-coords__dot {
-  width: calc(9 * var(--cv-u));
-  height: calc(9 * var(--cv-u));
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 calc(4 * var(--cv-u)) rgba(201, 138, 106, 0.18);
-}
-.stage-coords__label {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 中央结语 */
-.stage-summary {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  font-weight: 300;
-  line-height: 1.9;
-  color: var(--ink-soft);
-  margin: 0;
-  max-width: calc(340 * var(--cv-u));
-}
-.stage-summary--center {
-  text-align: center;
-  max-width: calc(620 * var(--cv-u));
-}
-
-/* 英文文案更长：扩大设计行宽，保持固定 y 行之间仍有明确间距。 */
-.capability-full--stage[data-lang='en'] .cap-title {
-  width: calc(1100 * var(--cv-u));
-  max-width: calc(1100 * var(--cv-u));
-}
-.capability-full--stage[data-lang='en'] .stage-summary--center {
-  width: calc(900 * var(--cv-u));
-  max-width: calc(900 * var(--cv-u));
-}
-
-/* 中央打字机代码框:暖奶白/陶土主题(不再深黑),三段依次逐字敷出 */
-.stage-code {
-  width: var(--cap-codecard-width);
-  border-radius: calc(14 * var(--cv-u));
-  background: rgba(252, 247, 241, 0.94);
-  backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
-  -webkit-backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
-  border: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.28);
-  box-shadow: 0 calc(20 * var(--cv-u)) calc(48 * var(--cv-u)) rgba(168, 102, 63, 0.16);
-  overflow: hidden;
-}
-.stage-code__bar {
-  display: flex;
-  align-items: center;
-  gap: calc(8 * var(--cv-u));
-  padding: calc(11 * var(--cv-u)) calc(16 * var(--cv-u));
-  background: rgba(201, 138, 106, 0.1);
-  border-bottom: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.18);
-}
-.stage-code__dot {
-  width: calc(11 * var(--cv-u));
-  height: calc(11 * var(--cv-u));
-  border-radius: 50%;
-  background: rgba(176, 118, 79, 0.3);
-}
-.stage-code__dot:nth-child(1) {
-  background: #d98a6a;
-}
-.stage-code__dot:nth-child(2) {
-  background: #dcab6e;
-}
-.stage-code__dot:nth-child(3) {
-  background: #b0764f;
-}
-.stage-code__file {
-  margin-left: calc(10 * var(--cv-u));
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--ink-mute);
-  letter-spacing: 0.04em;
-}
-.stage-code__body {
-  display: flex;
-  flex-direction: column;
-  gap: calc(12 * var(--cv-u));
-  padding: calc(22 * var(--cv-u)) calc(24 * var(--cv-u)) calc(24 * var(--cv-u));
-  min-height: calc(116 * var(--cv-u));
-}
-.stage-code__line {
-  display: flex;
-  align-items: center;
-  gap: calc(12 * var(--cv-u));
-  opacity: 0;
-  transition: opacity 0.3s var(--ease-out);
-}
-.stage-code__line.is-shown {
-  opacity: 1;
-}
-.stage-code__prompt {
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: var(--text-base);
-}
-.stage-code__text {
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  color: var(--ink);
-  white-space: pre;
-}
-.stage-code__cursor {
-  display: inline-block;
-  width: calc(8 * var(--cv-u));
-  height: 1.1em;
-  margin-left: calc(2 * var(--cv-u));
-  vertical-align: text-bottom;
-  background: var(--accent);
-  animation: stage-caret 0.9s step-end infinite;
-}
-@keyframes stage-caret {
-  50% {
-    opacity: 0;
-  }
-}
-
-/* ===================================================================
-   reduced-motion
-   =================================================================== */
-@media (prefers-reduced-motion: reduce) {
-  /* REC 改为静止常亮（不完全消失）；活跃帧/联动切换 transition 归零 */
-  .tc-capsule__rec-dot {
-    animation: none !important;
-    opacity: 1;
-    box-shadow: 0 0 0 calc(3 * var(--cv-u)) var(--rec-glow);
-  }
-  .film-track,
-  .film-frame__card,
-  .film-frame__icon,
-  .film-caption,
-  .film-codecard__code,
-  .film-codecard__desc,
-  .stage-tree__node,
-  .stage-tree__dot,
-  .stage-tree__wire,
-  .stage-coords__card,
-  .stage-code__line {
-    transition: none !important;
-  }
-  .stage-code__cursor {
-    animation: none !important;
-  }
+  /* opacity / transform / 切换动画由上面的 `.film-codecard__code, .film-codecard__desc`
+   * 分组规则统一拥有（2026-08-12 hover 衔接动画）。这里不再重复声明，避免两处漂移。 */
 }

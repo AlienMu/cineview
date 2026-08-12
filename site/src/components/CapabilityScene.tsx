@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Animate, Position } from 'cineview';
+import { useEffect, useRef, type MutableRefObject } from 'react';
+import { Animate, Position, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
 import type { DictKey } from '../i18n/types';
 import { TimecodeAxis } from './TimecodeAxis';
@@ -17,25 +17,24 @@ import {
 import './CapabilityScene.css';
 
 /**
- * 第二幕:能力展示 — 胶片带 + 舞台抽屉(v3 重做,2026-07-09)
+ * 第二幕:能力展示 — 胶片带镜(v3 重做,2026-07-09)
  *
- * 两镜结构(task-flow 2026-07-09-act2-cinema-rewrite.md,规格冻结):
- *   SHOT01 胶片带镜:标题 → 胶带从左向右生长(render-prop 手写 width) → 6 预设帧格
- *           依次滚入播一次原生预设并定格,活跃帧高亮 + 联动说明/代码。链长 ≈8320ms。
- *   SHOT02 舞台抽屉镜:中央舞台三面板(waitFor 树 / stagger 方块 / Position 坐标卡)
- *           依次播放,播完各自用 exitAnimation 飞入左侧抽屉堆叠;全部收纳后右侧
- *           出现标题+总结。链长 =15000ms。
+ * SHOT01 胶片带镜:标题 → 胶带从左向右铺入 → 9 预设帧格依次滚入播一次原生预设并定格,
+ *        活跃帧高亮 + 联动说明/代码。链长 ≈8320ms。
+ *
+ * 原同文件的 SHOT02「舞台抽屉镜」已于 2026-08-04 拆除,第三幕改为推镜结构,
+ * 见 `Act3DollyScene.tsx` 与 task-flow 2026-08-04-home-continuous-bg-act3-dolly.md。
+ * 共用变体 riseVariant / solidVariant / SplitTitle / renderIntroLines 保留在本文件,
+ * 由第三幕跨文件复用(避免重复实现)。
  *
  * 框架边界(已核实,勿越):
- *   - 自定义 variant 只有 opacity/x/y/scale/rotate/rotateX/rotateY/skewX/skewY/filter
- *     生效 — width 生长必须走 render-prop 手写 style。
- *   - render-prop children 必须搭配 enterAnimation 才注册 zone 预算。
- *   - exit 相位缺省 opacity=0,抽屉面板的 exit 必须显式写 opacity:1 才能留在抽屉可见。
- *   - REC 常驻动效走纯 CSS keyframes(TimecodeAxis),不用 infiniteAnimation。
+ *   - 支持属性全部由 Animate lane 拥有；流光位置、选中帧和文本只读 timeline
+ *     MotionValue 做无 React render 的 DOM 投影。
+ *   - REC、齿孔和光标常驻动效统一走 phase-gated infiniteAnimation。
  */
 
 /* ── 自定义变体(仅白名单属性;scroll 驱动下 transition duration 置 0)── */
-function riseVariant(amplitude: string): {
+export function riseVariant(amplitude: string): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
@@ -45,10 +44,9 @@ function riseVariant(amplitude: string): {
   };
 }
 /**
- * 平移驱动变体:opacity 恒 1(host 不淡入),只借它的 enterProgress 随滚动擦洗驱动 track 的
- * translateX。若用 fade-in,整条 track 会随 27s 淡入——不要。
+ * 中性变体:只建立共享 timeline，不让承载内容随整段时长淡入。
  */
-function solidVariant(): {
+export function solidVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
@@ -57,15 +55,18 @@ function solidVariant(): {
     animate: { opacity: 1, transition: { duration: 0 } },
   };
 }
-/** 面板播完飞到顶部一行(上左/上中/上右),对齐上一幕胶带所在的横向位置。
- *  dx=水平列偏移(相对舞台中心);统一上移 DOCK_Y、缩小 DOCK_SCALE。opacity 显式 1(exit 缺省为 0)。 */
-function panelDockRow(dx: string): { exit: Record<string, unknown> } {
+
+function filmPanVariant(): {
+  initial: Record<string, unknown>;
+  animate: Record<string, unknown>;
+} {
   return {
-    exit: { x: dx, y: DOCK_Y, scale: DOCK_SCALE, opacity: 1, transition: { duration: 0 } },
+    initial: { x: '-100%', opacity: 1 },
+    animate: { x: '0%', opacity: 1 },
   };
 }
 
-function SplitTitle({
+export function SplitTitle({
   text,
   kind = 'main',
 }: {
@@ -93,7 +94,7 @@ function SplitTitle({
 }
 
 /** 副标题在首个逗号(中文，/ 英文 ,)处换行,两行更均衡。 */
-function renderIntroLines(text: string): JSX.Element {
+export function renderIntroLines(text: string): JSX.Element {
   const m = text.match(/[，,]/);
   if (!m || m.index == null) return <>{text}</>;
   const cut = m.index + 1;
@@ -106,42 +107,11 @@ function renderIntroLines(text: string): JSX.Element {
   );
 }
 
-/** render-prop 探针:把某条 Animate 轨道的 enterProgress 同步回 React 状态。 */
-function ProgressSync({
-  index,
-  progress,
-  onProgress,
-}: {
-  index: number;
-  progress: number;
-  onProgress: (index: number, progress: number) => void;
-}): null {
-  useEffect(() => {
-    onProgress(index, progress);
-  }, [index, progress, onProgress]);
-  return null;
-}
-
-/** 单值探针:把一条轨道的 enterProgress 同步回 React 状态(用于 film-pan → REC 读数)。 */
-function PanSync({
-  progress,
-  onProgress,
-}: {
-  progress: number;
-  onProgress: (v: number) => void;
-}): null {
-  useEffect(() => {
-    onProgress(progress);
-  }, [progress, onProgress]);
-  return null;
-}
-
 /* ==================================================================
    SHOT 01 · 胶片带镜(全宽纯胶片 + 分步节奏)
    分步机制:9 帧链式 waitFor(frame-i waitFor frame-(i-1) 完成),一帧播完才轮下一帧;
-   胶带宽度不由连续 tween 驱动,而由「已完成帧数+1」的 state 决定(先露出下一格空位,
-   帧再在里面播),配 CSS width 过渡形成「滚动→出格→播放→停顿→再滚动」的分步节奏。
-   黑色部分(齿孔条+分隔线)色相随总进度流动;播完释放选中,之后悬停切换。
+   胶带 x 与各帧预设均由 framework lane 跟随滚动，选中说明只在离散帧边界投影。
+   齿孔条流光随总进度流动；播完释放选中，之后悬停切换。
    ================================================================== */
 
 const FILM_FRAMES = [
@@ -165,69 +135,260 @@ const FRAME_PLAY = 1000;
 const INTRO_DELAY = 1000; // 首帧前的延迟:胶带先滑入腾空间
 const PAN_MS = INTRO_DELAY + N_FRAMES * FRAME_PLAY; // 10000
 // hold 尾段:铺满后延长锁定区,让胶带停留一下(可 hover / loop 走片)再释放到下一幕。
-const HOLD_MS = 500;
+/* ⚠️ 2026-08-12 真机实测把 500 提到 2600。用户报「鼠标选中后 codeboard 没有出现」。
+ * 探针 `scripts/rv-20260812-sweep.mjs` 的连续扫描（sweep.json）钉死了机制：
+ *   y=11570 胶带 `--film-flow` 才到 100%（`state.done` 为真、hover 此刻起才被受理），
+ *   而同一 y 上 `film-card-inout` 的 opacity 已经是 **0.746 并继续下落**，
+ *   y=12040 归零，此后整个可 hover 的 hold 段卡片恒为 0。
+ * 也就是说：选中逻辑一直是好的（探针实测 hover 能正确改写 activeCode/activeDesc），
+ * 但卡片在「可以 hover」的那一刻恰好淡完了 —— 用户看到的就是「选中了但卡片不出现」。
+ * 旧 HOLD_MS=500 只给了 500px 的驻留窗口，比一次滚轮轻推还短，根本不够 hover。 */
+const HOLD_MS = 2600;
+/* 选中切换的交叉淡入淡出窗口（C4，2026-08-10：180 → 420）。
+ * 用户报「存在动画切换太快闪烁的问题」。旧值 180ms 要在一次切换里塞完
+ * 「旧行淡出 + 新行淡入」，滚动快进时两者挤成一帧 ⇒ 读作「闪」。
+ * 上限由相邻切换点间距定：帧间距 FRAME_PLAY=1000ms，一次切换占 2×fade，
+ * 故 fade < 500ms；取 420ms，留 160ms 净空，既不重叠又明显从容。 */
+const SELECTION_FADE_MS = 420;
+/* 选中切换的位移量（C4）。用户裁决方向 A：**旧行下移淡出、新行从上方下落淡入**
+ * （「往下走」的阅读流）。取 6 设计 px ≈ 行高的 1/3 —— 读作「换了一行」，
+ * 而不是「整块往下掉」。走 y 属性（框架 10 属性白名单内），仍由 Animate lane 拥有。 */
+const SELECTION_SHIFT = 6;
+const SELECTION_MS = PAN_MS + HOLD_MS;
+
+function filmSelectionVariant(kind: 'caption' | 'code'): {
+  initial: Record<string, unknown>;
+  animate: Record<string, unknown>;
+} {
+  const times: number[] = [0];
+  const opacity: number[] = [kind === 'caption' ? 0 : 1];
+  const blur = 'blur(0.833333vw)';
+  const filter: string[] = [blur];
+  const scale: number[] = [0.98];
+  const fade = SELECTION_FADE_MS / SELECTION_MS;
+  /* code 轨的位移序列（C4）。y 与 opacity 逐点对齐：
+   *   at−fade  y=0        已就位、不透明
+   *   at       y=+SHIFT   旧行沉到下方、opacity 0（此刻不可见）
+   *   at+EPS   y=−SHIFT   趁不可见瞬移到上方，作为新行的起点
+   *   at+fade  y=0        新行落回原位、不透明
+   * 关键点：关键帧插值是连续的，y 不可能在同一 time 上从 +SHIFT 跳到 −SHIFT，
+   * 故必须借一个极小的时间偏移 EPS 完成这次瞬移；因为整段 opacity 恒为 0，
+   * 这次瞬移在视觉上不存在。EPS 取 fade/8，远小于相邻切换间距，不会打乱 times 单调性。 */
+  const y: string[] = ['0px'];
+  const EPS = fade / 8;
+  const up = `${-SELECTION_SHIFT}px`;
+  const down = `${SELECTION_SHIFT}px`;
+  const switches = [
+    ...Array.from(
+      { length: N_FRAMES },
+      (_, order) => (INTRO_DELAY + FRAME_PLAY * 0.05 + order * FRAME_PLAY) / SELECTION_MS
+    ),
+    PAN_MS / SELECTION_MS,
+  ];
+
+  switches.forEach((at, index) => {
+    const isFirstCaption = kind === 'caption' && index === 0;
+    const isFinalCaption = kind === 'caption' && index === switches.length - 1;
+    if (!isFirstCaption) {
+      times.push(at - fade);
+      opacity.push(1);
+      if (kind === 'caption') {
+        filter.push('blur(0px)');
+        scale.push(1);
+      } else {
+        y.push('0px');
+      }
+    }
+    times.push(at);
+    opacity.push(0);
+    if (kind === 'caption') {
+      filter.push(blur);
+      scale.push(0.98);
+    } else {
+      y.push(down); // 旧行沉下去
+    }
+    if (!isFinalCaption) {
+      if (kind !== 'caption') {
+        // 不可见期间瞬移到上方，供新行下落
+        times.push(at + EPS);
+        opacity.push(0);
+        y.push(up);
+      }
+      times.push(at + fade);
+      opacity.push(1);
+      if (kind === 'caption') {
+        filter.push('blur(0px)');
+        scale.push(1);
+      } else {
+        y.push('0px'); // 新行落回原位
+      }
+    }
+  });
+  times.push(1);
+  opacity.push(kind === 'caption' ? 0 : 1);
+  if (kind === 'caption') {
+    filter.push(blur);
+    scale.push(0.98);
+  } else {
+    y.push('0px');
+  }
+
+  return {
+    initial:
+      kind === 'caption'
+        ? { opacity: opacity[0], filter: filter[0], scale: scale[0] }
+        : { opacity: opacity[0], y: y[0] },
+    animate: {
+      opacity,
+      ...(kind === 'caption' ? { filter, scale } : { y }),
+      transition: { times },
+    },
+  };
+}
+
+/* ── 整卡进出场（C3，2026-08-10）────────────────────────────────────────────
+ * 用户报「代码框没有入场/退场动画」。核实:旧实现里这块卡外层只有
+ * `film-code-selection` 一条 lane，管的是**卡内行切换**；整卡从滚动一开始就杵在那，
+ * 到整幕被切走为止 —— 入场/退场**从未被实现**（不是被改掉的）。
+ *
+ * 用户裁决:入场「上移 + 淡入」/ 退场「下移 + 淡出」，挂**独立短轴**（方案 B，
+ * `waitFor: 'film-title'`），不跟胶带 `film-pan` 同轴 —— 独立轴的进出时长可单独调，
+ * 不被胶带 10s 的 pan 拖长，进出更利落。
+ *
+ * 位移 32 设计 px：明显是「从下方升上来」而非漂移；且远小于外层裁切余量
+ * （`.capability-full` 的 `overflow-clip-margin: 120px`，实测退场安全余量 163px）
+ * ⇒ 投影在整个下移过程中都不会被切（那正是用户报的 C6 阴影截断）。
+ *
+ * ⚠️ 2026-08-12：整卡 lane **不再复用 `SELECTION_MS`**。旧写法 lane = PAN+HOLD = 10500、
+ * 退场从 0.94 起步 = 9870ms —— 那**早于**胶带 pan 结束的 10000ms，于是退场斜坡把整个
+ * hold 段（10000→10500，正是 hover 唯一生效的窗口）完全吃掉，卡片在能被 hover 时已经淡完。
+ * 现在给整卡一条**独立更长的 lane**：pan(10000) + hold(2600) 全程 opacity 1，
+ * 只在其后的 CARD_OUT_MS(700) 里下移淡出 ⇒ 退场严格晚于 hold，hover 窗口内卡片恒为实心。 */
+const CARD_IN_MS = 700;
+const CARD_OUT_MS = 700;
+const CARD_LANE_MS = PAN_MS + HOLD_MS + CARD_OUT_MS;
+const CARD_IN_END = CARD_IN_MS / CARD_LANE_MS;
+const CARD_OUT_START = (PAN_MS + HOLD_MS) / CARD_LANE_MS;
+const CARD_SHIFT = 32;
+
+function cardInOutVariant(): {
+  initial: Record<string, unknown>;
+  animate: Record<string, unknown>;
+} {
+  const times = [0, CARD_IN_END, CARD_OUT_START, 1];
+  return {
+    initial: { opacity: 0, y: `${CARD_SHIFT}px` },
+    animate: {
+      opacity: [0, 1, 1, 0],
+      y: [`${CARD_SHIFT}px`, '0px', '0px', `${CARD_SHIFT}px`],
+      transition: { opacity: { times }, y: { times } },
+    },
+  };
+}
+
+const FILM_CAPTION_SELECTION = filmSelectionVariant('caption');
+const FILM_CODE_SELECTION = filmSelectionVariant('code');
+
+const PREFERS_REDUCED =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+interface FilmSelectionState {
+  active: number;
+  hovered: number | null;
+  done: boolean;
+  display: number | null;
+}
+
+function applyFilmSelection(scene: HTMLDivElement | null, state: FilmSelectionState): void {
+  if (!scene) return;
+  const display = state.hovered ?? state.active;
+  if (display === state.display) return;
+  state.display = display;
+  scene.querySelectorAll<HTMLElement>('[data-film-index]').forEach((element) => {
+    element.classList.toggle('is-active', Number(element.dataset.filmIndex) === display);
+  });
+}
+
+/**
+ * Film selection, flow and hover eligibility are unsupported visual projections.
+ * They consume the framework MotionValue directly and only touch DOM when a discrete
+ * frame boundary changes; x/opacity/scale stay owned by Animate.
+ */
+function FilmTimelineProjection({
+  sceneRef,
+  stateRef,
+}: {
+  sceneRef: MutableRefObject<HTMLDivElement | null>;
+  stateRef: MutableRefObject<FilmSelectionState>;
+}): null {
+  const { progress } = useAnimateTimeline();
+
+  useEffect(() => {
+    const project = (value: number): void => {
+      const p = Math.min(Math.max(value, 0), 1);
+      const elapsed = p * PAN_MS;
+      const done = p >= 0.9995;
+      const activeElapsed = elapsed - INTRO_DELAY - FRAME_PLAY * 0.05;
+      const active =
+        done || activeElapsed < 0
+          ? -1
+          : Math.max(0, N_FRAMES - 1 - Math.floor(activeElapsed / FRAME_PLAY));
+      const state = stateRef.current;
+      state.active = active;
+      state.done = done;
+      if (!done) state.hovered = null;
+
+      const flow = Math.min(
+        100,
+        Math.max(0, ((elapsed - INTRO_DELAY) / (N_FRAMES * FRAME_PLAY)) * 100)
+      );
+      sceneRef.current?.style.setProperty('--film-flow', `${flow}%`);
+      applyFilmSelection(sceneRef.current, state);
+    };
+
+    project(progress.get());
+    return progress.on('change', project);
+  }, [progress, sceneRef, stateRef]);
+
+  return null;
+}
 
 export function CapabilityFilmStripScene(): JSX.Element {
   const { t, lang } = useI18n();
-  const [activeFrame, setActiveFrame] = useState(-1);
-  const [hoveredFrame, setHoveredFrame] = useState<number | null>(null);
-  const [stripHue, setStripHue] = useState(18);
-  const [panProgress, setPanProgress] = useState(0);
-  const [sequenceDone, setSequenceDone] = useState(false);
-  const frameProgressRef = useRef<number[]>(Array(N_FRAMES).fill(0));
-  const sequenceDoneRef = useRef(false);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const selectionRef = useRef<FilmSelectionState>({
+    active: -1,
+    hovered: null,
+    done: false,
+    display: null,
+  });
 
-  // film-pan 的 enterProgress(0..1 覆盖整 20s)→ 驱动 REC 读数(接管镜 DOM 高度恒为视口高,
-  // 不能用 DOM 测量)。setState 用 rAF 外的 handler,由 render-prop effect 触发,避免渲染期 setState。
-  const handlePanProgress = useCallback((v: number) => {
-    setPanProgress((prev) => (Math.abs(prev - v) < 0.002 ? prev : v));
-  }, []);
-
-  const handleFrameProgress = useCallback((index: number, progress: number) => {
-    frameProgressRef.current[index] = progress;
-    // 倒序播放(8→0):已播完的帧停在 1.0,正在播的是「已启动(>0.05)里 index 最小」的那个。
-    // 取最小 started index(不是最大),否则会永远卡在先播完的 frame-8。
-    let next = -1;
-    let allSettled = true;
-    let sum = 0;
-    for (let i = N_FRAMES - 1; i >= 0; i -= 1) {
-      const p = frameProgressRef.current[i];
-      sum += p;
-      if (p > 0.05) next = i;
-      if (p < 0.995) allSettled = false;
-    }
-    sequenceDoneRef.current = allSettled;
-    setSequenceDone((prev) => (prev === allSettled ? prev : allSettled));
-    // 全部播完 → 释放选中;未播完(播放中/回退)清掉 hover 残留(修回退 bug)。
-    if (allSettled) next = -1;
-    else setHoveredFrame((hh) => (hh == null ? hh : null));
-    setActiveFrame((prev) => (prev === next ? prev : next));
-
-    // 边框(齿孔+分隔线)色相随总进度平滑流动。平移交给 film-pan 的 enterProgress(见下),不用 state。
-    const hue = Math.round(18 + (sum / N_FRAMES) * 320);
-    setStripHue((prev) => (prev === hue ? prev : hue));
-  }, []);
-
-  // 悬停切换仅在整段播完后启用(运行完之前不响应 hover)。
-  const handleFrameEnter = useCallback((index: number) => {
-    if (sequenceDoneRef.current) setHoveredFrame(index);
-  }, []);
-  const handleFrameLeave = useCallback(() => setHoveredFrame(null), []);
-  const displayFrame = hoveredFrame != null ? hoveredFrame : activeFrame;
-  // 铺满且未悬停 → CSS marquee 走片;悬停即暂停并展示该帧。
-  const rolling = sequenceDone && hoveredFrame == null;
-
-  // 流光：暖陶土主题渐变(不再全色相旋转跑偏)，随滚动进度平移一道高光。
-  // stripHue 复用为 0..338 的滚动进度信号 → 归一成 0..100% 的流光位置。
-  const flow = Math.round(((stripHue - 18) / 320) * 100);
-  const filmVars = {
-    '--film-flow': `${flow}%`,
-  } as CSSProperties;
+  const handleFrameEnter = (index: number): void => {
+    const state = selectionRef.current;
+    if (!state.done) return;
+    state.hovered = index;
+    sceneRef.current?.querySelector('.film-track')?.classList.add('is-paused');
+    applyFilmSelection(sceneRef.current, state);
+  };
+  const handleFrameLeave = (): void => {
+    selectionRef.current.hovered = null;
+    sceneRef.current?.querySelector('.film-track')?.classList.remove('is-paused');
+    applyFilmSelection(sceneRef.current, selectionRef.current);
+  };
 
   return (
-    <div className="capability-full capability-full--film" data-lang={lang}>
+    <div ref={sceneRef} className="capability-full capability-full--film" data-lang={lang}>
       <div className="bg-grid" />
-      <TimecodeAxis shotIndex={1} seconds={10} progress={panProgress} />
+      <Animate
+        animateId="film-clock"
+        enterAnimation={solidVariant()}
+        duration={{ enter: PAN_MS }}
+        timeline={{ waitFor: 'film-title', delay: 0 }}
+      >
+        <TimecodeAxis shotIndex={1} seconds={10} />
+      </Animate>
       <div className="cap-slate">{t('cap.shot1.slate')}</div>
 
       {/* 标题块(hero 风格):evocative slogan + 引介副标题 */}
@@ -247,55 +408,73 @@ export function CapabilityFilmStripScene(): JSX.Element {
 
       {/* 胶带上方:活跃帧描述性标题 + 预设名标签(悬停可切换) */}
       <Position at={{ anchor: 'center-x', y: 238 }}>
-        <div className="film-caption-slot">
-          {FILM_FRAMES.map((frame, index) => (
-            <div
-              key={frame.id}
-              className={`film-caption${displayFrame === index ? ' is-active' : ''}`}
-            >
-              <span className="film-caption__title">
-                {t(`cap.shot1.preset.${frame.id}.title` as DictKey)}
-              </span>
-              <span className="film-caption__tag">
-                {t(`cap.shot1.preset.${frame.id}.name` as DictKey)}
-              </span>
-            </div>
-          ))}
-        </div>
+        <Animate
+          animateId="film-caption-selection"
+          enterAnimation={FILM_CAPTION_SELECTION}
+          duration={{ enter: SELECTION_MS }}
+          timeline={{ waitFor: 'film-title', delay: 0 }}
+        >
+          <div className="film-caption-slot">
+            {FILM_FRAMES.map((frame, index) => (
+              <div key={frame.id} className="film-caption" data-film-index={index}>
+                <span className="film-caption__title">
+                  {t(`cap.shot1.preset.${frame.id}.title` as DictKey)}
+                </span>
+                <span className="film-caption__tag">
+                  {t(`cap.shot1.preset.${frame.id}.name` as DictKey)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Animate>
       </Position>
 
-      {/* 胶卷:gate 固定可视窗(100vw),单份 track。film-pan 的 enterProgress 内联 translateX(-100%→0)
-          从左铺入。9 帧 gapless 倒序链。铺满(sequenceDone)后帧静止不动,只有齿孔条的「点」用
-          background-position 循环滚动(is-rolling),表示胶卷在转;鼠标悬停暂停(is-paused)。
+      {/* 胶卷:gate 固定可视窗(100vw),单份 track。film-pan lane 负责 x(-100%→0)。
+          9 帧 gapless 倒序链。铺满后帧静止不动,齿孔条由 infinite lane 循环走片;
+          鼠标悬停暂停走片并切换说明。
           hold 尾段延长锁定区,铺满后停留可 hover / 看齿孔滚动。 */}
       <Position at={{ anchor: 'center-x', y: 342 }}>
         <div className="film-gate">
           <Animate
             animateId="film-pan"
-            enterAnimation={solidVariant()}
+            enterAnimation={filmPanVariant()}
             duration={{ enter: PAN_MS }}
             timeline={{ waitFor: 'film-title', delay: 0 }}
+            infiniteAnimation={
+              PREFERS_REDUCED
+                ? undefined
+                : {
+                    animate: {
+                      '--film-perf-phase': [0, -1],
+                      transition: { duration: 1, ease: 'linear', repeat: Infinity },
+                    },
+                  }
+            }
           >
-            {({ enterProgress }) => (
-              <div
-                className={`film-track${rolling ? ' is-rolling' : ''}${
-                  sequenceDone && hoveredFrame != null ? ' is-paused' : ''
-                }`}
-                style={
-                  {
-                    ...filmVars,
-                    transform: `translateX(${(-1 + enterProgress) * 100}%)`,
-                  } as CSSProperties
-                }
-              >
-                <PanSync progress={enterProgress} onProgress={handlePanProgress} />
-                <div className="film-track__perf film-track__perf--top" />
-                <div className="film-track__frames">
-                  {FILM_FRAMES.map((frame, index) => {
-                    const { Icon } = frame;
-                    return (
+            <div className="film-track">
+              <FilmTimelineProjection sceneRef={sceneRef} stateRef={selectionRef} />
+              <div className="film-track__perf film-track__perf--top" />
+              <div className="film-track__frames">
+                {/* C8（2026-08-10 用户指令）:「胶带内的动画执行，只覆盖到图标及标题，
+                    序号默认展示」+ 裁决 A「9 格序号全程常显」。
+                    故序号**移出** Animate 之外、成为 slot 的直接子元素:预设动画
+                    （fade/slide/zoom/rotate/bounce/shake/flip/elastic/blur）只作用在
+                    图标 + 标题那一层，序号不参与任何入场，从头到尾 9 个都在。
+                    ⚠️ `data-film-index` 与 hover 处理一并上提到 slot ——
+                    `applyFilmSelection` 靠这个属性切 `is-active`，若留在 Animate 内层，
+                    序号就拿不到选中态（CSS 侧对应改为 `.film-frame__slot.is-active`）。 */}
+                {FILM_FRAMES.map((frame, index) => {
+                  const { Icon } = frame;
+                  return (
+                    <div
+                      key={frame.id}
+                      className="film-frame__slot"
+                      data-film-index={index}
+                      onMouseEnter={() => handleFrameEnter(index)}
+                      onMouseLeave={handleFrameLeave}
+                    >
+                      <span className="film-frame__no">{String(index + 1).padStart(2, '0')}</span>
                       <Animate
-                        key={frame.id}
                         animateId={`film-frame-${index}`}
                         enterAnimation={frame.preset}
                         duration={{ enter: FRAME_PLAY }}
@@ -305,11 +484,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
                             : { waitFor: `film-frame-${index + 1}` }
                         }
                       >
-                        <div
-                          className={`film-frame${displayFrame === index ? ' is-active' : ''}`}
-                          onMouseEnter={() => handleFrameEnter(index)}
-                          onMouseLeave={handleFrameLeave}
-                        >
+                        <div className="film-frame">
                           <div className="film-frame__card">
                             <span className="film-frame__icon">
                               <Icon />
@@ -317,18 +492,15 @@ export function CapabilityFilmStripScene(): JSX.Element {
                             <span className="film-frame__name">
                               {t(`cap.shot1.preset.${frame.id}.name` as DictKey)}
                             </span>
-                            <span className="film-frame__no">
-                              {String(index + 1).padStart(2, '0')}
-                            </span>
                           </div>
                         </div>
                       </Animate>
-                    );
-                  })}
-                </div>
-                <div className="film-track__perf film-track__perf--bottom" />
+                    </div>
+                  );
+                })}
               </div>
-            )}
+              <div className="film-track__perf film-track__perf--bottom" />
+            </div>
           </Animate>
         </div>
       </Position>
@@ -347,385 +519,54 @@ export function CapabilityFilmStripScene(): JSX.Element {
 
       {/* 胶带下方:代码卡片 —— code 行 + 一句话描述,随展示帧联动(与胶带拉开间距) */}
       <Position at={{ anchor: 'center-x', y: 636 }}>
+        {/* 两条 lane 分层，各管一件事，不能合并到一个元素上（会互相覆盖同名属性）：
+              film-card-inout   —— 整卡进出场（上移淡入 / 下移淡出），C3
+              film-code-selection —— 卡内 code/desc 行随选中帧切换，C4 */}
         <Animate
-          animateId="film-codecard"
-          enterAnimation="fade-in"
-          duration={{ enter: 500 }}
-          timeline={{ waitFor: 'film-title', delay: 250 }}
+          animateId="film-card-inout"
+          enterAnimation={cardInOutVariant()}
+          duration={{ enter: CARD_LANE_MS }}
+          timeline={{ waitFor: 'film-title', delay: 0 }}
         >
-          <div className="film-codecard">
-            <div className="film-codecard__bar">
-              <span className="film-codecard__dot" />
-              <span className="film-codecard__dot" />
-              <span className="film-codecard__dot" />
-              <span className="film-codecard__file">Scene.tsx</span>
-            </div>
-            <div className="film-codecard__body">
-              <div className="film-codecard__head">
-                <span className="film-codecard__prompt">&gt;</span>
-                <span className="film-codecard__code-slot">
-                  {FILM_FRAMES.map((frame, index) => (
-                    <code
-                      key={frame.id}
-                      className={`film-codecard__code${displayFrame === index ? ' is-active' : ''}`}
-                    >
-                      {t(`cap.shot1.preset.${frame.id}.code` as DictKey)}
+          <Animate
+            animateId="film-code-selection"
+            enterAnimation={FILM_CODE_SELECTION}
+            duration={{ enter: SELECTION_MS }}
+            timeline={{ waitFor: 'film-title', delay: 0 }}
+          >
+            <div className="film-codecard">
+              <div className="film-codecard__bar">
+                <span className="film-codecard__dot" />
+                <span className="film-codecard__dot" />
+                <span className="film-codecard__dot" />
+                <span className="film-codecard__file">Scene.tsx</span>
+              </div>
+              <div className="film-codecard__body">
+                <div className="film-codecard__head">
+                  <span className="film-codecard__prompt">&gt;</span>
+                  <span className="film-codecard__code-slot">
+                    {FILM_FRAMES.map((frame, index) => (
+                      <code key={frame.id} className="film-codecard__code" data-film-index={index}>
+                        {t(`cap.shot1.preset.${frame.id}.code` as DictKey)}
+                      </code>
+                    ))}
+                    <code className="film-codecard__code is-active" data-film-index={-1}>
+                      {'<Animate enterAnimation={…} />'}
                     </code>
+                  </span>
+                </div>
+                <span className="film-codecard__desc-slot">
+                  {FILM_FRAMES.map((frame, index) => (
+                    <span key={frame.id} className="film-codecard__desc" data-film-index={index}>
+                      {t(`cap.shot1.preset.${frame.id}.desc` as DictKey)}
+                    </span>
                   ))}
-                  <code className={`film-codecard__code${displayFrame === -1 ? ' is-active' : ''}`}>
-                    {'<Animate enterAnimation={…} />'}
-                  </code>
                 </span>
               </div>
-              <span className="film-codecard__desc-slot">
-                {FILM_FRAMES.map((frame, index) => (
-                  <span
-                    key={frame.id}
-                    className={`film-codecard__desc${displayFrame === index ? ' is-active' : ''}`}
-                  >
-                    {t(`cap.shot1.preset.${frame.id}.desc` as DictKey)}
-                  </span>
-                ))}
-              </span>
             </div>
-          </div>
-        </Animate>
-      </Position>
-
-      {/* 帧进度探针:镜像各帧时序,驱动活跃帧状态(render-prop 需搭配 enterAnimation) */}
-      <div className="cap-probes" aria-hidden="true">
-        {FILM_FRAMES.map((frame, index) => (
-          <Animate
-            key={frame.id}
-            animateId={`film-probe-${index}`}
-            enterAnimation="fade-in"
-            duration={{ enter: FRAME_PLAY }}
-            timeline={
-              index === N_FRAMES - 1
-                ? { waitFor: 'film-title', delay: INTRO_DELAY }
-                : { waitFor: `film-frame-${index + 1}` }
-            }
-          >
-            {({ enterProgress }) => (
-              <ProgressSync
-                index={index}
-                progress={enterProgress}
-                onProgress={handleFrameProgress}
-              />
-            )}
           </Animate>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ==================================================================
-   SHOT 02 · 舞台抽屉镜(结算链重做)
-   链:panel0(3200+800) → panel1(3200+800) → panel2(3200+800)
-       → stage-title(400) → stage-summary(delay100+2500) = 15000ms。
-   每面板播完经 exitAnimation 飞入上方三列抽屉(percent 位移随面板尺寸等比缩放)。
-   ================================================================== */
-
-// 面板 enter 3000ms:外壳前 22%(~660ms)快速铺满(面板出现快);内容在尾段 30%→92%
-// (~1860ms)才慢慢播(内容慢、且面板完全展示后才播)。exit 500ms 快速飞去停靠。
-const PANEL_ENTER = 3000;
-const PANEL_EXIT = 500;
-// REC 时钟轨总时长(≈整段预算,已去掉 hold):面板 3×(3000+500)=10500 + 标题 400 + 结语 100+900 + 打字 3600 = 15500。
-const STAGE_CLOCK_MS = 15500;
-
-// 停靠:三面板播完飞到标题正上方一行(上左/上中/上右)。DOCK_Y 上移量、DOCK_SCALE 缩放;dx 列偏移。
-// 停靠飞到上方一行(top≈130 完整可见,在标题上方)的三列 x≈225/720/1215。
-// 实测(scale 0.46):panel top = DOCK_Y + 180 → 取 -50 使 top≈130。
-// 最终构图三层:面板行(上)→ 标题(中)→ 代码框(下),全部可见,不裁切、不藏。
-const DOCK_Y = '-9.615385%';
-const DOCK_SCALE = 0.46;
-const STAGE_PANELS = [
-  {
-    id: 'chain',
-    labelKey: 'cap.shot2.panel.chain.label',
-    codeKey: 'cap.shot2.panel.chain.code',
-    Icon: IconDolly,
-    dx: '-68.333333%',
-  },
-  {
-    id: 'stagger',
-    labelKey: 'cap.shot2.panel.stagger.label',
-    codeKey: 'cap.shot2.panel.stagger.code',
-    Icon: IconFilmRoll,
-    dx: '0%',
-  },
-  {
-    id: 'position',
-    labelKey: 'cap.shot2.panel.position.label',
-    codeKey: 'cap.shot2.panel.position.code',
-    Icon: IconAperture,
-    dx: '68.333333%',
-  },
-] as const;
-// 面板 enter 窗口(stageProgress 归一,总时钟 15500ms)。inner 外壳/内容由这些窗口驱动
-// (确定性、单调、可逆),与退场回落的 enterProgress 解耦 —— enter 完成后外壳恒 1,
-// 飞去停靠不塌。窗口 = 各面板在链上的 enter 段:panel-i enter 起点/终点 / 15500。
-//   p0 [0,3000] p1 [3500,6500] p2 [7000,10000] (每段前有 500 exit 衔接)
-const PANEL_ENTER_WINDOWS: ReadonlyArray<readonly [number, number]> = [
-  [0 / 15500, 3000 / 15500],
-  [3500 / 15500, 6500 / 15500],
-  [7000 / 15500, 10000 / 15500],
-];
-
-/** Panel1 内容:waitFor 结构树(3 节点 + 2 连线),由内容进度 progress(0..1) 逐个点亮。
- *  progress 来自所属面板的 enterProgress 尾段(面板完全展示后才 >0),故内容在面板铺满后才播。 */
-function ChainTreePanelBody({ progress }: { progress: number }): JSX.Element {
-  const nodes = ['title', 'subtitle', 'body'];
-  return (
-    <div className="stage-tree">
-      {nodes.map((name, index) => {
-        const nodeOn = progress >= 0.15 + index * 0.28;
-        const wireOn = progress >= 0.3 + index * 0.28;
-        return (
-          <div key={name} className="stage-tree__step">
-            <div className={`stage-tree__node${nodeOn ? ' is-on' : ''}`}>
-              <span className="stage-tree__dot" />
-              <span className="stage-tree__name">{name}</span>
-              {index > 0 ? (
-                <span className="stage-tree__wait">{`waitFor: "${nodes[index - 1]}"`}</span>
-              ) : null}
-            </div>
-            {index < nodes.length - 1 ? (
-              <span className={`stage-tree__wire${wireOn ? ' is-on' : ''}`} />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Panel2 内容:6 方块横排错峰入场,由 progress 逐个点亮(错峰)。 */
-function StaggerPanelBody({ progress }: { progress: number }): JSX.Element {
-  return (
-    <div className="stage-squares">
-      {Array.from({ length: 6 }, (_, index) => {
-        const on = progress >= 0.1 + index * 0.13;
-        return (
-          <span key={index} className={`stage-squares__cell${on ? ' is-on' : ''}`}>
-            {String(index + 1).padStart(2, '0')}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Panel3 内容:Position 单尺子坐标卡 ×3,由 progress 逐个落位。 */
-const POSITION_CARDS = [
-  { x: 56, y: 64, at: 0.2 },
-  { x: 292, y: 148, at: 0.45 },
-  { x: 150, y: 236, at: 0.7 },
-] as const;
-
-function PositionPanelBody({ progress }: { progress: number }): JSX.Element {
-  return (
-    <div className="stage-coords">
-      <span className="stage-coords__axis stage-coords__axis--x" />
-      <span className="stage-coords__axis stage-coords__axis--y" />
-      {POSITION_CARDS.map((card) => (
-        <div
-          key={`${card.x}-${card.y}`}
-          className={`stage-coords__card${progress >= card.at ? ' is-on' : ''}`}
-          style={
-            {
-              '--stage-card-x': card.x,
-              '--stage-card-y': card.y,
-            } as CSSProperties
-          }
-        >
-          <span className="stage-coords__dot" />
-          <span className="stage-coords__label">{`x:${card.x} y:${card.y}`}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** 打字机代码框:三段 API 按 progress(0..1) 依次逐字敷出;当前段闪光标。 */
-function TypewriterCode({ progress }: { progress: number }): JSX.Element {
-  const { t } = useI18n();
-  const lines = [
-    t('cap.shot2.panel.chain.code' as DictKey),
-    t('cap.shot2.panel.stagger.code' as DictKey),
-    t('cap.shot2.panel.position.code' as DictKey),
-  ];
-  const total = lines.reduce((n, l) => n + l.length, 0);
-  // 在 progress 0→0.85 内敷完(留 0.85→1 的短暂 in-track 停留,完整代码可见片刻),
-  // 而非敷到锁定区末尾才完成、看不到全貌。非独立死段——同轨内的自然收尾。
-  const typeProgress = Math.min(1, Math.max(0, progress) / 0.85);
-  const typed = Math.round(typeProgress * total);
-  let remaining = typed;
-  // 逐行分配已敷字符数;找出"当前正在敷"的行(未敷满且已开始)挂光标。
-  let activeLine = -1;
-  const shown = lines.map((line, i) => {
-    const take = Math.max(0, Math.min(line.length, remaining));
-    remaining -= line.length;
-    if (take > 0 && take < line.length && activeLine === -1) activeLine = i;
-    return { full: line, visible: line.slice(0, take), started: take > 0 };
-  });
-  if (activeLine === -1) {
-    // 无"半敷"行:取最后一个已开始且未满的,否则最后一个已开始的
-    for (let i = lines.length - 1; i >= 0; i -= 1) {
-      if (shown[i].started) {
-        activeLine = i;
-        break;
-      }
-    }
-  }
-  return (
-    <div className="stage-code">
-      <div className="stage-code__bar">
-        <span className="stage-code__dot" />
-        <span className="stage-code__dot" />
-        <span className="stage-code__dot" />
-        <span className="stage-code__file">Scene.tsx</span>
-      </div>
-      <div className="stage-code__body">
-        {shown.map((ln, i) => (
-          <div key={i} className={`stage-code__line${ln.started ? ' is-shown' : ''}`}>
-            <span className="stage-code__prompt">&gt;</span>
-            <code className="stage-code__text">
-              {ln.visible}
-              {i === activeLine ? <span className="stage-code__cursor" /> : null}
-            </code>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function CapabilityStageDrawerScene(): JSX.Element {
-  const { t, lang } = useI18n();
-  const [stageProgress, setStageProgress] = useState(0);
-  const handleStageProgress = useCallback((v: number) => {
-    setStageProgress((prev) => (Math.abs(prev - v) < 0.002 ? prev : v));
-  }, []);
-
-  // 内容组件:接 progress(0..1),由所属面板 enter 窗口的尾段驱动(面板铺满后才播)。
-  const PanelBody = [ChainTreePanelBody, StaggerPanelBody, PositionPanelBody];
-
-  return (
-    <div className="capability-full capability-full--stage" data-lang={lang}>
-      <div className="bg-grid" />
-      <TimecodeAxis shotIndex={2} seconds={15} progress={stageProgress} />
-      <div className="cap-slate">{t('cap.shot2.slate')}</div>
-
-      {/* 中央舞台:三面板依次在同一位置播放;播完飞入左侧抽屉(无占位框) */}
-      <Position at={{ anchor: 'center-x', y: 140 }}>
-        <div className="stage-frame">
-          {STAGE_PANELS.map((panel, index) => {
-            const { Icon } = panel;
-            return (
-              <Animate
-                key={panel.id}
-                animateId={`stage-panel-${index}`}
-                enterAnimation={solidVariant()}
-                exitAnimation={panelDockRow(panel.dx)}
-                duration={{ enter: PANEL_ENTER, exit: PANEL_EXIT }}
-                timeline={
-                  index === 0 ? { delay: 0 } : { waitFor: `stage-panel-${index - 1}`, delay: 0 }
-                }
-              >
-                {() => {
-                  // 外壳/内容由 stageProgress 的「本面板 enter 窗口」驱动(不用会退场回落的 enterProgress)。
-                  // local: 本面板 enter 段内进度 0..1;<0 未轮到(隐藏),>=1 已入场完(停靠态,恒实体)。
-                  const [ws, we] = PANEL_ENTER_WINDOWS[index];
-                  const local = Math.min(1, Math.max(0, (stageProgress - ws) / (we - ws)));
-                  // 外壳前 22% 快速 ramp(面板出现快);内容尾段 30%→92% 才播(慢,面板铺满后才出现)。
-                  const shell = stageProgress < ws ? 0 : Math.min(1, local / 0.22);
-                  const contentProgress = Math.min(1, Math.max(0, (local - 0.3) / 0.62));
-                  const Body = PanelBody[index];
-                  return (
-                    <div
-                      className="stage-panel"
-                      style={{ opacity: shell, transform: `scale(${0.94 + shell * 0.06})` }}
-                    >
-                      <div className="stage-panel__bar">
-                        <span className="stage-panel__icon">
-                          <Icon />
-                        </span>
-                        <span className="stage-panel__label">{t(panel.labelKey as DictKey)}</span>
-                        <span className="stage-panel__no">
-                          {String(index + 1).padStart(2, '0')} / 03
-                        </span>
-                      </div>
-                      <div className="stage-panel__body" style={{ opacity: shell >= 1 ? 1 : 0 }}>
-                        <Body progress={contentProgress} />
-                      </div>
-                      <code className="stage-panel__code">{t(panel.codeKey as DictKey)}</code>
-                    </div>
-                  );
-                }}
-              </Animate>
-            );
-          })}
-        </div>
-      </Position>
-
-      {/* 三面板停靠顶部后,标题+总结在中部依次出现。 */}
-      <Position at={{ anchor: 'center-x', y: 400 }}>
-        <Animate
-          animateId="stage-title"
-          enterAnimation={riseVariant('75%')}
-          duration={{ enter: 400 }}
-          timeline={{ waitFor: 'stage-panel-2', delay: 0 }}
-        >
-          <SplitTitle text={t('cap.shot2.title')} />
         </Animate>
       </Position>
-      <Position at={{ anchor: 'center-x', y: 480 }}>
-        <Animate
-          animateId="stage-summary"
-          enterAnimation={riseVariant('46%')}
-          duration={{ enter: 900 }}
-          timeline={{ waitFor: 'stage-title', delay: 100 }}
-        >
-          <p className="stage-summary stage-summary--center">{t('cap.shot2.summary')}</p>
-        </Animate>
-      </Position>
-
-      {/* 代码框:三段 API 依次逐字敷出(打字机)。opacity 由 enterProgress 门控 ——
-          它的相位(waitFor stage-summary)开始前进度为 0 → 框隐藏,不提前显示、不遮挡面板。 */}
-      <Position at={{ anchor: 'center-x', y: 560 }}>
-        <Animate
-          animateId="stage-typed"
-          enterAnimation={solidVariant()}
-          duration={{ enter: 3600 }}
-          timeline={{ waitFor: 'stage-summary', delay: 0 }}
-        >
-          {({ enterProgress }) => (
-            <div style={{ opacity: enterProgress <= 0 ? 0 : Math.min(1, enterProgress / 0.05) }}>
-              <TypewriterCode progress={enterProgress} />
-            </div>
-          )}
-        </Animate>
-      </Position>
-
-      {/* 去掉 hold 尾段:此前敷满后延长预算是「只有背景色漂移、别无变化」的死段(背景色由全局
-          LUT 按总滚动进度驱动,与本镜局部时间轴无关)。移除后代码敷满即到锁定区末尾,色变融进
-          全程而非单独一截。缩短打字 stage-typed 让敷满略早于末尾,留极短余量。 */}
-      <div className="cap-probes" aria-hidden="true">
-        {/* 时钟轨:贯穿整段预算(无 waitFor),enterProgress 驱动 REC 读数(接管镜 DOM 高度恒为视口高,
-            不能 DOM 测量;取 max 预算与其它轨一致 → 覆盖全程)。 */}
-        <Animate
-          animateId="stage-clock"
-          enterAnimation={solidVariant()}
-          duration={{ enter: STAGE_CLOCK_MS }}
-          timeline={{ delay: 0 }}
-        >
-          {({ enterProgress }) => (
-            <PanSync progress={enterProgress} onProgress={handleStageProgress} />
-          )}
-        </Animate>
-      </div>
     </div>
   );
 }

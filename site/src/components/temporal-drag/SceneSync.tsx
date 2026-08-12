@@ -5,12 +5,12 @@ import { Act3Media } from './Act3Media';
 import { TimelinePlayhead } from './TimelinePlayhead';
 import { useTemporalMotion, type TemporalMotionTiming } from './TemporalMotion';
 import {
-  ACT3_CLIP_DEMO_DRAG_MS,
-  ACT3_CLIP_DEMO_STRIDE_MS,
+  ACT3_CLIP_DEMO_SELECT_LEAD_MS,
+  ACT3_CLIP_SEGMENT_MS,
   ACT3_FIRST_SELECTION_START_MS,
   ACT3_MEDIA_CLOCK_MS,
   ACT3_POSTER_SRC,
-  clipDragStartMs,
+  clipSelectionStartMs,
 } from './act3MediaTimeline';
 import { WaveformCanvas } from './waveform/WaveformCanvas';
 
@@ -34,7 +34,7 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 //                       were blurred past reading per 设计档 §3.3「模糊不可辨风格」; the blur
 //                       is gone and the words stand as words.
 //
-// ── Lane budget (设计档 §4 act3, copied verbatim, ALL ABSOLUTE delays) ───────
+// ── Lane budget (every lane uses an absolute anchor; no `waitFor` anywhere) ──────────────
 //   preview frame     0    + 500
 //   ruler             120  + 400
 //   V1 track base     200  + 400
@@ -42,13 +42,18 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 //   A1 track base     1500 + 400
 //   A1 waveform       1800 + 800
 //   V2 track base     1580 + 400
-//   selection/V2 x3  1880 / 2980 / 4080
-//   clip scrub x3     2100 / 3200 / 4300 + 1100 each
-//   media scrub       3200 / 4300 / 5400 + 1100 each
-//   media clock       0 + 6500
+//   V2 x3             1200 / 3200 / 5200
+//   clip selection x2 3200 / 5200        + 2000 each
+//   clip 1            parked at the assembled left edge (no drag lane)
+//   clip sequence x2  3200 / 5200        + 2000 each (220 hold + 1780 drag)
+//   clip seams x2     5200 / 7200        + 240 each  (= the lane end of the clip they mark)
+//   media scrub       3200 + 6000 (1ms scene time = 1ms source time)
+//   media clock       0 + 9200
 //
-// tSelf is 6500ms, owned by `s03-media-clock`; its progress is the only transport input. The
-// picture trails V1 assembly by one stroke, so each cut is already closed when media reaches it.
+// tSelf is 9200ms, owned by `s03-media-clock`; its progress is the only transport input.
+// Both clip strokes anchor absolutely via `clipSelectionStartMs` (2026-08-08: the W0 contract
+// bans `waitFor` in this directory, so the clip2→clip3 edge is arithmetic, not a registry edge).
+// Each lane holds selected for 220ms, then lands exactly on the 2s / 4s edit it prepares.
 // Every exit budget below is <= the act's 720ms transitionDuration (TemporalDragExperience
 // .tsx: `modes.drag.transitionDuration`), so no lane is still leaving when the slide ends.
 //
@@ -70,13 +75,14 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 // scale there multiplies the very offset the lane's own progress writes. It uses `y` instead,
 // and the measurement that rules out `scale` is recorded at that lane.
 //
-// NO `waitFor` anywhere in this act — that is what the old strips used and what broke them.
-// A chained start resolves to `prev_start + prev_REGISTERED_duration + delay`, and the
-// registered duration is the stagger-inflated budget rather than the authored one, so error
-// compounds link by link (act 05 measured an authored 950ms gap running as 299ms).
+// `waitFor` is not used in this file at all — `temporalDragW0.contract.test.ts` bans it across
+// the whole `/drag` directory (AST-level). Note the ban is a directory-wide contract, NOT a
+// claim that a chain here would drift: the clip sequence has no stagger, so its registered
+// duration equals its authored duration and a chain WOULD have been exact. Every lane states
+// its own absolute offset so they can overlap deliberately.
 //
 const PREVIEW_START_MS = 0;
-const PREVIEW_ENTER_MS = 500;
+const PREVIEW_ENTER_MS = 2400;
 const RULER_START_MS = 120;
 const RULER_ENTER_MS = 400;
 const TRACK_ENTER_MS = 400;
@@ -91,8 +97,6 @@ const CLIP_ENTER_MS = 500;
 const SUBTITLE_DRAG_TRAVEL_PX = 24;
 const WAVE_START_MS = 1800;
 const WAVE_ENTER_MS = 800;
-const SUBTITLE_START_MS = ACT3_FIRST_SELECTION_START_MS;
-const SUBTITLE_STRIDE_MS = ACT3_CLIP_DEMO_STRIDE_MS;
 const SUBTITLE_ENTER_MS = 500;
 const PLAYHEAD_START_MS = ACT3_FIRST_SELECTION_START_MS;
 const PLAYHEAD_ENTER_MS = 300;
@@ -144,7 +148,7 @@ export interface S03ClipSpec {
 // Three clips, unequal widths, with visible gaps: a real V1 track is cut, not tiled. The
 // numbers leave the last ~13% of the track empty so the playhead has room to land at the end.
 const V1_CLIPS: readonly S03ClipSpec[] = [
-  { id: 's03-v1-clip-1', left: 0.02, width: 0.29, poster: ACT3_POSTER_SRC },
+  { id: 's03-v1-clip-1', left: 0, width: 0.29, poster: ACT3_POSTER_SRC },
   { id: 's03-v1-clip-2', left: 0.34, width: 0.18, poster: ACT3_POSTER_SRC },
   { id: 's03-v1-clip-3', left: 0.55, width: 0.32, poster: ACT3_POSTER_SRC },
 ];
@@ -166,8 +170,9 @@ const RULER_MARKS = ['00:00:00:00', '00:00:03:00', '00:00:06:00'] as const;
 
 // ── Stage 2: the assembly. AN ENTRANCE, NOT A LOOP ─────────────────────────
 //
-// 返工 (verbatim):「act3 的左右拖拽不是持续动画，而是入场动画。v1 轨道设计思路为，直接出现
-// 全部内容，然后选中第一块拖一下，第二块拖一下，第三块拖一下，分别从隔开，拖成三块并拢重叠。」
+// Latest sequence: all three clips enter first; clip 1 is already parked at the far-left edge.
+// Playback then starts, and only clips 2/3 are dragged into their seams immediately before
+// the corresponding source cuts.
 //
 // What stood here was ONE clip (the middle one) sliding left and back on an
 // `infiniteAnimation`, forever. Three things about that were wrong, and they are separate:
@@ -176,22 +181,17 @@ const RULER_MARKS = ['00:00:00:00', '00:00:03:00', '00:00:06:00'] as const;
 //     closed. A cycle that pushes a block into its neighbour and then pulls it back out is
 //     not an edit, it is a fidget, and it competes for attention for as long as the act is on
 //     screen. These are now plain enter lanes: they run once, land, and hold.
-//  2. Only ONE block moved. The requirement is three separate strokes, one per block, in
-//     order — that is what makes it read as a hand working left-to-right down the track.
+//  2. Clip 1 used to perform a redundant first stroke. It now has no demo lane; clips 2/3
+//     provide the two meaningful leftward edits while the picture continues.
 //  3. The end state was still GAPPED. The old cycle returned to its start, so the track never
 //     reached the assembled state the whole demonstration is about. It now ends with the three
 //     blocks lapped together, which is the point being made.
 //
 // ── NON-BLOCKING, by construction ──────────────────────────────────────────
-// 「这个动画可以和后续动画并行不用阻塞。」Every lane in this act states an ABSOLUTE delay on the
-// same element clock (see the budget table at the top), so these three strokes overlap A1
-// (1500), the waveform (1800), V2 (2400) and the subtitles (2700+) without any of them waiting
-// on each other. There is no `waitFor` here and there must not be: a chained start resolves
-// against the stagger-INFLATED registered duration, which is the compounding-error trap the
-// act's header documents. Each stroke starts on the exact frame the previous one lands.
-/** A single drag stroke. Long enough to read as a hand moving a block rather than a snap. */
-/** The selection lands BEFORE the block moves («选中第一块拖一下» — select, then drag). 220ms
- *  of lead is enough to register the highlight as its own beat without stalling the stroke. */
+// Clip 3's stroke does follow clip 2's, but that edge is now plain ARITHMETIC, not a registry
+// dependency: both anchor absolutely via `clipSelectionStartMs`, one SEGMENT apart
+// (2026-08-08 — the W0 contract bans `waitFor` here). Neither lane uses stagger, so the
+// effective duration is exactly the authored 2000ms, which is what makes the arithmetic exact.
 
 /**
  * How far the blocks lap each other once assembled, as a fraction of the track.
@@ -282,24 +282,48 @@ const SEAM_EXIT_MS = 220;
  * track-fraction distance into a fraction of the block's own width and the overlap holds at
  * every viewport.
  *
- * Clip 0 gets a real lane too, not a dead pass-through: its `left` (0.02) differs from its
- * assembled position (0), so it has a genuine — if short — stroke of its own. That is the
- * 「选中第一块拖一下」 beat. Every clip therefore travels, which is why there is no `isMover`
- * conditional left in here.
- *
  * `opacity: 1` on both ends, explicitly. Omitting it does NOT mean «no opacity animation»:
  * `getDefaultValue` supplies 0 → 1 across the lane's whole budget (animateInterpolation.ts:90),
  * which would re-fade the block over its stroke and multiply against the fade lane below.
  */
+/**
+ * 每个 clip 的 stroke 起点 —— **绝对延迟，不用 `waitFor`**（2026-08-08 修）。
+ *
+ * 换掉 `waitFor` 的理由只有一条：`temporalDragW0.contract.test.ts:94-112` 在整个
+ * `/drag` 目录**以 AST 级断言禁用 `waitFor` 属性赋值**，`SceneSync` 是最后一处违例。
+ *
+ * ⚠️ 不要把「registry 会累积误差」当成这里的依据 —— 那条机制在本文件**不适用**：
+ * 累积误差来自 leader 的 registered duration 被 stagger 膨胀，而这两条 lane 都不用
+ * stagger（见下方 NON-BLOCKING 段），链是精确的。同幕 `SceneFlux.tsx:39` /
+ * `DialTicks.tsx:135` 弃用 `waitFor` 各有自己的理由（前者链上有 stagger，后者是
+ * sweep 语义根本不该串行），不能直接搬到这里。
+ *
+ * 时间轴**复用** `clipSelectionStartMs`，不另起一个等价函数：
+ * `ACT3_FIRST_SELECTION_START_MS = SCRUB_START − SEGMENT` ⇒
+ * `clipSelectionStartMs(i) = SCRUB_START + (i − 1) * SEGMENT`，正是 clip i 的 stroke 起点
+ * （demo lane 的 `duration.enter` 恰为一段 SEGMENT）。本轮初版曾自己写了一个
+ * `clipDemoStartMs` 做同样的算术 —— 那正是 `CLIP_ASSEMBLED_LEFT` 注释警告的
+ * 「同一事实在两处各写一遍、日后静默分叉」，已删。
+ */
+function clipSequenceTimeline(timing: TemporalMotionTiming, index: number): { delay: number } {
+  return { delay: timing.delay(clipSelectionStartMs(index)) };
+}
+
 function clipDemoLaneProps(
   timing: TemporalMotionTiming,
   index: number
 ): {
   enterAnimation: {
     initial: { opacity: number; x: string };
-    animate: { opacity: number; x: string };
+    animate: {
+      opacity: number;
+      x: string[];
+      transition: { x: { times: number[] } };
+    };
   };
   duration: { enter: number };
+  // 无 `waitFor?: string`：本目录契约禁用它（W0），留着是零消费的死字段，
+  // 且真写进去会被那条 AST 断言打红。
   timeline: { delay: number };
 } {
   // reduced-motion: no stroke at all. The block is authored at its SEPARATED position, so
@@ -309,12 +333,21 @@ function clipDemoLaneProps(
   const pushed = `${push.toFixed(3)}%`;
 
   return {
-    // Starts at 0 (the authored, separated slot) and ends at the assembled offset: the lane's
-    // own progress IS the drag. No second clock, so the block cannot be somewhere its stroke
-    // does not put it.
-    enterAnimation: { initial: { opacity: 1, x: '0%' }, animate: { opacity: 1, x: pushed } },
-    duration: { enter: timing.duration(ACT3_CLIP_DEMO_DRAG_MS) },
-    timeline: { delay: timing.delay(clipDragStartMs(index)) },
+    // The lane owns both beats: hold at x=0 for the selected lead, then perform the drag.
+    // Clip 3 starts one SEGMENT later by arithmetic (see clipSequenceTimeline), so this lane's
+    // `duration.enter` being exactly one SEGMENT is what keeps the two abutting.
+    enterAnimation: {
+      initial: { opacity: 1, x: '0%' },
+      animate: {
+        opacity: 1,
+        x: ['0%', '0%', pushed],
+        transition: {
+          x: { times: [0, ACT3_CLIP_DEMO_SELECT_LEAD_MS / ACT3_CLIP_SEGMENT_MS, 1] },
+        },
+      },
+    },
+    duration: { enter: timing.duration(ACT3_CLIP_SEGMENT_MS) },
+    timeline: clipSequenceTimeline(timing, index),
   };
 }
 
@@ -328,11 +361,10 @@ function clipDemoLaneProps(
  * there is no second node multiplying against the host, so the lane's own opacity IS the
  * badge's opacity and the CSS pre-start `opacity: 0` hack is no longer load-bearing either.
  *
- * TIMING IS DERIVED, not tuned: the badge for pair `index` opens when clip `index`'s stroke
- * LANDS (`clipDragStartMs(index) + ACT3_CLIP_DEMO_DRAG_MS`), because that is the frame the lap first
- * exists. Sharing `clipDragStartMs` with the stroke lane is what makes «visible» and
- * «overlapping» the same interval by construction — the property the old cycle got from sharing
- * a keyframe table, kept without the cycle.
+ * The badge lands on the frame its clip stops: its delay is `clipSelectionStartMs(index + 1)`,
+ * which IS that clip's lane end (a demo lane runs exactly one SEGMENT). «visible» and
+ * «overlapping» are therefore the same frame, derived from the shared beat function rather than
+ * from a registry dependency or a transcribed constant.
  *
  * It sits in the TRACK, not in a clip slot, because it belongs to the boundary between two
  * blocks rather than to either one.
@@ -357,16 +389,18 @@ function ClipSeam({ seam }: { seam: (typeof CLIP_SEAMS)[number] }): JSX.Element 
       <Animate
         animateId={seam.id}
         // Blooms in as the lap closes: `scale` from 0.7 so the marker arrives with the block
-        // rather than fading up on a static band. Keyframe-free — a plain initial → animate
-        // pair, which is all the drag lane can interpolate anyway (an array here would be
-        // string-matched and read as 0; see the V2 subtitle note).
+        // rather than fading up on a static band. A plain initial → animate pair is sufficient.
         enterAnimation={{ initial: { opacity: 0, scale: 0.7 }, animate: { opacity: 1, scale: 1 } }}
         exitAnimation={{ exit: { opacity: 0 } }}
         duration={{
           enter: timing.duration(CLIP_SEAM_ENTER_MS),
           exit: timing.duration(SEAM_EXIT_MS),
         }}
-        timeline={{ delay: timing.delay(clipDragStartMs(seam.index) + ACT3_CLIP_DEMO_DRAG_MS) }}
+        /* 绝对延迟，不用 `waitFor`（2026-08-08 修，理由见 clipSequenceTimeline 注释）。
+           徽章要「在方块停下之后落定」= 它对应的那条 demo lane 演完的时刻。
+           demo lane 的 `duration.enter` 恰为一段 SEGMENT，故终点 = 下一个 clip 的起点，
+           即 `clipSelectionStartMs(seam.index + 1)` —— 直接用它，不再手写 `+ SEGMENT`。 */
+        timeline={{ delay: timing.delay(clipSelectionStartMs(seam.index + 1)) }}
       >
         <span className="s03-seam__band">
           <span className="s03-seam__mark">⧗</span>
@@ -386,6 +420,42 @@ function WaveformStage(): JSX.Element {
 
 function V1Clip({ spec, index }: { spec: S03ClipSpec; index: number }): JSX.Element {
   const timing = useTemporalMotion();
+  const clipBody = (
+    <Animate
+      // INNER lane: the fast fade, 10% of the entrance budget, so the block is solid before
+      // any edit stroke begins. The group entrance owns appearance; this lane owns the fill.
+      animateId={`${spec.id}-fade`}
+      enterAnimation={{ initial: { opacity: 0 }, animate: { opacity: 1 } }}
+      duration={{ enter: timing.duration(CLIP_ENTER_MS * 0.1) }}
+      timeline={{ delay: timing.delay(CLIP_START_MS + index * CLIP_STRIDE_MS) }}
+    >
+      <div className="s03-clip" data-s03-clip-index={index}>
+        <div className="s03-clip__surface" data-s03-clip-surface="">
+          <img className="s03-clip__poster" src={spec.poster} alt="" aria-hidden="true" />
+        </div>
+        <span className="s03-clip__sprockets" aria-hidden="true" />
+        {index > 0 ? (
+          <Animate
+            animateId={`${spec.id}-selection`}
+            enterAnimation={{
+              initial: { opacity: 0 },
+              animate: {
+                opacity: [0, 1, 1, 0],
+                transition: { times: [0, 0.04, 0.995, 1] },
+              },
+            }}
+            duration={{ enter: timing.duration(ACT3_CLIP_SEGMENT_MS) }}
+            timeline={clipSequenceTimeline(timing, index)}
+          >
+            <span className="s03-clip__select" aria-hidden="true">
+              <span className="s03-clip__handle s03-clip__handle--left" />
+              <span className="s03-clip__handle s03-clip__handle--right" />
+            </span>
+          </Animate>
+        ) : null}
+      </div>
+    </Animate>
+  );
 
   return (
     <div
@@ -423,32 +493,17 @@ function V1Clip({ spec, index }: { spec: S03ClipSpec; index: number }): JSX.Elem
         }}
         timeline={{ delay: timing.delay(CLIP_START_MS + index * CLIP_STRIDE_MS) }}
       >
-        <Animate
-          // ── STAGE 2 of 2: one drag demonstration for every clip.
-          animateId={`${spec.id}-demo`}
-          {...clipDemoLaneProps(timing, index)}
-        >
+        {index === 0 ? (
+          clipBody
+        ) : (
           <Animate
-            // INNER lane: the fast fade, 10% of the outer budget, so the block is solid for
-            // the remaining 90% of its own stroke. No `exitAnimation` — see the outer lane.
-            animateId={`${spec.id}-fade`}
-            enterAnimation={{ initial: { opacity: 0 }, animate: { opacity: 1 } }}
-            duration={{ enter: timing.duration(CLIP_ENTER_MS * 0.1) }}
-            timeline={{ delay: timing.delay(CLIP_START_MS + index * CLIP_STRIDE_MS) }}
+            // Stage 2: only clips 2/3 demonstrate a drag. Clip 1 is already at left: 0.
+            animateId={`${spec.id}-demo`}
+            {...clipDemoLaneProps(timing, index)}
           >
-            <div className="s03-clip" data-s03-clip-index={index}>
-              <div className="s03-clip__surface" data-s03-clip-surface="">
-                <img className="s03-clip__poster" src={spec.poster} alt="" aria-hidden="true" />
-              </div>
-              <span className="s03-clip__sprockets" aria-hidden="true" />
-              {/* Static overlays; Act3Media exposes the single active index on the stage. */}
-              <span className="s03-clip__select" data-s03-clip-selection={index} aria-hidden="true">
-                <span className="s03-clip__handle s03-clip__handle--left" />
-                <span className="s03-clip__handle s03-clip__handle--right" />
-              </span>
-            </div>
+            {clipBody}
           </Animate>
-        </Animate>
+        )}
       </Animate>
     </div>
   );
@@ -463,7 +518,7 @@ function V2Subtitle({
 }): JSX.Element {
   const timing = useTemporalMotion();
   const { t } = useI18n();
-  const start = SUBTITLE_START_MS + index * SUBTITLE_STRIDE_MS;
+  const start = clipSelectionStartMs(index);
 
   return (
     <div
@@ -539,32 +594,27 @@ function SceneSyncStage(): JSX.Element {
   const mediaTimeline = useAnimateTimeline();
 
   return (
-    <main className="s03-cut-stage" data-active-selection="none" data-active-media="none">
+    <main className="s03-cut-stage" data-active-media="none">
       {/* ── Preview monitor. Widescreen, ~2.4:1, top of the frame under a black band. ── */}
       <Animate
         animateId="s03-preview"
         enterAnimation={{
-          initial: { opacity: 0, scale: 0.94, filter: 'blur(18px)' },
+          initial: { opacity: 0, scale: 1.08, filter: 'blur(30px)' },
           animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
         }}
-        exitAnimation={{ exit: { opacity: 0, scale: 1.02, filter: 'blur(18px)' } }}
+        exitAnimation={{ exit: { opacity: 0, scale: 1.02, filter: 'blur(24px)' } }}
         duration={{
           enter: timing.duration(PREVIEW_ENTER_MS),
           exit: timing.duration(PREVIEW_EXIT_MS),
         }}
-        // Delay 0: blur resolves by 500ms, well before the existing media scrub starts at
-        // 3200ms. The picture therefore enters first; playback movement remains on its
-        // original, V1-aligned clock.
+        // The full-plate blur remains visible long enough to read as an entrance, then resolves
+        // before the 3200ms media scrub begins. Playback therefore cannot precede the reveal.
         timeline={{ delay: timing.delay(PREVIEW_START_MS) }}
       >
         <section className="s03-preview" aria-label={t('dragTemporal.s03.previewLabel')}>
-          {/* Site-owned video is seeked only by the shared authored scrub clock. */}
+          {/* AnimateVideo is the sole currentTime owner; Act3Media only projects transport UI. */}
           <div className="s03-preview__surface" data-s03-preview-surface="">
-            <Act3Media
-              progress={mediaTimeline.progress}
-              phase={mediaTimeline.phase}
-              reduced={timing.reduced}
-            />
+            <Act3Media frame={mediaTimeline.frame} />
             <div className="s03-preview__subtitles" aria-hidden="true">
               {V2_SUBTITLES.map((spec, index) => (
                 <span key={spec.id} data-s03-preview-subtitle={index}>

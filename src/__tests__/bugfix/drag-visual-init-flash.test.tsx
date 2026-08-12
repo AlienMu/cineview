@@ -111,26 +111,31 @@ jest.mock('framer-motion', () => {
         if (typeof opacity === 'number') {
           renderOpacityLog.push({ id: animateId, opacity });
         }
-        // Two-track model: the element track is a MotionValue driven by the
-        // scene's own useElementTrack, which updates WITHOUT a React re-render
-        // (real framer-motion binds style={motionValue} straight to the DOM).
-        // Mirror that: subscribe to the opacity motion value's change events so
-        // driver ticks are logged exactly as the browser would paint them.
-        const opacityValue = style.opacity;
-        if (
-          opacityValue &&
-          typeof opacityValue === 'object' &&
-          typeof opacityValue.on === 'function'
-        ) {
-          ReactLib.useEffect(() => {
-            return opacityValue.on('change', (latest: unknown) => {
-              if (typeof latest === 'number') {
-                renderOpacityLog.push({ id: animateId, opacity: latest });
-              }
-            });
-          }, [opacityValue, animateId]);
-        }
       }
+
+      // Two-track model: the element track is a MotionValue driven by the
+      // scene's own useElementTrack, which updates WITHOUT a React re-render
+      // (real framer-motion binds style={motionValue} straight to the DOM).
+      // Mirror that: subscribe to the opacity motion value's change events so
+      // driver ticks are logged exactly as the browser would paint them.
+      //
+      // Called UNCONDITIONALLY (rules of hooks): Animate renders a plain
+      // `style={{opacity: 0}}` placeholder while its variants are still parsing
+      // and a MotionValue-backed style afterwards, so a conditional subscribe
+      // would change this fiber's hook count mid-life.
+      const opacityValue = animateId && style ? style.opacity : undefined;
+      const isMotionOpacity =
+        Boolean(opacityValue) &&
+        typeof opacityValue === 'object' &&
+        typeof opacityValue.on === 'function';
+      ReactLib.useEffect(() => {
+        if (!isMotionOpacity) return;
+        return opacityValue.on('change', (latest: unknown) => {
+          if (typeof latest === 'number') {
+            renderOpacityLog.push({ id: animateId, opacity: latest });
+          }
+        });
+      }, [isMotionOpacity, opacityValue, animateId]);
 
       return ReactLib.createElement('div', { ref, ...props, style: resolvedStyle }, children);
     }

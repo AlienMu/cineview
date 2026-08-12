@@ -498,6 +498,66 @@ interface AnimateBaseProps {
     enterMargin?: number;
     exitMargin?: number;
   };
+
+  /**
+   * 暴露入场触发函数，用于手动控制入场时机（如异步事件成功时立即显示）。
+   *
+   * **行为规则：**
+   * - **调用 `enterRef.current()` 时**：立即播放入场动画，打断任何正在等待的 `waitFor`/`delay`。
+   * - **传了 `enterRef` + 传了 `timeline.waitFor/delay`**：若用户未调用 ref，框架会在 `waitFor`/`delay` 结束后**兜底触发**入场。
+   * - **传了 `enterRef`，但未传 `waitFor/delay`**：永远不会自动触发，必须手动调用 `enterRef.current()` 才会入场。
+   *
+   * **典型用途：** API 请求成功时立即显示内容，请求失败时依赖 `delay` 兜底显示空状态。
+   *
+   * @example
+   * ```tsx
+   * const contentEnterRef = useRef<(() => void) | null>(null);
+   *
+   * useEffect(() => {
+   *   fetch('/api/data')
+   *     .then(data => {
+   *       setContent(data);
+   *       contentEnterRef.current?.(); // 成功 → 立即显示
+   *     })
+   *     .catch(() => {
+   *       // 失败 → 不调 ref，等 3 秒兜底触发
+   *     });
+   * }, []);
+   *
+   * <Animate
+   *   enterRef={contentEnterRef}
+   *   timeline={{ delay: 3000 }}  // 兜底：3 秒后无论如何都显示
+   *   enterAnimation="fade-in"
+   * >
+   *   {content || <EmptyState />}
+   * </Animate>
+   * ```
+   */
+  enterRef?: React.MutableRefObject<(() => void) | null>;
+
+  /**
+   * 暴露退场触发函数，用于手动控制退场时机。
+   *
+   * **行为规则：**
+   * - **传了 `exitRef`**：禁用框架的自动退场机制（scroll 离开 zone / drag 切换 scene），必须手动调用 `exitRef.current()` 才会退场。
+   * - **调用 `exitRef.current()` 时**：立即播放退场动画，打断任何正在等待的入场（如果有）。
+   *
+   * **注意：** `exitRef` 不支持 `timeline.delay` 兜底机制（退场没有"超时后自动退"的语义）。
+   *
+   * @example
+   * ```tsx
+   * const modalExitRef = useRef<(() => void) | null>(null);
+   *
+   * <Animate
+   *   exitRef={modalExitRef}
+   *   enterAnimation="fade-in"
+   *   exitAnimation="fade-out"
+   * >
+   *   <Modal onClose={() => modalExitRef.current?.()} />
+   * </Animate>
+   * ```
+   */
+  exitRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export interface AnimateStaggerConfig {

@@ -8,7 +8,9 @@ import {
   lerpTransformValue,
   parseNumericValue,
   getDefaultValue,
+  getVariantTerminalValue,
   getVariantValue,
+  interpolateVariantValue,
 } from './animateInterpolation';
 
 describe('clamp / lerp', () => {
@@ -106,5 +108,37 @@ describe('getVariantValue', () => {
     expect(getVariantValue({ opacity: 0.5 }, 'opacity', 1)).toBe(0.5);
     expect(getVariantValue({}, 'opacity', 1)).toBe(1);
     expect(getVariantValue({ x: '10px' }, 'x', '0px')).toBe('10px');
+  });
+});
+
+describe('variant keyframe interpolation', () => {
+  it('scrubs full keyframe sequences using authored transition.times', () => {
+    const exit = {
+      opacity: [1, 1, 0],
+      transition: { times: [0, 0.65, 1] },
+    };
+
+    expect(interpolateVariantValue(1, exit, 'opacity', 0, 0.5)).toBe(1);
+    expect(interpolateVariantValue(1, exit, 'opacity', 0, 0.825)).toBeCloseTo(0.5);
+    expect(interpolateVariantValue(1, exit, 'opacity', 0, 1)).toBe(0);
+  });
+
+  it('uses property-specific times and interpolates unit values', () => {
+    const animate = {
+      x: ['0px', '20px', '40px'],
+      transition: { x: { times: [0, 0.25, 1] } },
+    };
+
+    expect(interpolateVariantValue('0px', animate, 'x', '0px', 0.625)).toBe('30px');
+  });
+
+  it('falls back to evenly spaced frames for invalid times and resolves null from the prior value', () => {
+    const animate = {
+      scale: [null, 2, 1],
+      transition: { times: [0, 1] },
+    };
+
+    expect(interpolateVariantValue(1, animate, 'scale', 1, 0.25)).toBe(1.5);
+    expect(getVariantTerminalValue(animate, 'scale', 1)).toBe(1);
   });
 });

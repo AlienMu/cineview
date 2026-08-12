@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
@@ -108,6 +108,17 @@ jest.mock('../../animations/composer', () => ({
 }));
 
 describe('useAnimateScroll orphan warning', () => {
+  // The FOUC guard mounts an Animate before its preset variants finish parsing, so
+  // a test that ends without driving the element to completion can leave the parse
+  // promise in flight; its setState would then land after the test body and warn
+  // "not wrapped in act". Flush those microtasks inside act before RTL cleanup.
+  afterEach(async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  });
+
   const originalNodeEnv = process.env.NODE_ENV;
 
   function screenOpacity(animateId: string): string {
@@ -256,7 +267,11 @@ describe('useAnimateScroll orphan warning', () => {
           container.querySelector('[data-cineview-animate-id="doc-scroll-animate"]')
         ).not.toBeNull();
       });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // Bare macrotask waits let the (now earlier-mounted) variant parse settle
+      // OUTSIDE act. Wrap it so the parse setState is attributed to this test.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
       expect(screenOpacity('doc-scroll-animate')).toBe('0');
 
       isInViewport = true;

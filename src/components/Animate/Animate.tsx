@@ -212,6 +212,8 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   timeline,
   visibility,
   stagger,
+  enterRef,
+  exitRef,
   children,
 }) => {
   const componentId = useRef(animateId || `animate-${++animateIdCounter}`);
@@ -389,6 +391,84 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   }, [id, isDragArrival, normalizedWaitFor, reportRuntimeError, stableExitAnimation]);
 
   const isRenderProp = typeof children === 'function';
+
+  // ── FOUC guard: authored-but-not-yet-parsed ────────────────────────────────
+  //
+  // Preset variants resolve through an async import, so the first commit after a
+  // page load has `enterVariant === null` even though the author DID declare an
+  // animation. Returning bare children there paints the child at its natural CSS
+  // (opacity 1) for one or more frames, and the element then snaps to its initial
+  // frame once the parse lands — the "flash, hide, then animate in" on refresh.
+  //
+  // Rendering the normal motion path instead keeps the DOM shape identical before
+  // and after the parse (no remount, no shifted measurement timing) and lets each
+  // driver resolve the INITIAL frame: the visibility lane already seeds
+  // visualMotion at 0, the arrival lane seeds 0 whenever an enter was authored,
+  // and the drag lane is held at its initial frame via `variantsPending` below.
+  // Only a genuinely animation-free Animate still early-returns bare children.
+  const authoredPlayableAnimation =
+    Boolean(stableEnterAnimation) || Boolean(stableInfiniteAnimation);
+  const variantsPending =
+    authoredPlayableAnimation &&
+    !renderEnterVariant &&
+    !renderExitVariant &&
+    !renderInfiniteVariant;
+
+  // ── enterRef / exitRef lane support ────────────────────────────────────────
+  //
+  // A manual trigger only means something on a TIME-driven lane (visibility, or
+  // drag + sceneControlled:false). On a SCRUB lane the visual position is a pure
+  // function of its single owner — zone progressPx for scroll takeover, the finger
+  // for scene-controlled drag — so anything a manual call wrote would be recomputed
+  // away on the next frame. Reporting that is the honest behaviour; silently
+  // accepting the ref would look like a framework bug at the call site.
+  const isScrubLane = mode === 'drag' ? !isDragArrival : resolvedTimeline.driver === 'scroll';
+  const manualControlDiagnosticKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!enterRef && !exitRef) return;
+
+    const reportUnsupported = (field: 'enterRef' | 'exitRef', message: string): void => {
+      const key = `${id}:${field}`;
+      if (manualControlDiagnosticKeysRef.current.has(key)) return;
+      manualControlDiagnosticKeysRef.current.add(key);
+      reportRuntimeError?.({
+        code: 'INVALID_ANIMATION',
+        message,
+        context: { componentId: id, field, mode, scrub: isScrubLane },
+      });
+      if (process.env.NODE_ENV === 'development') console.warn(`[CineView Warning] ${message}`);
+    };
+
+    if (isScrubLane) {
+      const lane =
+        mode === 'drag'
+          ? 'the Scene element track (drag)'
+          : 'the zone scroll budget (scroll takeover)';
+      if (enterRef) {
+        reportUnsupported(
+          'enterRef',
+          `Animate "${id}" ignores enterRef: this element is driven by ${lane}, whose progress has a single owner. ` +
+            `Use timeline.sceneControlled:false (drag) or move it outside the takeover zone (scroll) for manual control.`
+        );
+      }
+      if (exitRef) {
+        reportUnsupported(
+          'exitRef',
+          `Animate "${id}" ignores exitRef: this element is driven by ${lane}, whose progress has a single owner. ` +
+            `Use timeline.sceneControlled:false (drag) or move it outside the takeover zone (scroll) for manual control.`
+        );
+      }
+      return;
+    }
+
+    if (isDragArrival && exitRef) {
+      reportUnsupported(
+        'exitRef',
+        `Animate "${id}" ignores exitRef in drag mode when timeline.sceneControlled is false: this lane has no exit pass (it also ignores exitAnimation).`
+      );
+    }
+  }, [enterRef, exitRef, id, isDragArrival, isScrubLane, mode, reportRuntimeError]);
+
   const activeStagger = isDragArrival ? renderStagger : stagger;
   const staggerContainer =
     activeStagger && !isRenderProp && renderEnterVariant && isValidElement(children)
@@ -537,6 +617,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     enterDuration: effectiveEnterDuration,
     exitDuration: effectiveExitDuration,
     waitFor: normalizedWaitFor,
+    variantsPending,
   });
 
   const arrivalResult = useAnimateArrival({
@@ -548,6 +629,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     parseReady: activeArrivalSnapshot?.ready ?? settledParseGeneration > 0,
     delay: renderDelay,
     enterDuration: effectiveEnterDuration,
+    enterRef,
   });
 
   const scrollResult = useAnimateScroll({
@@ -567,6 +649,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     visibility: normalizedSemantics.visibility,
     globalEnterMargin: cineViewRuntime?.scrollEnterMargin,
     globalExitMargin: cineViewRuntime?.scrollExitMargin,
+    enterRef,
+    exitRef,
+    variantsPending,
   });
 
   // This effect is declared after useAnimateDrag, so its registration effect has
@@ -793,7 +878,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       ? arrivalResult.style
       : dragResult.style;
 
-  if (!renderEnterVariant && !renderExitVariant && !renderInfiniteVariant) {
+  if (!renderEnterVariant && !renderExitVariant && !renderInfiniteVariant && !variantsPending) {
     // 无动画早退:无进度可推,函数 children 直接给初始态(否则会渲染成 [object Function])。
     return (
       <AnimateTimelineProvider value={publicTimeline}>

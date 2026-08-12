@@ -4,6 +4,7 @@ import { DialTicks, DIAL_SWEEP_MS, readDialEpoch, type DialEpoch } from './DialT
 import { LangToggle } from '../LangToggle';
 import { useI18n } from '../../i18n';
 import { useTemporalMotion } from './TemporalMotion';
+import { AmbientStage } from './AmbientStage';
 
 // SEQUENCE (act 1 — calibration dial, 2026-07-29 five-act redesign):
 // The hand is the CAUSE of the ticks. Every lane is a framework <Animate> on an
@@ -314,11 +315,37 @@ function GatedCenterNumber({
       }}
       timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.number) }}
     >
-      <span className="s01-center-number" data-hour-rollover={previousHour ? '' : undefined}>
+      <span className="s01-center-number">
         {previousHour ? (
-          <span className="s01-center-number__value is-previous">{previousHour}</span>
-        ) : null}
-        <span className="s01-center-number__value is-current">{hour}</span>
+          <>
+            <Animate
+              key={`${previousHour}-out`}
+              animateId="s01-hour-roll-out"
+              enterAnimation={{
+                initial: { opacity: 1, y: '0%' },
+                animate: { opacity: 0, y: '-72%' },
+              }}
+              duration={{ enter: timing.duration(480) }}
+              timeline={{ sceneControlled: false }}
+            >
+              <span className="s01-center-number__value">{previousHour}</span>
+            </Animate>
+            <Animate
+              key={`${hour}-in`}
+              animateId="s01-hour-roll-in"
+              enterAnimation={{
+                initial: { opacity: 0, y: '72%' },
+                animate: { opacity: 1, y: '0%' },
+              }}
+              duration={{ enter: timing.duration(480) }}
+              timeline={{ sceneControlled: false }}
+            >
+              <span className="s01-center-number__value">{hour}</span>
+            </Animate>
+          </>
+        ) : (
+          <span className="s01-center-number__value">{hour}</span>
+        )}
       </span>
     </Animate>
   );
@@ -508,6 +535,7 @@ export const SceneRolling = memo(function SceneRolling(): JSX.Element {
 
   return (
     <div className="tp-scene__inner s01-scene">
+      <AmbientStage />
       <main className="s01-stage">
         <GatedLangToggle />
 

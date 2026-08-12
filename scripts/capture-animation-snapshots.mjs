@@ -45,8 +45,8 @@ const homeSelectors = [
   '.stage-frame',
   '.demo-video',
   '.demo-video__subtitle',
-  '.drag-phone-stage',
-  '.drag-phone__viewport',
+  '.scene5-cinema',
+  '.phone-mockup',
 ];
 
 await mkdir(outDir, { recursive: true });

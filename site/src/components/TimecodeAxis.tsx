@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { Animate, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
 
 /**
  * 时间码胶囊 -- Act 2 两镜的统一签名元素。
  *
- * 左上角小胶囊：镜号 → 分隔线 → REC 红点（常驻呼吸+光晕，纯 CSS keyframes，
- * 挂载即播、贯穿全镜不因场景内容编排暂停）→ "REC" 文字 → 时间读数。
+ * 左上角小胶囊：REC 红点由框架 infinite lane 驱动，时间读数直接消费最近的
+ * Animate timeline MotionValue，不把每帧进度镜像进 React。
  * 读数随本镜 center-lock 段内滚动进度递增，每镜独立从 0 重新计。
  */
 interface TimecodeAxisProps {
@@ -13,83 +14,58 @@ interface TimecodeAxisProps {
   shotIndex: number;
   /** 本镜读数满格秒数（≈ 本镜滚动预算/1000），默认 9 */
   seconds?: number;
-  /**
-   * 外部进度(0..1)。提供时读数直接用它 × seconds —— 用于 center-lock 接管镜:
-   * 接管场景 DOM 高度恒为视口高(sticky),DOM 测量会瞬间饱和,必须由动画时钟驱动。
-   */
-  progress?: number;
 }
 
-export function TimecodeAxis({ shotIndex, seconds = 9, progress }: TimecodeAxisProps): JSX.Element {
+const PREFERS_REDUCED =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+export function TimecodeAxis({ shotIndex, seconds = 9 }: TimecodeAxisProps): JSX.Element {
   const { t } = useI18n();
-  const [local, setLocal] = useState(0);
-  const external = progress != null;
+  const timeline = useAnimateTimeline();
+  const capsuleRef = useRef<HTMLDivElement>(null);
+  const readoutRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || external) return;
-    const findScene = (): HTMLElement | null => {
-      const el = document.querySelector(`[data-scene-index="${shotIndex}"]`);
-      return el instanceof HTMLElement ? el : null;
+    let previousSecond = -1;
+    const project = (progress: number): void => {
+      const second = Math.round(Math.min(Math.max(progress, 0), 1) * seconds);
+      if (second === previousSecond) return;
+      previousSecond = second;
+      const readout = `00:00:${String(second).padStart(2, '0')}`;
+      if (readoutRef.current) readoutRef.current.textContent = readout;
+      capsuleRef.current?.setAttribute('aria-label', `${t('cap.tc.rec')} ${readout}`);
     };
+    project(timeline.progress.get());
+    return timeline.progress.on('change', project);
+  }, [seconds, t, timeline.progress]);
 
-    let raf = 0;
-
-    const read = (): void => {
-      raf = 0;
-      const container = document.querySelector('[data-cineview-container="true"]');
-      const scene = findScene();
-      if (!container || !scene) {
-        setLocal(0);
-        return;
-      }
-      const vh = (container as HTMLElement).clientHeight || window.innerHeight || 1;
-      const scrollTop = (container as HTMLElement).scrollTop;
-      const sceneOffsetTop = scene.offsetTop;
-      const sceneHeight = Math.max(scene.offsetHeight, vh);
-      const travel = Math.max(sceneHeight - vh, 1);
-      const l = Math.min(Math.max((scrollTop - sceneOffsetTop) / travel, 0), 1);
-      setLocal(l);
-    };
-
-    const onScroll = (): void => {
-      if (raf === 0) raf = window.requestAnimationFrame(read);
-    };
-
-    let tries = 0;
-    const tryAttach = (): void => {
-      if (findScene()) {
-        read();
-        return;
-      }
-      if (tries++ < 40) setTimeout(tryAttach, 100);
-    };
-    tryAttach();
-
-    const container = document.querySelector('[data-cineview-container="true"]');
-    if (container) {
-      container.addEventListener('scroll', onScroll, { passive: true });
-    }
-    window.addEventListener('resize', onScroll, { passive: true });
-    return (): void => {
-      if (raf) window.cancelAnimationFrame(raf);
-      container?.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-    };
-  }, [shotIndex, external]);
-
-  const p = external ? Math.min(Math.max(progress as number, 0), 1) : local;
-  const sec = Math.round(p * seconds);
-  const readout = `00:00:${String(sec).padStart(2, '0')}`;
   const recLabel = t('cap.tc.rec');
 
   return (
-    <div className="tc-capsule" aria-label={`${recLabel} ${readout}`}>
-      <span className="tc-capsule__rec-dot" aria-hidden="true" />
+    <div ref={capsuleRef} className="tc-capsule" aria-label={`${recLabel} 00:00:00`}>
+      {PREFERS_REDUCED ? (
+        <span className="tc-capsule__rec-dot" aria-hidden="true" />
+      ) : (
+        <Animate
+          animateId={`tc-rec-${shotIndex}`}
+          infiniteAnimation={{
+            animate: {
+              opacity: [1, 0.45, 1],
+              scale: [1, 1.45, 1],
+              transition: { duration: 1.6, ease: 'easeInOut', repeat: Infinity },
+            },
+          }}
+        >
+          <span className="tc-capsule__rec-dot" aria-hidden="true" />
+        </Animate>
+      )}
       <span className="tc-capsule__rec-label" aria-hidden="true">
         {recLabel}
       </span>
-      <span className="tc-capsule__readout" aria-hidden="true">
-        {readout}
+      <span ref={readoutRef} className="tc-capsule__readout" aria-hidden="true">
+        00:00:00
       </span>
     </div>
   );

@@ -1,0 +1,285 @@
+{
+  "frameCount": 9,
+  "timeline": [
+    {
+      "t": 0,
+      "rows": [
+        {
+          "i": "2",
+          "active": false,
+          "op": 1,
+          "ty": 0
+        },
+        {
+          "i": "6",
+          "active": true,
+          "op": 0,
+          "ty": -6
+        }
+      ]
+    },
+    {
+      "t": 60,
+      "rows": [
+        {
+          "i": "2",
+          "active": false,
+          "op": 0.622,
+          "ty": 2.27
+        },
+        {
+          "i": "6",
+          "active": true,
+          "op": 0,
+          "ty": -6
+        }
+      ]
+    },
+    {
+      "t": 120,
+      "rows": [
+        {
+          "i": "2",
+          "active": false,
+          "op": 0.316,
+          "ty": 4.1
+        },
+        {
+          "i": "6",
+          "active": true,
+          "op": 0,
+          "ty": -6
+        }
+      ]
+    },
+    {
+      "t": 180,
+      "rows": [
+        {
+          "i": "2",
+          "active": false,
+          "op": 0.045,
+          "ty": 5.73
+        },
+        {
+          "i": "6",
+          "active": true,
+          "op": 0,
+          "ty": -6
+        }
+      ]
+    },
+    {
+      "t": 240,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 0.261,
+          "ty": -4.43
+        }
+      ]
+    },
+    {
+      "t": 300,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 0.685,
+          "ty": -1.89
+        }
+      ]
+    },
+    {
+      "t": 360,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 0.954,
+          "ty": -0.27
+        }
+      ]
+    },
+    {
+      "t": 420,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 1,
+          "ty": 0
+        }
+      ]
+    },
+    {
+      "t": 480,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 1,
+          "ty": 0
+        }
+      ]
+    },
+    {
+      "t": 540,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 1,
+          "ty": 0
+        }
+      ]
+    },
+    {
+      "t": 600,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 1,
+          "ty": 0
+        }
+      ]
+    },
+    {
+      "t": 660,
+      "rows": [
+        {
+          "i": "6",
+          "active": true,
+          "op": 1,
+          "ty": 0
+        }
+      ]
+    }
+  ],
+  "settledOnFrame2": [
+    {
+      "i": "0",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "1",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "2",
+      "active": true,
+      "op": 1,
+      "ty": 0
+    },
+    {
+      "i": "3",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "4",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "5",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "6",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "7",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "8",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "-1",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    }
+  ],
+  "settledOnFrame6": [
+    {
+      "i": "0",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "1",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "2",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "3",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "4",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "5",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "6",
+      "active": true,
+      "op": 1,
+      "ty": 0
+    },
+    {
+      "i": "7",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "8",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    },
+    {
+      "i": "-1",
+      "active": false,
+      "op": 0,
+      "ty": 6
+    }
+  ]
+}

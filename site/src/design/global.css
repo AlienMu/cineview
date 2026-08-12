@@ -3,19 +3,86 @@
  * 依赖 tokens.css 的 CSS 变量。导入顺序:tokens.css → global.css(见 main.tsx)
  * ========================================================================== */
 
-/* — 背景 LUT 色带层:position:fixed 全屏,置于所有内容之下 — */
-.bg-ribbon {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(180deg, var(--bg-grad-top), var(--bg-grad-bot));
-  transition: background 0.18s linear;
-  pointer-events: none;
-}
-
-/* CineView scroll 容器硬编码 #fff 内联背景,会盖住身后色带 → 透明覆盖(见 task-flow A5) */
+/* CineView scroll 容器保持透明；每个首页 Scene 自己拥有静态 palette。 */
 .cineview-container {
   background: transparent !important;
+}
+
+/* ── 首页无级色带（D1；C1 重做于 2026-08-10）──────────────────────────
+ * 目标不变：整页背景是「渐变色」，滚动时这个渐变色本身缓慢改变（暖→微沉的暖谷→暖），
+ * 屏与屏之间不允许出现分层接缝。
+ *
+ * ⚠️ **实现已从「container 上的两层 background」迁出**，现由 `<HomeBackdrop>`
+ * （`components/HomeBackdrop.tsx` + `.css`，挂在 CineView 的兄弟位）承载。
+ * 迁移原因（用户报障：滚动时某一帧整块暖橙盖住画面、下一帧又变回；停住不闪）：
+ * 旧的 `background-attachment: local` 长带由**主线程**定位、滚动由**合成器**推进，
+ * 一帧错位就把长带上更暖的锚段对进视口。改用 fixed 元素 + `transform` 平移后，
+ * 平移走合成器、与内容滚动同帧，错位在结构上不再可能；渐变仍是真 linear-gradient，
+ * **无级连续**不打折。带高/映射/锚色与「为何必须挂在 CineView 外面」的推导见那两个文件。
+ *
+ * 本处只需保证滚动容器**透明**，让背景层透上来。 */
+.home-page .cineview-container {
+  background: transparent !important;
+}
+
+/* Scene 不再各自画背景（那正是分层接缝的来源）；只保留镜头强调色 + 面板台阶色。
+ * accent 与 plate 都保持**台阶式**：每幕取该幕穿过的色带区间中点色相，台阶落在幕边界，
+ * 不做每帧插值（每帧写 CSS 变量 = 每帧 setState，违反 CLAUDE.md 规则 2）。
+ *
+ * `--scene-plate` / `--scene-plate-bar`（2026-08-10 C5）：面板类组件的**不透明**底板色，
+ * 由 `.film-codecard` 与 `.film-codecard__bar` 消费。用户要求「全部主体颜色都要产生变化，
+ * 不止是背景」，而逐帧跟随被规则 2 禁掉 ⇒ 走幕级台阶。取值贴合该幕穿过的色带段并**提亮**
+ * （面板要浮在底色之上，不能融进去），bar 再比 plate 亮一档。
+ * 调 `HomeBackdrop.css` 的锚色时必须同步复核这几组（同色温是硬约束，理由见
+ * `Act3DollyScene.css` 的 --a3-plate 注释：底板与底色色温不一致 ⇒ 铺满时整屏色温翻转）。 */
+.home-scene {
+  --accent: var(--scene-accent);
+  --accent-ink: var(--scene-accent-ink);
+  background: transparent;
+}
+
+/* 第一幕：色带起点，暖桃 */
+.home-scene--hero {
+  --scene-accent: #d59273;
+  --scene-accent-ink: #a86247;
+  --scene-plate: #fdf1ea;
+  --scene-plate-bar: #fef7f2;
+}
+
+/* 第二幕：暖→中性暖过渡段 */
+.home-scene--film {
+  --scene-accent: #cf8a68;
+  --scene-accent-ink: #a2603f;
+  --scene-plate: #f8e7da;
+  --scene-plate-bar: #fbefe6;
+}
+
+/* 第三幕：明度谷（色带最沉处）。2026-08-09 色带去蓝后，accent 同步从冷蓝
+ * (#8098aa/#52697c) 换成暖雾褐——冷 accent 压暖底会脏（原注释的反向同理成立）。 */
+.home-scene--shot3 {
+  --scene-accent: #a08c80;
+  --scene-accent-ink: #6e5c52;
+  /* 与 `Act3DollyScene.css` 的 --a3-plate (#f5e0d1) 同色温（R−B ≈ +36），
+   * 对齐 C2 调暖后的谷段锚点 #f4dfd0 —— 第三幕每块 panel 都会放大到铺满整屏，
+   * 底板色就是「铺满时的整屏色」，差一点就是六个暖/冷循环。 */
+  --scene-plate: #f5e0d1;
+  --scene-plate-bar: #f9e7da;
+}
+
+/* 第四幕：谷段回暖的枢纽段，取中性藕色，两侧都不冲突 */
+.home-scene--demo {
+  --scene-accent: #c08a80;
+  --scene-accent-ink: #8d5a52;
+  --scene-plate: #f6e2d5;
+  --scene-plate-bar: #fae9de;
+}
+
+/* 第五幕：色带回暖收束（视觉上被黑幕吞掉，accent 只服务于手机内 UI） */
+.home-scene--cinema {
+  --scene-accent: #bd7742;
+  --scene-accent-ink: #925733;
+  --scene-plate: #f7dfcc;
+  --scene-plate-bar: #fae7d8;
 }
 
 .drag-page {
@@ -73,9 +140,9 @@
   padding: 7px 12px;
   border-radius: 999px;
   color: var(--ink-mute);
-  background: rgba(250, 248, 244, 0.5);
-  backdrop-filter: saturate(160%) blur(12px);
-  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  /* 2026-08-09 用户指令「去掉按钮的背景」：删 background + backdrop-filter
+   * （原「暖白半透明药丸 + 毛玻璃」），只留图标+文字。padding/圆角保留——
+   * hover 光晕仍以这个盒为界，去底不等于去点击热区。 */
   border: 1px solid transparent;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -111,6 +178,36 @@
 
 .lang-toggle__code {
   line-height: 1;
+}
+
+/* ── 深色幕上的语言按钮（2026-08-08，对抗验收 ISSUE-A；2026-08-09 随去底改写）───
+ * 缺陷（原版）：`.lang-toggle` 的基础配色是「暖白半透明药丸 + 暖墨字」，为前四幕的
+ * 亮底设计；第五幕压成近黑影院后那枚亮灰胶囊浮在星空上，内部文字几乎不可辨。
+ * 2026-08-09 用户指令去底后，深浅两态都**没有背景**——此处只剩文字色切换
+ * （亮墨 → 暖白灰），不再设 background/border-color。
+ *
+ * 为什么用 `:has()` 而不是加 state：`<LangToggle>` 是 `<Routes>` 的**兄弟**
+ * （`App.tsx:21`），不在任何 Scene 子树内，没有后代选择器能到它；而为这一件配色去把
+ * 幕状态提升到 App 层、再往下传，是为一个纯视觉问题引入跨层状态。
+ * `Scene5Cinema` 本来就把阶段写在自己根节点的 `data-cinema-stage` 上，`:has()` 正好
+ * 让样式层自己去读它，零 JS、零新状态。
+ *
+ * 为什么键在 `mounted`/`revealed`：熄灯动画跑在 `0 → CREATE_AT(0.4)`，而 stage 恰在
+ * `progress ≥ 0.4` 时从 `idle` 变 `mounted`（Scene5Cinema.tsx:215）⇒ 这两个值覆盖的
+ * 正是「画面已经黑下来」的那段；整幕滚出视口时 stage 回 `idle`，配色自动还原。
+ * 配色沿用 `/drag` 已有的 `--drag` variant（temporal-drag.css:304），保持一致。 */
+body:has(.scene5-cinema[data-cinema-stage='mounted']) .lang-toggle,
+body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle {
+  color: #9a948a;
+}
+
+/* hover 也要跟着走：暖 accent 光晕压在近黑底上会脏，改用冷白细环。 */
+body:has(.scene5-cinema[data-cinema-stage='mounted']) .lang-toggle:hover,
+body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
+  color: #d8d2c8;
+  box-shadow:
+    0 0 10px 2px rgba(237, 232, 224, 0.08),
+    0 0 14px 0 rgba(237, 232, 224, 0.16);
 }
 
 @media (max-width: 768px) {
@@ -167,6 +264,11 @@
   white-space: nowrap;
 }
 
+.hero__stack > [data-cineview-animate-id='hero-beam-clock'],
+.hero__stack > [data-cineview-animate-id='hero-beam-clock'] > div {
+  width: 100%;
+}
+
 /* 流光:一束光接力式往返。共享时间轴上的四段扫掠 + 停顿:
  *   A 行1 L→R → B 行2 L→R(A 完接棒) → 停顿 → C 行2 R→L → D 行1 R→L(C 完接棒) → 循环。
  * pos 语义:100%=屏外左待入,0%=屏外右已出,50%=居中可见。L→R=100→0,R→L=0→100。
@@ -190,70 +292,11 @@
     -webkit-text-fill-color: transparent;
     color: transparent;
   }
-  /* 光束默认 paused:未入场时不空转。HeroScene 用框架 phase 门控——入场完成后
-   * 挂 data-beam='true' 才 running,起点对齐框架入场完成时刻。 */
   .hero__slogan-line[data-row='0'] {
-    background-position: 100% 0;
-    animation: hero-beam-row0 16s linear infinite;
-    animation-play-state: paused;
+    background-position: var(--hero-beam-row-0, 100%) 0;
   }
   .hero__slogan-line[data-row='1'] {
-    background-position: 100% 0;
-    animation: hero-beam-row1 16s linear infinite;
-    animation-play-state: paused;
-  }
-  .hero__slogan-line[data-beam='true'] {
-    animation-play-state: running;
-  }
-}
-
-/* 行1:A(0→18% L→R)→ 停屏外右(0%)待 → D(68→86% R→L)→ 停屏外左(100%)循环。
- * 每段扫掠 ease-in-out(减速滑入、加速滑出),停顿段不动,交棒更顺。 */
-@keyframes hero-beam-row0 {
-  0% {
-    background-position: 100% 0;
-    animation-timing-function: linear;
-  }
-  25% {
-    background-position: 0 0;
-    animation-timing-function: linear;
-  }
-  65% {
-    background-position: 0 0;
-    animation-timing-function: linear;
-  }
-  90% {
-    background-position: 100% 0;
-    animation-timing-function: linear;
-  }
-  100% {
-    background-position: 100% 0;
-  }
-}
-
-/* 行2:停屏外左(100%)待 → B(18→36% L→R)→ 停屏外右(0%)待 → C(50→68% R→L)→ 停屏外左循环 */
-@keyframes hero-beam-row1 {
-  0% {
-    background-position: 100% 0;
-  }
-  14% {
-    background-position: 100% 0;
-    animation-timing-function: linear;
-  }
-  39% {
-    background-position: 0 0;
-    animation-timing-function: linear;
-  }
-  50% {
-    background-position: 0 0;
-    animation-timing-function: linear;
-  }
-  75% {
-    background-position: 100% 0;
-    animation-timing-function: linear;
-  }
-  100% {
-    background-position: 100% 0;
+    background-position: var(--hero-beam-row-1, 100%) 0;
   }
 }
 
@@ -368,29 +411,6 @@
   font-size: var(--text-xs);
   letter-spacing: 0.16em;
   color: var(--ink-mute);
-  animation: hero-hint-float 2s ease-in-out infinite;
-}
-
-@keyframes hero-hint-float {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translateY(calc(6 * var(--cv-u)));
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* 光束定义在 .hero__slogan-line[data-row]（特异性 0,2,0），覆盖须带属性选择器
-     匹配同等特异性，否则关不掉。 */
-  .hero__slogan-line[data-row='0'],
-  .hero__slogan-line[data-row='1'],
-  .hero__scroll-hint {
-    animation: none;
-  }
 }
 
 /* Documentation workspace ------------------------------------------------- */

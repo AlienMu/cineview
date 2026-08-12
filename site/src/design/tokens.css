@@ -14,8 +14,7 @@
   --frame-line: #e4dfd6;
   --frame-line-soft: #eee9e0;
 
-  /* — 柔彩 LUT 色带停靠点(全站滚动总进度驱动,上下双端 linear-gradient 插值)— */
-  /* 每个停靠点定义 top/bottom 两端色,JS 在相邻停靠点间插值后写入 --bg-grad */
+  /* — 柔彩首页 palette；具体 Scene 在 global.css 中覆盖 — */
   --lut-dawn-top: #fcede4;
   --lut-dawn-bot: #faf8f4;
   --lut-sky-top: #e6eef6;
@@ -25,7 +24,7 @@
   --lut-mint-top: #e4f0ea;
   --lut-mint-bot: #f6f3ec;
 
-  /* JS 实时写入(背景色带层 + 当前镜头强调色) */
+  /* 非首页页面与滚动条使用的静态默认色。 */
   --bg-grad-top: var(--lut-dawn-top);
   --bg-grad-bot: var(--lut-dawn-bot);
   --accent: #c98a6a; /* 当前镜头色,随滚动被 JS 覆写 */

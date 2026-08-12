@@ -41,7 +41,7 @@ import {
 
 interface WaveformCanvasProps {
   progress: MotionValue<number>;
-  phase?: MotionValue<AnimatePhase>;
+  phase: MotionValue<AnimatePhase>;
 }
 
 // Act 03 is the amber act (`.tp-scene--03` maps --tp-sig to --tp-sig-amber). Kept as
@@ -77,7 +77,7 @@ export const WaveformCanvas = memo(function WaveformCanvas({
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let width = 0;
     let height = 0;
-    let paused = phase ? phase.get() === 'exited' || phase.get() === 'idle' : false;
+    let paused = phase.get() === 'exited' || phase.get() === 'idle';
     const startedAt = performance.now();
 
     const draw = (): void => {
@@ -178,17 +178,12 @@ export const WaveformCanvas = memo(function WaveformCanvas({
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
 
-    let unsubscribePhase: (() => void) | undefined;
-    if (phase) {
-      applyPhase(phase.get());
-      unsubscribePhase = phase.on('change', applyPhase);
-    } else {
-      start();
-    }
+    applyPhase(phase.get());
+    const unsubscribePhase = phase.on('change', applyPhase);
 
     return () => {
       observer.disconnect();
-      unsubscribePhase?.();
+      unsubscribePhase();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };

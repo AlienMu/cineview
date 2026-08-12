@@ -1,5 +1,5 @@
 import { Animate } from 'cineview';
-import { formatTimecode } from '../../hooks/useTimecode';
+import { formatTimecode } from './timecode';
 import { ACT3_FIRST_SELECTION_START_MS } from './act3MediaTimeline';
 import { useTemporalMotion } from './TemporalMotion';
 

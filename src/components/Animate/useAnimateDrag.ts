@@ -6,8 +6,8 @@ import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragP
 import {
   clamp,
   getDefaultValue,
-  getVariantValue,
-  lerpTransformValue,
+  getVariantTerminalValue,
+  interpolateVariantValue,
   parseNumericValue,
   type AnimatableProperty,
   type TransformValue,
@@ -23,6 +23,11 @@ interface UseAnimateDragParams {
   enterDuration: number;
   exitDuration: number;
   waitFor?: string;
+  /** An enter/infinite animation was authored but its variants have not parsed
+   *  yet (async preset import). Hold the initial frame instead of resolving to
+   *  the rest frame, which would paint the element fully visible for a frame and
+   *  then snap it back — the refresh flash. */
+  variantsPending?: boolean;
 }
 
 interface UseAnimateDragReturn {
@@ -292,9 +297,17 @@ function resolvePlaybackVisualState(
   calculatedDelay: number,
   enterDuration: number,
   exitDuration: number,
-  excludedFromPlayback: boolean
+  excludedFromPlayback: boolean,
+  variantsPending: boolean
 ): DragVisualState {
   const state = resolveVisualState(sceneContext, calculatedDelay, enterDuration, exitDuration);
+  // Authored-but-unparsed: every mode would otherwise resolve through the empty
+  // variant records, whose `animate` defaults are the VISIBLE frame (opacity 1).
+  // Holding the initial frame keeps the element hidden until its real variants
+  // land, so the parse boundary is invisible instead of a flash.
+  if (variantsPending) {
+    return { ...state, mode: 'hidden', localProgress: 0, projectedSceneElapsedMs: 0 };
+  }
   if (!excludedFromPlayback) return state;
 
   // An Animate mounted after the immutable playback snapshot was captured is
@@ -313,20 +326,15 @@ function resolvePropertyValue(
   variants: CachedVariants,
   property: AnimatableProperty
 ): TransformValue {
-  const initialValue = getVariantValue(
+  const initialValue = getVariantTerminalValue(
     variants.enterInitial,
     property,
     getDefaultValue(property, 'initial')
   );
-  const animateValue = getVariantValue(
+  const animateValue = getVariantTerminalValue(
     variants.enterAnimate,
     property,
     getDefaultValue(property, 'animate')
-  );
-  const exitValue = getVariantValue(
-    variants.exitTarget,
-    property,
-    getDefaultValue(property, 'exit')
   );
 
   switch (state.mode) {
@@ -335,17 +343,34 @@ function resolvePropertyValue(
     case 'hidden':
       return initialValue;
     case 'enter':
-      return lerpTransformValue(initialValue, animateValue, state.localProgress);
+      return interpolateVariantValue(
+        initialValue,
+        variants.enterAnimate,
+        property,
+        getDefaultValue(property, 'animate'),
+        state.localProgress
+      );
     case 'outgoing':
       // When no exitAnimation is authored, exitTarget is {} — skip all
       // exit animation and keep the element at its animate state.
       if (Object.keys(variants.exitTarget).length === 0) {
         return animateValue;
       }
-      return lerpTransformValue(
-        animateValue,
-        state.direction === 'forward' ? exitValue : initialValue,
-        state.localProgress
+      if (state.direction === 'forward') {
+        return interpolateVariantValue(
+          animateValue,
+          variants.exitTarget,
+          property,
+          getDefaultValue(property, 'exit'),
+          state.localProgress
+        );
+      }
+      return interpolateVariantValue(
+        initialValue,
+        variants.enterAnimate,
+        property,
+        getDefaultValue(property, 'animate'),
+        1 - state.localProgress
       );
     default:
       return animateValue;
@@ -366,7 +391,7 @@ function useNumericValue(
     const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
     if (!vs) {
       return parseNumericValue(
-        getVariantValue(variants.enterAnimate, property, fallback),
+        getVariantTerminalValue(variants.enterAnimate, property, fallback),
         fallback
       );
     }
@@ -382,7 +407,11 @@ function useMixedValue(
   return useTransform(visualState, (vs) => {
     const variants = variantsRef.current;
     if (!vs) {
-      return getVariantValue(variants.enterAnimate, property, getDefaultValue(property, 'animate'));
+      return getVariantTerminalValue(
+        variants.enterAnimate,
+        property,
+        getDefaultValue(property, 'animate')
+      );
     }
     return resolvePropertyValue(vs, variants, property);
   });
@@ -397,6 +426,7 @@ export function useAnimateDrag({
   enterDuration,
   exitDuration,
   waitFor,
+  variantsPending = false,
 }: UseAnimateDragParams): UseAnimateDragReturn {
   const playbackSnapshot = sceneContext ? resolvePlaybackSnapshot(sceneContext) : null;
   const frozenRegistration = playbackSnapshot?.registrySnapshot.registrations.get(componentId);
@@ -438,7 +468,8 @@ export function useAnimateDrag({
         calculatedDelayRef.current,
         playbackEnterDuration,
         exitDuration,
-        isExcludedFromPlayback
+        isExcludedFromPlayback,
+        variantsPending
       )
     : null;
   const initialVisualMotion = initialVisualState
@@ -585,7 +616,8 @@ export function useAnimateDrag({
         calculatedDelayRef.current,
         playbackEnterDuration,
         exitDuration,
-        isExcludedFromPlayback
+        isExcludedFromPlayback,
+        variantsPending
       );
       const nextValue =
         state.mode === 'outgoing'
@@ -697,6 +729,7 @@ export function useAnimateDrag({
     enterDuration,
     exitDuration,
     isExcludedFromPlayback,
+    variantsPending,
     playbackCalculatedDelay,
     playbackEnterDuration,
     playbackSnapshot,
@@ -733,7 +766,8 @@ export function useAnimateDrag({
         calculatedDelayRef.current,
         playbackEnterDuration,
         exitDuration,
-        isExcludedFromPlayback
+        isExcludedFromPlayback,
+        variantsPending
       );
       const shouldRun =
         sceneContext.isActive &&
@@ -756,6 +790,7 @@ export function useAnimateDrag({
     sceneContext,
     playbackEnterDuration,
     isExcludedFromPlayback,
+    variantsPending,
     exitDuration,
     sceneContext?.isActive,
     sceneContext?.sceneOffset,

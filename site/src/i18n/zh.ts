@@ -71,16 +71,16 @@ export const zh = {
   'cap.shot1.preset.blur.desc': '由虚焦到清晰，像镜头缓缓对上焦。',
   'cap.shot1.preset.blur.code': '<Animate enterAnimation="blur-in" />',
 
-  'cap.shot2.slate': 'DECLARATIVE TIMELINE',
-  'cap.shot2.title': '声明式时间轴|先后与坐标交给框架',
-  'cap.shot2.panel.chain.label': 'waitFor',
-  'cap.shot2.panel.chain.code': '<Animate timeline={{ waitFor: "title", delay: 160 }} />',
-  'cap.shot2.panel.stagger.label': 'stagger',
-  'cap.shot2.panel.stagger.code': '<Animate stagger={{ each: 80 }} />',
-  'cap.shot2.panel.position.label': 'Position',
-  'cap.shot2.panel.position.code': '<Position at={{ x: 480, y: 220 }} />',
-  'cap.shot2.summary':
-    '用 waitFor 声明先后、stagger 声明错峰、Position 声明坐标——你只描述「何时、以何序、在何处」，滚动距离与落点交给框架结算，反向滚动原样可逆。',
+  // ── 第3幕 推镜(dolly in)──
+  'cap.shot3.slate': 'DOLLY IN · DECLARATIVE TIMELINE',
+  'cap.shot3.card.chain.label': '链式编排',
+  'cap.shot3.card.stagger.label': '错峰级联',
+  'cap.shot3.card.position.label': '单尺子定位',
+  'cap.shot3.card.container.label': '尺寸换算',
+  'cap.shot3.card.scrub.label': '滚动接管',
+  'cap.shot3.card.image.label': '资源预加载',
+  'cap.shot3.title': '时间随滚动流转，画面随叙事前行',
+  'cap.shot3.summary': '元素共享一条时间轴，登场、绽放、离场。',
 
   // ── 第3幕 双引擎 ──
   'engines.eyebrow': '双引擎',
@@ -117,14 +117,15 @@ export const zh = {
   'demoDrag.s4.title': '40+ 动画预设',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur 任意组合',
 
-  // ── 独立移动端 Drag 第一幕 ──
-  'drag.shot': '01 / FIRST CUT',
-  'drag.eyebrow': '移动端 · 拖拽分页',
-  'drag.title': 'CineView',
-  'drag.sub': '影院级叙事，触手可及',
-  'drag.hint': '按住屏幕，上下拖动',
-  'drag.footer': '释放后，时间继续完成',
-  'drag.target': '下一镜，待剪入',
+  // ── 首页第五幕 Cinema Entrance（熄屏入场）──
+  /* 标题+副标题（2026-08-09 重写，用户访谈裁决「方向 A：点破双模式同框」）。
+     这一幕的客观事实：页面本身是 scroll 模式、手机里是 drag 模式，观众正同时
+     看着两种模式跑同一个框架 —— 文案直接点破它。第一行副标题用「它」回指标题
+     的「一套体系」，第二行落到可核对的框架事实（时间轴语义 / 动画声明同源）。
+     刻意不写成宣传语：全站语气是「示范给你看」，不是「告诉你它很好」。 */
+  'scene5.title': '两种模式，一套体系',
+  'scene5.subtitle': '指尖拖拽的是它，这一页滚动的也是它。\n同一套时间轴，同一种动画声明。',
+  'scene5.frameTitle': 'CineView 拖拽体验',
 
   // ── 第5幕 能力矩阵 ──
   'caps.eyebrow': '能力',

@@ -19,7 +19,6 @@ import { useSceneManager, type DragReleaseInput } from '../../hooks/useSceneMana
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
 import { acquirePerformanceMonitoring } from '../../utils/performanceMonitor';
-import { DirectScrollCineView } from './DirectScrollCineView';
 import { DragSceneStack } from './DragSceneStack';
 import type {
   DragRenderLane,
@@ -1138,13 +1137,21 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
 
 DragCineViewComponent.displayName = 'CineViewDrag';
 
-const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
-  if (resolveRootMode(props.mode) === 'scroll') {
-    return <DirectScrollCineView {...props} ref={ref} />;
-  }
-  return <DragCineViewComponent {...props} ref={ref} />;
-});
+/**
+ * drag 引擎根组件。导出是为了让 UMD 能按 mode 拆成单引擎产物
+ * （见 task-flow `2026-08-04-umd-mode-split.md`：scroll 引擎独占 UMD 包的 20.3%，
+ * 只用 drag 的 script-tag 消费者不该白背它）。
+ * 不从 barrel 再导出：公共 API 仍只有 `CineView` + `mode` prop。
+ */
+export const CineViewDragEngine = DragCineViewComponent;
 
-CineViewComponent.displayName = 'CineView';
-
-export const CineView = CineViewComponent;
+/**
+ * ⚠️ mode 派发器**不在本文件**，见 `CineViewDispatch.tsx`。
+ *
+ * 原本这里有个 5 行派发器同时静态 import 两套引擎，导致**任何到达本文件的路径都会拖进
+ * 两套引擎**。UMD 必须单文件（Rollup 拒绝 UMD 代码拆分），于是只用 drag 的 script-tag
+ * 消费者白背 scroll 引擎的 gzip 10437 字节（全包 20.3%），把包顶破 50 KB 门。
+ * 把派发器移出后，本文件只含 drag 引擎，`entry-drag.ts` 才能真正不含 scroll。
+ * 实测教训：只加入口文件、不搬派发器时，drag 产物是 51937 字节（比全量还大）。
+ * 详见 task-flow `2026-08-04-umd-mode-split.md`。
+ */

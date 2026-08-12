@@ -215,6 +215,50 @@ describe('useAnimateDrag branch coverage', () => {
     expect(result.current.opacity.get()).toBeCloseTo(0.5);
   });
 
+  it('scrubs exit keyframes with transition.times instead of collapsing the array', () => {
+    const enterVariant = {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: {},
+    } as ParsedAnimationVariant;
+    const exitVariant = {
+      initial: {},
+      animate: {},
+      exit: {
+        opacity: [1, 1, 0],
+        transition: { times: [0, 0.65, 1] },
+      },
+    } as ParsedAnimationVariant;
+
+    const readOpacity = (renderProgress: number): number => {
+      const sceneContext = createSceneContext(
+        { elementElapsedMs: 800 },
+        {
+          isActive: true,
+          isDragging: true,
+          sceneOffset: 0,
+          renderProgress,
+          dragTimelineProgress: renderProgress,
+        }
+      );
+      const { result } = renderHook(() =>
+        useAnimateDrag({
+          sceneContext,
+          enterVariant,
+          exitVariant,
+          componentId: `exit-keyframes-${renderProgress}`,
+          delay: 0,
+          enterDuration: 800,
+          exitDuration: 800,
+        })
+      );
+      return result.current.opacity.get();
+    };
+
+    expect(readOpacity(0.5)).toBe(1);
+    expect(readOpacity(0.825)).toBeCloseTo(0.5);
+  });
+
   it('emits verbose drag debug logs when development + __CINEVIEW_DRAG_DEBUG__ are enabled', () => {
     const originalNodeEnv = process.env.NODE_ENV;
     const dbgWindow = window as Window & { __CINEVIEW_DRAG_DEBUG__?: boolean };

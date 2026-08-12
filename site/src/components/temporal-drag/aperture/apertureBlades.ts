@@ -1,5 +1,5 @@
 /**
- * Act 04 aperture geometry — the eight-leaf shutter that fires one exposure.
+ * Act 04 aperture geometry — the nine-leaf shutter that fires one exposure.
  *
  * GEOMETRY ONLY. Nothing here touches a canvas, a MotionValue or the DOM; the drawing
  * lives in `ApertureCanvas.tsx`. Same split as act 02's `particleField.ts` /
@@ -15,7 +15,7 @@
  *  1. It never CLOSED. `CLOSED_INRADIUS` was 0.42, so the deepest the iris ever reached was a
  *     42%-of-barrel hole — a lens stopping down, which is an exposure SETTING, not an exposure.
  *     A shutter that never meets in the middle cannot read as a frame being taken. It is now
- *     `FULLY_SHUT_INRADIUS`, small enough that the eight leading edges meet.
+ *     `FULLY_SHUT_INRADIUS`, small enough that the nine leading edges meet.
  *  2. It was MONOTONIC. `stop` rose 0 → 1 across the lane and stayed there, so the aperture
  *     ended the act shut. The approved gesture is now open → fully shut → reopen to 80%
  *     closure and hold. `shutterCycle` below is therefore non-monotonic and has a stable
@@ -43,11 +43,11 @@
  * `spin` monotonic would have the leaves retreat while the ring kept turning one way, which is
  * the exact class of "two animations that merely agree" this file exists to prevent.
  *
- * ── EIGHT leaves, curved, octagonal opening (返工: 「形状需要是这样的」) ────────
- * Was six leaves with near-straight flanks. The reference is a stills shutter: eight blades
- * whose bodies sweep as scimitars round the barrel, leaving a clean OCTAGON of light at the
+ * ── NINE leaves, curved, nonagonal opening (返工: 「形状需要是这样的」) ─────────
+ * Was eight leaves with near-straight flanks. The reference is a stills shutter: nine blades
+ * whose bodies sweep as scimitars round the barrel, leaving a clean NONAGON of light at the
  * centre. Two constants carry that and they are independent:
- *   - `BLADE_COUNT = 8` gives the octagon (the opening's side count IS the blade count).
+ *   - `BLADE_COUNT = 9` gives the nonagon (the opening's side count IS the blade count).
  *   - `FLANK_SWEEP` bows the trailing flanks, which is what makes a leaf read as a curved
  *     plate rather than a pie wedge. The LEADING edge stays nearly straight (`BLADE_BOW` close
  *     to 1) precisely so the hole stays a crisp polygon — curving both would round the opening
@@ -65,8 +65,8 @@
  * between those points is inside the disc too. Concretely, the extreme radii are
  *
  *   - the flank roots and the outer arc, which sit exactly ON the barrel (radius = barrel);
- *   - the leading-edge vertices, at `vertexRadius = inradius / cos(pi/8)`, which is at most
- *     `barrel` because `OPEN_INRADIUS` IS `cos(pi/8)` — the fully-open octagon is the one
+ *   - the leading-edge vertices, at `vertexRadius = inradius / cos(pi/9)`, which is at most
+ *     `barrel` because `OPEN_INRADIUS` IS `cos(pi/9)` — the fully-open nonagon is the one
  *     inscribed in the barrel;
  *   - the flank control points, at `flankControlRadius <= barrel` by construction below.
  *
@@ -75,13 +75,13 @@
  * overscan, no blend layer and no clip: nothing it draws can reach the canvas edge.
  */
 
-/** Eight leaves. A real stills shutter is 5-9; eight is what makes the opening an OCTAGON,
- *  which is the shape in the reference, and it divides 360 evenly so the parked (wide-open)
+/** Nine leaves. A real stills shutter is commonly 5-9; nine makes the requested NONAGON,
+ *  and divides 360 evenly so the parked (wide-open)
  *  leaves tile the barrel exactly. The opening's side count and this number are the same fact
- *  stated once — there is no separate "octagon" constant to fall out of step with it. */
-export const BLADE_COUNT = 8;
+ *  stated once — there is no separate "nonagon" constant to fall out of step with it. */
+export const BLADE_COUNT = 9;
 
-/** Half the angular width of one polygon side, radians: pi / BLADE_COUNT = 22.5deg. */
+/** Half the angular width of one polygon side, radians: pi / BLADE_COUNT = 20deg. */
 export const BLADE_HALF_SPAN = Math.PI / BLADE_COUNT;
 
 /**
@@ -94,48 +94,48 @@ export const BLADE_HALF_SPAN = Math.PI / BLADE_COUNT;
 export const BARREL_RADIUS_RATIO = 0.36;
 
 /**
- * Octagon inradius, as a fraction of the barrel, with the shutter wide open.
+ * Nonagon inradius, as a fraction of the barrel, with the shutter wide open.
  *
- * This is `cos(pi/8)` and NOT a tuned taste value: it is the inradius at which the octagon's
+ * This is `cos(pi/9)` and NOT a tuned taste value: it is the inradius at which the nonagon's
  * VERTICES sit exactly on the barrel, so the parked leaves are slivers against the barrel
  * wall and no vertex can exceed the barrel. It is the containment proof in the file header.
  */
 export const OPEN_INRADIUS = Math.cos(BLADE_HALF_SPAN);
 
 /**
- * Octagon inradius, as a fraction of the barrel, at FULL CLOSURE.
+ * Nonagon inradius, as a fraction of the barrel, at FULL CLOSURE.
  *
  * 返工: this was `CLOSED_INRADIUS = 0.42`, and 0.42 is why the act never read as a photograph
  * being taken — the leaves stopped a long way short of each other and the frame simply had a
- * smaller hole in it. 「需要较快的完全闭拢」 means the eight edges have to MEET.
+ * smaller hole in it. 「需要较快的完全闭拢」 means the nine edges have to MEET.
  *
  * Not exactly 0, and the reason is mechanical rather than defensive: at 0 every leading-edge
- * vertex collapses onto the centre point, so all eight paths degenerate to zero area on the
+ * vertex collapses onto the centre point, so all nine paths degenerate to zero area on the
  * same frame and the canvas antialiases a shimmering dot. 0.015 of the barrel is ~2px on a
  * 390px-wide phone — visually shut, still a real polygon. The old note here worried about the
  * centre readout being covered; that is now the POINT, and it is covered for ~90ms.
  */
 export const FULLY_SHUT_INRADIUS = 0.015;
 
-/** Crank travel across a full closure, radians (~24deg). Enough that the eight lit edges
+/** Crank travel across a full closure, radians (~24deg). Enough that the nine lit edges
  *  visibly slew round the barrel — the rotation IS the mechanism, so it has to be seen — and
  *  small enough that it reads as a shutter firing, not as a spinning graphic. Traversed twice
  *  per exposure now: over on the close, back on the release. */
 export const SPIN_TOTAL_RAD = 0.42;
 
 /** Angular overlap of adjacent leaves at their roots, radians (~12deg). Real leaves overlap;
- *  without it the eight flanks meet on a seam and daylight shows through the joins. */
+ *  without it the nine flanks meet on a seam and daylight shows through the joins. */
 export const BLADE_ROOT_SPREAD_RAD = 0.209;
 
 /**
- * Where the leading edge's MIDPOINT sits, as a fraction of the octagon inradius.
+ * Where the leading edge's MIDPOINT sits, as a fraction of the nonagon inradius.
  *
  * Under 1 = bowed INWARD (the edge dips toward the centre), which is the only direction
  * allowed: outward bowing is both the failed corona reading and the one way a vertex could
  * escape the barrel.
  *
  * 0.985, i.e. very nearly straight, and it was RAISED from 0.94 as part of the shape rework.
- * The opening has to read as a hard-edged OCTAGON; a 6%-deep dish on each of eight sides
+ * The opening has to read as a hard-edged NONAGON; a 6%-deep dish on each of nine sides
  * rounds the hole off into a circle and throws away the very shape the reference is about.
  * The curved reading now comes from the flanks instead (`FLANK_SWEEP`), which is where a real
  * blade's curve actually is — the edge that forms the hole is straight-ground steel.
@@ -149,7 +149,7 @@ export const BLADE_BOW = 0.985;
  * How far the trailing flanks sweep, as a fraction of the barrel.
  *
  * This is the constant that makes a leaf a curved plate rather than a pie wedge, and it is
- * what the reference image's shape is: eight scimitars overlapping round the barrel. Each
+ * what the reference image's shape is: nine scimitars overlapping round the barrel. Each
  * flank is a quadratic from its leading-edge vertex out to its root ON the barrel, with the
  * control point pulled TANGENTIALLY (round the barrel, in the direction the blade sweeps)
  * rather than radially — a radially-placed control point just makes a straighter or kinkier
@@ -161,13 +161,13 @@ export const BLADE_BOW = 0.985;
  */
 export const FLANK_SWEEP = 0.42;
 
-/** Fixed key light, radians. Up and to the left, matching act 02's rig, so the eight facets
- *  differ in brightness and the opening reads as eight plates instead of one ring. */
+/** Fixed key light, radians. Up and to the left, matching act 02's rig, so the nine facets
+ *  differ in brightness and the opening reads as nine plates instead of one ring. */
 export const LIGHT_ANGLE_RAD = -Math.PI * 0.75;
 
 /** Radians per second for the specular travelling round the lit edges. ~12.5s a revolution:
  *  slow enough to read as light moving over metal, and it is the act's 防空等 cover — after
- *  tSelf the shutter holds at 80% closure while its eight edges keep catching light. */
+ *  tSelf the shutter holds at 80% closure while its nine edges keep catching light. */
 export const SPECULAR_RAD_PER_SECOND = 0.5;
 
 /** Tightness of that specular lobe. Higher = a smaller, harder hot spot. */
@@ -290,9 +290,9 @@ export interface ApertureGeometry {
   readonly stop: number;
   /** Barrel radius in canvas px. Blade roots and the outer arc ride exactly this. */
   readonly barrel: number;
-  /** Inradius of the octagonal opening, canvas px. */
+  /** Inradius of the nonagonal opening, canvas px. */
   readonly inradius: number;
-  /** Radius of the octagon's vertices, canvas px. Always <= `barrel` (see file header). */
+  /** Radius of the nonagon's vertices, canvas px. Always <= `barrel` (see file header). */
   readonly vertexRadius: number;
 }
 
@@ -313,7 +313,7 @@ export function apertureGeometry(
   const inradiusRatio = OPEN_INRADIUS + (FULLY_SHUT_INRADIUS - OPEN_INRADIUS) * stop;
   const inradius = barrel * inradiusRatio;
   // The containment invariant, stated where it is used rather than only in the header:
-  // dividing by cos(pi/8) is exactly undoing OPEN_INRADIUS, so at stop=0 this is `barrel`
+  // dividing by cos(pi/9) is exactly undoing OPEN_INRADIUS, so at stop=0 this is `barrel`
   // and it only shrinks from there. `Math.min` is a guard, not a correction — if it ever
   // clamps, the constants above have been edited into an inconsistent pair.
   const vertexRadius = Math.min(barrel, inradius / OPEN_INRADIUS);
@@ -332,7 +332,7 @@ export function bladeAxis(index: number, spin: number): number {
  * A quadratic bezier does NOT pass through its control point: at t=0.5 it reaches
  * `(P0 + 2C + P2) / 4`. With the two endpoints on `vertexRadius` at +/- BLADE_HALF_SPAN off the
  * axis, their average projects onto the axis at `vertexRadius * cos(BLADE_HALF_SPAN)`, which is
- * exactly `inradius` (that identity is what `OPEN_INRADIUS = cos(pi/8)` buys). So, solving for
+ * exactly `inradius` (that identity is what `OPEN_INRADIUS = cos(pi/9)` buys). So, solving for
  * the control radius `c` that puts the midpoint at the wanted radius `m`:
  *
  *   m = (inradius + c) / 2   =>   c = 2m - inradius

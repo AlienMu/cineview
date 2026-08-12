@@ -10,6 +10,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/cineview.es.mjs",
       "require": "./dist/cineview.umd.js"
+    },
+    "./drag": {
+      "types": "./dist/entry-drag.d.ts",
+      "require": "./dist/cineview-drag.umd.js"
+    },
+    "./scroll": {
+      "types": "./dist/entry-scroll.d.ts",
+      "require": "./dist/cineview-scroll.umd.js"
     }
   },
   "sideEffects": false,
@@ -18,7 +26,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/minify-library-entries.mjs",
+    "build": "node scripts/build-all.mjs && node scripts/minify-library-entries.mjs",
     "build:verify": "pnpm run build && node scripts/verify-build.js",
     "preview": "vite preview",
     "test": "jest",

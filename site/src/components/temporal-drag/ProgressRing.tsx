@@ -34,12 +34,11 @@ import { useTemporalMotion } from './TemporalMotion';
  */
 function EclipseGraphic(): JSX.Element {
   const timeline = useAnimateTimeline();
+  const timing = useTemporalMotion();
   const arcRef = useRef<SVGCircleElement>(null);
-  const limbRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const arc = arcRef.current;
-    const limb = limbRef.current;
 
     const write = (): void => {
       const raw = timeline.progress.get();
@@ -54,15 +53,6 @@ function EclipseGraphic(): JSX.Element {
       // `pathLength="1"` normalises the circumference, so the dash offset is a plain
       // 1 - progress and needs no radius arithmetic here.
       if (arc) arc.style.strokeDashoffset = String(1 - value);
-      // The limb glow tracks the same single value, so light and arc can never
-      // disagree about how far the eclipse has gone. It stays dark until the arc is
-      // nearly closed: totality is the payoff, and a limb that brightens from the
-      // first frame spends the effect before the moment arrives.
-      if (limb) {
-        const onset = value < 0.72 ? 0 : (value - 0.72) / 0.28;
-        limb.style.opacity = onset.toFixed(4);
-        limb.style.transform = `scale(${(1 + onset * 0.06).toFixed(4)})`;
-      }
     };
 
     write();
@@ -82,7 +72,21 @@ function EclipseGraphic(): JSX.Element {
       <span className="s04-lens__barrel" />
       <span className="s04-lens__inner-ring" />
       <span className="s04-eclipse__disc" />
-      <span ref={limbRef} className="s04-eclipse__limb" />
+      <Animate
+        animateId="s04-eclipse-limb"
+        enterAnimation={{
+          initial: { opacity: 0, scale: 1 },
+          animate: { opacity: 1, scale: 1.06 },
+        }}
+        exitAnimation={{ exit: { opacity: 0, scale: 1 } }}
+        duration={{
+          enter: timing.duration(RING_ENTER_MS * LIMB_PROGRESS_SPAN),
+          exit: timing.duration(RING_EXIT_MS * LIMB_PROGRESS_SPAN),
+        }}
+        timeline={{ delay: timing.delay(RING_ENTER_MS * LIMB_ONSET) }}
+      >
+        <span className="s04-eclipse__limb" />
+      </Animate>
       <svg className="s04-eclipse__arc-svg" viewBox="0 0 200 200">
         <circle
           ref={arcRef}
@@ -100,6 +104,9 @@ function EclipseGraphic(): JSX.Element {
 
 /** Ring: delay 0, enter 1200 (act 04 lane budget). */
 const RING_ENTER_MS = 1200;
+const RING_EXIT_MS = 380;
+const LIMB_ONSET = 0.72;
+const LIMB_PROGRESS_SPAN = 1 - LIMB_ONSET;
 
 export function ProgressRing(): JSX.Element {
   const timing = useTemporalMotion();
@@ -115,7 +122,7 @@ export function ProgressRing(): JSX.Element {
       // Absolute delay 0: the ring and the timecode enter TOGETHER (设计档 §3.4
       // 「圆圈 + 时间码同时入场」), and 0 also puts this lane in the 0-300ms
       // opening-response band so the first pixel of finger travel moves something.
-      duration={{ enter: timing.duration(RING_ENTER_MS), exit: timing.duration(380) }}
+      duration={{ enter: timing.duration(RING_ENTER_MS), exit: timing.duration(RING_EXIT_MS) }}
       timeline={{ delay: timing.delay(0) }}
     >
       <div className="s04-eclipse-shell">

@@ -1,12 +1,12 @@
 import { Animate, useAnimateTimeline } from 'cineview';
 import { useEffect, useRef } from 'react';
-import { formatTimecode } from '../../hooks/useTimecode';
+import { formatTimecode } from './timecode';
 import { useTemporalMotion } from './TemporalMotion';
 
 type DragTimecodeProps = {
   /**
-   * Frames the readout spans across the whole gesture. At the project's 25fps base,
-   * 50 frames is exactly 00:00:02:00 — the "0 到 2" the readout is asked to travel.
+   * Frames in the act's authoritative animation budget. The parent lane spans that full
+   * budget, so the displayed clock and the authored animation clock advance at the same rate.
    */
   spanFrames: number;
 };
@@ -30,13 +30,13 @@ const CHAR_STRIDE_MS = 55;
 
 // Exit uses one continuous framework timeline: count back to zero during the first 65%,
 // then hold zero while the remaining 35% fades the readout. No second clock is introduced.
-const EXIT_RESET_FRACTION = 0.65;
+export const TIMECODE_EXIT_RESET_FRACTION = 0.65;
 
 /**
  * Scene 04's headline timecode.
  *
- * ONE source of truth: the scene's own scrub progress. Enter walks the readout 0 -> 2s,
- * exit walks it 2s -> 0, and nothing else is allowed to write it.
+ * ONE source of truth: the scene's own scrub progress. Enter walks the readout across the
+ * authored act duration, exit walks it back to 0, and nothing else is allowed to write it.
  *
  * Two things were removed to get here, both reported as defects:
  *
@@ -61,24 +61,14 @@ export function DragTimecode({ spanFrames }: DragTimecodeProps): JSX.Element {
     if (!element) return;
 
     let lastValue = '';
-    let lastOpacity = '';
     const write = (): void => {
       const raw = Math.max(0, Math.min(1, timeline.progress.get()));
       const currentPhase = timeline.phase.get();
       const exiting = currentPhase === 'exiting';
       // The reset completes before opacity is allowed to move. Both values are projections of
       // this lane's one exit progress, so re-grab/reverse cannot desynchronise them.
-      const resetProgress = exiting ? Math.min(1, raw / EXIT_RESET_FRACTION) : raw;
+      const resetProgress = exiting ? Math.min(1, raw / TIMECODE_EXIT_RESET_FRACTION) : raw;
       const scrub = exiting ? 1 - resetProgress : raw;
-      const exitOpacity =
-        raw <= EXIT_RESET_FRACTION
-          ? 1
-          : 1 - (raw - EXIT_RESET_FRACTION) / (1 - EXIT_RESET_FRACTION);
-      const nextOpacity = currentPhase === 'exited' ? '0' : exiting ? exitOpacity.toFixed(3) : '1';
-      if (nextOpacity !== lastOpacity) {
-        lastOpacity = nextOpacity;
-        element.style.opacity = nextOpacity;
-      }
       const next = formatTimecode(Math.round(scrub * spanFrames));
       if (next === lastValue) return;
       lastValue = next;

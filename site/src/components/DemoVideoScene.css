@@ -2,8 +2,7 @@
  * Demo · 滚动驱动视频镜的样式(时光副标题版,2026-07-14)
  *
  * 近白暖调 video 全屏铺底(object-fit:cover);其上 4 个暖琥珀光圈围绕副标题公转,
- * 尾段聚拢到中心合为一个(位置由 tsx 的 videoProgress 驱动,inline transform,本文件不做动画)。
- * 主标题居顶(大),时光副标题居中(小):电影衬线,逐字两层动效(黑字清晰 → 覆盖渐变色)。
+ * 主标题居顶(大),时光副标题居中(小):电影衬线,逐行由框架显影，逐字投影渐变色。
  */
 
 .demo-video {
@@ -11,7 +10,11 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--film-white); /* video 加载/letterbox 兜底色,与首帧暖白一致 */
+  /* 必须透明:这里原本填 var(--film-white)(不透明 #faf8f4),它铺满整个第四幕,
+   * 直接在第三/四幕边界切出一条硬缝 —— 首页「全场景单一背景、不允许分割」的
+   * 破口就在这。video 自身 object-fit:cover 铺满,不存在 letterbox,兜底色无必要。
+   * 首页统一背景由 `<HomeBackdrop>`(CineView 的兄弟层)独占,见 HomeBackdrop.tsx。 */
+  background: transparent;
 }
 
 /* 铺底舞台:撑满 scene,承载全屏 video */
@@ -35,7 +38,19 @@
   display: block;
 }
 
-/* 暖白 scrim:上下两端极淡提亮,让主标题 / 副标题从流动的光雾中浮出;中段保持全透。 */
+/* 暖白 scrim:上下两端极淡提亮,让主标题 / 副标题从流动的光雾中浮出;中段保持全透。
+ * opacity 由 demo-scrim lane 跟随视频同步淡入/收尾(见 DemoVideoScene.tsx):
+ * scrim 是 video 的兄弟节点、不继承其淡入,若常驻满强度会在视频还没出来时
+ * 就把上下两端压成暖白 —— 又是一条接缝。
+ *
+ * ⚠️ **这里不能写 `opacity: 0`**（2026-08-08 修，此前一直写着，导致 scrim 从未显形）。
+ * lane 把 opacity 写在**包装元素** `[data-cineview-animate-id="demo-scrim"]` 上，
+ * 而本元素是它的**后代** ⇒ 两个 opacity **相乘**。实测正片中段
+ * （f=0.45，视频满强度）：包装层 opacity=1、本元素 CSS opacity=0 ⇒ 有效 **0.000**。
+ * 也就是说上面那段「让标题从光雾中浮出」的效果一次都没生效过。
+ * 静息态不需要 CSS 兜底：lane 的 `initial` 已经是 `opacity: 0`，视频未出时它自然是透明的。
+ * （同一个坑在 `Scene5Cinema` 的注释里也记过：「CSS pre-start opacity:0 hack 不再是
+ * 承重结构」—— 那边已拆，这边漏了。） */
 .demo-video__scrim {
   position: absolute;
   inset: 0;
@@ -81,8 +96,7 @@
 }
 
 /* ── 时光副标题(画面正中,新主角) ──
-   电影衬线放大;逐字两层动效(blur/opacity/transform/color)全由 inline style 逐字驱动(见 tsx):
-   第一层黑字 blur→清晰,第二层清晰后从黑覆盖成沿整句流转的渐变暖色。这里只定版式。 */
+   行级 blur/opacity 由 Animate lane 拥有；逐字 inline style 只写不受框架支持的渐变色。 */
 .demo-video__subtitle {
   margin: 0;
   width: calc(860 * var(--cv-u));
@@ -96,31 +110,38 @@
   position: relative;
   z-index: 3;
 }
+.demo-video__subtitle > [data-cineview-animate-host^='demo-subtitle-line-'],
+.demo-video__subtitle [data-cineview-animate-id^='demo-subtitle-line-'] {
+  display: block;
+}
 .demo-video__subtitle-line {
   display: block;
   white-space: nowrap;
-  /* blur 施加在行(而非逐字):整行一个模糊层,滚动中任一刻最多 1-2 行的 blur 在变
-     → 每帧 1-2 次模糊卷积,而非几十个字各自卷积(模糊是最贵的重绘操作)。inline 由 tsx 写。 */
-  will-change: filter;
 }
 .demo-video[data-lang='en'] .demo-video__subtitle {
   width: calc(1340 * var(--cv-u));
 }
-.demo-video__subtitle-line + .demo-video__subtitle-line {
+.demo-video__subtitle
+  > [data-cineview-animate-host^='demo-subtitle-line-']
+  + [data-cineview-animate-host^='demo-subtitle-line-']
+  .demo-video__subtitle-line {
   margin-top: 0.32em;
 }
-/* 每个字:独立层。opacity / 位移 / 渐变暖色逐帧由 tsx 写进本元素自己的 inline style
-   (见 TimeSubtitle 的 layout effect);blur 已上移到行(见上)。这里只定「颜色靠
-   background-clip:text 透出字形」的静态底:文字透明 + 背景裁剪到字形 → inline 写的
-   background-image 渐变即成为字的填色。
-   为何驱动写在叶子而非容器变量:改叶子自身非继承属性只失效该叶子,不触发 132 字子树全量 recalc
-   (实测 recalcStyle 从 ~960ms/120帧 降到 ~38ms)。opacity/transform 是合成器免费属性 →
-   字级逐帧几乎不产生重绘,每帧重绘只剩 1-2 行的 blur + 少数正在上色的字。 */
+/* 每个字只接收 background-image 色带投影；可动画的 opacity/filter 已在行级 lane。 */
 .demo-video__subtitle-char {
   display: inline-block;
   white-space: pre;
   color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
-  will-change: transform, opacity;
+}
+
+/* scrim 的 Animate 包装链需撑满（同 __stage 的处理）：lane 包装是普通流 div，
+ * 不撑满会让 scrim 的 absolute inset:0 参照到零尺寸包装、渐变整体失效。
+ * 用后代选择器而非 `>`：scrim 挂在 __stage 内，不是 .demo-video 的直接子元素。 */
+.demo-video [data-cineview-animate-host='demo-scrim'],
+.demo-video [data-cineview-animate-host='demo-scrim'] .cineview-animate {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }

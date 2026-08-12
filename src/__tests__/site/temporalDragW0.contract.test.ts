@@ -172,11 +172,11 @@ describe('/drag W0 global baseline contract', () => {
     });
 
     expect(Object.fromEntries(actual)).toEqual({
-      rolling: ['SceneRolling'],
-      slate: ['SceneSlate'],
-      sync: ['SceneSync'],
-      flux: ['SceneFlux'],
-      cut: ['SceneCut'],
+      rolling: ['SceneRolling', 'SceneTexture'],
+      slate: ['SceneSlate', 'SceneTexture'],
+      sync: ['SceneSync', 'SceneTexture'],
+      flux: ['SceneFlux', 'SceneTexture'],
+      cut: ['SceneCut', 'SceneTexture'],
     });
   });
 });

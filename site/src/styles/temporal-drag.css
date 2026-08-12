@@ -438,26 +438,6 @@
   line-height: 1;
 }
 
-.drag-temporal[data-drag-direction] .s01-tick {
-  scale: 0.98;
-  transition:
-    scale 0.14s var(--tp-ease-linear-out),
-    opacity 0.14s var(--tp-ease-linear-out);
-}
-
-.drag-temporal[data-drag-direction] .s01-tick__bar {
-  opacity: 0.7;
-  transition:
-    opacity 0.14s var(--tp-ease-linear-out),
-    background 0.14s var(--tp-ease-linear-out),
-    box-shadow 0.14s var(--tp-ease-linear-out);
-}
-
-/* Direction used to colour one 60° sector amber while dimming the opposite side.
- * During exit the copy cleared before the dial, leaving the broken half-ring shown in
- * the user's screenshot. Drag feedback now comes from the whole instrument winding,
- * so every tick stays compositionally balanced while the finger is down. */
-
 .drag-temporal .s01-inner-ring {
   /* Diameter = 2 × the tick-seat radius, so the ring line passes exactly through
    * where every tick bar meets it. Shares --s01-ring-radius with the ticks — the
@@ -491,37 +471,16 @@
   translate: -50% -50%;
 }
 
-.drag-temporal .s01-center-number__value {
+.drag-temporal .s01-center-number__value,
+.drag-temporal .s01-center-number > .cineview-animate {
   position: absolute;
   top: 50%;
   left: 50%;
-  display: block;
   translate: -50% -50%;
 }
 
-/* A real hour rollover is data-driven, not part of the scene's one-shot entrance. This
- * bounded transition runs only on the once-per-hour DOM replacement and disappears with act 1;
- * the scene's enter/exit still belongs entirely to the surrounding CineView lane. */
-.drag-temporal .s01-center-number[data-hour-rollover] .is-previous {
-  animation: s01-hour-roll-out 480ms var(--tp-ease-linear-out) both;
-}
-
-.drag-temporal .s01-center-number[data-hour-rollover] .is-current {
-  animation: s01-hour-roll-in 480ms var(--tp-ease-linear-out) both;
-}
-
-@keyframes s01-hour-roll-out {
-  to {
-    opacity: 0;
-    transform: translateY(-72%);
-  }
-}
-
-@keyframes s01-hour-roll-in {
-  from {
-    opacity: 0;
-    transform: translateY(72%);
-  }
+.drag-temporal .s01-center-number__value {
+  display: block;
 }
 
 .drag-temporal .s01-hands {
@@ -747,12 +706,9 @@
 }
 
 /* Real chain rendered by <Animate> in drag mode:
- *   .s02-light > .cineview-animate (drag lane, enter/exit scrub)
- *     > anonymous motion.div (infinite lane) > .s02-light__layer
- * Every transform-bearing box must fill the stage. Without this the infinite lane's
- * anonymous div shrink-wraps to height 0 and its percentage translations resolve to
- * 0px — the animation runs but moves nothing (the same defect as scene 04's streams,
- * see the .s04-streams rule below). */
+ *   .s02-light > .cineview-animate (drag lane, enter/exit scrub) > .s02-light__layer
+ * Every transform-bearing box fills the stage so percentage translations resolve against
+ * the scene rather than a shrink-wrapped child. */
 .drag-temporal .s02-light > .cineview-animate,
 .drag-temporal .s02-light > .cineview-animate > *,
 .drag-temporal .s02-light > .cineview-animate > * > .s02-light__layer {
@@ -799,12 +755,8 @@
  * has no edge — and a radial mask fades it with distance, so it does not stop at the box
  * either. Two nested wedges (not one) because a single flat wedge reads as a painted
  * triangle; a hot core inside a wider falloff is what makes it read as volume. */
-/* The beam's sway rides the infinite lane, i.e. the anonymous wrapper <Animate> renders
- * INSIDE the drag lane — so the origin has to be set on those boxes, not on the painted
- * layer (a transform-origin on a box that is never transformed does nothing). Origin
- * sits at the apex above the frame: a hard light pivots at its source, and the enter
- * scale then reads as the beam reaching down rather than as the layer inflating.
- * Scoped to the beam by id: haze/pool/bokeh scale about their own centres. */
+/* Origin sits at the apex above the frame, so the beam's enter scale reads as light reaching
+ * down rather than as the painted layer inflating. Scoped to the beam by id. */
 .drag-temporal .s02-light > [data-cineview-animate-id='s02-light-beam'],
 .drag-temporal .s02-light > [data-cineview-animate-id='s02-light-beam'] > * {
   transform-origin: 50% -12%;
@@ -1032,6 +984,9 @@
  * COLOUR lives in temporal-scenes-03-05.css, which is the act's single palette owner —
  * the two files used to declare `.tp-scene--04` twice and the values drifted apart. */
 .drag-temporal .s04-stage {
+  --s04-lens-center-y: 58%;
+  --s04-clock-radius: min(42cqw, 235px);
+
   position: relative;
   min-height: 0;
   overflow: hidden;
@@ -1115,13 +1070,31 @@
 
 .drag-temporal .s04-center {
   position: absolute;
-  top: 50%;
+  top: var(--s04-lens-center-y);
   left: 50%;
   z-index: 2;
   display: grid;
   justify-items: center;
   width: min(92cqw, 478px);
-  translate: -50% -52%;
+  translate: -50% -50%;
+}
+
+.drag-temporal .s04-caption {
+  position: absolute;
+  bottom: calc(100% - var(--s04-lens-center-y) + var(--s04-clock-radius) + clamp(24px, 5cqw, 38px));
+  left: 50%;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: clamp(6px, 1.4cqw, 10px);
+  width: min(92cqw, 478px);
+  translate: -50% 0;
+}
+
+.drag-temporal .s04-caption > .cineview-animate {
+  display: grid;
+  place-items: center;
+  width: 100%;
 }
 
 /* `.s04-equation` shared this rule until the eclipse redesign removed the three-line
@@ -1140,12 +1113,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: min(84cqw, 470px);
+  width: calc(var(--s04-clock-radius) + var(--s04-clock-radius));
   aspect-ratio: 1;
-  margin-block: var(--tp-space-4);
-  /* Give the main-timecode flip-out exit (rotateX) real depth instead of a flat
-   * squash. Enter uses the flip preset's rotateY; both now read as 3D. */
-  perspective: 900px;
 }
 
 .drag-temporal .s04-clock > .cineview-animate {
@@ -1300,11 +1269,22 @@
  * contribute nothing (center type stays crisp) while empty voids fill with a
  * drifting key light, a slow projector-ray sweep, and floating dust. Tint rides
  * the inherited --tp-sig from the active scene wrapper. Pure decoration. */
-.drag-temporal .tp-ambient {
+.drag-temporal .s01-scene {
+  position: relative;
+  isolation: isolate;
+}
+
+.drag-temporal .s01-scene > [data-cineview-animate-id='s01-ambient'] {
   position: absolute;
   inset: 0;
   z-index: 45;
   pointer-events: none;
+  transform-origin: 50% 100%;
+}
+
+.drag-temporal .tp-ambient {
+  position: absolute;
+  inset: 0;
   mix-blend-mode: screen;
   /* NO `overflow: hidden` here, deliberately. It used to clip this box, and once the
    * sink transform (scale 0.96 + y 7%) was applied the clip edge itself pulled in from
@@ -1328,18 +1308,11 @@
   will-change: transform, opacity;
 }
 
-/* ── CSS `animation: … infinite` EXEMPTION: the ambient light rig ───────────
- * Rule 6 (AGENTS.md / CLAUDE.md) says continuous loops belong on the framework's
- * infinite lane (<Animate infiniteAnimation>) so shouldRunInfinite can freeze them
- * when a scene leaves its phase. The four .tp-ambient__* loops below are the
- * deliberate exception, and the reason is that they are NOT scene content: the
- * ambient rig is a global chrome layer mounted OUTSIDE every <Scene>, so it has no
- * phase to be gated against. Putting it on the framework lane would ask the
- * framework which scene owns it — there is no answer, and any answer would make the
- * room lighting flicker off during transitions, which is exactly when the frame
- * needs to stay lit. Continuous-by-design; they only ever stop at reduced-motion
- * (see the prefers-reduced-motion block above, `animation: none !important`).
- * Anything that lives inside a <Scene> does NOT get this exemption. */
+.drag-temporal .tp-ambient__rig > .cineview-animate,
+.drag-temporal .tp-ambient__rig > .cineview-animate > * {
+  position: absolute;
+  inset: 0;
+}
 
 /* Key light: a large soft off-center cone breathing in intensity, the dominant
  * source. Positioned upper-left so it rakes across the frame like a lamp. */
@@ -1352,7 +1325,6 @@
     color-mix(in srgb, var(--tp-ambient-sig) 20%, transparent) 32%,
     transparent 62%
   );
-  animation: tp-ambient-breathe 11s var(--tp-ease-in-out) infinite;
 }
 
 /* Fill light: a cooler, dimmer counter-source lower-right so the frame isn't lit
@@ -1366,7 +1338,6 @@
     color-mix(in srgb, var(--tp-sig-warm) 8%, transparent) 34%,
     transparent 60%
   );
-  animation: tp-ambient-breathe 14s var(--tp-ease-in-out) infinite reverse;
 }
 
 /* Projector rays: two thin volumetric beams sweeping slowly across the frame,
@@ -1387,14 +1358,12 @@
   );
   filter: blur(6px);
   transform-origin: top center;
-  animation: tp-ambient-ray 18s var(--tp-ease-in-out) infinite;
 }
 
 .drag-temporal .tp-ambient__ray--2 {
   left: 52%;
   width: 34%;
   opacity: 0.7;
-  animation: tp-ambient-ray-2 23s var(--tp-ease-in-out) infinite;
 }
 
 .drag-temporal .tp-ambient__dust {
@@ -1404,42 +1373,6 @@
   height: 100%;
 }
 
-@keyframes tp-ambient-breathe {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(1) translate(0, 0);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.08) translate(2%, -2%);
-  }
-}
-
-@keyframes tp-ambient-ray {
-  0%,
-  100% {
-    transform: rotate(-8deg) translateX(-6%);
-    opacity: 0.4;
-  }
-  50% {
-    transform: rotate(6deg) translateX(8%);
-    opacity: 0.75;
-  }
-}
-
-@keyframes tp-ambient-ray-2 {
-  0%,
-  100% {
-    transform: rotate(7deg) translateX(6%);
-    opacity: 0.28;
-  }
-  50% {
-    transform: rotate(-5deg) translateX(-8%);
-    opacity: 0.55;
-  }
-}
-
 .drag-temporal .tp-texture {
   position: absolute;
   inset: 0;
@@ -1447,19 +1380,27 @@
   pointer-events: none;
 }
 
-/* ── CSS `animation: … infinite` EXEMPTION: film grain ──────────────────────
- * Same reasoning as the ambient rig above: .tp-texture is global chrome layered
- * over the whole frame (z-index 50), outside any <Scene>, so there is no phase for
- * shouldRunInfinite to gate against. Grain is also the one loop that must never
- * pause — a frozen grain field stops reading as film and starts reading as a
- * smudge on the screen. Stays on the CSS lane; stops only at reduced-motion. */
+.drag-temporal .tp-texture > .cineview-animate {
+  position: absolute;
+  inset: -50%;
+}
+
+.drag-temporal .tp-texture > .cineview-animate > *,
+.drag-temporal .tp-texture > .cineview-animate > * > .tp-texture__grain {
+  position: absolute;
+  inset: 0;
+}
+
 .drag-temporal .tp-texture__grain {
   position: absolute;
   inset: -50%;
   opacity: 0.11;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: tp-grain 0.5s steps(4) infinite;
+}
+
+.drag-temporal .tp-texture > .cineview-animate .tp-texture__grain {
+  inset: 0;
 }
 
 .drag-temporal .tp-texture__scanline {
@@ -1483,24 +1424,6 @@
     transparent 58%,
     rgba(0, 0, 0, 0.46) 100%
   );
-}
-
-@keyframes tp-grain {
-  0% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-3%, 1%);
-  }
-  50% {
-    transform: translate(2%, -2%);
-  }
-  75% {
-    transform: translate(-1%, 2%);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
 }
 
 /* `.s04-context` (act 04's explanatory paragraph) and `.s05-leader` / `.s05-leader__frame`

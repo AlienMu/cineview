@@ -22,7 +22,9 @@ CineView 是一个面向 React 的叙事型 UI 框架，支持 `drag`（拖拽�
 
 **禁止**：在没有 task-flow 的情况下跨多文件重构。
 
-**强制**：scroll / drag 交互路径的验收，必须由独立的 agent 在真实环境（浏览器 lane，`localhost:3000/#/drag` 或 `#/scroll`）完成实测——实现 agent 与验收 agent 分开，验收不能只跑单测/type-check 就收口。单测全绿 ≠ 视觉正确。
+**强制**：scroll / drag 交互路径的验收，必须由独立的 agent 在真实环境（浏览器 lane，`localhost:4000/#/drag` 或 `#/` 首页 scroll）完成实测——实现 agent 与验收 agent 分开，验收不能只跑单测/type-check 就收口。单测全绿 ≠ 视觉正确。
+
+站点端口以 `site/vite.config.ts:12` 为准（当前 **4000**）。本文档此前写的 `3000` 是过期记录，任何端口都不该从文档抄——先读配置。若 4000 被占，Vite 会自动顺延到下一个空闲端口并打印真实 URL，须用它而不是假定 4000。
 
 ---
 
@@ -172,7 +174,7 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 
 - **总计**: 1127 tests，**1127 全部通过**（77 suites，2026-06-30 评审整改轮实测；含新增 `directScrollHelpers.test.ts` 32 例）；`type-check` 0 错误、`lint` 0 错误 0 警告（16 个历史 warnings 已清零）；`build:verify` 8/8 通过
 - scroll 核心套件 `DirectScrollCineView.test.tsx` + `.branches` 共 110/110 通过（新增「measures scene layouts once per gesture burst」回归测试）
-- ⚠️ **单测全绿 ≠ 视觉验收通过**：scroll/drag 交互路径仍需独立 agent 在真实浏览器（`localhost:3000/#/scroll`）跑通完整手势后才算收口（见开发规则 4）
+- ⚠️ **单测全绿 ≠ 视觉验收通过**：scroll/drag 交互路径仍需独立 agent 在真实浏览器（`localhost:4000/#/`，见规则 4 的端口说明）跑通完整手势后才算收口（见开发规则 4）
 
 ### 2026-06-29 评审整改（已落地）
 
@@ -275,7 +277,7 @@ cineview/
 
 ## 下一步重点工作（按优先级）
 
-1. **scroll 真实浏览器验收**（最高优先级 / 未完成）：自动化全绿后，按 CLAUDE.md 规则 4 由独立 agent 在 `localhost:3000/#/scroll` 实测完整路径——正向锁定 `0→100%`、释放、反向重锁 `100%→0%`、键盘/scrollbar 同行为、大 flick 防跳过、多 zone 倒序重放。单测全绿 ≠ 视觉正确。
+1. **scroll 真实浏览器验收**（最高优先级 / 未完成）：自动化全绿后，按 CLAUDE.md 规则 4 由独立 agent 在 `localhost:4000/#/` 实测完整路径——正向锁定 `0→100%`、释放、反向重锁 `100%→0%`、键盘/scrollbar 同行为、大 flick 防跳过、多 zone 倒序重放。单测全绿 ≠ 视觉正确。
 
    **注**：本轮（2026-06-29 评审整改）的 scroll 运行时改动（`onReady` fire-once、scrollbar listener cleanup）虽有单测红证，仍计入此项待验收范围。
 

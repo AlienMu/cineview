@@ -13,9 +13,8 @@ import type {
 import {
   clamp,
   getDefaultValue,
-  getVariantValue,
-  lerp,
-  lerpTransformValue,
+  getVariantTerminalValue,
+  interpolateVariantValue,
   parseNumericValue,
   type AnimatableProperty,
   type VariantRecord,
@@ -45,6 +44,16 @@ interface UseAnimateScrollParams {
    *  visibility margins override these; both undefined → fall back to 50. */
   globalEnterMargin?: number;
   globalExitMargin?: number;
+  /** Manual enter/exit triggers (see `AnimateProps.enterRef` / `exitRef`).
+   *  Honoured on the visibility lane only — the scroll-takeover lane's progress
+   *  is a pure function of scrollTop and has no tween to trigger. */
+  enterRef?: MutableRefObject<(() => void) | null>;
+  exitRef?: MutableRefObject<(() => void) | null>;
+  /** An animation was authored but its variants have not parsed yet. The gate
+   *  must not start an enter attempt against the empty variant records — it
+   *  would tween through the DEFAULT frames and then swap mid-flight once the
+   *  real ones land. Hold the initial frame until the parse settles. */
+  variantsPending?: boolean;
 }
 
 interface UseAnimateScrollReturn {
@@ -148,6 +157,30 @@ function hasExitAnimation(
   );
 }
 
+function resolveScrollPropertyValue(
+  variants: {
+    enterInitial: VariantRecord;
+    enterAnimate: VariantRecord;
+    exitTarget: VariantRecord;
+  },
+  property: AnimatedProperty,
+  progress: number
+): number | string {
+  const entering = progress >= 0;
+  const record = entering ? variants.enterAnimate : variants.exitTarget;
+  return interpolateVariantValue(
+    getVariantTerminalValue(
+      entering ? variants.enterInitial : variants.enterAnimate,
+      property,
+      getDefaultValue(property, entering ? 'initial' : 'animate')
+    ),
+    record,
+    property,
+    getDefaultValue(property, entering ? 'animate' : 'exit'),
+    entering ? progress : Math.abs(progress)
+  );
+}
+
 function useMixedValue(
   visualMotion: MotionValue<number>,
   variantsRef: MutableRefObject<{
@@ -157,30 +190,9 @@ function useMixedValue(
   }>,
   property: AnimatedProperty
 ): MotionValue<number | string> {
-  return useTransform(visualMotion, (progress) => {
-    const variants = variantsRef.current;
-    const initialValue = getVariantValue(
-      variants.enterInitial,
-      property,
-      getDefaultValue(property, 'initial')
-    );
-    const animateValue = getVariantValue(
-      variants.enterAnimate,
-      property,
-      getDefaultValue(property, 'animate')
-    );
-    const exitValue = getVariantValue(
-      variants.exitTarget,
-      property,
-      getDefaultValue(property, 'exit')
-    );
-
-    if (progress >= 0) {
-      return lerpTransformValue(initialValue, animateValue, progress);
-    }
-
-    return lerpTransformValue(animateValue, exitValue, Math.abs(progress));
-  });
+  return useTransform(visualMotion, (progress) =>
+    resolveScrollPropertyValue(variantsRef.current, property, progress)
+  );
 }
 
 function useNumericValue(
@@ -193,26 +205,11 @@ function useNumericValue(
   property: AnimatedProperty
 ): MotionValue<number> {
   return useTransform(visualMotion, (progress) => {
-    const variants = variantsRef.current;
     const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
-    const initialValue = parseNumericValue(
-      getVariantValue(variants.enterInitial, property, getDefaultValue(property, 'initial')),
+    return parseNumericValue(
+      resolveScrollPropertyValue(variantsRef.current, property, progress),
       fallback
     );
-    const animateValue = parseNumericValue(
-      getVariantValue(variants.enterAnimate, property, getDefaultValue(property, 'animate')),
-      fallback
-    );
-    const exitValue = parseNumericValue(
-      getVariantValue(variants.exitTarget, property, getDefaultValue(property, 'exit')),
-      fallback
-    );
-
-    if (progress >= 0) {
-      return lerp(initialValue, animateValue, progress);
-    }
-
-    return lerp(animateValue, exitValue, Math.abs(progress));
   });
 }
 
@@ -230,6 +227,9 @@ export function useAnimateScroll({
   visibility,
   globalEnterMargin,
   globalExitMargin,
+  enterRef,
+  exitRef,
+  variantsPending = false,
 }: UseAnimateScrollParams): UseAnimateScrollReturn {
   const enterDuration = duration.enter;
   const exitDuration = duration.exit;
@@ -326,6 +326,30 @@ export function useAnimateScroll({
   // that recovery an initialization event rather than a permanent gate, so
   // later measurements can still drive exit/re-entry and infinite lifecycle.
   const staticFallbackAppliedRef = useRef(false);
+
+  // ── Manual control: enterRef / exitRef ─────────────────────────────────────
+  //
+  // Only the VISIBILITY lane can honour a manual trigger. On the scroll-takeover
+  // lane visualMotion is a pure function of the zone's progressPx (single owner =
+  // scroll position, CLAUDE.md rule 2), so a manual write would be overwritten on
+  // the next scroll frame; Animate.tsx reports that misuse instead of pretending
+  // it works.
+  //
+  // `waitFor` / `delay` double as the opt-in FALLBACK switch:
+  //   enterRef + (waitFor|delay)  → the gate may still fire on its own after the
+  //                                 wait (fallback), and a manual call preempts it.
+  //   enterRef + neither          → the element holds at its initial frame forever
+  //                                 until the consumer calls enterRef.current().
+  // exitRef always disables the automatic exit gate: passing it means "I own when
+  // this leaves", and there is no "auto-exit after a timeout" semantic to fall back on.
+  const hasManualEnter = Boolean(enterRef) && !isScrollDriven;
+  const hasManualExit = Boolean(exitRef) && !isScrollDriven;
+  const enterFallbackAuthored = Boolean(waitFor) || delay > 0;
+  const autoEnterSuppressed = hasManualEnter && !enterFallbackAuthored;
+  const autoExitSuppressed = hasManualExit;
+  // Manual ownership is sticky: once the consumer has driven the enter, the gate
+  // never re-fires it on its own (an auto replay would fight the owner).
+  const manualEnterUsedRef = useRef(false);
 
   const publishEnterCompleted = useCallback(
     (lease: SceneAnimationRegistrationLease | null): void => {
@@ -481,6 +505,14 @@ export function useAnimateScroll({
         return;
       }
 
+      // Authored-but-unparsed: hold the initial frame and run no gate logic. The
+      // element is already in the DOM (same shape as post-parse, see the FOUC
+      // guard in Animate.tsx), but starting an enter attempt now would tween the
+      // empty variant defaults and swap targets mid-flight when the parse lands.
+      if (variantsPending) {
+        return;
+      }
+
       const hostElement = hostRef.current;
       if (!(hostElement instanceof HTMLElement)) {
         return;
@@ -517,7 +549,10 @@ export function useAnimateScroll({
       const applyStaticFallback =
         firstSceneReady === false &&
         firstSceneActive === false &&
-        !staticFallbackAppliedRef.current;
+        !staticFallbackAppliedRef.current &&
+        // A consumer-owned enter must not be revealed by the cold-start timeout
+        // recovery either — "never show it until I say so" includes this path.
+        !autoEnterSuppressed;
       if (applyStaticFallback) {
         staticFallbackAppliedRef.current = true;
         initializedRef.current = true;
@@ -594,6 +629,13 @@ export function useAnimateScroll({
       // measure brings it back on-screen.
       if (!initializedRef.current) {
         initializedRef.current = true;
+        // Consumer-owned enter with no authored fallback: hold the initial frame
+        // on the first measurement too. Neither the above-top terminal reveal nor
+        // the first-screen cold-start bypass may show it before enterRef fires.
+        if (autoEnterSuppressed) {
+          setShouldRunInfiniteState(false);
+          return;
+        }
         if (aboveTop) {
           stopTween();
           visualMotion.set(1);
@@ -645,10 +687,12 @@ export function useAnimateScroll({
           hasExplicitExit,
           replayOnReenter,
         });
-        if (action === 'enter') {
+        // Manual ownership wins over the gate: a suppressed lane never auto-fires,
+        // and a lane the consumer has already driven never auto-replays.
+        if (action === 'enter' && !autoEnterSuppressed && !manualEnterUsedRef.current) {
           beginEnterAttempt();
           advanceEnterAttempt();
-        } else if (action === 'exit') {
+        } else if (action === 'exit' && !autoExitSuppressed) {
           runExitTween();
         }
       }
@@ -664,6 +708,8 @@ export function useAnimateScroll({
     },
     [
       advanceEnterAttempt,
+      autoEnterSuppressed,
+      autoExitSuppressed,
       beginEnterAttempt,
       clearPendingEnter,
       enterMarginPx,
@@ -678,10 +724,46 @@ export function useAnimateScroll({
       sceneContext?.firstSceneEnterReady,
       setPhase,
       stopTween,
+      variantsPending,
       visualMotion,
     ]
   );
   runVisibilityUpdateRef.current = runVisibilityUpdate;
+
+  // Manual triggers. Both preempt whatever is in flight: `runEnterTween` clears a
+  // pending waitFor/delay attempt before starting, and a fresh `animate()` on the
+  // same MotionValue supersedes a running tween (the token bump makes the stale
+  // onComplete a no-op). "Interrupt" therefore means "drop the rest of this
+  // timeline and play now" — never "restart the wait".
+  const triggerManualEnter = useCallback((): void => {
+    manualEnterUsedRef.current = true;
+    // Both flags are initialization bookkeeping: taking manual ownership counts as
+    // having initialized, so a later measurement cannot re-run the first-measure
+    // reveal on top of the consumer's frame.
+    initializedRef.current = true;
+    staticFallbackAppliedRef.current = true;
+    runEnterTween();
+  }, [runEnterTween]);
+
+  const triggerManualExit = useCallback((): void => {
+    runExitTween();
+  }, [runExitTween]);
+
+  useEffect(() => {
+    if (!enterRef || isScrollDriven) return;
+    enterRef.current = triggerManualEnter;
+    return () => {
+      if (enterRef.current === triggerManualEnter) enterRef.current = null;
+    };
+  }, [enterRef, isScrollDriven, triggerManualEnter]);
+
+  useEffect(() => {
+    if (!exitRef || isScrollDriven) return;
+    exitRef.current = triggerManualExit;
+    return () => {
+      if (exitRef.current === triggerManualExit) exitRef.current = null;
+    };
+  }, [exitRef, isScrollDriven, triggerManualExit]);
 
   // Register once per authored timing configuration. The returned lease owns
   // completion, dependency observation and disposal for this exact generation.
@@ -728,6 +810,11 @@ export function useAnimateScroll({
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    // Do not adopt the host (and therefore do not subscribe to scroll
+    // measurement) until the authored variants have parsed. The FOUC guard mounts
+    // the element early so the DOM shape never changes, but the gate machine must
+    // still start at the same point in the lifecycle it always did.
+    if (variantsPending) return;
     if (hostRef.current?.isConnected) return;
 
     const element =
@@ -739,7 +826,7 @@ export function useAnimateScroll({
         setHostVersion((version) => version + 1);
       }
     }
-  }, [componentId, enterVariant, exitVariant]);
+  }, [componentId, enterVariant, exitVariant, variantsPending]);
 
   useEffect(() => {
     if (

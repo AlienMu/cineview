@@ -71,16 +71,16 @@ export const en: Dict = {
   'cap.shot1.preset.blur.desc': 'From blur to sharp, like a lens finding focus.',
   'cap.shot1.preset.blur.code': '<Animate enterAnimation="blur-in" />',
 
-  'cap.shot2.slate': 'DECLARATIVE TIMELINE',
-  'cap.shot2.title': 'Declarative timeline|order & position, resolved',
-  'cap.shot2.panel.chain.label': 'waitFor',
-  'cap.shot2.panel.chain.code': '<Animate timeline={{ waitFor: "title", delay: 160 }} />',
-  'cap.shot2.panel.stagger.label': 'stagger',
-  'cap.shot2.panel.stagger.code': '<Animate stagger={{ each: 80 }} />',
-  'cap.shot2.panel.position.label': 'Position',
-  'cap.shot2.panel.position.code': '<Position at={{ x: 480, y: 220 }} />',
-  'cap.shot2.summary':
-    'Declare order with waitFor, offset with stagger, coordinates with Position — you describe when, in what sequence, and where; the framework resolves the real scroll distance and landing, reversible on the way back.',
+  // ── Act 3 Dolly in ──
+  'cap.shot3.slate': 'DOLLY IN · DECLARATIVE TIMELINE',
+  'cap.shot3.card.chain.label': 'Chained order',
+  'cap.shot3.card.stagger.label': 'Staggered cascade',
+  'cap.shot3.card.position.label': 'One-ruler placement',
+  'cap.shot3.card.container.label': 'Box conversion',
+  'cap.shot3.card.scrub.label': 'Scroll takeover',
+  'cap.shot3.card.image.label': 'Asset preloading',
+  'cap.shot3.title': 'Time flows with scroll, scenes move with the story',
+  'cap.shot3.summary': 'Every element shares one timeline — entering, blooming, and leaving.',
 
   // ── Act 3 Engines ──
   'engines.eyebrow': 'Two engines',
@@ -117,14 +117,15 @@ export const en: Dict = {
   'demoDrag.s4.title': '40+ animation presets',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur, freely composed',
 
-  // ── Standalone mobile Drag · first cut ──
-  'drag.shot': '01 / FIRST CUT',
-  'drag.eyebrow': 'MOBILE · DRAG PAGING',
-  'drag.title': 'CineView',
-  'drag.sub': 'Cinematic storytelling, within reach',
-  'drag.hint': 'Press and drag up or down',
-  'drag.footer': 'After release, time keeps finishing',
-  'drag.target': 'Next cut, waiting in the wings',
+  // ── Homepage act 5 · Cinema Entrance ──
+  /* Title + subtitle (rewritten 2026-08-09, direction A: call out the two-mode
+     simultaneity). The scene's plain fact: this page IS scroll mode while the
+     phone runs drag mode — the reader is watching both modes of one framework
+     at once. See the zh copy for the full rationale. */
+  'scene5.title': 'Two modes, one system',
+  'scene5.subtitle':
+    'Drag it in the phone; scroll it on this page.\nSame timeline, same animation grammar.',
+  'scene5.frameTitle': 'CineView drag experience',
 
   // ── Act 5 Capabilities ──
   'caps.eyebrow': 'Capabilities',

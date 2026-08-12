@@ -9,7 +9,7 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { CineView } from '../../components/CineView/CineView';
+import { CineView } from '../../components/CineView/CineViewDispatch';
 import { Scene } from '../../components/Scene/Scene';
 import { Animate } from '../../components/Animate/Animate';
 

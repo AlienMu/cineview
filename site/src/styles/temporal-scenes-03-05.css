@@ -83,7 +83,9 @@
   overflow: hidden;
 }
 
-.drag-temporal .s03-preview__surface > video {
+.drag-temporal .s03-preview__surface > video,
+.drag-temporal .s03-preview__surface > [data-cineview-animate-id='s03-preview-media'],
+.drag-temporal .s03-preview__surface > [data-cineview-animate-id='s03-preview-media'] > video {
   display: block;
   width: 100%;
   height: 100%;
@@ -107,16 +109,13 @@
 .drag-temporal .s03-preview__subtitles > span {
   grid-area: 1 / 1;
   max-width: min(82vw, 760px);
-  padding: 0.38em 0.72em 0.34em;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(4, 5, 7, 0.68);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
-  color: #f4f1ea;
+  color: #fff;
   font-family: var(--tp-font-mono);
   font-size: clamp(16px, 4.4cqw, 34px);
   line-height: 1;
   letter-spacing: 0.08em;
   text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
   opacity: 0;
 }
 
@@ -302,7 +301,6 @@
   background: rgba(177, 189, 202, 0.12);
 }
 
-/* Act3Media writes exactly one active clip index; static overlays avoid a second clock. */
 .drag-temporal .s03-clip__select {
   position: absolute;
   inset: 0;
@@ -315,14 +313,7 @@
     0 0 0 1px rgba(240, 198, 126, 0.42),
     0 0 16px rgba(216, 162, 74, 0.34),
     inset 0 0 12px rgba(232, 183, 102, 0.16);
-  opacity: 0;
   pointer-events: none;
-}
-
-.drag-temporal .s03-cut-stage[data-active-selection='0'] [data-s03-clip-selection='0'],
-.drag-temporal .s03-cut-stage[data-active-selection='1'] [data-s03-clip-selection='1'],
-.drag-temporal .s03-cut-stage[data-active-selection='2'] [data-s03-clip-selection='2'] {
-  opacity: 1;
 }
 
 /* The grab handles on the selected block's two edges. Inside the clip's own `overflow:
@@ -652,9 +643,7 @@
   isolation: isolate;
 }
 
-/* Stacking inside the clock: eclipse disc/arc at the bottom, the iris above it, digits on
- * top. The shutter sits in front of the sun and the timecode is the instrument reading it,
- * so the iris must not cover the readout.
+/* Stacking inside the clock: eclipse disc/arc at the bottom and the iris above it.
  *
  * The z 2 rule is CORRECTNESS, not cosmetics: `.s04-eclipse__disc` is a 94%-opaque near-black
  * circle covering exactly the barrel area, and the ring's own lane is z 1 — a lane left at
@@ -668,10 +657,6 @@
 
 .drag-temporal .s04-clock > [data-cineview-animate-id='s04-aperture'] {
   z-index: 2;
-}
-
-.drag-temporal .s04-clock > [data-cineview-animate-id='s04-main-timecode'] {
-  z-index: 3;
 }
 
 /* The eclipse itself. `.s04-halo*` (wash / core / breath / orbit / progress-arc) is gone:
@@ -753,25 +738,29 @@
   translate: -50% -50%;
 }
 
-/* The limb: the hot inner edge that lights up as totality approaches. Its `opacity` and
- * `transform` are written INLINE per frame by EclipseGraphic (from one MotionValue), so
- * neither is authored here — only the geometry and the light. A ring, not a disc: the glow
- * blooms OUTWARD from the arc and leaves the interior clean for the timecode. */
-.drag-temporal .s04-eclipse__limb {
+/* The limb: the hot inner edge that lights up as totality approaches. The framework lane
+ * owns opacity and scale; this holder owns the exact ring geometry the old inline transform
+ * acted on. A ring, not a disc: the glow blooms outward and leaves the readout clean. */
+.drag-temporal .s04-eclipse > [data-cineview-animate-id='s04-eclipse-limb'] {
   position: absolute;
   top: 50%;
   left: 50%;
-  display: block;
   width: 73%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+
+.drag-temporal .s04-eclipse__limb {
+  display: block;
+  width: 100%;
   aspect-ratio: 1;
   border: 1px solid rgba(188, 219, 255, 0.58);
   border-radius: 50%;
   box-shadow:
     0 0 24px 3px rgba(75, 151, 255, 0.36),
     0 0 52px 10px rgba(107, 83, 200, 0.14);
-  translate: -50% -50%;
-  transform-origin: center;
-  will-change: opacity, transform;
 }
 
 .drag-temporal .s04-eclipse__arc-svg {
@@ -954,6 +943,12 @@
   transform-origin: 50% 100%;
 }
 
+.drag-temporal .s05-stage > [data-cineview-animate-id='s05-copy-exit'] {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
 /* Additive light, and therefore UNCLIPPED (§8.4). The wedge shape comes from a conic MASK
  * whose transparent→opaque ramp spans 20 degrees on each side — a soft boundary by
  * construction, so there is no edge to render as a bright line when the layer is scaled. */
@@ -1089,13 +1084,9 @@
   margin: 0;
 }
 
-/* The credits' two nested lanes (outer travel, inner fade) both render a holder. Neither
- * animates a percentage, so no inset is required — but the pair must stay in the grid's
- * flow, which `display: contents` would break by promoting the <p> to a grid item with the
- * wrong row. Left as plain boxes deliberately. */
 .drag-temporal .s05-credits {
   display: grid;
-  gap: clamp(3px, 0.8cqw, 5px);
+  gap: clamp(9px, 2.4cqw, 14px);
   width: min(82vw, 620px);
   max-width: 100%;
 }
@@ -1144,7 +1135,7 @@
   }
 
   .drag-temporal .s05-credits {
-    gap: 4px;
+    gap: 8px;
     margin-top: 5px;
   }
 

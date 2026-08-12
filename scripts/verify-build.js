@@ -17,7 +17,43 @@ const DIST_DIR = path.join(__dirname, '../dist');
 const PACKAGE_JSON = path.join(__dirname, '../package.json');
 const MINIFY_SCRIPT =
   process.env.CINEVIEW_MINIFY_SCRIPT || path.join(__dirname, 'minify-library-entries.mjs');
-const MAX_BUNDLE_SIZE_KB = Number(process.env.CINEVIEW_MAX_BUNDLE_SIZE_KB || 50); // 主包最大 gzip 大小 (KB)
+// 兜底预算：仅当产物清单里没给该产物单独的 budgetKB 时使用。
+const MAX_BUNDLE_SIZE_KB = Number(process.env.CINEVIEW_MAX_BUNDLE_SIZE_KB || 50);
+
+/**
+ * 产物清单 —— 由 `scripts/build-all.mjs` 写出 `dist/artifacts.json`。
+ *
+ * 门必须从清单**派生**，不能手写文件名：手写与实际产物集失同步的后果是静默的。
+ * 本轮实测踩过：压缩清单写 3 个、构建实际出 5 个，漏掉的 2 个既没过 terser 也没被
+ * 量过，其中一个 47398 字节、距门仅 3.7 KB 却无人看守。
+ * 读不到清单即判失败：缺清单意味着无从得知该看守哪些产物。
+ */
+function readArtifactManifest() {
+  const manifestPath = path.join(DIST_DIR, 'artifacts.json');
+  if (!fs.existsSync(manifestPath)) {
+    log(
+      '  ✗ 错误: dist/artifacts.json 不存在 —— 无从得知该看守哪些产物（请先跑 scripts/build-all.mjs）',
+      'red'
+    );
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (!Array.isArray(parsed.artifacts) || parsed.artifacts.length === 0) {
+      log('  ✗ 错误: dist/artifacts.json 内容无效（artifacts 为空）', 'red');
+      return null;
+    }
+    return parsed.artifacts.map((a) => ({
+      file: a.file,
+      module: Boolean(a.module),
+      label: a.label || a.file,
+      budgetKB: Number(a.budgetKB) || MAX_BUNDLE_SIZE_KB,
+    }));
+  } catch (error) {
+    log(`  ✗ 错误: dist/artifacts.json 解析失败: ${error.message}`, 'red');
+    return null;
+  }
+}
 
 // ANSI 颜色代码
 const colors = {
@@ -91,14 +127,18 @@ function checkMinifierStrategy() {
   log('\n11. 检查入口压缩策略:', 'yellow');
   try {
     const source = fs.readFileSync(MINIFY_SCRIPT, 'utf8');
-    const coversBothEntries =
-      source.includes("fileName: 'cineview.es.mjs'") &&
-      source.includes("fileName: 'cineview.umd.js'");
+    // 压缩清单必须从 `dist/artifacts.json` **派生**，而不是手写文件名 ——
+    // 手写与实际产物集失同步时，漏掉的产物会以未压缩状态发布且无人察觉（本轮踩过）。
+    // 故这里检查的不再是「列了哪几个名字」，而是「是否从清单派生」。
+    const derivesFromManifest =
+      source.includes('artifacts.json') && /\.artifacts\s*\.\s*map|artifacts\.map/.test(source);
     const identifierOnly =
       /mangle\s*:\s*\{[^}]*toplevel\s*:\s*true[^}]*\}/s.test(source) &&
       !/\bproperties\s*:/.test(source);
-    if (!coversBothEntries || !identifierOnly) {
-      throw new Error('minifier must cover ESM/UMD and must not enable property mangling');
+    if (!derivesFromManifest || !identifierOnly) {
+      throw new Error(
+        'minifier must derive its entry list from dist/artifacts.json and must not enable property mangling'
+      );
     }
     log('  ✓ ESM/UMD 仅压缩标识符，公开对象属性保持稳定', 'green');
     return true;
@@ -118,13 +158,32 @@ function checkPackageExports() {
       import: './dist/cineview.es.mjs',
       require: './dist/cineview.umd.js',
     };
+    // root 的两种格式**能力必须一致**：`import` 与 `require` 都指向全量（按 mode 派发）
+    // 产物。曾让 root `require` 指向仅拖拽的产物，导致 CJS 传 `mode="scroll"` 抛错而
+    // ESM 正常，且两者共用 `index.d.ts`（含 scroll 分支）⇒ TS 放行、运行时崩。
+    //
+    // 按模式的子路径**只有 `require`**（无 `import` 条件）：子路径存在的唯一理由是
+    // UMD 不能代码拆分，ESM 消费者从 root 拿全量即可。故此处显式断言
+    // `import === undefined` —— 若哪天给子路径补了 `import`，必须同时补真实的 ES 产物，
+    // 这个断言会把「指向不存在的文件」挡下来。
+    const dragExport = pkg.exports && pkg.exports['./drag'];
+    const scrollExport = pkg.exports && pkg.exports['./scroll'];
+    const subpathsOk =
+      dragExport?.types === './dist/entry-drag.d.ts' &&
+      dragExport?.import === undefined &&
+      dragExport?.require === './dist/cineview-drag.umd.js' &&
+      scrollExport?.types === './dist/entry-scroll.d.ts' &&
+      scrollExport?.import === undefined &&
+      scrollExport?.require === './dist/cineview-scroll.umd.js';
+
     const passed =
       pkg.types === 'dist/index.d.ts' &&
       pkg.module === 'dist/cineview.es.mjs' &&
       pkg.main === 'dist/cineview.umd.js' &&
       rootExport?.types === expected.types &&
       rootExport?.import === expected.import &&
-      rootExport?.require === expected.require;
+      rootExport?.require === expected.require &&
+      subpathsOk;
 
     if (passed) {
       log('  ✓ package exports/main/module/types 与 dist 产物一致', 'green');
@@ -167,6 +226,29 @@ async function checkConsumerSmoke() {
     passed = false;
   }
 
+  // 按模式的产物也必须逐个 smoke。只测全量入口的话，某个单引擎产物坏了
+  // （比如 public-api 的某个导出在那条链上缺失）不会被发现 —— 而它们是
+  // 独立的发布产物，消费者会直接加载。
+  const modeArtifacts = [
+    { file: 'cineview-drag.umd.js', label: "require('cineview/drag')", esm: false },
+    { file: 'cineview-scroll.umd.js', label: "require('cineview/scroll')", esm: false },
+  ];
+  for (const { file, label, esm: isEsm } of modeArtifacts) {
+    try {
+      const mod = isEsm
+        ? await import(pathToFileURL(path.join(DIST_DIR, file)).href)
+        : require(path.join(DIST_DIR, file));
+      if (!hasPublicApiShape(mod)) {
+        throw new Error(`${file} export shape missing public components`);
+      }
+      assertAnimateVideoMarkup(mod, file);
+      log(`  ✓ ${label} 可消费，AnimateVideo 属性语义完整`, 'green');
+    } catch (error) {
+      log(`  ✗ ${label} smoke 失败: ${error.message}`, 'red');
+      passed = false;
+    }
+  }
+
   return passed;
 }
 
@@ -180,7 +262,9 @@ function checkPeerExternalizationAndSourceMaps() {
       (dependency) =>
         viteConfig.includes(`'${dependency}'`) || viteConfig.includes(`"${dependency}"`)
     );
-    const sourceMapTargets = ['cineview.es.mjs', 'cineview.umd.js'];
+    // 每个入口产物的 source map 都要能回溯到 src。清单派生，不手写 ——
+    // 漏检某个产物，它的 map 坏了也不会被发现。
+    const sourceMapTargets = (readArtifactManifest() ?? []).map((a) => a.file);
     const sourceMaps = sourceMapTargets.map((fileName) => {
       const mapPath = path.join(DIST_DIR, `${fileName}.map`);
       if (!fs.existsSync(mapPath)) return false;
@@ -258,35 +342,71 @@ async function main() {
 
   let hasErrors = false;
 
+  // 0. 产物清单：门的看守范围由它决定，缺失即失败（详见 readArtifactManifest 注释）
+  log('0. 读取产物清单:', 'yellow');
+  const manifestArtifacts = readArtifactManifest();
+  if (!manifestArtifacts) {
+    hasErrors = true;
+  } else {
+    log(`  ✓ dist/artifacts.json：${manifestArtifacts.length} 个产物纳入看守`, 'green');
+  }
+  const artifacts = manifestArtifacts ?? [];
+
   // 1. 检查 ES 模块
-  log('1. 检查 ES 模块输出:', 'yellow');
+  log('\n1. 检查 ES 模块输出:', 'yellow');
   const esModule = checkFile('cineview.es.mjs', 'ES 模块');
   const esModuleGz = checkFile('cineview.es.mjs.gz', 'ES 模块 (gzipped)');
+  const esBudgetKB =
+    artifacts.find((a) => a.file === 'cineview.es.mjs')?.budgetKB ?? MAX_BUNDLE_SIZE_KB;
 
-  if (esModuleGz.exists && esModuleGz.size > MAX_BUNDLE_SIZE_KB) {
-    log(
-      `  ✗ 错误: ES 模块 gzip 大小 (${esModuleGz.size} KB) 超过目标 (${MAX_BUNDLE_SIZE_KB} KB)`,
-      'red'
-    );
+  if (esModuleGz.exists && esModuleGz.size > esBudgetKB) {
+    log(`  ✗ 错误: ES 模块 gzip 大小 (${esModuleGz.size} KB) 超过预算 (${esBudgetKB} KB)`, 'red');
     hasErrors = true;
   }
 
-  // 2. 检查 UMD 模块
-  log('\n2. 检查 UMD 模块输出:', 'yellow');
-  const umdModule = checkFile('cineview.umd.js', 'UMD 模块');
-  const umdModuleGz = checkFile('cineview.umd.js.gz', 'UMD 模块 (gzipped)');
+  // 2. 检查 UMD 模块（按模式分包）
+  //
+  // ⚠️ 清单里的每个 UMD 产物都必须量，且用**各自的**预算。UMD 是单文件格式
+  // （Rollup 拒绝 UMD + code-splitting），而 `mode` 是运行时 prop，所以**全量** UMD
+  // 必然内联两套引擎（实测 51536 字节），结构上不可能塞进 50 KB —— 故它在清单里
+  // 单独领 55 KB，而按模式的单引擎产物仍受 50 KB 约束。
+  // 漏看任何一个，那个产物就是无人看守的包，下次涨破没人知道。
+  log('\n2. 检查 UMD 模块输出（按模式分包）:', 'yellow');
+  const umdArtifacts = artifacts
+    .filter((a) => !a.module)
+    .map((a) => ({ file: a.file, label: a.label, budgetKB: a.budgetKB }));
+  const umdChecked = umdArtifacts.map(({ file, label, budgetKB }) => {
+    const mod = checkFile(file, label);
+    const gz = checkFile(`${file}.gz`, `${label} (gzipped)`);
+    // 缺文件本身就是失败。只在 exists 为真时比大小的话，产物整个没生成会**静默通过**
+    // （跳过比较 → 不置位 hasErrors），等于这个包无人看守。
+    if (!mod.exists || !gz.exists) {
+      log(`  ✗ 错误: ${label} 产物缺失（${!mod.exists ? file : `${file}.gz`}）`, 'red');
+      hasErrors = true;
+    } else if (gz.size > budgetKB) {
+      log(`  ✗ 错误: ${label} gzip 大小 (${gz.size} KB) 超过预算 (${budgetKB} KB)`, 'red');
+      hasErrors = true;
+    }
+    return { file, label, budgetKB, mod, gz };
+  });
+  const umdModule = umdChecked[0].mod;
+  const umdModuleGz = umdChecked[0].gz;
+  // 总结行要覆盖**每个** UMD 产物，不能只报第一个的数字。
+  const umdSummaryRows = umdChecked.map(({ label, mod, gz, budgetKB }) => ({
+    name: `${label}${gz.exists ? ` — ${gz.size} / ${budgetKB} KB` : ''}`,
+    passed: mod.exists && gz.exists && gz.size <= budgetKB,
+  }));
 
-  if (umdModuleGz.exists && umdModuleGz.size > MAX_BUNDLE_SIZE_KB) {
-    log(
-      `  ✗ 错误: UMD 模块 gzip 大小 (${umdModuleGz.size} KB) 超过目标 (${MAX_BUNDLE_SIZE_KB} KB)`,
-      'red'
-    );
-    hasErrors = true;
-  }
-
-  // 3. 检查 TypeScript 类型定义
+  // 3. 检查 TypeScript 类型定义（含两个子路径入口的类型）
   log('\n3. 检查 TypeScript 类型定义:', 'yellow');
   const typesDef = checkFile('index.d.ts', 'TypeScript 类型定义');
+  // 子路径类型由 scripts/build-all.mjs 生成；package.json 的 exports 指向它们，
+  // 缺文件会让 TS 消费者 `import "cineview/drag"` 直接解析失败。
+  const dragTypes = checkFile('entry-drag.d.ts', '子路径类型 (cineview/drag)');
+  const scrollTypes = checkFile('entry-scroll.d.ts', '子路径类型 (cineview/scroll)');
+  if (!dragTypes.exists || !scrollTypes.exists) {
+    hasErrors = true;
+  }
 
   // 4. 检查代码分割 - 动画预设
   log('\n4. 检查代码分割 (动画预设):', 'yellow');
@@ -305,7 +425,14 @@ async function main() {
   ];
 
   const files = fs.readdirSync(DIST_DIR);
-  const chunkFiles = files.filter((file) => file.endsWith('.mjs') && file !== 'cineview.es.mjs');
+  // 三个 ES **入口产物**都要排除，否则按模式的入口会被当成代码分割 chunk 计数
+  // （数量虚高，且可能误判某个 preset「有 chunk」）。
+  const esEntryArtifacts = new Set([
+    'cineview.es.mjs',
+    'cineview-drag.es.mjs',
+    'cineview-scroll.es.mjs',
+  ]);
+  const chunkFiles = files.filter((file) => file.endsWith('.mjs') && !esEntryArtifacts.has(file));
 
   log(`  找到 ${chunkFiles.length} 个代码分割 chunk:`);
   chunkFiles.forEach((file) => {
@@ -365,9 +492,10 @@ async function main() {
   const checks = [
     { name: 'ES 模块', passed: esModule.exists },
     { name: 'ES 模块 (gzipped)', passed: esModuleGz.exists },
-    { name: 'UMD 模块', passed: umdModule.exists },
-    { name: 'UMD 模块 (gzipped)', passed: umdModuleGz.exists },
+    // 逐个 UMD 产物各占一行（含各自 gzip 尺寸），避免「只报第一个」掩盖另一个的问题。
+    ...umdSummaryRows,
     { name: 'TypeScript 类型定义', passed: typesDef.exists },
+    { name: '子路径类型 (drag/scroll)', passed: dragTypes.exists && scrollTypes.exists },
     { name: '代码分割', passed: chunkFiles.length > 0 },
     { name: 'Gzip 压缩', passed: gzFiles.length > 0 },
     { name: 'Bundle 分析报告', passed: fs.existsSync(statsFile) },
@@ -393,7 +521,10 @@ async function main() {
   }
 
   if (umdModuleGz.exists) {
-    log(`UMD 模块 gzip 大小: ${umdModuleGz.size} KB (目标: < ${MAX_BUNDLE_SIZE_KB} KB)`, 'blue');
+    // 逐产物报各自预算（全量 UMD 结构上无法达到 50 KB，单独领 55 —— 见清单注释）
+    umdChecked.forEach(({ label, gz, budgetKB }) => {
+      if (gz.exists) log(`${label} gzip 大小: ${gz.size} KB (预算: ≤ ${budgetKB} KB)`, 'blue');
+    });
   }
 
   if (hasErrors || passedChecks < totalChecks) {

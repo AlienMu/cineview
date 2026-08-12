@@ -71,17 +71,9 @@ const THE_END_ENTER_MS = 1300;
 // 1800ms, which would silently re-couple the fade to the travel and undo the whole point.
 const CREDIT_FADE_MS = CREDIT_ENTER_MS * 0.5;
 
-// ── Exit: a reverse cascade, not a packed rollback ─────────────────────────
-// An enter cascade built from delays has no exit-side counterpart for free. The outgoing
-// lane ignores per-lane delay entirely — exit localProgress is
-// clamp(renderProgress * transitionDuration / exitDuration) — so if every lane shared one
-// exit budget the whole act would leave on a single frame («打包回滚») after having arrived
-// in sequence. Budget LENGTH is therefore the only available ordering knob: shorter leaves
-// sooner.
-//
-// Credits leave before THE END; both budgets stay within the 720ms scene transition.
-const CREDIT_EXIT_MS = 360;
-const THE_END_EXIT_MS = 700;
+// One exit owner keeps every credit and THE END on the same fade. The beam's shorter 560ms
+// budget extinguishes first; copy remains legible for the final portion of the 700ms exit.
+const COPY_EXIT_MS = 700;
 
 export const SceneCut = memo(function SceneCut(): JSX.Element {
   const timing = useTemporalMotion();
@@ -91,61 +83,61 @@ export const SceneCut = memo(function SceneCut(): JSX.Element {
     <div className="tp-scene__inner s05-scene">
       <main className="s05-stage">
         <ProjectorBeam />
-        <section className="s05-curtain-call" aria-label={t('dragTemporal.s05.creditsLabel')}>
-          <div className="s05-credits">
-            {CREDITS.map(([role, capability], index) => (
-              <Animate
-                key={role}
-                // OUTER lane: the full-length rise. Explicit opacity 1 on both ends hands
-                // the fade entirely to the nested short lane.
-                animateId={`s05-credit-${index}`}
-                enterAnimation={{
-                  initial: { opacity: 1, y: 80 },
-                  animate: { opacity: 1, y: 0 },
-                }}
-                exitAnimation={{ exit: { opacity: 0, y: -32 } }}
-                duration={{
-                  enter: timing.duration(CREDIT_ENTER_MS),
-                  exit: timing.duration(CREDIT_EXIT_MS),
-                }}
-                timeline={{
-                  delay: timing.delay(CREDIT_START_MS + index * CREDIT_EACH_MS),
-                }}
-              >
+        <Animate
+          animateId="s05-copy-exit"
+          enterAnimation={{ initial: { opacity: 1 }, animate: { opacity: 1 } }}
+          exitAnimation={{ exit: { opacity: 0 } }}
+          duration={{ enter: timing.duration(1), exit: timing.duration(COPY_EXIT_MS) }}
+          timeline={{ delay: timing.delay(0) }}
+        >
+          <section className="s05-curtain-call" aria-label={t('dragTemporal.s05.creditsLabel')}>
+            <div className="s05-credits">
+              {CREDITS.map(([role, capability], index) => (
                 <Animate
-                  // INNER lane: the fast fade. No exitAnimation; the outer lane owns exit.
-                  animateId={`s05-credit-fade-${index}`}
-                  enterAnimation={{ initial: { opacity: 0 }, animate: { opacity: 1 } }}
-                  duration={{ enter: timing.duration(CREDIT_FADE_MS) }}
+                  key={role}
+                  // OUTER lane: the full-length rise. Explicit opacity 1 on both ends hands
+                  // the fade entirely to the nested short lane.
+                  animateId={`s05-credit-${index}`}
+                  enterAnimation={{
+                    initial: { opacity: 1, y: 80 },
+                    animate: { opacity: 1, y: 0 },
+                  }}
+                  duration={{ enter: timing.duration(CREDIT_ENTER_MS) }}
                   timeline={{
                     delay: timing.delay(CREDIT_START_MS + index * CREDIT_EACH_MS),
                   }}
                 >
-                  <p className="s05-credit">
-                    <span>{t(`dragTemporal.s05.${role}`)}</span>
-                    <strong>{t(`dragTemporal.s05.${capability}`)}</strong>
-                  </p>
+                  <Animate
+                    // INNER lane: the fast fade. The group owner above owns every exit.
+                    animateId={`s05-credit-fade-${index}`}
+                    enterAnimation={{ initial: { opacity: 0 }, animate: { opacity: 1 } }}
+                    duration={{ enter: timing.duration(CREDIT_FADE_MS) }}
+                    timeline={{
+                      delay: timing.delay(CREDIT_START_MS + index * CREDIT_EACH_MS),
+                    }}
+                  >
+                    <p className="s05-credit">
+                      <span>{t(`dragTemporal.s05.${role}`)}</span>
+                      <strong>{t(`dragTemporal.s05.${capability}`)}</strong>
+                    </p>
+                  </Animate>
                 </Animate>
-              </Animate>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <Animate
-            animateId="s05-the-end"
-            enterAnimation={{
-              initial: { opacity: 0, y: 18, scale: 0.96 },
-              animate: { opacity: 1, y: 0, scale: 1 },
-            }}
-            exitAnimation={{ exit: { opacity: 0, y: -18 } }}
-            duration={{
-              enter: timing.duration(THE_END_ENTER_MS),
-              exit: timing.duration(THE_END_EXIT_MS),
-            }}
-            timeline={{ delay: timing.delay(THE_END_START_MS) }}
-          >
-            <p className="s05-the-end">THE END</p>
-          </Animate>
-        </section>
+            <Animate
+              animateId="s05-the-end"
+              enterAnimation={{
+                initial: { opacity: 0, y: 18, scale: 0.96 },
+                animate: { opacity: 1, y: 0, scale: 1 },
+              }}
+              duration={{ enter: timing.duration(THE_END_ENTER_MS) }}
+              timeline={{ delay: timing.delay(THE_END_START_MS) }}
+            >
+              <p className="s05-the-end">THE END</p>
+            </Animate>
+          </section>
+        </Animate>
       </main>
     </div>
   );

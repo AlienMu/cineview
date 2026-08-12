@@ -29,6 +29,31 @@ export type AnimatableProperty =
 export type TransformValue = number | string;
 export type VariantRecord = Record<string, unknown>;
 
+function resolveKeyframeTimes(
+  record: VariantRecord,
+  property: AnimatableProperty,
+  length: number
+): readonly number[] | null {
+  const transition = record.transition as VariantRecord | undefined;
+  const propertyTransition = transition?.[property] as VariantRecord | undefined;
+  const times =
+    (propertyTransition && !Array.isArray(propertyTransition) ? propertyTransition.times : null) ??
+    transition?.times;
+  return Array.isArray(times) && times.length === length ? (times as number[]) : null;
+}
+
+function resolveKeyframeValue(
+  keyframes: readonly unknown[],
+  index: number,
+  fallback: TransformValue
+): TransformValue {
+  for (let cursor = index; cursor >= 0; cursor -= 1) {
+    const value = keyframes[cursor];
+    if (typeof value === 'number' || typeof value === 'string') return value;
+  }
+  return fallback;
+}
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -71,6 +96,53 @@ export function lerpTransformValue(
   }
 
   return progress >= 1 ? end : start;
+}
+
+/**
+ * Resolve one property from a Framer Motion variant record at a scrubbed local progress.
+ * Array targets are full keyframe sequences; scalar targets retain the existing from-to lerp.
+ */
+export function interpolateVariantValue(
+  from: TransformValue,
+  record: VariantRecord,
+  property: AnimatableProperty,
+  fallback: TransformValue,
+  progress: number
+): TransformValue {
+  const target = record[property] ?? fallback;
+  const clampedProgress = clamp(progress, 0, 1);
+  if (!Array.isArray(target)) {
+    return lerpTransformValue(from, target as TransformValue, clampedProgress);
+  }
+  if (target.length === 0) return from;
+  const times = resolveKeyframeTimes(record, property, target.length);
+  if (target.length === 1) return resolveKeyframeValue(target, 0, from);
+
+  if (clampedProgress <= (times?.[0] ?? 0)) return resolveKeyframeValue(target, 0, from);
+  for (let index = 1; index < target.length; index += 1) {
+    const segmentEnd = times?.[index] ?? index / (target.length - 1);
+    if (clampedProgress > segmentEnd) continue;
+    const segmentStart = times?.[index - 1] ?? (index - 1) / (target.length - 1);
+    const segmentLength = segmentEnd - segmentStart;
+    const segmentProgress =
+      segmentLength <= 0 ? 1 : (clampedProgress - segmentStart) / segmentLength;
+    return lerpTransformValue(
+      resolveKeyframeValue(target, index - 1, from),
+      resolveKeyframeValue(target, index, from),
+      segmentProgress
+    );
+  }
+  return resolveKeyframeValue(target, target.length - 1, from);
+}
+
+export function getVariantTerminalValue(
+  record: VariantRecord,
+  property: AnimatableProperty,
+  fallback: TransformValue
+): TransformValue {
+  const target = record[property] ?? fallback;
+  if (!Array.isArray(target)) return target as TransformValue;
+  return resolveKeyframeValue(target, target.length - 1, fallback);
 }
 
 export function parseNumericValue(value: unknown, fallback: number): number {

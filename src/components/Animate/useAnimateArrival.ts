@@ -20,6 +20,11 @@ interface UseAnimateArrivalParams {
   parseReady: boolean;
   delay: number;
   enterDuration: number;
+  /** Manual enter trigger (see `AnimateProps.enterRef`). `delay` is this lane's
+   *  fallback switch: with a delay authored the pass still self-starts after it,
+   *  with none the element holds at its initial frame until the consumer calls.
+   *  (`waitFor` is ignored on this lane by design, so it is not a fallback here.) */
+  enterRef?: MutableRefObject<(() => void) | null>;
 }
 
 interface UseAnimateArrivalReturn {
@@ -37,6 +42,8 @@ interface ArrivalPlaybackConfig {
   hasAuthoredEnterAnimation: boolean;
   parseReady: boolean;
   enterVariant: ParsedAnimationVariant | null;
+  /** True when enterRef was passed without a delay fallback: hold at initial. */
+  autoEnterSuppressed: boolean;
 }
 
 function useMixedValue(
@@ -89,17 +96,20 @@ export function useAnimateArrival({
   parseReady,
   delay,
   enterDuration,
+  enterRef,
 }: UseAnimateArrivalParams): UseAnimateArrivalReturn {
   const variantsRef = useRef({
     initial: {} as VariantRecord,
     animate: {} as VariantRecord,
   });
+  const autoEnterSuppressed = Boolean(enterRef) && delay <= 0;
   const latestConfigRef = useRef<ArrivalPlaybackConfig>({
     delay,
     enterDuration,
     hasAuthoredEnterAnimation,
     parseReady,
     enterVariant,
+    autoEnterSuppressed,
   });
   latestConfigRef.current = {
     delay,
@@ -107,6 +117,7 @@ export function useAnimateArrival({
     hasAuthoredEnterAnimation,
     parseReady,
     enterVariant,
+    autoEnterSuppressed,
   };
 
   const visualMotion = useMotionValue(hasAuthoredEnterAnimation ? 0 : 1);
@@ -117,6 +128,12 @@ export function useAnimateArrival({
   const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activePlaybackTokenRef = useRef(0);
   const pendingTokenRef = useRef(0);
+  // Manual control bookkeeping. `pendingManualStartRef` holds the current token's
+  // own startEnter closure so enterRef can run exactly that pass (same frozen
+  // variants, same ownership guard); `manualRequestedRef` covers the reverse race
+  // where the consumer calls before the Scene has minted its activation token.
+  const pendingManualStartRef = useRef<(() => void) | null>(null);
+  const manualRequestedRef = useRef(false);
   const mountedBeforeActivationRef = useRef((sceneContext?.activationToken ?? 0) === 0);
   const sceneContextRef = useRef(sceneContext);
   sceneContextRef.current = sceneContext;
@@ -135,6 +152,8 @@ export function useAnimateArrival({
     stopPlayback();
     activePlaybackTokenRef.current = 0;
     pendingTokenRef.current = 0;
+    pendingManualStartRef.current = null;
+    manualRequestedRef.current = false;
     setShouldRunInfinite(false);
     setStaticReveal(false);
     visualMotion.set(config.hasAuthoredEnterAnimation ? 0 : 1);
@@ -155,6 +174,7 @@ export function useAnimateArrival({
       pendingTokenRef.current = 0;
       activePlaybackTokenRef.current = token;
       stopPlayback();
+      pendingManualStartRef.current = null;
       setShouldRunInfinite(false);
       // Freeze this activation's parsed visual. Later prop/parse generations update
       // latestConfigRef for the next token but cannot mutate an in-flight pass.
@@ -221,6 +241,20 @@ export function useAnimateArrival({
       };
 
       const safeDelay = Math.max(config.delay, 0);
+      // Consumer-owned enter with no delay fallback: park at the initial frame and
+      // publish this pass's own starter. Nothing runs until enterRef fires — unless
+      // the consumer already called it before this token was minted, in which case
+      // honour that request now rather than dropping it.
+      if (config.autoEnterSuppressed) {
+        pendingManualStartRef.current = startEnter;
+        if (manualRequestedRef.current) {
+          manualRequestedRef.current = false;
+          pendingManualStartRef.current = null;
+          startEnter();
+        }
+        return;
+      }
+
       if (safeDelay > 0) {
         delayTimerRef.current = setTimeout(startEnter, safeDelay);
       } else {
@@ -261,6 +295,33 @@ export function useAnimateArrival({
     },
     [stopPlayback]
   );
+
+  // Manual enter. Dropping the pending delay timer and starting the frozen pass
+  // immediately is the whole contract: "interrupt" means play now, not re-wait.
+  const triggerManualEnter = useCallback((): void => {
+    const start = pendingManualStartRef.current;
+    if (!start) {
+      // No live pass to drive yet (Scene has not activated, or the pass already
+      // self-started). Remember the request so the next token honours it.
+      manualRequestedRef.current = true;
+      return;
+    }
+    pendingManualStartRef.current = null;
+    manualRequestedRef.current = false;
+    if (delayTimerRef.current !== null) {
+      clearTimeout(delayTimerRef.current);
+      delayTimerRef.current = null;
+    }
+    start();
+  }, []);
+
+  useEffect(() => {
+    if (!enterRef || !enabled) return;
+    enterRef.current = triggerManualEnter;
+    return () => {
+      if (enterRef.current === triggerManualEnter) enterRef.current = null;
+    };
+  }, [enabled, enterRef, triggerManualEnter]);
 
   const opacity = useNumericValue(visualMotion, variantsRef, 'opacity');
   const x = useMixedValue(visualMotion, variantsRef, 'x');

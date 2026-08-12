@@ -1,14 +1,16 @@
 import { Animate } from 'cineview';
 import { memo } from 'react';
-import { ApertureIris } from './aperture/ApertureIris';
-import { DragTimecode } from './DragTimecode';
+import { ACT4_IRIS_ENTER_MS, ACT4_IRIS_START_MS, ApertureIris } from './aperture/ApertureIris';
+import { DragTimecode, TIMECODE_EXIT_RESET_FRACTION } from './DragTimecode';
 import { ProgressRing } from './ProgressRing';
 import { TimeStreams } from './TimeStreams';
 import { useTemporalMotion } from './TemporalMotion';
 
-// 50 frames at the project's 25fps base is exactly 00:00:02:00 — the readout travels
-// 0 -> 2s on enter and 2s -> 0 on exit, driven only by the scene's own progress.
-const SPAN_FRAMES = 50;
+const ACT4_FRAMES_PER_SECOND = 25;
+const ACT4_TIMELINE_DURATION_MS = ACT4_IRIS_START_MS + ACT4_IRIS_ENTER_MS;
+const SPAN_FRAMES = Math.round((ACT4_TIMELINE_DURATION_MS / 1000) * ACT4_FRAMES_PER_SECOND);
+const TIMECODE_VISUAL_ENTER_MS = 1200;
+const TIMECODE_VISUAL_SETTLE = TIMECODE_VISUAL_ENTER_MS / ACT4_TIMELINE_DURATION_MS;
 
 /**
  * Act 04 — 日全食 (total eclipse).
@@ -20,7 +22,7 @@ const SPAN_FRAMES = 50;
  *
  * ── Lane budget (设计档 §4, all ABSOLUTE delays) ──────────────────────────────
  *   ring                0 + 1200      (ProgressRing.tsx)
- *   timecode            0 + 1200      (wrapper below; characters cascade inside it)
+ *   timecode clock      0 + 2200      (visual settle completes at 1200)
  *   streams (rise)      100 + 1400    (TimeStreams.tsx)
  *   SMPTE label         240 + 500
  *   aperture iris       1300 + 900    (aperture/ApertureIris.tsx — after the ring closes)
@@ -40,7 +42,7 @@ const SPAN_FRAMES = 50;
  * chain (act 05 measured an authored 950ms gap running as 299ms). Every lane here states
  * its own absolute offset instead.
  *
- * After 2200ms the iris's eight lit edges keep catching a travelling specular (its canvas runs
+ * After 2200ms the iris's nine lit edges keep catching a travelling specular (its canvas runs
  * that highlight on wall-clock elapsed, not on progress — the geometry itself is frozen once
  * the lane lands). That is this act's 防空等 coverage, inherited from the corona's wall-clock
  * drift: there is no frame where every lane has finished and nothing is moving.
@@ -53,13 +55,66 @@ export const SceneFlux = memo(function SceneFlux(): JSX.Element {
       <main className="s04-stage">
         <TimeStreams />
 
-        <section className="s04-center">
+        <div className="s04-caption">
+          <Animate
+            animateId="s04-main-timecode"
+            // Delay 0 and a 2200ms clock: the readout advances at the act's real authored
+            // rate. Keyframe times finish its visible scale/blur assembly at 1200ms, on the
+            // same frame as the ring and the last character, then hold that visual state
+            // while the numeric clock continues through the shutter's closing beat.
+            enterAnimation={{
+              initial: { opacity: 0, scale: 0.92, filter: 'blur(6px)' },
+              animate: {
+                opacity: [0, 1, 1],
+                scale: [0.92, 1, 1],
+                filter: ['blur(6px)', 'blur(0px)', 'blur(0px)'],
+                transition: { times: [0, TIMECODE_VISUAL_SETTLE, 1] },
+              },
+            }}
+            // The same framework lane owns both exit beats: DragTimecode projects the first
+            // 65% into a 2.2s -> 0 reset; this keyframe holds opacity at 1 for that interval,
+            // then fades during the final 35%. No site-owned opacity writer or second clock.
+            exitAnimation={{
+              exit: {
+                opacity: [1, 1, 0],
+                scale: 1,
+                filter: 'blur(0px)',
+                transition: { times: [0, TIMECODE_EXIT_RESET_FRACTION, 1] },
+              },
+            }}
+            duration={{
+              enter: timing.duration(ACT4_TIMELINE_DURATION_MS),
+              exit: timing.duration(400),
+            }}
+            timeline={{ delay: timing.delay(0) }}
+            // A parked scene would otherwise show a frozen number: the digits only
+            // change when progress changes. A slow breath keeps the readout alive
+            // without touching the digits (those are owned by the rAF-free
+            // MotionValue writer in DragTimecode).
+            //
+            // Keyframes START at the enter landing value (scale 1), not at an offset —
+            // `[1, 1.012, 1]`, never `[0.988, 1, 0.988]`. Starting anywhere else makes
+            // the handover frame jump.
+            infiniteAnimation={
+              timing.reduced
+                ? undefined
+                : {
+                    animate: {
+                      scale: [1, 1.012, 1],
+                      transition: {
+                        duration: timing.seconds(6),
+                        ease: 'easeInOut',
+                        repeat: Infinity,
+                      },
+                    },
+                  }
+            }
+          >
+            <DragTimecode spanFrames={SPAN_FRAMES} />
+          </Animate>
           <Animate
             animateId="s04-label"
             enterAnimation={{
-              // NOT letterSpacing — the drag lane animates exactly ten properties
-              // (useAnimateDrag.ts: opacity, x, y, scale, rotate, rotateX/Y, skewX/Y,
-              // filter) and drops anything else silently. `y` carries the settle.
               initial: { opacity: 0, y: 10, filter: 'blur(5px)' },
               animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
             }}
@@ -69,54 +124,15 @@ export const SceneFlux = memo(function SceneFlux(): JSX.Element {
           >
             <p className="s04-label">SMPTE TIME CODE</p>
           </Animate>
+        </div>
 
+        <section className="s04-center">
           <div className="s04-clock">
             <ProgressRing />
             {/* The act's back half. Its lane opens at 1300 — where the ring's 0+1200 ends —
                 so the barrel only starts stopping down once the arc has closed the circle.
                 Own lane, own file: see `aperture/ApertureIris.tsx`. */}
             <ApertureIris />
-            <Animate
-              animateId="s04-main-timecode"
-              // Delay 0 and a 1200ms enter: the readout enters TOGETHER with the ring
-              // (设计档 §3.4「圆圈 + 时间码同时入场」). The per-character lanes inside do
-              // the visible assembly; this wrapper's job is the scale/blur settle around
-              // them, so the two schedules complete on the same frame (char 10 ends at
-              // 550 + 650 = 1200).
-              enterAnimation={{
-                initial: { opacity: 0, scale: 0.92, filter: 'blur(6px)' },
-                animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
-              }}
-              // DragTimecode maps this lane's exit progress into reset-then-fade. Keep the
-              // holder visually neutral so it cannot hide the digits before they reach zero.
-              exitAnimation={{ exit: { opacity: 1, scale: 1, filter: 'blur(0px)' } }}
-              duration={{ enter: timing.duration(1200), exit: timing.duration(400) }}
-              timeline={{ delay: timing.delay(0) }}
-              // A parked scene would otherwise show a frozen number: the digits only
-              // change when progress changes. A slow breath keeps the readout alive
-              // without touching the digits (those are owned by the rAF-free
-              // MotionValue writer in DragTimecode).
-              //
-              // Keyframes START at the enter landing value (scale 1), not at an offset —
-              // `[1, 1.012, 1]`, never `[0.988, 1, 0.988]`. Starting anywhere else makes
-              // the handover frame jump.
-              infiniteAnimation={
-                timing.reduced
-                  ? undefined
-                  : {
-                      animate: {
-                        scale: [1, 1.012, 1],
-                        transition: {
-                          duration: timing.seconds(6),
-                          ease: 'easeInOut',
-                          repeat: Infinity,
-                        },
-                      },
-                    }
-              }
-            >
-              <DragTimecode spanFrames={SPAN_FRAMES} />
-            </Animate>
           </div>
         </section>
       </main>

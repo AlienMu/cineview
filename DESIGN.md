@@ -142,6 +142,36 @@ transaction 状态为 `driving → settling|bouncing|retargeted|aborted → rele
 
 统一预设服务合并同分类在途 Promise并跨 CineView缓存成功/永久失败；consumer使用 generation/lease防止旧结果回写。未知预设为永久 `INVALID_ANIMATION`；chunk/网络/部署失败为可重试 `ANIMATION_ASSET_LOAD_FAILED`。非法 drag配置使用 `INVALID_DRAG_CONFIG`。`'none'` 不再是公共动画预设；CSS值 `'none'` 不受影响。
 
+### 授权中的变体：authored-but-unparsed 必须停在 initial 帧
+
+预设变体经异步 import 解析，因此页面加载后的**第一次 commit** 必然 `enterVariant === null`——即使作者确实声明了动画。此时若渲染裸 children，子元素按自身 CSS（`opacity:1`）绘制若干帧，解析落地后再snap 回 initial 帧才开始入场：这就是刷新时的「先闪出来、再隐藏、再入场」。
+
+裁决：**只要作者声明了 enter 或 infinite，未解析期间照常渲染 motion 路径**（DOM 结构与解析后逐字节一致，不发生 remount、不改变测量时机），由各 driver 解析出 initial 帧：
+
+- visibility 轨：`visualMotion` 本就 seed 在 0，天然是 initial 帧；额外要求 **gate 状态机在未解析期间不启动**（否则会拿空变体的默认帧起 tween，解析落地时目标中途替换），并且**未解析期间不认领 host**，使 gate 的生命周期起点与修复前完全一致。
+- arrival 轨（`sceneControlled=false`）：已有 `hasAuthoredEnterAnimation` 时 seed 0，且 `parseReady` 门控，无需额外处理。
+- drag element 轨：空变体记录会把 `rest` 解析成 `animate` 默认帧（可见），因此由 `variantsPending` 强制停在 `hidden`（initial 帧）。
+
+只有**真正没有可播动画**的 Animate（既无 enter 也无 infinite，例如仅 exit 的非法载荷）仍然早退渲染裸 children——那是 fail-open 静态揭示，不是待解析。
+
+### 手动控制 + 兜底触发（`enterRef` / `exitRef`）
+
+面向「异步事件决定何时出现」的场景：请求成功就立刻显示，失败/超时则由时间轴兜底显示，不让内容永远不出现。
+
+**语义**（`waitFor` / `delay` 同时充当「是否允许兜底自动触发」的开关）：
+
+| 配置 | 自动触发 | 手动调用 |
+| --- | --- | --- |
+| `enterRef` + `waitFor`/`delay` | ✅ 等完时间轴后**兜底**入场 | ✅ 立即入场，并**丢弃**剩余等待 |
+| `enterRef`，无 `waitFor`/`delay` | ❌ 永不自动入场 | ✅ 立即入场 |
+| 未传 `enterRef` | ✅ 原有行为不变 | — |
+| `exitRef` | ❌ 关闭自动退场闸门 | ✅ 立即退场 |
+
+「打断」的定义是**丢弃本次时间轴的剩余等待并立刻播放**，不是「重新计时」。手动入场具有**粘性所有权**：一旦消费者驱动过入场，闸门不再自行重播（否则会与所有者互相打架）。`exitRef` 不提供兜底——退场没有「超时后自动退」的语义；需要延迟自行 `setTimeout` 即可。
+
+**只有时间驱动的轨道支持手动控制**：visibility 轨与 drag 的 arrival 轨。scroll takeover 与 drag 的 scene-controlled 轨是 **scrub 轨**——视觉位置是其唯一所有者（zone `progressPx` / 手指位移）的纯函数，手动写入会在下一帧被重新计算覆盖，违反开发原则 2。因此在 scrub 轨上传 ref 会**上报 `INVALID_ANIMATION` 并忽略**，而不是假装生效。arrival 轨本就没有 exit pass（与其忽略 `exitAnimation` 一致），故 `exitRef` 在该轨同样上报忽略。
+
+
 ## Scroll Mode
 
 本节是 scroll 模式的唯一有效规格，旧的 V2/V3 叠加式表述全部废弃。

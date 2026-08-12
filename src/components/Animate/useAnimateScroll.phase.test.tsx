@@ -649,6 +649,21 @@ async function flushScroll(target: Window | HTMLElement): Promise<void> {
   });
 }
 
+// The FOUC guard mounts an Animate BEFORE its preset variants finish parsing, so
+// "the host element exists" is no longer a proxy for "the gate machine is live".
+// Flush the parse microtasks so the host has actually been adopted before a test
+// starts driving measurements against it.
+async function waitForAnimateHost(animateId: string): Promise<HTMLElement> {
+  await waitFor(() => {
+    expect(document.querySelector(`[data-cineview-animate-host="${animateId}"]`)).not.toBeNull();
+  });
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  return document.querySelector(`[data-cineview-animate-host="${animateId}"]`) as HTMLElement;
+}
+
 function readMotionOpacity(): number {
   const motionNode =
     screen
@@ -723,6 +738,17 @@ function renderReplayPhaseProbe(
 }
 
 describe('useAnimateScroll grouped timeline.phase', () => {
+  // The FOUC guard mounts an Animate before its preset variants finish parsing, so
+  // a test that ends without driving the element to completion can leave the parse
+  // promise in flight; its setState would then land after the test body and warn
+  // "not wrapped in act". Flush those microtasks inside act before RTL cleanup.
+  afterEach(async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  });
+
   beforeEach(() => {
     animationControlsRegistry.length = 0;
   });
@@ -1008,15 +1034,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         </SceneContext.Provider>
       );
 
-      await waitFor(() => {
-        expect(
-          document.querySelector('[data-cineview-animate-id="above-top-probe"]')
-        ).not.toBeNull();
-      });
-
-      const host = document.querySelector(
-        '[data-cineview-animate-host="above-top-probe"]'
-      ) as HTMLElement;
+      const host = await waitForAnimateHost('above-top-probe');
       // Already scrolled past: top -600, bottom -200 (entirely above viewport top).
       host.getBoundingClientRect = () => createHostRect(-600, -200);
       await flushScroll(window);
@@ -2453,6 +2471,17 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 });
 
 describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 cross-driver waitFor)', () => {
+  // The FOUC guard mounts an Animate before its preset variants finish parsing, so
+  // a test that ends without driving the element to completion can leave the parse
+  // promise in flight; its setState would then land after the test body and warn
+  // "not wrapped in act". Flush those microtasks inside act before RTL cleanup.
+  afterEach(async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  });
+
   beforeEach(() => {
     animationControlsRegistry.length = 0;
   });
@@ -2532,7 +2561,11 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
     await waitFor(() => {
       expect(document.querySelector('[data-cineview-animate-id="intro"]')).not.toBeNull();
     });
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    // Bare macrotask waits let the (now earlier-mounted) variant parse settle
+    // OUTSIDE act. Wrap it so the parse setState is attributed to this test.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
     expect(readOpacityFor('intro')).toBe(0);
   });
 
@@ -2835,11 +2868,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
           </SceneContext.Provider>
         ));
 
-        await waitFor(() => {
-          expect(
-            document.querySelector('[data-cineview-animate-host="timer-waiting-follower"]')
-          ).not.toBeNull();
-        });
+        await waitForAnimateHost('timer-waiting-follower');
         [
           'subscriber-waiting-follower',
           'recheck-waiting-follower',

@@ -1,14 +1,14 @@
 /**
- * Act 04 aperture canvas — eight iris leaves stopping down inside the eclipse ring.
+ * Act 04 aperture canvas — nine iris leaves stopping down inside the eclipse ring.
  *
  * ── RULE 6 EXEMPTION, DECLARED ───────────────────────────────────────────────
  * AGENTS.md / CLAUDE.md rule 6 bans site components from building their own animation
  * drivers. Self-drawn canvas is the ONE exemption (DESIGN.md §0: a child may read a
- * MotionValue and run its own rAF, zero per-frame setState), and this is that case. Six
+ * MotionValue and run its own rAF, zero per-frame setState), and this is that case. Nine
  * leaves whose outline, facet shading and lit edge are all functions of one crank angle
  * cannot be expressed as framework variants: the drag lane animates exactly ten properties
  * (opacity, x, y, scale, rotate, rotateX/Y, skewX/Y, filter) and none of them can change a
- * polygon's vertices. The DOM alternative is eight clipped boxes, which §8.4 rules out — see
+ * polygon's vertices. The DOM alternative is nine clipped boxes, which §8.4 rules out — see
  * the containment note below.
  *
  * The exemption is conditional. This canvas lives INSIDE a <Scene>, so it has a framework
@@ -24,19 +24,19 @@
  *    therefore scrubbed by the finger and completes under settle, never self-running.
  *  - Wall-clock elapsed drives ONLY the specular travelling round the lit edges — a highlight
  *    on metal, no geometry. That is the act's 防空等 coverage now that the corona is gone:
- *    after act 04's lanes land at 3700ms the iris edges are still catching light.
+ *    after act 04's lanes land at 2200ms the iris edges are still catching light.
  *
  * ── §8.4, and how this file avoids it ────────────────────────────────────────
  * §8.4 records that clipping a `mix-blend-mode: screen` layer renders the clip edge itself as
  * a hard bright line once a transform is applied (measured on `tp-ambient`: top-edge
  * luminance 19.6 -> 57.6). Hard-edged blades are precisely the shape that tempts the banned
- * build — `clip-path: circle()` on eight boxes, or `ctx.clip()` to the barrel before filling.
+ * build — `clip-path: circle()` on nine boxes, or `ctx.clip()` to the barrel before filling.
  *
  * Neither appears here. There is no `clip-path`, no `ctx.clip()`, no `ctx.save`/`restore`
  * clip pair, and the host needs no `overflow: hidden`. Containment is structural instead:
  * every vertex `apertureGeometry` can produce is at radius <= `barrel`, a disc is convex, so
  * every segment and curve between those vertices is inside it as well (the proof, including
- * why `OPEN_INRADIUS = cos(pi/6)` is the load-bearing constant, is in `apertureBlades.ts`'s
+ * why `OPEN_INRADIUS = cos(pi/9)` is the load-bearing constant, is in `apertureBlades.ts`'s
  * header). The one curved boundary — each leaf's outer edge — is drawn as an explicit
  * `ctx.arc` ON the barrel radius, which is the same circle a clip would have imposed, except
  * it is a filled path edge that antialiases normally rather than a compositing boundary.
@@ -64,7 +64,7 @@ import {
 
 interface ApertureCanvasProps {
   progress: MotionValue<number>;
-  phase?: MotionValue<AnimatePhase>;
+  phase: MotionValue<AnimatePhase>;
 }
 
 // Cool optical metal sampled from the supplied lens reference. Numeric channels avoid parsing
@@ -73,6 +73,9 @@ const EDGE_COOL: readonly [number, number, number] = [96, 188, 255];
 const EDGE_HOT: readonly [number, number, number] = [235, 229, 255];
 const METAL_DARK: readonly [number, number, number] = [4, 15, 48];
 const METAL_LIT: readonly [number, number, number] = [29, 132, 220];
+// Adjacent leaves need a stable value difference in addition to moving Lambert light.
+// Without it, one similarly lit pair merges and the nine-leaf iris reads as eight.
+const FACET_BASE_TONES = [0.18, 0.42, 0.26, 0.5, 0.22, 0.44, 0.3, 0.54, 0.36] as const;
 
 /** Blade fill opacity. Under 1 so the disc's radial gradient still shows through as the
  *  faintest sheen — the leaves are in front of the sun, and the sun is the light source. */
@@ -99,10 +102,10 @@ export const ApertureCanvas = memo(function ApertureCanvas({
     let width = 0;
     let height = 0;
     let bladeSheen: CanvasGradient | null = null;
-    let paused = phase ? phase.get() === 'exited' || phase.get() === 'idle' : false;
+    let paused = phase.get() === 'exited' || phase.get() === 'idle';
     // Tracked alongside `paused` off the same subscription rather than read inside `draw`, so a
     // frame costs no MotionValue read for it. Exit selects a separate 80%-to-open curve.
-    let phaseIsExiting = phase ? phase.get() === 'exiting' : false;
+    let phaseIsExiting = phase.get() === 'exiting';
     const startedAt = performance.now();
 
     const draw = (): void => {
@@ -130,16 +133,16 @@ export const ApertureCanvas = memo(function ApertureCanvas({
       );
       const paintOpacity = phaseIsExiting ? shutterExitOpacity(clampedRaw) : 1;
       ctx.globalAlpha = paintOpacity;
-      // Solved once per frame, not per blade: all eight leaves share one opening, so they share
+      // Solved once per frame, not per blade: all nine leaves share one opening, so they share
       // one control radius. (Not the wanted midpoint radius — see `bowControlRadius`'s note.)
       const controlRadius = bowControlRadius(inradius);
       const elapsedSeconds = (performance.now() - startedAt) / 1000;
 
       for (let index = 0; index < BLADE_COUNT; index += 1) {
         const axis = bladeAxis(index, spin);
-        // The leading edge spans one OCTAGON side: two vertices at +/- 22.5deg off the axis,
-        // both on `vertexRadius` (<= barrel, so inside the disc by construction). Eight of
-        // these edges are what make the opening the octagon in the reference.
+        // The leading edge spans one NONAGON side: two vertices at +/- 20deg off the axis,
+        // both on `vertexRadius` (<= barrel, so inside the disc by construction). Nine of
+        // these edges are what make the requested nonagonal opening.
         const leadA = axis - BLADE_HALF_SPAN;
         const leadB = axis + BLADE_HALF_SPAN;
         // The roots sit further round than the edge ends, which is what makes neighbours
@@ -186,7 +189,7 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         ctx.closePath();
 
         const lambert = bladeLambert(axis);
-        const bodyAmount = 0.16 + lambert * 0.84;
+        const bodyAmount = Math.min(1, (FACET_BASE_TONES[index] ?? 0.3) + lambert * 0.35);
         const r = mixChannel(METAL_DARK[0], METAL_LIT[0], bodyAmount);
         const g = mixChannel(METAL_DARK[1], METAL_LIT[1], bodyAmount);
         const b = mixChannel(METAL_DARK[2], METAL_LIT[2], bodyAmount);
@@ -244,7 +247,7 @@ export const ApertureCanvas = memo(function ApertureCanvas({
     };
 
     // PHASE GATE (rule 6). `exited` / `idle` means act 04 is off screen: stop the rAF rather
-    // than leaving eight leaves shading themselves behind whatever act the user is now looking
+    // than leaving nine leaves shading themselves behind whatever act the user is now looking
     // at, and clear the canvas so no frozen iris is left painted on a dead scene.
     const applyPhase = (nextPhase: AnimatePhase): void => {
       paused = nextPhase === 'exited' || nextPhase === 'idle';
@@ -291,17 +294,12 @@ export const ApertureCanvas = memo(function ApertureCanvas({
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
 
-    let unsubscribePhase: (() => void) | undefined;
-    if (phase) {
-      applyPhase(phase.get());
-      unsubscribePhase = phase.on('change', applyPhase);
-    } else {
-      start();
-    }
+    applyPhase(phase.get());
+    const unsubscribePhase = phase.on('change', applyPhase);
 
     return () => {
       observer.disconnect();
-      unsubscribePhase?.();
+      unsubscribePhase();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { motionValue } from 'framer-motion';
 import ts from 'typescript';
+import type { AnimatePhase } from '../../types';
 import {
   ACT2_BOARD_GATE_MS,
   ACT2_LIGHT_GATE_MS,
@@ -77,10 +78,6 @@ function stripComments(value: string): string {
   return value.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 }
 
-function normaliseLandingValue(value: unknown): unknown {
-  return value === '0%' ? 0 : value;
-}
-
 describe('/drag W2 clapperboard contract', () => {
   /**
    * Where the SLATE'S OWN chain ends: gate + board. DERIVED from its two owners rather than a
@@ -150,15 +147,6 @@ describe('/drag W2 clapperboard contract', () => {
     const pool = ACT2_LIGHT_LAYERS.find((layer) => layer.id === 's02-light-pool');
     expect(haze?.from).toEqual({ opacity: 0 });
     expect(pool?.from).toEqual({ opacity: 0 });
-
-    const landing: Record<string, unknown> = { opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 };
-    for (const layer of ACT2_LIGHT_LAYERS.filter((candidate) => candidate.loop)) {
-      for (const [property, keyframes] of Object.entries(layer.loop?.animate ?? {})) {
-        if (!Array.isArray(keyframes)) continue;
-        expect(normaliseLandingValue(keyframes[0])).toBe(landing[property]);
-        expect(normaliseLandingValue(keyframes[keyframes.length - 1])).toBe(landing[property]);
-      }
-    }
   });
 
   it('keeps the no-gap 3-2-1 board budget as one 3560ms source of truth', () => {
@@ -534,11 +522,12 @@ describe('/drag W2 clapperboard contract', () => {
       // Progress parked at 1: the board has landed, so the ACTION word is fully assembled and
       // every letter is at full alpha — the frame the grading claim is about.
       const progress = motionValue(1);
+      const phase = motionValue<AnimatePhase>('entered');
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
       await reactAct(async () => {
-        root.render(createElement(ClapperboardCanvas, { progress }));
+        root.render(createElement(ClapperboardCanvas, { progress, phase }));
       });
 
       expect(fills.length).toBeGreaterThan(0);
@@ -610,6 +599,7 @@ describe('/drag W2 clapperboard contract', () => {
     const lightRuntime = stripComments(fs.readFileSync(LIGHT_FILE, 'utf8'));
     expect(lightRuntime).toContain('ACT2_LIGHT_LAYERS.map((layer) =>');
     expect(lightRuntime).toContain('animateId={layer.id}');
+    expect(lightRuntime).not.toContain('infiniteAnimation');
     expect(lightRuntime).not.toContain('s02-light-spill');
   });
 });

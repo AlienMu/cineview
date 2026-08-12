@@ -186,7 +186,7 @@ describe('videoPlaybackOwnership', () => {
       duration: 10,
     });
     expect(leaving.commands).toEqual([{ type: 'pause' }]);
-    expect(leaving.state.status).toBe('native-paused');
+    expect(leaving.state.status).toBe('framework-scrub');
 
     const repeated = dispatch(leaving.state, {
       type: 'timeline-frame',
@@ -195,6 +195,60 @@ describe('videoPlaybackOwnership', () => {
     });
     expect(repeated.commands).toEqual([]);
     expect(repeated.state.lastSeekTime).toBeNull();
+  });
+
+  it('resets outgoing media to the scrub start exactly once at the idle handoff', () => {
+    const idleFrame: AnimateTimelineFrame = {
+      progress: 0,
+      signedProgress: 0,
+      phase: 'idle',
+      source: 'idle',
+    };
+    const initialIdle = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'timeline-frame',
+      frame: idleFrame,
+      duration: 10,
+      scrubRange: [2, 8],
+    });
+    expect(initialIdle.commands).toEqual([]);
+
+    let state = dispatch(initialIdle.state, {
+      type: 'timeline-frame',
+      frame: gestureFrame(1),
+      duration: 10,
+      scrubRange: [2, 8],
+    }).state;
+    state = dispatch(state, {
+      type: 'timeline-frame',
+      frame: { ...idleFrame, progress: 1, signedProgress: 1, phase: 'exited' },
+      duration: 10,
+      scrubRange: [2, 8],
+    }).state;
+
+    const reset = dispatch(state, {
+      type: 'timeline-frame',
+      frame: idleFrame,
+      duration: 10,
+      scrubRange: [2, 8],
+    });
+    expect(reset.commands).toEqual([{ type: 'seek', time: 2 }]);
+    expect(reset.state).toMatchObject({
+      status: 'framework-scrub',
+      lastSeekTime: 2,
+      endpointLatched: false,
+      outgoingLatched: false,
+    });
+
+    const repeated = dispatch(reset.state, {
+      type: 'timeline-frame',
+      frame: idleFrame,
+      duration: 10,
+      scrubRange: [2, 8],
+    });
+    expect(repeated.commands).toEqual([]);
+
+    const pauseAcknowledged = dispatch(repeated.state, { type: 'media-pause' });
+    expect(pauseAcknowledged.state.status).toBe('framework-scrub');
   });
 
   it('holds ended media until a new activation and scrub frame reclaims it', () => {

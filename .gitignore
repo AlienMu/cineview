@@ -54,3 +54,10 @@ examples/performance-test/dist-acceptance
 /.v1-*
 shot*.cjs
 examples/performance-test/profile-browser.mjs
+
+# 验收探针产物：截图是一次性的（每轮重跑即得），不进版本管理；
+# 只有被代码注释引用的量化数据（review/**/*.json）保留。
+/review/
+site/.v1-acceptance/
+site/review/**/*.png
+site/review/**/*.jpg

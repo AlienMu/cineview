@@ -6,6 +6,27 @@ import compression from 'vite-plugin-compression';
 
 // command === 'build' 时移除 console/debugger；dev server（serve）保留，
 // 以免吞掉框架的开发期诊断（Scene 层级错误、循环依赖告警等）。
+// ── 按模式分包（2026-08-04）────────────────────────────────────────────────
+// UMD 是单文件格式（Rollup 明确拒绝 UMD + code-splitting），而 `mode` 是运行时 prop，
+// 故全量 UMD 必须同时内联 drag 与 scroll 两套引擎 = 51536 字节 gzip，结构上塞不进
+// 50 KB 门（DESIGN.md:2449「任意构建输出 ≤ 50KB」）。实测 scroll 引擎单独占 10437
+// 字节 = 全包 20.3%，是最大单项，且框架本来就在 `CineViewDispatch` 处按 mode 派发
+// —— 拆分落在架构自身的缝上，不是人为切一刀。
+//
+// 产物集：
+//   cineview.es.mjs         全量 barrel，ESM，含两引擎 + 内部 chunk（42896 ✓）
+//   cineview-drag.umd.js    仅 drag 引擎（41129 ✓）
+//   cineview-scroll.umd.js  仅 scroll 引擎（45730 ✓）
+// ESM 消费者不受影响；CJS/script-tag 消费者改用 cineview/drag 或 cineview/scroll。
+const ENTRY = process.env.CINEVIEW_ENTRY || 'src/index.ts';
+const OUT_BASE = process.env.CINEVIEW_OUT_BASE || 'cineview';
+const FORMATS = (process.env.CINEVIEW_FORMATS || 'es,umd').split(',');
+const EMIT_ES = FORMATS.includes('es');
+const EMIT_UMD = FORMATS.includes('umd');
+// 只有第一趟清空 dist。不能用 EMIT_ES 当条件 —— 按模式的 ES 趟也出 ES，
+// 那样会把上一趟的产物全部抹掉。
+const CLEAN_OUT_DIR = process.env.CINEVIEW_CLEAN === '1';
+
 export default defineConfig(({ command }) => ({
   define:
     command === 'build'
@@ -15,21 +36,29 @@ export default defineConfig(({ command }) => ({
       : undefined,
   plugins: [
     react(),
-    // 生成 TypeScript 类型定义文件
-    dts({
-      include: ['src'],
-      // 排除所有非导出链文件：测试、测试环境搭建（setupTests 的 `declare global`
-      // 曾泄漏进 dist/index.d.ts，把 `var act` 打进消费者全局作用域）、编译期
-      // type-assert fixture。dist 类型只应包含 src/index.ts 导出链可达的声明。
-      exclude: [
-        '**/*.test.ts',
-        '**/*.test.tsx',
-        '**/__tests__/**',
-        'src/setupTests.ts',
-        '**/*.type-assert.*',
-      ],
-      rollupTypes: true, // 将所有类型定义打包到单个文件
-    }),
+    // 生成 TypeScript 类型定义文件。**只在第一趟**生成，不能用 EMIT_ES 当条件：
+    // 按模式的 ES 趟（第 2、3 趟）也满足 EMIT_ES，那样 dts 会跑三次、`index.d.ts`
+    // 的最终内容取决于「哪一趟最后跑」—— 实测目前内容恰好正确（仍是全量面），
+    // 但那是巧合而非设计，改趟序就会静默变成单模式类型面。故绑定到 CLEAN_OUT_DIR
+    // （只有第一趟为真），让类型产出确定化。
+    ...(CLEAN_OUT_DIR
+      ? [
+          dts({
+            include: ['src'],
+            // 排除所有非导出链文件：测试、测试环境搭建（setupTests 的 `declare global`
+            // 曾泄漏进 dist/index.d.ts，把 `var act` 打进消费者全局作用域）、编译期
+            // type-assert fixture。dist 类型只应包含 src/index.ts 导出链可达的声明。
+            exclude: [
+              '**/*.test.ts',
+              '**/*.test.tsx',
+              '**/__tests__/**',
+              'src/setupTests.ts',
+              '**/*.type-assert.*',
+            ],
+            rollupTypes: true, // 将所有类型定义打包到单个文件
+          }),
+        ]
+      : []),
     // Gzip 压缩
     compression({
       algorithm: 'gzip',
@@ -49,7 +78,7 @@ export default defineConfig(({ command }) => ({
   ],
   build: {
     lib: {
-      entry: 'src/index.ts',
+      entry: ENTRY,
       name: 'CineView',
     },
     rollupOptions: {
@@ -62,41 +91,50 @@ export default defineConfig(({ command }) => ({
         'framer-motion',
       ],
       output: [
-        {
-          format: 'es',
-          entryFileNames: 'cineview.es.mjs',
-          chunkFileNames: '[name]-[hash].mjs',
-          // ESM consumers can load internal chunks natively. Keep the public entry
-          // comfortably below the 50 KB gzip budget without removing runtime APIs.
-          manualChunks(id) {
-            if (id.endsWith('/src/utils/performanceMonitor.ts')) {
-              return 'performance-monitor';
-            }
-            if (id.endsWith('/src/components/Scene/useSceneAnimationRegistry.ts')) {
-              return 'scene-animation-registry';
-            }
-            if (id.endsWith('/src/components/Scene/useDragSceneEngine.ts')) {
-              return 'drag-scene-engine';
-            }
-            if (id.endsWith('/src/components/Scene/useElementTrack.ts')) {
-              return 'element-track';
-            }
-          },
-        },
-        {
-          format: 'umd',
-          name: 'CineView',
-          entryFileNames: 'cineview.umd.js',
-          inlineDynamicImports: true,
-          // UMD remains a single-file artifact for script-tag/CommonJS consumers.
-          globals: {
-            react: 'React',
-            'react/jsx-runtime': 'ReactJSXRuntime',
-            'react/jsx-dev-runtime': 'ReactJSXDevRuntime',
-            'react-dom': 'ReactDOM',
-            'framer-motion': 'FramerMotion',
-          },
-        },
+        ...(EMIT_ES
+          ? [
+              {
+                format: 'es' as const,
+                entryFileNames: `${OUT_BASE}.es.mjs`,
+                chunkFileNames: '[name]-[hash].mjs',
+                // ESM consumers can load internal chunks natively. Keep the public entry
+                // comfortably below the 50 KB gzip budget without removing runtime APIs.
+                manualChunks(id: string) {
+                  if (id.endsWith('/src/utils/performanceMonitor.ts')) {
+                    return 'performance-monitor';
+                  }
+                  if (id.endsWith('/src/components/Scene/useSceneAnimationRegistry.ts')) {
+                    return 'scene-animation-registry';
+                  }
+                  if (id.endsWith('/src/components/Scene/useDragSceneEngine.ts')) {
+                    return 'drag-scene-engine';
+                  }
+                  if (id.endsWith('/src/components/Scene/useElementTrack.ts')) {
+                    return 'element-track';
+                  }
+                  return undefined;
+                },
+              },
+            ]
+          : []),
+        ...(EMIT_UMD
+          ? [
+              {
+                format: 'umd' as const,
+                name: 'CineView',
+                entryFileNames: `${OUT_BASE}.umd.js`,
+                inlineDynamicImports: true,
+                // UMD remains a single-file artifact for script-tag/CommonJS consumers.
+                globals: {
+                  react: 'React',
+                  'react/jsx-runtime': 'ReactJSXRuntime',
+                  'react/jsx-dev-runtime': 'ReactJSXDevRuntime',
+                  'react-dom': 'ReactDOM',
+                  'framer-motion': 'FramerMotion',
+                },
+              },
+            ]
+          : []),
       ],
     },
     // Node 18+ 与项目支持的现代浏览器均原生支持 ES2020；保留现代语法可避免
@@ -107,6 +145,9 @@ export default defineConfig(({ command }) => ({
     // 优化配置
     sourcemap: true,
     chunkSizeWarningLimit: 500, // chunk 大小警告阈值 (KB)
+    // 按模式分包要跑多趟（见文件头注释与 scripts/build-all.mjs）：只有第一趟清空
+    // dist，其余趟只补自己的产物，绝不能再清空 —— 否则会抹掉前面趟的成果。
+    emptyOutDir: CLEAN_OUT_DIR,
   },
   // 生产构建移除 console 与 debugger（terser 的 drop_console 等价物）；
   // dev server 保留，避免吞掉开发期诊断输出。

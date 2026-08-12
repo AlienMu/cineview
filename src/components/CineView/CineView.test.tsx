@@ -4,7 +4,8 @@
 
 import { createRef, act } from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CineView, resolveRootSceneStackMode } from './CineView';
+import { CineView } from './CineViewDispatch';
+import { resolveRootSceneStackMode } from './CineView';
 import type { CineViewRef } from '../../types';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 

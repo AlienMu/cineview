@@ -17,10 +17,8 @@ import { useTemporalMotion } from './TemporalMotion';
 
 const BEAM_START_MS = 1400;
 const BEAM_ENTER_MS = 2200;
-// Exit budgets across this act are GRADED, not equal, because the outgoing lane has no
-// per-lane delay: exit localProgress is clamp(renderProgress * 720 / exitDuration), so the
-// only way to order an exit cascade is by budget length. Shorter = leaves first. The beam
-// is late in the reverse order (it lit up before the room, so it goes out after it).
+// The beam extinguishes before the typography finishes fading. It holds its geometry while
+// opacity falls, so exit reads as the lamp switching off rather than the cone retracting.
 const BEAM_EXIT_MS = 560;
 
 const DUST_DRIFT_SECONDS = 9;
@@ -65,7 +63,7 @@ export const ProjectorBeam = memo(function ProjectorBeam(): JSX.Element {
         initial: { opacity: 0, scale: 0.62 },
         animate: { opacity: 1, scale: 1 },
       }}
-      exitAnimation={{ exit: { opacity: 0, scale: 0.5 } }}
+      exitAnimation={{ exit: { opacity: 0, scale: 1 } }}
       duration={{ enter: timing.duration(BEAM_ENTER_MS), exit: timing.duration(BEAM_EXIT_MS) }}
       timeline={{ delay: timing.delay(BEAM_START_MS) }}
     >

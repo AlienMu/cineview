@@ -1,5 +1,5 @@
-import { memo, useCallback, useLayoutEffect, useRef } from 'react';
-import { AnimateVideo, Animate, Position } from 'cineview';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { AnimateVideo, Animate, Position, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
 import './DemoVideoScene.css';
 
@@ -8,8 +8,8 @@ import './DemoVideoScene.css';
  *
  * center-lock 接管镜。标题快速入场后,视频与副标题并行、同刻收束:
  *   - 视频(demo-video):随滚动逐帧擦洗
- *   - 副标题(demo-subtitle):电影衬线,逐字两层——先黑字 blur→清晰,再从黑替换成
- *     沿整句流转的渐变暖色(覆盖层)。由自身 enterProgress 全程驱动
+ *   - 副标题(demo-subtitle):电影衬线,逐行由 Animate blur→清晰,逐字暖色只读
+ *     同一条 timeline MotionValue 做不受框架支持的 background-image 投影
  */
 
 /** 主标题在 `|` 处分成两段,主句 + 强调追问(斜体点题)。 */
@@ -57,179 +57,174 @@ function warmAt(t: number): [number, number, number] {
 /** 每个字的固定参数(渲染一次时算好,之后每帧只读不算)。 */
 interface CharMeta {
   start: number; // 错峰起点(progress 轴)
-  offset0: number; // 初始散开位移(px),合拢后归 0
-  lineStart: number; // 所在行合拢起
-  lineEnd: number; // 所在行合拢止
   w1: [number, number, number]; // 渐变左端定形暖色
   w2: [number, number, number]; // 渐变右端定形暖色
 }
 
-/**
- * 每行的固定参数。blur 施加在行容器上(而非逐字):同一行整体从糊→清,
- * 一行只有一个 blur 层,滚动中任一刻最多 1-2 行的 blur 在变 → 每帧只 1-2 次模糊卷积,
- * 而非几十个字各自卷积。逐字的淡入/位移/颜色仍保留(前两者合成器免费)。
- */
 interface LineMeta {
-  blurStart: number; // 该行 blur 起点(= 行首字错峰起点)
-  blurEnd: number; // 该行 blur 归零点(= 行末字显形完成)
+  chars: Array<{ char: string; index: number }>;
+  revealStart: number;
+  revealEnd: number;
 }
 
 const INK: [number, number, number] = [26, 23, 19]; // 墨色起点(非纯黑)
+const SUBTITLE_DURATION_MS = 4000;
+const SUBTITLE_BLUR = 'blur(0.555556vw)'; // 8 design px at the 1440px site canvas.
 
-/**
- * 静态字幕子树:132 个字的 span 只按 text 渲染一次(memo on text)→ React 不再逐帧碰它。
- * span 不带任何逐帧样式;每字的固定参数经 onChars 回调交给父组件缓存(见 CharMeta),
- * 由父组件每帧直接写进该字叶子的 inline style。
+/* ── 收束窗口(D2,2026-08-04)────────────────────────────────────────────
+ * 视频、标题、副标题共用同一条 4000ms 轴(= AnimateVideo 的帧擦洗跨度)。
+ * blur 不能自己占一段时间——它必须用 `times` 压在这条轴上,否则会挤掉擦洗跨度。
+ *   入场:轴前 12%   虚焦 + 淡入 + scale 1.04→1(对焦浮现)
+ *   收尾:轴后 12%   重新失焦 + 压到 0.85(交给第五幕黑幕吞掉,不做成硬切) */
+const VIDEO_ENTER_END = 0.12;
+const VIDEO_BLUR_IN = 'blur(0.9vw)';
+const VIDEO_BLUR_TAIL = 'blur(0.5vw)';
+
+/* ── 退场次序：由内向外，背景**最后**走（用户反馈：文字消失了背景还在）───────
+ * 原实现让视频/scrim 收在 `opacity: 0.85`（注释写「交给第五幕黑幕吞掉」），而标题与
+ * 副标题都收到 0 ⇒ 轴末画面上只剩一张没有任何文字的半亮视频，读作「背景没消失」。
+ * 靠下一幕的黑幕去盖，等于把本幕的退场责任外包：两幕之间只要有一帧空隙，
+ * 这张滞留的底就会露出来。
  *
- * 为什么写叶子而非容器变量:改共同祖先上的自定义属性(如 --p)会让整棵继承子树(132 字)
- * 全部标记 recalc(实测 ~960ms/120帧);改叶子自己的非继承属性(opacity/filter/transform/color)
- * 只失效该叶子(实测 ~38ms,-96%)。故驱动写在叶子。
- */
-const StaticSubtitle = memo(function StaticSubtitle({
-  text,
-  containerRef,
-  onChars,
-}: {
-  text: string;
-  containerRef: React.RefObject<HTMLParagraphElement>;
-  onChars: (metas: CharMeta[], lineMetas: LineMeta[]) => void;
-}): JSX.Element {
+ * 入场次序是 视频/scrim → 标题 → 副标题逐行；按 CLAUDE.md 规则 6 第四条，
+ * 退场必须是它的**反向**：副标题逐行 → 标题 → 视频/scrim。故三档收尾窗口错开：
+ *   副标题  0.86 → 0.94（末行先走，见 lineFadeStart）
+ *   标题    0.90 → 0.96
+ *   视频/scrim 0.94 → 1.00  ← 最后，且必须真正到 0
+ * 三段有意重叠，避免读成三次独立的「啪」；但**结束点严格递增**，
+ * 保证任何一帧都不会出现「字已走光、底还亮着」。 */
+/* ⚠️ 这三个值同样是实测定的。标题 lane 嵌在 `demo-title` 内层，其 4000ms 轴的实际
+ * 落点与副标题不重合（见 lineFadeStart 注释的实测数据）：原本 0.90→0.96 的写法
+ * 实际在 f≈0.820 就归零，比副标题（f≈0.850）更早。把终点推到 1.0，
+ * 标题才真正成为「最后离场的文字」，与背景同刻收束。 */
+const TITLE_OUT_START = 0.94;
+const TITLE_OUT_END = 1;
+const BG_OUT_START = 0.94;
+
+/** 逐行反向淡出:末行先走。返回该行开始淡出的轴位置。
+ *  修 CLAUDE.md 规则 6 第四条——入场用 waitFor/times 做了级联,退场就必须有反向编排,
+ *  否则入场逐行有序、退场四行同时消失(「打包回滚」),时序不对称。
+ *
+ *  ⚠️ 窗口值是**实测定的，不是按常量推的**。四条 lane 虽同为 4000ms 且同 waitFor，
+ *  但实测（scripts/_tail.mjs 沿幕尾 0.70→1.00 密采）标题的 `demo-title-out` 在
+ *  f≈0.820 就已归零，而副标题四行要到 f≈0.850 —— 标题反而先走完，次序是错的。
+ *  所以副标题必须整体前移，给标题留出「最后一个文字元素」的位置。
+ *  取 0.72–0.80：末行 0.72 起、首行 0.80 起，全部早于标题的实测归零点。 */
+const SUBTITLE_OUT_FIRST = 0.8;
+const SUBTITLE_OUT_SPREAD = 0.08;
+
+function lineFadeStart(lineIndex: number, lineCount: number): number {
+  if (lineCount <= 1) return SUBTITLE_OUT_FIRST;
+  const reversed = (lineCount - 1 - lineIndex) / (lineCount - 1);
+  return SUBTITLE_OUT_FIRST - SUBTITLE_OUT_SPREAD + reversed * SUBTITLE_OUT_SPREAD;
+}
+
+function buildSubtitleModel(text: string): { chars: CharMeta[]; lines: LineMeta[] } {
   const lines = text.split('\n');
   const total = Math.max(1, text.replace(/\n/g, '').length);
-  const metas: CharMeta[] = [];
-  const lineMetas: LineMeta[] = [];
-  let g = 0; // 跨行全局字序,错峰从第一行流向第二行
-
-  const nodes = lines.map((line, li) => {
-    const chars = Array.from(line);
-    const center = (chars.length - 1) / 2;
-    const firstGi = g;
-    const lastGi = g + chars.length - 1;
-    const lineStart = (firstGi / total) * 0.6;
-    const lineEnd = (lastGi / total) * 0.6 + 0.22; // 与旧实现一致
-    // 行级 blur:行首字起点糊→行末字显形完清。整行一个 blur 层。
-    lineMetas.push({ blurStart: (firstGi / total) * 0.6, blurEnd: lineEnd });
-    const lineNode = (
-      <span className="demo-video__subtitle-line" key={li} aria-hidden="true">
-        {chars.map((ch, ci) => {
-          const gi = g;
-          g += 1;
-          const t = gi / total;
-          metas.push({
-            start: (gi / total) * 0.6, // 该字错峰起点
-            offset0: (ci - center) * 16, // 初始散开位移(px),合拢后归 0
-            lineStart,
-            lineEnd,
-            w1: warmAt(t - 0.14), // 渐变两端定形暖色(预算)
-            w2: warmAt(t + 0.14),
-          });
-          return (
-            <span className="demo-video__subtitle-char" key={ci}>
-              {ch === ' ' ? ' ' : ch}
-            </span>
-          );
-        })}
-      </span>
-    );
-    return lineNode;
+  const chars: CharMeta[] = [];
+  let globalIndex = 0;
+  const lineMetas = lines.map((line) => {
+    const lineChars = Array.from(line);
+    const firstIndex = globalIndex;
+    const renderedChars = lineChars.map((char) => {
+      const index = globalIndex;
+      const t = index / total;
+      chars.push({
+        start: t * 0.6,
+        w1: warmAt(t - 0.14),
+        w2: warmAt(t + 0.14),
+      });
+      globalIndex += 1;
+      return { char, index };
+    });
+    const lastIndex = Math.max(firstIndex, globalIndex - 1);
+    return {
+      chars: renderedChars,
+      revealStart: (firstIndex / total) * 0.6,
+      revealEnd: (lastIndex / total) * 0.6 + 0.22,
+    };
   });
-
-  // 渲染期收集的 metas 与 DOM 中 .subtitle-char 顺序一致;lineMetas 与 .subtitle-line 一致。
-  onChars(metas, lineMetas);
-
-  return (
-    <p ref={containerRef} className="demo-video__subtitle" aria-label={text.replace(/\n/g, ' ')}>
-      {nodes}
-    </p>
-  );
-});
+  return { chars, lines: lineMetas };
+}
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
- * 时光副标题:逐字两层动效(错峰显影 + 沿句流转暖色),全程由 progress(0→1)驱动。
- * 架构(实测定案):span 子树静态(StaticSubtitle,只渲一次);本组件每帧遍历 132 个字节点,
- * 把算好的 opacity/filter/transform/color 直接写进各字叶子的 inline style。
- * 写叶子非继承属性只失效该叶子,不触发子树全量 recalc → recalcStyle 从 ~960ms 降到 ~38ms。
+ * Blur/opacity are supported properties and therefore belong to the four line-level
+ * Animate lanes. Only the per-character gradient remains an imperative projection.
  */
-function TimeSubtitle({ text, progress }: { text: string; progress: number }): JSX.Element {
-  const ref = useRef<HTMLParagraphElement>(null);
-  const metasRef = useRef<CharMeta[]>([]);
-  const lineMetasRef = useRef<LineMeta[]>([]);
-  const charEls = useRef<HTMLElement[] | null>(null);
-  const lineEls = useRef<HTMLElement[] | null>(null);
-  // 每个字上一帧是否已定形(颜色到位):定形后跳过写入 → 已完成的字彻底退出重绘。
-  const settledRef = useRef<boolean[]>([]);
-  // 每行上一帧 blur 是否已归零:归零后不再每帧写 filter,该行退出模糊卷积。
-  const lineClearRef = useRef<boolean[]>([]);
+function TimeSubtitle({ text }: { text: string }): JSX.Element {
+  const { progress } = useAnimateTimeline();
+  const model = useMemo(() => buildSubtitleModel(text), [text]);
+  const charRefs = useRef<Array<HTMLSpanElement | null>>([]);
 
   useLayoutEffect(() => {
-    const root = ref.current;
-    if (!root) return;
-    // 首次(或 text 变更后)缓存字/行节点列表,避免每帧 querySelector。
-    if (!charEls.current) {
-      charEls.current = Array.from(
-        root.querySelectorAll<HTMLElement>('.demo-video__subtitle-char')
-      );
-      lineEls.current = Array.from(
-        root.querySelectorAll<HTMLElement>('.demo-video__subtitle-line')
-      );
-      settledRef.current = new Array(charEls.current.length).fill(false);
-      lineClearRef.current = new Array(lineEls.current.length).fill(false);
-    }
-    const p = progress;
+    const settled = new Array(model.chars.length).fill(false);
+    const paint = (value: number): void => {
+      const p = clamp01(value);
+      for (let i = 0; i < model.chars.length; i++) {
+        const m = model.chars[i];
+        const colorLocal = clamp01((p - m.start - 0.22) / 0.22);
+        const done = colorLocal >= 1;
+        if (done && settled[i]) continue;
+        const element = charRefs.current[i];
+        if (element) {
+          const c1 = mix(INK, m.w1, colorLocal);
+          const c2 = mix(INK, m.w2, colorLocal);
+          element.style.backgroundImage = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+        }
+        settled[i] = done;
+      }
+    };
 
-    // ① 行级 blur:整行一个模糊层。滚动中任一刻最多 1-2 行在过渡 → 每帧只 1-2 次卷积。
-    const lines = lineEls.current ?? [];
-    const lineMetas = lineMetasRef.current;
-    for (let li = 0; li < lines.length; li++) {
-      const lm = lineMetas[li];
-      if (!lm) continue;
-      const clear = clamp01((p - lm.blurStart) / (lm.blurEnd - lm.blurStart));
-      const done = clear >= 1;
-      // 已清晰且上帧也已清晰 → 跳过,不再写 filter(该行退出重绘)。
-      if (done && lineClearRef.current[li]) continue;
-      lines[li].style.filter = done
-        ? 'none'
-        : `blur(calc(${((1 - clear) * 8).toFixed(2)} * var(--cv-u)))`;
-      lineClearRef.current[li] = done;
-    }
+    paint(progress.get());
+    return progress.on('change', paint);
+  }, [model, progress]);
 
-    // ② 逐字:opacity + 位移(合成器免费)+ 颜色(定形前逐字重绘,定形后静止)。
-    const els = charEls.current;
-    const metas = metasRef.current;
-    for (let i = 0; i < els.length; i++) {
-      const m = metas[i];
-      if (!m) continue;
-      const colorLocal = clamp01((p - m.start - 0.22) / 0.22);
-      const settled = colorLocal >= 1;
-      // 已定形且上帧也定形 → 完全跳过(opacity=1、位移=0、颜色到位,均无需再写)。
-      if (settled && settledRef.current[i]) continue;
-      const el = els[i];
-      const appear = clamp01((p - m.start) / 0.22);
-      const gather = clamp01((p - m.lineStart) / (m.lineEnd - m.lineStart));
-      el.style.opacity = String(appear);
-      const off = m.offset0 * (1 - gather);
-      el.style.transform = off !== 0 ? `translateX(calc(${off.toFixed(1)} * var(--cv-u)))` : 'none';
-      const c1 = mix(INK, m.w1, colorLocal);
-      const c2 = mix(INK, m.w2, colorLocal);
-      el.style.backgroundImage = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
-      settledRef.current[i] = settled;
-    }
-  }, [progress]);
-
-  // text 变更时使节点/状态缓存失效(下个 layout effect 重建)。
-  useLayoutEffect(() => {
-    charEls.current = null;
-    lineEls.current = null;
-  }, [text]);
-
-  const handleChars = useCallback((metas: CharMeta[], lineMetas: LineMeta[]): void => {
-    metasRef.current = metas;
-    lineMetasRef.current = lineMetas;
-  }, []);
-
-  return <StaticSubtitle text={text} containerRef={ref} onChars={handleChars} />;
+  return (
+    <div className="demo-video__subtitle" role="group" aria-label={text.replace(/\n/g, ' ')}>
+      {model.lines.map((line, lineIndex) => {
+        // 反向退场:末行最早开始淡出,首行最后。fadeStart 一定 > revealEnd,
+        // times 保持单调递增。
+        const fadeStart = Math.max(
+          line.revealEnd + 0.01,
+          lineFadeStart(lineIndex, model.lines.length)
+        );
+        return (
+          <Animate
+            key={lineIndex}
+            animateId={`demo-subtitle-line-${lineIndex}`}
+            enterAnimation={{
+              initial: { opacity: 0, filter: SUBTITLE_BLUR },
+              animate: {
+                opacity: [0, 0, 1, 1, 0],
+                filter: [SUBTITLE_BLUR, SUBTITLE_BLUR, 'blur(0vw)', 'blur(0vw)', SUBTITLE_BLUR],
+                transition: {
+                  opacity: { times: [0, line.revealStart, line.revealEnd, fadeStart, 1] },
+                  filter: { times: [0, line.revealStart, line.revealEnd, fadeStart, 1] },
+                },
+              },
+            }}
+            duration={{ enter: SUBTITLE_DURATION_MS }}
+            timeline={{ waitFor: 'demo-title', delay: 0 }}
+          >
+            <span className="demo-video__subtitle-line" aria-hidden="true">
+              {line.chars.map(({ char, index }) => (
+                <span
+                  key={index}
+                  ref={(element) => (charRefs.current[index] = element)}
+                  className="demo-video__subtitle-char"
+                >
+                  {char === ' ' ? ' ' : char}
+                </span>
+              ))}
+            </span>
+          </Animate>
+        );
+      })}
+    </div>
+  );
 }
 
 /** 从墨色按 t(0→1)混到暖色,返回 rgb() 串。 */
@@ -247,19 +242,68 @@ export function DemoVideoScene(): JSX.Element {
     <div className="demo-video" data-lang={lang}>
       {/* 铺底:全屏视频 + 4 光圈层。视频 waitFor 标题 → 标题入场后擦洗。 */}
       <div className="demo-video__stage">
+        {/* enterAnimation 只作用于 AnimateVideo 的包装层视觉态;帧擦洗仍由内部
+            enterProgress 驱动,两者共用同一条 duration.enter 轴,互不挤占。 */}
         <AnimateVideo
           src="/video.mp4"
           preload={false}
           aria-label={t('demoVideo.slate')}
           animateId="demo-video"
+          enterAnimation={{
+            /* 收尾必须真正到 opacity 0（原为 0.85），且起点晚于标题的退场终点
+               ⇒ 背景是最后离场的那一层。见 BG_OUT_START 处的次序说明。 */
+            initial: { opacity: 0, filter: VIDEO_BLUR_IN, scale: 1.04 },
+            animate: {
+              opacity: [0, 1, 1, 0],
+              filter: [VIDEO_BLUR_IN, 'blur(0vw)', 'blur(0vw)', VIDEO_BLUR_TAIL],
+              scale: [1.04, 1, 1, 1.02],
+              transition: {
+                opacity: { times: [0, VIDEO_ENTER_END, BG_OUT_START, 1] },
+                filter: { times: [0, VIDEO_ENTER_END, BG_OUT_START, 1] },
+                scale: { times: [0, VIDEO_ENTER_END, BG_OUT_START, 1] },
+              },
+            },
+          }}
           duration={{ enter: 4000 }}
           timeline={{ waitFor: 'demo-title', delay: 0 }}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
-        <div className="demo-video__scrim" />
+        {/* scrim 与视频同刻淡入/收尾:它不是 video 的后代,拿不到 video lane 的
+            opacity,必须自己有一条 lane,否则视频未出时就把上下两端压成暖白接缝。 */}
+        <Animate
+          animateId="demo-scrim"
+          enterAnimation={{
+            /* 与视频同轴同刻收到 0：scrim 是压在视频上下两端的暖白纱，
+               若它留在 0.85 而视频已到 0，就会单独剩一条纱挂在空场上。 */
+            initial: { opacity: 0 },
+            animate: {
+              opacity: [0, 1, 1, 0],
+              transition: { opacity: { times: [0, VIDEO_ENTER_END, BG_OUT_START, 1] } },
+            },
+          }}
+          duration={{ enter: SUBTITLE_DURATION_MS }}
+          timeline={{ waitFor: 'demo-title', delay: 0 }}
+        >
+          <div className="demo-video__scrim" />
+        </Animate>
+
+        {/* ⚠️ 这里**不放**收尾黑场层（2026-08-08 试过并撤销，留档避免再试）。
+            幕末有约 900px 奶白空屏（ISSUE-B，实测整屏亮度 235 从 f=0.84 到 f=1.00），
+            但**任何放在本 Scene 内的层都填不了它** —— 那 900px 正是本幕 sticky 壳
+            向上滚出视口的行程，层跟着壳一起走：实测该层矩形从 `0..900` 移到 `-900..0`，
+            f=1.0 时整个在视口之上，即使 opacity=1 也盖不住屏幕。
+            （附带踩到第二个坑：给内层 div 写 CSS `opacity: 0` 会与 lane 写在**包装元素**
+            上的 opacity 相乘 ⇒ 恒为 0、永不显形。`.demo-video__scrim` 也带着同样的
+            `opacity: 0`，值得单独核一遍它是否真的可见。）
+            正确的桥接位置在**页面级**（色带尾段调暗），见 `design/global.css` 的
+            ISSUE-B 注释。 */}
       </div>
 
-      {/* 顶部:主标题快速入场(开头即就位,随后常驻) */}
+      {/* 顶部:主标题快速入场(开头即就位),收尾时最后淡出。
+          两条 lane 分工:
+            demo-title      —— 640ms 快速入场轴(其他 lane 靠 waitFor 挂在它后面,不可改)
+            demo-title-out  —— 4000ms 收束轴(与视频/副标题同轴),只负责反向退场。
+          标题是画面框架,故排在四行副标题**之后**淡出(0.95),形成由内向外的收束。 */}
       <Position at={{ anchor: 'center-x', y: 200 }}>
         <Animate
           animateId="demo-title"
@@ -270,23 +314,40 @@ export function DemoVideoScene(): JSX.Element {
           duration={{ enter: 640 }}
           timeline={{ delay: 0 }}
         >
-          <div className="demo-video__titleblock">
-            <VideoTitle text={t('demoVideo.title')} />
-          </div>
+          <Animate
+            animateId="demo-title-out"
+            enterAnimation={{
+              /* 标题在 0.90→0.96 走完，早于背景（0.94→1.00）⇒ 收束由内向外。
+                 原为 0.95→1.00，与背景同刻结束，读作「字和底一起硬切」。 */
+              initial: { opacity: 1 },
+              animate: {
+                opacity: [1, 1, 0],
+                filter: ['blur(0vw)', 'blur(0vw)', SUBTITLE_BLUR],
+                transition: {
+                  opacity: { times: [0, TITLE_OUT_START, TITLE_OUT_END] },
+                  filter: { times: [0, TITLE_OUT_START, TITLE_OUT_END] },
+                },
+              },
+            }}
+            duration={{ enter: SUBTITLE_DURATION_MS }}
+            timeline={{ waitFor: 'demo-title', delay: 0 }}
+          >
+            <div className="demo-video__titleblock">
+              <VideoTitle text={t('demoVideo.title')} />
+            </div>
+          </Animate>
         </Animate>
       </Position>
 
-      {/* 画面正中:时光副标题(新主角),waitFor 标题 → 与视频并行、全程逐字驱动 */}
+      {/* 画面正中:时光副标题(新主角),waitFor 标题 → 与视频并行、逐行显影 + 逐字暖色 */}
       <Position at={{ anchor: 'center' }}>
         <Animate
           animateId="demo-subtitle"
           enterAnimation={{ initial: { opacity: 1 }, animate: { opacity: 1 } }}
-          duration={{ enter: 4000 }}
+          duration={{ enter: SUBTITLE_DURATION_MS }}
           timeline={{ waitFor: 'demo-title', delay: 0 }}
         >
-          {({ enterProgress }) => (
-            <TimeSubtitle text={t('demoVideo.intro')} progress={enterProgress} />
-          )}
+          <TimeSubtitle text={t('demoVideo.intro')} />
         </Animate>
       </Position>
     </div>

@@ -24,7 +24,7 @@ import { hoverAnchor, letterRamp, makeWalk, stepHover, stepWalk } from './wordMo
 
 interface ClapperboardCanvasProps {
   progress: MotionValue<number>;
-  phase?: MotionValue<AnimatePhase>;
+  phase: MotionValue<AnimatePhase>;
 }
 
 // Dark-gold grade only. The teal that used to colour the body/value particles is
@@ -382,7 +382,7 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
     let width = 0;
     let height = 0;
     let drawCount = 0;
-    let currentPhase: AnimatePhase = phase ? phase.get() : 'entered';
+    let currentPhase: AnimatePhase = phase.get();
     let paused = currentPhase === 'exited' || currentPhase === 'idle';
 
     // Fit uses the shared full particle hull from fitGeometry.ts. Geometry generation,
@@ -885,17 +885,12 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
     // now also means stale cached light gradients, not just stale particle mapping.
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
-    let unsubscribePhase: (() => void) | undefined;
-    if (phase) {
-      applyPhase(phase.get());
-      unsubscribePhase = phase.on('change', applyPhase);
-    } else {
-      start();
-    }
+    applyPhase(phase.get());
+    const unsubscribePhase = phase.on('change', applyPhase);
 
     return () => {
       observer.disconnect();
-      unsubscribePhase?.();
+      unsubscribePhase();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };

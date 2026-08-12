@@ -21,7 +21,7 @@
 
 import { createRef, useState } from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CineView } from './CineView';
+import { CineView } from './CineViewDispatch';
 import type { CineViewRef } from '../../types';
 import type { MotionValue } from 'framer-motion';
 import { freezeAnimationRegistrySnapshot } from '../../animations/registry';

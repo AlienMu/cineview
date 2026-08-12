@@ -166,8 +166,9 @@ function reduceTimelineFrame(
     return result(
       {
         ...state,
-        status: playing ? 'native-paused' : state.status,
+        status: 'framework-scrub',
         activePlayRequestId: null,
+        lastSeekTime: null,
         outgoingLatched: true,
         frameworkPausePending: playing,
       },
@@ -175,7 +176,7 @@ function reduceTimelineFrame(
     );
   }
 
-  if (!isScrubSource(frame.source)) return result(state);
+  if (!state.outgoingLatched && !isScrubSource(frame.source)) return result(state);
   if (!canReclaimTerminalState(state, frame)) return result(state);
 
   const targetTime = mapVideoScrubProgress(frame.progress, event.duration, event.scrubRange);

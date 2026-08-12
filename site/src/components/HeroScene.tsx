@@ -1,4 +1,3 @@
-import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Animate, Position } from 'cineview';
 import { useI18n } from '../i18n';
@@ -59,6 +58,14 @@ const CHAR_INTERVAL = 32; // 每字符错峰间隔,喂 stagger.each
 const CHAR_DUR = 460; // 单字符 reveal 时长(变体 transition.duration)
 const BTN_DUR = 560;
 const HINT_DUR = 640;
+const BEAM_TIMES = [0, 0.14, 0.25, 0.39, 0.5, 0.65, 0.75, 0.9, 1];
+
+function heldVariant(): {
+  initial: Record<string, unknown>;
+  animate: Record<string, unknown>;
+} {
+  return { initial: { opacity: 1 }, animate: { opacity: 1 } };
+}
 
 // intro 逐字变体(淡入 + 微上移)。预设无 fade-up,直接传 CustomAnimation:
 // stagger 保留 transition.duration(单字符 reveal 时长)并叠加 per-index delay。
@@ -124,13 +131,11 @@ function buildIntroItems(intro: string): JSX.Element[] {
  *     title → slogan(两行 slide-right/left 视差)→ intro(Tier 2 stagger 逐字揭示)
  *     → buttons(slide-up 错峰,waitFor='hero-intro')→ hint。
  *
- * intro 打字改用框架 Tier 2 stagger(每字符 span 由 framer 原生 staggerChildren 错峰),
- * 替掉了旧的 setInterval + budget 占位 hack。仅 slogan 光束回路渐变
- * (background-clip:text + background-position,见 global.css @keyframes)仍为纯 CSS,
- * 因框架变体只吃 transform/opacity/filter,表达不了。
+ * intro 打字使用框架 Tier 2 stagger。slogan 光束与滚动提示使用 infiniteAnimation，
+ * 由框架 phase 门控；光束通过继承 CSS 变量投影到 background-position。
  *
  * reduced-motion:所有 Animate duration/delay 归零(瞬间到位),stagger each=0 一次铺开;
- *   光束/浮动 keyframes 由 global.css 媒体查询关闭。
+ *   infiniteAnimation 不注册，保留静态终态。
  */
 export function HeroScene(): JSX.Element {
   const { t, lang } = useI18n();
@@ -140,26 +145,6 @@ export function HeroScene(): JSX.Element {
   const intro = t('hero.intro');
   const sloganLines = t('hero.slogan').split('\n');
   const introItems = buildIntroItems(intro);
-  // 流光接力共享时钟:两排光束是各自独立的 18s 循环,keyframe 的接力编排(row0 扫
-  // 0-18% → row1 接 18-36% → button 段 36-50%)只有在两排/按钮同一时刻起跑时才对得上。
-  // 故不各等自己 entered,而是数齐所有 slogan 排都 entered 后,统一翻 beamOn,让整组
-  // 光束共享同一起点——接力才连得上。
-  const enteredRowsRef = useRef(new Set<number>());
-  const beamOnRef = useRef(false);
-  const [beamOn, setBeamOn] = useState(false);
-  const markRowEntered = useCallback(
-    (row: number): void => {
-      enteredRowsRef.current.add(row);
-      // 数齐所有排 entered 后统一起跑。setState 用 microtask 推出渲染阶段(render-prop
-      // 在子组件 ScrollRenderBridge 的渲染里调用,直接 setState 父组件会触发 React 警告)。
-      if (enteredRowsRef.current.size >= sloganLines.length && !beamOnRef.current) {
-        beamOnRef.current = true;
-        queueMicrotask(() => setBeamOn(true));
-      }
-    },
-    [sloganLines.length]
-  );
-
   return (
     <>
       {/* 四排整块用单个 Position 锚到屏幕中心,排间距交给 flex column 的 gap 自动堆叠,
@@ -175,50 +160,78 @@ export function HeroScene(): JSX.Element {
             <p className="hero__title">{t('hero.title')}</p>
           </Animate>
 
-          <h1 className="hero__slogan" data-lang={lang}>
-            {sloganLines.map((line, i) => {
-              // 中文 ±44 非对称偏移作为静态 transform 挂在 span(最终落位),
-              // 与 Animate 的 slide 入场位移(外层 motion.div)解耦叠加。
-              const persist = lang === 'zh' ? (i === 0 ? -44 : 44) : 0;
-              return (
-                <Animate
-                  key={i}
-                  animateId={`hero-slogan-${i}`}
-                  enterAnimation={sloganSlideVariant(i === 0 ? 'right' : 'left')}
-                  duration={{ enter: dur(SLOGAN_DUR) }}
-                  timeline={{
-                    // 两排都等 title,但 row1 用 delay 制造交叠(而非 waitFor row0 的
-                    // 完全串行)——row1 在 row0 播到 (SLOGAN_DUR - SLOGAN_OVERLAP) 时起身,
-                    // 与 row0 尾段重叠 SLOGAN_OVERLAP,读作连贯接力而非"完成→停顿→再起"。
-                    waitFor: 'hero-title',
-                    delay: i === 0 ? 0 : dur(SLOGAN_DUR - SLOGAN_OVERLAP),
-                  }}
-                >
-                  {(state) => {
-                    // 光束是纯 CSS(background-clip:text 扫光,框架白名单表达不了),
-                    // 但用框架 phase 门控。关键:不各等自己 entered——那样两排 18s 时钟
-                    // 起点错开,keyframe 接力对不上。而是数齐所有排 entered 后统一起跑
-                    // (markRowEntered → beamOn),整组共享同一起点,接力才连得上。
-                    if (state.phase === 'entered') markRowEntered(i);
-                    return (
-                      <span
-                        className="hero__slogan-line"
-                        data-row={i}
-                        data-beam={beamOn}
-                        style={
-                          persist
-                            ? { transform: `translateX(calc(${persist} * var(--cv-u)))` }
-                            : undefined
-                        }
-                      >
-                        {line}
-                      </span>
-                    );
-                  }}
-                </Animate>
-              );
-            })}
-          </h1>
+          <Animate
+            animateId="hero-beam-clock"
+            enterAnimation={heldVariant()}
+            duration={{ enter: 0 }}
+            timeline={{ waitFor: 'hero-slogan-1' }}
+            infiniteAnimation={
+              reduced
+                ? undefined
+                : {
+                    animate: {
+                      '--hero-beam-row-0': [
+                        '100%',
+                        '44%',
+                        '0%',
+                        '0%',
+                        '0%',
+                        '0%',
+                        '40%',
+                        '100%',
+                        '100%',
+                      ],
+                      '--hero-beam-row-1': [
+                        '100%',
+                        '100%',
+                        '56%',
+                        '0%',
+                        '0%',
+                        '60%',
+                        '100%',
+                        '100%',
+                        '100%',
+                      ],
+                      transition: {
+                        duration: 16,
+                        times: BEAM_TIMES,
+                        ease: 'linear',
+                        repeat: Infinity,
+                      },
+                    },
+                  }
+            }
+          >
+            <h1 className="hero__slogan" data-lang={lang}>
+              {sloganLines.map((line, i) => {
+                const persist = lang === 'zh' ? (i === 0 ? -44 : 44) : 0;
+                return (
+                  <Animate
+                    key={i}
+                    animateId={`hero-slogan-${i}`}
+                    enterAnimation={sloganSlideVariant(i === 0 ? 'right' : 'left')}
+                    duration={{ enter: dur(SLOGAN_DUR) }}
+                    timeline={{
+                      waitFor: 'hero-title',
+                      delay: i === 0 ? 0 : dur(SLOGAN_DUR - SLOGAN_OVERLAP),
+                    }}
+                  >
+                    <span
+                      className="hero__slogan-line"
+                      data-row={i}
+                      style={
+                        persist
+                          ? { transform: `translateX(calc(${persist} * var(--cv-u)))` }
+                          : undefined
+                      }
+                    >
+                      {line}
+                    </span>
+                  </Animate>
+                );
+              })}
+            </h1>
+          </Animate>
 
           {/* intro 逐字揭示使用框架 stagger；有效组时长由直接子项数量、each 与子项
               transition.duration 自动结算，buttons 的 waitFor 会等最后一个字符完成。 */}
@@ -240,7 +253,7 @@ export function HeroScene(): JSX.Element {
               duration={{ enter: dur(BTN_DUR) }}
               timeline={{ waitFor: 'hero-intro', delay: 50 }}
             >
-              <Link className="btn btn--primary" data-beam={beamOn} to="/docs/quickstart">
+              <Link className="btn btn--primary" to="/docs/quickstart">
                 <IconArrow />
                 {t('hero.ctaStart')}
               </Link>
@@ -283,6 +296,17 @@ export function HeroScene(): JSX.Element {
           enterAnimation="fade-in"
           duration={{ enter: dur(HINT_DUR) }}
           timeline={{ waitFor: 'hero-btn-2', delay: 0 }}
+          infiniteAnimation={
+            reduced
+              ? undefined
+              : {
+                  animate: {
+                    y: [0, 6, 0],
+                    opacity: [0.5, 1, 0.5],
+                    transition: { duration: 2, ease: 'easeInOut', repeat: Infinity },
+                  },
+                }
+          }
         >
           <span className="hero__scroll-hint mono" aria-hidden="true">
             {t('hero.scrollHint')}
