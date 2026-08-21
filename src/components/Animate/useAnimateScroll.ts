@@ -5,7 +5,7 @@ import type { ParsedAnimationVariant } from '../../types';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { SceneContextType } from './Animate';
 import type { ResolvedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
-import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollTimelineState, SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 import type {
   SceneAnimationRegistrationLease,
   WaitForOutcome,
@@ -33,6 +33,9 @@ interface UseAnimateScrollParams {
   exitVariant: ParsedAnimationVariant | null;
   hasAuthoredEnterAnimation?: boolean;
   hasAuthoredExitAnimation?: boolean;
+  /** Whether this Animate has a parsed infinite variant to gate. Without one,
+   *  the zone's visual subscription is the only per-frame consumer required. */
+  hasInfiniteAnimation?: boolean;
   componentId: string;
   duration: {
     enter: number;
@@ -221,6 +224,7 @@ export function useAnimateScroll({
   exitVariant,
   hasAuthoredEnterAnimation,
   hasAuthoredExitAnimation,
+  hasInfiniteAnimation = false,
   componentId,
   duration,
   timeline,
@@ -256,6 +260,14 @@ export function useAnimateScroll({
     exitTarget: {} as VariantRecord,
   });
   const visualMotion = useMotionValue(0);
+  // Continuous zone progress must stay on the MotionValue lane. The keyed
+  // store is still the single source written by the native scroll controller,
+  // but consuming it here avoids rebuilding React effects for every frame.
+  const zoneStateMotion = useMotionValue<SceneScrollTimelineState | null>(
+    zoneId && zoneRuntime
+      ? (zoneRuntime.store?.getKeySnapshot(zoneId) ?? zoneRuntime.zoneStates[zoneId] ?? null)
+      : null
+  );
   const [shouldRunInfiniteState, setShouldRunInfiniteState] = useState(false);
   const hostRef = useRef<HTMLElement | null>(null);
   const [hostVersion, setHostVersion] = useState(0);
@@ -327,6 +339,24 @@ export function useAnimateScroll({
   // later measurements can still drive exit/re-entry and infinite lifecycle.
   const staticFallbackAppliedRef = useRef(false);
 
+  const readZoneState = useCallback((): SceneScrollTimelineState | null => {
+    if (!zoneRuntime || !zoneId) return null;
+    return zoneRuntime.store?.getKeySnapshot(zoneId) ?? zoneRuntime.zoneStates[zoneId] ?? null;
+  }, [zoneId, zoneRuntime]);
+
+  useEffect(() => {
+    if (!isScrollDriven || !zoneRuntime || !zoneId) {
+      zoneStateMotion.set(null);
+      return;
+    }
+
+    const publish = (): void => {
+      zoneStateMotion.set(readZoneState());
+    };
+    publish();
+    return zoneRuntime.store?.subscribeKey(zoneId, publish);
+  }, [isScrollDriven, readZoneState, zoneId, zoneRuntime, zoneStateMotion]);
+
   // ── Manual control: enterRef / exitRef ─────────────────────────────────────
   //
   // Only the VISIBILITY lane can honour a manual trigger. On the scroll-takeover
@@ -350,6 +380,12 @@ export function useAnimateScroll({
   // Manual ownership is sticky: once the consumer has driven the enter, the gate
   // never re-fires it on its own (an auto replay would fight the owner).
   const manualEnterUsedRef = useRef(false);
+  // ⚠️ A manual EXIT must be sticky too. `autoExitSuppressed` only closes the exit
+  // gate; the enter gate stays open, and `replayOnReenter` defaults to true — so an
+  // element told to leave while still inside the viewport gets pulled straight back
+  // in on the very next scroll tick. That is precisely the intended use ("this is
+  // mine, it leaves when I say"), so exiting by hand claims the enter gate as well.
+  const manualExitUsedRef = useRef(false);
 
   const publishEnterCompleted = useCallback(
     (lease: SceneAnimationRegistrationLease | null): void => {
@@ -689,7 +725,12 @@ export function useAnimateScroll({
         });
         // Manual ownership wins over the gate: a suppressed lane never auto-fires,
         // and a lane the consumer has already driven never auto-replays.
-        if (action === 'enter' && !autoEnterSuppressed && !manualEnterUsedRef.current) {
+        if (
+          action === 'enter' &&
+          !autoEnterSuppressed &&
+          !manualEnterUsedRef.current &&
+          !manualExitUsedRef.current
+        ) {
           beginEnterAttempt();
           advanceEnterAttempt();
         } else if (action === 'exit' && !autoExitSuppressed) {
@@ -737,6 +778,8 @@ export function useAnimateScroll({
   // timeline and play now" — never "restart the wait".
   const triggerManualEnter = useCallback((): void => {
     manualEnterUsedRef.current = true;
+    // 消费者重新要求它出现 ⇒ 解除上一次手动退场的所有权，否则再也回不来。
+    manualExitUsedRef.current = false;
     // Both flags are initialization bookkeeping: taking manual ownership counts as
     // having initialized, so a later measurement cannot re-run the first-measure
     // reveal on top of the consumer's frame.
@@ -746,6 +789,7 @@ export function useAnimateScroll({
   }, [runEnterTween]);
 
   const triggerManualExit = useCallback((): void => {
+    manualExitUsedRef.current = true;
     runExitTween();
   }, [runExitTween]);
 
@@ -874,8 +918,8 @@ export function useAnimateScroll({
     unregisterZoneAnimation,
   ]);
 
-  useEffect(() => {
-    if (isScrollDriven) {
+  const applyScrollZoneState = useCallback(
+    (zoneState: SceneScrollTimelineState | null): void => {
       // S-F6: an Animate with no authored enter/exit (e.g. infiniteAnimation
       // only) never registers a zone budget, so the budget lookup below can
       // never succeed. Holding it at the initial frame (visualMotion 0) made it
@@ -887,7 +931,7 @@ export function useAnimateScroll({
       // rest state so the render-prop bridge and the per-scene enter bus see it
       // as entered (a follower waitFor-ing it is not deadlocked).
       if (!hasExplicitEnter && !hasExplicitExit) {
-        visualMotion.set(1);
+        if (visualMotion.get() !== 1) visualMotion.set(1);
         if (phaseRef.current !== 'entered') {
           setPhase('entered');
         }
@@ -899,14 +943,13 @@ export function useAnimateScroll({
         // an inherited zoneId (see Animate.tsx resolve), so a scroll-driven
         // element without a zone is structurally impossible. Kept as a defensive
         // early-return (rest at the initial frame) rather than a warning.
-        visualMotion.set(0);
+        if (visualMotion.get() !== 0) visualMotion.set(0);
         return;
       }
 
-      const zoneState = zoneRuntime.zoneStates[zoneId];
       const budget = zoneState?.sequence.budgets[componentId];
       if (!zoneState || !budget) {
-        visualMotion.set(0);
+        if (visualMotion.get() !== 0) visualMotion.set(0);
         return;
       }
 
@@ -935,13 +978,13 @@ export function useAnimateScroll({
       }
 
       if (progressPx <= phaseStartPx) {
-        visualMotion.set(0);
+        if (visualMotion.get() !== 0) visualMotion.set(0);
         return;
       }
 
       if (!budget.hasExit) {
         if (progressPx >= phaseEndPx) {
-          visualMotion.set(1);
+          if (visualMotion.get() !== 1) visualMotion.set(1);
           return;
         }
 
@@ -962,40 +1005,53 @@ export function useAnimateScroll({
       }
 
       if (progressPx <= exitStartPx) {
-        visualMotion.set(1);
+        if (visualMotion.get() !== 1) visualMotion.set(1);
         return;
       }
 
       if (progressPx >= exitEndPx) {
-        visualMotion.set(-1);
+        if (visualMotion.get() !== -1) visualMotion.set(-1);
         return;
       }
 
       visualMotion.set(
         -clamp((progressPx - exitStartPx) / Math.max(exitEndPx - exitStartPx, 1), 0, 1)
       );
-      return;
-    }
+    },
+    [
+      componentId,
+      hasExplicitEnter,
+      hasExplicitExit,
+      phaseEnd,
+      phaseStart,
+      publishEnterCompleted,
+      setPhase,
+      visualMotion,
+      zoneId,
+      zoneRuntime,
+    ]
+  );
 
+  useEffect(() => {
+    if (!isScrollDriven) return;
+
+    const update = (): void => applyScrollZoneState(zoneStateMotion.get());
+    update();
+    // Infinite-only lanes have no progress-dependent visual state. Avoid even
+    // the MotionValue callback on every frame; their phase is scene-owned.
+    if (!hasExplicitEnter && !hasExplicitExit) return;
+    return zoneStateMotion.on('change', update);
+  }, [applyScrollZoneState, hasExplicitEnter, hasExplicitExit, isScrollDriven, zoneStateMotion]);
+
+  useEffect(() => {
+    if (isScrollDriven) return;
     runVisibilityUpdate();
   }, [
-    zoneRuntime,
-    zoneId,
-    componentId,
+    hostVersion,
     isScrollDriven,
-    visualMotion,
-    enterDuration,
-    publishEnterCompleted,
-    phaseStart,
-    phaseEnd,
-    hasExplicitEnter,
-    hasExplicitExit,
-    replayOnReenter,
+    runVisibilityUpdate,
     sceneContext?.scrollProgress,
     sceneContext?.scrollTimelineState,
-    setPhase,
-    hostVersion,
-    runVisibilityUpdate,
   ]);
 
   useEffect(() => {
@@ -1017,15 +1073,17 @@ export function useAnimateScroll({
   // framer-motion's animate() does not fire onComplete (setState) after teardown.
   useEffect(() => stopTween, [stopTween]);
 
-  useEffect(() => {
-    if (isScrollDriven) {
-      if (!zoneRuntime || !zoneId) {
-        setShouldRunInfiniteState(false);
+  const infiniteStateRef = useRef(false);
+  const updateInfiniteState = useCallback(
+    (zoneState: SceneScrollTimelineState | null): void => {
+      if (!hasInfiniteAnimation || !isScrollDriven || !zoneRuntime || !zoneId) {
+        if (infiniteStateRef.current) {
+          infiniteStateRef.current = false;
+          setShouldRunInfiniteState(false);
+        }
         return;
       }
 
-      const zoneState = zoneRuntime.zoneStates[zoneId];
-      const budget = zoneState?.sequence.budgets[componentId];
       const runtimeState = sceneContext?.runtimeState;
       const runtimeAllowsInfinite =
         runtimeState === undefined ||
@@ -1036,17 +1094,21 @@ export function useAnimateScroll({
 
       // S-F6: an infinite-only element (no authored enter/exit) has no zone
       // budget by design — it rests at its entered frame (see the visualMotion
-      // effect above), so its loop is gated purely by the scene runtime state:
-      // running while the scene is on stage (active/entering), stopped when
-      // covered/inactive/parked/exiting. Without this branch the budget lookup
-      // below pinned shouldRunInfinite to false forever.
+      // effect above), so its loop is gated purely by the scene runtime state.
       if (!hasExplicitEnter && !hasExplicitExit) {
-        setShouldRunInfiniteState(runtimeAllowsInfinite);
+        if (infiniteStateRef.current !== runtimeAllowsInfinite) {
+          infiniteStateRef.current = runtimeAllowsInfinite;
+          setShouldRunInfiniteState(runtimeAllowsInfinite);
+        }
         return;
       }
 
+      const budget = zoneState?.sequence.budgets[componentId];
       if (!zoneState || !budget || !runtimeAllowsInfinite) {
-        setShouldRunInfiniteState(false);
+        if (infiniteStateRef.current) {
+          infiniteStateRef.current = false;
+          setShouldRunInfiniteState(false);
+        }
         return;
       }
 
@@ -1066,20 +1128,43 @@ export function useAnimateScroll({
       const hasEntered = hasExplicitEnter ? progressPx >= phaseEndPx - 0.5 : progressPx > 0.5;
       const beforeExit =
         !budget.hasExit || budget.exitStartPx === null || progressPx <= budget.exitStartPx + 0.5;
+      const next = hasEntered && beforeExit;
+      if (infiniteStateRef.current !== next) {
+        infiniteStateRef.current = next;
+        setShouldRunInfiniteState(next);
+      }
+    },
+    [
+      componentId,
+      hasExplicitEnter,
+      hasExplicitExit,
+      hasInfiniteAnimation,
+      isScrollDriven,
+      phaseEnd,
+      phaseStart,
+      sceneContext?.runtimeState,
+      setShouldRunInfiniteState,
+      zoneId,
+      zoneRuntime,
+    ]
+  );
 
-      setShouldRunInfiniteState(hasEntered && beforeExit);
+  useEffect(() => {
+    if (!isScrollDriven || !hasInfiniteAnimation) {
+      updateInfiniteState(null);
       return;
     }
+
+    updateInfiniteState(zoneStateMotion.get());
+    if (!hasExplicitEnter && !hasExplicitExit) return;
+    return zoneStateMotion.on('change', updateInfiniteState);
   }, [
-    componentId,
     hasExplicitEnter,
     hasExplicitExit,
+    hasInfiniteAnimation,
     isScrollDriven,
-    phaseEnd,
-    phaseStart,
-    sceneContext?.runtimeState,
-    zoneId,
-    zoneRuntime,
+    updateInfiniteState,
+    zoneStateMotion,
   ]);
 
   const opacity = useNumericValue(visualMotion, variantsRef, 'opacity');

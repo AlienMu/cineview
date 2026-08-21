@@ -18,6 +18,7 @@ import type {
   PreparedSceneInvalidation,
   PreparedSceneSnapshot,
 } from './dragPreparedState';
+import type { ScrollSceneFrameStore } from '../CineView/scrollSceneFrameStore';
 
 export type SceneState = 'initial' | 'entering' | 'active' | 'exiting';
 
@@ -204,6 +205,9 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     onScrollingChange?: (scrolling: boolean) => void;
     onCommit?: (direction: 'forward' | 'backward', progressRatio: number) => void;
     onReset?: () => void;
+    /** Stable imperative frame lane; continuous scroll values never enter React props. */
+    frameStore?: ScrollSceneFrameStore;
+    sceneIndex?: number;
   };
   onDragCommit?: (
     direction: 'forward' | 'backward',

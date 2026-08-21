@@ -1,14 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Animate, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
 import { PhoneMockup } from './PhoneMockup';
+import { createLastWinsTimerSequence, type LastWinsTimerSequence } from './lastWinsTimerSequence';
+import {
+  createScene5LifecycleState,
+  freezeScene5Element,
+  reduceScene5Lifecycle,
+  scene5TabIndex,
+  SCENE5_SPLIT_SCRUB_START,
+  type Scene5LifecycleEffect,
+  type Scene5LifecycleEvent,
+  type Scene5LifecycleState,
+} from './scene5Lifecycle';
 import './Scene5Cinema.css';
+
+const GITHUB_URL = 'https://github.com/AlienMu/cineview';
 
 /**
  * 第五幕：Cinema Entrance（熄屏入场）。
  *
  * 三阶段串行（zone 预算分数窗口，task-flow 2026-08-02-scene5-cinema-entrance）：
- *   0–0.4 熄灯（黑 overlay 线性变黑，反向可逆）
+ *   0.02–1.0 熄灯（黑 overlay 线性变黑，反向可逆，斜坡贯穿整个 zone）
  *   0.4–0.7 手机显现（mockup opacity/scale/blur scrub）
  *   0.7–1.0 揭幕（iframe opacity/blur scrub + postMessage 激活 /drag 冷启动入场）
  *
@@ -37,6 +51,50 @@ const LIGHTS_OFF_MAX = 0.94;
 const INTERACT_AT = 0.98;
 const INTERACT_OFF_BELOW = 0.92;
 
+/* ── 收尾层退场语义：scrub（2026-08-15 用户拍板，取代 2026-08-14 手动控制轨）──
+ * 旧方案（enterRef/exitRef 手动控制轨 + SPLIT_ENTER / SPLIT_EXIT 定时器
+ * 编排）已整体删除：事件驱动退场不跟手——用户往上滚时文字/CTA 不动，
+ * 要等消息/定时器才退。新语义三件事：
+ *   1. 文字/CTA/footer 的**透明度 = zone progress 的纯函数**，scrub 窗
+ *      0.85→1（下方 SPLIT_SCRUB_*）：往上滚跟手淡出、滚回来原样回来。
+ *   2. 元素**挂载门控在 finished latch 上**（latch 才渲染）：框架轨制下
+ *      同一 lane 不能「手动入场 + scrub 退场」（scrub 轨手动写入会被下一帧
+ *      scroll 覆盖），故串行入场改为子元素的**一次性 CSS transform/visibility 动画**
+ *      （`animation: … both` + delay 0/0.25s/0.6s/0.9s，见 Scene5Cinema.css；
+ *      CLAUDE.md 规则 6 允许一次性插值，禁 infinite）。滚动 opacity 由外层 scrub owner
+ *      写入；unfinished 才会启用独立的 manual-opacity 通道。
+ *   3. 列收拢阈值 0.85：progress < 0.85 → 收列（手机回中，CSS 1.1s 位移段照旧）；
+ *      progress 回升至 0.95 才重开，且递增 replay generation 重新走四拍，避免
+ *      0.85 临界来回抖动与隐藏期间跳过入场。
+ * unfinished 消息先按序驱动一次性 manual-opacity，再由同一代 sequence 收列；
+ * manual-opacity 只负责消息时序，不另写框架 progress。 */
+const SPLIT_SCRUB_END = 1;
+/* ── 严格串行时序（2026-08-16 用户指令，回归 08-09 裁决语义）───────────────
+ * 入场：手机位移 1.1s（CSS gap/basis/width transition）**完成后**标题才起
+ * （1.1s），副标题 1.35s、CTA 1.7s、footer 2.0s——CSS animation delay 对齐。
+ * unfinished 路径退场：**先**按序驱动子节点的 manual-opacity 通道（footer 0 /
+ * cta 0.15 / 副标题 0.35 / 标题 0.55s），**再**收列（手机位移）——外层 scrub
+ * 仍独占滚动透明度，JS 只编排一次性事件时序（非每帧；滚轮路径不受影响）。 */
+const SPLIT_EXIT_DONE_MS = 1050;
+const SPLIT_EXIT_DELAYS_MS: Array<[className: string, delay: number]> = [
+  ['scene5-cinema__footer', 0],
+  ['scene5-cinema__cta', 150],
+  ['scene5-cinema__subtitle-text', 350],
+  ['scene5-cinema__title-text', 550],
+];
+/** freeze 路径的两级串行（视口外的最终清理，语义保留）：t=700ms 收列
+ * （此时 progress≈0，文字 opacity 已被 scrub 归零，收列只是布局复位），
+ * t=1400ms 卸载 iframe + 重置 latch。 */
+const FREEZE_COLLAPSE_MS = 700;
+const FREEZE_UNMOUNT_MS = 1400;
+
+/** 收尾 scrub variant：纯 opacity 0→1（y 不参与——退场只做透明度跟手，
+ * 位移分量一律交给子元素的一次性 CSS 入场动画，两层职责不重叠）。 */
+const closingFadeVariant = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0 } },
+} as const;
+
 type CinemaStage = 'idle' | 'mounted' | 'revealed';
 
 function clockVariant(): {
@@ -59,7 +117,8 @@ function clockVariant(): {
  * 目前是屏幕5未接管就变成是黑色背景了」。
  *
  * 现裁决：接管前的滑入行程透出**色带尾段暖色**（容器背景兜底 #f7dfcc，见 global.css
- * 无级色带），暖接暖、无分层接缝；熄灯只在锁定后 progress 0→0.4 内播放。
+ * 无级色带），暖接暖、无分层接缝；熄灯斜坡贯穿锁定后整个 zone（0.02→1，见
+ * `LIGHTS_OFF_RAMP_END`）。
  * 已知代价（用户知情接受）：那段 ~900px 会回到「暖色空屏」——平坦但不黑，
  * 与前四幕屏间过渡的观感一致。
  */
@@ -78,10 +137,10 @@ const LIGHTS_OFF_MIN = 0;
  *   2. **到底部还在往回亮**。旧的四点镜像关键帧 `[0,.94,.94,0]` @ `[0,.4,.6,1]`
  *      在相位后段线性回 0 —— 正向滚到底时黑幕自己淡掉了，就是用户说的「出现后又消失」。
  *
- * 现改：**前 12% 相位内拉到全黑，其后恒定 0.94 到底**。
- *   times    [0,   0.12, 0.56, 1   ]
- *   opacity  [0,   0.94, 0.94, 0.94]
- * 0.12 相位按实测约合 810px ⇒ 进入本幕后很快就全黑，且**再也不回亮**。
+ * 现改：**整 zone 单段线性斜坡拉到全黑**（`times:[0,1]` / `opacity:[0,0.94]`，
+ *   `LIGHTS_OFF_RAMP_END=1`），斜坡贯穿整个 zone。达到 0.94 后**再也不回亮**。
+ *   times    [0,   1   ]
+ *   opacity  [0,   0.94]
  *
  * 「退场与入场一样」仍然成立，而且是更本质的成立方式：本 lane 的 opacity 是 zone
  * progress 的**纯函数**，反向滚动时 progress 递减、黑幕沿同一条曲线原样亮回来 ——
@@ -90,10 +149,19 @@ const LIGHTS_OFF_MIN = 0;
  * 起点仍必须是 0（2026-08-09 用户指令未变）：接管前的滑入行程透出色带尾段暖色，
  * 不能一进过渡就是黑的。
  */
-/* 0.029 也是实测定的：0.12 时斜坡实测占 2080px（32210→34290），而文档到 34400 就结束
- * ⇒ 只有最后约 110px 是黑的，等于没黑。按同一斜率折算，0.029 ≈ 500px 斜坡，
- * 进入本幕后半屏内就全黑，其后恒黑到底。 */
-const LIGHTS_OFF_RAMP_END = 0.029;
+/* 斜坡长度（2026-08-13 用户裁决重定）：斜坡 = **整个 zone**（RAMP_END = 1）。
+ * 历史：0.029 太短（瞬变）、0.12 走不完（峰值 0.44）、0.17 折中（斜坡 600px + 恒黑
+ * 1700px）。但 0.17 有两个用户裁决压不住的缺点：
+ *   1. 屏闪（N13 回归）：移除 1.05s 防闪 transition 后（用户 2026-08-13 裁决
+ *      「黑屏完全消失才结束滚动拦截」优先），600px 斜坡在离散滚轮档位下
+ *      每档 Δopacity ≈ 0.19（-120px 档）≈ 40+ lum 单帧跳——频闪复现（用户报障）。
+ *   2. 整 zone 线性斜坡把每档 Δ 压到 ≈ 0.032（-120px 档）≈ 7 lum/帧，低于
+ *      N13 的 15 lum 阈值；-400px 快甩档 Δ ≈ 0.107 ≈ 25 lum——快速甩动时
+ *      被运动本身掩盖（已知残余，用户知情）。
+ * 代价：熄灯从「前段快速变黑 + 恒黑」改为「贯穿整段滚动的缓慢变暗」（影院调性，
+ * 正向单调不减，08-12「黑了就不再退回」仍成立）；黑屏仍在解钉前完全消失
+ * （相位窗起点 0.02 见 JSX 注释）。 */
+const LIGHTS_OFF_RAMP_END = 1;
 
 function lightsOffVariant(): {
   initial: Record<string, unknown>;
@@ -102,109 +170,17 @@ function lightsOffVariant(): {
   return {
     initial: { opacity: LIGHTS_OFF_MIN },
     animate: {
-      opacity: [LIGHTS_OFF_MIN, LIGHTS_OFF_MAX, LIGHTS_OFF_MAX, LIGHTS_OFF_MAX],
-      transition: { duration: 0, times: [0, LIGHTS_OFF_RAMP_END, 0.56, 1] },
+      opacity: [LIGHTS_OFF_MIN, LIGHTS_OFF_MAX],
+      transition: { duration: 0, times: [0, LIGHTS_OFF_RAMP_END] },
     },
   };
 }
 
-/* ── 星光（2026-08-06 用户指令：「我要的背景星光闪烁的动画效果，你也没有实现。
- *    如果可以，我希望不要灯光，只要闪烁的星光就行了，保证随机性」）──────────────
- *
- * 最初的问题：3 层，**每层内所有星点共用一个 `--twinkle`** ⇒ 一层里 5–8 颗星严格同相地
- * 一起亮一起暗。观感是「三块背景在呼吸」，不是「星星在闪」。
- *
- * 第一版改法（把「层」换成 9 条互质周期的「频道」，逐星随机分配）**只解决了一半** ——
- * 对抗验收实测证伪（2026-08-08）：
- *   - 54 颗星的频道直方图 `{0:8, 1:4, 2:4, 3:5, 4:6, 5:2, 6:4, 7:8, 8:13}`
- *   - 两两相关中 **r>0.99 占 12.4%**，而同频道星对占比 178/1431 = **12.4%**，逐位吻合
- *     ⇒ 同频道星就是**完全同相**，一一对应，不是巧合
- *   - 最大的 8 号频道有 **13 颗**星、周期 23s ⇒ 13 颗一起缓慢涨落，**比它要修的
- *     「5–8 颗同相」那组还大**
- * 而我第一版注释里写「相位由『分配到哪个频道』+『该星自己的 lo/hi 区间』共同制造差异」
- * 是**自相矛盾的**：`lo/hi` 只改**振幅**，改不了**相位**，同频道星只是同一条曲线的等比缩放。
- *
- * 现在的改法：**每颗星消费两条频道的加权混合** ——
- *   `--star-t: calc(var(--twinkle-a) * w + var(--twinkle-b) * (1 - w))`
- * a / b / w 三者都逐星随机。两条不同周期的合成波形逐星不同，共享 a 的星只要 b 或 w 不同
- * 就自动解相关，**同相组被打散**。仍是 9 条 lane、零 canvas、零 rAF、零每帧 JS ——
- * 混合发生在 CSS 的 calc() 里，不新增任何 JS 每帧成本。
- * 频道周期取互质质数秒（2/3/5/7/11/13/17/19/23）⇒ 任意两条的公共周期是乘积
- * （最小 6s、最大 437s），合成波不会短周期复现。
- *
- * 随机性可复现：固定种子 LCG，不用 `Math.random()` —— 每次刷新看到同一片星空
- * （站点当前是纯 CSR，故这不是 SSR 水合问题；理由是**可复现调试**，改星野时能对照）。
- *
- * ⚠️ 为什么必须走 CSS 变量而不能直接 animate opacity：
- * useAnimateScroll 恒定返回含 opacity/x/y/scale/filter 等 10 个白名单属性的
- * MotionValue style，Animate 用 `style={scrollResult.style}` 绑到 motion 元素上。
- * framer-motion 里 style 上的 MotionValue 优先级高于 controls.start()，
- * 因此 infiniteAnimation **无法**驱动这 10 个属性中的任何一个（实测：直接写
- * opacity 的 lane 永远停在 1）。见 memory `infinite-lane-cannot-drive-whitelist-props`。 */
-const TWINKLE_CHANNELS = [2, 3, 5, 7, 11, 13, 17, 19, 23] as const;
-const STAR_COUNT = 54;
-
-/** 固定种子 LCG（数值取自 Numerical Recipes）。要的是「看起来随机」+ 可复现。 */
-function makeRng(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
-
-interface Star {
-  /** 百分比坐标，写进 inline style 的 left/top */
-  x: number;
-  y: number;
-  /** 直径 px（远小近大） */
-  size: number;
-  /** 主频道索引 → 读 `--twinkle-{chA}` */
-  chA: number;
-  /** 副频道索引（**必与 chA 不同**）→ 读 `--twinkle-{chB}` */
-  chB: number;
-  /** 主频道权重 0.35–0.65；副频道权重是 1 − w。逐星不同 ⇒ 合成波形逐星不同。 */
-  w: number;
-  /** 该星自己的亮度区间，制造「有的星闪得狠、有的只微微起伏」（只改振幅，不改相位） */
-  lo: number;
-  hi: number;
-  /** 偏暖(1)还是偏冷白(0)——星野不该只有一种白 */
-  warm: number;
-}
-
-/** 生成星野。纯函数 + 固定种子 ⇒ 每次刷新同一片星空，改星野时可对照调试。 */
-function buildStars(count: number, seed = 20260806): Star[] {
-  const rnd = makeRng(seed);
-  const n = TWINKLE_CHANNELS.length;
-  const stars: Star[] = [];
-  for (let i = 0; i < count; i++) {
-    // size 用平方分布：小星远多于大星（真实星野的亮度分布也是长尾）
-    const r = rnd();
-    const size = +(0.9 + r * r * 2.4).toFixed(2);
-    // 暗星闪烁幅度大、亮星幅度小 —— 亮星整片乱闪会显得廉价
-    const bright = 0.22 + rnd() * 0.5;
-    const swing = (0.55 - bright * 0.45) * (0.5 + rnd());
-    /* 两条**不同**频道 + 逐星权重 = 逐星不同的合成波形。
-     * chB 用 `(chA + 1 + k) % n` 取偏移而不是重抽随机数，是为了保证 **chB ≠ chA**
-     * （重抽有概率撞上自己，那颗星就退化回单频道、又变成同相候选）。 */
-    const chA = Math.floor(rnd() * n);
-    const chB = (chA + 1 + Math.floor(rnd() * (n - 1))) % n;
-    stars.push({
-      x: +(rnd() * 100).toFixed(2),
-      y: +(rnd() * 100).toFixed(2),
-      size,
-      chA,
-      chB,
-      // 0.35–0.65：两条都保持可观权重。太接近 0/1 会退化成单频道、重新同相。
-      w: +(0.35 + rnd() * 0.3).toFixed(3),
-      lo: +Math.max(0.04, bright - swing).toFixed(3),
-      hi: +Math.min(1, bright + swing).toFixed(3),
-      warm: rnd() < 0.38 ? 1 : 0,
-    });
-  }
-  return stars;
-}
-
+/* ── 星光已整体退役（2026-08-19 用户指令：「黑色背景星星去掉，增加淡淡的黑金
+ *    渐变背景 + 持续动画」）。9 条 twinkle 频道 lane、54 颗逐星 DOM、buildStars
+ *    种子随机全部删除，氛围改由两层黑金渐变雾承担（见下方 JSX 与 CSS
+ *    `.scene5-cinema__gold-mist-*`）。历史上的逐星闪烁实现与性能消融记录见
+ *    git 历史与本文件 2026-08-08/09 版本，不在此保留。 */
 function phoneVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
@@ -239,9 +215,6 @@ function CinemaLatchProjection({ onProgress }: { onProgress: (value: number) => 
 
 export function Scene5Cinema(): JSX.Element {
   const { t, lang } = useI18n();
-  // 星野只在挂载时算一次（固定种子 ⇒ 每次刷新同一片星空，且 SSR/水合一致）。
-  // 不进任何每帧路径：闪烁全靠 9 条 lane 写 CSS 变量。
-  const stars = useMemo(() => buildStars(STAR_COUNT), []);
   const rootRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<CinemaStage>('idle');
@@ -250,9 +223,162 @@ export function Scene5Cinema(): JSX.Element {
   const interactiveRef = useRef(false);
   const [stage, setStage] = useState<CinemaStage>('idle');
   const [live, setLive] = useState(false);
-  /** 分栏态：手机左移 + 右栏标题/副标题出现。由子页 `cineview-embed-finished` 触发。 */
-  const [split, setSplit] = useState(false);
   const [interactive, setInteractive] = useState(false);
+  /** zone progress 的最新值镜像（消息 handler 到达时读当前进度用）。 */
+  const progressRef = useRef(0);
+  const textColRef = useRef<HTMLDivElement>(null);
+  /**
+   * Scene5 的离散生命周期只有一个 owner。消息、progress 和
+   * IntersectionObserver 都通过这个 reducer 进入；React state 只是该状态的渲染投影。
+   */
+  const [lifecycle, setLifecycle] = useState<Scene5LifecycleState>(() =>
+    createScene5LifecycleState()
+  );
+  const lifecycleRef = useRef<Scene5LifecycleState>(lifecycle);
+  const lifecycleSequenceRef = useRef<LastWinsTimerSequence | null>(null);
+  const lifecycleDispatchRef = useRef<(event: Scene5LifecycleEvent) => void>(() => undefined);
+
+  const getLifecycleSequence = useCallback((): LastWinsTimerSequence => {
+    if (!lifecycleSequenceRef.current) {
+      lifecycleSequenceRef.current = createLastWinsTimerSequence({
+        setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+        clearTimeout: (id) => window.clearTimeout(id),
+      });
+    }
+    return lifecycleSequenceRef.current;
+  }, []);
+
+  const resetClosingElementStyles = useCallback((): void => {
+    for (const [cls] of SPLIT_EXIT_DELAYS_MS) {
+      const element = rootRef.current?.querySelector<HTMLElement>(`.${cls}`) ?? null;
+      if (!element) continue;
+      element.style.animation = '';
+      element.style.transform = '';
+      element.style.visibility = '';
+      element.style.removeProperty('--scene5-manual-opacity');
+    }
+  }, []);
+
+  const freezeClosingElements = useCallback((): void => {
+    for (const [cls] of SPLIT_EXIT_DELAYS_MS) {
+      const element = rootRef.current?.querySelector<HTMLElement>(`.${cls}`) ?? null;
+      if (!element) continue;
+      // Capture the keyframe's current transform before taking opacity ownership. Without this,
+      // cancelling a delayed/running entrance snaps the node to the CSS rule's static transform.
+      freezeScene5Element(element);
+    }
+  }, []);
+
+  /** Apply reducer effects. All finite callbacks use the same last-wins sequence owner. */
+  const applyLifecycleEffect = useCallback(
+    (effect: Scene5LifecycleEffect): void => {
+      const sequence = getLifecycleSequence();
+      switch (effect.type) {
+        case 'cancel-sequence':
+          sequence.cancel();
+          return;
+        case 'start-freeze':
+          sequence.start(
+            [
+              {
+                delay: FREEZE_COLLAPSE_MS,
+                run: () =>
+                  lifecycleDispatchRef.current({
+                    type: 'freeze-collapse',
+                    generation: effect.generation,
+                  }),
+              },
+            ],
+            () =>
+              lifecycleDispatchRef.current({
+                type: 'freeze-complete',
+                generation: effect.generation,
+              }),
+            FREEZE_UNMOUNT_MS
+          );
+          return;
+        case 'start-exit':
+          freezeClosingElements();
+          sequence.start(
+            SPLIT_EXIT_DELAYS_MS.map(([cls, delay]) => ({
+              delay,
+              run: (): void => {
+                const element = rootRef.current?.querySelector<HTMLElement>(`.${cls}`) ?? null;
+                if (element) element.style.setProperty('--scene5-manual-opacity', '0');
+              },
+            })),
+            () =>
+              lifecycleDispatchRef.current({
+                type: 'exit-complete',
+                generation: effect.generation,
+              }),
+            SPLIT_EXIT_DONE_MS
+          );
+          return;
+        case 'replay-closing':
+          // The keyed Fragment below remounts the four beats. Clear imperative residue from the
+          // old DOM before React commits the new generation, so a cancelled exit cannot leak in.
+          resetClosingElementStyles();
+          return;
+        case 'freeze-reset':
+          iframeRef.current?.contentWindow?.postMessage('cineview-freeze', window.location.origin);
+          stageRef.current = 'idle';
+          embedReadyRef.current = false;
+          liveRef.current = false;
+          interactiveRef.current = false;
+          setStage('idle');
+          setLive(false);
+          setInteractive(false);
+          resetClosingElementStyles();
+          return;
+        case 'exit-reset':
+          resetClosingElementStyles();
+          return;
+      }
+    },
+    [freezeClosingElements, getLifecycleSequence, resetClosingElementStyles]
+  );
+
+  const dispatchLifecycle = useCallback(
+    (event: Scene5LifecycleEvent): void => {
+      const current = lifecycleRef.current;
+      const transition = reduceScene5Lifecycle(current, event);
+      if (transition.state === current && transition.effects.length === 0) return;
+      lifecycleRef.current = transition.state;
+      setLifecycle(transition.state);
+      for (const effect of transition.effects) applyLifecycleEffect(effect);
+    },
+    [applyLifecycleEffect]
+  );
+  // Timer callbacks intentionally dereference the latest dispatch function; queued callbacks may
+  // outlive a React render, while the reducer generation still rejects stale work.
+  lifecycleDispatchRef.current = dispatchLifecycle;
+
+  const split = lifecycle.split;
+  const closing = lifecycle.closing;
+  const closingReplayKey = lifecycle.replayKey;
+
+  useLayoutEffect(() => {
+    // `inert` covers future focusable descendants; explicit tabIndex on current links below also
+    // closes the pre-layout-effect commit window and works in older engines without inert support.
+    const textColumn = textColRef.current;
+    if (!textColumn) return;
+    textColumn.inert = !split;
+    if (
+      !split &&
+      document.activeElement instanceof HTMLElement &&
+      textColumn.contains(document.activeElement)
+    ) {
+      document.activeElement.blur();
+    }
+  }, [split]);
+
+  useEffect(
+    () => () => {
+      getLifecycleSequence().cancel();
+    },
+    [getLifecycleSequence]
+  );
 
   const sendActivate = useCallback((): void => {
     const target = iframeRef.current?.contentWindow;
@@ -264,6 +390,7 @@ export function Scene5Cinema(): JSX.Element {
 
   const handleProgress = useCallback(
     (value: number): void => {
+      progressRef.current = value;
       if (value >= REVEAL_AT) {
         if (stageRef.current !== 'revealed') {
           stageRef.current = 'revealed';
@@ -284,8 +411,11 @@ export function Scene5Cinema(): JSX.Element {
         interactiveRef.current = false;
         setInteractive(false);
       }
+      /* 列收拢/重开：reducer 在 0.85/0.95 两个阈值上只做离散转换；重开会递增
+       * replayKey，下面的 keyed Fragment 因此重新播放四拍 CSS 入场，而不是揭示已完成帧。 */
+      dispatchLifecycle({ type: 'progress', value });
     },
-    [sendActivate]
+    [dispatchLifecycle, sendActivate]
   );
 
   // deferred iframe 的就绪握手：只有「ready 已收到 + progress 已过揭幕阈值」才发 activate，
@@ -301,121 +431,111 @@ export function Scene5Cinema(): JSX.Element {
         return;
       }
       /* 第四条消息（2026-08-06）：子页滑到末幕且 commit 完成 ⇒ 进入分栏态：
-         手机移到左侧、右栏标题+副标题出现。用户指定的时序就是这一刻，
+         手机移到左侧、右栏收尾层挂载。用户指定的时序就是这一刻，
          不是 progress 到 1、也不是 drag 进行中（那两者手指可能还没松）。
-         2026-08-09 起分栏改为**双向**（用户访谈裁决「退场 = 完整反向编排」）：
-         子页 commit 离开末幕发 `cineview-embed-unfinished` ⇒ 分栏镜像退场
-         （副标题先出 → 标题出 → 手机移回居中，时序由 CSS 分方向 delay 承担）。
-         两向消息均幂等。整幕滚出视口时随 latch 一起重置（见下方 freeze effect）。 */
+         2026-08-15 scrub 语义 + 2026-08-16 严格串行修订（见 SPLIT_EXIT_* 注释）：
+         finished ⇒ latch 置位（收尾层挂载 + CSS 串行入场）+ 开列；
+         unfinished ⇒ **先文字有序退场（SPLIT_EXIT_DELAYS_MS），退完才收列**——
+         不再瞬时卸载。重复消息幂等/last-wins。 */
       if (event.data === 'cineview-embed-finished') {
-        setSplit(true);
+        // An offscreen/cleanup generation is authoritative: the reducer ignores this late
+        // message instead of cancelling the freeze that owns resource release.
+        dispatchLifecycle({ type: 'finished', progress: progressRef.current });
       } else if (event.data === 'cineview-embed-unfinished') {
-        setSplit(false);
+        dispatchLifecycle({ type: 'unfinished' });
       }
     };
     window.addEventListener('message', handleMessage);
     return (): void => window.removeEventListener('message', handleMessage);
-  }, [sendActivate]);
+  }, [dispatchLifecycle, sendActivate]);
 
   // 场景整体离开视口 → freeze + 卸载 iframe + 重置 latch（重新进入时从头重放）。
-  // 末幕向下无后继，唯一退场路径是向上滚出。可见退场 = 分栏镜像退出（unfinished 消息）
-  // + zone 三段反向 scrub，都在视口内播放；本 effect 是视口外的最终清理（用户滚离后
-  // iframe 还在后台跑才是浪费），不挂 exitAnimation 的裁决不变（架构细化 #5）。
+  // 末幕向下无后继，唯一退场路径是向上滚出。可见退场 = 收尾层 scrub 淡出
+  // （progress 纯函数，视口内跟手播完）+ zone 三段反向 scrub；本 effect 是
+  // 视口外的最终清理（用户滚离后 iframe 还在后台跑才是浪费），不挂
+  // exitAnimation 的裁决不变（架构细化 #5）。
+  //
+  // 2026-08-15 scrub 语义下两级串行（freeze 的 iframe 清理职责不变）：
+  //   t=700ms  收列（此时 progress≈0，文字 opacity 已被 scrub 归零，收列只是
+  //            布局复位，不再有文字退场编排——旧 exitRef 链已删）
+  //   t=1400ms 卸载 iframe + 重置 latch/stage
+  // 滚出后 <1.4s 内滚回（对抗复审 R6-1 场景）：取消定时器即可——latch 仍持有、
+  // 收尾层仍挂载，滚回段末时 opacity 随 scrub 窗原样回来；progress 到 0.95 时
+  // 由 lifecycle replay generation 重新走四拍。
   useEffect(() => {
     const node = rootRef.current;
     if (node === null || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[entries.length - 1];
-      if (!entry || entry.isIntersecting) return;
-      if (stageRef.current === 'idle') return;
-      // freeze 属防御性冗余（同 tick 随后卸载 iframe 才是主路径），belt-and-braces
-      iframeRef.current?.contentWindow?.postMessage('cineview-freeze', window.location.origin);
-      stageRef.current = 'idle';
-      embedReadyRef.current = false;
-      liveRef.current = false;
-      interactiveRef.current = false;
-      setStage('idle');
-      setLive(false);
-      setInteractive(false);
-      // 分栏态随 latch 一起重置：重进本幕时手机应回到居中、右栏收起，从头重放。
-      setSplit(false);
+      if (!entry) return;
+      dispatchLifecycle({
+        type: 'visibility',
+        visible: entry.isIntersecting,
+        stageActive: stageRef.current !== 'idle',
+      });
     });
     observer.observe(node);
     return (): void => observer.disconnect();
-  }, []);
+  }, [dispatchLifecycle]);
 
   return (
     <div ref={rootRef} className="scene5-cinema" data-cinema-stage={stage} data-lang={lang}>
-      {/* 熄灯 overlay：0–40% 线性变黑（终点 0.94，留一线暖底）；背景之上、星光之下。
-          ⚠️ 本 lane 的包装层在 CSS 挂了一条 1050ms 线性 opacity transition
-          (Scene5Cinema.css `[data-cineview-animate-id='cinema-lightsoff']`)——
-          把滚轮离散档位摊成逐帧斜坡,修 N13 的输入量化频闪(2026-08-10)。
-          若日后改这条 lane 的 animateId,CSS 选择器要同步改。 */}
+      {/* 熄灯 overlay：Animate 驱动 opacity 曲线（2026-08-13 用户裁决 A：
+          黑罩留在场景内、保留 Animate；黑屏必须在滚动拦截结束前完全消失）。
+          ⚠️ 相位窗起点 0.02 而非 0：zone progress < 0.02 时本 lane 停在 initial
+          （opacity 0）—— 反向滚出时黑罩在解钉（progress 0）前约 44px 就完全消失，
+          「黑屏完全消失才结束滚动拦截」成立（解钉滑动发生时黑罩已透明、不可见）。
+          ⚠️ 1.05s 防闪 transition 已按用户裁决移除（原 N13 修复）：快滚时淡入/淡出
+          斜坡回到逐档跳变，属用户知情接受的代价（用户 2026-08-13 选择
+          「完全消失」优先于「无频闪」）。 */}
       <Animate
         animateId="cinema-lightsoff"
         enterAnimation={lightsOffVariant()}
         duration={{ enter: 640 }}
         /* 整幕相位（C-act5）：退场要与入场镜像，故不能只覆盖 0→CREATE_AT。
-           关键帧把入场/hold/退场三段切在 0.4 / 0.6 上，见 lightsOffVariant 注释。 */
-        timeline={{ phase: { start: 0, end: 1 } }}
+           lightsOffVariant 是整 zone 单段线性斜坡（见其注释），phase 窗 0.02→1。 */
+        timeline={{ phase: { start: 0.02, end: 1 } }}
       >
         <div className="scene5-cinema__overlay" aria-hidden="true" />
       </Animate>
 
-      {/* 星光：黑幕之上、手机之下。三层写死星点的 radial-gradient，各自一条
-          infinite lane 驱动 opacity（周期 3.7/5.3/8.1s，互不同步）。 */}
-      {/* 星光：黑幕之上、手机之下。9 条闪烁频道 lane 各写一个 CSS 变量
-          （--twinkle-0..8，周期互质），54 颗星按种子随机分配频道 + 各自亮度区间
-          ⇒ 逐星独立闪烁。星点是真实 DOM 元素（不再是 radial-gradient 背景），
-          因为每颗星要读不同的频道变量、有不同的 lo/hi。
-          嵌套结构：9 层 Animate 各只负责写自己的变量，星野作为最内层的兄弟节点
-          继承全部 9 个变量 —— 这样只需 9 条 lane，而不是 54 条。 */}
-      <div className="scene5-cinema__stars" aria-hidden="true">
-        {TWINKLE_CHANNELS.reduce(
-          (inner, period, index) => (
-            <Animate
-              key={`ch-${index}`}
-              animateId={`cinema-twinkle-${index}`}
-              infiniteAnimation={{
-                animate: {
-                  [`--twinkle-${index}`]: [0, 1, 0],
-                  transition: { duration: period, ease: 'easeInOut', repeat: Infinity },
-                },
-              }}
-              timeline={{ phase: { start: 0, end: CREATE_AT } }}
-            >
-              {inner}
-            </Animate>
-          ),
-          (
-            <div className="scene5-cinema__star-field">
-              {stars.map((s, i) => (
-                <span
-                  key={i}
-                  className={`scene5-cinema__star${s.warm ? ' is-warm' : ''}`}
-                  style={{
-                    left: `${s.x}%`,
-                    top: `${s.y}%`,
-                    width: `${s.size}px`,
-                    height: `${s.size}px`,
-                    /* 两条频道的加权混合 ⇒ 逐星不同的合成波形（见 TWINKLE_CHANNELS 注释）。
-                       混合在 CSS calc() 里完成，不新增 JS 每帧成本。 */
-                    ['--star-t' as string]:
-                      `calc(var(--twinkle-${s.chA}, 0) * ${s.w}` +
-                      ` + var(--twinkle-${s.chB}, 0) * ${+(1 - s.w).toFixed(3)})`,
-                    ['--star-lo' as string]: String(s.lo),
-                    ['--star-hi' as string]: String(s.hi),
-                  }}
-                />
-              ))}
-            </div>
-          ) as JSX.Element
-        )}
+      {/* 黑金渐变氛围（2026-08-19 重做：星野退役，用户指令「星星去掉，淡黑金渐变
+          + 持续动画」）。两层大 radial 金雾（alpha ≤0.055，淡而不显），各自一条
+          infinite lane 写 CSS 变量（--gold-drift-1/2，周期 9s/14s 互质 ⇒ 两层呼吸
+          不同相、合成波不复现）映射到自身 opacity 做极慢呼吸 ⇒ 「背景持续动画」
+          且不与标题/手机动效同相抢眼。嵌套结构与旧星光同构：每层 Animate 只写
+          自己的变量，雾层作为最内层子节点继承并消费。
+          ⚠️ infinite lane 只能写 CSS 变量不能写 opacity 白名单属性
+          （memory `infinite-lane-cannot-drive-whitelist-props`）。
+          ⚠️ 全屏 gradient + 每帧变量改写会全屏重绘（memory
+          `css-var-opacity-repaints-fullscreen`）——两层都 translateZ(0) 提为
+          合成层，opacity 呼吸交合成器，与旧三层星幕方案同一修法。 */}
+      <div className="scene5-cinema__gold-mist" aria-hidden="true">
+        <Animate
+          animateId="cinema-gold-mist-a"
+          infiniteAnimation={{
+            animate: {
+              '--gold-drift-1': [0.55, 1, 0.55],
+              transition: { duration: 9, ease: 'easeInOut', repeat: Infinity },
+            },
+          }}
+          timeline={{ phase: { start: 0, end: 1 } }}
+        >
+          <Animate
+            animateId="cinema-gold-mist-b"
+            infiniteAnimation={{
+              animate: {
+                '--gold-drift-2': [1, 0.5, 1],
+                transition: { duration: 14, ease: 'easeInOut', repeat: Infinity },
+              },
+            }}
+            timeline={{ phase: { start: 0, end: 1 } }}
+          >
+            <div className="scene5-cinema__gold-mist-layer scene5-cinema__gold-mist-layer--a" />
+            <div className="scene5-cinema__gold-mist-layer scene5-cinema__gold-mist-layer--b" />
+          </Animate>
+        </Animate>
       </div>
-
-      {/* 放映机光锥已删除（2026-08-06 用户指令：「不要灯光，只要闪烁的星光」）。
-          「太方正」的成因是它用 clip-path polygon 切硬边梯形，四条直边在极淡暖白上
-          仍可辨，读作几何色块而非光。氛围改由随机闪烁星光独立承担。 */}
 
       {/* 视口带：center-lock 锁定时与视口严格重合（架构细化 #6）
           ── 布局与时序（2026-08-06 用户指令）────────────────────────────
@@ -460,20 +580,91 @@ export function Scene5Cinema(): JSX.Element {
             </Animate>
           </div>
 
-          {/* 右栏：标题 + 副标题。只在分栏态可见（CSS 控 width/opacity）。
-              标题不再有流光扫掠 —— 那套 background-clip:text + text-fill:transparent
-              的写法会让未被光束覆盖的字**根本不绘制**，就是用户说的「总是缺一半」。
-              现在纯 color 实心绘制。副标题为本轮新设计（见 CSS 注释）。
-              这两行是**真实可读内容**，分栏后屏幕阅读器应当读到，所以不能无条件
-              `aria-hidden`。
-              ⚠️ 但**必须按状态开关**（2026-08-08 对抗复审发现）：未分栏时右栏是靠
-              `width: 0` + `opacity: 0` + `overflow: hidden` 隐藏的，而这三者**都不会**
-              把元素移出可访问性树 —— 屏幕阅读器会从**进入本幕起**就念出标题与副标题，
-              与 D3 的时序意图（滑到结尾且 commit 完成才出标题）矛盾，视觉与朗读两条通道
-              时序不一致。故绑到 `split`：视觉上不可见时同步对辅助技术隐藏。 */}
-          <div className="scene5-cinema__text-col" aria-hidden={!split}>
-            <p className="scene5-cinema__title-text">{t('scene5.title')}</p>
-            <p className="scene5-cinema__subtitle-text">{t('scene5.subtitle')}</p>
+          {/* 右栏收尾层：标题 + 副标题 + CTA + footer（2026-08-15 scrub 语义）。
+              - 挂载门控在 finished latch（closing）上：latch 才渲染，串行入场
+                由子元素一次性 CSS 动画承担（delay 0/0.25s/0.6s/0.9s，
+                Scene5Cinema.css `scene5-closing-*`，规则 6 允许一次性插值）。
+              - 每个元素一条 scrub lane：timeline.phase 窗 0.85→1（sceneControlled
+                默认，绑本 zone takeover 时间轴）——包装层 opacity 是 progress
+                的纯函数，往上滚跟手淡出、滚回来原样回来，无消息/定时器参与。
+              - FOUC：latch 挂载时 progress 已为 1，包装层 opacity 由 scrub 立即
+                解析为 1，子元素 CSS 动画 `both` 在 delay 期停在 opacity 0——
+                两层都不会闪现半成品。 */}
+          <div ref={textColRef} className="scene5-cinema__text-col" aria-hidden={!split}>
+            {closing ? (
+              <Fragment key={closingReplayKey}>
+                <Animate
+                  animateId="cinema-split-title"
+                  enterAnimation={closingFadeVariant}
+                  duration={{ enter: 480 }}
+                  timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
+                >
+                  <p className="scene5-cinema__title-text">{t('scene5.title')}</p>
+                </Animate>
+                <Animate
+                  animateId="cinema-split-subtitle"
+                  enterAnimation={closingFadeVariant}
+                  duration={{ enter: 480 }}
+                  timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
+                >
+                  <p className="scene5-cinema__subtitle-text">{t('scene5.subtitle')}</p>
+                </Animate>
+                {/* 收尾 CTA（第三拍）。按钮用本幕 scoped 类（黑场影院语境：
+                    浅色文字/实底骨白主钮 + 描边次钮，无 box-shadow——列容器
+                    overflow:hidden 会裁掉阴影，亮度层级取代光晕）。 */}
+                <Animate
+                  animateId="cinema-split-cta"
+                  enterAnimation={closingFadeVariant}
+                  duration={{ enter: 480 }}
+                  timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
+                >
+                  <div className="scene5-cinema__cta">
+                    <p className="scene5-cinema__cta-lead">{t('cta.title')}</p>
+                    <div className="scene5-cinema__cta-buttons">
+                      <Link
+                        className="scene5-cinema__btn scene5-cinema__btn--primary"
+                        to="/docs/quickstart"
+                        tabIndex={scene5TabIndex(split)}
+                      >
+                        {t('cta.start')}
+                      </Link>
+                      <a
+                        className="scene5-cinema__btn scene5-cinema__btn--ghost"
+                        href={GITHUB_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        tabIndex={scene5TabIndex(split)}
+                      >
+                        {t('cta.github')}
+                      </a>
+                    </div>
+                    <p className="scene5-cinema__cta-body">{t('cta.body')}</p>
+                  </div>
+                </Animate>
+                {/* footer（第四拍）：2026-08-15 从视口底 absolute 挪进右栏，
+                    排在 cta.body 下方——同栏语境、同 scrub 窗。 */}
+                <Animate
+                  animateId="cinema-footer"
+                  enterAnimation={closingFadeVariant}
+                  duration={{ enter: 480 }}
+                  timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
+                >
+                  <div className="scene5-cinema__footer" aria-hidden={!split}>
+                    <span className="scene5-cinema__footer-tagline">{t('footer.tagline')}</span>
+                    <nav className="scene5-cinema__footer-links" aria-label={t('footer.tagline')}>
+                      <Link to="/docs" tabIndex={scene5TabIndex(split)}>
+                        {t('footer.docs')}
+                      </Link>
+                      <Link to="/demo" tabIndex={scene5TabIndex(split)}>
+                        {t('footer.demo')}
+                      </Link>
+                      <span className="scene5-cinema__footer-sep" aria-hidden="true" />
+                      <span>{t('footer.license')}</span>
+                    </nav>
+                  </div>
+                </Animate>
+              </Fragment>
+            ) : null}
           </div>
         </div>
       </div>

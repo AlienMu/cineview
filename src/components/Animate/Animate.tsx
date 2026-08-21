@@ -59,8 +59,8 @@ import type { AnimateRenderState } from '../../types';
 import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
 import {
   SceneScrollRuntimeContext,
+  SceneScrollTimelineContext,
   SceneScrollTakeoverContext,
-  useSceneScrollZoneTimeline,
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 import { useStructurallyStableValue } from '../../utils/useStructurallyStableValue';
@@ -201,6 +201,10 @@ function resolveDragTimelineSource(
   return 'idle';
 }
 
+/** stagger 容器的中性外层样式：见下方 scrollOuterStyle 处的所有权说明。
+ *  必须是模块级常量（稳定引用），否则每次渲染换新对象会让 framer 重建绑定。 */
+const STAGGER_NEUTRAL_STYLE = Object.freeze({ opacity: 1 });
+
 let animateIdCounter = 0;
 
 export const Animate: React.FC<AnimateInternalProps> = ({
@@ -284,10 +288,10 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const normalizedDelay = resolvedTimeline.delay;
   const normalizedWaitFor = resolvedTimeline.waitFor;
   const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
-  const liveZoneState = useSceneScrollZoneTimeline(
-    resolvedZoneId,
-    resolvedTimeline.driver === 'scroll'
-  );
+  // The keyed store is intentionally kept outside React's render path. A
+  // scroll frame updates the zone's progress MotionValue in useAnimateScroll;
+  // only registration/authoring changes rebuild this stable runtime envelope.
+  const zoneTimeline = useContext(SceneScrollTimelineContext);
   const arrivalPlaybackToken =
     isDragArrival && sceneContext?.isActive ? (sceneContext.activationToken ?? 0) : 0;
   const currentAuthoringParseReady =
@@ -408,8 +412,17 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // Only a genuinely animation-free Animate still early-returns bare children.
   const authoredPlayableAnimation =
     Boolean(stableEnterAnimation) || Boolean(stableInfiniteAnimation);
+  // ⚠️ 必须同时要求「解析尚未 settle」。`parseAnimationSafely` 在预设不存在 / chunk
+  // 加载失败时返回 null，但解析 effect 照样推进 settledParseGeneration —— 只看
+  // 「变体为空」无法区分「还在解析」与「解析失败」。漏掉这个条件会让失败态永久
+  // pending：元素被各 driver 永久按在 initial 帧（opacity 0），而修复前它是渲染裸
+  // children 的 fail-open。把一个可诊断的降级变成永久空白是更坏的失败模式。
+  const parseSettled = isDragArrival
+    ? (activeArrivalSnapshot?.ready ?? currentAuthoringParseReady)
+    : currentAuthoringParseReady;
   const variantsPending =
     authoredPlayableAnimation &&
+    !parseSettled &&
     !renderEnterVariant &&
     !renderExitVariant &&
     !renderInfiniteVariant;
@@ -423,6 +436,8 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // away on the next frame. Reporting that is the honest behaviour; silently
   // accepting the ref would look like a framework bug at the call site.
   const isScrubLane = mode === 'drag' ? !isDragArrival : resolvedTimeline.driver === 'scroll';
+  /** 本次渲染下真正由 `useAnimateScroll` 的 visibility 状态机驱动 —— 只有它可认领 ref。 */
+  const manualControlLane = mode === 'scroll' && !isScrubLane;
   const manualControlDiagnosticKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!enterRef && !exitRef) return;
@@ -511,10 +526,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       zoneRuntime
         ? {
             ...zoneRuntime,
-            zoneStates: resolvedZoneId && liveZoneState ? { [resolvedZoneId]: liveZoneState } : {},
+            zoneStates: zoneTimeline?.zoneStates ?? {},
+            store: zoneTimeline?.store,
           }
         : null,
-    [liveZoneState, resolvedZoneId, zoneRuntime]
+    [zoneRuntime, zoneTimeline?.store, zoneTimeline?.zoneStates]
   );
 
   useEffect(() => {
@@ -629,7 +645,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     parseReady: activeArrivalSnapshot?.ready ?? settledParseGeneration > 0,
     delay: renderDelay,
     enterDuration: effectiveEnterDuration,
-    enterRef,
+    // ref 归属：只有当前生效的 driver 才可认领，否则两条 hook 的 effect 会互相覆盖
+    // `enterRef.current`（后跑的赢），消费者拿到的是一条根本不驱动任何东西的 trigger。
+    enterRef: isDragArrival ? enterRef : undefined,
   });
 
   const scrollResult = useAnimateScroll({
@@ -640,6 +658,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     exitVariant,
     hasAuthoredEnterAnimation: Boolean(enterAnimation),
     hasAuthoredExitAnimation: Boolean(exitAnimation),
+    hasInfiniteAnimation: Boolean(infiniteVariant),
     componentId: id,
     duration: {
       enter: effectiveEnterDuration,
@@ -649,8 +668,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     visibility: normalizedSemantics.visibility,
     globalEnterMargin: cineViewRuntime?.scrollEnterMargin,
     globalExitMargin: cineViewRuntime?.scrollExitMargin,
-    enterRef,
-    exitRef,
+    // 同上：drag arrival 生效时本 hook 不驱动任何东西，不得认领 ref。
+    // scrub 轨（scroll takeover / drag scene-controlled）也不认领 —— 契约是「忽略」，
+    // 那就必须让 `enterRef.current` 保持 null，消费者的能力探测才不会被误导。
+    enterRef: manualControlLane ? enterRef : undefined,
+    exitRef: manualControlLane ? exitRef : undefined,
     variantsPending,
   });
 
@@ -840,6 +862,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           each={staggerEach}
           from={staggerFrom}
           itemDurationMs={staggerTiming?.itemDurationMs}
+          effectiveDurationMs={staggerTiming?.effectiveDurationMs}
           exitVariant={renderExitVariant}
           exitItemDurationMs={staggerExitTiming?.itemDurationMs}
           signedVisual={scrollResult.visualMotion}
@@ -851,6 +874,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           each={staggerEach}
           from={staggerFrom}
           itemDurationMs={staggerTiming?.itemDurationMs}
+          effectiveDurationMs={staggerTiming?.effectiveDurationMs}
           phaseMotion={arrivalResult.phaseMotion}
           staticReveal={arrivalResult.staticReveal}
         />
@@ -861,6 +885,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           each={staggerEach}
           from={staggerFrom}
           itemDurationMs={staggerTiming?.itemDurationMs}
+          effectiveDurationMs={staggerTiming?.effectiveDurationMs}
           exitVariant={renderExitVariant}
           exitItemDurationMs={staggerExitTiming?.itemDurationMs}
           visualState={dragResult.visualState}
@@ -871,9 +896,15 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const providedContent = (
     <AnimateTimelineProvider value={publicTimeline}>{content}</AnimateTimelineProvider>
   );
-  const scrollOuterStyle = staggerActive ? undefined : scrollResult.style;
+  // ⚠️ stagger 生效时外层必须交出视觉属性（否则容器整体入场与子元素错峰双重动画），
+  // 但**不能把 style 切成 undefined**：那是「framer 不再拥有该属性」，而不是「属性回到
+  // 默认值」——上一次写进 DOM 的 inline 值会原样留着。variantsPending 期间外层曾短暂
+  // 绑过 opacity 0 的 scrub style，解析落地后一旦切成 undefined，那个 0 就永久钉在
+  // 容器上，子元素错峰揭示到 opacity 1 也全被容器盖住（实测首屏打字机副标题整段消失）。
+  // 显式给一个稳定的中性 style，让 framer 全程持有并在接管瞬间写回 1。
+  const scrollOuterStyle = staggerActive ? STAGGER_NEUTRAL_STYLE : scrollResult.style;
   const dragOuterStyle = staggerActive
-    ? undefined
+    ? STAGGER_NEUTRAL_STYLE
     : isDragArrival
       ? arrivalResult.style
       : dragResult.style;

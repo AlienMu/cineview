@@ -16,6 +16,69 @@ import {
   DragStagger,
 } from './StaggerContainer';
 
+jest.mock('framer-motion', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  const actual = jest.requireActual('framer-motion') as typeof import('framer-motion');
+  const MotionLabelContext = React.createContext('initial');
+  const MockMotionTag = React.forwardRef<HTMLElement, Record<string, unknown>>((props, ref) => {
+    const { variants, animate, initial, custom, children, ...domProps } = props as {
+      variants?: Record<string, unknown>;
+      animate?: string;
+      initial?: string;
+      custom?: number;
+      children?: React.ReactNode;
+    };
+    const inheritedLabel = React.useContext(MotionLabelContext);
+    const label = animate ?? inheritedLabel ?? initial ?? 'initial';
+    const target = variants?.[label];
+    const resolved = typeof target === 'function' ? target(custom) : target;
+    const transition = (resolved as { transition?: Record<string, unknown> } | undefined)
+      ?.transition;
+    React.useLayoutEffect(() => {
+      const probe = (
+        globalThis as typeof globalThis & {
+          __CINEVIEW_STAGGER_COMMIT_PROBE__?: (detail: {
+            custom?: number;
+            label: string;
+            duration?: number;
+            delay?: number;
+          }) => void;
+        }
+      ).__CINEVIEW_STAGGER_COMMIT_PROBE__;
+      probe?.({
+        custom,
+        label,
+        duration: typeof transition?.duration === 'number' ? transition.duration : undefined,
+        delay: typeof transition?.delay === 'number' ? transition.delay : undefined,
+      });
+    });
+    return React.createElement(
+      MotionLabelContext.Provider,
+      { value: label },
+      React.createElement(
+        'div',
+        {
+          ...domProps,
+          ref,
+          'data-stagger-child': custom === undefined ? undefined : custom,
+          'data-duration':
+            typeof transition?.duration === 'number' ? String(transition.duration) : undefined,
+          'data-delay':
+            typeof transition?.delay === 'number' ? String(transition.delay) : undefined,
+        },
+        children
+      )
+    );
+  });
+  const motionProxy = new Proxy(
+    {},
+    {
+      get: () => MockMotionTag,
+    }
+  );
+  return { ...actual, motion: motionProxy };
+});
+
 const variant: ParsedAnimationVariant = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.4 } },
@@ -250,5 +313,202 @@ describe('DragStagger', () => {
       vs.set(makeDragState({ mode: 'enter', localProgress: 0.8 }));
     });
     expect(root.textContent).toBe('abc');
+  });
+});
+
+describe('mounted stagger phase stability', () => {
+  const mountedVariant: ParsedAnimationVariant = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1, transition: { duration: 0.4 } },
+    exit: { opacity: 0 },
+  };
+  const mountedContainer = (
+    <p>
+      <span>a</span>
+      <span>b</span>
+      <span>c</span>
+    </p>
+  );
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    act(() => jest.runOnlyPendingTimers());
+    jest.useRealTimers();
+    delete (
+      globalThis as typeof globalThis & {
+        __CINEVIEW_STAGGER_COMMIT_PROBE__?: unknown;
+      }
+    ).__CINEVIEW_STAGGER_COMMIT_PROBE__;
+  });
+
+  const readTransitions = (root: HTMLElement): Array<{ duration: string; delay: string }> =>
+    Array.from(root.querySelectorAll<HTMLElement>('[data-stagger-child]')).map((node) => ({
+      duration: node.dataset.duration ?? '',
+      delay: node.dataset.delay ?? '',
+    }));
+
+  it('keeps ScrollStagger authored timing across ordinary rerenders until the group completes', () => {
+    const signedVisual = motionValue(1);
+    const Host = ({ tick }: { tick: number }): JSX.Element => (
+      <div data-tick={tick}>
+        <ScrollStagger
+          container={mountedContainer}
+          variant={mountedVariant}
+          each={40}
+          from="first"
+          signedVisual={signedVisual}
+        />
+      </div>
+    );
+    const view = render(<Host tick={0} />);
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+
+    act(() => jest.advanceTimersByTime(100));
+    view.rerender(<Host tick={1} />);
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+
+    act(() => jest.advanceTimersByTime(379));
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+    act(() => jest.advanceTimersByTime(1));
+    expect(readTransitions(view.container)).toEqual([
+      { duration: '0', delay: '0' },
+      { duration: '0', delay: '0' },
+      { duration: '0', delay: '0' },
+    ]);
+  });
+
+  it('resets the completion clock after ScrollStagger leaves and re-enters animate', () => {
+    const signedVisual = motionValue(1);
+    const Host = (): JSX.Element => (
+      <ScrollStagger
+        container={mountedContainer}
+        variant={mountedVariant}
+        each={40}
+        from="first"
+        exitVariant={mountedVariant}
+        signedVisual={signedVisual}
+      />
+    );
+    const view = render(<Host />);
+    act(() => jest.advanceTimersByTime(300));
+    act(() => signedVisual.set(-1));
+    act(() => signedVisual.set(1));
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+    act(() => jest.advanceTimersByTime(479));
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+    act(() => jest.advanceTimersByTime(1));
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0', delay: '0' });
+  });
+
+  it('keeps DragStagger authored timing across MotionValue changes that retain animate phase', () => {
+    const visualState = motionValue<DragVisualState | null>({
+      mode: 'enter',
+      direction: 'forward',
+      transitionProgress: 0.5,
+      sharedElapsedMs: 0,
+      projectedSceneElapsedMs: 0,
+      sharedTimelineDurationMs: 0,
+      sceneTimelineDurationMs: 0,
+      localProgress: 0.5,
+      sceneOffset: 0,
+    });
+    const Host = ({ tick }: { tick: number }): JSX.Element => (
+      <div data-tick={tick}>
+        <DragStagger
+          container={mountedContainer}
+          variant={mountedVariant}
+          each={40}
+          from="first"
+          visualState={visualState}
+        />
+      </div>
+    );
+    const view = render(<Host tick={0} />);
+    act(() => jest.advanceTimersByTime(100));
+    act(() => visualState.set({ ...visualState.get()!, localProgress: 0.6 }));
+    view.rerender(<Host tick={1} />);
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+  });
+
+  it('re-arms the settled clock when exit and re-entry are batched in one MotionValue burst', () => {
+    const signedVisual = motionValue(1);
+    const Host = (): JSX.Element => (
+      <ScrollStagger
+        container={mountedContainer}
+        variant={mountedVariant}
+        each={40}
+        from="first"
+        exitVariant={mountedVariant}
+        signedVisual={signedVisual}
+      />
+    );
+    const view = render(<Host />);
+
+    act(() => jest.advanceTimersByTime(480));
+    expect(readTransitions(view.container)).toEqual([
+      { duration: '0', delay: '0' },
+      { duration: '0', delay: '0' },
+      { duration: '0', delay: '0' },
+    ]);
+
+    act(() => {
+      signedVisual.set(-1);
+      signedVisual.set(1);
+    });
+
+    // The final phase is still animate, but it is a new entry and must retain
+    // authored timing until its fresh 480ms budget completes.
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+    act(() => jest.advanceTimersByTime(479));
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0.4', delay: '0.08' });
+    act(() => jest.advanceTimersByTime(1));
+    expect(readTransitions(view.container)[2]).toEqual({ duration: '0', delay: '0' });
+  });
+
+  it('does not commit instant timing on the first render of a batched re-entry revision', () => {
+    const signedVisual = motionValue(1);
+    const Host = (): JSX.Element => (
+      <ScrollStagger
+        container={mountedContainer}
+        variant={mountedVariant}
+        each={40}
+        from="first"
+        exitVariant={mountedVariant}
+        signedVisual={signedVisual}
+      />
+    );
+    const view = render(<Host />);
+    act(() => jest.advanceTimersByTime(480));
+
+    const commits: Array<{
+      custom?: number;
+      label: string;
+      duration?: number;
+      delay?: number;
+    }> = [];
+    (
+      globalThis as typeof globalThis & {
+        __CINEVIEW_STAGGER_COMMIT_PROBE__?: (detail: (typeof commits)[number]) => void;
+      }
+    ).__CINEVIEW_STAGGER_COMMIT_PROBE__ = (detail) => commits.push(detail);
+
+    act(() => {
+      signedVisual.set(-1);
+      signedVisual.set(1);
+    });
+
+    const firstReentryCommit = commits.find(
+      ({ custom, label }) => custom === 2 && label === 'animate'
+    );
+    expect(firstReentryCommit).toEqual({
+      custom: 2,
+      label: 'animate',
+      duration: 0.4,
+      delay: 0.08,
+    });
+    view.unmount();
   });
 });

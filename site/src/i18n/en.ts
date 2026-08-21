@@ -80,7 +80,6 @@ export const en: Dict = {
   'cap.shot3.card.scrub.label': 'Scroll takeover',
   'cap.shot3.card.image.label': 'Asset preloading',
   'cap.shot3.title': 'Time flows with scroll, scenes move with the story',
-  'cap.shot3.summary': 'Every element shares one timeline — entering, blooming, and leaving.',
 
   // ── Act 3 Engines ──
   'engines.eyebrow': 'Two engines',
@@ -153,7 +152,6 @@ export const en: Dict = {
   'cta.title': 'Now, shoot your first frame',
   'cta.body': 'Install, write your first scene, and have a cinematic narrative running in minutes.',
   'cta.start': 'Quick Start',
-  'cta.demo': 'See full demo',
   'cta.github': 'Star on GitHub',
   'footer.tagline': 'Cinematic storytelling · React UI framework',
   'footer.docs': 'Docs',
@@ -242,15 +240,18 @@ export const en: Dict = {
   'dragTemporal.s03.card4': 'EXIT',
   'dragTemporal.s03.card5': 'REWIND',
   // Added by the act-03 rewrite. previewLabel / timelineLabel are aria-labels — screen
-  // readers only, never painted. sub1..3 are the words on the V2 subtitle track, blurred
-  // past legibility in CSS on purpose (设计档 §3.3): subtitle blocks seen on a timeline,
-  // not copy to read. Kept as the Chinese terms' English equivalents so the blurred shapes
-  // have comparable width in both languages.
+  // readers only, never painted. sub1..5 are the five words on the V2 subtitle track
+  // (five segments since the 2026-08-18 10s-source rework; the 设计档 §3.3 deliberate
+  // blur was removed 2026-08-19, so they are legible copy): printed on the track blocks
+  // and lit on the preview picture per segment via active-media. The CSS reveal selector
+  // lists must stay in sync with this count — pinned by the motion-contract test.
   'dragTemporal.s03.previewLabel': 'Program preview monitor',
   'dragTemporal.s03.timelineLabel': 'Editing timeline',
   'dragTemporal.s03.sub1': 'CUT',
   'dragTemporal.s03.sub2': 'DIRECT',
   'dragTemporal.s03.sub3': 'CONTROL',
+  'dragTemporal.s03.sub4': 'PACE',
+  'dragTemporal.s03.sub5': 'TIMING',
   'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
   'dragTemporal.s04.footerHint': 'Drag distance becomes time',
   'dragTemporal.s04.rulerLabel': 'Drag progress ruler',

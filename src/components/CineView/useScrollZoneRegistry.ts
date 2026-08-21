@@ -108,6 +108,7 @@ export function useScrollZoneRegistry({
           previous.totalBudgetPx === nextState.totalBudgetPx &&
           previous.active === nextState.active &&
           previous.direction === nextState.direction &&
+          previous.approach === nextState.approach &&
           areResolvedSceneScrollSequencesEqual(previous.sequence, nextState.sequence)
         ) {
           return;
@@ -140,6 +141,9 @@ export function useScrollZoneRegistry({
         active: current?.active ?? false,
         direction: current?.direction ?? null,
         sequence,
+        // 'near' = resident/loaded semantics: matches the pre-approach-band
+        // behavior (media stays alive) until the first scroll sync quantizes it.
+        approach: current?.approach ?? 'near',
       }));
       setZoneRuntimeVersion((version) => version + 1);
     },

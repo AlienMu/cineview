@@ -6,10 +6,11 @@ import { TimelinePlayhead } from './TimelinePlayhead';
 import { useTemporalMotion, type TemporalMotionTiming } from './TemporalMotion';
 import {
   ACT3_CLIP_DEMO_SELECT_LEAD_MS,
+  ACT3_CLIP_POSTERS,
   ACT3_CLIP_SEGMENT_MS,
   ACT3_FIRST_SELECTION_START_MS,
   ACT3_MEDIA_CLOCK_MS,
-  ACT3_POSTER_SRC,
+  clipAssemblyStartMs,
   clipSelectionStartMs,
 } from './act3MediaTimeline';
 import { WaveformCanvas } from './waveform/WaveformCanvas';
@@ -35,25 +36,28 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 //                       is gone and the words stand as words.
 //
 // ── Lane budget (every lane uses an absolute anchor; no `waitFor` anywhere) ──────────────
-//   preview frame     0    + 500
+//   preview frame     0    + 2400
 //   ruler             120  + 400
 //   V1 track base     200  + 400
-//   V1 clip x3        600 / 900 / 1200   + 500 each
+//   V1 clip x5        600 / 900 / 1200 / 1500 / 1800   + 500 each
 //   A1 track base     1500 + 400
 //   A1 waveform       1800 + 800
-//   V2 track base     1580 + 400
-//   V2 x3             1200 / 3200 / 5200
-//   clip selection x2 3200 / 5200        + 2000 each
+//   V2 track base     900  + 400
+//   V2 x5             1200 / 3200 / 5200 / 7200 / 9200
+//   clip selection x4 2400 / 4400 / 6400 / 8400        + 2000 each
 //   clip 1            parked at the assembled left edge (no drag lane)
-//   clip sequence x2  3200 / 5200        + 2000 each (220 hold + 1780 drag)
-//   clip seams x2     5200 / 7200        + 240 each  (= the lane end of the clip they mark)
-//   media scrub       3200 + 6000 (1ms scene time = 1ms source time)
-//   media clock       0 + 9200
+//   clip sequence x4  2400 / 4400 / 6400 / 8400        + 2000 each (220 hold + 1780 drag)
+//   clip seams x4     4400 / 6400 / 8400 / 10400       + 240 each  (= the lane end of the clip they mark)
+//   media scrub       3200 + 10000 (1ms scene time = 1ms source time)
+//   media clock       0 + 13200
 //
-// tSelf is 9200ms, owned by `s03-media-clock`; its progress is the only transport input.
-// Both clip strokes anchor absolutely via `clipSelectionStartMs` (2026-08-08: the W0 contract
-// bans `waitFor` in this directory, so the clip2→clip3 edge is arithmetic, not a registry edge).
-// Each lane holds selected for 220ms, then lands exactly on the 2s / 4s edit it prepares.
+// tSelf is 13200ms, owned by `s03-media-clock`; its progress is the only transport input.
+// Both clip strokes anchor absolutely via `clipAssemblyStartMs` (2026-08-08: the W0 contract
+// bans `waitFor` in this directory, so the clip2→clip3 edge is arithmetic, not a registry edge;
+// 2026-08-20: the anchor moved one LEAD earlier so every stitch COMPLETES before the playback
+// reaches the segment it prepares, not exactly on its arrival — 见 act3MediaTimeline.ts 的
+// LEAD 推导). Each lane holds selected for 220ms, then lands 800ms before the 2s / 4s / 6s /
+// 8s edit it prepares.
 // Every exit budget below is <= the act's 720ms transitionDuration (TemporalDragExperience
 // .tsx: `modes.drag.transitionDuration`), so no lane is still leaving when the slide ends.
 //
@@ -145,34 +149,53 @@ export interface S03ClipSpec {
   readonly poster: string;
 }
 
-// Three clips, unequal widths, with visible gaps: a real V1 track is cut, not tiled. The
-// numbers leave the last ~13% of the track empty so the playhead has room to land at the end.
+// Five clips, equal widths, evenly spaced (2026-08-18: 10s 源 → 5 × 2s)。
+// 等宽 0.18 + 间距 0.01，5 块占 0→0.92，末尾 0.08 留给 playhead 落位。
+// 2026-08-19 修「v1 帧太窄」：0.15→0.18（等距 0.02→0.01 收窄间距），单帧在
+// 390px 窄轨上约 70px → 82px，poster 缩略图不再被挤成细条。
+// 2026-08-20 修「v1帧为什么都长一样？」：poster 不再五块共用 ACT3_POSTER_SRC，
+// 每块用自己那一段的中点抽帧（ACT3_CLIP_POSTERS 按段数派生）。
 const V1_CLIPS: readonly S03ClipSpec[] = [
-  { id: 's03-v1-clip-1', left: 0, width: 0.29, poster: ACT3_POSTER_SRC },
-  { id: 's03-v1-clip-2', left: 0.34, width: 0.18, poster: ACT3_POSTER_SRC },
-  { id: 's03-v1-clip-3', left: 0.55, width: 0.32, poster: ACT3_POSTER_SRC },
-];
+  { id: 's03-v1-clip-1', left: 0.0, width: 0.18 },
+  { id: 's03-v1-clip-2', left: 0.19, width: 0.18 },
+  { id: 's03-v1-clip-3', left: 0.38, width: 0.18 },
+  { id: 's03-v1-clip-4', left: 0.57, width: 0.18 },
+  { id: 's03-v1-clip-5', left: 0.76, width: 0.18 },
+].map((spec, index) => ({ ...spec, poster: ACT3_CLIP_POSTERS[index] }));
 
 // V2 subtitle blocks, aligned under the V1 cuts they belong to (a subtitle belongs to a
-// shot). Slightly inset from each clip so the two rows do not read as one grid.
+// shot). Slightly inset from each clip so the two rows do not read as one grid。
+// 2026-08-19：随 V1 加宽，字幕宽度 0.12→0.15，仍内缩 0.015 留视觉缝。
+// sub4/sub5 文案为占位，待补（复用 sub1-3 既有，4/5 新增占位 key）。
 const V2_SUBTITLES: readonly {
   readonly id: string;
   readonly left: number;
   readonly width: number;
-  readonly key: 'sub1' | 'sub2' | 'sub3';
+  readonly key: 'sub1' | 'sub2' | 'sub3' | 'sub4' | 'sub5';
 }[] = [
-  { id: 's03-v2-sub-1', left: 0.04, width: 0.26, key: 'sub1' },
-  { id: 's03-v2-sub-2', left: 0.35, width: 0.17, key: 'sub2' },
-  { id: 's03-v2-sub-3', left: 0.57, width: 0.29, key: 'sub3' },
+  { id: 's03-v2-sub-1', left: 0.015, width: 0.15, key: 'sub1' },
+  { id: 's03-v2-sub-2', left: 0.205, width: 0.15, key: 'sub2' },
+  { id: 's03-v2-sub-3', left: 0.395, width: 0.15, key: 'sub3' },
+  { id: 's03-v2-sub-4', left: 0.585, width: 0.15, key: 'sub4' },
+  { id: 's03-v2-sub-5', left: 0.775, width: 0.15, key: 'sub5' },
 ];
 
-const RULER_MARKS = ['00:00:00:00', '00:00:03:00', '00:00:06:00'] as const;
+const RULER_MARKS = [
+  '00:00:00:00',
+  '00:00:02:00',
+  '00:00:04:00',
+  '00:00:06:00',
+  '00:00:08:00',
+] as const;
 
 // ── Stage 2: the assembly. AN ENTRANCE, NOT A LOOP ─────────────────────────
 //
-// Latest sequence: all three clips enter first; clip 1 is already parked at the far-left edge.
-// Playback then starts, and only clips 2/3 are dragged into their seams immediately before
-// the corresponding source cuts.
+// Latest sequence: all five clips enter first; clip 1 is already parked at the far-left edge.
+// The stitches then begin (first stroke at 2400, the frame the preview's reveal completes)
+// and each clip is dragged into its seam BEFORE the playback reaches the cut it prepares —
+// the stitch for segment k lands 800ms ahead of the playhead's arrival (2026-08-20 返工:
+// 「先拼接好，也就是先执行完毕动画」; the derivation of the 800 is in
+// `act3MediaTimeline.ts` next to `ACT3_CLIP_ASSEMBLY_LEAD_MS`).
 //
 // What stood here was ONE clip (the middle one) sliding left and back on an
 // `infiniteAnimation`, forever. Three things about that were wrong, and they are separate:
@@ -181,15 +204,15 @@ const RULER_MARKS = ['00:00:00:00', '00:00:03:00', '00:00:06:00'] as const;
 //     closed. A cycle that pushes a block into its neighbour and then pulls it back out is
 //     not an edit, it is a fidget, and it competes for attention for as long as the act is on
 //     screen. These are now plain enter lanes: they run once, land, and hold.
-//  2. Clip 1 used to perform a redundant first stroke. It now has no demo lane; clips 2/3
-//     provide the two meaningful leftward edits while the picture continues.
+//  2. Clip 1 used to perform a redundant first stroke. It now has no demo lane; clips 2–5
+//     provide the four meaningful leftward edits while the picture continues.
 //  3. The end state was still GAPPED. The old cycle returned to its start, so the track never
-//     reached the assembled state the whole demonstration is about. It now ends with the three
+//     reached the assembled state the whole demonstration is about. It now ends with the five
 //     blocks lapped together, which is the point being made.
 //
 // ── NON-BLOCKING, by construction ──────────────────────────────────────────
 // Clip 3's stroke does follow clip 2's, but that edge is now plain ARITHMETIC, not a registry
-// dependency: both anchor absolutely via `clipSelectionStartMs`, one SEGMENT apart
+// dependency: both anchor absolutely via `clipAssemblyStartMs`, one SEGMENT apart
 // (2026-08-08 — the W0 contract bans `waitFor` here). Neither lane uses stagger, so the
 // effective duration is exactly the authored 2000ms, which is what makes the arithmetic exact.
 
@@ -298,15 +321,14 @@ const SEAM_EXIT_MS = 220;
  * `DialTicks.tsx:135` 弃用 `waitFor` 各有自己的理由（前者链上有 stagger，后者是
  * sweep 语义根本不该串行），不能直接搬到这里。
  *
- * 时间轴**复用** `clipSelectionStartMs`，不另起一个等价函数：
- * `ACT3_FIRST_SELECTION_START_MS = SCRUB_START − SEGMENT` ⇒
- * `clipSelectionStartMs(i) = SCRUB_START + (i − 1) * SEGMENT`，正是 clip i 的 stroke 起点
- * （demo lane 的 `duration.enter` 恰为一段 SEGMENT）。本轮初版曾自己写了一个
- * `clipDemoStartMs` 做同样的算术 —— 那正是 `CLIP_ASSEMBLED_LEFT` 注释警告的
- * 「同一事实在两处各写一遍、日后静默分叉」，已删。
+ * 时间轴锚 `clipAssemblyStartMs`（2026-08-20 从 `clipSelectionStartMs` 平移 LEAD）：
+ * stroke 长恰为一段 SEGMENT，故 stroke 终点 = 播放进入第 index 段的时刻 − LEAD ——
+ * 拼接在播放抵达**之前**完成。不要绕过它去写 `clipSelectionStartMs(index) − 800`
+ * 之类的展开 —— 那正是 `CLIP_ASSEMBLED_LEFT` 注释警告的「同一事实两处各写、日后
+ * 静默分叉」。selection 覆盖层共用本函数，与它标注的 stroke 天然同起点同跨度。
  */
 function clipSequenceTimeline(timing: TemporalMotionTiming, index: number): { delay: number } {
-  return { delay: timing.delay(clipSelectionStartMs(index)) };
+  return { delay: timing.delay(clipAssemblyStartMs(index)) };
 }
 
 function clipDemoLaneProps(
@@ -361,10 +383,11 @@ function clipDemoLaneProps(
  * there is no second node multiplying against the host, so the lane's own opacity IS the
  * badge's opacity and the CSS pre-start `opacity: 0` hack is no longer load-bearing either.
  *
- * The badge lands on the frame its clip stops: its delay is `clipSelectionStartMs(index + 1)`,
- * which IS that clip's lane end (a demo lane runs exactly one SEGMENT). «visible» and
- * «overlapping» are therefore the same frame, derived from the shared beat function rather than
- * from a registry dependency or a transcribed constant.
+ * The badge lands on the frame its clip stops: its delay is `clipAssemblyStartMs(index + 1)`,
+ * which IS that clip's lane end (a demo lane runs exactly one SEGMENT, and consecutive demo
+ * lanes abut — see `clipSequenceTimeline`). «visible» and «overlapping» are therefore the
+ * same frame, derived from the shared beat function rather than from a registry dependency
+ * or a transcribed constant.
  *
  * It sits in the TRACK, not in a clip slot, because it belongs to the boundary between two
  * blocks rather than to either one.
@@ -398,9 +421,10 @@ function ClipSeam({ seam }: { seam: (typeof CLIP_SEAMS)[number] }): JSX.Element 
         }}
         /* 绝对延迟，不用 `waitFor`（2026-08-08 修，理由见 clipSequenceTimeline 注释）。
            徽章要「在方块停下之后落定」= 它对应的那条 demo lane 演完的时刻。
-           demo lane 的 `duration.enter` 恰为一段 SEGMENT，故终点 = 下一个 clip 的起点，
-           即 `clipSelectionStartMs(seam.index + 1)` —— 直接用它，不再手写 `+ SEGMENT`。 */
-        timeline={{ delay: timing.delay(clipSelectionStartMs(seam.index + 1)) }}
+           demo lane 的 `duration.enter` 恰为一段 SEGMENT，故终点 = 下一个 clip 的
+           assembly 起点，即 `clipAssemblyStartMs(seam.index + 1)` —— 直接用它，
+           不再手写 `+ SEGMENT`，也不跟随 LEAD 平移（终点由首尾相接性质自动带出）。 */
+        timeline={{ delay: timing.delay(clipAssemblyStartMs(seam.index + 1)) }}
       >
         <span className="s03-seam__band">
           <span className="s03-seam__mark">⧗</span>
@@ -487,7 +511,7 @@ function V1Clip({ spec, index }: { spec: S03ClipSpec; index: number }): JSX.Elem
         exitAnimation={{ exit: { opacity: 0, x: -10 } }}
         duration={{
           enter: timing.duration(CLIP_ENTER_MS),
-          // Ascending with index so clip 3 (the last to arrive) is the first of the three to
+          // Ascending with index so clip 5 (the last to arrive) is the first of the five to
           // leave — the reverse cascade described at the top of the file.
           exit: timing.duration(CLIP_EXIT_MS + (V1_CLIPS.length - 1 - index) * CLIP_EXIT_STRIDE_MS),
         }}
@@ -497,7 +521,7 @@ function V1Clip({ spec, index }: { spec: S03ClipSpec; index: number }): JSX.Elem
           clipBody
         ) : (
           <Animate
-            // Stage 2: only clips 2/3 demonstrate a drag. Clip 1 is already at left: 0.
+            // Stage 2: only clips 2–5 demonstrate a drag. Clip 1 is already at left: 0.
             animateId={`${spec.id}-demo`}
             {...clipDemoLaneProps(timing, index)}
           >
@@ -577,7 +601,7 @@ function V2Subtitle({
           <div className="s03-subtitle" data-s03-subtitle-index={index}>
             {/* 返工:「v2 把模糊去掉」— the word is now legible. It used to carry a static
                 `filter: blur(2.4px)` on this span, authored to 设计档 §3.3「模糊不可辨风格」,
-                which made the three subtitles read as smears rather than as words on a
+                which made the subtitles read as smears rather than as words on a
                 track. Nothing replaces it: the block's own border and fill already say
                 「这是一条字幕」, so the blur was only ever costing legibility. */}
             <span className="s03-subtitle__word">{t(`dragTemporal.s03.${spec.key}`)}</span>
@@ -682,7 +706,7 @@ function SceneSyncStage(): JSX.Element {
                   <V1Clip key={spec.id} spec={spec} index={index} />
                 ))}
                 {/* Last in the track, so a badge paints OVER the two blocks it marks. One
-                      per adjacent pair (two, for three clips), each appearing as its own lap
+                      per adjacent pair (four, for five clips), each appearing as its own lap
                       closes — see `CLIP_SEAMS`, which derives both from the assembly walk. */}
                 {CLIP_SEAMS.map((seam) => (
                   <ClipSeam key={seam.id} seam={seam} />

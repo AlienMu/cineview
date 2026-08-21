@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animate, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 /**
  * 时间码胶囊 -- Act 2 两镜的统一签名元素。
@@ -16,14 +17,10 @@ interface TimecodeAxisProps {
   seconds?: number;
 }
 
-const PREFERS_REDUCED =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 export function TimecodeAxis({ shotIndex, seconds = 9 }: TimecodeAxisProps): JSX.Element {
   const { t } = useI18n();
   const timeline = useAnimateTimeline();
+  const reduced = usePrefersReducedMotion();
   const capsuleRef = useRef<HTMLDivElement>(null);
   const readoutRef = useRef<HTMLSpanElement>(null);
 
@@ -45,7 +42,7 @@ export function TimecodeAxis({ shotIndex, seconds = 9 }: TimecodeAxisProps): JSX
 
   return (
     <div ref={capsuleRef} className="tc-capsule" aria-label={`${recLabel} 00:00:00`}>
-      {PREFERS_REDUCED ? (
+      {reduced ? (
         <span className="tc-capsule__rec-dot" aria-hidden="true" />
       ) : (
         <Animate

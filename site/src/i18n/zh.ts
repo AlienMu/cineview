@@ -79,8 +79,9 @@ export const zh = {
   'cap.shot3.card.container.label': '尺寸换算',
   'cap.shot3.card.scrub.label': '滚动接管',
   'cap.shot3.card.image.label': '资源预加载',
-  'cap.shot3.title': '时间随滚动流转，画面随叙事前行',
-  'cap.shot3.summary': '元素共享一条时间轴，登场、绽放、离场。',
+  /* 2026-08-16 用户指令：zh 与 en 一样换行，但走首页 hero 的错位换行
+   * （\n 断行 + 行内 ±44u 静态横移，见 Act3DollyScene 的分行渲染）。 */
+  'cap.shot3.title': '时间随滚动流转，\n画面随叙事前行',
 
   // ── 第3幕 双引擎 ──
   'engines.eyebrow': '双引擎',
@@ -148,7 +149,6 @@ export const zh = {
   'cta.title': '现在,开始你的第一镜',
   'cta.body': '安装、写下第一个场景,几分钟就能跑起一段电影感叙事。',
   'cta.start': '快速开始',
-  'cta.demo': '看完整演示',
   'cta.github': 'Star on GitHub',
   'footer.tagline': '影院级叙事 · React UI 框架',
   'footer.docs': '文档',
@@ -166,7 +166,7 @@ export const zh = {
 
   // ── Demo · AnimateVideo(或许，也能驱动视频？）──
   'demoVideo.slate': 'SCROLL-DRIVEN VIDEO',
-  'demoVideo.title': '或许，|也能驱动视频？',
+  'demoVideo.title': '或许|也能驱动视频？',
   'demoVideo.intro':
     '从逐帧跳动，\n到光影长卷——\n所有动态，共用一种节奏；\n解锁画面，让故事自由上演。',
   'demoVideo.code':
@@ -232,13 +232,16 @@ export const zh = {
   'dragTemporal.s03.card4': '退场',
   'dragTemporal.s03.card5': '倒带',
   // 剪辑台（act 03 重写）新增。previewLabel / timelineLabel 是 aria-label——只给读屏，
-  // 屏幕上不显示。sub1..3 是 V2 字幕轨上的词，CSS 里被刻意模糊到不可读（设计档 §3.3
-  // 「模糊不可辨风格」）：它们是时间线上看到的字幕块，不是给人读的文案。
+  // 屏幕上不显示。sub1..5 是 V2 字幕轨的五个词（2026-08-18 起 10s 源五段；设计档 §3.3
+  // 的刻意模糊已于 2026-08-19 撤销，现为可读文案）：既印在轨道块上，也随 active-media
+  // 逐段点亮在预览画面上。CSS 侧的揭示选择器必须与这里的数量同步——契约测试已钉。
   'dragTemporal.s03.previewLabel': '节目预览监视器',
   'dragTemporal.s03.timelineLabel': '剪辑时间线',
   'dragTemporal.s03.sub1': '剪辑',
   'dragTemporal.s03.sub2': '调度',
   'dragTemporal.s03.sub3': '控制',
+  'dragTemporal.s03.sub4': '节奏',
+  'dragTemporal.s03.sub5': '时序',
   'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
   'dragTemporal.s04.footerHint': '拖拽距离化作时间',
   'dragTemporal.s04.rulerLabel': '拖拽进度标尺',

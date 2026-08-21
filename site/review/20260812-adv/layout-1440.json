@@ -1,0 +1,2088 @@
+{
+  "en": {
+    "stops": [
+      {
+        "frac": 0.6,
+        "y": 20340,
+        "audit": {
+          "count": 6,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "ZH",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "Direct every frame",
+              "rect": {
+                "t": -20093,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "like a filmmaker",
+              "rect": {
+                "t": -19963,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": 827,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": 921,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": 815,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": 0,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -75,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -194,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -71,
+              "l": -43,
+              "w": 1526,
+              "h": 1043,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": 61,
+              "l": 358,
+              "w": 1078,
+              "h": 657,
+              "op": 0.74
+            },
+            {
+              "id": "image",
+              "t": 593,
+              "l": 723,
+              "w": 186,
+              "h": 169,
+              "op": 1
+            },
+            {
+              "id": "scrub",
+              "t": 466,
+              "l": 973,
+              "w": 374,
+              "h": 252,
+              "op": 1
+            }
+          ]
+        }
+      },
+      {
+        "frac": 0.72,
+        "y": 24340,
+        "audit": {
+          "count": 9,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "ZH",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "Direct every frame",
+              "rect": {
+                "t": -24093,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "like a filmmaker",
+              "rect": {
+                "t": -23963,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": 827,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": 921,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": 815,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Container width={640} height={360} />",
+              "rect": {
+                "t": 792,
+                "l": -53,
+                "w": 1560,
+                "h": 143,
+                "rr": 1506
+              },
+              "sw": 426,
+              "cw": 426,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Image src=\"/hero.jpg\" preload />",
+              "rect": {
+                "t": 954,
+                "l": -15,
+                "w": 1522,
+                "h": 219,
+                "rr": 1507
+              },
+              "sw": 316,
+              "cw": 316,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Scene scroll={{ trigger: \"center-lock\" ",
+              "rect": {
+                "t": 808,
+                "l": -53,
+                "w": 1520,
+                "h": 172,
+                "rr": 1467
+              },
+              "sw": 386,
+              "cw": 386,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": 0,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -75,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -194,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -71,
+              "l": -43,
+              "w": 1526,
+              "h": 1043,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": -27,
+              "l": -63,
+              "w": 1565,
+              "h": 954,
+              "op": 0
+            },
+            {
+              "id": "image",
+              "t": -246,
+              "l": -43,
+              "w": 1526,
+              "h": 1393,
+              "op": 0
+            },
+            {
+              "id": "scrub",
+              "t": -62,
+              "l": -42,
+              "w": 1525,
+              "h": 1024,
+              "op": 0
+            }
+          ]
+        }
+      },
+      {
+        "frac": 0.83,
+        "y": 28060,
+        "audit": {
+          "count": 9,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "ZH",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "Direct every frame",
+              "rect": {
+                "t": -27813,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "like a filmmaker",
+              "rect": {
+                "t": -27683,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": -2173,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": -2079,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": -2185,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Container width={640} height={360} />",
+              "rect": {
+                "t": -2208,
+                "l": -53,
+                "w": 1560,
+                "h": 143,
+                "rr": 1506
+              },
+              "sw": 426,
+              "cw": 426,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Image src=\"/hero.jpg\" preload />",
+              "rect": {
+                "t": -2046,
+                "l": -15,
+                "w": 1522,
+                "h": 219,
+                "rr": 1507
+              },
+              "sw": 316,
+              "cw": 316,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Scene scroll={{ trigger: \"center-lock\" ",
+              "rect": {
+                "t": -2192,
+                "l": -53,
+                "w": 1520,
+                "h": 172,
+                "rr": 1467
+              },
+              "sw": 386,
+              "cw": 386,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": -3000,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -3075,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -3194,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -3071,
+              "l": -43,
+              "w": 1526,
+              "h": 1043,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": -3027,
+              "l": -63,
+              "w": 1565,
+              "h": 954,
+              "op": 0
+            },
+            {
+              "id": "image",
+              "t": -3246,
+              "l": -43,
+              "w": 1526,
+              "h": 1393,
+              "op": 0
+            },
+            {
+              "id": "scrub",
+              "t": -3062,
+              "l": -42,
+              "w": 1525,
+              "h": 1024,
+              "op": 0
+            }
+          ]
+        }
+      },
+      {
+        "frac": 1,
+        "y": 33700,
+        "audit": {
+          "count": 9,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "ZH",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "Direct every frame",
+              "rect": {
+                "t": -33453,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "like a filmmaker",
+              "rect": {
+                "t": -33323,
+                "l": 306,
+                "w": 827,
+                "h": 130,
+                "rr": 1134
+              },
+              "sw": 827,
+              "cw": 827,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": -7813,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": -7719,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": -7825,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Container width={640} height={360} />",
+              "rect": {
+                "t": -7848,
+                "l": -53,
+                "w": 1560,
+                "h": 143,
+                "rr": 1506
+              },
+              "sw": 426,
+              "cw": 426,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Image src=\"/hero.jpg\" preload />",
+              "rect": {
+                "t": -7686,
+                "l": -15,
+                "w": 1522,
+                "h": 219,
+                "rr": 1507
+              },
+              "sw": 316,
+              "cw": 316,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Scene scroll={{ trigger: \"center-lock\" ",
+              "rect": {
+                "t": -7832,
+                "l": -53,
+                "w": 1520,
+                "h": 172,
+                "rr": 1467
+              },
+              "sw": 386,
+              "cw": 386,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": -8640,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -8715,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -8834,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -8711,
+              "l": -43,
+              "w": 1526,
+              "h": 1042,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": -8667,
+              "l": -63,
+              "w": 1565,
+              "h": 954,
+              "op": 0
+            },
+            {
+              "id": "image",
+              "t": -8886,
+              "l": -43,
+              "w": 1526,
+              "h": 1393,
+              "op": 0
+            },
+            {
+              "id": "scrub",
+              "t": -8702,
+              "l": -42,
+              "w": 1525,
+              "h": 1024,
+              "op": 0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "zh": {
+    "stops": [
+      {
+        "frac": 0.6,
+        "y": 20340,
+        "audit": {
+          "count": 7,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "EN",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "像导演一样",
+              "rect": {
+                "t": -20093,
+                "l": 384,
+                "w": 585,
+                "h": 130,
+                "rr": 969
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "控制每一帧",
+              "rect": {
+                "t": -19963,
+                "l": 472,
+                "w": 585,
+                "h": 130,
+                "rr": 1057
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": 827,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": 921,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": 815,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "cap-title",
+              "txt": "时间随滚动流转，画面随叙事前行",
+              "rect": {
+                "t": 374,
+                "l": 424,
+                "w": 592,
+                "h": 45,
+                "rr": 1016
+              },
+              "sw": 644,
+              "cw": 644,
+              "sh": 51,
+              "ch": 49,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": 0,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -75,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -194,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -71,
+              "l": -43,
+              "w": 1526,
+              "h": 1043,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": 61,
+              "l": 358,
+              "w": 1078,
+              "h": 657,
+              "op": 0.74
+            },
+            {
+              "id": "image",
+              "t": 593,
+              "l": 723,
+              "w": 186,
+              "h": 169,
+              "op": 1
+            },
+            {
+              "id": "scrub",
+              "t": 466,
+              "l": 973,
+              "w": 374,
+              "h": 252,
+              "op": 1
+            }
+          ]
+        }
+      },
+      {
+        "frac": 0.72,
+        "y": 24340,
+        "audit": {
+          "count": 10,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "EN",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "像导演一样",
+              "rect": {
+                "t": -24093,
+                "l": 384,
+                "w": 585,
+                "h": 130,
+                "rr": 969
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "控制每一帧",
+              "rect": {
+                "t": -23963,
+                "l": 472,
+                "w": 585,
+                "h": 130,
+                "rr": 1057
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": 827,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": 921,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": 815,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Container width={640} height={360} />",
+              "rect": {
+                "t": 792,
+                "l": -53,
+                "w": 1560,
+                "h": 143,
+                "rr": 1506
+              },
+              "sw": 426,
+              "cw": 426,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Image src=\"/hero.jpg\" preload />",
+              "rect": {
+                "t": 954,
+                "l": -15,
+                "w": 1522,
+                "h": 219,
+                "rr": 1507
+              },
+              "sw": 316,
+              "cw": 316,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Scene scroll={{ trigger: \"center-lock\" ",
+              "rect": {
+                "t": 808,
+                "l": -53,
+                "w": 1520,
+                "h": 172,
+                "rr": 1467
+              },
+              "sw": 386,
+              "cw": 386,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "cap-title",
+              "txt": "时间随滚动流转，画面随叙事前行",
+              "rect": {
+                "t": 372,
+                "l": 398,
+                "w": 644,
+                "h": 49,
+                "rr": 1042
+              },
+              "sw": 644,
+              "cw": 644,
+              "sh": 51,
+              "ch": 49,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": 0,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -75,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -194,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -71,
+              "l": -43,
+              "w": 1526,
+              "h": 1043,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": -27,
+              "l": -63,
+              "w": 1565,
+              "h": 954,
+              "op": 0
+            },
+            {
+              "id": "image",
+              "t": -246,
+              "l": -43,
+              "w": 1526,
+              "h": 1393,
+              "op": 0
+            },
+            {
+              "id": "scrub",
+              "t": -62,
+              "l": -42,
+              "w": 1525,
+              "h": 1024,
+              "op": 0
+            }
+          ]
+        }
+      },
+      {
+        "frac": 0.83,
+        "y": 28060,
+        "audit": {
+          "count": 10,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "EN",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "像导演一样",
+              "rect": {
+                "t": -27813,
+                "l": 384,
+                "w": 585,
+                "h": 130,
+                "rr": 969
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "控制每一帧",
+              "rect": {
+                "t": -27683,
+                "l": 472,
+                "w": 585,
+                "h": 130,
+                "rr": 1057
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": -2173,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": -2079,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": -2185,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Container width={640} height={360} />",
+              "rect": {
+                "t": -2208,
+                "l": -53,
+                "w": 1560,
+                "h": 143,
+                "rr": 1506
+              },
+              "sw": 426,
+              "cw": 426,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Image src=\"/hero.jpg\" preload />",
+              "rect": {
+                "t": -2046,
+                "l": -15,
+                "w": 1522,
+                "h": 219,
+                "rr": 1507
+              },
+              "sw": 316,
+              "cw": 316,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Scene scroll={{ trigger: \"center-lock\" ",
+              "rect": {
+                "t": -2192,
+                "l": -53,
+                "w": 1520,
+                "h": 172,
+                "rr": 1467
+              },
+              "sw": 386,
+              "cw": 386,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "cap-title",
+              "txt": "时间随滚动流转，画面随叙事前行",
+              "rect": {
+                "t": -2628,
+                "l": 398,
+                "w": 644,
+                "h": 49,
+                "rr": 1042
+              },
+              "sw": 644,
+              "cw": 644,
+              "sh": 51,
+              "ch": 49,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": -3000,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -3075,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -3194,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -3071,
+              "l": -43,
+              "w": 1526,
+              "h": 1043,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": -3027,
+              "l": -63,
+              "w": 1565,
+              "h": 954,
+              "op": 0
+            },
+            {
+              "id": "image",
+              "t": -3246,
+              "l": -43,
+              "w": 1526,
+              "h": 1393,
+              "op": 0
+            },
+            {
+              "id": "scrub",
+              "t": -3062,
+              "l": -42,
+              "w": 1525,
+              "h": 1024,
+              "op": 0
+            }
+          ]
+        }
+      },
+      {
+        "frac": 1,
+        "y": 33700,
+        "audit": {
+          "count": 10,
+          "items": [
+            {
+              "cls": "lang-toggle__code mono",
+              "txt": "EN",
+              "rect": {
+                "t": 22,
+                "l": 1387,
+                "w": 16,
+                "h": 12,
+                "rr": 1403
+              },
+              "sw": 16,
+              "cw": 16,
+              "sh": 14,
+              "ch": 12,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "像导演一样",
+              "rect": {
+                "t": -33453,
+                "l": 384,
+                "w": 585,
+                "h": 130,
+                "rr": 969
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "hero__slogan-line",
+              "txt": "控制每一帧",
+              "rect": {
+                "t": -33323,
+                "l": 472,
+                "w": 585,
+                "h": 130,
+                "rr": 1057
+              },
+              "sw": 585,
+              "cw": 585,
+              "sh": 138,
+              "ch": 130,
+              "ws": "nowrap",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate timeline={{ waitFor: \"title\", d",
+              "rect": {
+                "t": -7813,
+                "l": -28,
+                "w": 1522,
+                "h": 166,
+                "rr": 1494
+              },
+              "sw": 400,
+              "cw": 400,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Animate stagger={{ each: 80 }} />",
+              "rect": {
+                "t": -7719,
+                "l": -62,
+                "w": 1523,
+                "h": 195,
+                "rr": 1461
+              },
+              "sw": 352,
+              "cw": 352,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Position at={{ x: 480, y: 220 }} />",
+              "rect": {
+                "t": -7825,
+                "l": -50,
+                "w": 1520,
+                "h": 168,
+                "rr": 1471
+              },
+              "sw": 362,
+              "cw": 362,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Container width={640} height={360} />",
+              "rect": {
+                "t": -7848,
+                "l": -53,
+                "w": 1560,
+                "h": 143,
+                "rr": 1506
+              },
+              "sw": 426,
+              "cw": 426,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Image src=\"/hero.jpg\" preload />",
+              "rect": {
+                "t": -7686,
+                "l": -15,
+                "w": 1522,
+                "h": 219,
+                "rr": 1507
+              },
+              "sw": 316,
+              "cw": 316,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "a3-panel__code",
+              "txt": "<Scene scroll={{ trigger: \"center-lock\" ",
+              "rect": {
+                "t": -7832,
+                "l": -53,
+                "w": 1520,
+                "h": 172,
+                "rr": 1467
+              },
+              "sw": 386,
+              "cw": 386,
+              "sh": 32,
+              "ch": 32,
+              "ws": "nowrap",
+              "to": "ellipsis",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": false,
+              "offscreen": true
+            },
+            {
+              "cls": "cap-title",
+              "txt": "时间随滚动流转，画面随叙事前行",
+              "rect": {
+                "t": -8268,
+                "l": 398,
+                "w": 644,
+                "h": 49,
+                "rr": 1042
+              },
+              "sw": 644,
+              "cw": 644,
+              "sh": 51,
+              "ch": 49,
+              "ws": "normal",
+              "to": "clip",
+              "clamp": "none",
+              "ovfW": false,
+              "ovfH": true,
+              "offscreen": false
+            }
+          ]
+        },
+        "a3": {
+          "plates": [
+            {
+              "sel": "[class*=\"dolly\"]",
+              "cls": "capability-full act3-dolly",
+              "bg": "rgba(0, 0, 0, 0)",
+              "bdf": "none",
+              "op": 1,
+              "rect": {
+                "t": -8640,
+                "l": 0,
+                "w": 1440,
+                "h": 900
+              }
+            }
+          ],
+          "blocks": [
+            {
+              "id": "chain",
+              "t": -8715,
+              "l": -44,
+              "w": 1527,
+              "h": 1051,
+              "op": 0
+            },
+            {
+              "id": "stagger",
+              "t": -8834,
+              "l": -44,
+              "w": 1527,
+              "h": 1287,
+              "op": 0
+            },
+            {
+              "id": "position",
+              "t": -8711,
+              "l": -43,
+              "w": 1526,
+              "h": 1042,
+              "op": 0
+            },
+            {
+              "id": "container",
+              "t": -8667,
+              "l": -63,
+              "w": 1565,
+              "h": 954,
+              "op": 0
+            },
+            {
+              "id": "image",
+              "t": -8886,
+              "l": -43,
+              "w": 1526,
+              "h": 1393,
+              "op": 0
+            },
+            {
+              "id": "scrub",
+              "t": -8702,
+              "l": -42,
+              "w": 1525,
+              "h": 1024,
+              "op": 0
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

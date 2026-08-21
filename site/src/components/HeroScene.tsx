@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Animate, Position } from 'cineview';
 import { useI18n } from '../i18n';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 const GITHUB_URL = 'https://github.com/AlienMu/cineview';
 
@@ -40,11 +41,6 @@ function IconGithub(): JSX.Element {
   );
 }
 
-const PREFERS_REDUCED =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 // 入场时序常量(ms)。与 Animate 的 waitFor 折叠公式对齐:
 //   title(链头)→ slogan(waitFor title)→ intro 打字(stagger 逐字,自身 duration 占时长)
 //   → buttons(waitFor intro)→ hint(waitFor btn-2)。
@@ -70,12 +66,17 @@ function heldVariant(): {
 // intro 逐字变体(淡入 + 微上移)。预设无 fade-up,直接传 CustomAnimation:
 // stagger 保留 transition.duration(单字符 reveal 时长)并叠加 per-index delay。
 // reduced-motion 下 reveal 时长归零(瞬间到位)——框架不碰 matchMedia,由使用方接管。
-function introCharVariant(reduced: boolean): {
+// 2026-08-14(审计 act1-2):zh 的 CJK 标点居中占位,15% 振幅在 reveal 瞬间基线跳动
+// 比拉丁明显;zh 压到 10%,en 保持(拉丁标点沉基线,15% 恰是精致)。
+function introCharVariant(
+  reduced: boolean,
+  lang: string
+): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
   return {
-    initial: { opacity: 0, y: '15%' },
+    initial: { opacity: 0, y: lang === 'zh' ? '10%' : '15%' },
     animate: { opacity: 1, y: 0, transition: { duration: reduced ? 0 : CHAR_DUR / 1000 } },
   };
 }
@@ -139,7 +140,7 @@ function buildIntroItems(intro: string): JSX.Element[] {
  */
 export function HeroScene(): JSX.Element {
   const { t, lang } = useI18n();
-  const reduced = PREFERS_REDUCED;
+  const reduced = usePrefersReducedMotion();
   const dur = (ms: number): number => (reduced ? 0 : ms);
 
   const intro = t('hero.intro');
@@ -237,7 +238,7 @@ export function HeroScene(): JSX.Element {
               transition.duration 自动结算，buttons 的 waitFor 会等最后一个字符完成。 */}
           <Animate
             animateId="hero-intro"
-            enterAnimation={introCharVariant(reduced)}
+            enterAnimation={introCharVariant(reduced, lang)}
             stagger={{ each: dur(CHAR_INTERVAL) }}
             timeline={{ waitFor: 'hero-slogan-1' }}
           >
@@ -302,13 +303,18 @@ export function HeroScene(): JSX.Element {
               : {
                   animate: {
                     y: [0, 6, 0],
-                    opacity: [0.5, 1, 0.5],
+                    /* 2026-08-14(审计 act1-3):谷底 0.5→0.65——奶白桃首屏底上
+                     * 0.5 对比度 ~2.1:1,谷底瞬间接近不可读;hint 是功能指示
+                     * 不是氛围件。位移 6px 保持。 */
+                    opacity: [0.65, 1, 0.65],
                     transition: { duration: 2, ease: 'easeInOut', repeat: Infinity },
                   },
                 }
           }
         >
-          <span className="hero__scroll-hint mono" aria-hidden="true">
+          {/* data-lang 供 global.css 的 zh 字距覆写（审计 act1-3：0.16em 对 CJK 全角
+              字是灾难边缘，zh 压 0.10em；复审 R2-1 曾因 span 无标记成死码）。 */}
+          <span className="hero__scroll-hint mono" data-lang={lang} aria-hidden="true">
             {t('hero.scrollHint')}
           </span>
         </Animate>

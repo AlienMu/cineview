@@ -1,0 +1,51 @@
+{
+  "failed": 0,
+  "results": [
+    {
+      "ok": true,
+      "m": "第五幕到位 stage=revealed"
+    },
+    {
+      "ok": true,
+      "m": "交互门已开 is-live"
+    },
+    {
+      "ok": true,
+      "m": "找到 /drag 子帧",
+      "d": "http://localhost:4001/drag?deferred=true"
+    },
+    {
+      "ok": true,
+      "m": "真实拖拽到达第五幕（SceneCut）"
+    },
+    {
+      "ok": true,
+      "m": "A 退场手势期黑层跟手淡出",
+      "d": "1 → 0"
+    },
+    {
+      "ok": true,
+      "m": "B 黑层 transform 全程 none（结构上不下移）",
+      "d": "189 样本"
+    },
+    {
+      "ok": true,
+      "m": "C 场景框退场仍在滑（对照组）",
+      "d": "末帧 frame Y=792px"
+    },
+    {
+      "ok": true,
+      "m": "D .tp-scene--05 计算背景 = none（黑幕已迁出）"
+    },
+    {
+      "ok": true,
+      "m": "E commit 后黑层 opacity 归 0",
+      "d": "末值 0"
+    },
+    {
+      "ok": true,
+      "m": "F cancel(bounce) 后黑层回 1",
+      "d": "opacity=1"
+    }
+  ]
+}

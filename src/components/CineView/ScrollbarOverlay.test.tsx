@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ScrollbarOverlay } from './ScrollbarOverlay';
+import { createScrollExternalStore } from './scrollExternalStore';
 
 describe('ScrollbarOverlay', () => {
   it('exposes scrollbar semantics and updates through keyboard input', () => {
@@ -78,6 +79,41 @@ describe('ScrollbarOverlay', () => {
     );
   });
 
+  it('updates thumb semantics from the live offset store without re-rendering React', () => {
+    const offsetStore = createScrollExternalStore(0);
+    let configReads = 0;
+    const config = {
+      get autoHide(): boolean {
+        configReads += 1;
+        return false;
+      },
+    };
+    const onScrollToOffset = jest.fn();
+    render(
+      <ScrollbarOverlay
+        direction="y"
+        viewportSpan={100}
+        scrollContentSpan={1000}
+        scrollOffset={0}
+        scrollOffsetStore={offsetStore}
+        isScrolling={false}
+        config={config}
+        onScrollToOffset={onScrollToOffset}
+      />
+    );
+    const scrollbar = screen.getByRole('scrollbar', { name: 'CineView scroll position' });
+    const initialConfigReads = configReads;
+
+    act(() => offsetStore.setSnapshot(10));
+    expect(scrollbar).toHaveAttribute('aria-valuenow', '10');
+    act(() => offsetStore.setSnapshot(20));
+    expect(scrollbar).toHaveAttribute('aria-valuenow', '20');
+    expect(configReads).toBe(initialConfigReads);
+
+    fireEvent.keyDown(scrollbar, { key: 'ArrowDown' });
+    expect(onScrollToOffset).toHaveBeenLastCalledWith(100);
+  });
+
   function dispatchPointer(
     target: EventTarget,
     type: string,
@@ -146,6 +182,51 @@ describe('ScrollbarOverlay', () => {
 
     expect(onScrollToOffset).toHaveBeenCalledTimes(1);
     expect(onScrollToOffset.mock.calls[0]?.[0]).toBeGreaterThan(0);
+  });
+
+  it('cancels an active thumb drag when content shrink invalidates its geometry', () => {
+    const onScrollToOffset = jest.fn();
+    const { rerender } = render(
+      <ScrollbarOverlay
+        direction="y"
+        viewportSpan={100}
+        scrollContentSpan={300}
+        scrollOffset={0}
+        isScrolling={false}
+        config={{ autoHide: false }}
+        onScrollToOffset={onScrollToOffset}
+      />
+    );
+    const scrollbar = screen.getByRole('scrollbar', { name: 'CineView scroll position' });
+    jest.spyOn(scrollbar, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 6,
+      bottom: 100,
+      left: 0,
+      width: 6,
+      height: 100,
+      toJSON: () => ({}),
+    });
+
+    dispatchPointer(scrollbar, 'pointerdown', 10);
+    onScrollToOffset.mockClear();
+
+    rerender(
+      <ScrollbarOverlay
+        direction="y"
+        viewportSpan={100}
+        scrollContentSpan={100}
+        scrollOffset={0}
+        isScrolling={false}
+        config={{ autoHide: false }}
+        onScrollToOffset={onScrollToOffset}
+      />
+    );
+    dispatchPointer(window, 'pointermove', 80);
+
+    expect(onScrollToOffset).not.toHaveBeenCalled();
   });
 
   it('ignores secondary mouse buttons and non-primary pointers', () => {

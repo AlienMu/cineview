@@ -1,0 +1,135 @@
+{
+ "ts": "2026-08-15T10:04:29.996Z",
+ "acts": [
+  {
+   "idx": 1,
+   "sig": "#d8a24a",
+   "sigGlow": "rgba(\n    216,\n    162,\n    74,\n    0.22\n  )",
+   "accent": "#d8a24a",
+   "sceneBg": "rgb(12, 10, 12)",
+   "bodyBg": "rgb(250, 248, 244)",
+   "dragPageBg": "rgb(12, 10, 12)",
+   "dragBgVar": "#0c0a0c",
+   "ctaBg": "rgb(230, 69, 54)",
+   "ctaColor": "rgb(12, 10, 12)",
+   "ctaShadow": "rgba(230, 69, 54, 0.38) 0px 0px 18px 0px",
+   "ctaBorder": "rgb(230, 69, 54)",
+   "shot": "drag-act1.png",
+   "sigHue": 37
+  },
+  {
+   "idx": 2,
+   "sig": "#d8a24a",
+   "sigGlow": "rgba(\n    216,\n    162,\n    74,\n    0.22\n  )",
+   "accent": "#c9a05a",
+   "sceneBg": "rgb(12, 10, 12)",
+   "bodyBg": "rgb(250, 248, 244)",
+   "dragPageBg": "rgb(12, 10, 12)",
+   "dragBgVar": "#0c0a0c",
+   "ctaBg": null,
+   "ctaColor": null,
+   "ctaShadow": null,
+   "ctaBorder": null,
+   "shot": "drag-act2.png",
+   "sigHue": 37
+  },
+  {
+   "idx": 3,
+   "sig": "#d8a24a",
+   "sigGlow": "rgba(\n    216,\n    162,\n    74,\n    0.22\n  )",
+   "accent": "#d8a24a",
+   "sceneBg": "rgb(21, 19, 26)",
+   "bodyBg": "rgb(250, 248, 244)",
+   "dragPageBg": "rgb(12, 10, 12)",
+   "dragBgVar": "#0c0a0c",
+   "ctaBg": null,
+   "ctaColor": null,
+   "ctaShadow": null,
+   "ctaBorder": null,
+   "shot": "drag-act3.png",
+   "sigHue": 37
+  },
+  {
+   "idx": 4,
+   "sig": "#5cb8c9",
+   "sigGlow": "rgba(92, 184, 201, 0.34)",
+   "accent": "#a8dce4",
+   "sceneBg": "rgb(3, 8, 10)",
+   "bodyBg": "rgb(250, 248, 244)",
+   "dragPageBg": "rgb(12, 10, 12)",
+   "dragBgVar": "#0c0a0c",
+   "ctaBg": null,
+   "ctaColor": null,
+   "ctaShadow": null,
+   "ctaBorder": null,
+   "shot": "drag-act4.png",
+   "sigHue": 189
+  },
+  {
+   "idx": 5,
+   "sig": "#e1a45b",
+   "sigGlow": "rgba(225, 164, 91, 0.34)",
+   "accent": "#e1a45b",
+   "sceneBg": "rgba(0, 0, 0, 0)",
+   "bodyBg": "rgb(250, 248, 244)",
+   "dragPageBg": "rgb(12, 10, 12)",
+   "dragBgVar": "#0c0a0c",
+   "ctaBg": null,
+   "ctaColor": null,
+   "ctaShadow": null,
+   "ctaBorder": null,
+   "shot": "drag-act5.png",
+   "sigHue": 33
+  }
+ ],
+ "consoleErrors": [],
+ "errors": [],
+ "assertions": [
+  {
+   "id": "drag bg #0c0a0c (.drag-page)",
+   "pass": true,
+   "detail": "rgb(12, 10, 12)"
+  },
+  {
+   "id": "drag bg token --tp-bg #0c0a0c",
+   "pass": true,
+   "detail": "#0c0a0c"
+  },
+  {
+   "id": "act1 CTA rec bg #e64536",
+   "pass": true,
+   "detail": "rgb(230, 69, 54)"
+  },
+  {
+   "id": "act1 sig amber hue",
+   "pass": true,
+   "detail": "37° (#d8a24a)"
+  },
+  {
+   "id": "act2 sig amber hue",
+   "pass": true,
+   "detail": "37° (#d8a24a)"
+  },
+  {
+   "id": "act3 sig amber hue",
+   "pass": true,
+   "detail": "37° (#d8a24a)"
+  },
+  {
+   "id": "act4 sig teal hue ~187",
+   "pass": true,
+   "detail": "189° (#5cb8c9)"
+  },
+  {
+   "id": "act5 sig amber hue",
+   "pass": true,
+   "detail": "33° (#e1a45b)"
+  },
+  {
+   "id": "console zero errors (static 404 excluded)",
+   "pass": true,
+   "detail": "[]"
+  }
+ ],
+ "verdict": "PASS"
+}

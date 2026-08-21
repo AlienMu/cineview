@@ -1,0 +1,1825 @@
+{
+  "rows": [
+    {
+      "y": 11350,
+      "flow": "97.88888888888889%",
+      "capLane": 0.452,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0,
+      "capSelfOp": 1,
+      "capText": "Fade into view",
+      "capTag": "fade-in",
+      "activeCode": "<Animate enterAnimation=\"fade-in\" />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 0.452,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Fade into view",
+          "capLane": 0.452,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        }
+      ]
+    },
+    {
+      "y": 11500,
+      "flow": "99.55555555555556%",
+      "capLane": 0.095,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0,
+      "capSelfOp": 1,
+      "capText": "Fade into view",
+      "capTag": "fade-in",
+      "activeCode": "<Animate enterAnimation=\"fade-in\" />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 0.095,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Fade into view",
+          "capLane": 0.095,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        }
+      ]
+    },
+    {
+      "y": 11650,
+      "flow": "100%",
+      "capLane": 0.262,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.042,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 0.262,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 0.262,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 11800,
+      "flow": "100%",
+      "capLane": 0.619,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.1,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 0.619,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 0.619,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 11950,
+      "flow": "100%",
+      "capLane": 0.976,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.158,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 0.976,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 0.976,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 12100,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.215,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 12250,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.273,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 12400,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.331,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 12550,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.388,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 12700,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.446,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 12850,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.504,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13000,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.562,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13150,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.619,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13300,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.677,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13450,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.735,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13600,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.792,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13750,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.85,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 13900,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.908,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 14050,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 0.965,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    },
+    {
+      "y": 14140,
+      "flow": "100%",
+      "capLane": 1,
+      "cardLane": 1,
+      "title": 1,
+      "hold": 1,
+      "capSelfOp": null,
+      "capText": null,
+      "capTag": null,
+      "activeCode": "<Animate enterAnimation={…} />",
+      "activeDesc": "Opacity rises from 0 to 1 — the simplest enter semantic.",
+      "cardRect": {
+        "t": 636,
+        "l": 410,
+        "w": 620,
+        "h": 148,
+        "b": 784,
+        "shadow": "rgba(26, 24, 20, 0.13) 0px 20px 48px 0px"
+      },
+      "clipHost": {
+        "t": 0,
+        "b": 900,
+        "l": 0,
+        "rr": 1440,
+        "overflow": "clip",
+        "margin": "120px"
+      },
+      "hover": [
+        {
+          "idx": 2,
+          "capText": "Fade into view",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"fade-in\" />"
+        },
+        {
+          "idx": 6,
+          "capText": "Slide up in",
+          "capLane": 1,
+          "capSelfOp": 1,
+          "code": "<Animate enterAnimation=\"slide-up\" />"
+        }
+      ]
+    }
+  ],
+  "cellData": [
+    {
+      "i": 0,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 0,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "fade-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "01fade-in",
+      "overflowing": []
+    },
+    {
+      "i": 1,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 136,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "01",
+      "overflowing": []
+    },
+    {
+      "i": 2,
+      "cls": "film-frame",
+      "rect": {
+        "l": 0,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "fade-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "fade-in",
+      "overflowing": []
+    },
+    {
+      "i": 3,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 0,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "fade-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "fade-in",
+      "overflowing": []
+    },
+    {
+      "i": 4,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 56,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 5,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 50,
+        "w": 60,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "fade-in",
+      "overflowing": []
+    },
+    {
+      "i": 6,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 160,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "slide-up",
+        "sw": 68,
+        "cw": 68,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "02slide-up",
+      "overflowing": []
+    },
+    {
+      "i": 7,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 296,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "02",
+      "overflowing": []
+    },
+    {
+      "i": 8,
+      "cls": "film-frame",
+      "rect": {
+        "l": 160,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "slide-up",
+        "sw": 68,
+        "cw": 68,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "slide-up",
+      "overflowing": []
+    },
+    {
+      "i": 9,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 160,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "slide-up",
+        "sw": 68,
+        "cw": 68,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "slide-up",
+      "overflowing": []
+    },
+    {
+      "i": 10,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 216,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 11,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 206,
+        "w": 68,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "slide-up",
+      "overflowing": []
+    },
+    {
+      "i": 12,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 320,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "zoom-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "03zoom-in",
+      "overflowing": []
+    },
+    {
+      "i": 13,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 456,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "03",
+      "overflowing": []
+    },
+    {
+      "i": 14,
+      "cls": "film-frame",
+      "rect": {
+        "l": 320,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "zoom-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "zoom-in",
+      "overflowing": []
+    },
+    {
+      "i": 15,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 320,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "zoom-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "zoom-in",
+      "overflowing": []
+    },
+    {
+      "i": 16,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 376,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 17,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 370,
+        "w": 60,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "zoom-in",
+      "overflowing": []
+    },
+    {
+      "i": 18,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 480,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "rotate-in",
+        "sw": 77,
+        "cw": 77,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "04rotate-in",
+      "overflowing": []
+    },
+    {
+      "i": 19,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 616,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "04",
+      "overflowing": []
+    },
+    {
+      "i": 20,
+      "cls": "film-frame",
+      "rect": {
+        "l": 480,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "rotate-in",
+        "sw": 77,
+        "cw": 77,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "rotate-in",
+      "overflowing": []
+    },
+    {
+      "i": 21,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 480,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "rotate-in",
+        "sw": 77,
+        "cw": 77,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "rotate-in",
+      "overflowing": []
+    },
+    {
+      "i": 22,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 536,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 23,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 522,
+        "w": 77,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "rotate-in",
+      "overflowing": []
+    },
+    {
+      "i": 24,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 640,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "bounce",
+        "sw": 51,
+        "cw": 51,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "05bounce",
+      "overflowing": []
+    },
+    {
+      "i": 25,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 776,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "05",
+      "overflowing": []
+    },
+    {
+      "i": 26,
+      "cls": "film-frame",
+      "rect": {
+        "l": 640,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "bounce",
+        "sw": 51,
+        "cw": 51,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "bounce",
+      "overflowing": []
+    },
+    {
+      "i": 27,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 640,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "bounce",
+        "sw": 51,
+        "cw": 51,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "bounce",
+      "overflowing": []
+    },
+    {
+      "i": 28,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 696,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 29,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 694,
+        "w": 51,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "bounce",
+      "overflowing": []
+    },
+    {
+      "i": 30,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 800,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "shake",
+        "sw": 43,
+        "cw": 43,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "06shake",
+      "overflowing": []
+    },
+    {
+      "i": 31,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 936,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "06",
+      "overflowing": []
+    },
+    {
+      "i": 32,
+      "cls": "film-frame",
+      "rect": {
+        "l": 800,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "shake",
+        "sw": 43,
+        "cw": 43,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "shake",
+      "overflowing": []
+    },
+    {
+      "i": 33,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 800,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "shake",
+        "sw": 43,
+        "cw": 43,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "shake",
+      "overflowing": []
+    },
+    {
+      "i": 34,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 856,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 35,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 859,
+        "w": 43,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "shake",
+      "overflowing": []
+    },
+    {
+      "i": 36,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 960,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "flip",
+        "sw": 34,
+        "cw": 34,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "07flip",
+      "overflowing": []
+    },
+    {
+      "i": 37,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 1096,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "07",
+      "overflowing": []
+    },
+    {
+      "i": 38,
+      "cls": "film-frame",
+      "rect": {
+        "l": 960,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "flip",
+        "sw": 34,
+        "cw": 34,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "flip",
+      "overflowing": []
+    },
+    {
+      "i": 39,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 960,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "flip",
+        "sw": 34,
+        "cw": 34,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "flip",
+      "overflowing": []
+    },
+    {
+      "i": 40,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 1016,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 41,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 1023,
+        "w": 34,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "flip",
+      "overflowing": []
+    },
+    {
+      "i": 42,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 1120,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "elastic",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "08elastic",
+      "overflowing": []
+    },
+    {
+      "i": 43,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 1256,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "08",
+      "overflowing": []
+    },
+    {
+      "i": 44,
+      "cls": "film-frame",
+      "rect": {
+        "l": 1120,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "elastic",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "elastic",
+      "overflowing": []
+    },
+    {
+      "i": 45,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 1120,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "elastic",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "elastic",
+      "overflowing": []
+    },
+    {
+      "i": 46,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 1176,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 47,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 1170,
+        "w": 60,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "elastic",
+      "overflowing": []
+    },
+    {
+      "i": 48,
+      "cls": "film-frame__slot",
+      "rect": {
+        "l": 1280,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "blur-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "09blur-in",
+      "overflowing": []
+    },
+    {
+      "i": 49,
+      "cls": "film-frame__no",
+      "rect": {
+        "l": 1416,
+        "w": 14,
+        "h": 16
+      },
+      "num": null,
+      "name": null,
+      "allText": "09",
+      "overflowing": []
+    },
+    {
+      "i": 50,
+      "cls": "film-frame",
+      "rect": {
+        "l": 1280,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "blur-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "blur-in",
+      "overflowing": []
+    },
+    {
+      "i": 51,
+      "cls": "film-frame__card",
+      "rect": {
+        "l": 1280,
+        "w": 160,
+        "h": 152
+      },
+      "num": null,
+      "name": {
+        "txt": "blur-in",
+        "sw": 60,
+        "cw": 60,
+        "sh": 22,
+        "ch": 22,
+        "ws": "normal",
+        "to": "clip"
+      },
+      "allText": "blur-in",
+      "overflowing": []
+    },
+    {
+      "i": 52,
+      "cls": "film-frame__icon",
+      "rect": {
+        "l": 1336,
+        "w": 48,
+        "h": 48
+      },
+      "num": null,
+      "name": null,
+      "allText": "",
+      "overflowing": []
+    },
+    {
+      "i": 53,
+      "cls": "film-frame__name",
+      "rect": {
+        "l": 1330,
+        "w": 60,
+        "h": 22
+      },
+      "num": null,
+      "name": null,
+      "allText": "blur-in",
+      "overflowing": []
+    }
+  ],
+  "errors": []
+}

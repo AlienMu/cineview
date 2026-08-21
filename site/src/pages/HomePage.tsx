@@ -5,7 +5,6 @@ import { CapabilityFilmStripScene } from '../components/CapabilityScene';
 import { Act3DollyScene } from '../components/Act3DollyScene';
 import { DemoVideoScene } from '../components/DemoVideoScene';
 import { HomeSceneCanvas } from '../components/HomeSceneCanvas';
-import { HomeBackdrop } from '../components/HomeBackdrop';
 import { useDesignCanvasHeight } from '../hooks/useDesignCanvasHeight';
 import { Scene5Cinema } from '../components/Scene5Cinema';
 
@@ -53,10 +52,8 @@ export default function HomePage(): JSX.Element {
 
   return (
     <div className="home-page">
-      {/* 无级色带背景：必须是 CineView 的**兄弟节点且在其之前**
-          —— takeover 场景内 fixed 必然降级，且 DOM 序决定它恒在场景内容之下。
-          见 HomeBackdrop.tsx 文件头。 */}
-      <HomeBackdrop />
+      {/* 全站背景色带 = App 级 <BackgroundRibbon />（初版机制还原，2026-08-13），
+          不再由本页挂载（见 task-flow 2026-08-13 追加轮）。 */}
       <CineView
         config={{ size: 1440 }}
         mode="scroll"

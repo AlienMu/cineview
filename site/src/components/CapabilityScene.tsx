@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import { Animate, Position, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import type { DictKey } from '../i18n/types';
 import { TimecodeAxis } from './TimecodeAxis';
 import {
@@ -150,149 +151,122 @@ const HOLD_MS = 2600;
  * 上限由相邻切换点间距定：帧间距 FRAME_PLAY=1000ms，一次切换占 2×fade，
  * 故 fade < 500ms；取 420ms，留 160ms 净空，既不重叠又明显从容。 */
 const SELECTION_FADE_MS = 420;
-/* 选中切换的位移量（C4）。用户裁决方向 A：**旧行下移淡出、新行从上方下落淡入**
- * （「往下走」的阅读流）。取 6 设计 px ≈ 行高的 1/3 —— 读作「换了一行」，
- * 而不是「整块往下掉」。走 y 属性（框架 10 属性白名单内），仍由 Animate lane 拥有。 */
-const SELECTION_SHIFT = 6;
 const SELECTION_MS = PAN_MS + HOLD_MS;
 
-function filmSelectionVariant(kind: 'caption' | 'code'): {
+/**
+ * 胶带上方 caption（活跃帧标题 + 预设名）的切换变体。
+ *
+ * 每到一个切换点：`at−fade` 实心 → `at` 淡出+虚焦缩小 → `at+fade` 重新实心。
+ * 切换点由帧播放节奏推出，最后一个锚在 pan 结束处。
+ *
+ * ⚠️ 2026-08-12 两处修正，都源于「锚点用被改动的时长做分母」这类错误：
+ *   1. 末帧**不再淡出**。原实现在最后一次切换后收到 opacity 0 并保持到 lane 末尾；
+ *      `HOLD_MS` 500→2600 让该锚点从 0.952 掉到 0.794，caption 恰好在胶带跑完、
+ *      hover 刚生效那一刻消失（用户报「胶带上面的标题 hover 不出现了」）。
+ *      caption 正是 hover 要改写的对象，必须在整个驻留段可见。
+ *   2. 末次切换不再跳过「淡入恢复」段，否则末帧的实心会从 0 硬跳上来。
+ *
+ * 卡内 code 行的位移轨（原 `kind: 'code'`）已整条移除 —— 用户裁决「代码框里面的
+ * 内容不要有动画」。函数因此收窄为 caption 专用，原双分支死码一并删除。
+ */
+function filmSelectionVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
+  /* 2026-08-14(审计 act2-3):blur 0.833vw→0.55vw(12px→8px@1440)——谷底 opacity 0
+   * + 12px 虚焦读作「失焦融化」,与整幕「定格逐帧」机械语汇不符;8px 保持
+   * 「换帧闪一下」的打孔感。420ms 窗口(SELECTION_FADE_MS,08-10 C4 防闪裁决)不动。 */
+  const blur = 'blur(0.55vw)';
   const times: number[] = [0];
-  const opacity: number[] = [kind === 'caption' ? 0 : 1];
-  const blur = 'blur(0.833333vw)';
+  const opacity: number[] = [0];
   const filter: string[] = [blur];
   const scale: number[] = [0.98];
   const fade = SELECTION_FADE_MS / SELECTION_MS;
-  /* code 轨的位移序列（C4）。y 与 opacity 逐点对齐：
-   *   at−fade  y=0        已就位、不透明
-   *   at       y=+SHIFT   旧行沉到下方、opacity 0（此刻不可见）
-   *   at+EPS   y=−SHIFT   趁不可见瞬移到上方，作为新行的起点
-   *   at+fade  y=0        新行落回原位、不透明
-   * 关键点：关键帧插值是连续的，y 不可能在同一 time 上从 +SHIFT 跳到 −SHIFT，
-   * 故必须借一个极小的时间偏移 EPS 完成这次瞬移；因为整段 opacity 恒为 0，
-   * 这次瞬移在视觉上不存在。EPS 取 fade/8，远小于相邻切换间距，不会打乱 times 单调性。 */
-  const y: string[] = ['0px'];
-  const EPS = fade / 8;
-  const up = `${-SELECTION_SHIFT}px`;
-  const down = `${SELECTION_SHIFT}px`;
   const switches = [
     ...Array.from(
       { length: N_FRAMES },
       (_, order) => (INTRO_DELAY + FRAME_PLAY * 0.05 + order * FRAME_PLAY) / SELECTION_MS
     ),
-    PAN_MS / SELECTION_MS,
+    // ⚠️ 末锚提前一个 fade：这个切换点原本就是 `PAN_MS/SELECTION_MS`（胶带跑完处），
+    // 而 caption 在切换点上恰好是 opacity 0 谷底 —— 也就是 hover 刚被受理的那一瞬
+    // 标题正好不可见，随后才淡回。提前 fade 让「淡出→淡回实心」在 hover 开放前走完。
+    PAN_MS / SELECTION_MS - fade,
   ];
 
-  switches.forEach((at, index) => {
-    const isFirstCaption = kind === 'caption' && index === 0;
-    const isFinalCaption = kind === 'caption' && index === switches.length - 1;
-    if (!isFirstCaption) {
-      times.push(at - fade);
-      opacity.push(1);
-      if (kind === 'caption') {
-        filter.push('blur(0px)');
-        scale.push(1);
-      } else {
-        y.push('0px');
-      }
-    }
+  const pushSolid = (at: number): void => {
+    times.push(at);
+    opacity.push(1);
+    filter.push('blur(0px)');
+    scale.push(1);
+  };
+  const pushFaded = (at: number): void => {
     times.push(at);
     opacity.push(0);
-    if (kind === 'caption') {
-      filter.push(blur);
-      scale.push(0.98);
-    } else {
-      y.push(down); // 旧行沉下去
-    }
-    if (!isFinalCaption) {
-      if (kind !== 'caption') {
-        // 不可见期间瞬移到上方，供新行下落
-        times.push(at + EPS);
-        opacity.push(0);
-        y.push(up);
-      }
-      times.push(at + fade);
-      opacity.push(1);
-      if (kind === 'caption') {
-        filter.push('blur(0px)');
-        scale.push(1);
-      } else {
-        y.push('0px'); // 新行落回原位
-      }
-    }
-  });
-  times.push(1);
-  opacity.push(kind === 'caption' ? 0 : 1);
-  if (kind === 'caption') {
     filter.push(blur);
     scale.push(0.98);
-  } else {
-    y.push('0px');
-  }
+  };
+
+  switches.forEach((at, index) => {
+    // 首个切换点之前 caption 还没出现过，没有「淡出前的实心态」可言。
+    if (index > 0) pushSolid(at - fade);
+    pushFaded(at);
+    pushSolid(at + fade);
+  });
+  // 末帧保持实心：驻留段全程有标题可供 hover 改写。
+  times.push(1);
+  opacity.push(1);
+  filter.push('blur(0px)');
+  scale.push(1);
 
   return {
-    initial:
-      kind === 'caption'
-        ? { opacity: opacity[0], filter: filter[0], scale: scale[0] }
-        : { opacity: opacity[0], y: y[0] },
+    initial: { opacity: opacity[0], filter: filter[0], scale: scale[0] },
     animate: {
       opacity,
-      ...(kind === 'caption' ? { filter, scale } : { y }),
-      transition: { times },
+      filter,
+      scale,
+      transition: { duration: 0, opacity: { times }, filter: { times }, scale: { times } },
     },
   };
 }
 
-/* ── 整卡进出场（C3，2026-08-10）────────────────────────────────────────────
- * 用户报「代码框没有入场/退场动画」。核实:旧实现里这块卡外层只有
- * `film-code-selection` 一条 lane，管的是**卡内行切换**；整卡从滚动一开始就杵在那，
- * 到整幕被切走为止 —— 入场/退场**从未被实现**（不是被改掉的）。
+const FILM_CAPTION_SELECTION = filmSelectionVariant();
+
+/* ── 整卡进出场（`film-card-inout`）────────────────────────────────────────
+ * 挂独立短轴（`waitFor: 'film-title'`），不跟胶带 `film-pan` 同轴 —— 独立轴的
+ * 进场时长可单独调，不被胶带 10s 的 pan 拖长。
  *
- * 用户裁决:入场「上移 + 淡入」/ 退场「下移 + 淡出」，挂**独立短轴**（方案 B，
- * `waitFor: 'film-title'`），不跟胶带 `film-pan` 同轴 —— 独立轴的进出时长可单独调，
- * 不被胶带 10s 的 pan 拖长，进出更利落。
+ * ⚠️ 2026-08-12 两处真机修正：
+ *   1. 旧写法退场从 lane 的 0.94 起步 = 9870ms —— 早于胶带 pan 结束的 10000ms，
+ *      退场斜坡把整个可 hover 的 hold 段吃掉，卡片在能被 hover 时已经淡完
+ *      （用户报「选中后 codeboard 没出现」）。
+ *   2. **不要退场动画**（用户裁决）。用户在驻留段稍一滚动就撞进那条斜坡，
+ *      看到的是「半透明的代码框」—— 那不是设计，是退场播到一半。
+ * 现在：入场占 lane 的前 `CARD_IN_END`，其后**恒为实心**直到整幕被切走，没有退场段。
+ * lane 时长与 `film-caption-selection` 同为 `SELECTION_MS`（= PAN + HOLD），两者对齐。
  *
  * 位移 32 设计 px：明显是「从下方升上来」而非漂移；且远小于外层裁切余量
- * （`.capability-full` 的 `overflow-clip-margin: 120px`，实测退场安全余量 163px）
- * ⇒ 投影在整个下移过程中都不会被切（那正是用户报的 C6 阴影截断）。
- *
- * ⚠️ 2026-08-12：整卡 lane **不再复用 `SELECTION_MS`**。旧写法 lane = PAN+HOLD = 10500、
- * 退场从 0.94 起步 = 9870ms —— 那**早于**胶带 pan 结束的 10000ms，于是退场斜坡把整个
- * hold 段（10000→10500，正是 hover 唯一生效的窗口）完全吃掉，卡片在能被 hover 时已经淡完。
- * 现在给整卡一条**独立更长的 lane**：pan(10000) + hold(2600) 全程 opacity 1，
- * 只在其后的 CARD_OUT_MS(700) 里下移淡出 ⇒ 退场严格晚于 hold，hover 窗口内卡片恒为实心。 */
+ * （`.capability-full` 的 `overflow-clip-margin: 120px`）⇒ 投影不会被切。 */
 const CARD_IN_MS = 700;
-const CARD_OUT_MS = 700;
-const CARD_LANE_MS = PAN_MS + HOLD_MS + CARD_OUT_MS;
-const CARD_IN_END = CARD_IN_MS / CARD_LANE_MS;
-const CARD_OUT_START = (PAN_MS + HOLD_MS) / CARD_LANE_MS;
+const CARD_IN_END = CARD_IN_MS / SELECTION_MS;
 const CARD_SHIFT = 32;
 
 function cardInOutVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
-  const times = [0, CARD_IN_END, CARD_OUT_START, 1];
   return {
     initial: { opacity: 0, y: `${CARD_SHIFT}px` },
     animate: {
-      opacity: [0, 1, 1, 0],
-      y: [`${CARD_SHIFT}px`, '0px', '0px', `${CARD_SHIFT}px`],
-      transition: { opacity: { times }, y: { times } },
+      opacity: [0, 1, 1],
+      y: [`${CARD_SHIFT}px`, '0px', '0px'],
+      transition: {
+        duration: 0,
+        opacity: { times: [0, CARD_IN_END, 1] },
+        y: { times: [0, CARD_IN_END, 1] },
+      },
     },
   };
 }
-
-const FILM_CAPTION_SELECTION = filmSelectionVariant('caption');
-const FILM_CODE_SELECTION = filmSelectionVariant('code');
-
-const PREFERS_REDUCED =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 interface FilmSelectionState {
   active: number;
@@ -356,6 +330,7 @@ function FilmTimelineProjection({
 }
 
 export function CapabilityFilmStripScene(): JSX.Element {
+  const reduced = usePrefersReducedMotion();
   const { t, lang } = useI18n();
   const sceneRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<FilmSelectionState>({
@@ -441,7 +416,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
             duration={{ enter: PAN_MS }}
             timeline={{ waitFor: 'film-title', delay: 0 }}
             infiniteAnimation={
-              PREFERS_REDUCED
+              reduced
                 ? undefined
                 : {
                     animate: {
@@ -519,52 +494,48 @@ export function CapabilityFilmStripScene(): JSX.Element {
 
       {/* 胶带下方:代码卡片 —— code 行 + 一句话描述,随展示帧联动(与胶带拉开间距) */}
       <Position at={{ anchor: 'center-x', y: 636 }}>
-        {/* 两条 lane 分层，各管一件事，不能合并到一个元素上（会互相覆盖同名属性）：
-              film-card-inout   —— 整卡进出场（上移淡入 / 下移淡出），C3
-              film-code-selection —— 卡内 code/desc 行随选中帧切换，C4 */}
+        {/* 只剩一条 lane：`film-card-inout` 管整卡入场（上移淡入，无退场）。
+              卡内 code/desc 行的切换已改为无动画的内容替换（用户裁决），
+              原 `film-code-selection` 位移轨整条移除。 */}
         <Animate
           animateId="film-card-inout"
           enterAnimation={cardInOutVariant()}
-          duration={{ enter: CARD_LANE_MS }}
+          duration={{ enter: SELECTION_MS }}
           timeline={{ waitFor: 'film-title', delay: 0 }}
         >
-          <Animate
-            animateId="film-code-selection"
-            enterAnimation={FILM_CODE_SELECTION}
-            duration={{ enter: SELECTION_MS }}
-            timeline={{ waitFor: 'film-title', delay: 0 }}
-          >
-            <div className="film-codecard">
-              <div className="film-codecard__bar">
-                <span className="film-codecard__dot" />
-                <span className="film-codecard__dot" />
-                <span className="film-codecard__dot" />
-                <span className="film-codecard__file">Scene.tsx</span>
-              </div>
-              <div className="film-codecard__body">
-                <div className="film-codecard__head">
-                  <span className="film-codecard__prompt">&gt;</span>
-                  <span className="film-codecard__code-slot">
-                    {FILM_FRAMES.map((frame, index) => (
-                      <code key={frame.id} className="film-codecard__code" data-film-index={index}>
-                        {t(`cap.shot1.preset.${frame.id}.code` as DictKey)}
-                      </code>
-                    ))}
-                    <code className="film-codecard__code is-active" data-film-index={-1}>
-                      {'<Animate enterAnimation={…} />'}
-                    </code>
-                  </span>
-                </div>
-                <span className="film-codecard__desc-slot">
+          {/* 卡内内容**无动画**（2026-08-12 用户裁决：「代码框里面的内容不要有动画，
+              只有代码框在真正的切换」）。原 `film-code-selection` lane 的逐行
+              下沉/上落/模糊/缩放已整条移除，行切换退化为纯粹的内容替换。 */}
+          <div className="film-codecard">
+            <div className="film-codecard__bar">
+              <span className="film-codecard__dot" />
+              <span className="film-codecard__dot" />
+              <span className="film-codecard__dot" />
+              <span className="film-codecard__file">Scene.tsx</span>
+            </div>
+            <div className="film-codecard__body">
+              <div className="film-codecard__head">
+                <span className="film-codecard__prompt">&gt;</span>
+                <span className="film-codecard__code-slot">
                   {FILM_FRAMES.map((frame, index) => (
-                    <span key={frame.id} className="film-codecard__desc" data-film-index={index}>
-                      {t(`cap.shot1.preset.${frame.id}.desc` as DictKey)}
-                    </span>
+                    <code key={frame.id} className="film-codecard__code" data-film-index={index}>
+                      {t(`cap.shot1.preset.${frame.id}.code` as DictKey)}
+                    </code>
                   ))}
+                  <code className="film-codecard__code is-active" data-film-index={-1}>
+                    {'<Animate enterAnimation={…} />'}
+                  </code>
                 </span>
               </div>
+              <span className="film-codecard__desc-slot">
+                {FILM_FRAMES.map((frame, index) => (
+                  <span key={frame.id} className="film-codecard__desc" data-film-index={index}>
+                    {t(`cap.shot1.preset.${frame.id}.desc` as DictKey)}
+                  </span>
+                ))}
+              </span>
             </div>
-          </Animate>
+          </div>
         </Animate>
       </Position>
     </div>

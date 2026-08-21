@@ -1,0 +1,1460 @@
+[
+  {
+    "y": 30010,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1665,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1886,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 1535,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 30160,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1515,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1736,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 1385,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 30310,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1365,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1586,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 1235,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 30460,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1215,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1436,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 1085,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 30600,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1075,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1296,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 945,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 30750,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 925,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 1146,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 795,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 30900,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 775,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": false,
+      "rect": {
+        "t": 996,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 645,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31050,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 625,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 846,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 495,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31200,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 475,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 696,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 345,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31350,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 325,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 546,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 195,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31500,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31650,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31800,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 31950,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 32100,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 32250,
+    "stage": "idle",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 32400,
+    "stage": "mounted",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 32550,
+    "stage": "mounted",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 32700,
+    "stage": "mounted",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 32850,
+    "stage": "mounted",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33000,
+    "stage": "mounted",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33150,
+    "stage": "revealed",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33300,
+    "stage": "revealed",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33450,
+    "stage": "revealed",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33600,
+    "stage": "revealed",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33700,
+    "stage": "revealed",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  },
+  {
+    "y": 33700,
+    "stage": "revealed",
+    "title": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 175,
+        "l": 907,
+        "w": 171,
+        "h": 217
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__title-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "subtitle": {
+      "effOpacity": 0,
+      "onScreen": true,
+      "rect": {
+        "t": 396,
+        "l": 907,
+        "w": 122,
+        "h": 346
+      },
+      "chain": [
+        {
+          "tag": "p",
+          "cls": "scene5-cinema__subtitle-text",
+          "aid": null,
+          "o": 0,
+          "vis": "visible",
+          "disp": "block"
+        }
+      ],
+      "depth": 15
+    },
+    "col": {
+      "cls": "scene5-cinema__phone-col",
+      "o": 1,
+      "t": 45,
+      "l": 533,
+      "w": 374,
+      "h": 810
+    }
+  }
+]

@@ -1,0 +1,81 @@
+{
+  "forward": {
+    "hero": {
+      "top": 315,
+      "lanes": {
+        "hero-title": 1,
+        "hero-intro": 1
+      },
+      "warm": 36
+    },
+    "film": {
+      "top": 5849,
+      "lanes": {
+        "film-title": 1,
+        "film-caption-selection": 0.617
+      },
+      "warm": 33
+    },
+    "shot3": {
+      "top": 18400,
+      "lanes": {
+        "shot3-block-chain": 1,
+        "shot3-title": 1
+      },
+      "warm": 44
+    },
+    "demo": {
+      "top": 26579,
+      "lanes": {
+        "demo-video": 1,
+        "demo-title-out": 1
+      },
+      "warm": 22
+    },
+    "cinema": {
+      "top": 31265,
+      "lanes": {
+        "cinema-lightsoff": 0.454,
+        "cinema-phone": 0.311
+      },
+      "warm": 21
+    }
+  },
+  "reverse": {
+    "cinema": {
+      "lanes": {
+        "cinema-lightsoff": 0.454,
+        "cinema-phone": 0.311
+      },
+      "warm": 21
+    },
+    "demo": {
+      "lanes": {
+        "demo-video": 1,
+        "demo-title-out": 1
+      },
+      "warm": 22
+    },
+    "shot3": {
+      "lanes": {
+        "shot3-block-chain": 1,
+        "shot3-title": 1
+      },
+      "warm": 44
+    },
+    "film": {
+      "lanes": {
+        "film-title": 1,
+        "film-caption-selection": 0.617
+      },
+      "warm": 33
+    },
+    "hero": {
+      "lanes": {
+        "hero-title": 1,
+        "hero-intro": 1
+      },
+      "warm": 37
+    }
+  }
+}

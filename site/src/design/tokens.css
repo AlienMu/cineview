@@ -15,20 +15,14 @@
   --frame-line-soft: #eee9e0;
 
   /* — 柔彩首页 palette；具体 Scene 在 global.css 中覆盖 — */
-  --lut-dawn-top: #fcede4;
-  --lut-dawn-bot: #faf8f4;
-  --lut-sky-top: #e6eef6;
-  --lut-sky-bot: #f3f1ea;
-  --lut-lavender-top: #ece6f4;
-  --lut-lavender-bot: #f4eef2;
-  --lut-mint-top: #e4f0ea;
-  --lut-mint-bot: #f6f3ec;
-
   /* 非首页页面与滚动条使用的静态默认色。 */
-  --bg-grad-top: var(--lut-dawn-top);
-  --bg-grad-bot: var(--lut-dawn-bot);
-  --accent: #c98a6a; /* 当前镜头色,随滚动被 JS 覆写 */
-  --accent-ink: #9c6249;
+  /* 与 LUT 停靠 0（design/lut.ts）同步：2026-08-16 参照胶带边缘 accent 家族
+   * （#ca8a4c hue≈33°）调亮——top #f8e3c6 / bot #f9eee0（用户两轮判白/冷后
+   * 的第三版）。旧 --lut-* 四族死 token 已删（历史在 git）。 */
+  --bg-grad-top: #f8e3c6;
+  --bg-grad-bot: #f9eee0;
+  --accent: #d59273; /* 当前镜头色,随滚动被 JS 覆写 */
+  --accent-ink: #a86247;
 
   /* — REC 常驻指示(时间码胶囊专用,不随镜头色变)— */
   --rec: #c4453f;

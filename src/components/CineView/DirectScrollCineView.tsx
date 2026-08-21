@@ -245,7 +245,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       void startPreload();
     }, [preloadPlan, startPreload]);
 
-    const { store: sceneRenderStore } = useScrollSceneSnapshots({
+    const { store: sceneRenderStore, frameStore: sceneFrameStore } = useScrollSceneSnapshots({
       scenes,
       sceneLayoutsRef,
       timelineStoreRef,
@@ -543,6 +543,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
                   <ScrollSceneStack
                     childrenArray={childrenArray}
                     store={sceneRenderStore}
+                    frameStore={sceneFrameStore}
                     setWrapperRef={setSceneWrapperRef}
                     scrollCallbacks={resolvedCallbacks.scroll}
                   />

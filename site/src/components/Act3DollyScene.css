@@ -1,14 +1,16 @@
 /* ===================================================================
-   Act 3 · 视频推进（dolly in） — 2026-08-04 (v2)
-   规格：task-flow 2026-08-04-home-continuous-bg-act3-dolly.md（D6 v2 修订）
+   Act 3 · 时间轴倒放（v4） — 2026-08-15
+   规格：用户拍板「标题开局显影常驻，panel 运动倒放」
 
    设计契约：
-   - 六块 panel 静息即可见、大小不一；随滚动逐块**在原位放大**到铺满屏幕再淡出。
-     放大靠 Animate lane 的 scale，本文件不写 @keyframes、不写 animation
-     （CLAUDE.md 规则 6 第一条：常驻动效只能走 infiniteAnimation；本幕无常驻动效）。
-   - transform-origin 必须 center：原位放大的「原位」= 自身中心，偏了就会漂移。
-   - panel 有实体底板（半透明暖白 + backdrop blur），放大时盖住其他块 —— 这是
-     推近镜头「主体在前、其余退后」的正确观感，不是 bug。
+   - 标题开局显影（0→900ms）后常驻整幕、永不退场，z 序在所有 panel 之上。
+   - 六块 panel 逐块接力「倒放」：从画布中心峰值（scale=peak、铺满）淡入出现，
+     缩小退回各自散落位（scale=base），落位后静息常驻。缩放/位移全走 Animate lane，
+     本文件不写 @keyframes、不写 animation（CLAUDE.md 规则 6 第一条：常驻动效只能走
+     infiniteAnimation；本幕无常驻动效）。
+   - transform-origin 必须 center：倒放的「退回原位」= 自身中心，偏了就会漂移。
+   - panel 有实体底板，倒放起点铺满画布、会盖住其他块 —— 退回中的块必须在最上层
+     （z 取 index+1，标题再高一层），这是「主体在前、其余退后」的正确观感，不是 bug。
    - 内容用 em 跟随 panel 字号：panel 整体 scale 时细节等比变清楚。
    =================================================================== */
 
@@ -49,7 +51,7 @@
    *    一会儿冷、频率极高」。消融实测（scripts/t1-ablate.mjs）：底板色温是主因，
    *    不是模糊或阴影。
    *
-   * ⚠️ 2026-08-10 C2 把色带谷段调暖后（`HomeBackdrop.css` 的 33%/40% 锚点
+   * ⚠️ 2026-08-13 LUT 停靠点重定后（`design/lut.ts` 的 0.6/0.8 停靠
    * #f4dfd0/#f1dbca，R−B ≈ +36/+39），旧底板（自身 R−B 仅 +11，合成后约 +16）
    * 与露底差了约 23 个 R−B 单位 —— 独立验收与对抗复审都实测到第三幕整屏 R−B 在
    * 20.84 ↔ 31.09 摆动（摆幅 10.25，波形与 `.a3-panel` 屏占比严格反相 = 六块六周期，
@@ -66,9 +68,14 @@
    * 与色带同斜率的纵向渐变 —— 那是独立议题，不在 C9。
    *
    * 调色带谷段时**必须**同步改这三个值（同色温是硬约束）。 */
-  --a3-plate: #f5e0d1;
-  --a3-plate-bar: #f9e7da;
-  --a3-plate-foot: #f2dbcb;
+  /* 2026-08-14 渐变派生（用户裁决「面板配色是根据渐变来的」）：面板色 = 当前
+   * 渐变上端色 --bg-grad-top（BackgroundRibbon 随滚动写入）的高白混合——
+   * 面板读作「浮在渐变上的暖白片」，色相永远与背景同族（C9 结构性满足）、
+   * 滚动时随渐变自然流动，无手挑台阶色、无粉调（白混 ≥66% 后 G−B ≤ 14）。
+   * 白混比例（对齐 codecard 的 0.94 半透白观感）：底板 74% / 顶栏 82% / 代码脚 66%。 */
+  --a3-plate: color-mix(in srgb, var(--bg-grad-top, #faf0df), white 74%);
+  --a3-plate-bar: color-mix(in srgb, var(--bg-grad-top, #faf0df), white 82%);
+  --a3-plate-foot: color-mix(in srgb, var(--bg-grad-top, #faf0df), white 66%);
 }
 
 /* ── panel 底板 ────────────────────────────────────────────────────── */
@@ -88,14 +95,21 @@
   background: var(--a3-plate);
   border: 1px solid var(--a3-line);
   border-radius: 0.85em;
+  /* 2026-08-14(审计 act3-1):第二层投影 alpha 0.07→0.10、扩散 2.6em→3.2em——
+   * 静息小块(base 0.58-0.68)在奶白桃→琥珀行程上读作「贴底的纸」而非「悬浮的卡」。
+   * 仍是中性墨,符合 2026-08-06 起的中性墨投影裁决;T1/C9 只约束底板色不约束投影。 */
   box-shadow:
     0 0.15em 0.5em rgba(26, 24, 20, 0.05),
-    0 1.1em 2.6em rgba(26, 24, 20, 0.07);
+    0 1.1em 3.2em rgba(26, 24, 20, 0.1);
   /* 2026-08-10 C9：删掉 `backdrop-filter: blur(0.6em) saturate(104%)`。
    * 底板改不透明实底后它已无视觉作用（背后什么都透不上来），却仍要每块做一次
    * 全屏读背景 + 模糊的合成工作 —— 六块同时在场、又都在 scrub 放大时最贵。
    * 历史上 saturate 从 118% 降到 104% 是为了压 T1 的色温放大，现在整条路径都不需要了。 */
-  will-change: transform, opacity, filter;
+  /* 2026-08-15 掉帧/闪烁修复（用户报障，消融实锤 7→0 长帧）：删掉
+   * `will-change: transform, opacity, filter`。六块永久提升层在 v4 倒放的
+   * 4.3× 峰值光栅分辨率下逐帧重光栅 + 真机显存压力（层驱逐/重建 = 闪烁）；
+   * v3 正放时峰值在淡出（半透明层可跳过光栅）故曾无害。transform/opacity 的
+   * 逐帧 inline style 写入不经 will-change 仍走合成器，无需该提示。 */
 }
 
 /* 顶栏：图标 + 能力名 + 序号。刻意不做 mac 三圆点窗口栏（典型 AI 素材特征）。 */
@@ -151,7 +165,10 @@
   display: block;
   padding: 0.7em 1em;
   border-top: 1px solid var(--a3-line-soft);
-  border-left: 0.2em solid var(--accent);
+  /* 2026-08-14(审计 act3-2):竖线 0.2em→0.14em + 70% 透明——静息最小块的代码脚
+   * 渲染高约 24px,0.2em 实心 accent 比顶栏图标还跳;细化后回归「注释感」,
+   * accent 仍随 LUT 流动(语汇与第五幕副标题左线同源,只改粗细透明度不改色相)。 */
+  border-left: 0.14em solid color-mix(in srgb, var(--accent) 70%, transparent);
   background: var(--a3-plate-foot);
   font-family: var(--font-mono);
   font-size: 0.74em;
@@ -188,7 +205,8 @@
 
 .a3-chain__dot.is-on {
   background: var(--accent);
-  box-shadow: 0 0 0.5em rgba(201, 138, 106, 0.45);
+  /* 2026-08-14(审计 act3-5):glow 改 accent 派生,消除「起点流动、终点写死」。 */
+  box-shadow: 0 0 0.5em color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .a3-chain__name {
@@ -237,7 +255,13 @@
 .a3-stagger__bar {
   width: 100%;
   border-radius: 0.16em 0.16em 0 0;
-  background: linear-gradient(180deg, var(--accent), rgba(201, 138, 106, 0.35));
+  /* 2026-08-14(审计 act3-4):渐变尾端改 accent 35% 派生——同一 accent 同一
+   * 不透明度,消除「起点流动、终点写死」的半跟随状态。 */
+  background: linear-gradient(
+    180deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 35%, transparent)
+  );
 }
 
 .a3-stagger__tick {
@@ -453,38 +477,54 @@
   color: var(--ink-mute);
 }
 
-/* 收尾标题块：标题 + 副标题必须在**同一个流**里，靠 gap 排距。
- *
- * ⚠️ 不能给两者各写一个绝对 y（原做法：title y=372、summary y=452，间距写死
- * 80 设计 px）。标题无 max-width、按容器宽自然折行，**折几行取决于语言**：
- * zh 标题一行（高 ~49 设计 px，80 的间距够），en 标题两行（高 ~99 > 80）→
- * 副标题直接横穿标题第二行。实测该重叠**在所有档位都存在**（1440 重叠 19px、
- * 1920 24px、1280 12px、390 6px），桌面上看不出来只是因为交叠部分是 line-height
- * 的行距空白而非字形；390 上副标题也折行变高，就压到字形上、肉眼可见。
- * 这也是它一直没被发现的原因：以前的收尾断言量的是「标题底 vs 第五幕手机顶」，
- * 从没量过「标题 vs 副标题」，且我复核的桌面截图恰好是较短的中文标题。
- *
- * 用 flex column + gap 后，副标题永远排在标题**实际占位**之下，与语言/折行数无关。
- * 与第二幕 `.film-titleblock` 同一约定（第三幕当初脱离了这个约定）。 */
+/* 标题块（v4：只剩标题，常驻居中）。保留 wrapper + 类名：手机断点用它限定
+ * `.cap-title` 的字号覆盖（`.cap-title` 与第二幕共享，不能全局改）。 */
 .act3-titleblock {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(31 * var(--cv-u));
 }
 
-/* 收尾副标题。max-width 走 --cv-u 等比，故字号同样要夹倍数上限（同 --a3-fs 理由：
- * 只有 px 下限时窄屏字比容器大 → 折行暴增、撑出画布底）。 */
-.act3-summary {
-  --a3-sum-fluid: calc(17 * var(--cv-u));
+/* ── act3 专属 chrome 精简（2026-08-16 用户指令：去掉 REC/时间/slate 文字，
+ * 腾出空间放大标题）。⚠️ TimecodeAxis 组件本身不能删——它是 shot3-clock
+ * 预算 lane 的载荷（Animate duration 定义 zone 预算），只在其 act3 作用域
+ * 内隐藏可视输出；act2 的时间码胶囊不受影响。 ── */
+.act3-dolly .tc-capsule,
+.act3-dolly .cap-slate {
+  display: none;
+}
 
-  max-width: calc(560 * var(--cv-u));
-  margin: 0 auto;
-  font-family: var(--font-body);
-  font-size: clamp(var(--a3-sum-fluid), 12px, calc(var(--a3-sum-fluid) * 1.35));
-  line-height: 1.75;
-  color: var(--ink-soft);
-  text-align: center;
+/* 2026-08-15 用户裁决「文字有重叠就缩小文字」：标题降 --text-2xl（44→32px）+
+ * max-width 34ch + balance 强制两行——32px 单行反而比 44px 两行更宽（实测
+ * 717px），必须两行才装进中心空档（静息六块围出的中央空档 ≈533×112 设计 px，
+ * 两行 ~400px 级 + 行高 1.12 共 72px 恰好容纳，与 chain/scrub 底顶缘零相交）。
+ * 标题 z 同时不再最上（panel 从前面过）。仅第三幕，不影响第二幕。
+ * 2026-08-16 二次调整（chrome 精简后，用户指令「腾出空间放大标题」）：
+ * 回升 clamp 26-36px。40px 实测带宽 640px 超出中心空档（613px，overlap=2），
+ * 36px ≈576px 回到零相交；比原 32px 仍大 12.5%。 */
+.act3-titleblock .cap-title {
+  font-size: clamp(26px, 2.5vw, 36px);
+  /* 24ch ≈ 513px：实测 34ch(728px) 时 en 单行 717px 刚好塞下不折行，压到 24ch
+   * 强制两行（每行 ~430px），行盒 x505-935 / y370-442 落在静息六块围出的中央
+   * 空档内，与 chain(右缘 440)/container(左缘 1053)/stagger(底缘 312) 零相交。 */
+  max-width: 24ch;
+  text-wrap: balance;
+}
+
+/* zh 错位换行（2026-08-16，用户指令「参照首页」）：\n 分行 + 行内 ±44u 静态
+ * 横移（HeroScene persist 同款）。行块居中排（父级 flex column 居中），
+ * 每行自身再横移——两行视觉中心错开，构成首页 slogan 的同款非对称。 */
+.act3-title-stagger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6 * var(--cv-u));
+  max-width: none;
+}
+
+.act3-title-stagger__line {
+  display: block;
+  white-space: nowrap;
 }
 
 /* ── 手机版（≤600 宽）───────────────────────────────────────────────
@@ -539,15 +579,10 @@
     position: static;
   }
 
-  /* 收尾标题块同理要放大设计 px：六块已到 15px，标题 11.9px / 副标题 6.2px 就成了
-   * 全幕最不可读的部分（副标题的 clamp 是按桌面尺子调的，倍数上限在手机上把它压到
-   * 4.6×1.35）。只覆盖第三幕自己的两处 —— `.cap-title` 是与第二幕共享的类，
-   * 故用 `.act3-titleblock` 后代选择器限定，不影响第二幕。 */
+  /* 标题块要放大设计 px：六块已到 15px，标题 11.9px 就成了全幕最不可读的部分。
+   * 只覆盖第三幕自己的 `.cap-title` —— 它是与第二幕共享的类，故用
+   * `.act3-titleblock` 后代选择器限定，不影响第二幕。 */
   .act3-titleblock .cap-title {
     font-size: calc(58 * var(--cv-u));
-  }
-
-  .act3-summary {
-    font-size: calc(34 * var(--cv-u));
   }
 }

@@ -6,13 +6,13 @@
  * 经 `onScrollToOffset(targetOffset)` 把目标偏移回传给父组件（父持有真实 scroll
  * 状态写入权 —— containerRef / setNativeOffset / syncNativeScrollState）。
  *
- * 抽取自 DirectScrollCineView 内联实现，逐字保持几何/拖拽/自动隐藏行为不变。
+ * 几何/拖拽/自动隐藏语义与 DirectScrollCineView 保持一致；连续 offset 通过
+ * 外部 store 直接写 thumb/ARIA，避免把每个滚动帧送回 React。
  */
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { clamp, normalizeKeyboardDeltaPx } from './directScrollHelpers';
 import type { ScrollExternalStore } from './scrollExternalStore';
 
-const EMPTY_SCROLL_OFFSET_SUBSCRIBE = (): (() => void) => () => undefined;
 import type { ScrollbarConfig, SlideDirection } from '../../types';
 
 export interface ScrollbarOverlayProps {
@@ -43,12 +43,6 @@ export function ScrollbarOverlay({
   config,
   onScrollToOffset,
 }: ScrollbarOverlayProps): JSX.Element | null {
-  const fallbackScrollOffset = useCallback(() => initialScrollOffset, [initialScrollOffset]);
-  const scrollOffset = useSyncExternalStore(
-    scrollOffsetStore?.subscribe ?? EMPTY_SCROLL_OFFSET_SUBSCRIBE,
-    scrollOffsetStore?.getSnapshot ?? fallbackScrollOffset,
-    scrollOffsetStore?.getSnapshot ?? fallbackScrollOffset
-  );
   const scrollbarAutoHide = config.autoHide ?? true;
   const scrollbarAriaLabel = config.ariaLabel ?? 'CineView scroll position';
   const scrollbarThickness = Math.max(config.width ?? 6, 4);
@@ -58,9 +52,17 @@ export function ScrollbarOverlay({
   const scrollbarThumbColor = config.thumbColor ?? 'rgba(255, 255, 255, 0.28)';
   const scrollbarThumbBorder = config.thumbHoverColor ?? 'rgba(255, 255, 255, 0.42)';
   const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false);
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
 
   const nativeScrollableSpan = Math.max(scrollContentSpan - viewportSpan, 0);
-  const currentNativeScrollOffset = clamp(scrollOffset, 0, nativeScrollableSpan);
+  const currentNativeScrollOffset = clamp(
+    scrollOffsetStore?.getSnapshot() ?? initialScrollOffset,
+    0,
+    nativeScrollableSpan
+  );
+  const currentNativeScrollOffsetRef = useRef(currentNativeScrollOffset);
+  currentNativeScrollOffsetRef.current = currentNativeScrollOffset;
   const effectiveContentSpan = nativeScrollableSpan + viewportSpan;
   const showScrollbarOverlay = nativeScrollableSpan > 1;
   const railLength = Math.max(viewportSpan - scrollbarInset * 2, 1);
@@ -78,7 +80,39 @@ export function ScrollbarOverlay({
       ? clamp((currentNativeScrollOffset / nativeScrollableSpan) * thumbTravel, 0, thumbTravel)
       : 0;
 
+  useEffect(() => {
+    const publishOffset = (): void => {
+      const nextOffset = clamp(
+        scrollOffsetStore?.getSnapshot() ?? initialScrollOffset,
+        0,
+        nativeScrollableSpan
+      );
+      currentNativeScrollOffsetRef.current = nextOffset;
+      railRef.current?.setAttribute('aria-valuenow', String(Math.round(nextOffset)));
+      if (!thumbRef.current) return;
+      const nextThumbOffset =
+        nativeScrollableSpan > 0
+          ? clamp((nextOffset / nativeScrollableSpan) * thumbTravel, 0, thumbTravel)
+          : 0;
+      if (direction === 'x') {
+        thumbRef.current.style.left = `${nextThumbOffset}px`;
+      } else {
+        thumbRef.current.style.top = `${nextThumbOffset}px`;
+      }
+    };
+
+    publishOffset();
+    return scrollOffsetStore?.subscribe(publishOffset);
+  }, [direction, initialScrollOffset, nativeScrollableSpan, scrollOffsetStore, thumbTravel]);
+
   const scrollbarDragCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    // A pointer session captures rail geometry at pointerdown. Once layout or
+    // scrollable span changes, that closure is no longer authoritative; ending
+    // it prevents a hidden/reshaped overlay from writing offsets with stale math.
+    scrollbarDragCleanupRef.current?.();
+  }, [direction, nativeScrollableSpan, onScrollToOffset, railLength, thumbLength]);
 
   const handleScrollbarKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -92,11 +126,11 @@ export function ScrollbarOverlay({
           ? nativeScrollableSpan
           : delta === Number.NEGATIVE_INFINITY
             ? 0
-            : clamp(currentNativeScrollOffset + delta, 0, nativeScrollableSpan);
+            : clamp(currentNativeScrollOffsetRef.current + delta, 0, nativeScrollableSpan);
       onScrollToOffset(targetOffset);
       event.preventDefault();
     },
-    [currentNativeScrollOffset, nativeScrollableSpan, onScrollToOffset, viewportSpan]
+    [nativeScrollableSpan, onScrollToOffset, viewportSpan]
   );
 
   const handleScrollbarPointerDown = useCallback(
@@ -125,7 +159,7 @@ export function ScrollbarOverlay({
       const currentThumbOffset =
         nativeScrollableSpan > 0
           ? clamp(
-              (currentNativeScrollOffset / nativeScrollableSpan) *
+              (currentNativeScrollOffsetRef.current / nativeScrollableSpan) *
                 Math.max(trackLength - thumbLength, 0),
               0,
               Math.max(trackLength - thumbLength, 0)
@@ -180,7 +214,7 @@ export function ScrollbarOverlay({
       window.addEventListener('pointerup', handleEnd);
       window.addEventListener('pointercancel', handleEnd);
     },
-    [currentNativeScrollOffset, direction, nativeScrollableSpan, onScrollToOffset, thumbLength]
+    [direction, nativeScrollableSpan, onScrollToOffset, thumbLength]
   );
 
   useEffect(
@@ -221,6 +255,7 @@ export function ScrollbarOverlay({
       }}
     >
       <div
+        ref={railRef}
         role="scrollbar"
         aria-label={scrollbarAriaLabel}
         aria-orientation={direction === 'x' ? 'horizontal' : 'vertical'}
@@ -270,6 +305,7 @@ export function ScrollbarOverlay({
         }
       >
         <div
+          ref={thumbRef}
           data-cineview-scrollbar-thumb="true"
           style={
             direction === 'x'

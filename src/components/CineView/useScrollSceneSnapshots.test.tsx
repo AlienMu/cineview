@@ -34,6 +34,7 @@ function createZoneState(
     totalBudgetPx: 100,
     active: progressPx > 0 && progressPx < 100,
     direction: progressPx > 0 ? 'forward' : null,
+    approach: 'near',
     sequence: { budgets: {}, totalDurationMs: 100, totalBudgetPx: 100 },
   };
 }
@@ -99,8 +100,10 @@ describe('useScrollSceneSnapshots', () => {
     );
     const firstSceneListener = jest.fn();
     const lastSceneListener = jest.fn();
+    const lastFrameListener = jest.fn();
     result.current.store.subscribeKey(0, firstSceneListener);
     result.current.store.subscribeKey(999, lastSceneListener);
+    result.current.frameStore.subscribeKey(999, lastFrameListener);
     sceneReads = 0;
 
     act(() => {
@@ -109,7 +112,8 @@ describe('useScrollSceneSnapshots', () => {
 
     expect(sceneReads).toBeLessThanOrEqual(3);
     expect(firstSceneListener).not.toHaveBeenCalled();
-    expect(lastSceneListener).toHaveBeenCalledTimes(1);
+    expect(lastSceneListener).not.toHaveBeenCalled();
+    expect(lastFrameListener).toHaveBeenCalledTimes(1);
   });
 
   it('publishes zone changes and removals, then catches an inactive scene up on activation', () => {
@@ -144,7 +148,9 @@ describe('useScrollSceneSnapshots', () => {
       })
     );
     const sceneListener = jest.fn();
+    const frameListener = jest.fn();
     result.current.store.subscribeKey(3, sceneListener);
+    result.current.frameStore.subscribeKey(3, frameListener);
     const zoneState = createZoneState('zone-3', 3, 25);
 
     act(() => {
@@ -152,7 +158,19 @@ describe('useScrollSceneSnapshots', () => {
       result.current.updateSceneRenderSnapshots(0);
     });
     expect(result.current.store.getKeySnapshot(3)?.sceneZoneState).toBe(zoneState);
+    expect(result.current.frameStore.getKeySnapshot(3)?.zoneProgressPx).toBe(25);
     expect(sceneListener).toHaveBeenCalledTimes(1);
+
+    sceneListener.mockClear();
+    frameListener.mockClear();
+    const progressedZoneState = { ...zoneState, progressPx: 50 };
+    act(() => {
+      timelineStore.setSnapshot({ 'zone-3': progressedZoneState });
+      result.current.updateSceneRenderSnapshots(0);
+    });
+    expect(result.current.frameStore.getKeySnapshot(3)?.zoneProgressPx).toBe(50);
+    expect(frameListener).toHaveBeenCalledTimes(1);
+    expect(sceneListener).not.toHaveBeenCalled();
 
     sceneListener.mockClear();
     act(() => {
@@ -160,6 +178,7 @@ describe('useScrollSceneSnapshots', () => {
       result.current.updateSceneRenderSnapshots(0);
     });
     expect(result.current.store.getKeySnapshot(3)?.sceneZoneState).toBeNull();
+    expect(result.current.frameStore.getKeySnapshot(3)?.zoneProgressPx).toBeNull();
     expect(sceneListener).toHaveBeenCalledTimes(1);
 
     sceneListener.mockClear();
@@ -294,7 +313,16 @@ describe('useScrollSceneSnapshots', () => {
     );
     const initialSnapshots = result.current.store.getSnapshot();
     const farSceneListener = jest.fn();
-    result.current.store.subscribeKey(4, farSceneListener);
+    const publicationOrder: string[] = [];
+    result.current.store.subscribeKey(4, () => {
+      publicationOrder.push('render');
+      farSceneListener();
+    });
+    const observedFrames: Array<ReturnType<typeof result.current.frameStore.getKeySnapshot>> = [];
+    result.current.frameStore.subscribeKey(4, () => {
+      publicationOrder.push('frame');
+      observedFrames.push(result.current.frameStore.getKeySnapshot(4));
+    });
 
     const reorderedScenes = [
       initialScenes[0],
@@ -315,6 +343,9 @@ describe('useScrollSceneSnapshots', () => {
     expect(reorderedSnapshots[3]).not.toBe(initialSnapshots[3]);
     expect(reorderedSnapshots[4]).not.toBe(initialSnapshots[4]);
     expect(farSceneListener).toHaveBeenCalledTimes(1);
+    expect(observedFrames).toHaveLength(1);
+    expect(observedFrames).not.toContain(undefined);
+    expect(publicationOrder).toEqual(['render', 'frame']);
   });
 
   it('truncates shortened scene snapshots and clears the dense zone-state tail', () => {

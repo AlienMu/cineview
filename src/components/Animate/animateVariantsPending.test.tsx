@@ -180,6 +180,90 @@ describe('Animate FOUC guard (authored variants still parsing)', () => {
     await waitFor(() => expect(readOpacity()).toBe(1));
   });
 
+  it('keeps the stagger container visible once variants land (outer style ownership)', async () => {
+    // Regression: the outer wrapper must never flip from framer-owned to unowned.
+    // While variants were pending it briefly bound the scrub style (opacity 0); if the
+    // stagger takeover then set style={undefined}, framer stops owning opacity and the
+    // inline 0 written earlier STAYS on the node — the container hides its own children
+    // even after they staggered to opacity 1 (observed: the hero typewriter vanished).
+    let resolveParse!: (variant: ParsedAnimationVariant) => void;
+    (parseAnimationWithComposition as jest.Mock).mockImplementation(
+      () =>
+        new Promise<ParsedAnimationVariant>((resolve) => {
+          resolveParse = resolve;
+        })
+    );
+
+    render(
+      <SceneContext.Provider value={createDragSceneContext()}>
+        <Animate
+          animateId="stagger-probe"
+          enterAnimation="fade-in"
+          duration={{ enter: 40 }}
+          stagger={{ each: 5 }}
+        >
+          <p>
+            <span>a</span>
+            <span>b</span>
+          </p>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    // stagger 下 DOM 里有多个 motion 节点（外层 + 每个子项），必须按 id 精确读外层。
+    const outer = (): number =>
+      Number(
+        document
+          .querySelector('[data-cineview-animate-id="stagger-probe"]')
+          ?.getAttribute('data-opacity') ?? ''
+      );
+
+    // Pending: held at the initial frame (FOUC guard).
+    expect(outer()).toBe(0);
+
+    await act(async () => {
+      resolveParse({
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      } as ParsedAnimationVariant);
+      await Promise.resolve();
+    });
+
+    // Stagger has taken over: the CONTAINER must be visible so its children can show.
+    await waitFor(() => expect(outer()).toBe(1));
+  });
+
+  it('fails OPEN when the parse settles with no variant (invalid preset / chunk failure)', async () => {
+    // The pending guard must not swallow a FAILED parse. parseAnimationSafely returns
+    // null on an unknown preset or a chunk load failure, yet the parse effect still
+    // advances its settled generation — so "no variant" alone cannot distinguish
+    // "still parsing" from "parse failed". Treating failure as permanently pending
+    // pins the element at opacity 0 forever, which is strictly worse than the
+    // pre-existing fail-open (render the children so the content stays readable).
+    (parseAnimationWithComposition as jest.Mock).mockResolvedValue(null);
+
+    render(
+      <SceneContext.Provider value={createDragSceneContext()}>
+        <Animate
+          animateId="broken-preset"
+          enterAnimation={'does-not-exist' as never}
+          duration={{ enter: 40 }}
+        >
+          <article>Fallback content</article>
+        </Animate>
+      </SceneContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Fallback content')).toBeInTheDocument();
+    });
+    // fail-open: bare children, no motion wrapper holding it at the initial frame.
+    await waitFor(() => {
+      expect(screen.getByText('Fallback content').closest('.cineview-animate')).toBeNull();
+    });
+  });
+
   it('still renders bare children when no playable animation is authored', async () => {
     (parseAnimationWithComposition as jest.Mock).mockResolvedValue({
       initial: {},

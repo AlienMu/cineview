@@ -4,7 +4,7 @@ import { useI18n } from '../i18n';
 import { useDesignCanvasHeight } from '../hooks/useDesignCanvasHeight';
 import type { DictKey } from '../i18n/types';
 import { TimecodeAxis } from './TimecodeAxis';
-import { SplitTitle, renderIntroLines, riseVariant, solidVariant } from './CapabilityScene';
+import { SplitTitle, solidVariant } from './CapabilityScene';
 import {
   IconDolly,
   IconFilmRoll,
@@ -19,18 +19,22 @@ import './Act3DollyScene.css';
  * 第三幕 · 视频推进（dolly in） — 2026-08-04
  * 规格：task-flow 2026-08-04-home-continuous-bg-act3-dolly.md（D6，v2 修订）
  *
- * ── 运动模型（v3，2026-08-06 用户指令「需要朝中间移动」）──────────────────
- * 六个特性 panel **入场即全部可见**，各自大小不一散落在屏幕上（不是隐藏后再出现）。
- * 随滚动，每块一边放大、一边**朝画布中心平移**，终点落在正中并铺满画面，然后淡出；
- * 下一块接力。
+ * ── 运动模型（v4，2026-08-15 用户指令「时间轴反向重排：标题开局显影，panel 运动倒放」）──
+ * 标题**开局显影**（虚焦→实焦，0→900ms），常驻整幕、永不退场，z 序在所有 panel 之上。
+ * 六个 panel 逐块接力「运动倒放」：每块在自己的相位窗起点从**画布正中、scale=peak、
+ * 铺满画面**处带淡入出现（峰值起点沿用了 forward 末段的轻微失焦，读作「倒放着地前
+ * 微糊、退到位清晰」），然后一边缩小、一边**退回自己的散落位**（scale=base、x/y 归零），
+ * 落位后静息常驻直到本幕结束。
  *
- *     initial: { x: 0,      y: 0,      scale: base, opacity: 1 }
- *     animate: { x: →中心,  y: →中心,  scale: peak, opacity: …→0 }
+ *     initial: { x: →中心,  y: →中心,  scale: peak, opacity: 0 }
+ *     animate: { x: →0vw,  y: →0vw,  scale: peak→base, opacity: 0→1 常驻 }
  *
- * 三版的差别（都由用户裁决，保留以免再犯）：
+ * 各版差别（都由用户裁决，保留以免再犯）：
  *   v1 向外扩张（终点位移 = 起点 × K）—— 摄影机推近、边缘物体被推出画框。**已否**。
  *   v2 原位放大（x/y 恒 0）—— 主体在自己的位置上涨大到铺满。**已被 v3 取代**。
- *   v3 朝心汇聚（本版）—— 主体一边涨大一边走向画面中心，终点在正中。
+ *   v3 朝心汇聚（0→8200ms panel 接力、8200ms 后标题收尾显影）—— **已被 v4 取代**。
+ *   v4 倒放重排（本版）—— 标题开局显影常驻，panel 从中心峰值退回散落位，接力密度
+ *       沿用 v3 的 DOLLY_STEP；总预算 SHOT3_CLOCK_MS 不变，纯相位/次序重排。
  *
  * 平移单位用 `vw`：设计画布宽 1440 ⇒ 1 设计 px = 1/14.4 vw，**桌面与手机同一把尺**
  * （认宽不认高）。x/y 在框架 10 属性白名单内，故仍由 Animate lane 拥有，site 侧
@@ -39,12 +43,15 @@ import './Act3DollyScene.css';
  * peak 由 `resolvePeakScale()` 算：终点既然在正中，就只需「把自身撑到盖满画布」，
  * 不再需要旧版那个「块心到最远角」的 reach 项（那是为原位放大算的）。
  *
- * ── z 序（易错点，2026-08-06 修）──────────────────────────────────────────
- * panel 有实体底板（半透明 + backdrop blur），放大时会盖住其他块。正在放大的那块
- * 必须在**最上层**（推近镜头的主体在前，其余退到后面）。出场顺序是 0→5，故
- * z-index 取 `6 - index`：每块放大时都盖在「还没轮到的块」之上；已经演完的块
- * 早已淡出，压在它下面无妨。用静态 z-index 而非动画驱动——z-index 不在框架
- * 10 属性白名单内，且这里根本不需要动。
+ * ── z 序（易错点，2026-08-06 修；2026-08-15 v4 反转方向）──────────────────
+ * panel 有实体底板，倒放起点铺满整个画布，会盖住其他块。正在退回的那块必须在
+ * **最上层**。v3（正放）里已演完的块早已淡出，z 取 `6 - index` 无妨；v4 里已着地的
+ * 块**常驻可见**（opacity 1），若沿用 `6 - index`，先着地的块会压在正在退回的巨型块
+ * 之上。故 z 取 `index + 1`：出場越晚 z 越高，正在退回的块恒在所有已着地块之上。
+ * 标题常驻但**不在 panel 之上**（2026-08-15 用户裁决）：标题 Position 不带 z-index
+ * （z auto，低于所有带正 z 的 panel）——峰值 panel 从标题前面穿过；重叠由字号缩小
+ * 消解（.act3-titleblock .cap-title → --text-2xl）。z-index 用静态值而非动画
+ * 驱动——z-index 不在框架 10 属性白名单内，且这里根本不需要动。
  *
  * ⚠️ **z-index 必须挂在 `Position` 上，不能挂在 `.a3-panel` 上**（首版的 bug）：
  * `.a3-panel` 之上有两层各自创建层叠上下文的祖先 —— `.cineview-animate`（Animate 的
@@ -64,24 +71,25 @@ import './Act3DollyScene.css';
  * - 尺寸/位置一律走 --cv-u 单尺子（认宽不认高），窄屏等比收窄。
  */
 
-/* ── 时间预算 ───────────────────────────────────────────────────────────
- * 总 10000ms。推进段 0→8200（0.82），收尾 8200→10000。
- * 接力：下一块在前一块 scale 明确进入放大段后才起。
- * scale 关键帧 times [0, .30, 1]（前 30% 保持可读，之后放大到 peak）
- * → 取 t≈0.62 为接力点（放大已明显、但主体还没铺满屏幕，衔接不空）。
+/* ── 时间预算（v4 倒放重排；总 10000ms 不变）───────────────────────────
+ * 标题显影 0→900（开局），落定后常驻到本幕结束（progress 钳在 1）。
+ * panel 接力段 0→8200：每块 2000ms，下一块在前一块行程 62% 处起 —— v3 的
+ * 接力密度原样保留（倒放只是把每块的行程镜像，不改变谁何时起跑）。
  * 反解：末块结束 = DOLLY_MS * (1 + 5*0.62) = 4.1 * DOLLY_MS = 8200 → DOLLY_MS = 2000。 */
 const DOLLY_MS = 2000;
 const DOLLY_STEP = Math.round(DOLLY_MS * 0.62); // 1240
-const BLOCKS_END = DOLLY_STEP * 5 + DOLLY_MS; // 8200
 const TITLE_MS = 900;
-const SUMMARY_MS = 800;
-const SHOT3_CLOCK_MS = 10000;
+/* 2026-08-16 用户报障「动画完成后还要无效滚动一截」：v4 反向重排把标题挪到
+ * 开局后，8200ms（BLOCKS_END）起整幕静息但 zone 仍锁到 10000——那是旧布局给
+ * 收尾标题留的窗口，现已空转。收到 8700 = 动画终点 + 500ms 静息读拍。
+ * 分数关键帧全由绝对 ms 推导，收预算不错位。 */
+const SHOT3_CLOCK_MS = 8700;
 
 /** 设计画布（HomeSceneCanvas 的 Container 基准）。 */
 const CANVAS_W = 1440;
 const CANVAS_H = 900;
 
-/** 放大末段的轻微失焦：推过焦平面的感觉，不是纯粹的线性放大。 */
+/** 倒放起点的轻微失焦：峰值「落地」前微糊、退回散落位后清晰（对焦语汇的倒放）。 */
 const DOLLY_BLUR_OUT = 'blur(0.34vw)';
 
 /**
@@ -108,15 +116,22 @@ const DOLLY_BLUR_OUT = 'blur(0.34vw)';
  * （1.27×）**，所以六块看起来一样大。现在 base 0.58–1.02 × 盒宽 320–430 ⇒ 渲染宽
  * **186–439px（2.36×）**，大小差异一眼可辨。
  *
- * 中间留白仍留给收尾标题（放大时会盖过去，静息时不挡）。
+ * 中间留白留给常驻标题（v4：标题开局显影后整幕在场；panel 静息后不挡标题，
+ * 倒放路径穿过中心由 z 序化解——标题恒在所有 panel 之上）。
  * 顺序 = 出场顺序，视线仍大致走 Z 字，但不再落在整齐的行列上。
  */
 const PANELS_DESKTOP = [
   { id: 'chain', x: -486, y: -110, base: 1.02, w: 404, h: 278, tilt: -1.6, Icon: IconDolly },
-  { id: 'stagger', x: -78, y: -190, base: 0.68, w: 356, h: 300, tilt: 2.1, Icon: IconFilmRoll },
+  /* 2026-08-15 用户指令「错峰级联往右上挪一点」：-78/-190 → +30/-240（更右更上，
+   * 仍高于标题带顶缘——titleY 372 + 两行标题半高后 y≈-70 为界，stagger 盒底
+   * -138 不侵入）。 */
+  { id: 'stagger', x: 30, y: -240, base: 0.68, w: 356, h: 300, tilt: 2.1, Icon: IconFilmRoll },
   { id: 'position', x: -512, y: 190, base: 0.9, w: 366, h: 250, tilt: 1.2, Icon: IconAperture },
   { id: 'container', x: 488, y: -166, base: 0.72, w: 430, h: 262, tilt: -0.9, Icon: IconZoomLens },
-  { id: 'image', x: 96, y: 228, base: 0.58, w: 320, h: 292, tilt: -2.4, Icon: IconBlur },
+  /* 2026-08-16 用户指令「资源预加载 panel 调大一点」：base 0.58→0.74（渲染宽
+   * 186→237px）。新盒 x -23..211 / y 120..336：右缘 211 < scrub 左缘 253 ✓，
+   * 底缘 336 < 标题带顶 370 ✓，与 chain/position 无横向交集 ✓。 */
+  { id: 'image', x: 96, y: 228, base: 0.74, w: 320, h: 292, tilt: -2.4, Icon: IconBlur },
   { id: 'scrub', x: 440, y: 142, base: 0.96, w: 390, h: 262, tilt: 1.7, Icon: IconClapper },
 ] as const;
 
@@ -280,16 +295,18 @@ function resolvePeakScale(w: number, h: number, canvasH: number): number {
 }
 
 /**
- * 单块推进变体。两段（times 全属性对齐，共用同一进度轴）：
- *   0 → .30  保持静息位置与尺寸，清晰可读（这一段是「读内容」的时间）
- *   .30 → 1  一边放大到 peak、一边朝画布中心平移到正中，同时淡出 + 末段轻微失焦
+ * 单块倒放变体（v4，v3 朝心汇聚的逐帧镜像）。四段（times 全属性对齐，共用同一进度轴）：
+ *   0 → .26  峰值起点：铺满画布、带淡入，起点沿末段轻微失焦（倒放着地前微糊）
+ *   .26 → .7 一边缩小回 base、一边从画布中心退回自己的散落位，渐至全程清晰
+ *   .7 → 1   落位：静息位置与尺寸，opacity 1 常驻（「读内容」的时间搬到了结尾）
  *
- * 注意 opacity 起点是 **1**（静息即可见），不是 0 —— 六块从一开始就在屏幕上。
+ * 镜像规则：v3 关键帧 times [0,.30,.74,1] / 值 [静息→峰值] 反序即得
+ * times [0,.26,.70,1] / 值 [峰值→静息]。opacity 反序后 [0,.92,1,1]：
+ * 首段淡入（可带），其后恒 ≥0.9 常驻。
  *
- * `x/y` 从 `0vw` 走到 `-(块心偏移)`：块心原本在 (x, y)，取负即回到画布中心。
+ * `x/y` 从 `-(块心偏移)`（= 块心落在画布中心）走回 `0vw`（= 回到自己的散落位）。
  * 单位全程用 vw（不要混 px 与 vw，framer-motion 无法在异单位间插值）。
- * 中间关键帧取 0.55 而非线性中点：平移比缩放稍微先行一点，读起来是「先被吸向画心、
- * 再压满画面」，而不是斜着滑进来。
+ * 中间关键帧保持 v3 的 0.55 配比（反向读作「先退出画心、再落回自己的位置」）。
  */
 function dollyVariant(
   base: number,
@@ -300,19 +317,23 @@ function dollyVariant(
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
-  const times = [0, 0.3, 0.74, 1];
+  const times = [0, 0.26, 0.7, 1];
   const midX = designPxToVw(-x * 0.55);
   const midY = designPxToVw(-y * 0.55);
-  const endX = designPxToVw(-x);
-  const endY = designPxToVw(-y);
+  const startX = designPxToVw(-x);
+  const startY = designPxToVw(-y);
   return {
-    initial: { x: '0vw', y: '0vw', scale: base, opacity: 1, filter: 'blur(0vw)' },
+    initial: { x: startX, y: startY, scale: peak, opacity: 0, filter: DOLLY_BLUR_OUT },
     animate: {
-      x: ['0vw', '0vw', midX, endX],
-      y: ['0vw', '0vw', midY, endY],
-      scale: [base, base, base + (peak - base) * 0.52, peak],
-      opacity: [1, 1, 0.92, 0],
-      filter: ['blur(0vw)', 'blur(0vw)', 'blur(0vw)', DOLLY_BLUR_OUT],
+      x: [startX, midX, '0vw', '0vw'],
+      y: [startY, midY, '0vw', '0vw'],
+      scale: [peak, base + (peak - base) * 0.52, base, base],
+      /* 2026-08-16 还原验证：昨日「加快淡入」是在 will-change 未除时的对症猜测
+       * （真凶是六层永久提升层的 4.3× 逐帧重光栅，已删）。还原 v3 逐帧镜像的
+       * 原时序——26% 行程淡入 + 0.92 平台（柔和交叉溶解，正放淡出的忠实倒放）；
+       * will-change 已删的前提下复测长帧仍 0 则保留还原版。 */
+      opacity: [0, 0.92, 1, 1],
+      filter: [DOLLY_BLUR_OUT, 'blur(0vw)', 'blur(0vw)', 'blur(0vw)'],
       transition: {
         x: { times },
         y: { times },
@@ -324,17 +345,21 @@ function dollyVariant(
   };
 }
 
-/** 收尾标题：中心显影（虚焦 → 实焦 + 轻微放大），与第四幕视频的对焦语汇同源。 */
+/** 开局标题：中心显影（虚焦 → 实焦 + 轻微放大），与第四幕视频的对焦语汇同源；
+ * 显影后常驻整幕（progress 钳在 1，永不退场）。
+ * 2026-08-14(审计 act3-3):blur 起点 0.55vw→0.42vw、scaleFrom 0.92→0.95——
+ * reveal 前 20% 行程的糊影偏「肉」,起点清晰度抬一点让观众更早开始读标题
+ * (en 两行标题收益更大)。times 结构/TITLE_MS 不动。 */
 function developVariant(scaleFrom: number): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
   return {
-    initial: { opacity: 0, scale: scaleFrom, filter: 'blur(0.55vw)' },
+    initial: { opacity: 0, scale: scaleFrom, filter: 'blur(0.42vw)' },
     animate: {
       opacity: [0, 1, 1],
       scale: [scaleFrom, 1, 1],
-      filter: ['blur(0.55vw)', 'blur(0vw)', 'blur(0vw)'],
+      filter: ['blur(0.42vw)', 'blur(0vw)', 'blur(0vw)'],
       transition: {
         opacity: { times: [0, 0.72, 1] },
         scale: { times: [0, 0.72, 1] },
@@ -489,6 +514,9 @@ const PANEL_CODE_NARROW: Record<PanelId, string> = {
 
 export function Act3DollyScene(): JSX.Element {
   const { t, lang } = useI18n();
+  /* zh 错位换行（2026-08-16）：\n 断行 + ±44u 行内横移（hero persist 同款）；
+   * en 文案无 \n，保持 SplitTitle 的 balance 两行。 */
+  const titleLines = t('cap.shot3.title').split('\n');
   // 手机（≤600 宽）画布 = 一个视口高 ⇒ 六块改 2 列 ×3 行、收尾标题下移。
   // resize-only，不进 scrub 每帧路径（见 useDesignCanvasHeight 注释）。
   const { phone, designH } = useDesignCanvasHeight();
@@ -497,12 +525,16 @@ export function Act3DollyScene(): JSX.Element {
     () => (phone ? buildPhonePanels(designH) : PANELS_DESKTOP),
     [phone, designH]
   );
-  // 收尾标题：`anchor:'center-x'` 下 y 是「距画布顶」的偏移，不是相对中心。
-  // 桌面 372（900 高画布内，标题块 ~159 高 ⇒ 块心落在 0.50H，居中）。
-  // 手机取 0.446H，让块心同样落在 0.50H —— **不需要避让末排 panel**：实测收尾段
-  // （f=0.84~1.00 五个采样点）标题 op=1 时六块 op 恒为 0，早已淡尽（见 _a3fade 探针）。
-  // 首版取 0.842H 是按「避让末排下缘」算的，结果标题被钉在底部 1/5、上方四分之三空着。
-  const titleY = phone ? Math.round(designH * 0.446) : 372;
+  // 标题（v4 常驻居中）:`anchor:'center-x'` 下 y 是「距画布顶」的偏移,不是相对中心。
+  // 桌面 372(900 高画布内,标题块 ~159 高 ⇒ 块心落在 0.50H,居中)。
+  // 手机取 0.446H,让块心同样落在 0.50H —— 标题常驻后与静息 panel 长期共处,
+  // 共处由 z 序保证(标题恒在所有 panel 之上),散落布局的中心留白负责视觉不打架。
+  /* 手机：标题 y 挪到底部空带（0.86H）。原 0.446H 恰好压在中排两卡（row2 =
+   * 0.45H，position/container）上——标题 z 降低后（用户裁决不在最上）静息态
+   * 被两张不透明卡片盖死（对抗复审 HIGH：0/26 网格点可见）。2×3 网格的空带
+   * 只在顶（<0.10H，与 cap-slate 胶囊打架）与底（row3 底缘 ≈0.80H 之后），
+   * 取底带。桌面 372 不变（中心空档零相交已验）。 */
+  const titleY = phone ? Math.round(designH * 0.86) : 372;
 
   return (
     <div className="capability-full act3-dolly" data-lang={lang}>
@@ -517,7 +549,7 @@ export function Act3DollyScene(): JSX.Element {
       </Animate>
       <div className="cap-slate">{t('cap.shot3.slate')}</div>
 
-      {/* 六块 panel：静息即全部可见（大小不一），随滚动逐块在原位放大到铺满再淡出。 */}
+      {/* 六块 panel（v4 倒放）：逐块接力从画布中心峰值退回自己的散落位，落位后常驻。 */}
       {panels.map((panel, index) => {
         const { Icon } = panel;
         const Body = PANEL_BODY[panel.id];
@@ -531,8 +563,9 @@ export function Act3DollyScene(): JSX.Element {
             key={panel.id}
             at={{ anchor: 'center', x: panel.x, y: panel.y }}
             /* z-index 必须在这一层 —— 挂到内层会被 Animate/Position 的层叠上下文囚禁
-               （见文件头 z 序说明的四步证伪）。6-index：正在放大的块盖在未轮到的块之上。 */
-            style={{ zIndex: panels.length - index }}
+               （见文件头 z 序说明的四步证伪）。v4 取 index+1：正在退回的块（出场最晚、
+               仍铺满画布）恒在已着地块之上；标题 Position 再高一层。 */
+            style={{ zIndex: index + 1 }}
           >
             <Animate
               animateId={`shot3-block-${panel.id}`}
@@ -574,28 +607,39 @@ export function Act3DollyScene(): JSX.Element {
         );
       })}
 
-      {/* 收尾:六块全部铺满并淡出后,中心显影标题 + 副标题,停留到本幕结束。
-          两者共用一个 Position + flex column(见 .act3-titleblock 注释):副标题按标题
-          **实际占位**排距,不写死间距 —— 标题折行数随语言变(zh 一行 / en 两行),
-          写死 y 会让 en 的副标题横穿标题第二行。两条 lane 各自保留(副标题 waitFor
-          标题),Animate 包装元素在此作为 flex item 参与排布。 */}
+      {/* 标题（v4 开局显影）：虚焦→实焦后常驻整幕、永不退场。
+          2026-08-15 用户裁决：z **不再压在 panel 之上**（panel zIndex 1-6，标题
+          z auto 在下）——panel 峰值穿过中心时从标题前面过；重叠交给字号缩小
+          消解（.act3-titleblock .cap-title 降到 --text-2xl，en 行1 695→~505px，
+          与 chain 底缘的 ~84px 重叠带清零）。 */}
       <Position at={{ anchor: 'center-x', y: titleY }}>
         <div className="act3-titleblock">
           <Animate
             animateId="shot3-title"
-            enterAnimation={developVariant(0.92)}
+            enterAnimation={developVariant(0.95)}
             duration={{ enter: TITLE_MS }}
-            timeline={{ delay: BLOCKS_END }}
+            timeline={{ delay: 0 }}
           >
-            <SplitTitle text={t('cap.shot3.title')} />
-          </Animate>
-          <Animate
-            animateId="shot3-summary"
-            enterAnimation={riseVariant('46%')}
-            duration={{ enter: SUMMARY_MS }}
-            timeline={{ waitFor: 'shot3-title', delay: 120 }}
-          >
-            <p className="act3-summary">{renderIntroLines(t('cap.shot3.summary'))}</p>
+            {/* 2026-08-16 用户指令「也和英文一样换行，但是错位换行，参照首页」：
+                zh 含 \n 时按首页 hero 的 persist 手法分行渲染（行内 ±44u 静态横移，
+                HeroScene.tsx 同款）；en 无 \n 走原 SplitTitle（balance 两行）。 */}
+            {titleLines.length > 1 ? (
+              <h2 className="cap-title act3-title-stagger">
+                {titleLines.map((line, i) => (
+                  <span
+                    key={i}
+                    className="act3-title-stagger__line"
+                    style={{
+                      transform: `translateX(calc(${i === 0 ? -44 : 44} * var(--cv-u)))`,
+                    }}
+                  >
+                    {line}
+                  </span>
+                ))}
+              </h2>
+            ) : (
+              <SplitTitle text={t('cap.shot3.title')} />
+            )}
           </Animate>
         </div>
       </Position>

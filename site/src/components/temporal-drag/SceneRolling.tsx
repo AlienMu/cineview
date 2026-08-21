@@ -412,7 +412,12 @@ function GatedDate({ text }: { text: string }): JSX.Element {
       }}
       timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.date) }}
     >
-      <p className="s01-date">{text}</p>
+      {/* translate="no" + lang="en"（2026-08-16 用户报「AUGUST 16TH 被翻译成中文」）：
+          日期本来就是 English-only 设计（formatEnglishDate），但整页自动翻译
+          （页面 lang=zh-CN 时浏览器会连它一起翻）——挂标准属性明确不翻。 */}
+      <p className="s01-date" translate="no" lang="en">
+        {text}
+      </p>
     </Animate>
   );
 }

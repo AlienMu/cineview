@@ -411,6 +411,7 @@ function createZoneState(progressPx: number): SceneScrollTimelineState {
     totalBudgetPx: 400,
     active: true,
     direction: 'forward',
+    approach: 'near',
     sequence: {
       totalDurationMs: 400,
       totalBudgetPx: 400,
@@ -478,6 +479,7 @@ function createReplayZoneState(progressPx: number): SceneScrollTimelineState {
     totalBudgetPx: 200,
     active: true,
     direction: 'forward',
+    approach: 'near',
     sequence: {
       totalDurationMs: 200,
       totalBudgetPx: 200,
@@ -530,6 +532,7 @@ function createSharedPhaseRuntime(progressPx: number, version: number): SceneScr
         totalBudgetPx: 1400,
         active: true,
         direction: 'forward',
+        approach: 'near',
         sequence: {
           totalDurationMs: 1020,
           totalBudgetPx: 1400,

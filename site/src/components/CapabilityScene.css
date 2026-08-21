@@ -35,12 +35,26 @@
 .bg-grid {
   position: absolute;
   inset: 0;
+  /* 2026-08-15 用户报障：点阵只在 act2 挂载，act1→act2 / act2→act3 幕边界是
+   * 裸硬切。修法（用户裁决）：上下边缘 mask 渐隐溶解——点阵仍是 act2 专属
+   * 质感，但在边界前 ~8% 内溶解为零，不再截断。 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to bottom, transparent 0, black 8%, black 92%, transparent 100%);
+  /* 2026-08-14(审计 act2-1):点色从 var(--frame-line)×opacity0.5 两步衰减
+   * 改中性墨直写——暖灰点压暖桃渐变会产生局部「暖+暖」浊斑
+   * (同 scrolling-ribbon-makes-tint-visible 机制);中性墨点在任何 LUT 段
+   * 都读作「变暗的网点」。与 act3/act4 中性墨投影裁决同机制。 */
   background-image: radial-gradient(
-    var(--frame-line) calc(1 * var(--cv-u)),
+    rgba(26, 24, 20, 0.1) calc(1 * var(--cv-u)),
     transparent calc(1 * var(--cv-u))
   );
   background-size: calc(32 * var(--cv-u)) calc(32 * var(--cv-u));
-  opacity: 0.5;
   pointer-events: none;
   z-index: 0;
 }
@@ -146,6 +160,11 @@
   font-weight: 500;
   color: var(--accent-ink);
 }
+/* 2026-08-14(审计 act4-5 同语汇):zh 伪斜体改字重强调,与 demo-video 标题尾一致。 */
+[data-lang='zh'] .cap-title em {
+  font-style: normal;
+  font-weight: 600;
+}
 .cap-title--side {
   font-size: var(--text-2xl);
   text-align: left;
@@ -195,14 +214,17 @@
   will-change: transform;
 }
 /* film track：单份满宽(100%)。铺入阶段由外层 Animate 从左平移进来；
-   铺满后帧静止，只有齿孔条的点读取 infinite lane 继续滚动。 */
+   铺满后帧静止，只有齿孔条的点读取 infinite lane 继续滚动。
+   2026-08-16 用户破案「滚动中与停止后颜色不一致」：原为半透明 0.4 +
+   backdrop-filter 磨砂——真机连续滚动时合成器对 backdrop-filter 走廉价
+   采样路径、停止后回全质渲染，同一点颜色滚着看与停着看不同（headless
+   离散滚轮复现不了，真像素对比 0 差的原因）。改静态 0.82 实底：颜色恒定，
+   不再依赖背后内容（ribbon/grid 逐写步进）的重采样；亮度对齐旧磨砂合成观感。 */
 .film-track {
   position: relative;
   width: 100%;
   height: calc(204 * var(--cv-u));
-  background: rgba(250, 248, 244, 0.4);
-  backdrop-filter: saturate(140%) blur(calc(4 * var(--cv-u)));
-  -webkit-backdrop-filter: saturate(140%) blur(calc(4 * var(--cv-u)));
+  background: rgba(250, 248, 244, 0.82);
 }
 /* 铺满后的齿孔位移读取 film-pan infinite lane 的继承变量。 */
 .film-track.is-paused .film-track__perf {
@@ -225,13 +247,17 @@
       rgba(252, 248, 243, 0.92) calc(13 * var(--cv-u)) calc(27 * var(--cv-u)),
       transparent calc(27 * var(--cv-u)) calc(40 * var(--cv-u))
     ),
+    /* 2026-08-14(审计 act2-2):流光色与基底渐变从写死色改 accent 派生——
+     * 齿孔条是「胶片」签名件,accent 家族色让它在 12%→40% LUT 行程内始终
+     * 与镜头色同族(写死色在琥珀金段吻合、陶土橙段偏粉)。派生仍是暖陶土族,
+     * 不反转 2026-07-09「暖陶土基边不再深黑」裁决。--film-flow 定位机制不动。 */
     linear-gradient(
-      100deg,
-      transparent calc(var(--film-flow, 0%) - 26%),
-      rgba(232, 190, 165, 0.85) var(--film-flow, 0%),
-      transparent calc(var(--film-flow, 0%) + 26%)
-    ),
-    linear-gradient(100deg, #c98a6a, #b0764f);
+        100deg,
+        transparent calc(var(--film-flow, 0%) - 26%),
+        color-mix(in srgb, var(--accent) 55%, white) var(--film-flow, 0%),
+        transparent calc(var(--film-flow, 0%) + 26%)
+      ),
+    linear-gradient(100deg, var(--accent), color-mix(in srgb, var(--accent), black 14%));
   background-size:
     calc(40 * var(--cv-u)) calc(13 * var(--cv-u)),
     100% 100%,
@@ -248,7 +274,9 @@
 .film-track__perf--bottom {
   bottom: 0;
 }
-/* 帧格排：满宽 9 格等分；竖直分隔线用陶土色(与齿孔边框同调,缩小色差,不再深黑) */
+/* 帧格排：满宽 9 格等分；竖直分隔线用陶土色(与齿孔边框同调,缩小色差,不再深黑)。
+ * 2026-08-14(审计 act2-5):分隔线改 accent-ink 派生,随镜头流动;派生后仍同调,
+ * 不反转「陶土同调」裁决意图。 */
 .film-track__frames {
   position: absolute;
   top: calc(26 * var(--cv-u));
@@ -260,7 +288,8 @@
   background-image: repeating-linear-gradient(
     to right,
     transparent 0 calc(100% / 9 - calc(2 * var(--cv-u))),
-    rgba(176, 118, 79, 0.5) calc(100% / 9 - calc(2 * var(--cv-u))) calc(100% / 9)
+    color-mix(in srgb, var(--accent-ink) 50%, transparent) calc(100% / 9 - calc(2 * var(--cv-u)))
+      calc(100% / 9)
   );
 }
 /* 9 格等分（C8 起改为 `.film-frame__slot` 作 flex 子元素）。
@@ -420,7 +449,8 @@
  *
  * 现改为用户裁决的 **B 台阶跟随**（grill-me：每幕一个色阶，不逐帧插值 ——
  * 每帧写 CSS 变量 = 每帧 setState，违反 CLAUDE.md 规则 2）：
- *   底板与 head 都吃 `--scene-plate` / `--scene-plate-bar`（见 global.css 每幕定义），
+ *   底板 = 半透暖白 + backdrop-filter（渐变透出）、head = 镜头色 tint
+ *    （2026-08-14 初版配色还原），
  *   **不透明实底**，于是「跟随」由幕级台阶提供，不再依赖透明度。
  * 顺带删掉 `backdrop-filter`：实底之下它什么也透不上来，却仍要每帧做一次
  * 全屏读背景 + 模糊的合成工作。
@@ -430,25 +460,31 @@
  * 远超 WCAG AA 的 4.5:1。
  * 投影保持**中性墨**（历史结论不动）：中性投影在任何色相底上都读作「变暗」，
  * 天然跟随渐变；带色投影只在自己那一端好看。 */
+/* 代码编辑器卡 —— 2026-08-14 还原初版配色（f164470）：
+ * 底板 = 半透暖白 + backdrop-filter（背景渐变透上来并饱和放大）——
+ * 面板的颜色来自渐变本身，不再有手挑台阶色（用户裁决「面板配色是根据渐变来的」）。
+ * 边框/投影/窗口条 = 镜头色（--accent 家族）tint，随滚动流动。
+ * 投影尺寸保留 0 16u 36u（2026-08-13 阴影截断修复），tint 换回初版暖琥珀。 */
 .film-codecard {
   width: var(--cap-codecard-width);
   border-radius: calc(14 * var(--cv-u));
-  background: var(--scene-plate, #f8e7da);
-  border: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.12);
-  box-shadow: 0 calc(20 * var(--cv-u)) calc(48 * var(--cv-u)) rgba(26, 24, 20, 0.13);
+  background: rgba(252, 247, 241, 0.94);
+  backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
+  -webkit-backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
+  border: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.28);
+  box-shadow: 0 calc(16 * var(--cv-u)) calc(36 * var(--cv-u)) rgba(168, 102, 63, 0.16);
   /* `clip` 而非 `hidden`：内容仍不得溢出圆角，但不建立滚动容器。
    * 卡片自身的投影画在**外面**，不受本条影响；外层裁切余量见 `.capability-full`。 */
   overflow: clip;
 }
-/* 窗口条：吃本幕台阶色的**亮一档**，与底板同色系（C5）。
- * 分隔线保持中性墨 —— 线条要的是「暗一点」，中性在任何色相上都成立。 */
+/* 窗口条：镜头色 10% tint（初版样式还原，2026-08-14）——随滚动流动。 */
 .film-codecard__bar {
   display: flex;
   align-items: center;
   gap: calc(8 * var(--cv-u));
   padding: calc(11 * var(--cv-u)) calc(16 * var(--cv-u));
-  background: var(--scene-plate-bar, #fbefe6);
-  border-bottom: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.1);
+  background: rgba(201, 138, 106, 0.1);
+  border-bottom: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.18);
 }
 .film-codecard__dot {
   width: calc(11 * var(--cv-u));
@@ -456,14 +492,18 @@
   border-radius: 50%;
   background: rgba(176, 118, 79, 0.3);
 }
+/* 2026-08-14(审计 act2-4,用户已豁免):三圆点改 accent 静态派生——保持
+ * 「橙-浅金-棕」mac 交通灯隐喻排序,但随镜头流动。与 2026-08-13 A3「三圆点
+ * 装饰写死」裁决不冲突:该裁决语境是「不应逐帧跟随」,本项是变量静态派生
+ * (与 --a3-plate 同一机制,变量由 ribbon 量化写入,非每帧)。 */
 .film-codecard__dot:nth-child(1) {
-  background: #d98a6a;
+  background: var(--accent);
 }
 .film-codecard__dot:nth-child(2) {
-  background: #dcab6e;
+  background: color-mix(in srgb, var(--accent), white 18%);
 }
 .film-codecard__dot:nth-child(3) {
-  background: #b0764f;
+  background: color-mix(in srgb, var(--accent), black 12%);
 }
 .film-codecard__file {
   margin-left: calc(10 * var(--cv-u));
@@ -494,6 +534,11 @@
   flex: 1;
   height: calc(24 * var(--cv-u));
 }
+/* ── 卡内行切换：**无动画**（2026-08-12 用户裁决）────────────────────────
+ * 「代码框里面的内容不要有动画，只有代码框在真正的切换」。
+ * 早先我给 hover 路径加过「旧行下移淡出 / 新行上方落入」的 transition + keyframe，
+ * 与滚动轨的 `film-code-selection` 位移轨一并移除：行切换退化为纯粹的内容替换。
+ * 保留 `position: absolute` 叠放 + opacity 0/1 硬切，槽位高度不跳。 */
 .film-codecard__code {
   position: absolute;
   inset: 0;
@@ -505,61 +550,10 @@
   white-space: nowrap;
   opacity: 0;
 }
-/* ── hover 驱动的行切换（2026-08-12）────────────────────────────────────────
- * 用户要求：「codeboard 的衔接动画是，一个向下淡出退场，一个向上淡入进场」。
- *
- * 滚动轨（`film-code-selection` 的 y 关键帧）本来就是这个方向，但它只在**滚动擦洗**时
- * 生效。hover 走的是另一条路：`applyFilmSelection()` 切 `.is-active` 类，而这里旧样式
- * 只有 `opacity: 0 → 1`，**既无过渡也无位移** ⇒ hover 时是硬切，看不到任何衔接动画。
- *
- * 方向不对称（旧行往下走、新行从上方来）无法用单条 transition 表达：基态只有一个，
- * 而「离场终点」在下、「入场起点」在上。故：
- *   - 基态（非 active）= **离场终点**：下移 + 透明，transition 立即生效 ⇒ 旧行下沉淡出。
- *   - `.is-active` = 一次性 keyframe 动画，从**上方**落回原位 ⇒ 新行上方落入。
- *     用 animation 而非 transition 正是为了让入场起点独立于基态。
- * 入场延迟 = 淡出时长，两段串行不重叠（与滚动轨的 EPS 瞬移同一个时序意图）。
- * ⚠️ 一次性动画（无 `infinite`），不违反 CLAUDE.md 规则 6 —— 该条禁的是常驻循环。 */
-.film-codecard__code,
-.film-codecard__desc {
-  --row-shift: calc(6 * var(--cv-u));
-  --row-fade: 200ms;
-  opacity: 0;
-  transform: translateY(var(--row-shift));
-  transition:
-    opacity var(--row-fade) ease-out,
-    transform var(--row-fade) ease-out;
-}
-
-.film-codecard__code.is-active,
-.film-codecard__desc.is-active {
+.film-codecard__code.is-active {
   opacity: 1;
-  transform: translateY(0);
-  animation: film-row-drop-in var(--row-fade) ease-out var(--row-fade) backwards;
 }
 
-@keyframes film-row-drop-in {
-  from {
-    opacity: 0;
-    transform: translateY(calc(-1 * var(--row-shift)));
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .film-codecard__code,
-  .film-codecard__desc {
-    transform: none;
-    transition: opacity 120ms linear;
-  }
-  .film-codecard__code.is-active,
-  .film-codecard__desc.is-active {
-    transform: none;
-    animation: none;
-  }
-}
 .film-codecard__desc-slot {
   position: relative;
   height: calc(22 * var(--cv-u));
@@ -578,6 +572,12 @@
   font-weight: 300;
   color: var(--ink-soft);
   white-space: nowrap;
-  /* opacity / transform / 切换动画由上面的 `.film-codecard__code, .film-codecard__desc`
-   * 分组规则统一拥有（2026-08-12 hover 衔接动画）。这里不再重复声明，避免两处漂移。 */
+  /* ⚠️ 与 `__code` 一样：9 条描述绝对定位叠放，靠 `.is-active` 单独揭示。
+   * 这条 opacity 曾短暂被上移到一条 `__code, __desc` 分组规则里，而那条分组规则
+   * 随「卡内内容不要动画」的裁决被删除时**只给 __code 补回了替代规则**，
+   * 于是 __desc 失去 opacity 所有权、9 条全部同时常显。规则必须与 __code 成对存在。 */
+  opacity: 0;
+}
+.film-codecard__desc.is-active {
+  opacity: 1;
 }

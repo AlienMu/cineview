@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import type { ScrollModeConfig, SlideDirection } from '../../types';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import {
@@ -16,6 +23,11 @@ import {
   type ScrollSceneSnapshotList,
   type ScrollSceneSnapshotStore,
 } from './ScrollSceneSlot';
+import {
+  createScrollSceneFrameStore,
+  type ScrollSceneFrame,
+  type ScrollSceneFrameStore,
+} from './scrollSceneFrameStore';
 import type { ScrollTimelineStore } from './useScrollZoneRegistry';
 
 interface UseScrollSceneSnapshotsParams {
@@ -37,6 +49,7 @@ interface UseScrollSceneSnapshotsParams {
 
 export interface ScrollSceneSnapshotsPort {
   store: ScrollSceneSnapshotStore;
+  frameStore: ScrollSceneFrameStore;
   updateSceneRenderSnapshots: (nativeOffset: number) => void;
 }
 
@@ -78,6 +91,9 @@ export function useScrollSceneSnapshots({
       (snapshot, sceneIndex) => snapshot[sceneIndex]
     )
   );
+  const frameStoreRef = useRef(createScrollSceneFrameStore());
+  const pendingFullFramesRef = useRef<readonly (ScrollSceneFrame | undefined)[] | null>(null);
+  const [fullFrameCommitRevision, setFullFrameCommitRevision] = useState(0);
   const previousInputsRef = useRef<PreviousSnapshotInputs | null>(null);
   const zoneStateBySceneIndexRef = useRef<Array<SceneScrollTimelineState | undefined>>([]);
 
@@ -190,6 +206,9 @@ export function useScrollSceneSnapshots({
 
       const nextSnapshots = forceFullUpdate ? [] : previousSnapshots.slice();
       let changed = forceFullUpdate;
+      const nextFrames = forceFullUpdate
+        ? new Array<ScrollSceneFrame | undefined>(scenes.length)
+        : null;
 
       dirtySceneIndices.forEach((sceneIndex) => {
         const scene = scenes[sceneIndex];
@@ -218,6 +237,45 @@ export function useScrollSceneSnapshots({
           sceneTimelineState?.phase === 'hold' ||
           sceneTimelineState?.phase === 'exit';
         const sceneIsLive = isCurrent || isBackdropActive || timelineIsLive;
+        const nextFrame: ScrollSceneFrame = {
+          timelineState: sceneTimelineState,
+          progress: sceneTimelineState?.sceneProgress ?? 0,
+          zoneProgressPx: sceneZoneState?.progressPx ?? null,
+          visualViewportOffset,
+          isCurrent,
+          isBackdropActive,
+          isScrolling: sceneIsLive && isScrolling,
+          scrollDirection: sceneIsLive && isScrolling ? scrollDirection : null,
+        };
+        const previousFrame = frameStoreRef.current.getKeySnapshot(sceneIndex);
+        const timelineFrameEqual =
+          previousFrame?.timelineState === nextFrame.timelineState ||
+          (previousFrame?.timelineState !== null &&
+            previousFrame?.timelineState !== undefined &&
+            nextFrame.timelineState !== null &&
+            previousFrame.timelineState.phase === nextFrame.timelineState.phase &&
+            previousFrame.timelineState.enterProgress === nextFrame.timelineState.enterProgress &&
+            previousFrame.timelineState.exitProgress === nextFrame.timelineState.exitProgress &&
+            previousFrame.timelineState.sceneProgress === nextFrame.timelineState.sceneProgress &&
+            previousFrame.timelineState.rangeStart === nextFrame.timelineState.rangeStart &&
+            previousFrame.timelineState.rangeEnd === nextFrame.timelineState.rangeEnd &&
+            previousFrame.timelineState.enterLength === nextFrame.timelineState.enterLength &&
+            previousFrame.timelineState.exitLength === nextFrame.timelineState.exitLength);
+        const frameEqual =
+          previousFrame !== undefined &&
+          timelineFrameEqual &&
+          previousFrame.progress === nextFrame.progress &&
+          previousFrame.zoneProgressPx === nextFrame.zoneProgressPx &&
+          previousFrame.visualViewportOffset === nextFrame.visualViewportOffset &&
+          previousFrame.isCurrent === nextFrame.isCurrent &&
+          previousFrame.isBackdropActive === nextFrame.isBackdropActive &&
+          previousFrame.isScrolling === nextFrame.isScrolling &&
+          previousFrame.scrollDirection === nextFrame.scrollDirection;
+        if (nextFrames) {
+          nextFrames[sceneIndex] = nextFrame;
+        } else if (!frameEqual) {
+          frameStoreRef.current.setKeySnapshot(sceneIndex, nextFrame);
+        }
         const nextSnapshot: ScrollSceneRenderSnapshot = {
           sceneLayout,
           sceneZoneState,
@@ -249,7 +307,18 @@ export function useScrollSceneSnapshots({
         }
       });
 
+      nextSnapshots.length = scenes.length;
       if (changed) storeRef.current.setSnapshot(nextSnapshots);
+      if (nextFrames) {
+        // A full refresh can also replace/reorder the Scene DOM. Hold the new
+        // imperative frames until React has committed that render snapshot so
+        // subscribers never write a new scene frame into the previous scene's
+        // node. Incremental scroll frames still publish synchronously above.
+        pendingFullFramesRef.current = nextFrames;
+        setFullFrameCommitRevision((revision) => revision + 1);
+      } else {
+        frameStoreRef.current.clearFrom(scenes.length);
+      }
       previousInputsRef.current = [
         scenes,
         layouts,
@@ -283,9 +352,15 @@ export function useScrollSceneSnapshots({
   );
 
   updateSceneRenderSnapshotsRef.current = updateSceneRenderSnapshots;
+  useLayoutEffect(() => {
+    const pendingFrames = pendingFullFramesRef.current;
+    if (!pendingFrames) return;
+    pendingFullFramesRef.current = null;
+    frameStoreRef.current.setSnapshot(pendingFrames);
+  }, [fullFrameCommitRevision]);
   useEffect(() => {
     updateSceneRenderSnapshots(scrollOffsetRef.current);
   }, [scrollOffsetRef, updateSceneRenderSnapshots]);
 
-  return { store: storeRef.current, updateSceneRenderSnapshots };
+  return { store: storeRef.current, frameStore: frameStoreRef.current, updateSceneRenderSnapshots };
 }

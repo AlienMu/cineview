@@ -2,12 +2,13 @@
  * VideoFrameRenderer 单测:渲染 <video muted playsInline>、progress → currentTime seek、
  * 就绪后换 objectURL、单尺子换算。jsdom 的 video.duration/currentTime 需 mock。
  */
-import { createRef } from 'react';
+import { createRef, Suspense, startTransition, useState } from 'react';
 import { render, act, fireEvent } from '@testing-library/react';
 import { motionValue } from 'framer-motion';
 import type { AnimateTimelineFrame } from '../types';
 import { CineViewProvider } from '../context/CineViewContext';
 import { VideoFrameRenderer } from './VideoFrameRenderer';
+import type { VideoFrameRendererControl } from './VideoFrameRenderer';
 import * as cache from '../hooks/mediaPreloadCache';
 
 let currentTimeSetters: number[] = [];
@@ -502,6 +503,24 @@ describe('VideoFrameRenderer', () => {
     expect(video.playbackRate).toBe(1);
   });
 
+  it('re-applies playbackRate when a source swap replaces the keyed video node', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const { container, rerender } = render(
+      <VideoFrameRenderer src="/rate-a.mp4" progress={0} playbackRate={1.5} />
+    );
+    const firstVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(firstVideo.playbackRate).toBe(1.5);
+
+    rerender(<VideoFrameRenderer src="/rate-b.mp4" progress={0} playbackRate={1.5} />);
+
+    const replacementVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(replacementVideo).not.toBe(firstVideo);
+    expect(replacementVideo.playbackRate).toBe(1.5);
+  });
+
   it('reactivates an ended mounted video when a new enter frame starts', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:reenter');
     stubVideoTiming(10, 1);
@@ -522,5 +541,559 @@ describe('VideoFrameRenderer', () => {
     });
 
     expect(currentTimeSetters).toEqual([2]);
+  });
+
+  it('rejects a delayed play event after promise settlement and framework scrub takeover', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const playSpy = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pauseSpy = jest
+      .spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    const onPlay = jest.fn();
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer
+        src="/late-play.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+        onPlay={onPlay}
+      />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'gesture' });
+      await Promise.resolve();
+    });
+    expect(playSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      frame.set({ progress: 0.8, signedProgress: 0.8, phase: 'entering', source: 'scroll' });
+    });
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+
+    // The browser may deliver this event after play() has already resolved.
+    // It must not reclaim ownership or reach the public callback.
+    fireEvent.play(video);
+    expect(pauseSpy).toHaveBeenCalledTimes(2);
+    expect(onPlay).not.toHaveBeenCalled();
+  });
+
+  it('isolates an outgoing pause queued before same-source timeline reactivation', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const onPause = jest.fn();
+    const pauseSpy = jest
+      .spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    const playSpy = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer
+        src="/same-activation-source.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+        onPause={onPause}
+      />
+    );
+    const outgoingVideo = container.querySelector('video') as HTMLVideoElement;
+
+    fireEvent.play(outgoingVideo);
+    const queuedPause = new Event('pause');
+    act(() => {
+      frame.set({ progress: 0.8, signedProgress: 0.8, phase: 'exiting', source: 'idle' });
+    });
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      frame.set({
+        progress: 0.2,
+        signedProgress: 0.2,
+        phase: 'entering',
+        source: 'programmatic',
+      });
+    });
+    const reactivatedVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(reactivatedVideo).not.toBe(outgoingVideo);
+
+    outgoingVideo.dispatchEvent(queuedPause);
+    expect(onPause).not.toHaveBeenCalled();
+
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'gesture' });
+      await Promise.resolve();
+    });
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let a stale ended event from the previous source poison the new activation', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const addEventListenerSpy = jest.spyOn(HTMLMediaElement.prototype, 'addEventListener');
+    const playSpy = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const onEnded = jest.fn();
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container, rerender } = render(
+      <VideoFrameRenderer
+        src="/source-a.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+        onEnded={onEnded}
+      />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    const sourceAEndedListeners = addEventListenerSpy.mock.calls
+      .filter(([type]) => type === 'ended')
+      .map(([, listener]) => listener as EventListener);
+    const sourceAEndedListener = sourceAEndedListeners[sourceAEndedListeners.length - 1];
+    expect(sourceAEndedListener).toEqual(expect.any(Function));
+
+    // Model an `ended` event queued by source A after source B has replaced it.
+    rerender(
+      <VideoFrameRenderer
+        src="/source-b.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+        onEnded={onEnded}
+      />
+    );
+    const sourceBEndedListeners = addEventListenerSpy.mock.calls
+      .filter(([type]) => type === 'ended')
+      .map(([, listener]) => listener as EventListener);
+    const sourceBEndedListener = sourceBEndedListeners[sourceBEndedListeners.length - 1];
+    expect(sourceBEndedListener).toEqual(expect.any(Function));
+    expect(sourceBEndedListener).not.toBe(sourceAEndedListener);
+    const staleEndedEvent = new Event('ended');
+    sourceAEndedListener?.call(video, staleEndedEvent);
+    // Remove the new tokenized listener so dispatch reaches only React's
+    // delegated handler; it must observe that the native event was not accepted.
+    if (sourceBEndedListener) {
+      video.removeEventListener('ended', sourceBEndedListener);
+      video.removeEventListener('ended', sourceBEndedListener, true);
+    }
+    video.dispatchEvent(staleEndedEvent);
+
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'gesture' });
+      await Promise.resolve();
+    });
+
+    expect(playSpy).toHaveBeenCalledTimes(1);
+    expect(onEnded).not.toHaveBeenCalled();
+  });
+
+  it('rejects queued native play events from the previous source generation', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const addEventListenerSpy = jest.spyOn(HTMLMediaElement.prototype, 'addEventListener');
+    const removeEventListenerSpy = jest.spyOn(HTMLMediaElement.prototype, 'removeEventListener');
+    const playSpy = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const sourceAOnPlay = jest.fn();
+    const sourceBOnPlay = jest.fn();
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container, rerender } = render(
+      <VideoFrameRenderer
+        src="/source-a-play.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+        onPlay={sourceAOnPlay}
+      />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    const sourceAPlayListener = addEventListenerSpy.mock.calls
+      .filter(([type, , options]) => type === 'play' && options === true)
+      .map(([, listener]) => listener as EventListener)
+      .slice(-1)[0];
+
+    rerender(
+      <VideoFrameRenderer
+        src="/source-b-play.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={[0, 6]}
+        onPlay={sourceBOnPlay}
+      />
+    );
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('play', sourceAPlayListener, true);
+    const sourceBVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(sourceBVideo).not.toBe(video);
+    const staleOldClosureEvent = new Event('play');
+    const staleQueuedEvent = new Event('play');
+
+    // Both a late A closure and an A event already queued by the browser stay
+    // attached to A's detached node; neither can enter B's listener generation.
+    sourceAPlayListener?.call(video, staleOldClosureEvent);
+    video.dispatchEvent(staleOldClosureEvent);
+    video.dispatchEvent(staleQueuedEvent);
+
+    expect(sourceAOnPlay).not.toHaveBeenCalled();
+    expect(sourceBOnPlay).not.toHaveBeenCalled();
+
+    fireEvent.loadStart(sourceBVideo);
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'gesture' });
+      await Promise.resolve();
+    });
+    // The stale event must not make B a native owner; B still hands its
+    // bounded scrub range to native playback exactly once at the endpoint.
+    expect(playSpy).toHaveBeenCalledTimes(1);
+
+    fireEvent.play(sourceBVideo);
+    expect(sourceBOnPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a queued native pause from the previous source while preserving current pause events', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const addEventListenerSpy = jest.spyOn(HTMLMediaElement.prototype, 'addEventListener');
+    const removeEventListenerSpy = jest.spyOn(HTMLMediaElement.prototype, 'removeEventListener');
+    const sourceAOnPause = jest.fn();
+    const sourceBOnPause = jest.fn();
+    const { container, rerender } = render(
+      <VideoFrameRenderer src="/source-a-pause.mp4" progress={0} onPause={sourceAOnPause} />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    const sourceAPauseListener = addEventListenerSpy.mock.calls
+      .filter(([type, , options]) => type === 'pause' && options === true)
+      .map(([, listener]) => listener as EventListener)
+      .slice(-1)[0];
+
+    rerender(
+      <VideoFrameRenderer src="/source-b-pause.mp4" progress={0} onPause={sourceBOnPause} />
+    );
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('pause', sourceAPauseListener, true);
+    const sourceBVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(sourceBVideo).not.toBe(video);
+    const staleOldClosureEvent = new Event('pause');
+    const staleQueuedEvent = new Event('pause');
+
+    sourceAPauseListener?.call(video, staleOldClosureEvent);
+    video.dispatchEvent(staleOldClosureEvent);
+    // A source swap replaces the media node, so a queued event from A cannot
+    // reach B's capture listener even if it runs after B committed.
+    video.dispatchEvent(staleQueuedEvent);
+
+    expect(sourceAOnPause).not.toHaveBeenCalled();
+    expect(sourceBOnPause).not.toHaveBeenCalled();
+
+    fireEvent.loadStart(sourceBVideo);
+    fireEvent.pause(sourceBVideo);
+    expect(sourceBOnPause).toHaveBeenCalledTimes(1);
+  });
+
+  it('isolates queued media events across same-source release and warm-up generations', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const onEnded = jest.fn();
+    const controlRef = createRef<VideoFrameRendererControl | null>();
+    const { container } = render(
+      <VideoFrameRenderer
+        src="/same-source.mp4"
+        progress={0}
+        controlRef={controlRef}
+        onEnded={onEnded}
+      />
+    );
+    const initialVideo = container.querySelector('video') as HTMLVideoElement;
+    jest.spyOn(initialVideo, 'pause').mockImplementation(() => undefined);
+    jest.spyOn(initialVideo, 'load').mockImplementation(() => undefined);
+    const staleEnded = new Event('ended');
+
+    act(() => controlRef.current?.release());
+    act(() => controlRef.current?.warmUp());
+
+    const warmedVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(warmedVideo).not.toBe(initialVideo);
+    initialVideo.dispatchEvent(staleEnded);
+    expect(onEnded).not.toHaveBeenCalled();
+
+    fireEvent.ended(warmedVideo);
+    expect(onEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an old source loadstart arm the replacement generation', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 0);
+    const sourceAOnPlay = jest.fn();
+    const sourceBOnPlay = jest.fn();
+    const { container, rerender } = render(
+      <VideoFrameRenderer src="/source-a-loadstart.mp4" progress={0} onPlay={sourceAOnPlay} />
+    );
+    const sourceAVideo = container.querySelector('video') as HTMLVideoElement;
+
+    rerender(
+      <VideoFrameRenderer src="/source-b-loadstart.mp4" progress={0} onPlay={sourceBOnPlay} />
+    );
+    const sourceBVideo = container.querySelector('video') as HTMLVideoElement;
+    expect(sourceBVideo).not.toBe(sourceAVideo);
+
+    sourceAVideo.dispatchEvent(new Event('loadstart'));
+    sourceAVideo.dispatchEvent(new Event('play'));
+    expect(sourceAOnPlay).not.toHaveBeenCalled();
+    expect(sourceBOnPlay).not.toHaveBeenCalled();
+
+    fireEvent.loadStart(sourceBVideo);
+    fireEvent.play(sourceBVideo);
+    expect(sourceBOnPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the committed source generation during an aborted transition render', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const onEnded = jest.fn();
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0,
+      signedProgress: 0,
+      phase: 'entered',
+      source: 'gesture',
+    });
+    const suspended = new Promise<never>(() => undefined);
+    let showSourceB = (): void => undefined;
+
+    function SuspendSourceB({ source }: { source: string }): JSX.Element | null {
+      if (source === '/source-b.mp4') throw suspended;
+      return null;
+    }
+
+    function Harness(): JSX.Element {
+      const [source, setSource] = useState('/source-a.mp4');
+      showSourceB = (): void => setSource('/source-b.mp4');
+      return (
+        <Suspense fallback={null}>
+          <VideoFrameRenderer src={source} progress={0} timelineFrame={frame} onEnded={onEnded} />
+          <SuspendSourceB source={source} />
+        </Suspense>
+      );
+    }
+
+    const { container } = render(<Harness />);
+    const video = container.querySelector('video') as HTMLVideoElement;
+    currentTimeSetters = [];
+
+    act(() => {
+      startTransition(showSourceB);
+    });
+
+    expect(container.querySelector('video')).toBe(video);
+    expect(video).toHaveAttribute('src', '/source-a.mp4');
+
+    fireEvent.ended(video);
+    currentTimeSetters = [];
+    act(() => {
+      frame.set({ progress: 0.5, signedProgress: 0.5, phase: 'entered', source: 'programmatic' });
+    });
+
+    expect(onEnded).toHaveBeenCalledTimes(1);
+    expect(currentTimeSetters).toEqual([]);
+  });
+
+  it('forwards an accepted ended event to the latest committed callback', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const firstOnEnded = jest.fn();
+    const latestOnEnded = jest.fn();
+    const { container, rerender } = render(
+      <VideoFrameRenderer src="/callback.mp4" progress={0} onEnded={firstOnEnded} />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+
+    rerender(<VideoFrameRenderer src="/callback.mp4" progress={0} onEnded={latestOnEnded} />);
+    fireEvent.ended(video);
+
+    expect(firstOnEnded).not.toHaveBeenCalled();
+    expect(latestOnEnded).toHaveBeenCalledTimes(1);
+  });
+
+  describe('releaseOnLeave control handle', () => {
+    // jsdom's HTMLMediaElement methods log "Not implemented" to console.error,
+    // which setupTests treats as a failure — stub pause/load on every path.
+    const stubMediaMethods = (video: HTMLVideoElement): void => {
+      jest.spyOn(video, 'load').mockImplementation(() => undefined);
+      jest.spyOn(video, 'pause').mockImplementation(() => undefined);
+    };
+
+    it('release() detaches src and calls load() to drop decoded residency', () => {
+      jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+      jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+      jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+      stubVideoTiming(10);
+      const controlRef = createRef<VideoFrameRendererControl | null>();
+      const { container } = render(
+        <VideoFrameRenderer src="/release.mp4" progress={0} controlRef={controlRef} />
+      );
+      const video = container.querySelector('video') as HTMLVideoElement;
+      expect(video.getAttribute('src')).toBe('/release.mp4');
+      stubMediaMethods(video);
+
+      act(() => {
+        controlRef.current?.release();
+      });
+
+      expect(video.pause).toHaveBeenCalled();
+      expect(video.hasAttribute('src')).toBe(false);
+      expect(video.load).toHaveBeenCalled();
+      // preload attr collapses to none while released — no refetch.
+      const releasedVideo = container.querySelector('video') as HTMLVideoElement;
+      expect(releasedVideo).not.toBe(video);
+      expect(releasedVideo.hasAttribute('src')).toBe(false);
+      expect(releasedVideo.getAttribute('preload')).toBe('none');
+    });
+
+    it('warmUp() re-attaches src and re-seeks to the current timeline position', () => {
+      jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+      jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+      stubVideoTiming(10);
+      const controlRef = createRef<VideoFrameRendererControl | null>();
+      const progress = motionValue(0.4);
+      const { container } = render(
+        <VideoFrameRenderer src="/warm.mp4" progress={progress} controlRef={controlRef} />
+      );
+      const video = container.querySelector('video') as HTMLVideoElement;
+      stubMediaMethods(video);
+
+      act(() => {
+        controlRef.current?.release();
+      });
+      expect(video.hasAttribute('src')).toBe(false);
+
+      currentTimeSetters = [];
+      act(() => {
+        controlRef.current?.warmUp();
+      });
+
+      const warmedVideo = container.querySelector('video') as HTMLVideoElement;
+      expect(warmedVideo).not.toBe(video);
+      expect(warmedVideo.getAttribute('src')).toBe('/warm.mp4');
+      // The epoch bump re-armed the seek catch-up: current progress (0.4 × 10s)
+      // is applied once metadata reports ready again.
+      expect(currentTimeSetters).toEqual([4]);
+    });
+
+    it('recovers a released renderer immediately when the source changes', () => {
+      jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+      jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+      jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+      stubVideoTiming(10);
+      const controlRef = createRef<VideoFrameRendererControl | null>();
+      const { container, rerender } = render(
+        <VideoFrameRenderer src="/a.mp4" progress={0.2} controlRef={controlRef} />
+      );
+      const video = container.querySelector('video') as HTMLVideoElement;
+      stubMediaMethods(video);
+
+      act(() => controlRef.current?.release());
+      expect(video).not.toHaveAttribute('src');
+
+      act(() => {
+        rerender(<VideoFrameRenderer src="/b.mp4" progress={0.2} controlRef={controlRef} />);
+      });
+      const nextVideo = container.querySelector('video') as HTMLVideoElement;
+      expect(nextVideo).not.toBe(video);
+      expect(nextVideo).toHaveAttribute('src', '/b.mp4');
+      expect(nextVideo).toHaveAttribute('preload', 'auto');
+    });
+
+    it('re-applies playbackRate across release and warm-up keyed remounts', () => {
+      jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+      jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+      jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+      stubVideoTiming(10, 1);
+      const pauseSpy = jest
+        .spyOn(HTMLMediaElement.prototype, 'pause')
+        .mockImplementation(() => undefined);
+      const loadSpy = jest
+        .spyOn(HTMLMediaElement.prototype, 'load')
+        .mockImplementation(() => undefined);
+      const controlRef = createRef<VideoFrameRendererControl | null>();
+      const { container } = render(
+        <VideoFrameRenderer
+          src="/rate-residency.mp4"
+          progress={0}
+          playbackRate={1.25}
+          controlRef={controlRef}
+        />
+      );
+      const initialVideo = container.querySelector('video') as HTMLVideoElement;
+      expect(initialVideo.playbackRate).toBe(1.25);
+
+      act(() => controlRef.current?.release());
+      const releasedVideo = container.querySelector('video') as HTMLVideoElement;
+      expect(releasedVideo).not.toBe(initialVideo);
+      expect(releasedVideo.playbackRate).toBe(1.25);
+
+      act(() => controlRef.current?.warmUp());
+      const warmedVideo = container.querySelector('video') as HTMLVideoElement;
+      expect(warmedVideo).not.toBe(releasedVideo);
+      expect(warmedVideo.playbackRate).toBe(1.25);
+      expect(pauseSpy).toHaveBeenCalled();
+      expect(loadSpy).toHaveBeenCalled();
+    });
+
+    it('keeps the objectURL lease across release — warm-up costs no network', () => {
+      const url = 'blob:http://localhost/warm-lease';
+      jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(url);
+      jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(true);
+      stubVideoTiming(10);
+      const releaseSpy = jest.spyOn(cache, 'releaseVideoObjectUrl');
+      const controlRef = createRef<VideoFrameRendererControl | null>();
+      const { container, unmount } = render(
+        <VideoFrameRenderer src="/lease.mp4" progress={0} controlRef={controlRef} />
+      );
+      const video = container.querySelector('video') as HTMLVideoElement;
+      stubMediaMethods(video);
+
+      act(() => {
+        controlRef.current?.release();
+      });
+      expect(releaseSpy).not.toHaveBeenCalled();
+
+      unmount();
+      // The lease is released exactly once, on unmount — not on residency release.
+      expect(releaseSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });

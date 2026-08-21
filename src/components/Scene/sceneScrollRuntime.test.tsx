@@ -4,6 +4,7 @@ import { createKeyedScrollExternalStore } from '../CineView/scrollExternalStore'
 import {
   SceneScrollTimelineContext,
   type SceneScrollTimelineState,
+  useSceneScrollZoneApproach,
   useSceneScrollZoneTimeline,
 } from './sceneScrollRuntime';
 
@@ -15,6 +16,7 @@ function createZoneState(zoneId: string, progressPx: number): SceneScrollTimelin
     totalBudgetPx: 100,
     active: progressPx > 0 && progressPx < 100,
     direction: progressPx > 0 ? 'forward' : null,
+    approach: 'near',
     sequence: {
       budgets: {},
       totalDurationMs: 100,
@@ -57,5 +59,41 @@ describe('scene scroll zone timeline subscription', () => {
     expect(screen.getByTestId('zone-b')).toHaveTextContent('0');
     expect(renderCounts.a).toBe(initialRenders.a + 1);
     expect(renderCounts.b).toBe(initialRenders.b);
+  });
+
+  it('does not rerender an approach-only subscriber for continuous progress frames', () => {
+    const store = createKeyedScrollExternalStore<
+      Record<string, SceneScrollTimelineState>,
+      string,
+      SceneScrollTimelineState
+    >({ 'zone-a': createZoneState('zone-a', 0) }, (snapshot, zoneId) => snapshot[zoneId]);
+    let renders = 0;
+
+    function ApproachProbe(): JSX.Element {
+      const approach = useSceneScrollZoneApproach('zone-a');
+      renders += 1;
+      return <output data-testid="approach">{approach ?? 'none'}</output>;
+    }
+
+    render(
+      <SceneScrollTimelineContext.Provider value={{ store }}>
+        <ApproachProbe />
+      </SceneScrollTimelineContext.Provider>
+    );
+
+    const initialRenders = renders;
+    act(() => {
+      store.setSnapshot({ 'zone-a': createZoneState('zone-a', 40) });
+    });
+    expect(screen.getByTestId('approach')).toHaveTextContent('near');
+    expect(renders).toBe(initialRenders);
+
+    act(() => {
+      store.setSnapshot({
+        'zone-a': { ...createZoneState('zone-a', 80), approach: 'far' },
+      });
+    });
+    expect(screen.getByTestId('approach')).toHaveTextContent('far');
+    expect(renders).toBe(initialRenders + 1);
   });
 });

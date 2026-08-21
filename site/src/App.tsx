@@ -1,4 +1,5 @@
 import { Route, Routes, useLocation } from 'react-router-dom';
+import { BackgroundRibbon } from './components/BackgroundRibbon';
 import { LangToggle } from './components/LangToggle';
 import HomePage from './pages/HomePage';
 import DemoPage from './pages/DemoPage';
@@ -18,6 +19,7 @@ export default function App(): JSX.Element {
 
   return (
     <>
+      <BackgroundRibbon />
       {isDrag || isAcceptance ? null : <LangToggle />}
       <Routes>
         <Route path="/" element={<HomePage />} />

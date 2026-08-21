@@ -217,6 +217,7 @@ describe('Animate Component', () => {
     totalBudgetPx: 100,
     active: false,
     direction: null,
+    approach: 'near',
     sequence: {
       budgets: {
         'scroll-infinite': {
@@ -273,6 +274,7 @@ describe('Animate Component', () => {
         zoneId: 'zone-1',
         enterVariant,
         exitVariant: null,
+        hasInfiniteAnimation: true,
         componentId: 'scroll-infinite',
         duration: { enter: 100, exit: 0 },
         timeline: { driver: 'scroll', delay: 0, phase: {} },

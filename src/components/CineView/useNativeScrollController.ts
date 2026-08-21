@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from 'react';
 import type { SlideDirection } from '../../types';
+import { resolveZoneApproachBand } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import {
   CENTER_LOCK_BOUNDARY_EPSILON_PX,
@@ -100,6 +101,7 @@ export function useNativeScrollController({
   const lastReportedSceneRef = useRef(0);
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollContentSpan, setScrollContentSpan] = useState(1);
+  const scrollContentSpanRef = useRef(1);
 
   const getMaxNativeOffset = useCallback((): number => {
     const root = rootRef.current;
@@ -134,7 +136,6 @@ export function useNativeScrollController({
     (offset: number): void => {
       const root = rootRef.current;
       if (!root) return;
-
       const clampedOffset = clamp(offset, 0, getMaxNativeOffset());
       if (direction === 'x') {
         if (typeof root.scrollTo === 'function') {
@@ -183,11 +184,11 @@ export function useNativeScrollController({
   }, [direction, getMaxNativeOffset, rootRef, setNativeOffset]);
 
   const updateActiveScene = useCallback(
-    (nativeOffset: number): void => {
+    (nativeOffset: number, measuredViewportSpan = getViewportSpan()): void => {
       const layouts = sceneLayoutsRef.current;
       if (layouts.length === 0) return;
 
-      const viewportCenter = nativeOffset + getViewportSpan() / 2;
+      const viewportCenter = nativeOffset + measuredViewportSpan / 2;
       // Containment wins outright; otherwise (viewport center parked in a gap
       // between scene ranges — plain document-flow content interleaved between
       // scenes) pick the scene whose range is CLOSEST to the center. The old
@@ -242,9 +243,17 @@ export function useNativeScrollController({
   );
 
   const syncZoneStatesFromNativeOffset = useCallback(
-    (nativeOffset: number, inputDirection: ScrollInputDirection | null): void => {
+    (
+      nativeOffset: number,
+      inputDirection: ScrollInputDirection | null,
+      measuredViewportSpan = getViewportSpan()
+    ): void => {
       const previousStates = previousZoneStatesRef.current;
       const currentStates = zoneStatesRef.current;
+      // Read the viewport once for the whole gesture frame. Calling
+      // getViewportSpan() inside each zone iteration repeats a live client
+      // dimension read and scales layout work with the number of zones.
+      const viewportSpan = measuredViewportSpan;
       const nextStates: Record<string, SceneScrollTimelineState> = {};
 
       Object.entries(currentStates).forEach(([zoneId, state]) => {
@@ -269,16 +278,27 @@ export function useNativeScrollController({
           nativeOffset < layout.segmentEnd - 0.5 &&
           progressPx > 0.5 &&
           progressPx < state.totalBudgetPx - 0.5;
+        // Quantized approach band (Schmitt trigger inside): only crosses at
+        // 1·viewport leaving / 1.5·viewports returning, so publishing stays
+        // O(threshold crossings) — never per frame.
+        const approachDistancePx = Math.max(
+          layout.segmentStart - nativeOffset,
+          nativeOffset - layout.segmentEnd,
+          0
+        );
+        const approach = resolveZoneApproachBand(approachDistancePx, viewportSpan, state.approach);
         const nextState: SceneScrollTimelineState = {
           ...state,
           progressPx,
           active,
           direction: active ? inputDirection : null,
+          approach,
         };
         nextStates[zoneId] =
           state.progressPx === nextState.progressPx &&
           state.active === nextState.active &&
-          state.direction === nextState.direction
+          state.direction === nextState.direction &&
+          state.approach === nextState.approach
             ? state
             : nextState;
       });
@@ -327,6 +347,7 @@ export function useNativeScrollController({
     },
     [
       callbacks.scroll,
+      getViewportSpan,
       sceneLayoutsRef,
       timelineStoreRef,
       updateSceneRenderSnapshotsRef,
@@ -340,6 +361,20 @@ export function useNativeScrollController({
       const root = rootRef.current;
       if (!root) return;
 
+      const rawOffset = direction === 'x' ? root.scrollLeft : root.scrollTop;
+      // Input handlers eagerly apply the requested offset so takeover state is
+      // available in the same event. Browsers then emit a native `scroll`
+      // event for that exact write; the second callback has no new state to
+      // publish and would repeat the entire zone/frame hot path.
+      if (
+        fromGesture &&
+        isScrollingGestureRef.current &&
+        programmaticScrollTargetRef.current === null &&
+        Math.abs(rawOffset - previousScrollOffsetRef.current) <= TAKEOVER_PROGRESS_SNAP_EPSILON_PX
+      ) {
+        return;
+      }
+
       if (fromGesture) {
         if (!isScrollingGestureRef.current) {
           updateViewportMetrics();
@@ -347,7 +382,6 @@ export function useNativeScrollController({
         }
         isScrollingGestureRef.current = true;
       }
-      const rawOffset = direction === 'x' ? root.scrollLeft : root.scrollTop;
       const previousOffset = previousScrollOffsetRef.current;
       const programmaticTarget = programmaticScrollTargetRef.current;
       let resolvedOffset: number;
@@ -399,16 +433,20 @@ export function useNativeScrollController({
         }, 120);
       }
 
-      syncZoneStatesFromNativeOffset(resolvedOffset, nextDirection);
-      updateActiveScene(resolvedOffset);
+      // Read native extent before frame-store subscribers write fixed-layer
+      // geometry. This keeps the hot path ordered as layout reads first, visual
+      // writes second, avoiding a synchronous read-after-write layout flush.
       const viewportSpan = getViewportSpan();
       const contentSpan = Math.max(
         direction === 'x' ? root.scrollWidth : root.scrollHeight,
         viewportSpan
       );
-      setScrollContentSpan((current) =>
-        Math.abs(current - contentSpan) <= 0.5 ? current : contentSpan
-      );
+      syncZoneStatesFromNativeOffset(resolvedOffset, nextDirection, viewportSpan);
+      updateActiveScene(resolvedOffset, viewportSpan);
+      if (Math.abs(scrollContentSpanRef.current - contentSpan) > 0.5) {
+        scrollContentSpanRef.current = contentSpan;
+        setScrollContentSpan(contentSpan);
+      }
     },
     [
       direction,

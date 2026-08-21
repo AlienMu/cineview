@@ -192,3 +192,40 @@ keyframe 从上方落回（延迟 = 淡出时长，串行不重叠）。方向�
 - Scene5 标题/副标题是否现在就迁到 `enterRef`/`exitRef`？（当前仍是 postMessage + CSS transition，
   且「PC 滚回 Act4 时不退场」的缺陷**尚未修复**——它需要父层补一条 zone 退场触发，
   与本轮框架能力是两件事。）
+
+---
+
+## Phase 9: 代码对抗复审（子 agent）与整改
+
+用户要求派子 agent 对抗复审。代码侧 agent 报回 4 个真缺陷 + 若干注释漂移，**其中 P0-1 是本轮
+刚改出来、站点上当时就能看到的视觉回归**。全部已修并补测试。
+
+| 级别 | 缺陷 | 根因 | 状态 |
+| --- | --- | --- | --- |
+| P0-1 | `.film-codecard__desc` 9 条描述全部同时常显 | 「卡内内容不要动画」整改时删掉了 `__code, __desc` 分组规则，**只给 `__code` 补回替代规则**，`__desc` 失去 opacity 所有权 | ✅ 补回成对规则；真机复测 hover 时 `descVisible: 1` |
+| P0-2 | 变体**解析失败**时元素永久不可见（fail-open → fail-closed） | `variantsPending` 只看「变体为空」，无法区分「还在解析」与「解析失败」；预设不存在/chunk 失败时永久为真 | ✅ 加 `parseSettled` 条件；新增 fail-open 回归测试并变异验证 |
+| P1-3 | drag arrival 轨的 `enterRef` 被 scroll hook 抢走，手动入场是死的 | `useAnimateScroll` 的守卫用 `isScrubLane`，drag 下它 driver 恒为 `visibility` ⇒ 这条不驱动任何东西的 hook 照样认领 ref，且 effect 后跑覆盖 arrival 的 | ✅ 改为只把 ref 交给当前生效的 driver（`manualControlLane`） |
+| P1-4 | `exitRef` 退场被下一次可见性测量自动撤销 | `autoExitSuppressed` 只关退场闸门；入场闸门仍开 + `replayOnReenter` 默认 true ⇒ 元素还在视口里就被拉回来 | ✅ 新增 `manualExitUsedRef` 粘性所有权；补回归测试并变异验证 |
+| P2-5 | scrub 轨仍对外发布非 null 的 `enterRef.current`，与「忽略」契约不符 | 同 P1-3 | ✅ 随 P1-3 一并修复 |
+
+### 注释漂移 / 死码（复审点名，已清）
+
+- `CARD_LANE_MS` 与 `SELECTION_MS` 数值相同 ⇒ 删除重复常量；相关注释里「独立更长的 lane」
+  「CARD_OUT_MS 里下移淡出」在移除退场后已不成立，已改写。
+- 「两条 lane 分层」注释其下只剩一条 ⇒ 改写。
+- `Scene5Cinema.tsx` 注释里的 0.12 / 1200px / 1100px 与 `settle.json` 实测（斜坡约 600px、
+  恒黑约 1700px）不符 ⇒ 改为引用实测值。
+- caption 末锚提前一个 `fade`：原本末次切换锚在 `PAN_MS/SELECTION_MS`，即 hover 刚开放那一瞬
+  标题恰在 opacity 0 谷底。复测驻留段 172 档 **caption opacity<0.9 = 0 档**。
+- 站点 `prettier` 补跑。
+
+### 仍未闭环（复审标 SUSPECTED，未修）
+
+- **P2-6** 冷启动期间调用 `enterRef` 可能被 `firstSceneEnterActive` 分支清零，而
+  `manualEnterUsedRef` 已置真 ⇒ 自动补救被永久堵死。需要「手动入场被冷启动打断时清所有权」。
+- **P2-7** arrival 的 `manualRequestedRef` 无 token 归属，重复调用后可能在下一个 token
+  未经调用自动播放。
+- **P2-2 注意项** `STAGGER_NEUTRAL_STYLE` 只中和了 `opacity`；切到 stagger 那一刻 framer
+  同时放弃另外 9 个属性的所有权，当前无害（空变体解析成中性默认）但不是结构性排除。
+
+门禁：**1516/1516 tests**、framework+site type-check 0 错误、lint 0 警告、两侧 build 通过。

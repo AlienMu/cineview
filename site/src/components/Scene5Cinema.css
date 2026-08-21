@@ -13,8 +13,11 @@
   height: 100%;
 }
 
-/* 熄灯 overlay：盖住整个场景（背景之上、星光之下），透明度由 scroll scrub 驱动。
+/* 熄灯 overlay：盖住整个场景（背景之上、金雾之下），透明度由 scroll scrub 驱动。
  * 终点 0.94（见 Scene5Cinema.tsx LIGHTS_OFF_MAX）：留一线暖底透出，不是纯黑。
+ * 2026-08-19：纯黑 #0a0909 改为**淡黑金渐变**（用户指令「增加淡淡的黑金，金色
+ * 不要太明显渐变背景」）——底色仍近黑，金以低 alpha 大跨度 linear-gradient
+ * 斜铺（右上偏暖金 → 左下深墨），alpha ≤0.05，只在暗适应后隐约可辨。
  * 用 absolute 而非 fixed：takeover scene 内 fixed 必然降级——ScrollSceneSlot 恒定给
  * takeover content 加 transform，任何非 none 的 transform 都会成为 fixed 的包含块。
  * 场景改为 100vh 后 sticky 壳正好一个视口且 overflow:hidden，absolute inset:0 即等价视口铺满。 */
@@ -22,98 +25,85 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: #0a0909;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(212, 175, 105, 0.05) 0%,
+      rgba(138, 106, 58, 0.028) 38%,
+      rgba(10, 9, 8, 0) 72%,
+      rgba(10, 9, 8, 1) 100%
+    ),
+    #0a0909;
   pointer-events: none;
 }
 
-/* 输入量化频闪的修复(2026-08-10,N13):熄灯 opacity 由 scroll 1:1 scrub(880px 内
- * 0→0.94),真实滚轮以 -120~-500px 离散档位落地 ⇒ 每档 = 全屏近黑层单帧
- * Δopacity 0.09~0.43(实测单帧亮度跳变 +53~+97 lum),反向重滚必经此带 ⇒ 必定复现
- * 的屏闪。修法 = 在 Animate 包装层上加 opacity transition,把每个离散档位摊成
- * 逐帧线性斜坡(合成器侧斜坡限制器):档位 → 若干小步,单帧增量压到感知阈附近。
- * 必须挂在包装层 [data-cineview-animate-id] 上:scrub 的 inline opacity 写在那里,
- * 内层 .scene5-cinema__overlay 的 computed opacity 恒为 1,挂内层无效。
- * 用 linear 而非 ease:斜坡斜率恒定 = Δtarget/时长,单帧增量有确定上界。
- * 属 CLAUDE.md 规则 6 许可的 CSS transition(一次性插值,非 infinite 动画)。
- *
- * 时长取 1050ms(2026-08-10 N13-mini400/220 逐帧轨迹逐档实证):
- * 真实滚轮序列的重定目标间隔约 ~55ms,等效斜坡速率 ≈ 档位Δopacity/时长。
- *   300ms:-400 档单帧跳 +25.7/+20.8 lum、-220 档 +18.3 lum ⇒ 仍可见(回炉)。
- *   650ms:-400 档带内最大 +18.3 lum、-220 档 +12.7 lum ⇒ 临界,仍偏亮(回炉)。
- *   1050ms:目标 -400 档 ≤ ~11 lum/帧、-220 档 ≤ ~6 lum/帧(待本轮轨迹确认)。
- * 档位落地后约 ~0.5s 追上 scrub 目标(欠阻尼一阶滞后),反向天然对称。
- *
- * 2026-08-10 收口实测(用户报障路径:视频出现后 → 第四幕完成 → 倒退第三幕):
- *   熄灯带(29400–30280)修复后:-400 档最大单帧跳 5.4 lum、-120 档 8.3 lum,
- *   用户完整路径探针(正-反 60×-400)带内零命中(阈值 15)——原频闪机制已消除。
- *   带外残跳(29000 +45.3 / 28600 +61.2,-400 档)位于 ISSUE-B 亮带(28500–29400,
- *   第四幕 sticky 壳滚出视口的奶白段),机制是滚动**位置**量化(内容边缘扫过采样窗),
- *   -120 真实档位复测同带最大仅 14.3 lum ⇒ 随档位线性缩放,是正常滚动运动而非
- *   opacity 频闪;CSS 斜坡限制器对滚动平移不适用,全局滚动平滑属框架层议题,不在本幕。 */
-[data-cineview-animate-id='cinema-lightsoff'] {
-  transition: opacity 1.05s linear;
-}
+/* 输入量化频闪（N13）历史与 2026-08-13 用户裁决：
+ * N13（2026-08-10）曾在此挂 `[data-cineview-animate-id='cinema-lightsoff']
+ * { transition: opacity 1.05s linear; }` —— 把滚轮离散档位摊成逐帧斜坡修屏闪。
+ * 2026-08-13 用户报「黑屏没有完全消失就结束滚动拦截」：1.05s 滞后让反向滚出时
+ * 半黑罩跟着解钉后的场景下滑。用户裁决：**移除 transition，黑屏在拦截结束前
+ * 完全消失优先**（lane 相位窗起点已挪到 0.02，见 Scene5Cinema.tsx），
+ * 接受快滚时淡入/淡出斜坡逐档跳变（原 N13 频闪）作为知情代价。
+ * 若日后要恢复防闪：恢复本条 transition 并同步调整相位窗（两处是同一个权衡）。 */
 
-/* ── 星光层：黑幕之上、视口带之下 ──────────────────────────────────────
- * 星点是逐颗 DOM 元素（`.scene5-cinema__star`），位置在挂载时按固定种子算一次写进
- * inline style；闪烁由 9 条 infinite lane 各写一个 `--twinkle-N`（周期互质），
- * 每颗星读自己所属频道的那一个 —— 见 Scene5Cinema.tsx 的 TWINKLE_CHANNELS 注释。
- * 本文件不得出现 `animation: … infinite`（CLAUDE.md 规则 6 第一条）。 */
-.scene5-cinema__stars {
+/* ── 黑金渐变雾层（2026-08-19，星野退役后的氛围层）─────────────────────────
+ * 两层大 radial 金雾叠在熄灯 overlay 之上、视口带之下，是「背景持续动画」的载体：
+ * 两条 infinite lane（周期 9s/14s 互质）各写 --gold-drift-1/2，本层把变量映射到
+ * opacity 做极慢的异相呼吸。金色饱和度压在 alpha ≤0.055——直视不可辨、暗适应后
+ * 隐约有「影院片头黑里那层暖」，不抢手机/标题（用户指令「金色不要太明显」）。
+ * 本文件不得出现 `animation: … infinite`（CLAUDE.md 规则 6 第一条）。
+ *
+ * ⚠️ `translateZ(0)` 是修帧必需项（实测，勿删）：两层都是铺满视口的 gradient，
+ * opacity 是 calc(CSS 变量) 的结果、变量每帧被 infinite lane 改写 ⇒ 若在主层，
+ * 每帧样式重算 + **全屏重绘**（1920×1080 曾掉到 ~46fps，成本不进 JS 时间）。
+ * 提为独立合成层后 opacity 变化交由合成器。见 memory
+ * `css-var-opacity-repaints-fullscreen`（与旧三层星幕同一教训）。 */
+.scene5-cinema__gold-mist {
   position: absolute;
   inset: 0;
   z-index: 2;
   pointer-events: none;
 }
 
-.scene5-cinema__stars > [data-cineview-animate-host],
-.scene5-cinema__stars .cineview-animate {
+.scene5-cinema__gold-mist > [data-cineview-animate-host],
+.scene5-cinema__gold-mist .cineview-animate {
   position: absolute;
   inset: 0;
 }
 
-/* ── 星野（2026-08-06 重做）────────────────────────────────────────────
- * 每颗星是一个独立 DOM 元素，读**自己频道**的 --twinkle-N 映射到自己的 lo→hi。
- * 旧实现是 3 层铺满视口的 radial-gradient，每层内所有星点共用一个 --twinkle
- * ⇒ 一层里 5–8 颗星严格同相地一起亮暗，观感是「三块背景在呼吸」而非星星在闪。
- * 逐星元素的代价是 54 个节点，收益是真正的随机性；节点全静态，零每帧 JS。
- *
- * `translateZ(0)` 是**修帧的必需项**（实测，勿删）：opacity 是 calc(CSS 变量) 的结果、
- * 变量每帧被 infinite lane 改写 ⇒ 每帧样式重算 + 重绘。旧的三层全屏 gradient 方案下
- * 1920×1080 掉到 ~46fps、2560×1440 掉到 ~30fps（连续 74 帧 >32ms），且成本
- * **完全不进 JS 时间**（LoAF 的 JS 恒 0ms），只体现为帧间隔拉长。
- * 提为独立合成层后 opacity 变化交由合成器，两档均 0 帧 >32ms、max 17.8ms。
- * 现在每颗星只有几 px 大，重绘面积本就极小，但保留该提升仍是净收益。
- * 不要加 `will-change: opacity` —— 实测与本方案同分，是零收益的反模式。
- * 见 memory `css-var-opacity-repaints-fullscreen`。 */
-.scene5-cinema__star-field {
+.scene5-cinema__gold-mist-layer {
   position: absolute;
   inset: 0;
+  transform: translateZ(0);
 }
 
-.scene5-cinema__star {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(250, 248, 244, 0.95);
-  /* 逐星区间：--star-t 是两条频道的加权混合（见 Scene5Cinema.tsx），lo/hi 按种子随机给。
-   * 只改振幅不改相位 —— 相位差由那个混合负责。 */
-  opacity: calc(
-    var(--star-lo, 0.2) + (var(--star-hi, 0.8) - var(--star-lo, 0.2)) * var(--star-t, 0)
+.scene5-cinema__gold-mist-layer--a {
+  /* 右上主雾：暖金 radial，中心在右上三分之一处，范围大而极淡。 */
+  background: radial-gradient(
+    120% 90% at 78% 18%,
+    rgba(216, 182, 110, 0.055) 0%,
+    rgba(170, 135, 70, 0.03) 34%,
+    rgba(10, 9, 8, 0) 68%
   );
-  /* ⚠️ **不要加 `transform: translateZ(0)`**（2026-08-08 实测移除）。
-   * 旧的三层全屏 gradient 方案确实需要它：那时每帧改 opacity 会让铺满视口的 gradient
-   * 整层重新光栅化，1920×1080 掉到 46fps、2560×1440 掉到 30fps，提合成层才修好。
-   * 但**逐星方案改变了前提** —— 每颗星只有 0.9–3.2px，重绘面积从「3 × 全屏」降到
-   * 「54 × 约 4px²」，合成层已无收益。消融实测（`scripts/_rv-star-perf.mjs`，1920×1080）：
-   *   有 translateZ：60.2fps / 0 帧 >32ms / **合成层 70 个**
-   *   无 translateZ：60.2fps / 0 帧 >32ms / **合成层 15 个**
-   * 帧数完全相同，而合成层少 55 个。按「不留零收益的开销」取无。
-   * 同理也不要加 `will-change: opacity`。见 memory `css-var-opacity-repaints-fullscreen`。 */
+  opacity: var(--gold-drift-1, 1);
 }
 
-/* 约 38% 的星偏暖 —— 星野不该只有一种白 */
-.scene5-cinema__star.is-warm {
-  background: rgba(255, 240, 214, 0.95);
+.scene5-cinema__gold-mist-layer--b {
+  /* 左下副雾：更沉的铜金，与主雾异相呼吸，合成波不复现（9s/14s 互质）。 */
+  background: radial-gradient(
+    110% 85% at 20% 85%,
+    rgba(190, 152, 84, 0.045) 0%,
+    rgba(140, 108, 58, 0.024) 40%,
+    rgba(10, 9, 8, 0) 72%
+  );
+  opacity: var(--gold-drift-2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 呼吸停摆（固定 opacity 1），渐变本身保留——它是静态氛围不是动效。 */
+  .scene5-cinema__gold-mist-layer {
+    opacity: 1;
+  }
 }
 
 /* ⚠️ 放映机光锥（`.scene5-cinema__cone`）已于 2026-08-06 删除。
@@ -138,15 +128,16 @@
  * 为什么用 flex row 而不是绝对坐标：手机高度是 90vh，右栏文本高度随语言/折行变，
  * 两者的垂直居中与水平间距必须由布局保证。绝对坐标在语言切换或视口比例变化时必错位。
  *
- * 入场时序（2026-08-09 用户访谈裁决「严格串行 + 镜像退场」）：
- *   入场：手机左移 1.1s（gap + 文本列 basis/width 位移段）→ 到位后标题 fade+微上浮
- *         （delay 1.1s）→ 副标题 fade（delay 1.35s）。
- *   退场：严格倒放 —— 副标题先出（delay 0）→ 标题出（delay 0.25s）→ 文字净空后
- *         手机移回居中（位移段 delay 1.05s）。
- * 分方向实现：transition 读的是**目标态**的 timing，故基态写退场延迟、.is-split 写
- * 入场延迟，同一条规则覆盖两个方向。
- * 位移与展开由 CSS transition 承担（一次性状态切换，非常驻动效，
- * 不属 CLAUDE.md 规则 6 第一条约束的 `animation: infinite`）。 */
+ * 入场时序（2026-08-15 scrub 语义）：手机位移段 1.1s（gap + 文本列 basis/width
+ *   transition）与收尾层**一次性 CSS 入场动画**（`scene5-closing-*`，delay
+ *   0/0.25s/0.6s/0.9s，`both` 填充——规则 6 允许一次性插值，禁 infinite）并行；
+ *   退场不在此处——包装层 opacity 是 zone progress 的纯函数（Animate scrub 窗
+ *   0.85→1），往上滚跟手淡出、滚回来原样回来。
+ * ⚠️ 文字元素的 opacity/transform 由「Animate 包装层 scrub + 子元素一次性入场
+ * 动画」两层叠乘承担，标题/副标题规则里**不得再写 opacity:0**（永久规则会钉死
+ * <p>，Animate 只洗包装层 inline style——首跑实测证伪）。
+ * 位移段的 transition 两个方向都立即开始；收列时机由 JS 保证（progress 跌破
+ * 0.85 才 setSplit(false)，此时 scrub 已从 0.85 起进入零透明度，见 Scene5Cinema.tsx）。 */
 .scene5-cinema__phone-slot {
   position: absolute;
   inset: 0;
@@ -155,14 +146,11 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  /* 基态 = 退场方向：位移段等文字净空（副 0.6s + 标题 0.25+0.7s ⇒ ~1.05s）再收 */
-  transition: gap 1.1s var(--ease-out) 1.05s;
+  transition: gap 1.1s var(--ease-out);
 }
 
 .scene5-cinema__phone-slot.is-split {
   gap: min(calc(72 * var(--cineview-unit)), 7vw);
-  /* 入场方向：位移段立即开始 */
-  transition-delay: 0s;
 }
 
 /* 手机列：居中态占满可用宽度并居中；分栏态收到左侧。
@@ -176,9 +164,8 @@
 
 /* 文本列：居中态 width:0 完全不占位（否则手机不可能真正居中）；分栏态展开。
  * max-width 用 ch 单位跟随字号，保证换行点稳定。
- * ⚠️ **列本身不再拥有 opacity**（2026-08-09 时序链改造）：透明度移到标题/副标题
- * 两个子元素上，才能各自带不同的 delay（标题 1.1s / 副标题 1.35s 入场；退场镜像）。
- * 列只负责布局位移段（flex-basis/width），与 gap 同步 1.1s。 */
+ * ⚠️ 列只负责布局位移段（flex-basis/width）；文字的 opacity 在标题/副标题两个
+ * 子元素上（Animate 手动驱动，2026-08-14 迁移，见头部注释）。 */
 /* ⚠️ `flex-basis` 必须是 0 而非 auto，且必须显式 `min-width: 0`：
  * flex item 的自动最小尺寸（min-width:auto）会让它**不小于内容宽度** ——
  * 副标题两行是长文本，basis:auto 时该列按内容撑开，把手机推到视口外
@@ -192,19 +179,33 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: min(calc(20 * var(--cineview-unit)), 2.2vh);
-  /* 基态 = 退场方向：与 gap 同步等文字净空再收（见 phone-slot 注释） */
+  /* 2026-08-20（用户：「把标题下面的几排文字和按钮全部加长一下间距，底部不动」）：
+   * 列 gap 归零，段间距改由各段包装层的**显式 margin** 表达（见下方
+   * `[data-cineview-animate-host='cinema-split-*']` 两条规则）——一条 gap 无法
+   * 同时表达「标题↔副标题仍是一个紧凑 group」与「副标题→CTA 是大段断」两级，
+   * 08-19 的单一 gap(8u)+cta 自身 margin(22u，经 margin collapse 逸出到包装层)
+   * 读起来就是「整体太挤」。footer 仍钉列底（margin-top:auto），底部不动。 */
+  gap: 0;
+  /* 只留布局位移段（收列时机由 JS 保证在文字退净后，见本文件头部注释） */
   transition:
-    flex-basis 1.1s var(--ease-out) 1.05s,
-    width 1.1s var(--ease-out) 1.05s;
+    flex-basis 1.1s var(--ease-out),
+    width 1.1s var(--ease-out);
 }
 
-/* 分栏态：basis 与 width 一起给足，min-width 仍为 0（不让内容反向撑破上限）。 */
+/* 分栏态：basis 与 width 一起给足，min-width 仍为 0（不让内容反向撑破上限）。
+ * 2026-08-19：文案整体高度**对标手机**（用户判「文案太紧凑」）——列撑到与手机
+ * 同高（桌面 90vh）。但「对标高度」≠「四拍均分」——均分把标题/副标题推到天南地北
+ * （用户判「标题和副标题间隔太远」）。改法：标题+副标题作为**一个紧密的视觉重心**
+ * 钉在列的上中段（与手机屏幕上中视觉对齐），CTA 贴在标题 group 下方，footer 钉列底。
+ * 用 `justify-content:flex-start` + 给标题 group 一个上推 margin（让它在 90vh 列里
+ * 偏上中而非顶死），footer 靠自身 `margin-top:auto` 推到列底。这样三段（标题 group /
+ * CTA / footer）按「上中 — 中下 — 底」下沉，footer 贴底且 CTA 与标题 group 紧凑。 */
 .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
-  flex-basis: min(calc(420 * var(--cineview-unit)), 34vw);
-  width: min(calc(420 * var(--cineview-unit)), 34vw);
-  /* 入场方向：位移段立即开始 */
-  transition-delay: 0s;
+  flex-basis: min(calc(500 * var(--cineview-unit)), 36vw);
+  width: min(calc(500 * var(--cineview-unit)), 36vw);
+  min-height: 90vh;
+  justify-content: flex-start;
+  padding-top: min(calc(72 * var(--cineview-unit)), 8vh);
 }
 
 /* ── 窄屏回退：改**纵向**，文本落在手机**下方**（2026-08-08，对抗验收 ISSUE-D）────
@@ -233,10 +234,14 @@
     gap: min(calc(28 * var(--cineview-unit)), 2.4vh);
   }
 
-  /* 纵向下文本列占满宽度、按行高自然展开，不再受 34vw 挤压 */
+  /* 纵向下文本列占满宽度、按行高自然展开，不再受 34vw 挤压。
+   * 同时撤销横向的「对标手机高度」分布（90vh + space-between）：纵向里列在
+   * 手机下方，撑 90vh 会推出视口，恢复自然堆叠。 */
   .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
     flex-basis: auto;
     width: min(88vw, 46ch);
+    min-height: auto;
+    justify-content: flex-start;
     align-items: center;
     text-align: center;
   }
@@ -251,7 +256,13 @@
     padding-left: 0;
     padding-top: min(calc(12 * var(--cineview-unit)), 1.2vh);
     border-left: none;
-    border-top: 2px solid rgba(225, 164, 91, 0.55);
+    border-top: 2px solid rgba(225, 164, 91, 0.4);
+  }
+
+  /* footer 行随列居中（桌面左对齐，纵排里跟标题/CTA 同轴心） */
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__footer {
+    justify-content: center;
+    text-align: center;
   }
 
   /* 手机让出垂直空间：62vh 使 844 高视口下剩 ~320px 给文本 + 间距 */
@@ -303,19 +314,18 @@
   white-space: nowrap;
   color: rgba(250, 248, 244, 0.96);
   /* ⚠️ nowrap 只对 zh 成立；en 见下方 [data-lang='en'] 覆写（C10）。 */
+  /* 2026-08-14(审计 act5-2):第一层光晕 18px/0.26→14px/0.20——分栏态手机 glow
+   * 与标题同 hue 光晕相邻互糊,字面 0.96 暖白已够亮,光晕只留「托出黑场」的最低量。
+   * 2026-08-06 保留静态 text-shadow 的裁决不动(只调数值不删结构)。 */
   text-shadow:
-    0 0 18px rgba(225, 164, 91, 0.26),
+    0 0 14px rgba(225, 164, 91, 0.2),
     0 0 42px rgba(225, 164, 91, 0.1);
-  /* ── 串行出现 / 镜像退场（2026-08-09 用户访谈裁决「严格串行」）──────────
-   * 基态 = 退场方向：delay 0.25s（副标题先出，delay 0）。入场方向见下方
-   * .is-split 覆写：delay 1.1s —— 严格等手机位移段（1.1s）播完才开始。
-   * 出现手势 = fade + translateY 微上浮（用户选定）。transition 读目标态
-   * timing，故两个方向各写各的 delay。 */
-  opacity: 0;
-  transform: translateY(calc(16 * var(--cineview-unit)));
-  transition:
-    opacity 0.7s var(--ease-out) 0.25s,
-    transform 0.7s var(--ease-out) 0.25s;
+  /* ⚠️ 2026-08-14：进出场已迁 Animate 手动控制（见本文件头部注释）。
+   * ⚠️ 不能在这里写 `opacity: 0` 作 FOUC 防线（首跑实测证伪）：该规则是**永久**
+   * 规则，Animate 只在自己的包装层写 inline style，永远洗不掉它——包装层 opacity
+   * 已 tween 到 1，<p> 仍被钉在 0，标题永远不出现。FOUC 改由框架侧承担
+   * （Animate.tsx:399-428 authored-but-unparsed 守卫：变体未解析时沿 motion 路径
+   * 渲染、visualMotion 种子 0，inline opacity:0 从首帧生效，无裸 children 闪现）。 */
 }
 
 /* ── C10：英文标题放开折行（2026-08-10 用户报障 + 裁决 B）──────────────────
@@ -343,12 +353,6 @@
   text-wrap: balance;
 }
 
-.scene5-cinema__phone-slot.is-split .scene5-cinema__title-text {
-  opacity: 1;
-  transform: none;
-  transition-delay: 1.1s;
-}
-
 /* ── 副标题（2026-08-06 新增，用户：「副标题你需要进行设计」）────────────
  * 设计意图：标题是「进场」的宣告，副标题要落到**这一幕在讲什么**——
  * 观众此刻正看着一台真机在自己手里滑动，所以副标题说的是「这台手机里跑的就是它」。
@@ -358,7 +362,9 @@
 .scene5-cinema__subtitle-text {
   margin: 0;
   padding-left: min(calc(16 * var(--cineview-unit)), 1.2vw);
-  border-left: 2px solid rgba(225, 164, 91, 0.55);
+  /* 2026-08-14(审计 act5-3):竖线 alpha 0.55→0.40——黑场上三处同 hue 高 alpha 面
+   * (手机 glow、标题光晕、竖线)互相抬亮度;竖线是「系成一组」的编排记号不是强调面。 */
+  border-left: 2px solid rgba(225, 164, 91, 0.4);
   font-family: var(--font-mono);
   font-size: max(calc(17 * var(--cineview-unit)), 12px);
   font-weight: 400;
@@ -369,15 +375,256 @@
   /* 文案里的 `\n` 是**有意的断行点**（两行各是一个完整意群），故必须 pre-line。
      不写死 <br>：i18n 文案是纯字符串，中英断行位置不同，交给 CSS 更干净。 */
   white-space: pre-line;
-  /* 串行出现 / 镜像退场：基态 = 退场方向，delay 0（最先出）；入场方向 delay
-   * 1.35s（标题 1.1s 起步后再晚 0.25s）。纯 fade，无位移（见标题块注释）。 */
-  opacity: 0;
-  transition: opacity 0.6s var(--ease-out) 0s;
+  /* ⚠️ 同标题块：不能写 `opacity: 0` 作 FOUC 防线（永久规则钉死入场后的 <p>，
+   * 见标题块注释）；FOUC 由框架 authored-but-unparsed 守卫承担。 */
 }
 
-.scene5-cinema__phone-slot.is-split .scene5-cinema__subtitle-text {
-  opacity: 1;
-  transition-delay: 1.35s;
+/* ── 收尾层一次性入场动画（2026-08-15 scrub 语义）────────────────────────
+ * 串行入场：挂载（finished latch）即播，`both` 保证 delay 期停在首帧
+ *（opacity:0 + visibility:hidden，无半成品闪现）。滚动路径的透明度由外层
+ * CineView Animate scrub lane 写入；unfinished 事件只在子节点的独立
+ * `--scene5-manual-opacity` 通道上做一次性退场，两者相乘但不互相覆盖。
+ * keyframe 同时负责 transform/visibility/opacity：opacity 0→1 让挂载后
+ * 有可感知淡入（2026-08-19 修复「突然出现」——之前只有 visibility 硬切，
+ * 挂载后 1.1s hidden→visible 是硬切，观感突兀）。子元素 CSS opacity 与
+ * scrub 内层 motion.div opacity 相乘，不抢同一属性。四拍 delay
+ * 1.1s/1.35s/1.7s/2.0s 与手机位移段对齐。
+ * 2026-08-16 用户指令回归严格串行（08-09 裁决语义）：手机位移 1.1s 完成后
+ * 标题才起（1.1s），副标题 1.35s、CTA 1.7s、footer 2.0s——不再与位移段并行。
+ * 一次性插值（非 infinite），规则 6 许可。退场两条路：
+ *   - 滚轮路径 = 包装层 scrub（0.85→1）跟手淡出；
+ *   - unfinished 路径 = JS 摘 animation 后按序驱动 manual-opacity，
+ *     错峰 footer→cta→副→标题；滚动路径的 opacity 仍由同一 scrub owner 收束，
+ *     退完才收列（手机位移）。 */
+@keyframes scene5-closing-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@keyframes scene5-closing-fade {
+  from {
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.scene5-cinema__title-text {
+  animation: scene5-closing-rise 0.7s var(--ease-out) 1.1s both;
+  opacity: var(--scene5-manual-opacity, 1);
+  transition: opacity 0.45s var(--ease-out);
+}
+
+.scene5-cinema__subtitle-text {
+  animation: scene5-closing-rise 0.6s var(--ease-out) 1.35s both;
+  opacity: var(--scene5-manual-opacity, 1);
+  transition: opacity 0.45s var(--ease-out);
+}
+
+.scene5-cinema__cta {
+  animation: scene5-closing-rise 0.6s var(--ease-out) 1.7s both;
+  opacity: var(--scene5-manual-opacity, 1);
+  transition: opacity 0.45s var(--ease-out);
+}
+
+.scene5-cinema__footer {
+  animation: scene5-closing-fade 0.5s var(--ease-out) 2s both;
+  opacity: var(--scene5-manual-opacity, 1);
+  transition: opacity 0.45s var(--ease-out);
+  /* 2026-08-19：footer 钉在列底部——text-col 撑到 90vh 与手机等高，center 居中
+   * 了标题 group 后，footer 用 margin-top:auto 把自己推到列底，与 CTA 之间留出
+   * 大段空白（呼吸），构成「主标题 group（中段）→ CTA（中下）→ footer（底部）」
+   * 的三段下沉节奏，而非挤成一团。用户要求「底部文案位置可以不变」即此。 */
+  margin-top: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene5-cinema__title-text,
+  .scene5-cinema__subtitle-text,
+  .scene5-cinema__cta,
+  .scene5-cinema__footer {
+    animation: none;
+  }
+}
+
+/* ── 收尾 CTA 块（2026-08-15，/drag 末尾 → 落地页收尾流程第三拍）───────────
+ * 包装层 opacity 走 Animate scrub（0.85→1 窗）；此处只管静态样式。
+ * 2026-08-20：与上方 group 的段距**上移到包装层规则**（见上方段间距注释），
+ * 自身 margin-top 归零——旧值 22u 写在内层 div 上、靠 collapse 逸出到包装层，
+ * 与列 gap 叠加后有效值 30u 仍读作「贴着副标题」，语义也含混。内部三行
+ * （lead/buttons/body）的 gap 14u→20u，随用户「全部加长间距」同步放开。 */
+.scene5-cinema__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: min(calc(20 * var(--cineview-unit)), 2.2vh);
+  margin-top: 0;
+}
+
+/* footer 容器选择器命中 Animate 包装层 → margin-top:auto 不生效。改用包装层
+   自身的定位。text-col 的直接子是 4 个 [data-cineview-animate-host] 包装 div
+   （Animate 渲染产物），最后一个（footer）要被推到列底。给它的包装层写 auto。 */
+.scene5-cinema__text-col > [data-cineview-animate-host='cinema-footer'] {
+  margin-top: auto;
+}
+
+/* ── 段间距（2026-08-20，列 gap:0 之后的显式表达）─────────────────────────
+ * 与 footer 的 auto 同理：间距必须写在**包装层**上（flex item 才参与列布局；
+ * 写在内层 <p>/<div> 上只能靠 margin collapse 逸出，语义含混）。三级节奏：
+ *   标题 ↔ 副标题   14u —— 仍是最紧的一级（08-19 的「字幕卡主+副合体感」保留，
+ *                     只是 8u 收得过了头，适度放开）
+ *   副标题 ↔ CTA    48u —— 最大的一级段断（「宣告 → 行动」），08-19 有效值
+ *                     22u+8u=30u 读作贴着副标题竖线，不够独立成段
+ * CTA 内部三行的间距在 .scene5-cinema__cta 的 gap 上（14u→20u，同步放开）。 */
+.scene5-cinema__phone-slot.is-split .scene5-cinema__text-col > [data-cineview-animate-host='cinema-split-subtitle'] {
+  margin-top: min(calc(14 * var(--cineview-unit)), 1.5vh);
+}
+
+.scene5-cinema__phone-slot.is-split .scene5-cinema__text-col > [data-cineview-animate-host='cinema-split-cta'] {
+  margin-top: min(calc(48 * var(--cineview-unit)), 5.2vh);
+}
+
+.scene5-cinema__cta-lead {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: max(calc(13 * var(--cineview-unit)), 11px);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: rgba(250, 248, 244, 0.72);
+}
+
+.scene5-cinema__cta-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: min(calc(12 * var(--cineview-unit)), 12px);
+}
+
+.scene5-cinema__cta-body {
+  margin: 0;
+  font-size: max(calc(14 * var(--cineview-unit)), 12px);
+  line-height: 1.7;
+  color: rgba(250, 248, 244, 0.55);
+  max-width: 34ch;
+}
+
+/* ── 本幕 scoped 按钮（2026-08-15 重做，取代照搬 global .btn）──────────────
+ * 全局 .btn 是暖亮底设计（黑字实底 + hover 光晕 box-shadow），放到本幕
+ * 熄灯黑场上：黑字不可读、光晕被列容器 overflow:hidden 裁成硬边、整体违和
+ * （用户判「丑陋、AI 味」）。本套面向黑场影院语境：
+ *   - 主钮 = 骨白实底 + 深墨文字：黑场上唯一满亮度面，像片头字幕卡，
+ *    层级最高且天然可读；hover 提亮并染一丝 accent 暖。
+ *   - 次钮 = 1px 骨白描边 + 浅字：层级次之；hover 描边转 accent 琥珀、
+ *     底透出极微白。无链接下划线——描边本身就是 affordance。
+ *   - **零 box-shadow**：列容器 overflow:hidden 必裁阴影（旧 hover 光晕被
+ *     截断正是违和来源之一），亮度/描边两级取代光晕层级。
+ *   - 不改全局 .btn（其他页仍在用），全部选择器 scoped 在本幕。 */
+.scene5-cinema__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: max(calc(14 * var(--cineview-unit)), 13px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: min(calc(11 * var(--cineview-unit)), 12px) min(calc(22 * var(--cineview-unit)), 24px);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.3s var(--ease-out),
+    color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out);
+}
+
+.scene5-cinema__btn--primary {
+  background-color: rgba(250, 248, 244, 0.96);
+  border-color: rgba(250, 248, 244, 0.96);
+  color: #16130f;
+}
+
+.scene5-cinema__btn--primary:hover,
+.scene5-cinema__btn--primary:focus-visible {
+  background-color: color-mix(in srgb, var(--accent) 22%, #faf8f4);
+  border-color: color-mix(in srgb, var(--accent) 40%, #faf8f4);
+}
+
+.scene5-cinema__btn--ghost {
+  background-color: transparent;
+  border-color: rgba(250, 248, 244, 0.3);
+  color: rgba(250, 248, 244, 0.82);
+}
+
+.scene5-cinema__btn--ghost:hover,
+.scene5-cinema__btn--ghost:focus-visible {
+  background-color: rgba(250, 248, 244, 0.07);
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  color: rgba(250, 248, 244, 0.96);
+}
+
+/* ── footer 行（第四拍）：2026-08-15 从视口底 absolute 挪进右栏，排在
+ *   cta.body 下方（用户指令）——同栏语境、同 scrub 窗、随列展开/收拢。
+ *   一道 0.14 白的发丝线把收尾层与正文隔开，不抢亮度。
+ *   2026-08-19：text-col 改 justify-content:center 后，footer 由 margin-top:auto
+ *   推到列底；此处原有的 margin-top（相对 cta 的间距）改为相对列底的自然留白，
+ *   底部再留 4u 贴边余量，不顶到列盒下缘。 */
+.scene5-cinema__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: min(calc(18 * var(--cineview-unit)), 22px);
+  padding-top: min(calc(14 * var(--cineview-unit)), 16px);
+  border-top: 1px solid rgba(250, 248, 244, 0.14);
+  font-family: var(--font-mono);
+  font-size: max(calc(12 * var(--cineview-unit)), 11px);
+  letter-spacing: 0.08em;
+  color: rgba(250, 248, 244, 0.5);
+  margin-bottom: min(calc(4 * var(--cineview-unit)), 6px);
+}
+
+.scene5-cinema__footer-tagline {
+  color: rgba(250, 248, 244, 0.66);
+}
+
+.scene5-cinema__footer-links {
+  display: inline-flex;
+  align-items: center;
+  gap: min(calc(14 * var(--cineview-unit)), 16px);
+}
+
+.scene5-cinema__footer-links a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(250, 248, 244, 0.22);
+  padding-bottom: 1px;
+  transition:
+    color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out);
+}
+
+.scene5-cinema__footer-links a:hover,
+.scene5-cinema__footer-links a:focus-visible {
+  color: rgba(250, 248, 244, 0.9);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.scene5-cinema__footer-sep {
+  width: 1px;
+  height: 0.9em;
+  background: rgba(250, 248, 244, 0.2);
 }
 
 /* ── 手机 mockup：设计基准 332×720（19.5:9）──────────────────────────
@@ -412,9 +659,13 @@
   border: 1px solid rgba(225, 164, 91, 0.35);
   border-radius: calc(40 * var(--cineview-unit));
   background: #0b0a0c;
-  box-shadow: 0 0 calc((12 + 8 * var(--phone-breathe, 0)) * 1px)
-    calc((3 + 2 * var(--phone-breathe, 0)) * 1px)
-    rgba(225, 164, 91, calc(0.2 + 0.2 * var(--phone-breathe, 0)));
+  /* 2026-08-14(审计 act5-1):呼吸 glow 峰值 alpha 0.40→0.32、blur 20→16px、
+   * spread 5→4px——熄灯 0.94 黑场下 90vh 手机的呼吸光晕是全屏唯一脉动高亮面,
+   * 峰值读作「招牌灯箱」而非「待机设备余光」;收窄后星光重新成为最闪的面
+   * (2026-08-06「不要灯光只要星光」裁决的延伸)。 */
+  box-shadow: 0 0 calc((12 + 4 * var(--phone-breathe, 0)) * 1px)
+    calc((3 + 1 * var(--phone-breathe, 0)) * 1px)
+    rgba(225, 164, 91, calc(0.2 + 0.12 * var(--phone-breathe, 0)));
 }
 
 .phone-mockup__screen {

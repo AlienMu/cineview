@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useSyncExternalStore } from 'react';
+import React, { memo, useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { buildSceneTimelineState } from './directScrollHelpers';
 import type {
   SceneAuthoringCompatProps,
@@ -9,6 +9,7 @@ import type { ScrollModeConfig } from '../../types';
 import type { GroupedCallbacks } from './regroupCallbacks';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import type { KeyedScrollExternalStore } from './scrollExternalStore';
+import type { ScrollSceneFrameStore } from './scrollSceneFrameStore';
 
 export interface ScrollSceneRenderSnapshot {
   sceneLayout: SceneLayoutInfo | null;
@@ -64,6 +65,7 @@ export type ScrollSceneSnapshotStore = KeyedScrollExternalStore<
 interface ScrollSceneSlotProps {
   child: React.ReactElement<SceneAuthoringCompatProps>;
   store: ScrollSceneSnapshotStore;
+  frameStore?: ScrollSceneFrameStore;
   sceneIndex: number;
   setWrapperRef: (sceneIndex: number, node: HTMLDivElement | null) => void;
   scrollCallbacks?: GroupedCallbacks['scroll'];
@@ -80,24 +82,31 @@ export function areScrollSceneRenderSnapshotsEqual(
     (previousTimeline !== null &&
       nextTimeline !== null &&
       previousTimeline.phase === nextTimeline.phase &&
-      previousTimeline.enterProgress === nextTimeline.enterProgress &&
-      previousTimeline.exitProgress === nextTimeline.exitProgress &&
-      previousTimeline.sceneProgress === nextTimeline.sceneProgress);
+      previousTimeline.rangeStart === nextTimeline.rangeStart &&
+      previousTimeline.rangeEnd === nextTimeline.rangeEnd &&
+      previousTimeline.rangeLength === nextTimeline.rangeLength &&
+      previousTimeline.enterLength === nextTimeline.enterLength &&
+      previousTimeline.exitLength === nextTimeline.exitLength);
   const previousZone = previous.sceneZoneState;
   const nextZone = next.sceneZoneState;
-  const viewportOffsetBelongsToLiveScene =
-    previous.isCurrent || next.isCurrent || previous.isBackdropActive || next.isBackdropActive;
-  const viewportOffsetEqual =
-    !viewportOffsetBelongsToLiveScene ||
-    previous.visualViewportOffset === next.visualViewportOffset;
+  const zoneEqual =
+    previousZone === nextZone ||
+    (previousZone !== null &&
+      nextZone !== null &&
+      previousZone.zoneId === nextZone.zoneId &&
+      previousZone.sceneIndex === nextZone.sceneIndex &&
+      previousZone.totalBudgetPx === nextZone.totalBudgetPx &&
+      previousZone.active === nextZone.active &&
+      previousZone.direction === nextZone.direction &&
+      previousZone.approach === nextZone.approach &&
+      previousZone.sequence === nextZone.sequence);
 
   return (
     previous.sceneLayout === next.sceneLayout &&
-    previousZone === nextZone &&
+    zoneEqual &&
     timelineEqual &&
     previous.isCurrent === next.isCurrent &&
     previous.isBackdropActive === next.isBackdropActive &&
-    viewportOffsetEqual &&
     previous.isScrolling === next.isScrolling &&
     previous.scrollDirection === next.scrollDirection &&
     previous.activeSceneIndex === next.activeSceneIndex &&
@@ -117,6 +126,7 @@ export function areScrollSceneRenderSnapshotsEqual(
 export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   child,
   store,
+  frameStore,
   sceneIndex,
   setWrapperRef,
   scrollCallbacks,
@@ -152,6 +162,36 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
     takeoverSceneSpan,
   } = snapshot;
   const isTakeoverScene = Boolean(child.props.scroll);
+  const takeoverShellRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const shell = takeoverShellRef.current;
+    if (!shell) return undefined;
+
+    if (!exposeTakeoverDebugData || !isTakeoverScene || !frameStore) {
+      shell.removeAttribute('data-cineview-takeover-progress-px');
+      shell.removeAttribute('data-cineview-takeover-viewport-offset');
+      return undefined;
+    }
+
+    const applyDebugFrame = (): void => {
+      const frame = frameStore.getKeySnapshot(sceneIndex);
+      shell.setAttribute(
+        'data-cineview-takeover-progress-px',
+        frame?.zoneProgressPx === null || frame?.zoneProgressPx === undefined
+          ? ''
+          : String(frame.zoneProgressPx)
+      );
+      shell.setAttribute(
+        'data-cineview-takeover-viewport-offset',
+        frame ? String(frame.visualViewportOffset) : ''
+      );
+    };
+
+    // Apply before subscribing so the first committed debug probe reflects the
+    // latest imperative frame even when the React snapshot is intentionally stale.
+    applyDebugFrame();
+    return frameStore.subscribeKey(sceneIndex, applyDebugFrame);
+  }, [exposeTakeoverDebugData, frameStore, isTakeoverScene, sceneIndex]);
   const viewportSpan = Math.max(direction === 'x' ? viewportWidth : viewportHeight, 1);
   const sceneNeedsViewportSpan = sceneSizing === 'screen' && !isTakeoverScene;
   const flowSpan = sceneLayout?.flowSpan;
@@ -214,6 +254,8 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
         onScrollingChange: undefined,
         onCommit: undefined,
         onReset: undefined,
+        frameStore,
+        sceneIndex,
       },
     }
   );
@@ -238,18 +280,17 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
     >
       {isTakeoverScene ? (
         <div
+          ref={takeoverShellRef}
           data-cineview-takeover-shell={sceneIndex}
           {...(exposeTakeoverDebugData
             ? {
                 'data-cineview-takeover-active-zone': sceneZoneState?.active
                   ? sceneZoneState.zoneId
                   : '',
-                'data-cineview-takeover-progress-px': sceneZoneState?.progressPx ?? '',
                 'data-cineview-takeover-total-distance-px': sceneZoneState?.totalBudgetPx ?? '',
                 'data-cineview-takeover-center-lock-offset': sceneLayout?.centerLockOffset ?? '',
                 'data-cineview-takeover-segment-start': sceneLayout?.segmentStart ?? '',
                 'data-cineview-takeover-segment-end': sceneLayout?.segmentEnd ?? '',
-                'data-cineview-takeover-viewport-offset': visualViewportOffset,
               }
             : {})}
           style={

@@ -1,11 +1,12 @@
 import { Animate, CineView, Scene } from 'cineview';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { SceneCut } from './SceneCut';
 import { SceneFlux } from './SceneFlux';
 import { SceneRolling } from './SceneRolling';
 import { SceneSlate } from './SceneSlate';
 import { SceneSync } from './SceneSync';
 import { TemporalMotionProvider, useTemporalMotion } from './TemporalMotion';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import '../../styles/temporal-drag.css';
 import '../../styles/temporal-scenes-03-05.css';
 
@@ -64,6 +65,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
   deferred = false,
 }: TemporalDragExperienceProps): JSX.Element {
   const [stage, setStage] = useState<'frozen' | 'live'>(deferred ? 'frozen' : 'live');
+  const reduced = usePrefersReducedMotion();
 
   /* 第四条消息：`cineview-embed-finished` / `cineview-embed-unfinished`（2026-08-06；
    * 2026-08-09 增加反向 —— 用户访谈裁决「退场 = 完整反向编排」）。
@@ -88,6 +90,99 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
     [deferred]
   );
 
+  /* 第五幕黑幕 + 场景纹理会（2026-08-13，task-flow 2026-08-13-act5-black-exit-bg-follow；
+   * code-review 发现 1/2/4 修正版）。黑幕背景已从 .tp-scene--05 迁到 .tp-act5-black
+   * （temporal-drag.css），本组件负责两个面的 opacity：
+   *   - `.tp-act5-black`：第五幕黑色背景（z1 根级层，不随场景框平移）。
+   *   - `.tp-scene--05 .tp-texture`：颗粒/扫描线/暗角。场景背景透明后这些覆盖层若
+   *     不退场就会随场景框滑过第四幕内容（review 发现 1）——必须与黑层同步淡出。
+   * 编排三态（零 React state，直写 DOM）：
+   *   1. 手势期：逐 tick 直写 + transition:none —— 完全跟手、无滞后（review 发现 4
+   *      否决了「每帧重定向 250ms transition」的写法；drag 的 progress 本身就是每帧
+   *      平滑值，不需要再平滑）。
+   *   2. 松手（pointerup，session 内）：transition 线性过渡到终值，时长 = |终值 − 当前值|
+   *      × slideDuration(800ms)（与剩余滑程同速，淡完与 commit 同时到达）——settle
+   *      补间期间黑幕/纹理平滑淡完，不再冻结在松手值等 commit 才 snap（review 发现 2）。
+   *      bounce 回程 tick 会立即夺回手势态，不受影响。
+   *   3. commit/cancel：snap 终值（第四幕框已铺满，snap 不可见）。
+   * latch（对抗验收 A3/S2）：首个匹配「进入/退出第五幕」的 tick 建立，本 session 内
+   * 不再判 direction——手势中途 forward↔reverse 反转仍按 sceneIndex 跟 |progress| 回缩；
+   * 歧义方向起步的 session 逐 tick 匹配补上。commit/cancel 复位（DESIGN.md：每 session
+   * 恰好一次 commit|cancel，跨 session 无残留）。 */
+  const blackRef = useRef<HTMLDivElement | null>(null);
+  const textureRef = useRef<HTMLElement | null>(null);
+  const blackSessionRef = useRef<number | null>(null);
+  /** 黑层当前值跟踪：settle 时长按「剩余滑程」换算（见 pointerup 处理）。 */
+  const lastBlackRef = useRef(1);
+
+  const applyBlack = useCallback(
+    (opacity: number, mode: 'gesture' | 'settle' | 'snap', settleMs?: number): void => {
+      // freeze/activate 壳切换会卸载重挂 CineView（blackRef 由 React 自动重挂），
+      // 手动缓存的 textureRef 会指向已脱离文档的旧节点 —— isConnected 校验并重解析
+      // （对抗验收 T4 实测：旧引用导致纹理恒 1 卡死）。
+      if (!textureRef.current?.isConnected) {
+        textureRef.current = document.querySelector<HTMLElement>('.tp-scene--05 .tp-texture');
+      }
+      const transition = mode === 'settle' ? `opacity ${settleMs ?? 700}ms linear` : 'none';
+      for (const node of [blackRef.current, textureRef.current]) {
+        if (!node) continue;
+        if (node.style.transition !== transition) node.style.transition = transition;
+        node.style.opacity = String(opacity);
+      }
+      lastBlackRef.current = opacity;
+    },
+    []
+  );
+
+  const handleBlackOpacity = useCallback(
+    (detail: {
+      sceneIndex: number;
+      direction?: 'forward' | 'backward' | null;
+      progress: number;
+    }): void => {
+      if (blackSessionRef.current === null && detail.direction) {
+        if (detail.sceneIndex === LAST_SCENE_INDEX - 1 && detail.direction === 'forward') {
+          blackSessionRef.current = LAST_SCENE_INDEX - 1;
+        } else if (detail.sceneIndex === LAST_SCENE_INDEX && detail.direction === 'backward') {
+          blackSessionRef.current = LAST_SCENE_INDEX;
+        }
+      }
+      if (blackSessionRef.current === null) return;
+      const opacity =
+        blackSessionRef.current === LAST_SCENE_INDEX - 1 ? detail.progress : 1 - detail.progress;
+      applyBlack(opacity, 'gesture');
+    },
+    [applyBlack]
+  );
+  const handleBlackSessionEnd = useCallback((): void => {
+    blackSessionRef.current = null;
+  }, []);
+  const handleSceneSettled = useCallback(
+    (detail: { toIndex: number }): void => {
+      notifySceneSettled(detail);
+      blackSessionRef.current = null;
+      applyBlack(detail.toIndex === LAST_SCENE_INDEX ? 1 : 0, 'snap');
+    },
+    [applyBlack, notifySceneSettled]
+  );
+
+  // 松手 → settle 淡入淡出（三态之 2）。用 capture 相位，防框架指针路径拦截冒泡。
+  // 时长按剩余滑程换算：|终值 − 当前值| × slideDuration(800ms)，淡完与 commit 同时
+  // 到达，snap 零跳变（对抗验收「进场侧 commit pop」建议）。
+  useEffect(() => {
+    const onPointerUp = (): void => {
+      if (blackSessionRef.current === null) return;
+      const terminal = blackSessionRef.current === LAST_SCENE_INDEX ? 0 : 1;
+      const settleMs = Math.min(
+        800,
+        Math.max(reduced ? 80 : 120, Math.abs(terminal - lastBlackRef.current) * 800)
+      );
+      applyBlack(terminal, 'settle', settleMs);
+    };
+    window.addEventListener('pointerup', onPointerUp, true);
+    return (): void => window.removeEventListener('pointerup', onPointerUp, true);
+  }, [applyBlack, reduced]);
+
   useEffect(() => {
     if (!deferred) return;
     const origin = window.location.origin;
@@ -111,11 +206,18 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
 
   return (
     <div className="drag-temporal" data-embed={deferred ? 'deferred-live' : undefined}>
+      {/* 第五幕黑幕根级层：必须在 CineView 之前（DOM 序）+ z-index 1，
+          高于容器背景、低于全部场景框（见 temporal-drag.css .tp-act5-black）。 */}
+      <div ref={blackRef} className="tp-act5-black" aria-hidden="true" />
       <TemporalMotionProvider>
         <CineView
           config={{ size: 390 }}
           mode="drag"
-          callbacks={{ onSceneDidChange: notifySceneSettled }}
+          callbacks={{
+            onSceneDidChange: handleSceneSettled,
+            onDragProgress: handleBlackOpacity,
+            onDragCancel: handleBlackSessionEnd,
+          }}
           modes={{
             drag: {
               direction: 'y',

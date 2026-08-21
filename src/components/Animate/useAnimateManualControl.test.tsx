@@ -338,6 +338,42 @@ describe('Animate manual control (enterRef / exitRef)', () => {
     await waitFor(() => expect(readOpacity()).toBe(0));
   });
 
+  it('keeps a manual exit sticky while the element is still inside the viewport', async () => {
+    // Regression: `autoExitSuppressed` only closed the EXIT gate. With the element
+    // still on screen and `replayOnReenter` defaulting to true, the very next scroll
+    // tick saw phase 'exited' + enterGate true and replayed the entrance — undoing
+    // the consumer's exit. Exiting by hand must claim the enter gate too.
+    let exitRef!: MutableRefObject<(() => void) | null>;
+
+    render(
+      <SceneContext.Provider value={createScrollSceneContext()}>
+        <ManualProbe
+          animateId="sticky-exit"
+          exitRefOut={(ref) => {
+            exitRef = ref;
+          }}
+        >
+          <article>Sticky exit</article>
+        </ManualProbe>
+      </SceneContext.Provider>
+    );
+
+    await satisfyEnterGate('sticky-exit');
+    await waitFor(() => expect(readOpacity()).toBe(1));
+
+    // Exit while the host is STILL fully inside the viewport (enter gate satisfied).
+    await act(async () => {
+      exitRef.current?.();
+    });
+    await waitFor(() => expect(readOpacity()).toBe(0));
+
+    // Further measurements must not pull it back in.
+    await flushScroll();
+    await advance(120);
+    await flushScroll();
+    expect(readOpacity()).toBe(0);
+  });
+
   it('reports enterRef/exitRef as unsupported on the scroll-takeover (scrub) lane', async () => {
     const reportError = jest.fn();
     const zoneState: SceneScrollTimelineState = {
@@ -347,6 +383,7 @@ describe('Animate manual control (enterRef / exitRef)', () => {
       totalBudgetPx: 100,
       active: true,
       direction: null,
+      approach: 'near',
       sequence: { budgets: {}, totalDurationMs: 0, totalBudgetPx: 100 },
     };
     const zoneRuntime: SceneScrollZoneRuntime = {

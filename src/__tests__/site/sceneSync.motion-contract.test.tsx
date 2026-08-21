@@ -4,9 +4,13 @@ import path from 'node:path';
 import type { ReactNode } from 'react';
 import { SceneSync } from '../../../site/src/components/temporal-drag/SceneSync';
 import {
+  ACT3_CLIP_POSTERS,
   ACT3_FIRST_SELECTION_START_MS,
+  ACT3_CLIP_ASSEMBLY_LEAD_MS,
   ACT3_CLIP_DURATION_SECONDS,
+  ACT3_CLIP_SEGMENT_MS,
   ACT3_MEDIA_CLOCK_MS,
+  ACT3_MEDIA_DURATION_SECONDS,
   ACT3_MEDIA_SCRUB_DURATION_MS,
   ACT3_MEDIA_SCRUB_START_MS,
   clipSelectionStartMs,
@@ -42,24 +46,41 @@ interface CapturedAnimateProps {
 }
 
 const mockAnimateProps: CapturedAnimateProps[] = [];
-const V1_IDS = ['s03-v1-clip-1', 's03-v1-clip-2', 's03-v1-clip-3'] as const;
-const V2_IDS = ['s03-v2-sub-1', 's03-v2-sub-2', 's03-v2-sub-3'] as const;
+const V1_IDS = [
+  's03-v1-clip-1',
+  's03-v1-clip-2',
+  's03-v1-clip-3',
+  's03-v1-clip-4',
+  's03-v1-clip-5',
+] as const;
+const V2_IDS = [
+  's03-v2-sub-1',
+  's03-v2-sub-2',
+  's03-v2-sub-3',
+  's03-v2-sub-4',
+  's03-v2-sub-5',
+] as const;
 const OUTER_IDS = [...V1_IDS, ...V2_IDS] as const;
 const INNER_IDS = OUTER_IDS.map((id) => `${id}-fade`);
 /**
- * V1 only, and **clips 2/3 only**. V2 subtitles are placed, not assembled.
+ * V1 only, and **clips 2–5 only**. V2 subtitles are placed, not assembled.
  *
  * Clip 1 has no demo lane by design: its authored `left` is 0 and `CLIP_ASSEMBLY_LEFT` is also
  * 0, so its push distance is exactly zero — a stroke lane for it would animate `x` to `0%`,
  * which is both a no-op and a violation of this file's own `toBeLessThan(0)` assertion.
  * (It used to sit at `left: 0.02` and perform a redundant first stroke; the block now lands
- * flush with the track's left edge and only clips 2/3 travel to lap onto it.)
+ * flush with the track's left edge and only clips 2–5 travel to lap onto it.)
  */
 const DRAGGED_IDS = V1_IDS.slice(1);
 const DEMO_IDS = DRAGGED_IDS.map((id) => `${id}-demo`);
 const SELECTION_IDS = DRAGGED_IDS.map((id) => `${id}-selection`);
-// One badge per adjacent pair — two pairs for three clips.
-const SEAM_IDS = ['s03-clip-seam-1', 's03-clip-seam-2'] as const;
+// One badge per adjacent pair — four pairs for five clips.
+const SEAM_IDS = [
+  's03-clip-seam-1',
+  's03-clip-seam-2',
+  's03-clip-seam-3',
+  's03-clip-seam-4',
+] as const;
 
 jest.mock(
   'cineview',
@@ -161,7 +182,7 @@ describe('SceneSync motion contract', () => {
     mockAnimateProps.length = 0;
   });
 
-  it('shows all three V1 blocks in place before anything is dragged', () => {
+  it('shows all five V1 blocks in place before anything is dragged', () => {
     render(<SceneSync />);
 
     // 「直接出现全部内容」 — the appear lane carries NO horizontal travel. It used to enter at
@@ -286,7 +307,44 @@ describe('SceneSync motion contract', () => {
     }
   });
 
-  it('lands the three blocks lapped together, and marks each lap with a badge', () => {
+  it('finishes each stitch before the playback reaches the segment it prepares', () => {
+    render(<SceneSync />);
+
+    // 用户原话（2026-08-20 返工）：「我希望 v1 那一列的帧，能在动画播放到那个环节之前，
+    // 先拼接好，也就是先执行完毕动画」。stroke 终点必须早于播放进入第 k 段 —— 恰早一个
+    // ACT3_CLIP_ASSEMBLY_LEAD_MS。旧时序是零提前量的 JIT（落定即抵达），被本断言打红；
+    // LEAD 的数值上界由两段式约束解出（首 stroke 须晚于末块入场 2300 ⇒ LEAD ≤ 900），
+    // 推导记录在 act3MediaTimeline.ts 的 ACT3_CLIP_ASSEMBLY_LEAD_MS 注释。
+    expect(ACT3_CLIP_ASSEMBLY_LEAD_MS).toBeGreaterThan(0);
+
+    // LEAD 的数值不用魔法数钉，用**跨 lane 结构不变量**钉：首个 stroke 的起点必须等于
+    // preview 显影的终点（画面就绪 → 剪辑开始）。两者与「stroke 终点 = 段抵达 − LEAD」
+    // 联立 ⇒ LEAD = SCRUB_START − PREVIEW_END = 3200 − 2400 = 800，任何一处漂移都会红
+    // （对抗评审 M5 实证：LEAD=100 时仅靠下面的自指断言全绿，本不变量补上这个洞）。
+    const previewLane = lane('s03-preview');
+    const previewRevealEnd =
+      (previewLane.timeline?.delay ?? 0) + (previewLane.duration?.enter ?? 0);
+    const firstStrokeStart = Math.min(...DEMO_IDS.map((id) => lane(id).timeline?.delay ?? 0));
+    expect(firstStrokeStart).toBe(previewRevealEnd);
+
+    for (const [i, animateId] of DEMO_IDS.entries()) {
+      const segmentIndex = i + 1; // DEMO_IDS 从 clip 2 开始，其内容是第 1..4 段
+      const strokeEnd =
+        (lane(animateId).timeline?.delay ?? 0) + (lane(animateId).duration?.enter ?? 0);
+      const segmentArrival = ACT3_MEDIA_SCRUB_START_MS + segmentIndex * ACT3_CLIP_SEGMENT_MS;
+      expect(segmentArrival - strokeEnd).toBe(ACT3_CLIP_ASSEMBLY_LEAD_MS);
+    }
+
+    // seam 徽章的落定 = 对应 stroke 的终点（相邻 stroke 首尾相接的性质），随 LEAD 平移。
+    // 旧的 ≥ 断言容许徽章晚于落定；这里钉成相等，LEAD 改动若漏改徽章会立刻红。
+    for (const [index, seamId] of SEAM_IDS.entries()) {
+      const strokeLane = lane(DEMO_IDS[index]);
+      const strokeEnd = (strokeLane.timeline?.delay ?? 0) + (strokeLane.duration?.enter ?? 0);
+      expect(lane(seamId).timeline?.delay ?? 0).toBe(strokeEnd);
+    }
+  });
+
+  it('lands the five blocks lapped together, and marks each lap with a badge', () => {
     const { container } = render(<SceneSync />);
 
     // The END STATE is the requirement («拖成三块并拢重叠»), so it is reconstructed here from the
@@ -295,7 +353,7 @@ describe('SceneSync motion contract', () => {
     // track never reached an assembled state at all and this check is what pins that shut.
     const slots = readV1Slots(container);
     // Clip 1 has NO demo lane (authored flush at left: 0, zero push) — its contribution to the
-    // assembly walk is a literal 0. Only clips 2/3 carry a stroke. Indexing DEMO_IDS by the
+    // assembly walk is a literal 0. Only clips 2–5 carry strokes. Indexing DEMO_IDS by the
     // slot index would read past its end here and throw on `undefined`.
     const assembled = slots.map((slot, index) => {
       const push =
@@ -328,6 +386,20 @@ describe('SceneSync motion contract', () => {
     }
   });
 
+  it('gives every V1 clip its own segment poster', () => {
+    const { container } = render(<SceneSync />);
+    const posters = Array.from(container.querySelectorAll<HTMLImageElement>('.s03-clip__poster'));
+
+    // 用户报（2026-08-20 第三轮）：「v1帧为什么都长一样？」——五块曾共用同一张
+    // ACT3_POSTER_SRC。每块必须用它自己那一段的中点抽帧（ACT3_CLIP_POSTERS 按
+    // 段数派生），src 两两不同；真机侧的像素级两两不同由 a3-intra-lead.mjs 断言。
+    expect(posters).toHaveLength(V1_IDS.length);
+    const srcs = posters.map((img) => img.getAttribute('src'));
+    expect(new Set(srcs).size).toBe(V1_IDS.length);
+    for (const src of srcs) expect(ACT3_CLIP_POSTERS).toContain(src);
+    expect(srcs).not.toContain('/act3-edit-poster.jpg');
+  });
+
   it('keeps the 10% fast fade on inner lanes without another animated property', () => {
     render(<SceneSync />);
 
@@ -339,7 +411,7 @@ describe('SceneSync motion contract', () => {
       )
       .sort();
     // Exhaustive by design: an unexpected lane here means a new animated property slipped in.
-    // `-selection` lanes are the overlay reveals for the two dragged clips (see the drag test);
+    // `-selection` lanes are the overlay reveals for the four dragged clips (see the drag test);
     // they exist because the overlay is no longer revealed by a stage-level CSS index match.
     expect(capturedMotionIds).toEqual(
       [...OUTER_IDS, ...INNER_IDS, ...DEMO_IDS, ...SELECTION_IDS].sort()
@@ -395,6 +467,8 @@ describe('SceneSync motion contract', () => {
       'dragTemporal.s03.sub1',
       'dragTemporal.s03.sub2',
       'dragTemporal.s03.sub3',
+      'dragTemporal.s03.sub4',
+      'dragTemporal.s03.sub5',
     ]);
     expect(css).toMatch(
       /\.s03-cut-stage > \[data-cineview-animate-id='s03-preview'\][^{]*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;/s
@@ -402,6 +476,20 @@ describe('SceneSync motion contract', () => {
     expect(css).toMatch(
       /\[data-cineview-animate-id='s03-preview-media'\] > video[^{]*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*center;/s
     );
+
+    // The active-media reveal selector lists must cover EVERY subtitle index this component
+    // renders. The 2026-08-18 five-clip rework extended the i18n keys and the DOM to five
+    // but left both CSS lists at three, so sub4/sub5 never lit (user report 2026-08-20:
+    // 「v2前三个会出现字母后面两个不会」). Both channels are pinned here: the picture word
+    // (opacity 0 → 1) and the track block highlight (0.34 → 1).
+    for (let index = 0; index < V2_IDS.length; index += 1) {
+      expect(css).toMatch(
+        new RegExp(`\\[data-active-media='${index}'\\] \\[data-s03-preview-subtitle='${index}'\\]`)
+      );
+      expect(css).toMatch(
+        new RegExp(`\\[data-active-media='${index}'\\] \\[data-s03-subtitle-index='${index}'\\]`)
+      );
+    }
   });
 
   it('uses scrub transport only, with no closing native playback owner', () => {
@@ -428,14 +516,14 @@ describe('SceneSync motion contract', () => {
 });
 
 describe('Act 3 media timeline', () => {
-  it('keeps V1 one stroke ahead of three contiguous two-second media ranges', () => {
+  it('keeps V1 one stroke ahead of five contiguous two-second media ranges', () => {
     expect(resolveAct3MediaState(ACT3_FIRST_SELECTION_START_MS - 1)).toEqual({
       mode: 'idle',
       mediaIndex: null,
       mediaTimeSeconds: 0,
     });
 
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < 5; index += 1) {
       const mediaStart = ACT3_MEDIA_SCRUB_START_MS + index * ACT3_CLIP_DURATION_SECONDS * 1000;
       expect(resolveAct3MediaState(mediaStart)).toEqual({
         mode: 'scrub',
@@ -454,14 +542,14 @@ describe('Act 3 media timeline', () => {
 
     const finalScrub = resolveAct3MediaState(ACT3_MEDIA_CLOCK_MS - 1);
     expect(finalScrub.mode).toBe('scrub');
-    expect(finalScrub.mediaTimeSeconds).toBeCloseTo(6, 2);
+    expect(finalScrub.mediaTimeSeconds).toBeCloseTo(ACT3_MEDIA_DURATION_SECONDS, 2);
   });
 
-  it('holds the final frame when the third scrub completes', () => {
+  it('holds the final frame when the fifth scrub completes', () => {
     expect(resolveAct3MediaState(ACT3_MEDIA_CLOCK_MS)).toEqual({
       mode: 'complete',
       mediaIndex: null,
-      mediaTimeSeconds: 6,
+      mediaTimeSeconds: ACT3_MEDIA_DURATION_SECONDS,
     });
   });
 });

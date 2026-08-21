@@ -6625,6 +6625,41 @@ describe('DirectScrollCineView', () => {
       });
     });
 
+    it('does not resync the same native offset after eager gesture sync', async () => {
+      const { container } = renderResizePage();
+      const root = container.querySelector('.cineview-container') as HTMLDivElement;
+      await flushAnimationFrame();
+
+      installScrollGeometry({
+        container: root,
+        sceneTops: [0, 1000],
+        sceneHeights: [1000, 1000],
+      });
+      triggerContentResize();
+      await flushAnimationFrame();
+      await waitFor(() => {
+        expect(getTakeoverSegment(container, 1).start).toBe(1000);
+      });
+
+      const measuredScrollHeight = root.scrollHeight;
+      let scrollHeightReads = 0;
+      Object.defineProperty(root, 'scrollHeight', {
+        configurable: true,
+        get: () => {
+          scrollHeightReads += 1;
+          return measuredScrollHeight;
+        },
+      });
+
+      await wheelAndFlush(root, 10);
+      const readsAfterEagerSync = scrollHeightReads;
+      act(() => {
+        fireEvent.scroll(root);
+      });
+
+      expect(scrollHeightReads).toBe(readsAfterEagerSync);
+    });
+
     it('disconnects the content ResizeObserver on unmount', async () => {
       const { unmount } = renderResizePage();
       await flushAnimationFrame();

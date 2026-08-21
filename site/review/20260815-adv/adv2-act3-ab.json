@@ -1,0 +1,30 @@
+{
+  "en": {
+    "band": {
+      "x": 98,
+      "y": 376,
+      "w": 195,
+      "h": 35
+    },
+    "titleOp": 1,
+    "totalPx": 47300,
+    "changedPct": 1.62,
+    "meanDelta": 6.2,
+    "maxDelta": 543,
+    "verdict": "VISIBLE (hiding title changes pixels)"
+  },
+  "zh": {
+    "band": {
+      "x": 98,
+      "y": 376,
+      "w": 195,
+      "h": 35
+    },
+    "titleOp": 1,
+    "totalPx": 47300,
+    "changedPct": 2.76,
+    "meanDelta": 9.22,
+    "maxDelta": 542,
+    "verdict": "VISIBLE (hiding title changes pixels)"
+  }
+}

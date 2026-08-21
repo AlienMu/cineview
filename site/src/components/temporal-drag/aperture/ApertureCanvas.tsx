@@ -67,12 +67,15 @@ interface ApertureCanvasProps {
   phase: MotionValue<AnimatePhase>;
 }
 
-// Cool optical metal sampled from the supplied lens reference. Numeric channels avoid parsing
-// CSS strings in the per-blade loop; the static glass reflections live in DOM/CSS above canvas.
-const EDGE_COOL: readonly [number, number, number] = [96, 188, 255];
-const EDGE_HOT: readonly [number, number, number] = [235, 229, 255];
-const METAL_DARK: readonly [number, number, number] = [4, 15, 48];
-const METAL_LIT: readonly [number, number, number] = [29, 132, 220];
+// 2026-08-15 写实化：真实光圈叶片是近黑的淬火钢（中性偏冷、微发蓝灰），片与片靠
+// 1px 级的亮边缘（金属倒角反光）区分，不是整片饱和色。叶片基体因此压到 #0d-#1a 区间，
+// 分片感移交给亮边缘；仅存的颜色是低饱和 teal sheen（下方渐变），呼应本幕冷极。
+// Numeric channels avoid parsing CSS strings in the per-blade loop; the static glass
+// reflections live in DOM/CSS above canvas.
+const EDGE_COOL: readonly [number, number, number] = [176, 205, 212]; // steel catching a teal reflection
+const EDGE_HOT: readonly [number, number, number] = [242, 234, 219]; // warm-white chamfer / sunlit rim
+const METAL_DARK: readonly [number, number, number] = [13, 14, 16]; // near-black quenched steel
+const METAL_LIT: readonly [number, number, number] = [26, 29, 33]; // barely lighter, quenched-blue hint
 // Adjacent leaves need a stable value difference in addition to moving Lambert light.
 // Without it, one similarly lit pair merges and the nine-leaf iris reads as eight.
 const FACET_BASE_TONES = [0.18, 0.42, 0.26, 0.5, 0.22, 0.44, 0.3, 0.54, 0.36] as const;
@@ -196,18 +199,29 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${BLADE_ALPHA})`;
         ctx.fill();
 
-        // The lit leading edge: cool lens light catching the rim of the plate. Brightness is
-        // the facet's Lambert term plus the travelling specular, and it strengthens as the
-        // iris shuts (`stop`) so closing down concentrates the light rather than dimming it.
+        // The lit leading edge, in two passes over the SAME three points (no geometry
+        // change): first a soft warm rim — the nine leading edges ARE the opening polygon,
+        // so this is where light through the hole lands on the leaf edges, widening and
+        // brightening as the iris shuts (`stop`) because the same light concentrates in a
+        // smaller opening; then the crisp bevel line, whose brightness is the facet's
+        // Lambert term plus the travelling specular. Blade-to-blade separation now lives
+        // here, not in the body fill.
         const specular = bladeSpecular(axis, elapsedSeconds);
-        const edgeAlpha = (0.2 + lambert * 0.34 + specular * 0.4) * (0.45 + stop * 0.55);
+        const edgeAlpha = (0.12 + lambert * 0.2 + specular * 0.45) * (0.4 + stop * 0.6);
+        const rimAlpha = 0.08 + stop * 0.24 + specular * 0.12;
         const channels = specular > 0.45 ? EDGE_HOT : EDGE_COOL;
-        ctx.strokeStyle = `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${edgeAlpha.toFixed(4)})`;
-        ctx.lineWidth = Math.max(0.75, unit * 0.0035);
+        ctx.strokeStyle = `rgba(${EDGE_HOT[0]}, ${EDGE_HOT[1]}, ${EDGE_HOT[2]}, ${rimAlpha.toFixed(4)})`;
+        ctx.lineWidth = Math.max(2, unit * 0.011);
         ctx.lineCap = 'round';
         // Stroke the leading edge ONLY — re-tracing the same three points rather than stroking
         // the whole path, because a stroked flank would draw a bright line down each overlap
         // seam and a stroked outer arc would ring the barrel, competing with the ring's own arc.
+        ctx.beginPath();
+        ctx.moveTo(leadAx, leadAy);
+        ctx.quadraticCurveTo(bowX, bowY, leadBx, leadBy);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${edgeAlpha.toFixed(4)})`;
+        ctx.lineWidth = Math.max(0.75, unit * 0.0035);
         ctx.beginPath();
         ctx.moveTo(leadAx, leadAy);
         ctx.quadraticCurveTo(bowX, bowY, leadBx, leadBy);
@@ -280,10 +294,13 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         height * 0.5,
         Math.max(width, height) * 0.66
       );
-      bladeSheen.addColorStop(0, 'rgba(202, 225, 255, 0.95)');
-      bladeSheen.addColorStop(0.22, 'rgba(92, 151, 255, 0.5)');
-      bladeSheen.addColorStop(0.58, 'rgba(28, 95, 192, 0.12)');
-      bladeSheen.addColorStop(1, 'rgba(0, 4, 24, 0.72)');
+      // 2026-08-15 写实化：sheen 从四档亮 teal 渐变（0.95 起步）压成极低饱和的冷钢
+      // 反射——叶片基体已近黑，sheen 不再承担「让叶片显色」的职责，只留一层薄薄的
+      // teal 环境反射（呼应本幕冷极）；外圈落到近黑，顺带把镜筒向黑收拢。
+      bladeSheen.addColorStop(0, 'rgba(150, 190, 198, 0.14)');
+      bladeSheen.addColorStop(0.22, 'rgba(64, 155, 168, 0.07)');
+      bladeSheen.addColorStop(0.58, 'rgba(12, 30, 34, 0.1)');
+      bladeSheen.addColorStop(1, 'rgba(0, 6, 8, 0.45)');
       if (!paused) draw();
     };
 

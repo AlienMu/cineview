@@ -36,22 +36,14 @@
     74,
     0.22
   ); /* base tone: glow dialed DOWN so amber reads as the sunk resting pole */
-  /* Cool pole. Act 04 no longer consumes these two: the eclipse act was recoloured to a
-   * night-fluorescent green (#39ff88, see .tp-scene--04 in temporal-scenes-03-05.css) so the
-   * corona bloom would not read as two competing cool families. They are kept as the
-   * DOCUMENTED cool pole of the three-colour system — the roles below are the palette's
-   * contract, and deleting the token would delete the contract with it — but they currently
-   * have no consumer. Any new cool-pole element should take them rather than re-invent a
-   * value. */
+  /* Cool pole. 2026-08-15 主题审计 A-1 裁决 (a)：act4 的另立蓝家族（#72bfff hue≈207°
+   * + 紫伴随）收编回 teal（hue≈187°）——五幕色温行程恢复「amber×3 → teal(4) →
+   * amber(5)」，契约「No blue, no magenta」重新成立。act4 的 .tp-scene--04 局部
+   * palette 现以 teal 提亮档消费这套冷极（见 temporal-scenes-03-05.css）。 */
   --tp-sig-teal: #409ba8; /* instrument cyan: desaturated toward a scope/monitor readout, away from brand-cyan */
   --tp-sig-teal-glow: rgba(64, 155, 168, 0.28);
-  --tp-sig-rec: #e64536; /* tally red: pushed toward pure red, hue distance from amber widened so the terminal beat snaps */
-  --tp-sig-rec-glow: rgba(
-    230,
-    69,
-    54,
-    0.38
-  ); /* terminal signal: glow dialed UP so the CUT/CTA hit is the brightest */
+  --tp-sig-rec: #e64536; /* 2026-08-15 用户翻案后暂无消费者：保留为契约终局/commit 信号的文档化角色 */
+  --tp-sig-rec-glow: rgba(230, 69, 54, 0.38); /* 同上：随 rec 一并文档化保留，待终局幕消费者 */
   /* neutral brightest ink (canvas highlight / warm white), NOT a signal */
   --tp-sig-warm: #ece3d0;
   --tp-sig-warm-glow: rgba(236, 227, 208, 0.22);
@@ -63,8 +55,8 @@
   --tp-accent-soft: #a08050;
   --tp-accent-dim: rgba(216, 162, 74, 0.18);
   --tp-accent-glow: var(--tp-sig-amber-glow);
-  --tp-rec: var(--tp-sig-rec);
-  --tp-rec-glow: var(--tp-sig-rec-glow);
+  /* (--tp-rec-glow alias deleted 2026-08-15: its only consumer, the act1 CTA rec
+   * glow, was reverted to amber with no glow — zero consumers left.) */
   --tp-rule: rgba(237, 232, 224, 0.08);
   --tp-rule-strong: rgba(237, 232, 224, 0.14);
   --tp-border-glass: rgba(237, 232, 224, 0.06);
@@ -127,6 +119,31 @@
   background: var(--tp-bg) !important;
 }
 
+/* 2026-08-13 第五幕黑幕根级层（task-flow 2026-08-13-act5-black-exit-bg-follow）。
+ * 黑幕原为 .tp-scene--05 的场景背景 —— 挂在 DragSceneStack 的场景框上，退场 settle
+ * 补间（useDragSceneEngine.ts:708-743 写 dragProgressMotion → 框 translate3d）会把
+ * 整块黑幕滑出屏幕下方，读作「黑幕被动画拖下去」。本层挂在 .drag-temporal 根，
+ * 不随任何场景框平移：
+ *   z-index 1 —— 高于容器背景、低于全部场景框（DragSceneStack 给框 z 10/1）；
+ *   .drag-temporal 自身 isolation:isolate 建层叠上下文，框 z 与 1 同上下文比较。
+ * ⚠️ z 序不变量（code-review 发现 15）：`.cineview-container` 必须保持**不建立
+ * 层叠上下文**（当前仅 position:relative + background，无 z/transform/filter/
+ * will-change）——否则场景框的 z 10/1 会被囚禁在容器内、本层将盖住全部场景。
+ * opacity 由 TemporalDragExperience 三态编排（手势跟手直写 / 松手 700ms settle
+ * 淡入淡出 / commit snap），transition 由 JS 内联接管（本规则不声明 transition）；
+ * prefers-reduced-motion 下 settle 时长收 80ms（见 tsx）。 */
+.drag-temporal .tp-act5-black {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 66% 58% at 14% 4%, rgba(255, 226, 183, 0.2), transparent 62%),
+    radial-gradient(ellipse 64% 40% at 50% 24%, rgba(225, 164, 91, 0.08), transparent 68%),
+    linear-gradient(180deg, #050506, #08090c 68%, #0c0d11);
+}
+
 .drag-temporal .tp-scene {
   color: var(--tp-ink);
   /* Lit-room base (N1 背景太暗单调 fix): a soft warm key glow at upper-center
@@ -143,8 +160,10 @@
     linear-gradient(90deg, transparent 49.8%, var(--tp-rule) 50%, transparent 50.2%), var(--tp-bg);
 }
 
-.drag-temporal .tp-scene--03,
-.drag-temporal .tp-scene--05 {
+/* 2026-08-13：scene 5 移出本共享背景组 —— 其黑幕背景迁到根级 `.tp-act5-black` 层
+ * （见下方该规则与 temporal-scenes-03-05.css 的 .tp-scene--05 注释），场景自身背景
+ * 必须透明，否则黑幕仍随场景框退场补间下移。 */
+.drag-temporal .tp-scene--03 {
   background:
     radial-gradient(
       ellipse 90% 60% at 50% 8%,
@@ -199,39 +218,6 @@
   grid-template-rows: minmax(0, 1fr);
   width: 100%;
   height: 100%;
-}
-
-.drag-temporal .tp-rec {
-  display: flex;
-  align-items: center;
-  gap: var(--tp-space-2);
-  color: var(--tp-ink-mute);
-}
-
-.drag-temporal .tp-rec.is-recording {
-  /* A lightened tally red for the LABEL only — the signal token --tp-rec stays exactly
-   * as authored and still drives the dot, act 5, and every glow, so the palette's
-   * terminal-red semantics are untouched. #e64536 is 4.95:1 on bare --tp-bg but measured
-   * 3.88:1 in composited pixels on act 1, where the ambient rig lifts the plate under it
-   * (same cause as the act-1 slate label, since deleted). 10px text needs 4.5:1, so the
-   * glyph colour is lifted to
-   * #ef5a4a (5.85:1 bare) for headroom. Same hue, ~9% lighter. */
-  color: #ef5a4a;
-}
-
-.drag-temporal .tp-rec-dot {
-  display: block;
-  width: clamp(6px, 1.8cqw, 8px);
-  height: clamp(6px, 1.8cqw, 8px);
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* The pulse itself lives on the framework's infinite lane (<Animate
- * infiniteAnimation> in RecBadge) so it stops when the HUD leaves its phase.
- * Only the static glow stays here; reduced-motion is handled in the component. */
-.drag-temporal .tp-rec.is-recording .tp-rec-dot {
-  box-shadow: 0 0 0 var(--tp-space-1) var(--tp-rec-glow);
 }
 
 .drag-temporal .tp-timecode {
@@ -307,7 +293,8 @@
   right: auto;
   min-width: 44px;
   min-height: 44px;
-  color: #9a948a;
+  /* 2026-08-15 主题审计 C-1：手写近同值消双源，改用页面自己的 mute token。 */
+  color: var(--tp-ink-mute);
   background: rgba(12, 10, 8, 0.78);
   border-color: rgba(237, 232, 224, 0.1);
 }
@@ -617,7 +604,9 @@
 
 .drag-temporal .s01-date {
   position: absolute;
-  top: calc(50% + clamp(42px, 12cqw, 64px));
+  /* 2026-08-16 用户指令「月份和天数的时间能贴近数字一点」：距中心小时数字的
+   * 间距收紧（42/12cqw/64 → 30/10cqw/52）。 */
+  top: calc(50% + clamp(30px, 10cqw, 52px));
   left: 50%;
   margin: 0;
   color: var(--tp-accent-soft);
@@ -1222,6 +1211,9 @@
 }
 
 .drag-temporal .tp-btn--primary {
+  /* 2026-08-15 用户看过 rec 实物后翻案，CTA 回归 amber（A-3 裁决 (a) 的红实底 +
+   * glow 撤销，恢复 amber 时代原写法）。rec 信号色保留为契约冷极/终局的文档化
+   * 角色，暂无消费者。 */
   border: 1px solid var(--tp-accent);
   color: var(--tp-bg);
   background: var(--tp-accent);
@@ -1234,8 +1226,10 @@
 }
 
 /* s04-stream-up / tp-rec-pulse keyframes removed: those loops now ride the
- * framework's infinite lane (<Animate infiniteAnimation> in TimeStreams /
- * RecBadge) so they stop when the scene leaves its phase. See rule 6. */
+ * framework's infinite lane (<Animate infiniteAnimation> in TimeStreams) so
+ * they stop when the scene leaves its phase. See rule 6.
+ * (RecBadge 及其 tp-rec* 规则已随 2026-08-15 主题审计 A-3 删除——零消费者死代码；
+ * 2026-08-15 用户翻案后 CTA 也回归 amber，rec 色仅存于 :root 文档化 token。) */
 
 @media (max-width: 430px) {
   /* The centre column stays VISIBLE at phone widths. Hiding it (the previous rule)

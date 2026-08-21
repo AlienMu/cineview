@@ -13,7 +13,7 @@
   /* 必须透明:这里原本填 var(--film-white)(不透明 #faf8f4),它铺满整个第四幕,
    * 直接在第三/四幕边界切出一条硬缝 —— 首页「全场景单一背景、不允许分割」的
    * 破口就在这。video 自身 object-fit:cover 铺满,不存在 letterbox,兜底色无必要。
-   * 首页统一背景由 `<HomeBackdrop>`(CineView 的兄弟层)独占,见 HomeBackdrop.tsx。 */
+   * 首页统一背景由 App 级 `<BackgroundRibbon>` 独占（初版机制还原，2026-08-13）。 */
   background: transparent;
 }
 
@@ -56,14 +56,18 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
+  /* 2026-08-14(审计 act4-3):scrim 暖白从写死 --film-white 改 --bg-grad-bot 派生——
+   * scrim 的职责是「把上下两端压回底色」,写死奶白在 LUT 0.55-0.7 段(陶土橙)
+   * 上是略冷的奶白、有接缝感;派生后永远 = 当前底色提亮(与 --a3-plate 同源机制)。
+   * opacity 结构不动,只改色相来源。 */
   background: linear-gradient(
     to bottom,
-    rgba(250, 248, 244, 0.72) 0%,
-    rgba(250, 248, 244, 0.24) 20%,
-    rgba(250, 248, 244, 0) 42%,
-    rgba(250, 248, 244, 0) 58%,
-    rgba(250, 248, 244, 0.26) 80%,
-    rgba(250, 248, 244, 0.72) 100%
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 72%, transparent) 0%,
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 24%, transparent) 20%,
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 0%, transparent) 42%,
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 0%, transparent) 58%,
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 26%, transparent) 80%,
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 72%, transparent) 100%
   );
 }
 
@@ -84,15 +88,24 @@
   line-height: 1.2;
   letter-spacing: -0.015em;
   color: var(--ink);
-  text-shadow: 0 calc(1 * var(--cv-u)) calc(20 * var(--cv-u)) rgba(250, 248, 244, 0.6);
+  /* 2026-08-14(审计 act4-4):text-shadow 同 scrim 派生,谷段不再偏冷。 */
+  text-shadow: 0 calc(1 * var(--cv-u)) calc(20 * var(--cv-u))
+    color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 60%, transparent);
 }
 .demo-video__title-head {
   display: inline;
 }
+/* 2026-08-14(审计 act4-5):zh 下 em 不斜体——Songti SC 伪斜体(算法倾斜)在
+ * text-3xl 档位笔画粘连、可读性明显下降;CJK 本无斜体传统,强调由字重+颜色承担。
+ * en Fraunces 真斜体不动。act2 同语汇一并做(见 CapabilityScene.css)。 */
 .demo-video__title-tail {
   font-style: italic;
   font-weight: 500;
   color: var(--accent-ink);
+}
+[data-lang='zh'] .demo-video__title-tail {
+  font-style: normal;
+  font-weight: 600;
 }
 
 /* ── 时光副标题(画面正中,新主角) ──

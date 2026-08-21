@@ -20,12 +20,13 @@ function VideoTitle({ text }: { text: string }): JSX.Element {
   return (
     <h2 className="demo-video__title">
       <span className="demo-video__title-head">{head}</span>
-      {tail ? (
-        <em className="demo-video__title-tail">
-          {needSpace ? ' ' : ''}
-          {tail}
-        </em>
-      ) : null}
+      {/* ⚠️ em 的 children 必须是**单个字符串**（条件空格并入 tail），不能用
+          `{needSpace ? ' ' : ''}` + `{tail}` 两个并列文本表达式——并列文本在
+          中英切换（''↔' '）时参与 fiber reconcile，曾触发 React 18 的
+          insertBefore NotFoundError（2026-08-19 用户真机报障，首屏运行时切语言
+          崩 VideoTitle <Text> placement）。单字符串恒 1 个 text fiber，
+          语言切换只剩文本更新，无 placement/delete。 */}
+      {tail ? <em className="demo-video__title-tail">{(needSpace ? ' ' : '') + tail}</em> : null}
     </h2>
   );
 }
@@ -36,7 +37,10 @@ function VideoTitle({ text }: { text: string }): JSX.Element {
  */
 function warmAt(t: number): [number, number, number] {
   const tc = Math.min(1, Math.max(0, t));
-  const hue = 40 - tc * 26; // 40(金) → 14(陶土)
+  /* 2026-08-14(审计 act4-1):起点 hue 40→36(金→偏杏)——首屏 LUT[0] 回奶白桃
+   * (#fcede4,hue≈24)后,40 起点在色带 0.55-0.7 段(陶土橙,hue≈28 底)上偏「黄金」;
+   * 36 让逐字渐变起点与本幕底色 hue 差收窄,中段仍到 14 玫瑰陶土(不变)。 */
+  const hue = 36 - tc * 22; // 36(杏) → 14(陶土)
   const sat = 46 + Math.sin(tc * Math.PI) * 10; // 中段略饱和
   const light = 50 - tc * 5;
   const s = sat / 100;
@@ -70,6 +74,11 @@ interface LineMeta {
 const INK: [number, number, number] = [26, 23, 19]; // 墨色起点(非纯黑)
 const SUBTITLE_DURATION_MS = 4000;
 const SUBTITLE_BLUR = 'blur(0.555556vw)'; // 8 design px at the 1440px site canvas.
+/* 2026-08-14(审计 act4-2):退场尾帧 0.5556vw→0.42vw——退场是「失焦远去」不是
+ * 「对焦失败」,6px@1440 让离场更快读作「暗下去」而非「又糊一遍」;入场 blur
+ * 保持 0.5556vw 不动(对焦浮现是入场主角)。窗口边界 0.72/0.80/0.94/1.00
+ * (2026-08-04 D2 裁决)不碰,只动尾帧深度。 */
+const SUBTITLE_BLUR_EXIT = 'blur(0.42vw)';
 
 /* ── 收束窗口(D2,2026-08-04)────────────────────────────────────────────
  * 视频、标题、副标题共用同一条 4000ms 轴(= AnimateVideo 的帧擦洗跨度)。
@@ -199,7 +208,13 @@ function TimeSubtitle({ text }: { text: string }): JSX.Element {
               initial: { opacity: 0, filter: SUBTITLE_BLUR },
               animate: {
                 opacity: [0, 0, 1, 1, 0],
-                filter: [SUBTITLE_BLUR, SUBTITLE_BLUR, 'blur(0vw)', 'blur(0vw)', SUBTITLE_BLUR],
+                filter: [
+                  SUBTITLE_BLUR,
+                  SUBTITLE_BLUR,
+                  'blur(0vw)',
+                  'blur(0vw)',
+                  SUBTITLE_BLUR_EXIT,
+                ],
                 transition: {
                   opacity: { times: [0, line.revealStart, line.revealEnd, fadeStart, 1] },
                   filter: { times: [0, line.revealStart, line.revealEnd, fadeStart, 1] },
@@ -266,6 +281,11 @@ export function DemoVideoScene(): JSX.Element {
           }}
           duration={{ enter: 4000 }}
           timeline={{ waitFor: 'demo-title', delay: 0 }}
+          /* 2026-08-14 掉帧修复（task-flow N2，方案 A「远离释放、靠近预热」）：
+           * 播完保留的解码帧在倒回第三幕时实测掉帧（_rv-video-residency.mjs：
+           * 保留 10 长帧 / 卸载 0 长帧）。releaseOnLeave 让驻留随 zone approach
+           * band 释放/预热——离开超 1.5 视口释放，回程 1 视口内预热（blob 内存零网络）。 */
+          releaseOnLeave
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
         {/* scrim 与视频同刻淡入/收尾:它不是 video 的后代,拿不到 video lane 的
@@ -322,7 +342,7 @@ export function DemoVideoScene(): JSX.Element {
               initial: { opacity: 1 },
               animate: {
                 opacity: [1, 1, 0],
-                filter: ['blur(0vw)', 'blur(0vw)', SUBTITLE_BLUR],
+                filter: ['blur(0vw)', 'blur(0vw)', SUBTITLE_BLUR_EXIT],
                 transition: {
                   opacity: { times: [0, TITLE_OUT_START, TITLE_OUT_END] },
                   filter: { times: [0, TITLE_OUT_START, TITLE_OUT_END] },

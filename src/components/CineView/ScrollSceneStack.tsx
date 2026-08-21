@@ -3,10 +3,12 @@ import type { SceneAuthoringCompatProps } from './directScrollHelpers';
 import { isSceneElement } from './directScrollHelpers';
 import type { GroupedCallbacks } from './regroupCallbacks';
 import { ScrollSceneSlot, type ScrollSceneSnapshotStore } from './ScrollSceneSlot';
+import type { ScrollSceneFrameStore } from './scrollSceneFrameStore';
 
 interface ScrollSceneStackProps {
   childrenArray: React.ReactNode[];
   store: ScrollSceneSnapshotStore;
+  frameStore?: ScrollSceneFrameStore;
   setWrapperRef: (sceneIndex: number, node: HTMLDivElement | null) => void;
   scrollCallbacks?: GroupedCallbacks['scroll'];
 }
@@ -14,6 +16,7 @@ interface ScrollSceneStackProps {
 export function ScrollSceneStack({
   childrenArray,
   store,
+  frameStore,
   setWrapperRef,
   scrollCallbacks,
 }: ScrollSceneStackProps): JSX.Element {
@@ -32,6 +35,7 @@ export function ScrollSceneStack({
             key={child.key ?? `scene-${currentSceneIndex}`}
             child={child as React.ReactElement<SceneAuthoringCompatProps>}
             store={store}
+            frameStore={frameStore}
             sceneIndex={currentSceneIndex}
             setWrapperRef={setWrapperRef}
             scrollCallbacks={scrollCallbacks}

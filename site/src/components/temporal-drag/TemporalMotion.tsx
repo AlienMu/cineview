@@ -1,5 +1,5 @@
-import { useReducedMotion } from 'framer-motion';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 
 const REDUCED_DURATION_MS = 80;
 const REDUCED_DURATION_SECONDS = REDUCED_DURATION_MS / 1000;
@@ -23,7 +23,7 @@ const DEFAULT_TIMING: TemporalMotionTiming = {
 const TemporalMotionContext = createContext<TemporalMotionTiming>(DEFAULT_TIMING);
 
 export function TemporalMotionProvider({ children }: { children: ReactNode }): JSX.Element {
-  const reduced = useReducedMotion() ?? false;
+  const reduced = usePrefersReducedMotion();
   const timing = useMemo<TemporalMotionTiming>(
     () => ({
       reduced,

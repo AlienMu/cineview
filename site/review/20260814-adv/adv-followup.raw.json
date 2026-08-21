@@ -1,0 +1,384 @@
+{
+ "perf": {
+  "layers": 4,
+  "hasColorMixLiteral": false,
+  "sample": "repeating-linear-gradient(to right, rgba(0, 0, 0, 0) 0px, rgba(0, 0, 0, 0) 13px, rgba(252, 248, 243, 0.92) 13px, rgba(252, 248, 243, 0.92) 27px, rgba(0, 0, 0, 0) 27px, rgba(0, 0, 0, 0) 40px), linear-gradient(100deg, rgba(0, 0, 0, 0) -26%, color(srgb 0.905098 0.758431 0.678627) 0%, rgba(0, 0, 0, 0) 26%), linear-gradient(100deg, rgb(211, 143, 106), color(srgb 0.711608 0.482275 0.35749))",
+  "stopsLegal": [
+   false,
+   true,
+   false
+  ],
+  "accent": "#d38f6a"
+ },
+ "act4": {
+  "scrimRect": {
+   "x": 0,
+   "y": 240,
+   "right": 1440,
+   "bottom": 1140,
+   "w": 1440,
+   "h": 900
+  },
+  "covers": false,
+  "wrapOpacity": "0"
+ },
+ "d4context": {
+  "live": true,
+  "splitDone": true
+ },
+ "glow": [
+  "rgba(225, 164, 91, 0.318) 0px 0px 15.8675px 3.96687px",
+  "rgba(225, 164, 91, 0.2) 0px 0px 12.0399px 3.00998px",
+  "rgba(225, 164, 91, 0.2) 0px 0px 12.0399px 3.00998px"
+ ],
+ "clip": {
+  "colRight": 1152.75,
+  "pRight": 1171.59375,
+  "overhang": 18.84375,
+  "hitInsideCol": "scene5-cinema__title-text",
+  "hitOverhangBand": "scene5-cinema__phone-slot is-split",
+  "hitFarOverhang": "scene5-cinema__phone-slot is-split",
+  "letterSpacing": "2.76px",
+  "fontSize": "46px"
+ },
+ "d3-1280": {
+  "live": true,
+  "diag": [
+   {
+    "round": 0,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 1,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 2,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 3,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 4,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 5,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 6,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 7,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 8,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 9,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 10,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 11,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   }
+  ],
+  "done": false,
+  "geo": {
+   "isSplit": false,
+   "colRight": 789.390625,
+   "colW": 0,
+   "pRight": 1228.234375,
+   "overhang": 438.8,
+   "viewportW": 1280
+  }
+ },
+ "d3-880": {
+  "live": true,
+  "diag": [
+   {
+    "round": 0,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 1,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 2,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 3,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 4,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 5,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 6,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 7,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 8,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 9,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 10,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   },
+   {
+    "round": 11,
+    "last": "cineview-embed-ready",
+    "count": 2,
+    "isSplit": false,
+    "live": true,
+    "iframe": true
+   }
+  ],
+  "done": false,
+  "geo": {
+   "isSplit": false,
+   "colRight": 585.25,
+   "colW": 0,
+   "pRight": 900.078125,
+   "overhang": 314.8,
+   "viewportW": 880
+  }
+ },
+ "d5setup": {
+  "live": true,
+  "splitDone": true
+ },
+ "d5": {
+  "bottom": {
+   "top": 33700,
+   "max": 33700
+  },
+  "backAtMs": 400,
+  "visibleUnmountedCells": [],
+  "obsEvery2": [
+   {
+    "dt": 403,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 608,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 816,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 1024,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 1230,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 1437,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 1644,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 1851,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 2057,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 2262,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 2471,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 2676,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 2884,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 3091,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   },
+   {
+    "dt": 3296,
+    "sceneVisible": true,
+    "iframe": true,
+    "isSplit": true,
+    "stage": "revealed"
+   }
+  ]
+ },
+ "console": []
+}

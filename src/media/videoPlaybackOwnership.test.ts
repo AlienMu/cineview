@@ -22,6 +22,20 @@ const continuationFrame = (progress: number): AnimateTimelineFrame => ({
   source: 'continuation',
 });
 
+const scrollFrame = (progress: number): AnimateTimelineFrame => ({
+  progress,
+  signedProgress: progress,
+  phase: progress >= 1 ? 'entered' : 'entering',
+  source: 'scroll',
+});
+
+const visibilityFrame = (progress: number): AnimateTimelineFrame => ({
+  progress,
+  signedProgress: progress,
+  phase: progress >= 1 ? 'entered' : 'entering',
+  source: 'visibility',
+});
+
 function dispatch(
   state: VideoPlaybackOwnershipState,
   event: VideoPlaybackOwnershipEvent
@@ -42,7 +56,7 @@ describe('videoPlaybackOwnership', () => {
 
   it('lets a gesture pause native playback and seek exactly once per target', () => {
     let state = createVideoPlaybackOwnershipState(1);
-    state = dispatch(state, { type: 'media-play' }).state;
+    state = dispatch(state, { type: 'media-play', activationId: 1 }).state;
 
     const takeover = dispatch(state, {
       type: 'timeline-frame',
@@ -69,7 +83,7 @@ describe('videoPlaybackOwnership', () => {
     });
     expect(frameworkSettle.commands).toEqual([{ type: 'seek', time: 6 }]);
 
-    state = dispatch(frameworkSettle.state, { type: 'media-play' }).state;
+    state = dispatch(frameworkSettle.state, { type: 'media-play', activationId: 1 }).state;
     const nativeSettle = dispatch(state, {
       type: 'timeline-frame',
       frame: continuationFrame(0.8),
@@ -172,7 +186,7 @@ describe('videoPlaybackOwnership', () => {
 
   it('pauses once on outgoing frames and never maps exit progress to currentTime', () => {
     let state = createVideoPlaybackOwnershipState(1);
-    state = dispatch(state, { type: 'media-play' }).state;
+    state = dispatch(state, { type: 'media-play', activationId: 1 }).state;
     const outgoingFrame: AnimateTimelineFrame = {
       progress: 0.4,
       signedProgress: 0.4,
@@ -247,13 +261,16 @@ describe('videoPlaybackOwnership', () => {
     });
     expect(repeated.commands).toEqual([]);
 
-    const pauseAcknowledged = dispatch(repeated.state, { type: 'media-pause' });
+    const pauseAcknowledged = dispatch(repeated.state, {
+      type: 'media-pause',
+      activationId: 1,
+    });
     expect(pauseAcknowledged.state.status).toBe('framework-scrub');
   });
 
   it('holds ended media until a new activation and scrub frame reclaims it', () => {
     let state = createVideoPlaybackOwnershipState(1);
-    state = dispatch(state, { type: 'media-ended' }).state;
+    state = dispatch(state, { type: 'media-ended', activationId: 1 }).state;
     const held = dispatch(state, {
       type: 'timeline-frame',
       frame: continuationFrame(0.5),
@@ -273,14 +290,17 @@ describe('videoPlaybackOwnership', () => {
   });
 
   it('does not let the pause event caused by framework takeover steal ownership back', () => {
-    let state = dispatch(createVideoPlaybackOwnershipState(1), { type: 'media-play' }).state;
+    let state = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'media-play',
+      activationId: 1,
+    }).state;
     state = dispatch(state, {
       type: 'timeline-frame',
       frame: gestureFrame(0.4),
       duration: 10,
     }).state;
 
-    const pauseEvent = dispatch(state, { type: 'media-pause' });
+    const pauseEvent = dispatch(state, { type: 'media-pause', activationId: 1 });
     expect(pauseEvent.state.status).toBe('framework-scrub');
     expect(
       dispatch(pauseEvent.state, {
@@ -329,7 +349,7 @@ describe('videoPlaybackOwnership', () => {
         }).state;
         state = dispatch(state, { type: 'play-rejected', requestId: 1 }).state;
       } else {
-        state = dispatch(state, { type: 'media-ended' }).state;
+        state = dispatch(state, { type: 'media-ended', activationId: 1 }).state;
       }
 
       const takeover = dispatch(state, {
@@ -340,6 +360,104 @@ describe('videoPlaybackOwnership', () => {
       });
       expect(takeover.state.status).toBe('framework-scrub');
       expect(takeover.commands).toEqual([{ type: 'seek', time: 5.4 }]);
+    }
+  );
+
+  it.each([
+    ['scroll', scrollFrame],
+    ['visibility', visibilityFrame],
+  ] as const)('lets reverse %s reclaim ended media beyond endpoint hysteresis', (_, frame) => {
+    let state = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'timeline-frame',
+      frame: frame(1),
+      duration: 10,
+      scrubRange: [0, 6],
+    }).state;
+    state = dispatch(state, { type: 'play-resolved', requestId: 1 }).state;
+    state = dispatch(state, { type: 'media-ended', activationId: 1 }).state;
+
+    const endpointJitter = dispatch(state, {
+      type: 'timeline-frame',
+      frame: frame(0.99),
+      duration: 10,
+      scrubRange: [0, 6],
+    });
+    expect(endpointJitter.commands).toEqual([]);
+    expect(endpointJitter.state.status).toBe('ended');
+
+    const reverse = dispatch(endpointJitter.state, {
+      type: 'timeline-frame',
+      frame: frame(0.6),
+      duration: 10,
+      scrubRange: [0, 6],
+    });
+    expect(reverse.commands).toHaveLength(1);
+    expect(reverse.commands[0]?.type).toBe('seek');
+    if (reverse.commands[0]?.type === 'seek') {
+      expect(reverse.commands[0].time).toBeCloseTo(3.6);
+    }
+    expect(reverse.state).toMatchObject({
+      status: 'framework-scrub',
+      activePlayRequestId: null,
+      endpointLatched: false,
+    });
+  });
+
+  it.each([
+    ['scroll', scrollFrame],
+    ['visibility', visibilityFrame],
+  ] as const)(
+    'lets reverse %s reclaim a rejected handoff and only retries after leaving the endpoint',
+    (_, frame) => {
+      let state = dispatch(createVideoPlaybackOwnershipState(1), {
+        type: 'timeline-frame',
+        frame: frame(1),
+        duration: 10,
+        scrubRange: [0, 6],
+      }).state;
+      state = dispatch(state, { type: 'play-rejected', requestId: 1 }).state;
+
+      const endpointJitter = dispatch(state, {
+        type: 'timeline-frame',
+        frame: frame(0.99),
+        duration: 10,
+        scrubRange: [0, 6],
+      });
+      expect(endpointJitter.commands).toEqual([]);
+      expect(endpointJitter.state.status).toBe('play-rejected');
+
+      const reverse = dispatch(endpointJitter.state, {
+        type: 'timeline-frame',
+        frame: frame(0.6),
+        duration: 10,
+        scrubRange: [0, 6],
+      });
+      expect(reverse.commands).toHaveLength(1);
+      expect(reverse.commands[0]?.type).toBe('seek');
+      if (reverse.commands[0]?.type === 'seek') {
+        expect(reverse.commands[0].time).toBeCloseTo(3.6);
+      }
+      expect(reverse.state).toMatchObject({
+        status: 'framework-scrub',
+        activePlayRequestId: null,
+        endpointLatched: false,
+      });
+
+      const endpoint = dispatch(reverse.state, {
+        type: 'timeline-frame',
+        frame: frame(1),
+        duration: 10,
+        scrubRange: [0, 6],
+      });
+      expect(endpoint.commands).toEqual([
+        { type: 'seek', time: 6 },
+        { type: 'play', requestId: 2 },
+      ]);
+      expect(endpoint.state).toMatchObject({
+        status: 'play-pending',
+        activePlayRequestId: 2,
+        endpointLatched: true,
+      });
     }
   );
 
@@ -357,9 +475,81 @@ describe('videoPlaybackOwnership', () => {
       scrubRange: [0, 6],
     }).state;
 
-    const stalePlay = dispatch(state, { type: 'media-play', requestId: 1 });
+    const stalePlay = dispatch(state, {
+      type: 'media-play',
+      requestId: 1,
+      activationId: 1,
+    });
     expect(stalePlay.state.status).toBe('framework-scrub');
     expect(stalePlay.commands).toEqual([{ type: 'pause' }]);
+  });
+
+  it('rejects an untagged late play after a settled framework handoff is reclaimed', () => {
+    let state = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'timeline-frame',
+      frame: gestureFrame(1),
+      duration: 10,
+      scrubRange: [0, 6],
+    }).state;
+    state = dispatch(state, { type: 'play-resolved', requestId: 1 }).state;
+
+    const takeover = dispatch(state, {
+      type: 'timeline-frame',
+      frame: { ...gestureFrame(0.8), source: 'scroll' },
+      duration: 10,
+      scrubRange: [0, 6],
+    });
+    expect(takeover.state).toMatchObject({
+      status: 'framework-scrub',
+      frameworkPlayBlocked: true,
+    });
+
+    const delayedPlay = dispatch(takeover.state, {
+      type: 'media-play',
+      activationId: 1,
+    });
+    expect(delayedPlay.commands).toEqual([{ type: 'pause' }]);
+    expect(delayedPlay.state.status).toBe('framework-scrub');
+    expect(delayedPlay.state.frameworkPlayBlocked).toBe(true);
+  });
+
+  it('ignores a stale media-ended event from a previous activation', () => {
+    const active = createVideoPlaybackOwnershipState(1);
+    const nextActivation = dispatch(active, { type: 'reset', activationId: 2 }).state;
+
+    const staleEnded = dispatch(nextActivation, { type: 'media-ended', activationId: 1 });
+
+    expect(staleEnded.commands).toEqual([]);
+    expect(staleEnded.state).toBe(nextActivation);
+  });
+
+  it('ignores a stale media-pause event from a previous activation', () => {
+    const active = createVideoPlaybackOwnershipState(1);
+    const nextActivation = dispatch(active, { type: 'reset', activationId: 2 }).state;
+
+    const stalePause = dispatch(nextActivation, {
+      type: 'media-pause',
+      activationId: 1,
+    });
+
+    expect(stalePause.commands).toEqual([]);
+    expect(stalePause.state).toBe(nextActivation);
+  });
+
+  it('ignores a stale media-play event from a previous activation', () => {
+    const active = createVideoPlaybackOwnershipState(1);
+    const nextActivation = dispatch(active, { type: 'reset', activationId: 2 }).state;
+
+    const stalePlay = dispatch(nextActivation, {
+      type: 'media-play',
+      activationId: 1,
+    });
+
+    expect(stalePlay.commands).toEqual([]);
+    expect(stalePlay.state).toBe(nextActivation);
+    expect(dispatch(nextActivation, { type: 'media-play', activationId: 2 }).state.status).toBe(
+      'native-playback'
+    );
   });
 
   it('invalidates pending work when the media source changes', () => {
@@ -429,8 +619,11 @@ describe('videoPlaybackOwnership', () => {
     expect(fullRangeEndpoint.commands).toEqual([{ type: 'seek', time: 10 }]);
     expect(fullRangeEndpoint.state.endpointLatched).toBe(true);
 
-    const ended = dispatch(createVideoPlaybackOwnershipState(1), { type: 'media-ended' }).state;
-    expect(dispatch(ended, { type: 'media-pause' }).state.status).toBe('ended');
+    const ended = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'media-ended',
+      activationId: 1,
+    }).state;
+    expect(dispatch(ended, { type: 'media-pause', activationId: 1 }).state.status).toBe('ended');
 
     const active = dispatch(createVideoPlaybackOwnershipState(7), {
       type: 'timeline-frame',

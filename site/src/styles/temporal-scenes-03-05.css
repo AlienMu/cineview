@@ -119,9 +119,16 @@
   opacity: 0;
 }
 
+/* The reveal selector list must cover EVERY index rendered by SceneSync's V2_SUBTITLES
+ * (currently five). The 2026-08-18 five-clip rework extended the i18n keys and the DOM to
+ * five but left these lists at three, so PACE/TIMING never lit on the picture
+ * (user report 2026-08-20: 「v2前三个会出现字母后面两个不会」). Coverage of both lists
+ * below is pinned by sceneSync.motion-contract.test.tsx against V2_IDS. */
 .drag-temporal .s03-cut-stage[data-active-media='0'] [data-s03-preview-subtitle='0'],
 .drag-temporal .s03-cut-stage[data-active-media='1'] [data-s03-preview-subtitle='1'],
-.drag-temporal .s03-cut-stage[data-active-media='2'] [data-s03-preview-subtitle='2'] {
+.drag-temporal .s03-cut-stage[data-active-media='2'] [data-s03-preview-subtitle='2'],
+.drag-temporal .s03-cut-stage[data-active-media='3'] [data-s03-preview-subtitle='3'],
+.drag-temporal .s03-cut-stage[data-active-media='4'] [data-s03-preview-subtitle='4'] {
   opacity: 1;
 }
 
@@ -143,6 +150,8 @@
   top: clamp(9px, 2.6cqw, 14px);
   left: clamp(8px, 2.4cqw, 13px);
   z-index: 4;
+  /* 2026-08-16 用户还原指令「我就是这么设计的」：撤销 2026-08-15 主题审计 A-5
+   * 的 alpha 抬档与字号下限改动，回到设计原值。 */
   color: rgba(232, 183, 102, 0.72);
   font-family: var(--tp-font-mono);
   font-size: clamp(7px, 1.8cqw, 9px);
@@ -414,9 +423,14 @@
   opacity: 0.34;
 }
 
+/* Same coverage rule as the picture-subtitle list above: one entry per V2_SUBTITLES index —
+ * the active segment's track block lights up. Extending SceneSync's subtitle count without
+ * extending this list leaves the new blocks permanently dim (the exact 2026-08-20 defect). */
 .drag-temporal .s03-cut-stage[data-active-media='0'] [data-s03-subtitle-index='0'],
 .drag-temporal .s03-cut-stage[data-active-media='1'] [data-s03-subtitle-index='1'],
-.drag-temporal .s03-cut-stage[data-active-media='2'] [data-s03-subtitle-index='2'] {
+.drag-temporal .s03-cut-stage[data-active-media='2'] [data-s03-subtitle-index='2'],
+.drag-temporal .s03-cut-stage[data-active-media='3'] [data-s03-subtitle-index='3'],
+.drag-temporal .s03-cut-stage[data-active-media='4'] [data-s03-subtitle-index='4'] {
   border-color: rgba(240, 198, 126, 0.78);
   background: rgba(216, 162, 74, 0.22);
   opacity: 1;
@@ -609,34 +623,37 @@
 }
 
 /* ── Act 04 · Optical shutter ────────────────────────────────────────────────
- * Layered after the supplied photographic lens: black barrel, cool coated glass, blue steel
- * leaves, and restrained violet/cyan reflections. The canvas owns only moving blade paint;
- * all static lens material lives here. */
+ * Layered after the supplied photographic lens: black barrel, cool coated glass, steel
+ * leaves, and restrained teal/cyan reflections. The canvas owns only moving blade paint;
+ * all static lens material lives here.
+ * 2026-08-15 主题审计 A-1 裁决 (a)：原蓝紫家族（#72bfff hue≈207° + 紫伴随）收编回
+ * teal（hue≈187°，契约冷极 --tp-sig-teal #409ba8 的提亮/加深档）——「No blue, no
+ * magenta」重新成立，五幕色温行程恢复 amber×3 → teal(4) → amber(5)。 */
 .drag-temporal .tp-scene--04 {
-  --tp-sig: #72bfff;
-  --tp-sig-glow: rgba(78, 159, 255, 0.34);
-  --tp-accent: #a9d8ff;
-  --tp-accent-soft: #5a8ec7;
-  --tp-accent-dim: rgba(82, 151, 229, 0.18);
-  --tp-accent-glow: rgba(75, 145, 255, 0.32);
+  --tp-sig: #5cb8c9;
+  --tp-sig-glow: rgba(92, 184, 201, 0.34);
+  --tp-accent: #a8dce4;
+  --tp-accent-soft: #4f8d99;
+  --tp-accent-dim: rgba(79, 141, 153, 0.18);
+  --tp-accent-glow: rgba(64, 155, 168, 0.32);
   background:
-    radial-gradient(circle at 50% 47%, rgba(38, 86, 162, 0.18), transparent 38%),
-    radial-gradient(circle at 38% 28%, rgba(111, 69, 143, 0.08), transparent 30%), #030407;
+    radial-gradient(circle at 50% 47%, rgba(23, 74, 82, 0.18), transparent 38%),
+    radial-gradient(circle at 38% 28%, rgba(64, 155, 168, 0.08), transparent 30%), #03080a;
 }
 
 /* Background columns. Alphas unchanged (0.16 / 0.11 / 0.21) — depth comes from the three
  * columns sitting at different alphas, and that relationship is what was tuned. Only the
- * hue moves. */
+ * hue moves (blue→teal; the violet center column folds into a deeper teal step). */
 .drag-temporal .s04-stream--left {
-  color: rgba(91, 164, 239, 0.16);
+  color: rgba(92, 184, 201, 0.16);
 }
 
 .drag-temporal .s04-stream--center {
-  color: rgba(119, 102, 196, 0.1);
+  color: rgba(45, 120, 132, 0.1);
 }
 
 .drag-temporal .s04-stream--right {
-  color: rgba(91, 164, 239, 0.2);
+  color: rgba(92, 184, 201, 0.2);
 }
 
 .drag-temporal .s04-clock {
@@ -715,7 +732,7 @@
   box-shadow:
     0 0 0 2px rgba(7, 9, 15, 0.96),
     0 0 0 clamp(9px, 2.2cqw, 13px) rgba(18, 22, 31, 0.98),
-    inset 0 0 12px rgba(111, 172, 255, 0.24);
+    inset 0 0 12px rgba(92, 184, 201, 0.24);
 }
 
 /* Coated glass behind the blades. The moving canvas roots sit at 72% diameter, leaving the
@@ -729,12 +746,12 @@
   aspect-ratio: 1;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 34% 24%, rgba(111, 181, 255, 0.7), transparent 24%),
-    radial-gradient(circle at 62% 66%, rgba(15, 116, 202, 0.72), transparent 44%),
-    radial-gradient(circle, #102b70 0, #07183f 58%, #020817 100%);
+    radial-gradient(circle at 34% 24%, rgba(140, 214, 226, 0.7), transparent 24%),
+    radial-gradient(circle at 62% 66%, rgba(21, 128, 143, 0.72), transparent 44%),
+    radial-gradient(circle, #0a3a44 0, #062a31 58%, #020c0e 100%);
   box-shadow:
-    inset 0 0 52px rgba(0, 4, 22, 0.78),
-    0 0 30px rgba(55, 123, 224, 0.22);
+    inset 0 0 52px rgba(0, 10, 12, 0.78),
+    0 0 30px rgba(64, 155, 168, 0.22);
   translate: -50% -50%;
 }
 
@@ -756,11 +773,11 @@
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  border: 1px solid rgba(188, 219, 255, 0.58);
+  border: 1px solid rgba(168, 220, 228, 0.58);
   border-radius: 50%;
   box-shadow:
-    0 0 24px 3px rgba(75, 151, 255, 0.36),
-    0 0 52px 10px rgba(107, 83, 200, 0.14);
+    0 0 24px 3px rgba(92, 184, 201, 0.36),
+    0 0 52px 10px rgba(64, 155, 168, 0.14);
 }
 
 .drag-temporal .s04-eclipse__arc-svg {
@@ -777,10 +794,10 @@
 
 .drag-temporal .s04-eclipse__arc {
   fill: none;
-  stroke: #b7d9ff;
+  stroke: #a8dce4;
   stroke-width: 1.25;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 6px rgba(93, 168, 255, 0.66));
+  filter: drop-shadow(0 0 6px rgba(92, 184, 201, 0.66));
 }
 
 /* Canvas and optical overlay share the exact clock box. Neither is clipped: the pure geometry
@@ -818,8 +835,8 @@
   border-radius: 58% 42% 54% 46%;
   background: linear-gradient(
     105deg,
-    rgba(219, 238, 255, 0.62),
-    rgba(171, 165, 255, 0.2) 64%,
+    rgba(214, 240, 244, 0.62),
+    rgba(120, 200, 212, 0.2) 64%,
     transparent
   );
   filter: blur(2px);
@@ -834,7 +851,7 @@
   border-radius: 50%;
   background: repeating-linear-gradient(
     180deg,
-    rgba(234, 245, 255, 0.28) 0 2px,
+    rgba(224, 246, 248, 0.28) 0 2px,
     transparent 2px 6px
   );
   filter: blur(0.6px);
@@ -846,7 +863,9 @@
   left: 46%;
   width: 17%;
   height: 30%;
-  background: linear-gradient(120deg, rgba(255, 214, 229, 0.28), transparent 72%);
+  /* 原 pink flare（magenta 系）→ warm 白（tp-sig-warm 族）：teal 镀膜上的一点暖
+   * 反射，与「No magenta」契约一致且与 amber 主极呼应。 */
+  background: linear-gradient(120deg, rgba(236, 227, 208, 0.28), transparent 72%);
   filter: blur(3px);
   rotate: -18deg;
 }
@@ -884,10 +903,10 @@
 .drag-temporal .s04-main-timecode {
   position: relative;
   z-index: 3;
-  color: #d5ecff;
+  color: #d7eef2;
   text-shadow:
-    0 0 12px rgba(86, 162, 255, 0.52),
-    0 0 28px rgba(91, 105, 214, 0.24);
+    0 0 12px rgba(92, 184, 201, 0.52),
+    0 0 28px rgba(64, 155, 168, 0.24);
 }
 
 .drag-temporal .s04-main-timecode > .cineview-animate {
@@ -913,17 +932,23 @@
  * projector light and dust behind the curtain-call type.
  *
  * The beam is painted behind the type; there is no intervening panel or room geometry. */
-.drag-temporal .tp-scene--05 {
+.drag-temporal .tp-scene.tp-scene--05 {
   --tp-sig: #e1a45b;
   --tp-sig-glow: rgba(225, 164, 91, 0.34);
   --tp-accent: #e1a45b;
   --tp-accent-soft: #eac18d;
   --tp-accent-dim: rgba(225, 164, 91, 0.17);
   --tp-accent-glow: rgba(225, 164, 91, 0.32);
-  background:
-    radial-gradient(ellipse 66% 58% at 14% 4%, rgba(255, 226, 183, 0.2), transparent 62%),
-    radial-gradient(ellipse 64% 40% at 50% 24%, rgba(225, 164, 91, 0.08), transparent 68%),
-    linear-gradient(180deg, #050506, #08090c 68%, #0c0d11);
+  /* 2026-08-13 黑幕退场整改（task-flow 2026-08-13-act5-black-exit-bg-follow）：
+   * 本幕黑色渐变背景迁出到 .drag-temporal 根级的 `.tp-act5-black` 层（temporal-drag.css），
+   * 本场景背景改透明。理由：场景背景画在 DragSceneStack 的场景框上，退场 settle 补间
+   * 会把整框 translate3d 滑出屏幕下方 ⇒ 黑幕被「时间轴动画」带着下移，而用户要的是
+   * 「黑幕只淡出、不下移」。黑层挂在根上不随任何框平移，退场只做 opacity 变化。
+   * 层叠安全（对抗验收修正）：选择器 `.tp-scene.tp-scene--05` 提特异性到 0,3,0，
+   * 压过 temporal-drag.css 的 lit-room 基座 `.drag-temporal .tp-scene`（0,2,0）——
+   * 透明覆盖**不依赖文件导入顺序**（初版 0,2,0 同级选择器曾被验收判为
+   * 「胜负由导入顺序决定」）；scene 5 也已从 03/05 共享背景组移除。 */
+  background: transparent;
 }
 
 .drag-temporal .s05-stage {

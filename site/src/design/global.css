@@ -8,86 +8,75 @@
   background: transparent !important;
 }
 
-/* ── 首页无级色带（D1；C1 重做于 2026-08-10）──────────────────────────
- * 目标不变：整页背景是「渐变色」，滚动时这个渐变色本身缓慢改变（暖→微沉的暖谷→暖），
- * 屏与屏之间不允许出现分层接缝。
- *
- * ⚠️ **实现已从「container 上的两层 background」迁出**，现由 `<HomeBackdrop>`
- * （`components/HomeBackdrop.tsx` + `.css`，挂在 CineView 的兄弟位）承载。
- * 迁移原因（用户报障：滚动时某一帧整块暖橙盖住画面、下一帧又变回；停住不闪）：
- * 旧的 `background-attachment: local` 长带由**主线程**定位、滚动由**合成器**推进，
- * 一帧错位就把长带上更暖的锚段对进视口。改用 fixed 元素 + `transform` 平移后，
- * 平移走合成器、与内容滚动同帧，错位在结构上不再可能；渐变仍是真 linear-gradient，
- * **无级连续**不打折。带高/映射/锚色与「为何必须挂在 CineView 外面」的推导见那两个文件。
- *
+/* — 背景 LUT 色带层（初版机制还原，2026-08-13，见 BackgroundRibbon.tsx / lut.ts）——
+ * position:fixed 全屏、置于所有内容之下。
+ * ⚠️ z-index 必须 -1（初版值）：验收实测 z0 会覆盖 /docs、/demo 的全部静态内容
+ * （fixed z0 层按绘制序盖过无层叠上下文的内容）。负值落在 root 画布背景之上、
+ * 所有常规内容之下 —— 首页/文档/演示内容全部照常显示。
+ * ⚠️ transition 对渐变是惰性 CSS（验收实测首帧即新值、零插值），保留仅为初版
+ * 结构一致；真正的防闪因子是 LUT 浅斜率（全页 33700px 约 26 lum 摆幅）。 */
+.bg-ribbon {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, var(--bg-grad-top, #f8e3c6), var(--bg-grad-bot, #f9eee0));
+  transition: background 0.18s linear;
+  pointer-events: none;
+}
+
+/* ── 首页背景（2026-08-13 还原初版机制）────────────────────────────
+ * 背景 = App 级 `<BackgroundRibbon>`（`.bg-ribbon`，本文件上文）+ LUT 插值
+ * （`design/lut.ts`）+ 滚动进度直写（`components/BackgroundRibbon.tsx`），
+ * 即 task-flow 2026-06-30 的锁定方案「全站总进度驱动 + 上下双端 linear-gradient
+ * 插值 + 停靠点数组可配」。C1（600vh 色带 + 明度纱）已整组退役。
  * 本处只需保证滚动容器**透明**，让背景层透上来。 */
 .home-page .cineview-container {
   background: transparent !important;
 }
 
-/* Scene 不再各自画背景（那正是分层接缝的来源）；只保留镜头强调色 + 面板台阶色。
- * accent 与 plate 都保持**台阶式**：每幕取该幕穿过的色带区间中点色相，台阶落在幕边界，
- * 不做每帧插值（每帧写 CSS 变量 = 每帧 setState，违反 CLAUDE.md 规则 2）。
- *
- * `--scene-plate` / `--scene-plate-bar`（2026-08-10 C5）：面板类组件的**不透明**底板色，
- * 由 `.film-codecard` 与 `.film-codecard__bar` 消费。用户要求「全部主体颜色都要产生变化，
- * 不止是背景」，而逐帧跟随被规则 2 禁掉 ⇒ 走幕级台阶。取值贴合该幕穿过的色带段并**提亮**
- * （面板要浮在底色之上，不能融进去），bar 再比 plate 亮一档。
- * 调 `HomeBackdrop.css` 的锚色时必须同步复核这几组（同色温是硬约束，理由见
- * `Act3DollyScene.css` 的 --a3-plate 注释：底板与底色色温不一致 ⇒ 铺满时整屏色温翻转）。 */
+/* Scene 不再各自画背景（那正是分层接缝的来源）。
+ * ⚠️ 2026-08-14：面板配色回归初版「渐变派生」——codecard 用半透 + backdrop-filter
+ * （渐变透出），act3 面板用 color-mix(--bg-grad-top)（随 ribbon 流动）——
+ * 手挑的 --scene-plate 台阶色已随其消费者一并移除。
+ * 镜头强调色（--accent）由 BackgroundRibbon 写入 :root、随滚动全局流动。 */
 .home-scene {
-  --accent: var(--scene-accent);
-  --accent-ink: var(--scene-accent-ink);
   background: transparent;
 }
 
-/* 第一幕：色带起点，暖桃 */
+/* 第一幕：色带起点，暖象牙 */
 .home-scene--hero {
-  --scene-accent: #d59273;
-  --scene-accent-ink: #a86247;
-  --scene-plate: #fdf1ea;
-  --scene-plate-bar: #fef7f2;
 }
 
-/* 第二幕：暖→中性暖过渡段 */
+/* 第二幕：琥珀金 */
 .home-scene--film {
-  --scene-accent: #cf8a68;
-  --scene-accent-ink: #a2603f;
-  --scene-plate: #f8e7da;
-  --scene-plate-bar: #fbefe6;
 }
 
-/* 第三幕：明度谷（色带最沉处）。2026-08-09 色带去蓝后，accent 同步从冷蓝
+/* 第三幕：陶土橙（明度谷，色带最沉处）。2026-08-09 色带去蓝后，accent 同步从冷蓝
  * (#8098aa/#52697c) 换成暖雾褐——冷 accent 压暖底会脏（原注释的反向同理成立）。 */
 .home-scene--shot3 {
-  --scene-accent: #a08c80;
-  --scene-accent-ink: #6e5c52;
-  /* 与 `Act3DollyScene.css` 的 --a3-plate (#f5e0d1) 同色温（R−B ≈ +36），
-   * 对齐 C2 调暖后的谷段锚点 #f4dfd0 —— 第三幕每块 panel 都会放大到铺满整屏，
-   * 底板色就是「铺满时的整屏色」，差一点就是六个暖/冷循环。 */
-  --scene-plate: #f5e0d1;
-  --scene-plate-bar: #f9e7da;
+  /* 与色带谷段锚点（2026-08-13 C3 陶土 #e9be9c，R−B 77）同色温 ——
+   * 第三幕每块 panel 都会放大到铺满整屏，底板色就是「铺满时的整屏色」，
+   * 差一点就是六个暖/冷循环（C9/T1 教训）。 */
+  /* 2026-08-14 去粉（用户裁决「面板还是粉色」）：#efc9ae 的 G−B 仅 27 属粉调，
+   * 按 G−B ≥ 32 琥珀指标重定 —— 与 LUT 0.6/0.8 停靠（#eec49c/#e9be9c）同族。 */
 }
 
-/* 第四幕：谷段回暖的枢纽段，取中性藕色，两侧都不冲突 */
+/* 第四幕：陶土→奶油回暖枢纽段 */
 .home-scene--demo {
-  --scene-accent: #c08a80;
-  --scene-accent-ink: #8d5a52;
-  --scene-plate: #f6e2d5;
-  --scene-plate-bar: #fae9de;
+  /* 2026-08-14 去粉：同按 G−B ≥ 32 琥珀指标。 */
 }
 
-/* 第五幕：色带回暖收束（视觉上被黑幕吞掉，accent 只服务于手机内 UI） */
+/* 第五幕：奶油收束（视觉上被黑幕吞掉，accent 只服务于手机内 UI） */
 .home-scene--cinema {
-  --scene-accent: #bd7742;
-  --scene-accent-ink: #925733;
-  --scene-plate: #f7dfcc;
-  --scene-plate-bar: #fae7d8;
 }
 
 .drag-page {
   min-height: 100vh;
-  background: transparent;
+  /* 2026-08-15 主题审计 A-4：透明底时 overscroll 回弹（iOS 橡皮筋/桌面惯性）
+   * 拖出 .drag-temporal 之外的暖白 body——暗色页四周闪暖白。写死 --tp-bg 值
+   * 避免跨 token 依赖；overscroll-behavior 双保险。 */
+  background: #0c0a0c;
+  overscroll-behavior-y: none;
 }
 
 /* 首页画布内所有盒模型长度与 Position 共用框架正式 `--cineview-unit`。
@@ -157,12 +146,15 @@
     box-shadow 1s var(--ease-out);
 }
 
-/* hover:加深色 + accent 柔光晕环(与按钮同款,风格统一),不动位移/边框 */
+/* hover:加深色 + accent 柔光晕环(与按钮同款,风格统一),不动位移/边框。
+ * 2026-08-14:光晕色从写死 rgba(201,138,106) 改 color-mix(var(--accent)) 派生——
+ * 首屏 LUT[0] 回奶白桃后写死琥珀与镜头色脱钩;派生后 hover 光晕随滚动流动。
+ * 与「中性墨投影」裁决不冲突(光晕是强调件,非投影)。 */
 .lang-toggle:hover {
   color: var(--accent-ink);
   box-shadow:
-    0 0 10px 2px rgba(201, 138, 106, 0.12),
-    0 0 14px 0 rgba(201, 138, 106, 0.26);
+    0 0 10px 2px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 14px 0 color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .lang-toggle__globe {
@@ -389,8 +381,8 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 
 .btn--primary:hover {
   box-shadow:
-    0 0 10px 3px rgba(201, 138, 106, 0.22),
-    0 0 22px 0 rgba(201, 138, 106, 0.5);
+    0 0 10px 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 22px 0 color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .btn--ghost {
@@ -401,16 +393,23 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 .btn--ghost:hover {
   color: var(--accent-ink);
   box-shadow:
-    0 0 10px 3px rgba(201, 138, 106, 0.14),
-    0 0 18px 0 rgba(201, 138, 106, 0.3);
+    0 0 10px 3px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 0 18px 0 color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-/* 滚动提示:缓慢上下浮动。定位交给 Position(viewport center + y),此处不设 position/left。 */
+/* 滚动提示:缓慢上下浮动。定位交给 Position(viewport center + y),此处不设 position/left。
+ * 2026-08-14(审计 act1-3):zh 下 0.16em 字距 = 全角字间再加 0.16 字宽(CJK 灾难边缘),
+ * 压到 0.10em;en(35 字符长行)保持 0.16em 的报纸小标题感。 */
 .hero__scroll-hint {
   display: inline-block;
   font-size: var(--text-xs);
   letter-spacing: 0.16em;
   color: var(--ink-mute);
+}
+
+[data-lang='zh'] .hero__scroll-hint,
+.hero__scroll-hint[data-lang='zh'] {
+  letter-spacing: 0.1em;
 }
 
 /* Documentation workspace ------------------------------------------------- */

@@ -163,6 +163,8 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       slideDuration,
       compatFields,
     } = normalizeSceneProps(props);
+    const scrollFrameStore = props.scrollRuntime?.frameStore;
+    const scrollFrameSceneIndex = props.scrollRuntime?.sceneIndex ?? sceneIndex;
     const cineViewContext = useCineViewContext();
     const cineViewRuntime = useCineViewRuntimeContext();
     const reportRuntimeError = cineViewRuntime?.reportError;
@@ -495,6 +497,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
     }, [onVisibilityChange, sceneVisibilityCallback]);
 
     useEffect(() => {
+      if (effectiveMode === 'scroll' && scrollFrameStore) return;
       emitSceneVisibility({
         onVisibilityChange: legacyVisibilityCallbackRef.current,
         sceneVisibilityCallback: sceneVisibilityCallbackRef.current,
@@ -502,7 +505,42 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
         visible: sceneIsVisible,
         progress: sceneVisibilityProgress,
       });
-    }, [sceneIndex, sceneIsVisible, sceneVisibilityProgress]);
+    }, [effectiveMode, sceneIndex, sceneIsVisible, sceneVisibilityProgress, scrollFrameStore]);
+
+    // Continuous visibility progress follows the imperative frame lane. This
+    // preserves the callback contract without making the Scene subtree render
+    // once per native scroll pixel.
+    useEffect(() => {
+      if (effectiveMode !== 'scroll' || !scrollFrameStore) return undefined;
+
+      const emitFrameVisibility = (): void => {
+        const frame = scrollFrameStore.getKeySnapshot(scrollFrameSceneIndex) ?? null;
+        const progress = getSceneVisibilityProgress({
+          effectiveMode,
+          isActive: frame?.isCurrent ?? isActive,
+          globalScrollTimelineState: frame?.timelineState ?? null,
+          hasExitAnimation: Boolean(resolvedExitAnimation),
+        });
+        emitSceneVisibility({
+          onVisibilityChange: legacyVisibilityCallbackRef.current,
+          sceneVisibilityCallback: sceneVisibilityCallbackRef.current,
+          sceneIndex,
+          visible: progress > 0.001,
+          progress,
+        });
+      };
+
+      emitFrameVisibility();
+      return scrollFrameStore.subscribeKey(scrollFrameSceneIndex, emitFrameVisibility);
+    }, [
+      effectiveMode,
+      scrollFrameStore,
+      isActive,
+      resolvedExitAnimation,
+      sceneIndex,
+      sceneVisibilityCallback,
+      scrollFrameSceneIndex,
+    ]);
 
     useEffect(() => {
       if (effectiveMode !== 'drag' || !isActive) return;
@@ -627,6 +665,8 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       globalScrollTransitionSnapshot,
       globalScrollBackdropActive,
       globalScrollTimelineState,
+      scrollFrameStore,
+      scrollFrameSceneIndex,
       setSceneState,
     });
     // Two-track element driver (single writer = this scene). Owns
@@ -908,6 +948,10 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
                     sceneIndex={sceneIndex}
                     metrics={fixedLayerMetrics}
                     setHostRef={handleFixedLayerHostRef}
+                    frameStore={scrollFrameStore}
+                    direction={effectiveDirection}
+                    viewportWidth={globalViewportWidth}
+                    viewportHeight={globalViewportHeight}
                   />
                 ) : null}
                 {children}

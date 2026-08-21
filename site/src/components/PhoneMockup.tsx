@@ -1,11 +1,7 @@
 import { Animate } from 'cineview';
 import type { ReactNode } from 'react';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import './Scene5Cinema.css';
-
-const PREFERS_REDUCED =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
  * 手机 mockup：332×720 设计基准（19.5:9），CSS `max-height:75vh` 等比钳制。
@@ -18,6 +14,7 @@ const PREFERS_REDUCED =
  * 3s/5s 异周期（LCM 15s）保证两层 beats 不同步叠加。
  */
 export function PhoneMockup({ children }: { children: ReactNode }): JSX.Element {
+  const reduced = usePrefersReducedMotion();
   const frame = (
     <div className="phone-mockup__frame">
       <span className="phone-mockup__notch" aria-hidden="true" />
@@ -28,7 +25,7 @@ export function PhoneMockup({ children }: { children: ReactNode }): JSX.Element 
 
   return (
     <div className="phone-mockup">
-      {PREFERS_REDUCED ? (
+      {reduced ? (
         glow
       ) : (
         <Animate
@@ -43,7 +40,7 @@ export function PhoneMockup({ children }: { children: ReactNode }): JSX.Element 
           {glow}
         </Animate>
       )}
-      {PREFERS_REDUCED ? (
+      {reduced ? (
         frame
       ) : (
         <Animate

@@ -12,10 +12,14 @@ export interface VideoPlaybackOwnershipState {
   readonly activationId: number;
   readonly status: VideoPlaybackOwnershipStatus;
   readonly activePlayRequestId: number | null;
+  /** Most recent framework play request whose promise/event may still arrive. */
+  readonly settledPlayRequestId: number | null;
   readonly nextPlayRequestId: number;
   readonly lastSeekTime: number | null;
   readonly endpointLatched: boolean;
   readonly outgoingLatched: boolean;
+  /** Blocks untagged late play events after framework has reclaimed scrub ownership. */
+  readonly frameworkPlayBlocked: boolean;
   /** The next native pause event acknowledges a framework-issued pause command. */
   readonly frameworkPausePending: boolean;
 }
@@ -34,9 +38,13 @@ interface TimelineFrameEvent {
 
 export type VideoPlaybackOwnershipEvent =
   | TimelineFrameEvent
-  | { readonly type: 'media-play'; readonly requestId?: number }
-  | { readonly type: 'media-pause' }
-  | { readonly type: 'media-ended' }
+  | {
+      readonly type: 'media-play';
+      readonly requestId?: number;
+      readonly activationId: number;
+    }
+  | { readonly type: 'media-pause'; readonly activationId: number }
+  | { readonly type: 'media-ended'; readonly activationId: number }
   | { readonly type: 'play-resolved'; readonly requestId: number }
   | { readonly type: 'play-rejected'; readonly requestId: number }
   | { readonly type: 'activate'; readonly activationId: number }
@@ -88,10 +96,12 @@ export function createVideoPlaybackOwnershipState(
     activationId,
     status: 'framework-scrub',
     activePlayRequestId: null,
+    settledPlayRequestId: null,
     nextPlayRequestId: 1,
     lastSeekTime: null,
     endpointLatched: false,
     outgoingLatched: false,
+    frameworkPlayBlocked: false,
     frameworkPausePending: false,
   };
 }
@@ -142,7 +152,10 @@ function canReclaimTerminalState(
   frame: AnimateTimelineFrame
 ): boolean {
   if (state.status !== 'ended' && state.status !== 'play-rejected') return true;
-  return frame.source === 'gesture' && frame.progress < 1 - TAKEOVER_HYSTERESIS;
+  // Position-driven sources must reclaim terminal handoffs once they leave the endpoint band.
+  const canDriveReverse =
+    frame.source === 'gesture' || frame.source === 'scroll' || frame.source === 'visibility';
+  return canDriveReverse && frame.progress < 1 - TAKEOVER_HYSTERESIS;
 }
 
 function shouldAutoPlay(event: TimelineFrameEvent, endpointLatched: boolean): boolean {
@@ -163,6 +176,8 @@ function reduceTimelineFrame(
   if (frame.phase === 'exiting' || frame.phase === 'exited') {
     if (state.outgoingLatched) return result(state);
     const playing = state.status === 'native-playback' || state.status === 'play-pending';
+    const hasFrameworkPlay =
+      state.activePlayRequestId !== null || state.settledPlayRequestId !== null;
     return result(
       {
         ...state,
@@ -170,6 +185,7 @@ function reduceTimelineFrame(
         activePlayRequestId: null,
         lastSeekTime: null,
         outgoingLatched: true,
+        frameworkPlayBlocked: state.frameworkPlayBlocked || playing || hasFrameworkPlay,
         frameworkPausePending: playing,
       },
       playing ? [{ type: 'pause' }] : []
@@ -203,6 +219,7 @@ function reduceTimelineFrame(
         lastSeekTime: targetTime,
         endpointLatched: false,
         outgoingLatched: false,
+        frameworkPlayBlocked: true,
         frameworkPausePending: shouldPause,
       },
       commands
@@ -225,10 +242,12 @@ function reduceTimelineFrame(
         ...state,
         status: 'play-pending',
         activePlayRequestId: requestId,
+        settledPlayRequestId: null,
         nextPlayRequestId: requestId + 1,
         lastSeekTime: targetTime,
         endpointLatched: true,
         outgoingLatched: false,
+        frameworkPlayBlocked: false,
       },
       commands
     );
@@ -257,16 +276,44 @@ export function reduceVideoPlaybackOwnership(
     case 'timeline-frame':
       return reduceTimelineFrame(state, event);
     case 'media-play':
-      if (event.requestId !== undefined && state.activePlayRequestId !== event.requestId) {
+      if (event.activationId !== state.activationId) return result(state);
+      if (event.requestId !== undefined) {
+        const activeRequestMatches = state.activePlayRequestId === event.requestId;
+        const settledRequestMatches =
+          state.status === 'native-playback' &&
+          !state.frameworkPlayBlocked &&
+          state.settledPlayRequestId === event.requestId;
+        if (!activeRequestMatches && !settledRequestMatches) {
+          return result({ ...state, frameworkPausePending: true, frameworkPlayBlocked: true }, [
+            { type: 'pause' },
+          ]);
+        }
+        return result({
+          ...state,
+          status: 'native-playback',
+          activePlayRequestId: null,
+          settledPlayRequestId: event.requestId,
+          frameworkPausePending: false,
+          frameworkPlayBlocked: false,
+        });
+      }
+      // An untagged play is a legitimate external/native takeover unless the
+      // framework has already reclaimed the scrub lane. In that latter case
+      // it is indistinguishable from a late framework event, so keep the
+      // framework owner and issue the same defensive pause as a stale token.
+      if (state.frameworkPlayBlocked) {
         return result({ ...state, frameworkPausePending: true }, [{ type: 'pause' }]);
       }
       return result({
         ...state,
         status: 'native-playback',
         activePlayRequestId: null,
+        settledPlayRequestId: null,
         frameworkPausePending: false,
+        frameworkPlayBlocked: false,
       });
     case 'media-pause':
+      if (event.activationId !== state.activationId) return result(state);
       if (state.frameworkPausePending) {
         return result({ ...state, frameworkPausePending: false });
       }
@@ -274,8 +321,11 @@ export function reduceVideoPlaybackOwnership(
         ...state,
         status: state.status === 'ended' ? 'ended' : 'native-paused',
         activePlayRequestId: null,
+        settledPlayRequestId: state.status === 'ended' ? state.settledPlayRequestId : null,
+        frameworkPlayBlocked: state.status === 'ended' ? state.frameworkPlayBlocked : false,
       });
     case 'media-ended':
+      if (event.activationId !== state.activationId) return result(state);
       return result({
         ...state,
         status: 'ended',
@@ -289,6 +339,8 @@ export function reduceVideoPlaybackOwnership(
         ...state,
         status: 'native-playback',
         activePlayRequestId: null,
+        settledPlayRequestId: event.requestId,
+        frameworkPlayBlocked: false,
         frameworkPausePending: false,
       });
     case 'play-rejected':
@@ -297,6 +349,8 @@ export function reduceVideoPlaybackOwnership(
         ...state,
         status: 'play-rejected',
         activePlayRequestId: null,
+        settledPlayRequestId: null,
+        frameworkPlayBlocked: false,
         frameworkPausePending: false,
       });
     case 'activate':

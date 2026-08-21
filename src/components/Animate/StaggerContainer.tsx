@@ -14,7 +14,7 @@
  * (支持 replayOnReenter)。时间驱动,不 scrub。scroll / drag 各一个薄订阅组件,
  * 各自只订阅自己的源(不建临时 MotionValue、不条件调用 hook)。
  */
-import { Children, isValidElement, useState } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { motion, MotionValue, useMotionValueEvent } from 'framer-motion';
 import type { AnimatePhase, ParsedAnimationVariant } from '../../types';
@@ -83,6 +83,76 @@ export function resolveStaggerTiming(
     tailDurationMs,
     effectiveDurationMs: Math.max(authoredDurationMs, tailDurationMs + itemDurationMs),
   };
+}
+
+function resolveEffectiveStaggerDuration(
+  variant: ParsedAnimationVariant,
+  itemDurationMs: number | undefined,
+  each: number,
+  from: StaggerFrom,
+  container: ReactElement
+): number {
+  return resolveStaggerTiming(
+    variant,
+    itemDurationMs ?? 0,
+    each,
+    from,
+    countStaggerItems(container)
+  ).effectiveDurationMs;
+}
+
+function useStaggerPhase<T>(
+  source: MotionValue<T>,
+  derive: (value: T) => StaggerPhase
+): readonly [StaggerPhase, number] {
+  const initialPhase = derive(source.get());
+  const phaseRef = useRef(initialPhase);
+  const [state, setState] = useState<{ phase: StaggerPhase; revision: number }>(() => ({
+    phase: initialPhase,
+    revision: 0,
+  }));
+
+  useMotionValueEvent(source, 'change', (value) => {
+    const nextPhase = derive(value);
+    if (nextPhase === phaseRef.current) return;
+    phaseRef.current = nextPhase;
+    setState((previous) => ({ phase: nextPhase, revision: previous.revision + 1 }));
+  });
+
+  return [state.phase, state.revision];
+}
+
+function useStaggerSettled(
+  phase: StaggerPhase,
+  effectiveDurationMs: number,
+  phaseRevision = 0
+): boolean {
+  const durationRef = useRef(Math.max(effectiveDurationMs, 0));
+  // Keep the completion token tied to the phase revision. A previous entry may
+  // still be settled on the first render of a new revision, before effects run;
+  // comparing tokens during render keeps that commit authored and replayable.
+  const [settledRevision, setSettledRevision] = useState<number | null>(null);
+
+  // A prop/variant update during an active phase must not restart the completion clock.
+  // Capture the latest duration while idle so the next phase uses its authored budget.
+  useEffect(() => {
+    durationRef.current = Math.max(effectiveDurationMs, 0);
+  }, [effectiveDurationMs]);
+
+  useEffect(() => {
+    if (phase !== 'animate') return undefined;
+
+    const duration = durationRef.current;
+    if (duration === 0) {
+      setSettledRevision(phaseRevision);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setSettledRevision(phaseRevision), duration);
+    return () => window.clearTimeout(timer);
+  }, [phase, phaseRevision]);
+
+  return phase === 'animate' && settledRevision === phaseRevision;
 }
 
 // variant 传播的纯渲染:container/子元素克隆成 motion 元素,子元素用 custom={i} + variant 函数
@@ -184,6 +254,7 @@ interface CommonProps {
   each: number;
   from: StaggerFrom;
   itemDurationMs?: number;
+  effectiveDurationMs?: number;
   exitVariant?: ParsedAnimationVariant | null;
   exitItemDurationMs?: number;
 }
@@ -195,14 +266,20 @@ export function ScrollStagger({
   each,
   from,
   itemDurationMs,
+  effectiveDurationMs,
   exitVariant,
   exitItemDurationMs,
   signedVisual,
 }: CommonProps & { signedVisual: MotionValue<number> }): ReactElement {
   const derive = (value: number): StaggerPhase =>
     value > 0 ? 'animate' : value < 0 && exitVariant ? 'exit' : 'initial';
-  const [phase, setPhase] = useState(() => derive(signedVisual.get()));
-  useMotionValueEvent(signedVisual, 'change', (value) => setPhase(derive(value)));
+  const [phase, phaseRevision] = useStaggerPhase(signedVisual, derive);
+  const settled = useStaggerSettled(
+    phase,
+    effectiveDurationMs ??
+      resolveEffectiveStaggerDuration(variant, itemDurationMs, each, from, container),
+    phaseRevision
+  );
   return renderStaggerTree(
     container,
     variant,
@@ -211,7 +288,8 @@ export function ScrollStagger({
     phase,
     itemDurationMs,
     exitVariant,
-    exitItemDurationMs
+    exitItemDurationMs,
+    settled
   );
 }
 
@@ -223,6 +301,7 @@ export function ArrivalStagger({
   each,
   from,
   itemDurationMs,
+  effectiveDurationMs,
   phaseMotion,
   staticReveal,
 }: CommonProps & {
@@ -231,8 +310,13 @@ export function ArrivalStagger({
 }): ReactElement {
   const derive = (phase: AnimatePhase): StaggerPhase =>
     phase === 'entering' || phase === 'entered' ? 'animate' : 'initial';
-  const [phase, setPhase] = useState<StaggerPhase>(() => derive(phaseMotion.get()));
-  useMotionValueEvent(phaseMotion, 'change', (next) => setPhase(derive(next)));
+  const [phase, phaseRevision] = useStaggerPhase(phaseMotion, derive);
+  const settled = useStaggerSettled(
+    phase,
+    effectiveDurationMs ??
+      resolveEffectiveStaggerDuration(variant, itemDurationMs, each, from, container),
+    phaseRevision
+  );
   return renderStaggerTree(
     container,
     variant,
@@ -242,7 +326,7 @@ export function ArrivalStagger({
     itemDurationMs,
     undefined,
     undefined,
-    staticReveal
+    staticReveal || settled
   );
 }
 
@@ -253,6 +337,7 @@ export function DragStagger({
   each,
   from,
   itemDurationMs,
+  effectiveDurationMs,
   exitVariant,
   exitItemDurationMs,
   visualState,
@@ -267,8 +352,13 @@ export function DragStagger({
     }
     return 'initial';
   };
-  const [phase, setPhase] = useState(() => derive(visualState.get()));
-  useMotionValueEvent(visualState, 'change', (visual) => setPhase(derive(visual)));
+  const [phase, phaseRevision] = useStaggerPhase(visualState, derive);
+  const settled = useStaggerSettled(
+    phase,
+    effectiveDurationMs ??
+      resolveEffectiveStaggerDuration(variant, itemDurationMs, each, from, container),
+    phaseRevision
+  );
   return renderStaggerTree(
     container,
     variant,
@@ -277,6 +367,7 @@ export function DragStagger({
     phase,
     itemDurationMs,
     exitVariant,
-    exitItemDurationMs
+    exitItemDurationMs,
+    settled
   );
 }
