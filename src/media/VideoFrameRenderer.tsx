@@ -473,6 +473,10 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       },
       [seek]
     );
+    /* `mediaEpoch` re-runs this effect after warmUp on a surviving node: the
+     * warmUp control strips listeners via resetOwnership(false) while the
+     * element key stays stable (no release → no node replacement → setVideoRef
+     * never re-fires), so this bind is the only rebind path left. */
     useLayoutEffect(() => {
       dispatchOwnershipRef.current = dispatchOwnership;
       const committedIdentity = committedMediaIdentityRef.current;
@@ -488,7 +492,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
         readyMediaGenerationRef.current = mediaGenerationRef.current;
       }
       bindNativeMediaListeners(videoRef.current, activationIdRef.current);
-    }, [bindNativeMediaListeners, dispatchOwnership, objectUrl, resetOwnership, src]);
+    }, [bindNativeMediaListeners, dispatchOwnership, mediaEpoch, objectUrl, resetOwnership, src]);
 
     useEffect(
       () => () => bindNativeMediaListeners(null, activationIdRef.current),

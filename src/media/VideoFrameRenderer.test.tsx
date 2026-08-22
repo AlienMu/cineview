@@ -849,6 +849,51 @@ describe('VideoFrameRenderer', () => {
     expect(onEnded).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps media callbacks firing after warmUp without a prior release (surviving node)', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    stubVideoTiming(10, 1);
+    const onPlay = jest.fn();
+    const onPause = jest.fn();
+    const onEnded = jest.fn();
+    const controlRef = createRef<VideoFrameRendererControl | null>();
+    const { container } = render(
+      <VideoFrameRenderer
+        src="/warmup-no-release.mp4"
+        progress={0}
+        controlRef={controlRef}
+        onPlay={onPlay}
+        onPause={onPause}
+        onEnded={onEnded}
+      />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+
+    // Baseline: arm the ready generation and prove all three callbacks fire.
+    fireEvent.loadStart(video);
+    fireEvent.play(video);
+    fireEvent.pause(video);
+    fireEvent.ended(video);
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onPause).toHaveBeenCalledTimes(1);
+    expect(onEnded).toHaveBeenCalledTimes(1);
+
+    // warmUp without release keeps the element key stable: the node survives,
+    // so setVideoRef never re-fires and the layout-effect rebind is the only
+    // path that can restore the capture listeners this warmUp just stripped.
+    act(() => controlRef.current?.warmUp());
+    expect(container.querySelector('video')).toBe(video);
+
+    fireEvent.loadStart(video);
+    fireEvent.play(video);
+    fireEvent.pause(video);
+    fireEvent.ended(video);
+    expect(onPlay).toHaveBeenCalledTimes(2);
+    expect(onPause).toHaveBeenCalledTimes(2);
+    expect(onEnded).toHaveBeenCalledTimes(2);
+  });
+
   it('does not let an old source loadstart arm the replacement generation', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
     jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
