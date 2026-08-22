@@ -3,7 +3,7 @@ import { fireEvent, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { DirectScrollCineView } from './DirectScrollCineView';
 import type { CineViewRef } from '../../types';
-import { CineViewRuntimeContext } from './runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,

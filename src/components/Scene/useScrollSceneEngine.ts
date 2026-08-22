@@ -6,7 +6,7 @@ import type { PresetAnimation } from '../../animations/presets';
 import { interpolateVariant } from '../../utils/animationHelpers';
 import type { ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
 import type { SceneState } from './types';
-import type { ScrollSceneFrame, ScrollSceneFrameStore } from '../CineView/scrollSceneFrameStore';
+import type { ScrollSceneFrame, ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 
 interface UseScrollSceneEngineParams {
   slideMode: ScrollMode;

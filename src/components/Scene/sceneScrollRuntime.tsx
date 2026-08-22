@@ -3,7 +3,7 @@ import type {
   ResolvedSceneScrollSequence,
   SceneScrollAnimationRegistration,
 } from './sceneScrollBudget';
-import type { KeyedScrollExternalStore } from '../CineView/scrollExternalStore';
+import type { KeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 
 /**
  * Scroll-offset residency of a zone's segment, quantized with a Schmitt trigger

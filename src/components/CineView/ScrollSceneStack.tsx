@@ -3,7 +3,7 @@ import type { SceneAuthoringCompatProps } from './directScrollHelpers';
 import { isSceneElement } from './directScrollHelpers';
 import type { GroupedCallbacks } from './regroupCallbacks';
 import { ScrollSceneSlot, type ScrollSceneSnapshotStore } from './ScrollSceneSlot';
-import type { ScrollSceneFrameStore } from './scrollSceneFrameStore';
+import type { ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 
 interface ScrollSceneStackProps {
   childrenArray: React.ReactNode[];

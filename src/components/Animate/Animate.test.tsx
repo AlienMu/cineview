@@ -14,7 +14,7 @@ import {
   type SceneScrollTimelineState,
 } from '../Scene/sceneScrollRuntime';
 import { useAnimateScroll } from './useAnimateScroll';
-import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 
 const animationControlsRegistry: Array<{
   start: jest.Mock;

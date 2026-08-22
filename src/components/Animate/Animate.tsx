@@ -57,7 +57,7 @@ import {
 } from './animateRenderState';
 import { AnimateTimelineProvider } from './animateTimeline';
 import type { AnimateRenderState } from '../../types';
-import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
+import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTimelineContext,

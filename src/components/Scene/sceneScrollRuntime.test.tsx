@@ -1,6 +1,6 @@
 import { act, useCallback } from 'react';
 import { render, screen } from '@testing-library/react';
-import { createKeyedScrollExternalStore } from '../CineView/scrollExternalStore';
+import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 import {
   SceneScrollTimelineContext,
   type SceneScrollTimelineState,

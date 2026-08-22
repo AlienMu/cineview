@@ -40,7 +40,10 @@ import {
 import { getScenePreloadImages } from './preloadTargets';
 import { resolveDragTimelineConfig } from '../../utils/dragTimelineMapping';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
-import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
+import {
+  CineViewRuntimeContext,
+  type CineViewRuntimeContextValue,
+} from '../runtime/runtimeContext';
 import { useCineViewImperativeApi } from './useCineViewImperativeApi';
 import { DEFAULT_SLIDE_DURATION } from '../../types';
 import type {

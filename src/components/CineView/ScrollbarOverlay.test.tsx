@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ScrollbarOverlay } from './ScrollbarOverlay';
-import { createScrollExternalStore } from './scrollExternalStore';
+import { createScrollExternalStore } from '../runtime/scrollExternalStore';
 
 describe('ScrollbarOverlay', () => {
   it('exposes scrollbar semantics and updates through keyboard input', () => {

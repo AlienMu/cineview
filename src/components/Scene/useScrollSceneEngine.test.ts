@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import type { AnimationControls } from 'framer-motion';
 import type { ScrollTimelineState } from '../../types';
-import { createScrollSceneFrameStore } from '../CineView/scrollSceneFrameStore';
+import { createScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
 
 function timeline(enterProgress: number): ScrollTimelineState {

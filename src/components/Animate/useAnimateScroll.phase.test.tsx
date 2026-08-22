@@ -9,7 +9,7 @@ import {
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollAnimationRegistration } from '../Scene/sceneScrollBudget';
-import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import { useScrollZoneRegistry } from '../CineView/useScrollZoneRegistry';
 import {
   useSceneAnimationRegistry,

@@ -19,7 +19,7 @@ import {
   type ScrollInputDirection,
 } from './directScrollHelpers';
 import type { GroupedCallbacks } from './regroupCallbacks';
-import type { ScrollExternalStore } from './scrollExternalStore';
+import type { ScrollExternalStore } from '../runtime/scrollExternalStore';
 import type {
   ScrollTimelineStore,
   ScrollZoneRegistryRef,

@@ -160,17 +160,16 @@ transaction 状态为 `driving → settling|bouncing|retargeted|aborted → rele
 
 **语义**（`waitFor` / `delay` 同时充当「是否允许兜底自动触发」的开关）：
 
-| 配置 | 自动触发 | 手动调用 |
-| --- | --- | --- |
-| `enterRef` + `waitFor`/`delay` | ✅ 等完时间轴后**兜底**入场 | ✅ 立即入场，并**丢弃**剩余等待 |
-| `enterRef`，无 `waitFor`/`delay` | ❌ 永不自动入场 | ✅ 立即入场 |
-| 未传 `enterRef` | ✅ 原有行为不变 | — |
-| `exitRef` | ❌ 关闭自动退场闸门 | ✅ 立即退场 |
+| 配置                             | 自动触发                    | 手动调用                        |
+| -------------------------------- | --------------------------- | ------------------------------- |
+| `enterRef` + `waitFor`/`delay`   | ✅ 等完时间轴后**兜底**入场 | ✅ 立即入场，并**丢弃**剩余等待 |
+| `enterRef`，无 `waitFor`/`delay` | ❌ 永不自动入场             | ✅ 立即入场                     |
+| 未传 `enterRef`                  | ✅ 原有行为不变             | —                               |
+| `exitRef`                        | ❌ 关闭自动退场闸门         | ✅ 立即退场                     |
 
 「打断」的定义是**丢弃本次时间轴的剩余等待并立刻播放**，不是「重新计时」。手动入场具有**粘性所有权**：一旦消费者驱动过入场，闸门不再自行重播（否则会与所有者互相打架）。`exitRef` 不提供兜底——退场没有「超时后自动退」的语义；需要延迟自行 `setTimeout` 即可。
 
 **只有时间驱动的轨道支持手动控制**：visibility 轨与 drag 的 arrival 轨。scroll takeover 与 drag 的 scene-controlled 轨是 **scrub 轨**——视觉位置是其唯一所有者（zone `progressPx` / 手指位移）的纯函数，手动写入会在下一帧被重新计算覆盖，违反开发原则 2。因此在 scrub 轨上传 ref 会**上报 `INVALID_ANIMATION` 并忽略**，而不是假装生效。arrival 轨本就没有 exit pass（与其忽略 `exitAnimation` 一致），故 `exitRef` 在该轨同样上报忽略。
-
 
 ## Scroll Mode
 

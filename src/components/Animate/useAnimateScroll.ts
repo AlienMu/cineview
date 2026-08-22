@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { animate, MotionValue, useMotionValue, useTransform } from 'framer-motion';
+import { animate, MotionValue, useMotionValue } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { SceneContextType } from './Animate';
@@ -15,10 +15,11 @@ import {
   getDefaultValue,
   getVariantTerminalValue,
   interpolateVariantValue,
-  parseNumericValue,
   type AnimatableProperty,
+  type SceneVariantRecords,
   type VariantRecord,
 } from './animateInterpolation';
+import { useAnimatedPropertyLanes } from './useAnimatedPropertyLanes';
 import {
   scheduleVisibilityRecheck,
   subscribeVisibilityMeasurement,
@@ -161,11 +162,7 @@ function hasExitAnimation(
 }
 
 function resolveScrollPropertyValue(
-  variants: {
-    enterInitial: VariantRecord;
-    enterAnimate: VariantRecord;
-    exitTarget: VariantRecord;
-  },
+  variants: SceneVariantRecords,
   property: AnimatedProperty,
   progress: number
 ): number | string {
@@ -182,38 +179,6 @@ function resolveScrollPropertyValue(
     getDefaultValue(property, entering ? 'animate' : 'exit'),
     entering ? progress : Math.abs(progress)
   );
-}
-
-function useMixedValue(
-  visualMotion: MotionValue<number>,
-  variantsRef: MutableRefObject<{
-    enterInitial: VariantRecord;
-    enterAnimate: VariantRecord;
-    exitTarget: VariantRecord;
-  }>,
-  property: AnimatedProperty
-): MotionValue<number | string> {
-  return useTransform(visualMotion, (progress) =>
-    resolveScrollPropertyValue(variantsRef.current, property, progress)
-  );
-}
-
-function useNumericValue(
-  visualMotion: MotionValue<number>,
-  variantsRef: MutableRefObject<{
-    enterInitial: VariantRecord;
-    enterAnimate: VariantRecord;
-    exitTarget: VariantRecord;
-  }>,
-  property: AnimatedProperty
-): MotionValue<number> {
-  return useTransform(visualMotion, (progress) => {
-    const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
-    return parseNumericValue(
-      resolveScrollPropertyValue(variantsRef.current, property, progress),
-      fallback
-    );
-  });
 }
 
 export function useAnimateScroll({
@@ -254,10 +219,10 @@ export function useAnimateScroll({
   const exitMarginDesignPx = visibility.exitMargin ?? globalExitMargin ?? DEFAULT_GATE_MARGIN_PX;
   const enterMarginPx = Math.max(0, enterMarginDesignPx * gateScale);
   const exitMarginPx = Math.max(0, exitMarginDesignPx * gateScale);
-  const variantsRef = useRef({
-    enterInitial: {} as VariantRecord,
-    enterAnimate: {} as VariantRecord,
-    exitTarget: {} as VariantRecord,
+  const variantsRef = useRef<SceneVariantRecords>({
+    enterInitial: {},
+    enterAnimate: {},
+    exitTarget: {},
   });
   const visualMotion = useMotionValue(0);
   // Continuous zone progress must stay on the MotionValue lane. The keyed
@@ -298,7 +263,7 @@ export function useAnimateScroll({
   // position→progress mapping exists, so the mid-enter artifact is structurally
   // impossible.
   //
-  // visualMotion convention (consumed by useMixedValue / useNumericValue):
+  // visualMotion convention (consumed by useAnimatedPropertyLanes):
   //   0  = initial frame      (>=0 lerps initial→animate)
   //   1  = fully entered (animate)
   //  -1  = fully exited        (<0 lerps animate→exit)
@@ -1167,30 +1132,14 @@ export function useAnimateScroll({
     zoneStateMotion,
   ]);
 
-  const opacity = useNumericValue(visualMotion, variantsRef, 'opacity');
-  const x = useMixedValue(visualMotion, variantsRef, 'x');
-  const y = useMixedValue(visualMotion, variantsRef, 'y');
-  const scale = useNumericValue(visualMotion, variantsRef, 'scale');
-  const rotate = useMixedValue(visualMotion, variantsRef, 'rotate');
-  const rotateX = useMixedValue(visualMotion, variantsRef, 'rotateX');
-  const rotateY = useMixedValue(visualMotion, variantsRef, 'rotateY');
-  const skewX = useMixedValue(visualMotion, variantsRef, 'skewX');
-  const skewY = useMixedValue(visualMotion, variantsRef, 'skewY');
-  const filter = useMixedValue(visualMotion, variantsRef, 'filter');
+  const lanes = useAnimatedPropertyLanes(
+    visualMotion,
+    variantsRef,
+    (progress, variants, property) => resolveScrollPropertyValue(variants, property, progress)
+  );
 
   return {
-    style: {
-      opacity,
-      x,
-      y,
-      scale,
-      rotate,
-      rotateX,
-      rotateY,
-      skewX,
-      skewY,
-      filter,
-    },
+    style: lanes.style,
     shouldRunInfinite: shouldRunInfiniteState,
     visualMotion,
     phaseMotion,

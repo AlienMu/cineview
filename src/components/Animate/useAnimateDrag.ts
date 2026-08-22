@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MotionValue, useMotionValue, useTransform } from 'framer-motion';
+import { MotionValue, useMotionValue } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
 import type { SceneContextType } from './Animate';
 import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
@@ -8,11 +8,12 @@ import {
   getDefaultValue,
   getVariantTerminalValue,
   interpolateVariantValue,
-  parseNumericValue,
   type AnimatableProperty,
+  type SceneVariantRecords,
   type TransformValue,
   type VariantRecord,
 } from './animateInterpolation';
+import { useAnimatedPropertyLanes } from './useAnimatedPropertyLanes';
 
 interface UseAnimateDragParams {
   sceneContext: SceneContextType | null;
@@ -43,12 +44,6 @@ interface UseAnimateDragReturn {
 }
 
 type DragMotionValue = MotionValue<number> | MotionValue<string> | MotionValue<number | string>;
-
-interface CachedVariants {
-  enterInitial: VariantRecord;
-  enterAnimate: VariantRecord;
-  exitTarget: VariantRecord;
-}
 
 export interface DragVisualState {
   // Two-track model (2026-06-25): the enter source is unified to ONE per-scene
@@ -323,7 +318,7 @@ function resolvePlaybackVisualState(
 
 function resolvePropertyValue(
   state: DragVisualState,
-  variants: CachedVariants,
+  variants: SceneVariantRecords,
   property: AnimatableProperty
 ): TransformValue {
   const initialValue = getVariantTerminalValue(
@@ -377,44 +372,25 @@ function resolvePropertyValue(
   }
 }
 
-// Property transforms derive from the shared visualState MotionValue (resolved
-// once per frame in the hook body) instead of each re-running resolveVisualState
-// off the raw visualMotion. A null state means no sceneContext — fall back to the
-// animate (rest) value, matching the prior per-helper guard.
-function useNumericValue(
-  visualState: MotionValue<DragVisualState | null>,
-  variantsRef: React.MutableRefObject<CachedVariants>,
+// Property lanes derive from the shared visualState MotionValue (resolved once
+// per frame in the hook body) instead of each re-running resolveVisualState
+// off the raw visualMotion. A null state means no sceneContext — fall back to
+// the animate (rest) terminal value. Injected into useAnimatedPropertyLanes;
+// the numeric lanes' parse wrapper is value-identical for opacity/scale because
+// getDefaultValue(p, 'animate') is 1 and parseNumericValue(1, 0) === 1.
+function resolveDragPropertyValue(
+  state: DragVisualState | null,
+  variants: SceneVariantRecords,
   property: AnimatableProperty
-): MotionValue<number> {
-  return useTransform(visualState, (vs) => {
-    const variants = variantsRef.current;
-    const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
-    if (!vs) {
-      return parseNumericValue(
-        getVariantTerminalValue(variants.enterAnimate, property, fallback),
-        fallback
-      );
-    }
-    return parseNumericValue(resolvePropertyValue(vs, variants, property), fallback);
-  });
-}
-
-function useMixedValue(
-  visualState: MotionValue<DragVisualState | null>,
-  variantsRef: React.MutableRefObject<CachedVariants>,
-  property: AnimatableProperty
-): MotionValue<number | string> {
-  return useTransform(visualState, (vs) => {
-    const variants = variantsRef.current;
-    if (!vs) {
-      return getVariantTerminalValue(
-        variants.enterAnimate,
-        property,
-        getDefaultValue(property, 'animate')
-      );
-    }
-    return resolvePropertyValue(vs, variants, property);
-  });
+): TransformValue {
+  if (!state) {
+    return getVariantTerminalValue(
+      variants.enterAnimate,
+      property,
+      getDefaultValue(property, 'animate')
+    );
+  }
+  return resolvePropertyValue(state, variants, property);
 }
 
 export function useAnimateDrag({
@@ -445,7 +421,7 @@ export function useAnimateDrag({
   // drag frame merely because the current immutable transaction view advanced.
   const playbackSnapshotRef = useRef(playbackSnapshot);
   playbackSnapshotRef.current = playbackSnapshot;
-  const variantsRef = useRef<CachedVariants>({
+  const variantsRef = useRef<SceneVariantRecords>({
     enterInitial: (resolvedEnterVariant?.initial as VariantRecord) || {},
     enterAnimate: (resolvedEnterVariant?.animate as VariantRecord) || {},
     exitTarget: (exitVariant?.exit as VariantRecord) || {},
@@ -743,16 +719,7 @@ export function useAnimateDrag({
     sceneContext?.firstSceneEnterActive,
   ]);
 
-  const opacity = useNumericValue(visualState, variantsRef, 'opacity');
-  const x = useMixedValue(visualState, variantsRef, 'x');
-  const y = useMixedValue(visualState, variantsRef, 'y');
-  const scale = useNumericValue(visualState, variantsRef, 'scale');
-  const rotate = useMixedValue(visualState, variantsRef, 'rotate');
-  const rotateX = useMixedValue(visualState, variantsRef, 'rotateX');
-  const rotateY = useMixedValue(visualState, variantsRef, 'rotateY');
-  const skewX = useMixedValue(visualState, variantsRef, 'skewX');
-  const skewY = useMixedValue(visualState, variantsRef, 'skewY');
-  const filter = useMixedValue(visualState, variantsRef, 'filter');
+  const lanes = useAnimatedPropertyLanes(visualState, variantsRef, resolveDragPropertyValue);
 
   useEffect(() => {
     if (!sceneContext) {
@@ -802,23 +769,12 @@ export function useAnimateDrag({
   ]);
 
   return {
-    style: {
-      opacity,
-      x,
-      y,
-      scale,
-      rotate,
-      rotateX,
-      rotateY,
-      skewX,
-      skewY,
-      filter,
-    },
-    opacity,
-    x,
-    y,
-    scale,
-    rotate,
+    style: lanes.style,
+    opacity: lanes.opacity,
+    x: lanes.x,
+    y: lanes.y,
+    scale: lanes.scale,
+    rotate: lanes.rotate,
     useInteractiveStyles: true,
     shouldRunInfinite: shouldRunInfiniteState,
     // Observable source for the render-prop bridge. visualState carries mode +

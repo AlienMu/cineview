@@ -18,7 +18,7 @@ import type {
   PreparedSceneInvalidation,
   PreparedSceneSnapshot,
 } from './dragPreparedState';
-import type { ScrollSceneFrameStore } from '../CineView/scrollSceneFrameStore';
+import type { ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 
 export type SceneState = 'initial' | 'entering' | 'active' | 'exiting';
 

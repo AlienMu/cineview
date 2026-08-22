@@ -15,7 +15,7 @@ import {
   type SceneLayoutInfo,
   type ScrollInputDirection,
 } from './directScrollHelpers';
-import { createKeyedScrollExternalStore } from './scrollExternalStore';
+import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 import {
   areScrollSceneRenderSnapshotsEqual,
   EMPTY_SCROLL_SCENE_SNAPSHOT,
@@ -27,7 +27,7 @@ import {
   createScrollSceneFrameStore,
   type ScrollSceneFrame,
   type ScrollSceneFrameStore,
-} from './scrollSceneFrameStore';
+} from '../runtime/scrollSceneFrameStore';
 import type { ScrollTimelineStore } from './useScrollZoneRegistry';
 
 interface UseScrollSceneSnapshotsParams {

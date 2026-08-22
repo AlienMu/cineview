@@ -7,7 +7,10 @@ import {
   type ScrollSceneSnapshotStore,
 } from './ScrollSceneSlot';
 import { ScrollSceneStack } from './ScrollSceneStack';
-import { createScrollSceneFrameStore, type ScrollSceneFrame } from './scrollSceneFrameStore';
+import {
+  createScrollSceneFrameStore,
+  type ScrollSceneFrame,
+} from '../runtime/scrollSceneFrameStore';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import type { SceneAuthoringCompatProps } from './directScrollHelpers';
 

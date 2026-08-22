@@ -35,14 +35,17 @@ import {
 } from './directScrollHelpers';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
 import { ScrollbarOverlay } from './ScrollbarOverlay';
-import { createScrollExternalStore } from './scrollExternalStore';
+import { createScrollExternalStore } from '../runtime/scrollExternalStore';
 import { ScrollSceneStack } from './ScrollSceneStack';
 import { useNativeScrollController } from './useNativeScrollController';
 import { useScrollSceneLayout } from './useScrollSceneLayout';
 import { useScrollSceneSnapshots } from './useScrollSceneSnapshots';
 import { useScrollViewport } from './useScrollViewport';
 import { useScrollZoneRegistry } from './useScrollZoneRegistry';
-import { CineViewRuntimeContext, type CineViewRuntimeContextValue } from './runtimeContext';
+import {
+  CineViewRuntimeContext,
+  type CineViewRuntimeContextValue,
+} from '../runtime/runtimeContext';
 import { SceneScrollRuntimeContext, SceneScrollTimelineContext } from '../Scene/sceneScrollRuntime';
 
 export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(

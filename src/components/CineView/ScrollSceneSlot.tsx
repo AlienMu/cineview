@@ -8,8 +8,8 @@ import type {
 import type { ScrollModeConfig } from '../../types';
 import type { GroupedCallbacks } from './regroupCallbacks';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
-import type { KeyedScrollExternalStore } from './scrollExternalStore';
-import type { ScrollSceneFrameStore } from './scrollSceneFrameStore';
+import type { KeyedScrollExternalStore } from '../runtime/scrollExternalStore';
+import type { ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 
 export interface ScrollSceneRenderSnapshot {
   sceneLayout: SceneLayoutInfo | null;

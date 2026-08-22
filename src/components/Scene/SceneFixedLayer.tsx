@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefCallback } from 'react';
 import type { FixedLayerMetrics } from './helpers';
 import { getFixedLayerMetrics } from './helpers';
-import type { ScrollSceneFrameStore } from '../CineView/scrollSceneFrameStore';
+import type { ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 
 interface SceneFixedLayerProps {
   sceneIndex: number;

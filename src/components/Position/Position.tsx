@@ -13,7 +13,7 @@ import React, { useMemo, useContext, createContext, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCineViewContext } from '../../context/CineViewContext';
 import type { PositionProps } from '../../types';
-import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
+import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
 
 interface PositionLegacyCompatProps {
   x?: number;

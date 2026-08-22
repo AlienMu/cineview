@@ -8,7 +8,7 @@ import { SceneInternal as Scene } from './Scene';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { SceneContext } from '../Animate/Animate';
 import type { SceneContextType } from '../Animate/Animate';
-import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import type { AnimationType } from '../../types';
 import type { DragRenderLane } from './types';
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { animate, type MotionValue, useMotionValue, useTransform } from 'framer-motion';
+import { animate, type MotionValue, useMotionValue } from 'framer-motion';
 import type { AnimatePhase, ParsedAnimationVariant } from '../../types';
 import type { SceneContextType } from './Animate';
 import {
@@ -11,6 +11,7 @@ import {
   type AnimatableProperty,
   type VariantRecord,
 } from './animateInterpolation';
+import { useAnimatedPropertyLanes } from './useAnimatedPropertyLanes';
 
 interface UseAnimateArrivalParams {
   enabled: boolean;
@@ -46,39 +47,46 @@ interface ArrivalPlaybackConfig {
   autoEnterSuppressed: boolean;
 }
 
-function useMixedValue(
-  visualMotion: MotionValue<number>,
-  variantsRef: MutableRefObject<{ initial: VariantRecord; animate: VariantRecord }>,
-  property: AnimatableProperty
-): MotionValue<number | string> {
-  return useTransform(visualMotion, (progress) => {
-    const variants = variantsRef.current;
-    return lerpTransformValue(
-      getVariantValue(variants.initial, property, getDefaultValue(property, 'initial')),
-      getVariantValue(variants.animate, property, getDefaultValue(property, 'animate')),
-      progress
-    );
-  });
+interface ArrivalVariantRecords {
+  initial: VariantRecord;
+  animate: VariantRecord;
 }
 
-function useNumericValue(
-  visualMotion: MotionValue<number>,
-  variantsRef: MutableRefObject<{ initial: VariantRecord; animate: VariantRecord }>,
+function resolveArrivalPropertyValue(
+  progress: number,
+  variants: ArrivalVariantRecords,
   property: AnimatableProperty
-): MotionValue<number> {
-  return useTransform(visualMotion, (progress) => {
-    const variants = variantsRef.current;
-    const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
-    const initial = parseNumericValue(
-      getVariantValue(variants.initial, property, getDefaultValue(property, 'initial')),
-      fallback
-    );
-    const target = parseNumericValue(
-      getVariantValue(variants.animate, property, getDefaultValue(property, 'animate')),
-      fallback
-    );
-    return initial + (target - initial) * progress;
-  });
+): number | string {
+  return lerpTransformValue(
+    getVariantValue(variants.initial, property, getDefaultValue(property, 'initial')),
+    getVariantValue(variants.animate, property, getDefaultValue(property, 'animate')),
+    progress
+  );
+}
+
+/**
+ * Parses both endpoints first, then lerps numerically. This differs from the
+ * lane factory's default `parse ∘ mixed-resolve` composition: with an
+ * unparseable endpoint string (e.g. opacity: 'visible') this keeps tweening
+ * toward the fallback for the whole pass, instead of holding at the initial
+ * frame and snapping on the final one. Passed as the numeric resolver so the
+ * factory reproduces the driver's former local helper exactly.
+ */
+function resolveArrivalNumericPropertyValue(
+  progress: number,
+  variants: ArrivalVariantRecords,
+  property: AnimatableProperty
+): number {
+  const fallback = parseNumericValue(getDefaultValue(property, 'animate'), 0);
+  const initial = parseNumericValue(
+    getVariantValue(variants.initial, property, getDefaultValue(property, 'initial')),
+    fallback
+  );
+  const target = parseNumericValue(
+    getVariantValue(variants.animate, property, getDefaultValue(property, 'animate')),
+    fallback
+  );
+  return initial + (target - initial) * progress;
 }
 
 /**
@@ -98,9 +106,9 @@ export function useAnimateArrival({
   enterDuration,
   enterRef,
 }: UseAnimateArrivalParams): UseAnimateArrivalReturn {
-  const variantsRef = useRef({
-    initial: {} as VariantRecord,
-    animate: {} as VariantRecord,
+  const variantsRef = useRef<ArrivalVariantRecords>({
+    initial: {},
+    animate: {},
   });
   const autoEnterSuppressed = Boolean(enterRef) && delay <= 0;
   const latestConfigRef = useRef<ArrivalPlaybackConfig>({
@@ -323,19 +331,15 @@ export function useAnimateArrival({
     };
   }, [enabled, enterRef, triggerManualEnter]);
 
-  const opacity = useNumericValue(visualMotion, variantsRef, 'opacity');
-  const x = useMixedValue(visualMotion, variantsRef, 'x');
-  const y = useMixedValue(visualMotion, variantsRef, 'y');
-  const scale = useNumericValue(visualMotion, variantsRef, 'scale');
-  const rotate = useMixedValue(visualMotion, variantsRef, 'rotate');
-  const rotateX = useMixedValue(visualMotion, variantsRef, 'rotateX');
-  const rotateY = useMixedValue(visualMotion, variantsRef, 'rotateY');
-  const skewX = useMixedValue(visualMotion, variantsRef, 'skewX');
-  const skewY = useMixedValue(visualMotion, variantsRef, 'skewY');
-  const filter = useMixedValue(visualMotion, variantsRef, 'filter');
+  const lanes = useAnimatedPropertyLanes(
+    visualMotion,
+    variantsRef,
+    resolveArrivalPropertyValue,
+    resolveArrivalNumericPropertyValue
+  );
 
   return {
-    style: { opacity, x, y, scale, rotate, rotateX, rotateY, skewX, skewY, filter },
+    style: lanes.style,
     visualMotion,
     phaseMotion,
     shouldRunInfinite,

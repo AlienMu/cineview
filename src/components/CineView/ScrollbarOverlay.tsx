@@ -11,7 +11,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { clamp, normalizeKeyboardDeltaPx } from './directScrollHelpers';
-import type { ScrollExternalStore } from './scrollExternalStore';
+import type { ScrollExternalStore } from '../runtime/scrollExternalStore';
 
 import type { ScrollbarConfig, SlideDirection } from '../../types';
 

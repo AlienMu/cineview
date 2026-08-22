@@ -22,7 +22,7 @@ import {
   SceneScrollTakeoverContext,
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
-import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 
 jest.mock('framer-motion', () => {
   const actualMotion = jest.requireActual('framer-motion');

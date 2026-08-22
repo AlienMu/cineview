@@ -10,7 +10,7 @@ import {
   type FrozenAnimationRegistrySnapshot,
 } from '../../animations/registry';
 import type { ParsedAnimationVariant } from '../../types';
-import type { CineViewRuntimeContextValue } from '../CineView/runtimeContext';
+import type { CineViewRuntimeContextValue } from '../runtime/runtimeContext';
 
 interface UseSceneAnimationRegistryParams {
   sceneIndex: number;

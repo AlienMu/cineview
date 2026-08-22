@@ -17,8 +17,30 @@ const DIST_DIR = path.join(__dirname, '../dist');
 const PACKAGE_JSON = path.join(__dirname, '../package.json');
 const MINIFY_SCRIPT =
   process.env.CINEVIEW_MINIFY_SCRIPT || path.join(__dirname, 'minify-library-entries.mjs');
-// 兜底预算：仅当产物清单里没给该产物单独的 budgetKB 时使用。
-const MAX_BUNDLE_SIZE_KB = Number(process.env.CINEVIEW_MAX_BUNDLE_SIZE_KB || 50);
+// 预算解析：未提供或空串 → 兜底 50；显式提供（含 '0'）→ 必须是有限数字，否则**响亮失败**。
+// 非数字值绝不能静默通过——NaN 落进 `size > budget` 恒 false 等于把尺寸门整个关掉。
+const RAW_MAX_BUNDLE_SIZE_KB = process.env.CINEVIEW_MAX_BUNDLE_SIZE_KB;
+const MAX_BUNDLE_SIZE_KB =
+  RAW_MAX_BUNDLE_SIZE_KB !== undefined && RAW_MAX_BUNDLE_SIZE_KB !== ''
+    ? Number(RAW_MAX_BUNDLE_SIZE_KB)
+    : 50;
+if (
+  RAW_MAX_BUNDLE_SIZE_KB !== undefined &&
+  RAW_MAX_BUNDLE_SIZE_KB !== '' &&
+  !Number.isFinite(MAX_BUNDLE_SIZE_KB)
+) {
+  console.error(
+    `✗ 错误: CINEVIEW_MAX_BUNDLE_SIZE_KB 必须是有限数字 KB 值，当前值: ${JSON.stringify(
+      RAW_MAX_BUNDLE_SIZE_KB
+    )}`
+  );
+  process.exit(1);
+}
+// 显式提供（非空、合法）时是**全产物硬覆盖**，压过清单预算 —— verify-failure-injection
+// 靠把它设成 0 来证明尺寸门真的会拒绝超标产物；若只做缺省兜底，清单里带 budgetKB 的
+// 产物就永远盖不住，注入失效（门守卫无人验收）。空串视为未提供（不覆盖）。
+const BUDGET_OVERRIDE_KB =
+  RAW_MAX_BUNDLE_SIZE_KB !== undefined && RAW_MAX_BUNDLE_SIZE_KB !== '' ? MAX_BUNDLE_SIZE_KB : null;
 
 /**
  * 产物清单 —— 由 `scripts/build-all.mjs` 写出 `dist/artifacts.json`。
@@ -357,7 +379,9 @@ async function main() {
   const esModule = checkFile('cineview.es.mjs', 'ES 模块');
   const esModuleGz = checkFile('cineview.es.mjs.gz', 'ES 模块 (gzipped)');
   const esBudgetKB =
-    artifacts.find((a) => a.file === 'cineview.es.mjs')?.budgetKB ?? MAX_BUNDLE_SIZE_KB;
+    BUDGET_OVERRIDE_KB ??
+    artifacts.find((a) => a.file === 'cineview.es.mjs')?.budgetKB ??
+    MAX_BUNDLE_SIZE_KB;
 
   if (esModuleGz.exists && esModuleGz.size > esBudgetKB) {
     log(`  ✗ 错误: ES 模块 gzip 大小 (${esModuleGz.size} KB) 超过预算 (${esBudgetKB} KB)`, 'red');
@@ -374,7 +398,7 @@ async function main() {
   log('\n2. 检查 UMD 模块输出（按模式分包）:', 'yellow');
   const umdArtifacts = artifacts
     .filter((a) => !a.module)
-    .map((a) => ({ file: a.file, label: a.label, budgetKB: a.budgetKB }));
+    .map((a) => ({ file: a.file, label: a.label, budgetKB: BUDGET_OVERRIDE_KB ?? a.budgetKB }));
   const umdChecked = umdArtifacts.map(({ file, label, budgetKB }) => {
     const mod = checkFile(file, label);
     const gz = checkFile(`${file}.gz`, `${label} (gzipped)`);

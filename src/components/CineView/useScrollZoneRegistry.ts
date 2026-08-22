@@ -9,7 +9,7 @@ import {
   resolveSceneScrollAnimationBudgets,
   type SceneScrollAnimationRegistration,
 } from '../Scene/sceneScrollBudget';
-import { createKeyedScrollExternalStore } from './scrollExternalStore';
+import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 
 export interface ScrollZoneRegistration {
   sceneIndex: number;

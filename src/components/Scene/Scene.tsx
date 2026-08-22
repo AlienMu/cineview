@@ -17,7 +17,7 @@ import { useSceneRuntimeState } from './useSceneRuntimeState';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
 import { useDragSceneEngine } from './useDragSceneEngine';
 import { useElementTrack } from './useElementTrack';
-import { useCineViewRuntimeContext } from '../CineView/runtimeContext';
+import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
 import { SceneFixedLayerContext } from '../Position/Position';
 import { SceneScrollTakeoverContext } from './sceneScrollRuntime';
 import { SceneFixedLayer } from './SceneFixedLayer';

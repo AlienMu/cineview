@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, renderHook } from '@testing-library/react';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
-import { createKeyedScrollExternalStore } from './scrollExternalStore';
+import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 import type { SceneAuthoringCompatProps, SceneLayoutInfo } from './directScrollHelpers';
 import { useScrollSceneSnapshots } from './useScrollSceneSnapshots';
 

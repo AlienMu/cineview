@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { render } from '@testing-library/react';
-import { createKeyedScrollExternalStore } from '../CineView/scrollExternalStore';
+import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 import type { SceneScrollTimelineState, SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 import { useAnimateScroll } from './useAnimateScroll';
 

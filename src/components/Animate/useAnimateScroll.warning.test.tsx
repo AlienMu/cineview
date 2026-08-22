@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
-import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 
 jest.mock('framer-motion', () => {
   const actualMotion = jest.requireActual('framer-motion');

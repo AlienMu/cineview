@@ -110,7 +110,7 @@ try {
     run(process.execPath, [path.join(root, 'scripts/verify-build.js')], {
       env: { ...process.env, CINEVIEW_MAX_BUNDLE_SIZE_KB: '0' },
     }),
-    '超过目标'
+    '超过预算'
   );
 
   const propertyManglingScript = path.join(tempRoot, 'property-mangling.mjs');

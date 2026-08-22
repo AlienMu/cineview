@@ -29,6 +29,18 @@ export type AnimatableProperty =
 export type TransformValue = number | string;
 export type VariantRecord = Record<string, unknown>;
 
+/**
+ * Compiled variant records shared by the drag and scroll drivers (both have
+ * full enter/exit semantics). The arrival driver intentionally keeps its own
+ * two-field shape { initial, animate } — it has no exit concept, and faking an
+ * empty exitTarget here would be a semantic lie.
+ */
+export interface SceneVariantRecords {
+  enterInitial: VariantRecord;
+  enterAnimate: VariantRecord;
+  exitTarget: VariantRecord;
+}
+
 function resolveKeyframeTimes(
   record: VariantRecord,
   property: AnimatableProperty,

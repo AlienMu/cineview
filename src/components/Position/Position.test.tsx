@@ -6,7 +6,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { Position } from './Position';
 import { CineViewProvider } from '../../context/CineViewContext';
-import { CineViewRuntimeContext } from '../CineView/runtimeContext';
+import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import { SceneFixedLayerContext } from './Position';
 
 // 测试辅助函数：创建带 Context 的包装器
