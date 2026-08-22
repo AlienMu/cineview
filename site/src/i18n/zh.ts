@@ -182,31 +182,12 @@ export const zh = {
   'docs.editTip': '内容随框架版本更新',
   'docs.notFound': '未找到该文档',
 
-  // 文档导航分组与条目标题
+  // 文档导航分组（条目标题走各语言 md frontmatter，不再经 i18n）
   'docs.group.start': '入门',
   'docs.group.concepts': '核心概念',
   'docs.group.components': '组件 API',
   'docs.group.animation': '动画',
   'docs.group.advanced': '进阶',
-  'docs.page.introduction': '介绍',
-  'docs.page.installation': '安装',
-  'docs.page.quickstart': '快速开始',
-  'docs.page.responsive': '单尺子换算',
-  'docs.page.modes': 'drag 与 scroll',
-  'docs.page.timeline': '时间轴与所有权',
-  'docs.page.cineview': 'CineView',
-  'docs.page.scene': 'Scene',
-  'docs.page.animate': 'Animate',
-  'docs.page.position': 'Position',
-  'docs.page.image': 'Image',
-  'docs.page.container': 'Container',
-  'docs.page.presets': '预设动画总览',
-  'docs.page.custom': '自定义动画',
-  'docs.page.compose': '组合动画',
-  'docs.page.centerlock': 'center-lock 与 zone',
-  'docs.page.preload': '冷启动与预加载',
-  'docs.page.callbacks': '回调与错误处理',
-  'docs.page.performance': '性能',
 
   // ── 通用 ──
   'common.timecode': '时间码',

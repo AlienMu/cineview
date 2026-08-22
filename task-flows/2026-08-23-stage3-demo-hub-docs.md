@@ -24,9 +24,17 @@
 
 ## T1 节点（入门+核心概念+组件 API + Hub + 架构）
 
-- [ ] T1.1 文档管线：content/docs/{zh,en}/ 目录 + manifest.ts（路由/侧边栏/同构校验）
-      + DocsPage 改造为 react-markdown 渲染（卸内联 DocItem）
-- [ ] T1.2 迁移现有内联内容为双语 md（introduction 等既有页）
+- [x] T1.1 文档管线 ✅：content/docs/{zh,en}/ 目录 + manifest.ts（glob raw + frontmatter
+      解析 + 索引/TOC/headingId 同源）+ DocsPage 混合改造（md 优先、legacy 兜底，
+      迁移期不缺页）+ global.css markdown/hljs 令牌化样式 + vite-env.d.ts +
+      契约测试 docsContent.test.ts 3/3（zh/en 同构/组白名单/frontmatter title，
+      fs 直读独立复检）。验证：site type-check 0 错、site build 通过。
+      试点页 introduction 双语已迁。T1.2（余 15 页×2 + legacy 拆除）与
+      minimal-example M1-M2 已派双 agent 并行，均带 /tmp 笔记防中断
+- [x] T1.2 迁移现有内联内容为双语 md ✅（agent 执行，主会话五项抽查属实）：
+      16 页 ×2 = 32 md 全迁（en 正文来自 legacy、zh 忠实翻译、代码围栏字节级一致）；
+      DocsPage legacy 全拆（596→173 行）；i18n 双字典对称删 19 个 docs.page.* 死键；
+      验证三连绿（type-check / 契约 3/3 / build）。过程一次 Edit 反向自愈无残留
 - [ ] T1.3 入门三页：installation / getting-started（示例同步自 examples/minimal）/ introduction
 - [ ] T1.4 核心概念五页：px2vw 单尺 / 双轨与唯一所有者 / drag vs scroll 选型 /
       时间轴与编排（waitFor·delay·stagger）/ scene-scoped fixed layer

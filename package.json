@@ -51,7 +51,7 @@
     "type-check": "tsc --noEmit",
     "type-check:framework": "tsc -p tsconfig.framework.json --noEmit",
     "type-check:site": "pnpm --dir site type-check",
-    "type-check:examples": "pnpm --dir examples/performance-test type-check",
+    "type-check:examples": "pnpm --dir examples/performance-test type-check && pnpm --dir examples/minimal type-check",
     "prepublishOnly": "pnpm verify",
     "prepare": "husky install",
     "analyze": "vite build && open stats.html",

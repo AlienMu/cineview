@@ -187,31 +187,12 @@ export const en: Dict = {
   'docs.editTip': 'Content tracks the framework version',
   'docs.notFound': 'Document not found',
 
-  // Docs nav groups & page titles
+  // Docs nav groups (page titles live in per-language md frontmatter, not i18n)
   'docs.group.start': 'Getting Started',
   'docs.group.concepts': 'Core Concepts',
   'docs.group.components': 'Components',
   'docs.group.animation': 'Animation',
   'docs.group.advanced': 'Advanced',
-  'docs.page.introduction': 'Introduction',
-  'docs.page.installation': 'Installation',
-  'docs.page.quickstart': 'Quick Start',
-  'docs.page.responsive': 'Responsive',
-  'docs.page.modes': 'Drag vs Scroll',
-  'docs.page.timeline': 'Timeline & Ownership',
-  'docs.page.cineview': 'CineView',
-  'docs.page.scene': 'Scene',
-  'docs.page.animate': 'Animate',
-  'docs.page.position': 'Position',
-  'docs.page.image': 'Image',
-  'docs.page.container': 'Container',
-  'docs.page.presets': 'Preset Animations',
-  'docs.page.custom': 'Custom Animations',
-  'docs.page.compose': 'Composed Animations',
-  'docs.page.centerlock': 'center-lock & zones',
-  'docs.page.preload': 'Cold start & preload',
-  'docs.page.callbacks': 'Callbacks & errors',
-  'docs.page.performance': 'Performance',
 
   // ── Common ──
   'common.timecode': 'Timecode',

@@ -887,3 +887,125 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     display: none;
   }
 }
+
+/* ============================================================
+ * docs markdown 管线（阶段 3 T1.1）：react-markdown 正文 + hljs 高亮。
+ * 仅作用于 .docs-article__markdown，不外溢；色值全部走 tokens 令牌。
+ * ============================================================ */
+
+.docs-article__markdown {
+  display: grid;
+  gap: 1rem;
+  font-size: var(--text-base);
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+.docs-article__markdown > p:first-child {
+  /* 首段承担 legacy .docs-article__intro 的导语角色 */
+  font-size: var(--text-lg);
+  color: var(--ink);
+}
+
+.docs-article__markdown h2 {
+  margin-top: 1.25rem;
+  font-size: var(--text-xl);
+  color: var(--ink);
+}
+
+.docs-article__markdown h3 {
+  margin-top: 0.75rem;
+  font-size: var(--text-lg);
+  color: var(--ink);
+}
+
+.docs-article__markdown pre {
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+  background: var(--film-white);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.docs-article__markdown :not(pre) > code {
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--frame-line-soft);
+  border-radius: 5px;
+  background: var(--film-white-2);
+  font-size: 0.85em;
+  color: var(--accent-ink);
+}
+
+.docs-article__markdown ul,
+.docs-article__markdown ol {
+  display: grid;
+  gap: 0.4rem;
+  padding-left: 1.25rem;
+}
+
+.docs-article__markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.docs-article__markdown th,
+.docs-article__markdown td {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--frame-line);
+  text-align: left;
+}
+
+.docs-article__markdown th {
+  background: var(--film-white-2);
+  color: var(--ink);
+}
+
+.docs-article__markdown blockquote {
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--ink-mute);
+}
+
+/* hljs 最小主题：暖纸底上一套中性墨 + 强调色 token，不引第三方主题 css。 */
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section {
+  color: var(--accent-ink);
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-template-variable,
+.hljs-variable {
+  color: var(--ink-soft);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-meta {
+  color: var(--rec);
+}
+
+.hljs-built_in,
+.hljs-type {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
