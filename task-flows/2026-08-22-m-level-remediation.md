@@ -53,7 +53,29 @@
   - 复审 INFO×2：key-order 测试锁返回键序非 hook 创建序（等价，记录）；lane helper
     导出收敛为私有（仅工厂/类型/接口三项导出）
   - 过程：503 打断一次（死在变异恢复中，盘上核实已恢复后续跑）
-- [ ] N6 上线终审（含真机浏览器验收 lane——发布硬条件，待环境就绪）
+- [x] N6 上线终审：**VERDICT: PASS**（2026-08-22 真机浏览器验收 lane，独立判据）
+  - 全新 server 4023（验收后已杀）；七场景 + console 全过：
+    S1 正向锁定（90 样本 maxGap 0.011 单调达 1.000）/ S2 反向重锁 + 多 zone 倒序重放
+    （同曲线恢复，进度桶 max 差 0.03）/ S3 大 flick ±20000px 钳段内无死锁 /
+    S4 键盘+scrollbar 一致 / S5 并发性能：scroll P95 17.5ms 掉帧 0.3% longtask 0；
+    drag P95 16.7ms 掉帧 0% longtask 0 / S6 drag 真拖拽：栈跟手、lane scrub 跟手、
+    回弹/提交/反向退场 scrub 跟手 / S7 视频擦洗：rVFC 57 帧全 distinct 无冻结、
+    尾跳 0.21s、滚离复位滚回恢复（act3 + demo-video 双场景）；9 会话 0 error/warn
+  - 首轮 FAIL×3 组全部 retract（探针问题非产品缺陷，各有诊断证据：dist 调试属性
+    死开关→改几何代理；drag wrapper opacity 误判→改 top 判据；视频创作时序门控→重定判据）
+  - **附带发现（P3 记档不阻断）**：dist 产物中 `__CINEVIEW_SCROLL_DEBUG__` 调试开关
+    被 NODE_ENV 构建期常量折叠成不可达死代码——真机排查手段受限，如需保留须改
+    运行时判定或显式 prop（留待后续裁决）
+  - 证据：site/review/20260822-n6-acceptance/（笔记 + 探针 + 20 截图）
+
+## 收口：发布链全绿
+
+4179d74（批量整改）→ aeb1b49（P1 修复，对抗 PASS）→ efc9c2c（S 级清理，对抗 PASS）
+→ 1a63b0a（M 级整改，对抗 PASS + verify:framework:static GATE-EXIT=0）
+→ N6 真机验收 PASS。**上线评审完全通过。**
+
+后续（用户指令序）：阶段 3 官网文档续作（任务清单按当前框架能力更新）→
+教学级 minimal example（单列 task-flow）→ grill-me 细节沟通。
 
 ## 后续（本 task-flow 不含，另行排期）
 
