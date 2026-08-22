@@ -55,8 +55,32 @@
       1582/122 测试数、build:verify 14/14 与 verify 链修复记录、N6 验收完成、
       firstSceneEnter 关闭项、下一步重点改为阶段 3 状态、test-threshold.js
       归属纠正（真门 jest.config.js coverageThreshold）
-- [ ] T1.8 门禁 + fresh agent 验收（API 断言对齐 + 浏览器 lane：双语切换/高亮/锚点/
-      Hub 四交互）+ 提交
+- [x] T1.8 门禁 + fresh agent 验收 ✅ **首轮 FAIL → 修复 → 聚焦复审 PASS（2026-08-23）**
+  - 首轮全量：A 审计 38 md（唯一真错误五态/六态已修）；文档站 18/18；minimal M4 8/8；
+    Demo Hub 8 PASS / 2 FAIL（waitFor 链序 / 卡片重播）+ 按钮遮挡观察
+  - 修复：title 摘 phase 改纯三级链；ManualControlSlot 重做（enter/exit 双按钮 +
+    exitAnimation + hit-testing 前置 z-index）；错误注释改扁平类型事实；
+    timeline.md 双语六态
+  - 复审（真机 4025）：链窗 [0,600]→[600,1200]→[1200,7200]px 零重叠、真指针
+    enter→exit→enter 循环、三态按钮恒可点、console 0 —— 全 PASS
+  - 证据入库 site/review/20260823-t18-acceptance/（两轮笔记/探针/trace/截图）
+  - **T1 波收口** ✅（19 页×2 + 管线 + Hub + minimal + CLAUDE.md + README）
+  - **首轮终验 FAIL（2026-08-23，agent 全量报告 /tmp/t18-acceptance-notes.md）**：
+    A 审计 38 md 唯一真错误 = timeline.md 五态/六态（当轮已修）；文档站 18/18 PASS
+    （双语/路由/高亮/TOC/console 全绿）；minimal M4 8/8 PASS；Demo Hub 8 PASS / 2 FAIL
+  - **FAIL 1 waitFor 链序**：leader 带 phase 窗口时 sceneScrollBudget 的 resolveTiming
+    双时钟分裂（px 级 totalEndPx 做 phase 校正、ms 级 waitFor 链没跟上）→ subline 在
+    title 14% 时起动。**修复**：demo 侧摘 phase 改纯三级链。
+    ⚠️ **框架侧缺口记档（待用户裁决 P2）**：phase leader + waitFor follower 的语义
+    分裂是框架级问题——修 sceneScrollBudget（链消费 leader 的 phaseEnd）或在类型/文档
+    声明约束。minimal 例纯链严格有序证明缺口仅在混用时显现。
+  - **FAIL 2 卡片重播**：无 exitAnimation 的元素「no exit => stay visible」，
+    replayOnReenter 结构性不生效，原 hint 教了无法演示的规则。**修复**：改
+    enter/exit 双按钮（visibility 轨支持 exitRef），hint 改教轨道支持矩阵。
+  - **附带修复**：真指针按钮被卡片 initial 位移盖 hit-testing → 按钮前置+z-index；
+    我的错误注释（waitFor/phase 互斥判别联合）改正为扁平类型事实（AnimateBaseProps
+    timeline 扁平可选字段，窄类型仅 AnimateVideo）
+  - 复审 agent 运行中（聚焦 A/B/C/D 四场景）
 
 ## T2 节点（动画+进阶）
 
@@ -64,7 +88,10 @@
 - [ ] T2.2 进阶六页：center-lock 与 zone / 冷启动预加载 / 回调与错误上报 /
       性能实践（全关键帧编码硬约束、motionValue 纪律、并发观测）/ direction:'x' /
       滚动条主题化
-- [ ] T2.3 README 刷新（补 drag 模式示例 + SSR 边界声明 + 关键帧约束）
+- [x] T2.3 README 刷新 ✅：补 drag 模式最小示例（默认模式此前无示例）+
+      examples/minimal 活代码真源指针 + Video Scrubbing 章节（全关键帧硬约束 +
+      ffmpeg 命令 + dev 延迟守卫说明）+ Support Matrix 增 Rendering runtime 行
+      （CSR only，SSR 不支持）
 - [ ] T2.4 门禁 + fresh agent 验收 + 提交
 
 ## 明确不做（本轮）

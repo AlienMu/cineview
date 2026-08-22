@@ -36,6 +36,25 @@ The root `CineView` owns the mode. `Scene` owns chapter layout and optional
 scroll takeover. `Animate` consumes the active mode's timeline; it does not
 declare a root mode.
 
+The default mode is `drag` — scene-to-scene paging with thresholded release
+and rebound:
+
+```tsx
+<CineView config={{ size: 750 }}>
+  <Scene sceneId="cover">
+    <Animate animateId="title" enterAnimation="fade-in">
+      <h1>Opening frame</h1>
+    </Animate>
+  </Scene>
+  <Scene sceneId="story">{/* … */}</Scene>
+</CineView>
+```
+
+A complete runnable mirror of these snippets lives in
+[`examples/minimal`](./examples/minimal) — start it with
+`pnpm install && pnpm build && pnpm --dir examples/minimal install && pnpm --dir examples/minimal dev`.
+It is the living source of truth for the code on this page.
+
 ## Public Building Blocks
 
 - `CineView`: engine entry point, responsive scale context, preload orchestration,
@@ -47,6 +66,21 @@ declare a root mode.
 - `Container`: design-coordinate box sizing.
 - `Image`: preload-aware image component.
 - `AnimateVideo`: atomic MotionValue scrubbing with explicit scrub ranges and single-writer handoff to native playback.
+
+## Video Scrubbing
+
+`AnimateVideo` maps scroll or drag position directly to `currentTime` and plays
+in reverse on the way back. Videos authored for scrubbing **must use dense
+keyframes**: with sparse keyframes every seek decodes a long run of frames from
+the nearest keyframe, the decode thread saturates, and scrubbing drops frames.
+Encode all-keyframe:
+
+```bash
+ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
+```
+
+The dev build measures seek latency per source and warns once when the median
+exceeds 50 ms, so a mis-encoded video identifies itself during development.
 
 ## Input and Accessibility
 
@@ -71,12 +105,13 @@ drag and scroll behavior is documented in
 
 ## Support Matrix
 
-| Runtime or peer   | Supported versions                        | CI coverage                                  |
-| ----------------- | ----------------------------------------- | -------------------------------------------- |
-| Node.js           | 18, 20, 22                                | Every verification job                       |
-| React / React DOM | 18.2+ and 19.x                            | React 18 lockfile job plus React 19 peer job |
-| Framer Motion     | 10.x and 11.x-compatible releases         | Peer range and root test install             |
-| Browsers          | Current Chrome, Firefox, Safari, and Edge | Release browser lane                         |
+| Runtime or peer   | Supported versions                                                                        | CI coverage                                  |
+| ----------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Node.js           | 18, 20, 22                                                                                | Every verification job                       |
+| React / React DOM | 18.2+ and 19.x                                                                            | React 18 lockfile job plus React 19 peer job |
+| Framer Motion     | 10.x and 11.x-compatible releases                                                         | Peer range and root test install             |
+| Browsers          | Current Chrome, Firefox, Safari, and Edge                                                 | Release browser lane                         |
+| Rendering runtime | CSR only — the engines read `window`/layout at mount; SSR (next.js etc.) is not supported | Release browser lane                         |
 
 Node.js 18 is the minimum because it is the baseline required by the Vite 5
 toolchain. React and React DOM are peer dependencies and are never bundled.

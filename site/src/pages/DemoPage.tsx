@@ -45,36 +45,47 @@ const ZoneReadout = forwardRef<ZoneReadoutHandle>(function ZoneReadout(_, ref) {
 });
 
 /**
- * enterRef 手动入场交互位 —— visibility 轨（timeline.sceneControlled: false）是
- * 时间驱动轨，enterRef 在此受支持；scrub 轨结构上不可能支持（唯一所有者）。
- * 无 delay 时自动入场被抑制，元素停在 initial 帧直到按钮触发；粘性所有权意味着
- * 再次入场需滚出视口再回来（replayOnReenter）—— hint 文案教的就是这条规则。
+ * enterRef/exitRef 手动控制交互位 —— visibility 轨（timeline.sceneControlled:
+ * false）是时间驱动轨，两个 ref 在此受支持；scrub 轨（zone 接管/拖拽位移）是
+ * 唯一所有者的纯函数，ref 会被忽略并上报 INVALID_ANIMATION。无 delay 时自动
+ * 入场被抑制、传 exitRef 时自动退场闸门关闭——整张卡片的进退完全由按钮持有。
  */
-function ManualEnterSlot({
+function ManualControlSlot({
   card,
-  button,
+  enterButton,
+  exitButton,
   hint,
 }: {
   card: string;
-  button: string;
+  enterButton: string;
+  exitButton: string;
   hint: string;
 }): JSX.Element {
   const enterRef = useRef<(() => void) | null>(null);
+  const exitRef = useRef<(() => void) | null>(null);
   return (
     <div className="demo-manual">
+      {/* 按钮在卡片之前：slide-up 的 initial 帧占位（opacity 0 但带位移）会
+          盖住其后元素的 hit-testing，DOM 序 + z-index 让按钮恒可点。 */}
+      <div className="demo-manual__buttons">
+        <button type="button" className="btn btn--ghost" onClick={() => enterRef.current?.()}>
+          {enterButton}
+        </button>
+        <button type="button" className="btn btn--ghost" onClick={() => exitRef.current?.()}>
+          {exitButton}
+        </button>
+      </div>
       <Animate
         animateId="demo-manual-card"
         enterAnimation="slide-up"
-        duration={{ enter: 640 }}
+        exitAnimation="fade-out"
+        duration={{ enter: 640, exit: 400 }}
         timeline={{ sceneControlled: false }}
-        visibility={{ replayOnReenter: true }}
         enterRef={enterRef}
+        exitRef={exitRef}
       >
         <p className="demo-manual__card">{card}</p>
       </Animate>
-      <button type="button" className="btn btn--ghost" onClick={() => enterRef.current?.()}>
-        {button}
-      </button>
       <p className="demo-manual__hint">{hint}</p>
     </div>
   );
@@ -84,7 +95,8 @@ interface ScrollDemoCopy {
   subline: string;
   videoLabel: string;
   manualCard: string;
-  manualButton: string;
+  manualEnterButton: string;
+  manualExitButton: string;
   manualHint: string;
 }
 
@@ -118,16 +130,21 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
           <Container>
             <span className="demo-stage__index mono">CENTER-LOCK / ZONE</span>
             <ZoneReadout ref={readoutRef} />
+            {/* waitFor 三级链沿滚动推进。链的每一环都不带 phase 窗口：
+                T1.8 终验实证 leader 带 phase 时预算编译器会分裂双时钟
+                （px 级窗口被校正、ms 级 waitFor 链没跟上），链序立即劣化——
+                纯链式（title → subline → video）则严格有序（minimal 例同证）。 */}
             <Animate
               animateId="demo-scroll-title"
               enterAnimation="focus-in"
-              timeline={{ phase: { start: 0.05, end: 0.3 } }}
+              timeline={{ delay: 0 }}
             >
               <h2>Progress becomes the scene timeline.</h2>
             </Animate>
-            {/* waitFor 级联沿滚动推进：subline 在 title 入场完成前被链住。
-                注：waitFor 与 phase 是互斥的 timeline 形态（types 判别联合），
-                链式定位由 registry 的 calculatedDelay 累加自动完成。 */}
+            {/* waitFor 级联：subline 在 title 入场完成前被链住；链序定位由
+                registry 的 calculatedDelay 累加完成。注：Animate 的 timeline
+                是扁平可选字段（waitFor 与 phase 可同传，无判别联合）；只有
+                AnimateVideo 的 timeline 是窄类型（仅 delay/waitFor）。 */}
             <Animate
               animateId="demo-scroll-subline"
               enterAnimation="slide-up"
@@ -149,9 +166,10 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
               height={270}
               aria-label={copy.videoLabel}
             />
-            <ManualEnterSlot
+            <ManualControlSlot
               card={copy.manualCard}
-              button={copy.manualButton}
+              enterButton={copy.manualEnterButton}
+              exitButton={copy.manualExitButton}
               hint={copy.manualHint}
             />
           </Container>
@@ -217,9 +235,11 @@ export default function DemoPage(): JSX.Element {
           scrollDemo: {
             subline: 'waitFor 把这一行链在标题入场完成之后——链条随滚动推进。',
             videoLabel: '帧擦洗演示视频',
-            manualCard: '这一张卡片停在 initial 帧，等你按按钮。',
-            manualButton: 'enterRef.current() — 手动入场',
-            manualHint: '粘性所有权：入场后想再看一次，滚出视口再滚回来（replayOnReenter）。',
+            manualCard: '这一张卡片的进与退都在你手里。',
+            manualEnterButton: 'enterRef.current() — 手动入场',
+            manualExitButton: 'exitRef.current() — 手动退场',
+            manualHint:
+              'enterRef/exitRef 只在时间驱动轨（此处 sceneControlled: false 的 visibility 轨）生效；scrub 轨是唯一所有者的纯函数，ref 会被忽略并上报 INVALID_ANIMATION。',
           },
         }
       : {
@@ -236,10 +256,11 @@ export default function DemoPage(): JSX.Element {
             subline:
               'waitFor chains this line after the title finishes — the chain advances with scroll.',
             videoLabel: 'Frame-scrub demo video',
-            manualCard: 'This card is held at its initial frame until you press the button.',
-            manualButton: 'enterRef.current() — enter manually',
+            manualCard: 'This card enters and exits only when you say so.',
+            manualEnterButton: 'enterRef.current() — enter manually',
+            manualExitButton: 'exitRef.current() — exit manually',
             manualHint:
-              'Sticky ownership: to replay, scroll out of the viewport and back (replayOnReenter).',
+              'enterRef/exitRef only work on time-driven lanes (here the visibility lane via sceneControlled: false); a scrub lane is a pure function of a single owner and ignores the refs with an INVALID_ANIMATION report.',
           },
         };
 

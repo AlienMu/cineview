@@ -1077,3 +1077,11 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   line-height: 1.6;
   color: var(--ink-mute);
 }
+
+.demo-manual__buttons {
+  position: relative;
+  z-index: 1; /* 盖过卡片 initial 帧的占位位移（hit-testing 修复，T1.8 发现） */
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}

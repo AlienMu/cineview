@@ -23,4 +23,4 @@ function CanvasLayer() {
 
 ## Read-only contract
 
-progress is 0..1, signedProgress retains exit direction, and phase is the shared five-state phase vocabulary. The returned object has no setters.
+progress is 0..1, signedProgress retains exit direction, and phase is the shared six-state phase vocabulary. The returned object has no setters.

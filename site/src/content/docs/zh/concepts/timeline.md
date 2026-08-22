@@ -23,4 +23,4 @@ function CanvasLayer() {
 
 ## 只读契约
 
-progress 取值 0..1，signedProgress 保留退场方向，phase 是共享的五态相位词表。返回对象没有任何 setter。
+progress 取值 0..1，signedProgress 保留退场方向，phase 是共享的六态相位词表。返回对象没有任何 setter。
