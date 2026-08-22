@@ -119,6 +119,12 @@
 
 ## 阶段 3 — Demo Hub + 全部文档
 
+> **2026-08-23 更新**：阶段 3 经重新 grill-me 对齐后**改由专属 task-flow 执行**——
+> `2026-08-23-stage3-demo-hub-docs.md`（两波分层：T1 入门+核心概念+组件 API、
+> T2 动画+进阶；文档架构定为双语 Markdown 目录；Demo Hub 补 3.2 原案 + 帧擦洗/
+> 手动控制两交互位；教学示例单列 `2026-08-23-minimal-example.md`）。
+> 本节原 3.1-3.8 清单以新 task-flow 为准，此处保留作历史对照。
+
 - [ ] 3.1 `/demo` 双模式 Hub（顶部切换 drag 全屏 / scroll 完整案例）
 - [ ] 3.2 scroll 完整案例（center-lock + zone progress 可视化 + 元素 waitFor 沿滚动推进）
 - [ ] 3.3 文档框架（react-markdown + remark-gfm + rehype-highlight + 双语目录加载 + 侧边栏导航 + 锚点）
