@@ -281,10 +281,12 @@ cineview/
 
 ## 下一步重点工作（按优先级）
 
-1. **阶段 3 官网文档站**（进行中，task-flow `2026-08-23-stage3-demo-hub-docs.md`）：T1 波
-   （入门+核心概念+组件 API 双语 md + Demo Hub 补全）推进中——文档管线与 16 页迁移已落地
-   （`84dc298`）；待办：新页三篇、既有页 Props 表增强、Demo Hub 交互位、T1 统一浏览器验收。
-   教学示例 `examples/minimal` 已落地并挂入 `type-check:examples` 链。
+1. **阶段 3 官网文档站**（**已完成** 2026-08-23，task-flow `2026-08-23-stage3-demo-hub-docs.md`）：
+   双语 Markdown 文档站 25 页 ×2（入门/核心概念/组件 API/动画/进阶五组）+ Demo Hub 交互位
+   （进度读数/waitFor 三级链/帧擦洗/enter·exitRef）+ 教学示例 examples/minimal；两波均经
+   fresh-agent 终验（API 断言审计 + 真机浏览器 lane）。遗留可选项：旧计划 X.1 框架长文。
+   **P2 框架缺口待裁决**：phase 窗口 leader + waitFor 链的 ms/px 双时钟分裂
+   （sceneScrollBudget.resolveTiming——修编译器或文档化约束，详见 stage3 task-flow T1.8 节）。
 
 2. ~~scroll 真实浏览器验收~~ **已完成**（2026-08-22 N6 lane PASS，证据
    `site/review/20260822-n6-acceptance/`）；规则 4 对未来改动依然生效。

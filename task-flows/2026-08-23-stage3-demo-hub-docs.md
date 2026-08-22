@@ -84,10 +84,34 @@
 
 ## T2 节点（动画+进阶）
 
-- [ ] T2.1 动画三页：44 预设总览 / 自定义动画 / waitFor 级联与 StaggerContainer
-- [ ] T2.2 进阶六页：center-lock 与 zone / 冷启动预加载 / 回调与错误上报 /
-      性能实践（全关键帧编码硬约束、motionValue 纪律、并发观测）/ direction:'x' /
-      滚动条主题化
+- [x] T2.1 动画三页 + AnimateVideo 页 ✅（agent 执行，主会话权威验证：契约 3/3 +
+      type-check/build 绿）：presets 总览（预设总数 **43**——animationCategoryMap/
+      PresetAnimation union/各类别模块导出三方核对；「44」是结构评审沿袭口径，无人
+      实数过，本轮纠正）/ 自定义变体（关键帧
+      数组 + composer 组合）/ waitFor 级联与 stagger（含 T1.8 实证「leader 勿带
+      phase」约束小节）/ AnimateVideo（帧擦洗 + 全关键帧硬约束 + releaseOnLeave，
+      补上审计点名的零覆盖缺口）
+- [x] T2.2 进阶六页 ✅（agent 执行）：新页 direction-x（x 轴证据链逐处核实）+
+      scrollbar-theming（字段表对照默认值与钳制；纠正任务书数字——idle timer 实码
+      120ms）；既有四页 append 增强（centerlock 补 phase 窗口语义与双时钟约束/
+      preload 补冷启动门/ callbacks 补零渲染读数模式/ performance 补关键帧编码与
+      N6 并发观测范式与 motionValue 纪律）
+- [x] T2.4 门禁 + fresh agent 验收 + 提交 ✅ **T2.4 终验 PASS（2026-08-23）**
+  - A 静态审计 20 文件零 API 失实（43 预设逐类归属、autoHide 四时序数字逐毫秒、
+    AnimateVideo 全字段、2% 迟滞、1.5/1 视口频带全部与代码行号级吻合）；
+    2 条非阻断 nit 记档（preload includeZoneIds 双模式语义等价、callbacks 亚像素
+    阈值合并语义无损）
+  - B 浏览器（4026）：12 路由全 200、hljs/GFM/TOC 双向同源、侧边栏新增「动画」组
+    序位正确、双语零混排、console 0
+  - 终门禁：框架 1582/1582、契约 3/3、site type-check/build 绿
+  - 证据 site/review/20260823-t24-acceptance/
+
+## 收口：阶段 3 完成（2026-08-23）
+
+T1 波（19 页×2 迁移+管线+Hub+minimal+双文档刷新）+ T2 波（动画组三页 + AnimateVideo +
+进阶两新页四增强 = 20 文件）全部经 fresh-agent 终验；文档站 25 页 ×2 双语同构，
+API 断言两轮审计零失实。遗留（未入本轮范围）：旧计划 X.1 中英文框架梳理长文；
+框架侧 P2 记档待裁决（phase leader + waitFor 双时钟分裂修法）。
 - [x] T2.3 README 刷新 ✅：补 drag 模式最小示例（默认模式此前无示例）+
       examples/minimal 活代码真源指针 + Video Scrubbing 章节（全关键帧硬约束 +
       ffmpeg 命令 + dev 延迟守卫说明）+ Support Matrix 增 Rendering runtime 行
