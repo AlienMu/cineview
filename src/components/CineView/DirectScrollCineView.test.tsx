@@ -1,4 +1,4 @@
-import React, { act, useEffect, useContext, createRef } from 'react';
+import React, { act, useCallback, useEffect, useContext, createRef } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { DirectScrollCineView } from './DirectScrollCineView';
@@ -9,9 +9,19 @@ import type { CineViewRef } from '../../types';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
-  useSceneScrollZoneTimeline,
+  useSceneScrollZoneSelection,
 } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import { performanceMonitor } from '../../utils/performanceMonitor';
+
+/** Local identity-selection probe (production wrapper removed as dead). */
+function useSceneScrollZoneTimeline(zoneId: string): SceneScrollTimelineState | null {
+  const selectState = useCallback(
+    (state: SceneScrollTimelineState | null): SceneScrollTimelineState | null => state,
+    []
+  );
+  return useSceneScrollZoneSelection(zoneId, true, selectState);
+}
 
 jest.mock('framer-motion', () => {
   const React = jest.requireActual('react');

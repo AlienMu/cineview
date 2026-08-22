@@ -32,6 +32,7 @@ import type {
 } from '../Scene/useSceneAnimationRegistry';
 import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
 import { parseAnimationSafely, type AnimationParseFailure } from '../../utils/animationHelpers';
+import { devWarn } from '../../utils/devLog';
 import { useAnimateDrag, type DragVisualState } from './useAnimateDrag';
 import { useAnimateScroll } from './useAnimateScroll';
 import { useAnimateArrival } from './useAnimateArrival';
@@ -377,7 +378,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
         message,
         context: { componentId: id, field, driver: 'visibility', mode: 'drag' },
       });
-      if (process.env.NODE_ENV === 'development') console.warn(`[CineView Warning] ${message}`);
+      devWarn(message);
     };
 
     if (normalizedWaitFor) {
@@ -451,7 +452,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
         message,
         context: { componentId: id, field, mode, scrub: isScrubLane },
       });
-      if (process.env.NODE_ENV === 'development') console.warn(`[CineView Warning] ${message}`);
+      devWarn(message);
     };
 
     if (isScrubLane) {

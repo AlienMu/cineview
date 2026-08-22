@@ -11,6 +11,8 @@
 
 const PREFIX = '[CineView]';
 
+const onceKeys = new Set<string>();
+
 export function devWarn(...args: unknown[]): void {
   if (process.env.NODE_ENV === 'development') {
     console.warn(PREFIX, ...args);
@@ -21,4 +23,18 @@ export function devError(...args: unknown[]): void {
   if (process.env.NODE_ENV === 'development') {
     console.error(PREFIX, ...args);
   }
+}
+
+/** devWarn 的跨实例去重版：同 key 整个会话只告警一次，替代各模块手写的 once flag。 */
+export function devWarnOnce(key: string, ...args: unknown[]): void {
+  if (process.env.NODE_ENV !== 'development' || onceKeys.has(key)) return;
+  onceKeys.add(key);
+  console.warn(PREFIX, ...args);
+}
+
+/** devError 的跨实例去重版，语义同 devWarnOnce。 */
+export function devErrorOnce(key: string, ...args: unknown[]): void {
+  if (process.env.NODE_ENV !== 'development' || onceKeys.has(key)) return;
+  onceKeys.add(key);
+  console.error(PREFIX, ...args);
 }

@@ -8,6 +8,7 @@
  */
 
 import type { Variant } from 'framer-motion';
+import type { PresetAnimation as PresetAnimationName } from '../../types';
 import { devError } from '../../utils/devLog';
 
 export interface PresetAnimation {
@@ -15,51 +16,6 @@ export interface PresetAnimation {
   animate: Variant;
   exit: Variant;
 }
-
-export type PresetAnimationName =
-  | 'fade'
-  | 'fade-in'
-  | 'fade-out'
-  | 'slide-up'
-  | 'slide-down'
-  | 'slide-left'
-  | 'slide-right'
-  | 'zoom-in'
-  | 'zoom-out'
-  | 'scale-up'
-  | 'scale-down'
-  | 'rotate'
-  | 'rotate-in'
-  | 'rotate-out'
-  | 'spin'
-  | 'flip'
-  | 'flip-x'
-  | 'flip-y'
-  | 'bounce'
-  | 'bounce-in'
-  | 'bounce-out'
-  | 'blink'
-  | 'flash'
-  | 'pulse'
-  | 'shake'
-  | 'shake-x'
-  | 'shake-y'
-  | 'vibrate'
-  | 'jello'
-  | 'blur-in'
-  | 'blur-out'
-  | 'focus-in'
-  | 'elastic'
-  | 'rubber-band'
-  | 'wobble'
-  | 'swing'
-  | 'heartbeat'
-  | 'tada'
-  | 'wave'
-  | 'roll-in'
-  | 'roll-out'
-  | 'hinge'
-  | 'jack-in-the-box';
 
 export type PresetLoadErrorCode = 'INVALID_ANIMATION' | 'ANIMATION_ASSET_LOAD_FAILED';
 export type PresetLoadState =

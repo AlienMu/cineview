@@ -34,7 +34,9 @@ describe('useConvertSize fallback (outside provider)', () => {
     expect(result.current(123)).toBe(123);
     expect(result.current(0)).toBe(0);
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain('[CineView] useConvertSize must be used within');
+    expect(warnSpy.mock.calls[0].join(' ')).toContain(
+      '[CineView] useConvertSize must be used within'
+    );
   });
 
   it('returns an identity function WITHOUT warning when NODE_ENV is not development', () => {
@@ -110,7 +112,7 @@ describe('CineViewProvider designSize guard', () => {
     // scale = viewportWidth / FALLBACK(750) = 0.5，而非 375 / 0 = Infinity。
     expect(result.current(100)).toBeCloseTo(50);
     expect(errorSpy).toHaveBeenCalledTimes(1);
-    expect(errorSpy.mock.calls[0][0]).toContain('[CineView] Invalid designSize');
+    expect(errorSpy.mock.calls[0].join(' ')).toContain('[CineView] Invalid designSize');
 
     // 一次性旗标：再次挂载另一个非法值不再重复报错。
     const wrapperNegative = ({ children }: { children: React.ReactNode }): JSX.Element => (

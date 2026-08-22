@@ -1,12 +1,20 @@
-import { act } from 'react';
+import { act, useCallback } from 'react';
 import { render, screen } from '@testing-library/react';
 import { createKeyedScrollExternalStore } from '../CineView/scrollExternalStore';
 import {
   SceneScrollTimelineContext,
   type SceneScrollTimelineState,
   useSceneScrollZoneApproach,
-  useSceneScrollZoneTimeline,
+  useSceneScrollZoneSelection,
 } from './sceneScrollRuntime';
+
+/** Local identity-selection probe over the exported generic (the former
+ * production wrapper was removed as production-dead; tests remain its only
+ * legitimate consumers and now own it). */
+function useSceneScrollZoneTimeline(zoneId: string): SceneScrollTimelineState | null {
+  const selectState = useCallback((state: SceneScrollTimelineState | null) => state, []);
+  return useSceneScrollZoneSelection(zoneId, true, selectState);
+}
 
 function createZoneState(zoneId: string, progressPx: number): SceneScrollTimelineState {
   return {

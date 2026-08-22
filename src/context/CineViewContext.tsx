@@ -15,6 +15,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { debounceCancelable } from '../utils/debounce';
+import { devErrorOnce, devWarnOnce } from '../utils/devLog';
 
 export interface CineViewContextValue {
   /** px2vw 单尺子比例：`viewportWidth / size`。仅 useAnimateScroll 的 gate margin 换算读它。 */
@@ -37,23 +38,19 @@ export interface CineViewProviderProps {
 const FALLBACK_DESIGN_SIZE = 750;
 
 // 一次性告警旗标（模块级）：无效 designSize 只在首次报错，避免每次渲染刷屏。
-let warnedInvalidDesignSize = false;
-
 /**
  * designSize 守卫：`scale = viewportWidth / size` 的分母必须是有限正数，
  * 否则 scale 会变成 0 / Infinity / NaN 并污染全部换算。非法值回退 750，
- * 并在 development 下 console.error 一次。
+ * 并在 development 下告警一次。
  */
 function resolveDesignSize(designSize: number | undefined): number {
   if (designSize === undefined) return FALLBACK_DESIGN_SIZE;
   if (Number.isFinite(designSize) && designSize > 0) return designSize;
-  if (process.env.NODE_ENV === 'development' && !warnedInvalidDesignSize) {
-    warnedInvalidDesignSize = true;
-    console.error(
-      `[CineView] Invalid designSize (${String(designSize)}). ` +
-        `It must be a finite number > 0; falling back to ${FALLBACK_DESIGN_SIZE}.`
-    );
-  }
+  devErrorOnce(
+    'cineview-context:invalid-design-size',
+    `Invalid designSize (${String(designSize)}). ` +
+      `It must be a finite number > 0; falling back to ${FALLBACK_DESIGN_SIZE}.`
+  );
   return FALLBACK_DESIGN_SIZE;
 }
 
@@ -129,9 +126,6 @@ export const useCineViewContext = (): CineViewContextValue | null => {
 // 消费方把它放进依赖数组 / memo 时不会因每次渲染换引用而失效。
 const identityConvert = (size: number): number => size;
 
-// 一次性告警旗标（模块级）：Provider 外使用只在首次 console.warn，避免每次渲染重复告警。
-let warnedConvertOutsideProvider = false;
-
 /**
  * 使用尺寸换算函数
  * 便捷 hook，用于在组件中直接获取 convert 函数（px2vw 单尺子）。
@@ -141,13 +135,11 @@ export const useConvertSize = (): ((size: number) => number) => {
   const context = useCineViewContext();
 
   if (!context) {
-    if (process.env.NODE_ENV === 'development' && !warnedConvertOutsideProvider) {
-      warnedConvertOutsideProvider = true;
-      console.warn(
-        '[CineView] useConvertSize must be used within a CineView component. ' +
-          'Returning identity function (no conversion).'
-      );
-    }
+    devWarnOnce(
+      'cineview-context:convert-outside-provider',
+      'useConvertSize must be used within a <CineView> component. ' +
+        'Returning identity function (no conversion).'
+    );
     return identityConvert;
   }
 

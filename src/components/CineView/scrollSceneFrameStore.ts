@@ -23,7 +23,6 @@ export interface ScrollSceneFrame {
 export type ScrollSceneFrameList = readonly (ScrollSceneFrame | undefined)[];
 
 export interface ScrollSceneFrameStore {
-  getSnapshot: () => ScrollSceneFrameList;
   setSnapshot: (next: ScrollSceneFrameList) => void;
   setKeySnapshot: (sceneIndex: number, next: ScrollSceneFrame | undefined) => void;
   clearFrom: (sceneCount: number) => void;
@@ -39,7 +38,6 @@ export function createScrollSceneFrameStore(): ScrollSceneFrameStore {
   };
 
   return {
-    getSnapshot: (): ScrollSceneFrameList => frames,
     setSnapshot: (next: ScrollSceneFrameList): void => {
       const previous = frames;
       frames = Array.from(next);

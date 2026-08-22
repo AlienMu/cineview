@@ -109,7 +109,7 @@ export const SceneScrollTakeoverContext = createContext<string | null>(null);
 
 const EMPTY_SUBSCRIBE = (): (() => void) => () => undefined;
 
-function useSceneScrollZoneSelection<T>(
+export function useSceneScrollZoneSelection<T>(
   zoneId: string | null,
   enabled: boolean,
   select: (state: SceneScrollTimelineState | null) => T
@@ -135,14 +135,6 @@ function useSceneScrollZoneSelection<T>(
   );
 
   return useSyncExternalStore(subscribe, getSnapshot, () => fallback);
-}
-
-export function useSceneScrollZoneTimeline(
-  zoneId: string | null,
-  enabled = true
-): SceneScrollTimelineState | null {
-  const selectState = useCallback((state: SceneScrollTimelineState | null) => state, []);
-  return useSceneScrollZoneSelection(zoneId, enabled, selectState);
 }
 
 /**

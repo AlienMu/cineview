@@ -1,4 +1,4 @@
-import React, { act, useContext, useEffect, createRef } from 'react';
+import React, { act, useCallback, useContext, useEffect, createRef } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { DirectScrollCineView } from './DirectScrollCineView';
@@ -7,8 +7,18 @@ import { CineViewRuntimeContext } from './runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
-  useSceneScrollZoneTimeline,
+  useSceneScrollZoneSelection,
 } from '../Scene/sceneScrollRuntime';
+import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
+
+/** Local identity-selection probe (production wrapper removed as dead). */
+function useSceneScrollZoneTimeline(zoneId: string): SceneScrollTimelineState | null {
+  const selectState = useCallback(
+    (state: SceneScrollTimelineState | null): SceneScrollTimelineState | null => state,
+    []
+  );
+  return useSceneScrollZoneSelection(zoneId, true, selectState);
+}
 
 jest.mock('../../hooks/useImagePreloader', () => ({
   useImagePreloader: jest.fn(() => [
