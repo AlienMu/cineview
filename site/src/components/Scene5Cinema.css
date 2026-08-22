@@ -487,11 +487,15 @@
  *   副标题 ↔ CTA    48u —— 最大的一级段断（「宣告 → 行动」），08-19 有效值
  *                     22u+8u=30u 读作贴着副标题竖线，不够独立成段
  * CTA 内部三行的间距在 .scene5-cinema__cta 的 gap 上（14u→20u，同步放开）。 */
-.scene5-cinema__phone-slot.is-split .scene5-cinema__text-col > [data-cineview-animate-host='cinema-split-subtitle'] {
+.scene5-cinema__phone-slot.is-split
+  .scene5-cinema__text-col
+  > [data-cineview-animate-host='cinema-split-subtitle'] {
   margin-top: min(calc(14 * var(--cineview-unit)), 1.5vh);
 }
 
-.scene5-cinema__phone-slot.is-split .scene5-cinema__text-col > [data-cineview-animate-host='cinema-split-cta'] {
+.scene5-cinema__phone-slot.is-split
+  .scene5-cinema__text-col
+  > [data-cineview-animate-host='cinema-split-cta'] {
   margin-top: min(calc(48 * var(--cineview-unit)), 5.2vh);
 }
 

@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import { Animate, CineView, Container, Scene } from 'cineview';
-import type { CineViewRef } from 'cineview';
+import { Animate, AnimateVideo, CineView, Container, Scene } from 'cineview';
+import type { CineViewRef, ZoneProgressDetail } from 'cineview';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n';
 
@@ -12,6 +12,161 @@ const DRAG_SCENES = [
   { label: '02', title: 'Element track', color: '#ede2d2' },
   { label: '03', title: 'Settle handshake', color: '#e3dcea' },
 ];
+
+/**
+ * zone 进度读数 —— 走公共回调 onZoneProgress + ref 命令式投影（task-flow
+ * 2026-08-23 T1.6）。每帧 progress 只改 transform/textContent，零 React
+ * 重渲染；这正是框架文档 callbacks 页教给消费者的读数模式。
+ */
+interface ZoneReadoutHandle {
+  project: (progress: number) => void;
+}
+
+const ZoneReadout = forwardRef<ZoneReadoutHandle>(function ZoneReadout(_, ref) {
+  const fillRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  useImperativeHandle(ref, () => ({
+    project: (progress: number): void => {
+      const clamped = Math.min(Math.max(progress, 0), 1);
+      if (fillRef.current) fillRef.current.style.transform = `scaleX(${clamped})`;
+      if (labelRef.current) labelRef.current.textContent = `${Math.round(clamped * 100)}%`;
+    },
+  }));
+  return (
+    <div className="demo-zone-readout">
+      <div className="demo-zone-readout__track" aria-hidden="true">
+        <div ref={fillRef} className="demo-zone-readout__fill" />
+      </div>
+      <span ref={labelRef} className="demo-zone-readout__label mono">
+        0%
+      </span>
+    </div>
+  );
+});
+
+/**
+ * enterRef 手动入场交互位 —— visibility 轨（timeline.sceneControlled: false）是
+ * 时间驱动轨，enterRef 在此受支持；scrub 轨结构上不可能支持（唯一所有者）。
+ * 无 delay 时自动入场被抑制，元素停在 initial 帧直到按钮触发；粘性所有权意味着
+ * 再次入场需滚出视口再回来（replayOnReenter）—— hint 文案教的就是这条规则。
+ */
+function ManualEnterSlot({
+  card,
+  button,
+  hint,
+}: {
+  card: string;
+  button: string;
+  hint: string;
+}): JSX.Element {
+  const enterRef = useRef<(() => void) | null>(null);
+  return (
+    <div className="demo-manual">
+      <Animate
+        animateId="demo-manual-card"
+        enterAnimation="slide-up"
+        duration={{ enter: 640 }}
+        timeline={{ sceneControlled: false }}
+        visibility={{ replayOnReenter: true }}
+        enterRef={enterRef}
+      >
+        <p className="demo-manual__card">{card}</p>
+      </Animate>
+      <button type="button" className="btn btn--ghost" onClick={() => enterRef.current?.()}>
+        {button}
+      </button>
+      <p className="demo-manual__hint">{hint}</p>
+    </div>
+  );
+}
+
+interface ScrollDemoCopy {
+  subline: string;
+  videoLabel: string;
+  manualCard: string;
+  manualButton: string;
+  manualHint: string;
+}
+
+function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
+  const readoutRef = useRef<ZoneReadoutHandle>(null);
+  // 回调身份稳定；progress 经 ref 命令式下发给读数，不经过 React state。
+  const handleZoneProgress = useCallback((detail: ZoneProgressDetail): void => {
+    if (detail.zoneId !== 'demo-scroll-zone') return;
+    readoutRef.current?.project(detail.progress);
+  }, []);
+
+  return (
+    <CineView
+      config={{ size: 1440 }}
+      mode="scroll"
+      callbacks={{ onZoneProgress: handleZoneProgress }}
+    >
+      <Scene sceneId="demo-scroll-intro" layout={{ width: '100%', height: '80vh' }}>
+        <div className="demo-stage__document">
+          <span className="demo-stage__index mono">SCROLL / NATIVE FLOW</span>
+          <h2>Document distance stays real.</h2>
+          <p>Scroll normally until a declared zone reaches its center anchor.</p>
+        </div>
+      </Scene>
+      <Scene
+        sceneId="demo-scroll-zone"
+        layout={{ width: '100%', height: '100vh', overflow: 'hidden' }}
+        scroll={{ zoneId: 'demo-scroll-zone', trigger: 'center-lock' }}
+      >
+        <div className="demo-stage__scene demo-stage__scene--scroll">
+          <Container>
+            <span className="demo-stage__index mono">CENTER-LOCK / ZONE</span>
+            <ZoneReadout ref={readoutRef} />
+            <Animate
+              animateId="demo-scroll-title"
+              enterAnimation="focus-in"
+              timeline={{ phase: { start: 0.05, end: 0.3 } }}
+            >
+              <h2>Progress becomes the scene timeline.</h2>
+            </Animate>
+            {/* waitFor 级联沿滚动推进：subline 在 title 入场完成前被链住。
+                注：waitFor 与 phase 是互斥的 timeline 形态（types 判别联合），
+                链式定位由 registry 的 calculatedDelay 累加自动完成。 */}
+            <Animate
+              animateId="demo-scroll-subline"
+              enterAnimation="slide-up"
+              duration={{ enter: 600 }}
+              timeline={{ waitFor: 'demo-scroll-title', delay: 0 }}
+            >
+              <p>{copy.subline}</p>
+            </Animate>
+            {/* 帧擦洗交互位：drag/scroll 位置即 currentTime，反向倒放。
+                scrub 视频须全关键帧编码（docs 进阶·性能）。
+                注：AnimateVideo 的 timeline 只收 delay/waitFor（窄内联类型），
+                链式挂接由 waitFor 完成。 */}
+            <AnimateVideo
+              src="/video.mp4"
+              animateId="demo-zone-video"
+              duration={{ enter: 6000 }}
+              timeline={{ waitFor: 'demo-scroll-subline', delay: 0 }}
+              width={480}
+              height={270}
+              aria-label={copy.videoLabel}
+            />
+            <ManualEnterSlot
+              card={copy.manualCard}
+              button={copy.manualButton}
+              hint={copy.manualHint}
+            />
+          </Container>
+        </div>
+      </Scene>
+      <Scene sceneId="demo-scroll-outro" layout={{ width: '100%', height: '80vh' }}>
+        <div className="demo-stage__document">
+          <span className="demo-stage__index mono">SCROLL / RELEASE</span>
+          <h2>Back to the document.</h2>
+          <p>Reverse scroll re-enters the same zone from its completed end.</p>
+        </div>
+      </Scene>
+    </CineView>
+  );
+}
 
 function DragDemo({ cineViewRef }: { cineViewRef: RefObject<CineViewRef> }): JSX.Element {
   return (
@@ -43,46 +198,6 @@ function DragDemo({ cineViewRef }: { cineViewRef: RefObject<CineViewRef> }): JSX
   );
 }
 
-function ScrollDemo(): JSX.Element {
-  return (
-    <CineView config={{ size: 1440 }} mode="scroll">
-      <Scene sceneId="demo-scroll-intro" layout={{ width: '100%', height: '80vh' }}>
-        <div className="demo-stage__document">
-          <span className="demo-stage__index mono">SCROLL / NATIVE FLOW</span>
-          <h2>Document distance stays real.</h2>
-          <p>Scroll normally until a declared zone reaches its center anchor.</p>
-        </div>
-      </Scene>
-      <Scene
-        sceneId="demo-scroll-zone"
-        layout={{ width: '100%', height: '100vh', overflow: 'hidden' }}
-        scroll={{ zoneId: 'demo-scroll-zone', trigger: 'center-lock' }}
-      >
-        <div className="demo-stage__scene demo-stage__scene--scroll">
-          <Container>
-            <span className="demo-stage__index mono">CENTER-LOCK / ZONE</span>
-            <Animate
-              animateId="demo-scroll-title"
-              enterAnimation="focus-in"
-              timeline={{ phase: { start: 0.12, end: 0.82 } }}
-            >
-              <h2>Progress becomes the scene timeline.</h2>
-            </Animate>
-            <p>The zone releases native scrolling after its timeline reaches the boundary.</p>
-          </Container>
-        </div>
-      </Scene>
-      <Scene sceneId="demo-scroll-outro" layout={{ width: '100%', height: '80vh' }}>
-        <div className="demo-stage__document">
-          <span className="demo-stage__index mono">SCROLL / RELEASE</span>
-          <h2>Back to the document.</h2>
-          <p>Reverse scroll re-enters the same zone from its completed end.</p>
-        </div>
-      </Scene>
-    </CineView>
-  );
-}
-
 export default function DemoPage(): JSX.Element {
   const { lang } = useI18n();
   const [mode, setMode] = useState<DemoMode>('drag');
@@ -99,6 +214,13 @@ export default function DemoPage(): JSX.Element {
           next: '下一幕',
           docs: '阅读文档',
           home: '返回首页',
+          scrollDemo: {
+            subline: 'waitFor 把这一行链在标题入场完成之后——链条随滚动推进。',
+            videoLabel: '帧擦洗演示视频',
+            manualCard: '这一张卡片停在 initial 帧，等你按按钮。',
+            manualButton: 'enterRef.current() — 手动入场',
+            manualHint: '粘性所有权：入场后想再看一次，滚出视口再滚回来（replayOnReenter）。',
+          },
         }
       : {
           eyebrow: 'LIVE LAB / TWO ENGINES',
@@ -110,6 +232,15 @@ export default function DemoPage(): JSX.Element {
           next: 'Next',
           docs: 'Read the docs',
           home: 'Back home',
+          scrollDemo: {
+            subline:
+              'waitFor chains this line after the title finishes — the chain advances with scroll.',
+            videoLabel: 'Frame-scrub demo video',
+            manualCard: 'This card is held at its initial frame until you press the button.',
+            manualButton: 'enterRef.current() — enter manually',
+            manualHint:
+              'Sticky ownership: to replay, scroll out of the viewport and back (replayOnReenter).',
+          },
         };
 
   return (
@@ -154,7 +285,11 @@ export default function DemoPage(): JSX.Element {
       </div>
 
       <section className="demo-stage" aria-live="polite">
-        {mode === 'drag' ? <DragDemo cineViewRef={cineViewRef} /> : <ScrollDemo />}
+        {mode === 'drag' ? (
+          <DragDemo cineViewRef={cineViewRef} />
+        ) : (
+          <ScrollDemo copy={copy.scrollDemo} />
+        )}
       </section>
 
       {mode === 'drag' ? (

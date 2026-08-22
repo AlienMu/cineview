@@ -1,7 +1,4 @@
 {
-  "*.{ts,tsx}": [
-    "eslint --fix",
-    "prettier --write",
-    "jest --bail --findRelatedTests"
-  ]
+  "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+  "src/**/*.{ts,tsx}": ["jest --bail --findRelatedTests"]
 }

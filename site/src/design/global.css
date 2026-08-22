@@ -1009,3 +1009,71 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   color: var(--ink-soft);
   font-weight: 600;
 }
+
+/* ============================================================
+ * Demo Hub zone 交互位（阶段 3 T1.6）：进度读数 / 帧擦洗 / 手动入场。
+ * ============================================================ */
+
+.demo-zone-readout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 8px 0 16px;
+}
+
+.demo-zone-readout__track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--frame-line);
+  overflow: hidden;
+}
+
+.demo-zone-readout__fill {
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-ink);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.demo-zone-readout__label {
+  min-width: 4ch;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--ink-mute);
+}
+
+.demo-stage__scene--scroll video {
+  display: block;
+  margin: 16px 0;
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+  background: var(--film-white-2);
+}
+
+.demo-manual {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--frame-line);
+  justify-items: start;
+}
+
+.demo-manual__card {
+  margin: 0;
+  padding: 12px 18px;
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+  background: var(--film-white-2);
+}
+
+.demo-manual__hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink-mute);
+}

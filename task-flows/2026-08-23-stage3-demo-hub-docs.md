@@ -35,15 +35,26 @@
       16 页 ×2 = 32 md 全迁（en 正文来自 legacy、zh 忠实翻译、代码围栏字节级一致）；
       DocsPage legacy 全拆（596→173 行）；i18n 双字典对称删 19 个 docs.page.* 死键；
       验证三连绿（type-check / 契约 3/3 / build）。过程一次 Edit 反向自愈无残留
-- [ ] T1.3 入门三页：installation / getting-started（示例同步自 examples/minimal）/ introduction
-- [ ] T1.4 核心概念五页：px2vw 单尺 / 双轨与唯一所有者 / drag vs scroll 选型 /
-      时间轴与编排（waitFor·delay·stagger）/ scene-scoped fixed layer
-- [ ] T1.5 组件 API 七页：CineView / Scene / Animate（enterRef/exitRef+infiniteAnimation）/
-      AnimateVideo（帧擦洗+全关键帧约束+releaseOnLeave）/ Position / Container·Image /
-      useAnimateTimeline
-- [ ] T1.6 Demo Hub 补全：zone progress 可视化条 + waitFor 沿滚动级联 + AnimateVideo
-      交互位 + enterRef 按钮交互位
-- [ ] T1.7 CLAUDE.md 数据刷新节点
+- [x] T1.3 入门三页 ✅：introduction/installation 已迁移在册；quickstart 重写为
+      minimal 真源镜像（M3 契约落地：代码节选自 examples/minimal/src/App.tsx，
+      双向互指注释；含运行命令/级联讲解/一棵树双引擎三个教学点）
+- [x] T1.4 核心概念五页 ✅：responsive/modes/timeline 迁移在册 + 新页 dual-track /
+      fixed-layer 双语（agent 执行，事实源逐行号核实：dragRelease 写者 / waitFor 累加 /
+      fixed host 挂载点均对照源码）
+- [x] T1.5 组件 API 七页 ✅：六页迁移 + 新页 use-animate-timeline 双语；既有六页
+      zh/en 各注入 Props 全表（agent 执行：字段逐一对照 types/index.ts 与实现处默认值，
+      附 9 条 types 缺 JSDoc 观察清单记档；顺手修真 bug——image.md 用了不存在的
+      priority prop → preload）
+- [x] T1.6 Demo Hub 补全 ✅：zone progress 读数（公共回调 onZoneProgress + ref 命令式
+      投影，零每帧 React 渲染）+ waitFor 三级链（title→subline→video 沿滚动推进）+
+      AnimateVideo 帧擦洗位（全关键帧 video.mp4）+ enterRef 手动入场位（visibility 轨
+      + 粘性所有权教学文案）。实现中核出的 API 形态事实：waitFor 与 phase 是互斥
+      timeline 判别联合；AnimateVideo.timeline 是窄内联类型仅 delay/waitFor——均按
+      真实形态落地并在代码注释记录
+- [x] T1.7 CLAUDE.md 数据刷新节点 ✅：runtime/ 迁移后路径、layout 树、
+      1582/122 测试数、build:verify 14/14 与 verify 链修复记录、N6 验收完成、
+      firstSceneEnter 关闭项、下一步重点改为阶段 3 状态、test-threshold.js
+      归属纠正（真门 jest.config.js coverageThreshold）
 - [ ] T1.8 门禁 + fresh agent 验收（API 断言对齐 + 浏览器 lane：双语切换/高亮/锚点/
       Hub 四交互）+ 提交
 

@@ -57,7 +57,7 @@ pnpm lint                    # ESLint
 pnpm format                  # Prettier
 ```
 
-覆盖率目标：语句/分支/函数/行全部 ≥ 90%。低于阈值时 CI 构建失败（`test-threshold.js` 配置）。
+覆盖率目标：语句/分支/函数/行全部 ≥ 90%。低于阈值时 jest 直接失败（门在 `jest.config.js` 的 `coverageThreshold.global`，CI 经 `verify:framework:static` 强制）。
 
 ---
 
@@ -78,11 +78,14 @@ pnpm format                  # Prettier
 ### 关键上下文/运行时文件
 
 - `src/context/CineViewContext.tsx` — px2vw 单轴换算上下文 Provider（`scale`/`convert`，认宽不认高）
-- `src/components/CineView/runtimeContext.tsx` — CineView 运行时上下文（模式、drag/scroll 全局状态）
+- `src/components/runtime/runtimeContext.tsx` — CineView 运行时上下文（模式、reportError 路由、scroll 可见性门 margin 默认值）
+- `src/components/runtime/scrollExternalStore.ts` — 通用外部存储原语（整体/keyed，useSyncExternalStore 消费）
+- `src/components/runtime/scrollSceneFrameStore.ts` — scroll 场景连续帧通道（native scroll controller 唯一写者）
 - `src/components/Scene/sceneScrollRuntime.tsx` — scroll takeover Context（`SceneScrollRuntimeContext`、`SceneScrollTimelineContext`、`SceneScrollTakeoverContext`）
 - `src/components/Scene/sceneScrollBudget.ts` — scroll 动画时长 → 真实滚动距离换算（1ms=1px）
 - `src/components/CineView/DirectScrollCineView.tsx` — scroll 模式根实现（真实滚动容器、center-lock reducer）
 - `src/components/Animate/animateSemantics.ts` — legacy flat props → 标准 `timeline`/`duration`/`visibility` 归一化适配层
+- `src/components/Animate/useAnimatedPropertyLanes.ts` — 三驱动共用的 10 属性 lane 工厂（新属性维度只改这里）
 
 ### 数据流原则
 
@@ -168,13 +171,13 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 
 ---
 
-## 已知问题与当前状态（verified 2026-06-29）
+## 已知问题与当前状态（verified 2026-08-23）
 
 ### 测试状态
 
-- **总计**: 1127 tests，**1127 全部通过**（77 suites，2026-06-30 评审整改轮实测；含新增 `directScrollHelpers.test.ts` 32 例）；`type-check` 0 错误、`lint` 0 错误 0 警告（16 个历史 warnings 已清零）；`build:verify` 8/8 通过
-- scroll 核心套件 `DirectScrollCineView.test.tsx` + `.branches` 共 110/110 通过（新增「measures scene layouts once per gesture burst」回归测试）
-- ⚠️ **单测全绿 ≠ 视觉验收通过**：scroll/drag 交互路径仍需独立 agent 在真实浏览器（`localhost:4000/#/`，见规则 4 的端口说明）跑通完整手势后才算收口（见开发规则 4）
+- **总计**: **1582 tests 全部通过**（122 suites，2026-08-23 实测；含 docsContent 双语文档契约 3 例）；`type-check` 0 错误、`lint` 0 错误 0 警告；`build:verify` **14/14**（ES gzip 45.7x KB <50、全量 UMD 54.2 KB ≤55、drag UMD 43.4、scroll UMD 48.4）；`verify:framework:static` 聚合门 GATE-EXIT=0（含 failure-injection 5/5——该注入链 2026-08-22 曾因 manifest 预算压过 env 覆盖而失效 12 天，已修）
+- **真机验收**：2026-08-22 N6 独立浏览器 lane PASS（七场景：正向锁定/反向重锁/大 flick/键盘+scrollbar/并发性能 rAF P95 17.5ms·0 longtask/drag 跟手回弹反向 scrub/视频逐帧无冻结；9 会话 console 零告警；证据 `site/review/20260822-n6-acceptance/`）。规则 4 依然是每轮交互改动的收口条件——本次 PASS 不豁免未来改动。
+- 发布链（截至 2026-08-23）：`4179d74→ef62d8a` 五提交全部经对抗复审 PASS + 静态门 + 真机 lane，上线评审完全通过；P3 记档未修：dist 调试死开关（`__CINEVIEW_SCROLL_DEBUG__` 构建期折叠）、同 tick `release();warmUp()` 边界（公共 API 不可达）、`[CineView Warning]` 旧前缀 10 处
 
 ### 2026-06-29 评审整改（已落地）
 
@@ -244,6 +247,7 @@ cineview/
 ├── src/
 │   ├── components/
 │   │   ├── CineView/          # 根容器，含 DirectScrollCineView（scroll 模式实现）
+│   │   ├── runtime/           # 双引擎共享运行时设施（runtimeContext / 两个 external store）
 │   │   ├── Scene/             # 场景组件，含 sceneScrollBudget / sceneScrollRuntime
 │   │   ├── Animate/           # 动画组件，含 useAnimateDrag / useAnimateScroll / animateSemantics
 │   │   ├── Position/          # 定位组件
@@ -277,8 +281,13 @@ cineview/
 
 ## 下一步重点工作（按优先级）
 
-1. **scroll 真实浏览器验收**（最高优先级 / 未完成）：自动化全绿后，按 CLAUDE.md 规则 4 由独立 agent 在 `localhost:4000/#/` 实测完整路径——正向锁定 `0→100%`、释放、反向重锁 `100%→0%`、键盘/scrollbar 同行为、大 flick 防跳过、多 zone 倒序重放。单测全绿 ≠ 视觉正确。
+1. **阶段 3 官网文档站**（进行中，task-flow `2026-08-23-stage3-demo-hub-docs.md`）：T1 波
+   （入门+核心概念+组件 API 双语 md + Demo Hub 补全）推进中——文档管线与 16 页迁移已落地
+   （`84dc298`）；待办：新页三篇、既有页 Props 表增强、Demo Hub 交互位、T1 统一浏览器验收。
+   教学示例 `examples/minimal` 已落地并挂入 `type-check:examples` 链。
 
-   **注**：本轮（2026-06-29 评审整改）的 scroll 运行时改动（`onReady` fire-once、scrollbar listener cleanup）虽有单测红证，仍计入此项待验收范围。
+2. ~~scroll 真实浏览器验收~~ **已完成**（2026-08-22 N6 lane PASS，证据
+   `site/review/20260822-n6-acceptance/`）；规则 4 对未来改动依然生效。
 
-2. **冷启动 `firstSceneEnter` 三态合并**（高风险，需配 drag 浏览器验收）：双 boolean → `'waiting' | 'driving' | 'done'` 枚举，消除非法态。位于历史回归高发区，单列推进。
+3. ~~冷启动 `firstSceneEnter` 三态合并~~ **已按决策关闭**：`useFirstSceneEnter.ts` 头注释
+   明注 intentionally NOT a 3-state enum——双 boolean 是有意设计，非待办。
