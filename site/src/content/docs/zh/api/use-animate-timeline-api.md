@@ -103,7 +103,7 @@ function PhaseLogger() {
 
 ## 相关页面
 
-- 六态词表的运行语义、canvas 豁免与 rAF 纪律 → [useAnimateTimeline 指南](/docs/use-animate-timeline)
+- 六态词表的运行语义、canvas 豁免与 rAF 纪律 → [When to use](#when-to-use)
 - `ScrollMode` / `AnimatePhase` / 相关类型 → [类型字典](/docs/types)
 
 ## When to use

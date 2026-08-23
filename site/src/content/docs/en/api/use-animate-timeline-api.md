@@ -103,7 +103,7 @@ Subscribe with MotionValue's `.on('change', ...)`, which returns an unsubscribe 
 
 ## Related pages
 
-- Runtime semantics of the vocabulary, the canvas exemption, and rAF discipline → [useAnimateTimeline guide](/docs/use-animate-timeline)
+- Runtime semantics of the vocabulary, the canvas exemption, and rAF discipline → [When to use](#when-to-use)
 - `ScrollMode` / `AnimatePhase` / related types → [type dictionary](/docs/types)
 
 ## When to use
