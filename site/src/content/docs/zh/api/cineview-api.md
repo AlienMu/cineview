@@ -40,7 +40,7 @@ eyebrow: API REFERENCE
 
 ## Callbacks
 
-回调面是**扁平的、按 `mode` 判别的**：`DragModeCallbacks = CineViewCommonCallbacks & CineViewDragCallbacks & { [K in keyof CineViewScrollCallbacks]?: never }`，`ScrollModeCallbacks` 是镜像。因此**向 drag 模式传 scroll 回调、或反过来，都是类型错误**——且交叉排除同时堵住两条赋值路径：inline 对象字面量被 TS 的 excess-property 检查拦下；先提取成变量再传的写法靠 `?: never` 兜住（变量不受 excess-property 检查）。
+回调面是**扁平的、按 `mode` 判别的**：`DragModeCallbacks = CineViewCommonCallbacks & CineViewDragCallbacks & { [K in keyof CineViewScrollCallbacks]?: never }`，`ScrollModeCallbacks` 是镜像。因此**向 drag 模式传 scroll 回调、或反过来，都是类型错误**，且交叉排除同时堵住两条赋值路径：inline 对象字面量被 TS 的 excess-property 检查拦下；先提取成变量再传的写法靠 `?: never` 兜住（变量不受 excess-property 检查）。
 
 三张表共 14 个字段。所有 `detail` 载荷的逐字段说明见 [类型字典](/docs/types)。
 
@@ -105,7 +105,7 @@ ref.current?.preload(['hero']);
 ## FAQ
 
 **为什么传了回调却报类型错误？**
-`mode` 与 `callbacks` 是判别联合的两半。`mode="drag"`（或缺省）时只接受通用 + drag 回调，scroll 回调键为 `never`；`mode="scroll"` 镜像。注意交叉排除对「先提取成变量再传」的写法同样生效——不是只拦 inline 字面量。
+`mode` 与 `callbacks` 是判别联合的两半。`mode="drag"`（或缺省）时只接受通用 + drag 回调，scroll 回调键为 `never`；`mode="scroll"` 镜像。注意交叉排除对「先提取成变量再传」的写法同样生效，不是只拦 inline 字面量。
 
 ```tsx
 /* OK: callbacks match the declared mode */
@@ -119,7 +119,7 @@ ref.current?.preload(['hero']);
 用 `CineViewScrollRef` 便捷类型（`goToZone` 在其上必填）：`const ref = useRef<CineViewScrollRef>(null)` 搭配 `mode="scroll"`。受 React forwardRef 单 ref 类型限制，无法靠 `mode` prop 自动推断。
 
 **`getPerformanceMetrics()` 返回的都是 0？**
-`performance.monitor` 未开启。该字段默认 `false`——采样有运行时代价，只在需要观测时打开。
+`performance.monitor` 未开启。该字段默认 `false`，采样有运行时代价，只在需要观测时打开。
 
 **`children` 里放非 Scene 元素会怎样？**
 CineView 只识别 `Scene` 子节点。一个 `Scene` 都没有时上报 `NO_SCENES`；夹在中间的非 Scene 子节点不参与场景栈。

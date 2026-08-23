@@ -43,12 +43,31 @@ function childText(children: ReactNode): string {
     .join('');
 }
 
+/** 代码块 chrome：从 <code class="language-x"> 提取语言做标签头（R1 设计感）。 */
+function resolveCodeLanguage(children: ReactNode): string {
+  const codeElement = Children.toArray(children).find(isValidElement);
+  const className: unknown = isValidElement(codeElement)
+    ? (codeElement.props as { className?: unknown }).className
+    : null;
+  if (typeof className !== 'string') return 'text';
+  return /language-([\w-]+)/.exec(className)?.[1] ?? 'text';
+}
+
 const markdownComponents = {
   h2: ({ children }: { children?: ReactNode }) => (
     <h2 id={headingId(childText(children))}>{children}</h2>
   ),
   h3: ({ children }: { children?: ReactNode }) => (
     <h3 id={headingId(childText(children))}>{children}</h3>
+  ),
+  pre: ({ children }: { children?: ReactNode }) => (
+    <div className="docs-code">
+      <div className="docs-code__header mono">
+        <span className="docs-code__dot" aria-hidden="true" />
+        {resolveCodeLanguage(children)}
+      </div>
+      <pre>{children}</pre>
+    </div>
   ),
 } as const;
 
@@ -173,7 +192,19 @@ export default function DocsPage(): JSX.Element {
         <aside className="docs-toc" aria-label={copy.toc}>
           <p className="docs-toc__label mono">{copy.toc}</p>
           {headings.map((heading) => (
-            <a key={heading.id} href={`#${heading.id}`}>
+            <a
+              key={heading.id}
+              href={`#${heading.id}`}
+              /* hash 默认导航只做「最小可见滚动」，标题落在视口任意处（R1 实测
+                 top 散落 164–1385）——拦截后 scrollIntoView 对准标题顶，
+                 scroll-margin-top: 32px 让落点恒定离顶 32px。 */
+              onClick={(event) => {
+                event.preventDefault();
+                document
+                  .getElementById(heading.id)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
               <span className="mono">{String(headings.indexOf(heading) + 1).padStart(2, '0')}</span>
               {heading.text}
             </a>

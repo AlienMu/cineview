@@ -57,8 +57,8 @@ Fires when the scene enters/leaves the viewport, with a `SceneVisibilityDetail` 
 
 Two caveats:
 
-- **This is an event callback, not a render-state source.** `progress` changes frame by frame with the scroll; setting state on it directly re-renders the whole host every frame — renderers that need the progress should use `useAnimateTimeline()` (see [its page](/docs/use-animate-timeline)).
-- **Same source and payload as the root-level `onSceneVisibilityChange`.** In scroll mode, one visibility event fans out to both the Scene-level callback and the root-level `callbacks.onSceneVisibilityChange` — declared on the Scene it fires for this scene only, declared on the root it fires for every scene. Do not do heavy work in both places.
+- **This is an event callback, not a render-state source.** `progress` changes frame by frame with the scroll; setting state on it directly re-renders the whole host every frame, so renderers that need the progress should use `useAnimateTimeline()` (see [its page](/docs/use-animate-timeline)).
+- **Same source and payload as the root-level `onSceneVisibilityChange`.** In scroll mode, one visibility event fans out to both the Scene-level callback and the root-level `callbacks.onSceneVisibilityChange`: declared on the Scene it fires for this scene only, declared on the root it fires for every scene. Do not do heavy work in both places.
 
 ## Types
 
@@ -80,7 +80,7 @@ The nine values of `layout.anchor`, gridded against the viewport:
 
 ### SceneStackMode
 
-The two values of `stack.mode`: `'replace'` — the new scene replaces the old (drag default; the old scene unmounts from rendering after exit); `'cover'` — the new scene covers the old (scroll default; document-flow semantics).
+The two values of `stack.mode`: `'replace'`: the new scene replaces the old (drag default; the old scene unmounts from rendering after exit); `'cover'`: the new scene covers the old (scroll default; document-flow semantics).
 
 ### Shared types
 
@@ -97,7 +97,7 @@ It falls back to `sceneId` as the zone identity. With neither authored the Scene
 An `INVALID_COMPONENT_HIERARCHY` error is reported (recoverable, payload carrying `ownerSceneIndex` / `rejectedSceneIndex`); unhandled, the first declarant wins and the later declaration is rejected.
 
 **The inheritance rule for `drag.unit` / `drag.scale`?**
-Providing either field explicitly stops inheriting the root `modes.drag` mapping; with neither, the whole group is inherited. Overriding only `scale` also detaches `unit` from inheritance — to keep the default unit, write `unit: 'time'` explicitly.
+Providing either field explicitly stops inheriting the root `modes.drag` mapping; with neither, the whole group is inherited. Overriding only `scale` also detaches `unit` from inheritance; to keep the default unit, write `unit: 'time'` explicitly.
 
 **Who decides the scene height?**
 `layout.height`. Defaults to `'auto'` (natural content height, document-flow semantics) in scroll mode and `'100vh'` (full-screen stack semantics) in drag mode; `modes.scroll.sceneSizing` is the scroll-side global switch (`'content'` / `'screen'`).

@@ -35,7 +35,7 @@ eyebrow: API REFERENCE
 
 ## 手动控制与轨道支持
 
-`enterRef`/`exitRef` 只对时间驱动的轨有意义。scrub 轨上视觉位置是其唯一所有者（zone 的 progressPx、或拖拽中的手指）的纯函数，手动写入会被下一帧重算覆盖——此时框架上报 `INVALID_ANIMATION` 并忽略 ref，而不是静默假装生效。
+`enterRef`/`exitRef` 只对时间驱动的轨有意义。scrub 轨上视觉位置是其唯一所有者（zone 的 progressPx、或拖拽中的手指）的纯函数，手动写入会被下一帧重算覆盖，所以框架上报 `INVALID_ANIMATION` 并忽略 ref，而不是静默假装生效。
 
 | 轨道 | enterRef | exitRef | 行为 |
 | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ render-prop 形态的 `children` 收到的状态对象：
 ## 约束注记
 
 - **`INVALID_ANIMATION` 的四个来源**：`waitFor` 指向不存在的 `animateId`；`enterAnimation` 与 `infiniteAnimation` 都未提供；未知预设名；在 scrub 轨上传入 `enterRef`/`exitRef`（上报并忽略）。
-- **`sceneControlled` 的裁决路径**：默认 `true`。scroll 模式下「在接管 zone 内 → zone 滚动预算驱动；不在 → 优雅降级 visibility」；显式 `false` 是强制 visibility 的唯一开关。drag 模式下 `false` 切换到 arrival 轨——真实时间播放、不参与 registry/waitFor、忽略 `exitAnimation`，这是「需要手动控制（`enterRef`）」时 drag 侧的标准动作。
+- **`sceneControlled` 的裁决路径**：默认 `true`。scroll 模式下「在接管 zone 内 → zone 滚动预算驱动；不在 → 优雅降级 visibility」；显式 `false` 是强制 visibility 的唯一开关。drag 模式下 `false` 切换到 arrival 轨（真实时间播放、不参与 registry/waitFor、忽略 `exitAnimation`），这是「需要手动控制（`enterRef`）」时 drag 侧的标准动作。
 - **`stagger` 与 render-prop 二选一**。`stagger` 是时间驱动的子元素揭示（不随 scrub），且要求 `children` 为单一 React 元素；需要逐元素跟随滚动 scrub 时用 render-prop 形态（`children` 为函数，拿 `enterProgress`）。
-- **仅 infinite 的分支**：只传 `infiniteAnimation` 时不允许再传 `enterAnimation`——常驻循环元素没有入场语义，`exitAnimation` 可以共存（退场仍受 phase 门控）。
+- **仅 infinite 的分支**：只传 `infiniteAnimation` 时不允许再传 `enterAnimation`，常驻循环元素没有入场语义，`exitAnimation` 可以共存（退场仍受 phase 门控）。
 

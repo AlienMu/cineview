@@ -23,11 +23,11 @@ Every field and default below is checked against `PositionProps` in `src/types/i
 
 ## Positioning precedence
 
-The adjudication order of the three placement modes — when they conflict, the higher one wins:
+The adjudication order of the three placement modes; when they conflict, the higher one wins:
 
-1. **Absolute** — takes effect when either `at.x` / `at.y` is present; the missing axis falls back to `0`;
-2. **Centering anchor** — with `at.anchor` set, the centered axis centers against the viewport, that axis's `x`/`y` become offsets from the center (design px), and that axis ignores the offset chain;
-3. **Relative chain** — `at.offsetX` / `at.offsetY` only, accumulated on top of the previous `Position`'s coordinate.
+1. **Absolute**: takes effect when either `at.x` / `at.y` is present; the missing axis falls back to `0`;
+2. **Centering anchor**: with `at.anchor` set, the centered axis centers against the viewport, that axis's `x`/`y` become offsets from the center (design px), and that axis ignores the offset chain;
+3. **Relative chain**: `at.offsetX` / `at.offsetY` only, accumulated on top of the previous `Position`'s coordinate.
 
 ```tsx
 /* Absolute: x present, y defaults to 0 */
@@ -40,7 +40,7 @@ The adjudication order of the three placement modes — when they conflict, the 
 <Position at={{ offsetX: 24, offsetY: 0 }}>...</Position>
 ```
 
-Note how `offsetY` is ignored in the first example — once absolute positioning triggers, the offset chain yields entirely, and the missing absolute axis falls back to `0` rather than back to the relative value.
+Note how `offsetY` is ignored in the first example: once absolute positioning triggers, the offset chain yields entirely, and the missing absolute axis falls back to `0` rather than back to the relative value.
 
 ## Types
 
@@ -56,7 +56,7 @@ A centered axis ignores the offset chain; the other axis keeps its usual rules. 
 
 ### layer.fixed
 
-Only meaningful in scroll mode: it mounts into **this Scene's** scene-scoped fixed layer (a portal), holding its viewport position through the scroll while never floating across chapters — it exits with its host Scene. When the Scene has no fixed-layer host it degrades to `sticky`. In drag mode the scenes are full-screen stacks already, so the field has no additional effect.
+Only meaningful in scroll mode: it mounts into **this Scene's** scene-scoped fixed layer (a portal), holding its viewport position through the scroll while never floating across chapters, and it exits with its host Scene. When the Scene has no fixed-layer host it degrades to `sticky`. In drag mode the scenes are full-screen stacks already, so the field has no additional effect.
 
 ### Shared types
 

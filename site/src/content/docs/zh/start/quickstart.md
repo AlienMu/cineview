@@ -5,8 +5,8 @@ eyebrow: QUICK START
 
 一个完整的最小应用：一棵声明树跑双引擎，外加一段 `waitFor` 级联。
 
-> 本页代码节选自可运行示例 `examples/minimal/src/App.tsx`（活代码真源）——
-> 改动必须两处同步，示例为准、本页为镜像。
+> 本页代码节选自可运行示例 `examples/minimal/src/App.tsx`（活代码真源）。
+> 改动须两处同步：示例为准，本页为镜像。
 
 ## 运行示例
 
@@ -21,7 +21,7 @@ pnpm --dir examples/minimal dev   # http://localhost:4100
 
 同一场景内的两个 `Animate`：`subline` 声明 `waitFor: 'headline'`，
 在标题入场完成前不会开始。registry 根据每个元素自己的 `delay` 与
-`duration` 解析链条——没有定时器，没有手动状态。
+`duration` 解析链条，全程没有定时器和手动状态。
 
 ```tsx
 <Scene

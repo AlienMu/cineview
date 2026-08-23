@@ -15,7 +15,7 @@ eyebrow: COLD START
 
 ## 定向补载
 
-`ref.preload(targets)` 把目标解析为各 scene 的 `assets.preloadImages`，以优先级入队（排在剩余后台工作之前），settle 后 resolve。`number` 目标是 scene 索引；`string` 目标是 `sceneId`，scroll 模式下还能匹配 `scroll.zoneId`。已加载 URL 的缓存是模块级的，因此去重跨 scene、也跨同页多个 CineView 根——并且走了优先队列的 URL 绝不会同时再进后台队列。
+`ref.preload(targets)` 把目标解析为各 scene 的 `assets.preloadImages`，以优先级入队（排在剩余后台工作之前），settle 后 resolve。`number` 目标是 scene 索引；`string` 目标是 `sceneId`，scroll 模式下还能匹配 `scroll.zoneId`。已加载 URL 的缓存是模块级的，因此去重跨 scene、也跨同页多个 CineView 根，并且走了优先队列的 URL 绝不会同时再进后台队列。
 
 ```tsx
 await cineViewRef.current?.preload(['act-3', 'finale']);

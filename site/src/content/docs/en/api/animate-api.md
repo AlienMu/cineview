@@ -7,7 +7,7 @@ eyebrow: API REFERENCE
 
 ## Props
 
-Every field and default below is checked against `AnimateProps` in `src/types/index.ts` (a discriminated union: an `enterAnimation`-required branch, or an `infiniteAnimation`-only branch) and the Animate implementation. Provide at least one of `enterAnimation` / `infiniteAnimation` — neither reports `INVALID_ANIMATION`.
+Every field and default below is checked against `AnimateProps` in `src/types/index.ts` (a discriminated union: an `enterAnimation`-required branch, or an `infiniteAnimation`-only branch) and the Animate implementation. Provide at least one of `enterAnimation` / `infiniteAnimation`; providing neither reports `INVALID_ANIMATION`.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ Every field and default below is checked against `AnimateProps` in `src/types/in
 
 ## Manual control and lane support
 
-`enterRef`/`exitRef` only mean something on a time-driven lane. On a scrub lane the visual position is a pure function of its single owner (the zone's progressPx, or the finger during a drag) — anything a manual call wrote would be recomputed away on the next frame, so the framework reports `INVALID_ANIMATION` and ignores the ref instead of silently pretending it works.
+`enterRef`/`exitRef` only mean something on a time-driven lane. On a scrub lane the visual position is a pure function of its single owner (the zone's progressPx, or the finger during a drag): anything a manual call wrote would be recomputed away on the next frame, so the framework reports `INVALID_ANIMATION` and ignores the ref instead of silently pretending it works.
 
 | Lane | enterRef | exitRef | Behaviour |
 | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ The two fields of `stagger`: `each` (default `40`, interval between each direct 
 ## Constraint notes
 
 - **The four sources of `INVALID_ANIMATION`**: `waitFor` pointing at a nonexistent `animateId`; neither `enterAnimation` nor `infiniteAnimation` provided; an unknown preset name; or an `enterRef`/`exitRef` passed on a scrub lane (reported and ignored).
-- **The adjudication path of `sceneControlled`**: default `true`. In scroll mode — inside a takeover zone, driven by the zone's scroll budget; outside, graceful visibility fallback; explicit `false` is the only way to force visibility. In drag mode `false` switches to the arrival lane — real-time playback, no registry/waitFor participation, `exitAnimation` ignored; that is the standard move on the drag side when manual control (`enterRef`) is needed.
-- **`stagger` or the render-prop — pick one.** `stagger` is a time-driven child reveal (it never scrubs) and requires `children` to be a single React element; for per-element scrub use the render-prop form (`children` as a function, receiving `enterProgress`).
-- **The infinite-only branch**: with only `infiniteAnimation` authored, passing `enterAnimation` is forbidden — a persistent looping element has no enter semantics; `exitAnimation` may coexist (the exit stays phase-gated).
+- **The adjudication path of `sceneControlled`**: default `true`. In scroll mode: inside a takeover zone, driven by the zone's scroll budget; outside, graceful visibility fallback; explicit `false` is the only way to force visibility. In drag mode `false` switches to the arrival lane: real-time playback, no registry/waitFor participation, `exitAnimation` ignored; that is the standard move on the drag side when manual control (`enterRef`) is needed.
+- **`stagger` or the render-prop: pick one.** `stagger` is a time-driven child reveal (it never scrubs) and requires `children` to be a single React element; for per-element scrub use the render-prop form (`children` as a function, receiving `enterProgress`).
+- **The infinite-only branch**: with only `infiniteAnimation` authored, passing `enterAnimation` is forbidden: a persistent looping element has no enter semantics; `exitAnimation` may coexist (the exit stays phase-gated).
 

@@ -20,11 +20,11 @@ eyebrow: API REFERENCE
 
 ## 预加载语义
 
-`preload`（默认 `true`）把 URL 登记进共享预加载缓存——与 `Scene.assets.preloadImages`、`CineView` 根的 `preload()` 走**同一份缓存**（`useImagePreloader`），不重复下载：
+`preload`（默认 `true`）把 URL 登记进共享预加载缓存，与 `Scene.assets.preloadImages`、`CineView` 根的 `preload()` 走**同一份缓存**（`useImagePreloader`），不重复下载：
 
 - **首屏优先队列**：`Scene.assets.preloadImages` 声明的图片，drag 模式当前场景 / scroll 模式首场景的进优先队列，结算完触发 `priorityComplete` 冷启动门控（`onReady` 等它）。
 - **后台队列**：`Image preload` 登记的图片与其余资源，不阻塞冷启动。
-- **`loading` 推导**：未显式传原生 `loading` 时按 `preload` 推导——`preload: true` → `eager`，`preload: false` → `lazy`；显式传了 `loading='lazy'` 则 `preload` 被强制关闭。
+- **`loading` 推导**：未显式传原生 `loading` 时按 `preload` 推导，即 `preload: true` → `eager`，`preload: false` → `lazy`；显式传了 `loading='lazy'` 则 `preload` 被强制关闭。
 
 ```tsx
 <Scene assets={{ preloadImages: ['/hero.webp'] }}>
@@ -40,7 +40,7 @@ eyebrow: API REFERENCE
 
 - **不要用 `Image` 的 `preload` 声明首屏优先级。** 优先队列的成员资格由 `Scene.assets.preloadImages` 决定；`Image preload` 只是把 URL 放进共享缓存。首屏大图两处都要写（`Scene.assets` 声明优先级 + `Image` 消费缓存）。
 - **数字尺寸走设计 px。** `width={375}` 是设计稿尺寸，不是渲染像素；字符串 `'375px'` / `'50%'` 原样透传、不换算。
-- **可见性不受预加载阻塞。** 组件挂载即渲染 `<img>`；预加载管的是网络与缓存命中，不 gate 普通内容的可见性——需要「图到才显示」的编排用 `Animate` 的 visibility / timeline 语义做。
+- **可见性不受预加载阻塞。** 组件挂载即渲染 `<img>`；预加载管的是网络与缓存命中，不 gate 普通内容的可见性，需要「图到才显示」的编排用 `Animate` 的 visibility / timeline 语义做。
 
 ## 相关页面
 

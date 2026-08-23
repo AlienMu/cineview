@@ -30,7 +30,7 @@ eyebrow: API REFERENCE
 </CineView>
 ```
 
-`convertStyle` 是**整块**换算：遍历 style 对象里的数值型长度字段逐一乘 `scale`，非长度字段（`color`、`display`、`zIndex`…）原样透传；字符串值（`'50%'`、`'1rem'`）不换算、原样透传——需要响应式换算的长度请用数值书写。
+`convertStyle` 是**整块**换算：遍历 style 对象里的数值型长度字段逐一乘 `scale`，非长度字段（`color`、`display`、`zIndex`…）原样透传；字符串值（`'50%'`、`'1rem'`）不换算、原样透传，需要响应式换算的长度请用数值书写。
 
 同一组设计值在不同视口宽度下的渲染结果（`config.size = 750`）：
 
@@ -45,7 +45,7 @@ eyebrow: API REFERENCE
 - **Container 不是坐标所有者。** 定位（`position` / `left` / `top` / 居中）始终归 `Position`；给 Container 传定位样式属于职责误用，换算结果也不受定位链裁决。
 - **必须在 CineView 下使用。** 换算依赖 CineViewContext 注入的 `convert`；脱离 CineView 渲染时开发模式直接抛错（生产模式行为未定义）。
 - **不要用它做 Scene 布局。** Scene 的 `layout.width` / `layout.height` 有自己的语义（数字同样走单尺子）；Container 面向 Scene 内部的盒模型。层级是 `Scene → Position → Container`。
-- **字体大小也会被换算。** `style={{ fontSize: 28 }}` 按设计 px 换算——设计稿量出的字号直接写数值即可；写 `'28px'` 字符串则不换算。
+- **字体大小也会被换算。** `style={{ fontSize: 28 }}` 按设计 px 换算，设计稿量出的字号直接写数值即可；写 `'28px'` 字符串则不换算。
 
 ## 相关页面
 

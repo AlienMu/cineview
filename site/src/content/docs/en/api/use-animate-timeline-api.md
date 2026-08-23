@@ -29,7 +29,7 @@ interface AnimateTimeline {
 | `phase` | `MotionValue<AnimatePhase>` | The six-state phase vocabulary (next section). |
 | `frame` | `MotionValue<AnimateTimelineFrame>` | The atomic snapshot (next section) — all four values published in the same commit. |
 
-The object is referentially stable: putting `timeline` in an effect's dependency array will not re-run it every frame. Every field is `readonly` and no writer is exposed — CineView remains the only timeline writer.
+The object is referentially stable: putting `timeline` in an effect's dependency array will not re-run it every frame. Every field is `readonly` and no writer is exposed; CineView remains the only timeline writer.
 
 ## The AnimatePhase vocabulary
 
@@ -60,7 +60,7 @@ interface AnimateTimelineFrame {
 | `phase` | `AnimatePhase` | Same as the top-level `phase`. |
 | `source` | `AnimateTimelineSource` | Where this change came from (six values, table below). |
 
-Why it exists: a consumer subscribing to `progress` and `phase` separately can read a cross-commit combination — the new progress paired with the old phase, painting an intermediate state that never existed. `frame` publishes all four values atomically in the same commit.
+Why it exists: a consumer subscribing to `progress` and `phase` separately can read a cross-commit combination, the new progress paired with the old phase, painting an intermediate state that never existed. `frame` publishes all four values atomically in the same commit.
 
 The six values of `source`:
 
@@ -99,7 +99,7 @@ function PhaseLogger() {
 </Animate>
 ```
 
-Subscribe with MotionValue's `.on('change', ...)`, which returns an unsubscribe function that fits effect cleanup naturally. One discipline: **pass the MotionValue itself, never a `.get()` snapshot** — a snapshot is a static value from the moment of subscription and never updates again.
+Subscribe with MotionValue's `.on('change', ...)`, which returns an unsubscribe function that fits effect cleanup naturally. One discipline: **pass the MotionValue itself, never a `.get()` snapshot**. A snapshot is a static value from the moment of subscription and never updates again.
 
 ## Related pages
 

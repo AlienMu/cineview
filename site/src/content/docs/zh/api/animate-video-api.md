@@ -50,22 +50,22 @@ eyebrow: API REFERENCE
 />
 ```
 
-`onPlay` / `onPause` / `onEnded` 经播放所有权门控：只有提交到当前 source generation 与 activation 的事件才会送达。已释放/已替换 video 节点还在途的事件会被丢弃，不会以幽灵回调的形式冒出来——直接用它们做 UI 状态是安全的，无需自行去重。`onTimeUpdate` 与 `onError` 不经门控、直接透传。
+`onPlay` / `onPause` / `onEnded` 经播放所有权门控：只有提交到当前 source generation 与 activation 的事件才会送达。已释放/已替换 video 节点还在途的事件会被丢弃，不会以幽灵回调的形式冒出来，直接用它们做 UI 状态是安全的，无需自行去重。`onTimeUpdate` 与 `onError` 不经门控、直接透传。
 
-这是事件透传面，不是框架回调面——框架级错误上报走 CineView 的 `onError`（见 [CineView API](/docs/cineview-api)）。
+这是事件透传面，不是框架回调面，框架级错误上报走 CineView 的 `onError`（见 [CineView API](/docs/cineview-api)）。
 
 ## 类型
 
 ### timeline（刻意收窄）
 
-`AnimateVideo.timeline` 不是完整的 `AnimateProps['timeline']`，只有两个字段：`delay` 与 `waitFor`。包装层的 `sceneControlled` 停在默认值（`true`），因此它与其他 `Animate` 一样绑定所在 zone / scene 的轨——不存在用 `sceneControlled: false` 把视频挪到 arrival 轨的用法。
+`AnimateVideo.timeline` 不是完整的 `AnimateProps['timeline']`，只有两个字段：`delay` 与 `waitFor`。包装层的 `sceneControlled` 停在默认值（`true`），因此它与其他 `Animate` 一样绑定所在 zone / scene 的轨，不存在用 `sceneControlled: false` 把视频挪到 arrival 轨的用法。
 
 ### scrubRange
 
 `readonly [fromSeconds: number, toSeconds: number]` 元组：
 
 - 两端都钳制到 `[0, duration]`；
-- 反向区间（`from > to`）合法——progress 沿素材倒着走；
+- 反向区间（`from > to`）合法，progress 沿素材倒着走；
 - 不设 `scrubRange` 时 `currentTime = progress × duration`，且没有终点交接（progress 1 只是停在末帧）；
 - 终点交接语义（seek 到 `to` 后把所有权交给原生 `play()`、2% 迟滞带收回）见 [组件指南](/docs/animate-video)。
 
@@ -76,7 +76,7 @@ eyebrow: API REFERENCE
 
 ## 约束注记
 
-- **全关键帧编码是硬约束**。H.264 的 P/B 帧是相对前帧的差分，seek 到任意帧都要从最近关键帧起整段解码；按常见稀疏关键帧编码时每步擦洗都会打满解码线程（反向最长、最糟）。`ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4` 把每帧编成 I 帧——文件变大，但 seek 延迟变平。dev 构建会边擦边测每步 seek 延迟，单源中位数超过 50ms 时告警一次。
+- **全关键帧编码是硬约束**。H.264 的 P/B 帧是相对前帧的差分，seek 到任意帧都要从最近关键帧起整段解码；按常见稀疏关键帧编码时每步擦洗都会打满解码线程（反向最长、最糟）。`ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4` 把每帧编成 I 帧，文件变大，但 seek 延迟变平。dev 构建会边擦边测每步 seek 延迟，单源中位数超过 50ms 时告警一次。
 - **drag 模式下的两个静默差异**：`releaseOnLeave` 被忽略（接管 zone 之外没有 approach band）；`duration.enter` 按元素轨毫秒读，不再按滚动 px。其余语义照搬。
-- **`preload={false}` 的正确用途**：视频已由页面经 CineView 预加载管线装载时，实例上退出以避免重复工作——不是省流量的开关（首次使用的视频应当预加载，整段 blob 才保证可 seek）。
+- **`preload={false}` 的正确用途**：视频已由页面经 CineView 预加载管线装载时，实例上退出以避免重复工作，它不是省流量的开关（首次使用的视频应当预加载，整段 blob 才保证可 seek）。
 

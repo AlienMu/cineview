@@ -39,15 +39,15 @@ A preset name is not a loose string. It is a member of the `PresetAnimation` str
 </Animate>
 ```
 
-The same name works for enter, exit, and infinite lanes — each lane resolves the name to its own `initial` / `animate` / `exit` variant record.
+The same name works for enter, exit, and infinite lanes; each lane resolves the name to its own `initial` / `animate` / `exit` variant record.
 
 ## What a preset actually is
 
-Each preset resolves to a triple of variant records — `initial`, `animate`, `exit` — and **where the motion lives** decides what the preset is for:
+Each preset resolves to a triple of variant records (`initial`, `animate`, `exit`), and **where the motion lives** decides what the preset is for:
 
 - `-in` forms (e.g. `fade-in`, `bounce-in`, `roll-in`) put the motion on `animate`: `initial` is the hidden state, `animate` is the reveal, `exit` is a no-op holding the visible state. They are enter presets.
 - `-out` forms (e.g. `fade-out`, `bounce-out`, `roll-out`) are the mirror: `initial`/`animate` hold still, the motion sits on `exit`. They are exit presets.
-- Generic forms (`fade`, `bounce`, `flip`) have motion on both ends — a full round trip.
+- Generic forms (`fade`, `bounce`, `flip`) have motion on both ends, a full round trip.
 
 ```tsx
 // 'fade-in' as authored in src/animations/presets/fade.ts
@@ -58,7 +58,7 @@ Each preset resolves to a triple of variant records — `initial`, `animate`, `e
 }
 ```
 
-One consequence for scrub lanes: presets may carry Framer transitions — `bounce` ships a spring (`type: 'spring', bounce: 0.5`). On time-driven lanes (visibility, drag arrival) the spring plays as authored; on scrub lanes (scroll takeover, drag element track) the runtime resolves values by position and ignores transition timing, so a spring preset reads as a linear sweep between its endpoints. Springy categories keep their character on time-driven lanes; for scrubbed enters prefer geometry presets (fade/slide/zoom/blur) or explicit keyframes.
+One consequence for scrub lanes: presets may carry Framer transitions, e.g. `bounce` ships a spring (`type: 'spring', bounce: 0.5`). On time-driven lanes (visibility, drag arrival) the spring plays as authored; on scrub lanes (scroll takeover, drag element track) the runtime resolves values by position and ignores transition timing, so a spring preset reads as a linear sweep between its endpoints. Springy categories keep their character on time-driven lanes; for scrubbed enters prefer geometry presets (fade/slide/zoom/blur) or explicit keyframes.
 
 ## Lazy loading by category
 
@@ -66,10 +66,10 @@ Presets are not bundled into the main chunk. Each category lives in its own modu
 
 The loading coordinator (`src/animations/presets/index.ts`) guarantees:
 
-- **Shared across roots** — successful modules and permanent failures are cached process-wide, shared by every CineView instance on the page.
-- **Coalesced requests** — concurrent requests for the same category reuse one in-flight promise instead of racing.
-- **Timeout** — a category load that exceeds 3000 ms fails with `ANIMATION_ASSET_LOAD_FAILED`. This is a *transient* failure: it is never permanently cached, so a later request may retry.
-- **Permanent failures** — an unknown preset name, an unknown category, or a preset missing from its category module fails with `INVALID_ANIMATION` and is cached permanently (the same name will not re-load until the cache is cleared).
+- **Shared across roots**: successful modules and permanent failures are cached process-wide, shared by every CineView instance on the page.
+- **Coalesced requests**: concurrent requests for the same category reuse one in-flight promise instead of racing.
+- **Timeout**: a category load that exceeds 3000 ms fails with `ANIMATION_ASSET_LOAD_FAILED`. This is a *transient* failure: it is never permanently cached, so a later request may retry.
+- **Permanent failures**: an unknown preset name, an unknown category, or a preset missing from its category module fails with `INVALID_ANIMATION` and is cached permanently (the same name will not re-load until the cache is cleared).
 
 ## Failure reporting
 
@@ -104,7 +104,7 @@ Preset load failures surface through the CineView `onError` callback, not by cra
 Two practical notes for picking from the catalog:
 
 - **Enter vs exit symmetry.** Many categories pair an enter-oriented and exit-oriented form (`fade-in` / `fade-out`, `bounce-in` / `bounce-out`, `roll-in` / `roll-out`); generic forms like `fade` and `bounce` cover the round trip. When you author a cascade, give exits the mirrored counterpart so the reverse pass reads as an intentional unwind (see the waitFor page for cascade choreography).
-- **Attention presets belong on the infinite lane.** `blink`, `flash`, `pulse`, `heartbeat`, `tada`, `wave` and friends express continuous life. Author them via `infiniteAnimation`, which the runtime gates to the element's own phase and viewport visibility — a CSS `animation: … infinite` keeps running through exit and past unmount, which is exactly what the gating exists to prevent.
+- **Attention presets belong on the infinite lane.** `blink`, `flash`, `pulse`, `heartbeat`, `tada`, `wave` and friends express continuous life. Author them via `infiniteAnimation`, which the runtime gates to the element's own phase and viewport visibility; a CSS `animation: … infinite` keeps running through exit and past unmount, the exact breakage that gating exists to prevent.
 
 ```tsx
 <Animate
@@ -118,7 +118,7 @@ Two practical notes for picking from the catalog:
 
 ## Where each category reads best
 
-The catalog is free to mix — these are authoring habits, not API rules:
+The catalog is free to mix; these are authoring habits, not API rules:
 
 | Category | Reads best on |
 | --- | --- |

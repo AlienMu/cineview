@@ -21,7 +21,7 @@ The payload of `onSceneWillChange` / `onSceneDidChange` (common).
 
 ### DragDetail
 
-The payload of `onDragProgress` / `onDragCancel` (drag-only). Note there is no separate `DragCancelDetail` — cancel reuses this type.
+The payload of `onDragProgress` / `onDragCancel` (drag-only). Note there is no separate `DragCancelDetail`; cancel reuses this type.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ The payload of `onDragProgress` / `onDragCancel` (drag-only). Note there is no s
 
 ### DragStartDetail
 
-The payload of `onDragStart` (drag-only). Structurally `DragDetail` with the nullable `direction` replaced by a required one — at start time the direction has already settled.
+The payload of `onDragStart` (drag-only). Structurally `DragDetail` with the nullable `direction` replaced by a required one; at start time the direction has already settled.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ The payload of `onDragStart` (drag-only). Structurally `DragDetail` with the nul
 
 ### DragBlockedDetail
 
-The payload of `onDragBlocked` (drag-only) — a drag toward a blocked boundary is rejected.
+The payload of `onDragBlocked` (drag-only): a drag toward a blocked boundary is rejected.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -119,7 +119,7 @@ The payload of `onError` (common).
 
 ### AnimationType
 
-`AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation` — a preset name, a custom variant, or a composed animation (sequential / parallel). It is what `enterAnimation` / `exitAnimation` / `infiniteAnimation` (`Animate`, `AnimateVideo`, `Scene.transition`) accept. Composition is covered in [custom & composed](/docs/custom).
+`AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`: a preset name, a custom variant, or a composed animation (sequential / parallel). It is what `enterAnimation` / `exitAnimation` / `infiniteAnimation` (`Animate`, `AnimateVideo`, `Scene.transition`) accept. Composition is covered in [custom & composed](/docs/custom).
 
 ### PresetAnimation
 
@@ -127,15 +127,15 @@ A string union of 43 preset names (eleven families: fade / slide / zoom / rotate
 
 ### AnimateTimeline
 
-The return type of `useAnimateTimeline()`: six read-only fields — `mode` / `driver` / `progress` / `signedProgress` / `phase` / `frame`, the last four being MotionValues. Field-by-field docs → [useAnimateTimeline API](/docs/use-animate-timeline-api).
+The return type of `useAnimateTimeline()`: six read-only fields (`mode` / `driver` / `progress` / `signedProgress` / `phase` / `frame`), the last four being MotionValues. Field-by-field docs → [useAnimateTimeline API](/docs/use-animate-timeline-api).
 
 ### ScrollTimelineState (internal)
 
-The timeline-state snapshot of a scroll takeover zone: `phase` (the `SceneTimelinePhase` five states: `before | enter | hold | exit | after`) plus `enterProgress` / `exitProgress` / `sceneProgress` and `rangeStart` / `rangeEnd` / `rangeLength` / `enterLength` / `exitLength` (px budgets). **Not exported from the package** — the consumer-side counterpart is `useAnimateTimeline()`.
+The timeline-state snapshot of a scroll takeover zone: `phase` (the `SceneTimelinePhase` five states: `before | enter | hold | exit | after`) plus `enterProgress` / `exitProgress` / `sceneProgress` and `rangeStart` / `rangeEnd` / `rangeLength` / `enterLength` / `exitLength` (px budgets). **Not exported from the package**; the consumer-side counterpart is `useAnimateTimeline()`.
 
 ### SceneVariantRecords (internal)
 
-The compiled variant records shared by the drag / scroll drivers: three fields — `enterInitial` / `enterAnimate` / `exitTarget`. The arrival lane deliberately keeps its own two-field shape (`{ initial, animate }`) — it has no exit concept. **Not exported from the package**; listed here only to explain the lane difference.
+The compiled variant records shared by the drag / scroll drivers, three fields: `enterInitial` / `enterAnimate` / `exitTarget`. The arrival lane deliberately keeps its own two-field shape (`{ initial, animate }`); it has no exit concept. **Not exported from the package**; listed here only to explain the lane difference.
 
 ## Related pages
 

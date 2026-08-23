@@ -791,3 +791,83 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* ============================================================
+ * 文档第二轮（R1）：代码块 chrome / 标题间距 / sticky 双栏 / 锚点精度
+ * ============================================================ */
+
+/* 代码块：语言标签头 + 收束的框体（标签头与 hljs 令牌共用一套色板） */
+.docs-code {
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+  background: var(--film-white);
+  overflow: hidden;
+}
+
+.docs-code__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--frame-line-soft);
+  background: var(--film-white-2);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.docs-code__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+  opacity: 0.75;
+}
+
+.docs-code pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* 旧裸 pre 样式让位于 .docs-code 包裹（未包裹场景兜底保留边框） */
+.docs-article__markdown > pre {
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+}
+
+/* 标题间距：页标题与 md 小节标题的呼吸位 */
+.docs-article > h2 {
+  margin: 0 0 28px;
+}
+
+.docs-article__markdown h2 {
+  margin-top: 2.75rem;
+}
+
+.docs-article__markdown h3 {
+  margin-top: 1.75rem;
+}
+
+/* sticky 双栏：长页滚动时导航与目录常驻。仅桌面——移动端导航是横向块状
+   元素（高 365px），sticky 会无背景常驻视口顶并让正文滚进导航文字下方
+   （R3 复审 FAIL 项：文字压文字破版），窄屏让它随文档流正常滚动。 */
+@media (min-width: 760px) {
+  .docs-nav,
+  .docs-toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/* 锚点精度：标题落点离视口顶留稳定呼吸位（无 fixed 头，32px 恒定） */
+.docs-article__markdown h2,
+.docs-article__markdown h3 {
+  scroll-margin-top: 32px;
+}

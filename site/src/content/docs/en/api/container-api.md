@@ -19,7 +19,7 @@ Every field and default below is checked against `ContainerProps` in `src/types/
 
 ## Conversion semantics
 
-`width` / `height` and the numeric lengths inside `style` share one ruler: `scale = viewportWidth / config.size` (default 750) — width-only, never distorted. The conversion happens solely on the `convert` / `convertStyle` provided by CineViewContext at mount; `Container` itself holds no second ruler.
+`width` / `height` and the numeric lengths inside `style` share one ruler: `scale = viewportWidth / config.size` (default 750), width-only, never distorted. The conversion happens solely on the `convert` / `convertStyle` provided by CineViewContext at mount; `Container` itself holds no second ruler.
 
 ```tsx
 <CineView config={{ size: 750 }}>
@@ -30,7 +30,7 @@ Every field and default below is checked against `ContainerProps` in `src/types/
 </CineView>
 ```
 
-`convertStyle` converts **as one block**: it walks the numeric length fields of the style object and multiplies each by `scale`; non-length fields (`color`, `display`, `zIndex`, …) pass through unchanged; string values (`'50%'`, `'1rem'`) are not converted and pass through as-is — write lengths that should scale as numbers.
+`convertStyle` converts **as one block**: it walks the numeric length fields of the style object and multiplies each by `scale`; non-length fields (`color`, `display`, `zIndex`, …) pass through unchanged; string values (`'50%'`, `'1rem'`) are not converted and pass through as-is; write lengths that should scale as numbers.
 
 What one set of draft values renders to across viewport widths (`config.size = 750`):
 
@@ -45,7 +45,7 @@ What one set of draft values renders to across viewport widths (`config.size = 7
 - **Container is not a coordinate owner.** Placement (`position` / `left` / `top` / centering) always belongs to `Position`; passing positioning styles to Container is a responsibility misuse, and the converted result is not adjudicated by the positioning chain.
 - **Must be used under a CineView.** The conversion depends on the `convert` injected by CineViewContext; rendering outside a CineView throws in development mode (production behaviour is undefined).
 - **Do not use it for Scene layout.** Scene's `layout.width` / `layout.height` have their own semantics (numbers go through the same ruler); Container is for the box model inside a Scene. The layering is `Scene → Position → Container`.
-- **Font sizes are converted too.** `style={{ fontSize: 28 }}` converts as design px — write the value measured from the draft directly; the string `'28px'` would not convert.
+- **Font sizes are converted too.** `style={{ fontSize: 28 }}` converts as design px; write the value measured from the draft directly, and the string `'28px'` would not convert.
 
 ## Related pages
 

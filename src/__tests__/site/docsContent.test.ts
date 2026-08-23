@@ -71,6 +71,31 @@ describe('docs bilingual content contract', () => {
     expect(problems).toEqual([]);
   });
 
+  it('generates unique heading anchor ids within every page', () => {
+    // headingId 由标题文本生成：同页重名 h2/h3 → 重复 DOM id，TOC 第二个
+    // 链接永远滚到第一个（R3 复审 B-1 #2 latent 机制，一行守卫）。
+    const problems: string[] = [];
+    for (const lang of LANGS) {
+      for (const file of perLang.get(lang) ?? []) {
+        const source = readFileSync(join(DOCS_ROOT, lang, file), 'utf8');
+        const ids = new Map<string, number>();
+        for (const line of source.split(/\r?\n/)) {
+          const match = /^(##|###)\s+(.+)$/.exec(line);
+          if (!match) continue;
+          const id = match[2]
+            .replace(/[`*_\]()[[]/g, '')
+            .trim()
+            .replace(/\s+/g, '-');
+          ids.set(id, (ids.get(id) ?? 0) + 1);
+        }
+        for (const [id, count] of ids) {
+          if (count > 1) problems.push(`${lang}/${file}: 标题 id "${id}" ×${count}`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
   it('declares a non-empty frontmatter title on every page', () => {
     const problems: string[] = [];
     for (const lang of LANGS) {

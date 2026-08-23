@@ -25,9 +25,9 @@ eyebrow: API REFERENCE
 
 三种定位方式的裁决顺序，冲突时高者优先：
 
-1. **绝对定位**——`at.x` / `at.y` 任一存在即生效，未给的轴补 `0`；
-2. **居中锚点**——`at.anchor` 设定后，被居中的轴相对视口居中，该轴上的 `x`/`y` 改作相对中心的偏移量（设计 px），且该轴忽略 offset 链；
-3. **相对链**——仅 `at.offsetX` / `at.offsetY`，基于上一个 `Position` 的坐标累加。
+1. **绝对定位**：`at.x` / `at.y` 任一存在即生效，未给的轴补 `0`；
+2. **居中锚点**：`at.anchor` 设定后，被居中的轴相对视口居中，该轴上的 `x`/`y` 改作相对中心的偏移量（设计 px），且该轴忽略 offset 链；
+3. **相对链**：仅 `at.offsetX` / `at.offsetY`，基于上一个 `Position` 的坐标累加。
 
 ```tsx
 /* Absolute: x present, y defaults to 0 */
@@ -40,7 +40,7 @@ eyebrow: API REFERENCE
 <Position at={{ offsetX: 24, offsetY: 0 }}>...</Position>
 ```
 
-注意第一条例子里 `offsetY` 会被忽略——绝对定位一旦触发，offset 链整体让位，未给的绝对轴补 `0` 而不是回落到相对值。
+注意第一条例子里 `offsetY` 会被忽略，绝对定位一旦触发，offset 链整体让位，未给的绝对轴补 `0` 而不是回落到相对值。
 
 ## 类型
 
@@ -56,7 +56,7 @@ eyebrow: API REFERENCE
 
 ### layer.fixed
 
-仅 scroll 模式有意义：挂载进**本 Scene** 的 scene-scoped fixed layer（portal 实现），滚动时保持视口位置但绝不跨章节漂浮——离开宿主 Scene 即随之退场。Scene 没有 fixed layer 宿主时降级为 `sticky`。drag 模式下场景本身就是全屏栈，该字段无额外效果。
+仅 scroll 模式有意义：挂载进**本 Scene** 的 scene-scoped fixed layer（portal 实现），滚动时保持视口位置但绝不跨章节漂浮，离开宿主 Scene 即随之退场。Scene 没有 fixed layer 宿主时降级为 `sticky`。drag 模式下场景本身就是全屏栈，该字段无额外效果。
 
 ### 共享类型
 

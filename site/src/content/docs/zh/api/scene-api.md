@@ -57,8 +57,8 @@ eyebrow: API REFERENCE
 
 两个注意点：
 
-- **这是事件回调，不是渲染状态源**。`progress` 随滚动逐帧变化，直接 `setState` 会让整个宿主组件每帧重渲染——需要读进度的渲染器用 `useAnimateTimeline()`（见 [该页](/docs/use-animate-timeline)）。
-- **与根级 `onSceneVisibilityChange` 同源同载荷**。scroll 模式下，同一份可见性事件同时扇出到 Scene 级回调与 CineView 根级 `callbacks.onSceneVisibilityChange`——Scene 上写只收本场景，根上写收全部场景。不要两处都做重活。
+- **这是事件回调，不是渲染状态源**。`progress` 随滚动逐帧变化，直接 `setState` 会让整个宿主组件每帧重渲染，需要读进度的渲染器用 `useAnimateTimeline()`（见 [该页](/docs/use-animate-timeline)）。
+- **与根级 `onSceneVisibilityChange` 同源同载荷**。scroll 模式下，同一份可见性事件同时扇出到 Scene 级回调与 CineView 根级 `callbacks.onSceneVisibilityChange`，Scene 上写只收本场景，根上写收全部场景。不要两处都做重活。
 
 ## 类型
 
@@ -80,7 +80,7 @@ eyebrow: API REFERENCE
 
 ### SceneStackMode
 
-`stack.mode` 的两个取值：`'replace'`——新场景替换旧场景（drag 默认，退场后旧场景卸载渲染）；`'cover'`——新场景覆盖在旧场景之上（scroll 默认，滚动文档流语义）。
+`stack.mode` 的两个取值：`'replace'`：新场景替换旧场景（drag 默认，退场后旧场景卸载渲染）；`'cover'`：新场景覆盖在旧场景之上（scroll 默认，滚动文档流语义）。
 
 ### 共享类型
 
@@ -97,7 +97,7 @@ eyebrow: API REFERENCE
 上报 `INVALID_COMPONENT_HIERARCHY`（可恢复，载荷含 `ownerSceneIndex` / `rejectedSceneIndex`）；未接管时首个声明者胜出，后声明方的 zone 声明被拒绝。
 
 **`drag.unit` / `drag.scale` 的继承规则？**
-两字段任一显式提供即停止继承 root `modes.drag` 的映射；都缺省时整组继承。只想覆盖 `scale` 也要意识到 `unit` 同时脱离继承——需要保住默认单位就显式写 `unit: 'time'`。
+两字段任一显式提供即停止继承 root `modes.drag` 的映射；都缺省时整组继承。只想覆盖 `scale` 也要意识到 `unit` 同时脱离继承，需要保住默认单位就显式写 `unit: 'time'`。
 
 **场景高度到底谁说了算？**
 `layout.height`。scroll 模式默认 `'auto'`（内容自然高度，文档流语义），drag 模式默认 `'100vh'`（全屏栈语义）；`modes.scroll.sceneSizing` 是 scroll 侧的全局语义开关（`'content'` / `'screen'`）。

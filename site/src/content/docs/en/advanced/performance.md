@@ -32,18 +32,13 @@ The dev build measures seek latency per source and warns once when the median ex
 
 ## Concurrent observation
 
-Unit tests cannot catch hot-path regressions. The acceptance probe drives six seconds of continuous input on both paths — wheel through the scroll homepage, real pointer drag cycles on the drag page — while sampling rAF frame gaps and longtasks in-page. The passing bars:
+Unit tests cannot catch hot-path regressions. The acceptance probe drives six seconds of continuous input on both paths (wheel through the scroll homepage, real pointer drag cycles on the drag page) while sampling rAF frame gaps and longtasks in-page. The passing bars: rAF frame-gap P95 under 25ms across the drive; gaps above 25ms under 10% of frames; longtasks (over 50ms) at most 2, baseline 0; console errors and warnings at 0.
 
-- rAF frame-gap P95 under 25ms across the drive
-- gaps above 25ms under 10% of frames
-- longtasks (over 50ms) at most 2, baseline 0
-- console errors and warnings: 0
-
-rAF gaps reflect the main thread, not the GPU pipeline — headless probes catch JS-side regressions (per-frame setState, long tasks), not raster cost.
+rAF gaps reflect the main thread, not the GPU pipeline. Headless probes catch JS-side regressions (per-frame setState, long tasks), not raster cost.
 
 ## MotionValue discipline
 
-Quantities that change every frame — progress, elapsed time, offsets — belong on MotionValue; React state is for structural changes only. Two hard-won specifics:
+Quantities that change every frame (progress, elapsed time, offsets) belong on MotionValue; React state is for structural changes only. Two hard-won specifics:
 
 - An independent lane cannot drive properties already owned by Animate's style MotionValues (`opacity`, `x`, `y`, `scale`, `rotate`, `filter`, ...): the MotionValue binding outranks `controls.start()`, and the competing writes are silently ignored. Animate a CSS custom property instead and map it in plain CSS.
 - Reading progress in a callback is fine; writing it into state is not. Project through refs, or consume `useAnimateTimeline()` MotionValues directly in a custom renderer.

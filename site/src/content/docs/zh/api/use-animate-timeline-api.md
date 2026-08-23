@@ -29,7 +29,7 @@ interface AnimateTimeline {
 | `phase` | `MotionValue<AnimatePhase>` | 六态相位词表（见下节）。 |
 | `frame` | `MotionValue<AnimateTimelineFrame>` | 原子快照（见下节）——四个值在同一次提交里发布。 |
 
-对象身份稳定：effect 依赖里放 `timeline` 不会每帧重跑。全部字段 `readonly`，没有任何写入方法——CineView 仍是时间轴的唯一写者。
+对象身份稳定：effect 依赖里放 `timeline` 不会每帧重跑。全部字段 `readonly`，没有任何写入方法，CineView 仍是时间轴的唯一写者。
 
 ## AnimatePhase 六态词表
 
@@ -60,7 +60,7 @@ interface AnimateTimelineFrame {
 | `phase` | `AnimatePhase` | 与顶层 `phase` 同值。 |
 | `source` | `AnimateTimelineSource` | 本次变化的来源（六值，见下表）。 |
 
-为什么需要它：分开订阅 `progress` 和 `phase` 的消费者，可能读到跨提交的组合——新的 progress 配上旧的 phase，画出一帧从未存在过的中间态。`frame` 把四个值在同一次提交里原子发布。
+为什么需要它：分开订阅 `progress` 和 `phase` 的消费者，可能读到跨提交的组合，即新的 progress 配上旧的 phase，画出一帧从未存在过的中间态。`frame` 把四个值在同一次提交里原子发布。
 
 `source` 的六个取值：
 
@@ -99,7 +99,7 @@ function PhaseLogger() {
 </Animate>
 ```
 
-订阅用 MotionValue 的 `.on('change', ...)`，返回取消函数，天然适配 effect 清理。一条纪律：**传 MotionValue 本身，不要传 `.get()` 的快照**——快照是订阅那一刻的静态值，之后永远不再更新。
+订阅用 MotionValue 的 `.on('change', ...)`，返回取消函数，天然适配 effect 清理。一条纪律：**传 MotionValue 本身，不要传 `.get()` 的快照**。快照是订阅那一刻的静态值，之后永远不再更新。
 
 ## 相关页面
 

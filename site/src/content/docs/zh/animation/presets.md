@@ -39,15 +39,15 @@ CineView 内置 43 个预设动画，分属 11 个类别。预设以字符串名
 </Animate>
 ```
 
-同一个名字可用于 enter、exit 与 infinite 三条 lane——每条 lane 各自把名字解析成自己的 `initial` / `animate` / `exit` 变体记录。
+同一个名字可用于 enter、exit 与 infinite 三条 lane，每条 lane 各自把名字解析成自己的 `initial` / `animate` / `exit` 变体记录。
 
 ## 预设到底是什么
 
-每个预设解析为一个变体记录三元组——`initial`、`animate`、`exit`——而**运动放在哪条记录上**决定了它的用途：
+每个预设解析为一个变体记录三元组（`initial`、`animate`、`exit`），**运动放在哪条记录上**决定了它的用途：
 
 - `-in` 形态（如 `fade-in`、`bounce-in`、`roll-in`）把运动放在 `animate`：`initial` 是隐藏态，`animate` 是显影，`exit` 是保持可见的 no-op。它们是入场预设。
 - `-out` 形态（如 `fade-out`、`bounce-out`、`roll-out`）互为镜像：`initial`/`animate` 静止不动，运动落在 `exit`。它们是退场预设。
-- 中性形态（`fade`、`bounce`、`flip`）两端都有运动——一个完整的往返。
+- 中性形态（`fade`、`bounce`、`flip`）两端都有运动，是一个完整的往返。
 
 ```tsx
 // 'fade-in' as authored in src/animations/presets/fade.ts
@@ -58,18 +58,18 @@ CineView 内置 43 个预设动画，分属 11 个类别。预设以字符串名
 }
 ```
 
-对 scrub 轨的一个推论：预设可以携带 Framer transition——`bounce` 自带弹簧（`type: 'spring', bounce: 0.5`）。在时间驱动轨（visibility、drag arrival）上弹簧按声明播放；在 scrub 轨（scroll 接管、drag 元素轨）上运行时按位置求值、忽略 transition 编排，弹簧预设读起来就是端点间的线性扫动。弹簧类别的灵魂在时间驱动轨；scrub 的入场优先用几何预设（fade/slide/zoom/blur）或显式关键帧。
+对 scrub 轨的一个推论：预设可以携带 Framer transition，如 `bounce` 自带弹簧（`type: 'spring', bounce: 0.5`）。在时间驱动轨（visibility、drag arrival）上弹簧按声明播放；在 scrub 轨（scroll 接管、drag 元素轨）上运行时按位置求值、忽略 transition 编排，弹簧预设读起来就是端点间的线性扫动。弹簧类别的灵魂在时间驱动轨；scrub 的入场优先用几何预设（fade/slide/zoom/blur）或显式关键帧。
 
 ## 按类别惰性加载
 
-预设不进主包。每个类别独占一个模块（`fade.ts`、`slide.ts`……），首次使用其中任意预设时才以动态 `import()` 拉取——只做淡入淡出与滑动的应用永远不会下载 elastic 模块。
+预设不进主包。每个类别独占一个模块（`fade.ts`、`slide.ts`……），首次使用其中任意预设时才以动态 `import()` 拉取，只做淡入淡出与滑动的应用永远不会下载 elastic 模块。
 
 加载协调器（`src/animations/presets/index.ts`）保证：
 
-- **跨根共享** —— 加载成功的模块与永久失败跨进程级缓存，页面上所有 CineView 实例共用。
-- **请求合并** —— 同一类别的并发请求复用同一个 in-flight promise，不互相竞速。
-- **超时** —— 类别加载超过 3000ms 以 `ANIMATION_ASSET_LOAD_FAILED` 失败。这是**瞬时失败**：不会永久缓存，后续请求可以重试。
-- **永久失败** —— 未知预设名、未知类别、或类别模块里缺该导出，均以 `INVALID_ANIMATION` 失败并永久缓存（缓存清理前同一名字不再重复加载）。
+- **跨根共享**：加载成功的模块与永久失败跨进程级缓存，页面上所有 CineView 实例共用。
+- **请求合并**：同一类别的并发请求复用同一个 in-flight promise，不互相竞速。
+- **超时**：类别加载超过 3000ms 以 `ANIMATION_ASSET_LOAD_FAILED` 失败。这是**瞬时失败**：不会永久缓存，后续请求可以重试。
+- **永久失败**：未知预设名、未知类别、或类别模块里缺该导出，均以 `INVALID_ANIMATION` 失败并永久缓存（缓存清理前同一名字不再重复加载）。
 
 ## 失败上报
 
@@ -104,7 +104,7 @@ CineView 内置 43 个预设动画，分属 11 个类别。预设以字符串名
 从目录里选型的两条实践提示：
 
 - **入场与退场的对称性**。很多类别有成对的入场向/退场向形态（`fade-in` / `fade-out`、`bounce-in` / `bounce-out`、`roll-in` / `roll-out`）。`fade`、`bounce` 等中性形态服务于通用 lane；编排级联时，退场请使用镜像的对应形态，让反向回放读起来像有意的收束（级联编排见 waitFor 页）。
-- **注意力类预设归 infinite lane**。`blink`、`flash`、`pulse`、`heartbeat`、`tada`、`wave` 等表达持续生命感，请经 `infiniteAnimation` 声明——运行时会把它门控到元素自身 phase 且在视口内才运行；CSS `animation: … infinite` 会在退场中、卸载后照跑，这正是该门控要防的破窗。
+- **注意力类预设归 infinite lane**。`blink`、`flash`、`pulse`、`heartbeat`、`tada`、`wave` 等表达持续生命感，请经 `infiniteAnimation` 声明，运行时会把它门控到元素自身 phase 且在视口内才运行；CSS `animation: … infinite` 会在退场中、卸载后照跑，该门控防的就是这种破窗。
 
 ```tsx
 <Animate
@@ -118,7 +118,7 @@ CineView 内置 43 个预设动画，分属 11 个类别。预设以字符串名
 
 ## 各类别适合的场景
 
-目录内可自由混用——下表是编写习惯，不是 API 规则：
+目录内可自由混用，下表是编写习惯，不是 API 规则：
 
 | 类别 | 适合 |
 | --- | --- |

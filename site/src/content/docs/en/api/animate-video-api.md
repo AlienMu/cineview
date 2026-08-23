@@ -50,22 +50,22 @@ Native media events can be consumed directly:
 />
 ```
 
-`onPlay` / `onPause` / `onEnded` pass through a playback-ownership gate: only events committed to the current source generation and activation are delivered. Events still in flight from a released or replaced video node are dropped instead of surfacing as ghost callbacks — safe to use these for UI state without deduplication of your own. `onTimeUpdate` and `onError` are passed through unfiltered.
+`onPlay` / `onPause` / `onEnded` pass through a playback-ownership gate: only events committed to the current source generation and activation are delivered. Events still in flight from a released or replaced video node are dropped instead of surfacing as ghost callbacks, so they are safe to use for UI state without deduplication of your own. `onTimeUpdate` and `onError` are passed through unfiltered.
 
-This is the native-event pass-through surface, not the framework callback surface — framework-level error reporting goes through CineView's `onError` (see the [CineView API](/docs/cineview-api)).
+This is the native-event pass-through surface, not the framework callback surface; framework-level error reporting goes through CineView's `onError` (see the [CineView API](/docs/cineview-api)).
 
 ## Types
 
 ### timeline (deliberately narrowed)
 
-`AnimateVideo.timeline` is not the full `AnimateProps['timeline']` — it carries only two fields: `delay` and `waitFor`. The wrapper's `sceneControlled` stays at its default (`true`), so it binds to its zone's / scene's track like any other `Animate` — there is no way to move a video onto the arrival lane with `sceneControlled: false`.
+`AnimateVideo.timeline` is not the full `AnimateProps['timeline']`: it carries only two fields, `delay` and `waitFor`. The wrapper's `sceneControlled` stays at its default (`true`), so it binds to its zone's / scene's track like any other `Animate`, and there is no way to move a video onto the arrival lane with `sceneControlled: false`.
 
 ### scrubRange
 
 A `readonly [fromSeconds: number, toSeconds: number]` tuple:
 
 - both ends are clamped to `[0, duration]`;
-- a reverse interval (`from > to`) is valid — progress walks the footage backward;
+- a reverse interval (`from > to`) is valid; progress walks the footage backward;
 - without `scrubRange`, `currentTime = progress × duration` and there is no endpoint handoff (progress 1 just holds the last frame);
 - the endpoint-handoff semantics (seeking to `to`, handing ownership to native `play()`, the 2% hysteresis band reclaiming it) are documented in the [component guide](/docs/animate-video).
 
@@ -76,7 +76,7 @@ A `readonly [fromSeconds: number, toSeconds: number]` tuple:
 
 ## Constraint notes
 
-- **All-keyframe encoding is a hard constraint.** H.264 P/B frames are deltas against the previous frame, so seeking to any frame decodes the whole run from the nearest keyframe; with the usual sparse keyframes every scrub step maxes out the decode thread (reverse is the longest and worst). `ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4` encodes every frame as an I-frame — bigger file, flat seek latency. The dev build measures per-step seek latency while scrubbing and warns once when a single source's median exceeds 50ms.
+- **All-keyframe encoding is a hard constraint.** H.264 P/B frames are deltas against the previous frame, so seeking to any frame decodes the whole run from the nearest keyframe; with the usual sparse keyframes every scrub step maxes out the decode thread (reverse is the longest and worst). `ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4` encodes every frame as an I-frame: bigger file, flat seek latency. The dev build measures per-step seek latency while scrubbing and warns once when a single source's median exceeds 50ms.
 - **Two silent differences under drag mode**: `releaseOnLeave` is ignored (there is no approach band outside takeover zones); `duration.enter` reads as element-track milliseconds, not scroll px. Everything else carries over.
-- **The correct use of `preload={false}`**: opting the instance out when the video has already been loaded by the page through the CineView preload pipeline, avoiding duplicate work — it is not a bandwidth saver (first-use videos should be preloaded; only the whole-segment blob guarantees seekability).
+- **The correct use of `preload={false}`**: opting the instance out when the video has already been loaded by the page through the CineView preload pipeline, avoiding duplicate work; it is not a bandwidth saver (first-use videos should be preloaded; only the whole-segment blob guarantees seekability).
 

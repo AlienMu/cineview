@@ -13,7 +13,7 @@ The registry (`src/animations/registry.ts`) resolves each registered element int
 calculatedDelay(B) = B.delay + calculatedDelay(A) + A.enterDuration
 ```
 
-where `A` is `B.waitFor`. A chain compiles into disjoint windows on the timeline — no element watches another at runtime:
+where `A` is `B.waitFor`. A chain compiles into disjoint windows on the timeline; no element watches another at runtime:
 
 ```tsx
 <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
@@ -47,17 +47,17 @@ where `A` is `B.waitFor`. A chain compiles into disjoint windows on the timeline
 
 The scene's timeline duration is the max of `calculatedDelay + duration` over all elements. Under scroll takeover every millisecond is a real scroll pixel (`1ms = 1px`), so the table above literally reads in px. In drag mode the same `calculatedDelay` gates the scene's element track: the element's enter plays within `[calculatedDelay, calculatedDelay + enterDuration]` of scene elapsed.
 
-Give exits the mirrored choreography — a chain that enters title → subline → video should exit video → subline → title, or the reverse pass collapses into a simultaneous rollback.
+Give exits the mirrored choreography: a chain that enters title → subline → video should exit video → subline → title, or the reverse pass collapses into a simultaneous rollback.
 
 ## Where the chain runs
 
 The accumulation arithmetic is shared; each mode consumes it through its own clock:
 
-- **Scroll takeover**: the chain's millisecond numbers become px windows inside the zone — the follower's `startMs` is its `startPx` (`1ms = 1px`), so scrolling the zone literally walks the cascade.
-- **Drag**: the same `calculatedDelay` gates the scene's element track — each follower's enter occupies `[calculatedDelay, calculatedDelay + enterDuration]` of scene elapsed, and the finger scrubs through it.
-- **Visibility** (scroll mode outside zones): the chain plays in real time — `delay` is simply elapsed waiting time before the enter starts.
+- **Scroll takeover**: the chain's millisecond numbers become px windows inside the zone, the follower's `startMs` is its `startPx` (`1ms = 1px`), so scrolling the zone literally walks the cascade.
+- **Drag**: the same `calculatedDelay` gates the scene's element track; each follower's enter occupies `[calculatedDelay, calculatedDelay + enterDuration]` of scene elapsed, and the finger scrubs through it.
+- **Visibility** (scroll mode outside zones): the chain plays in real time, `delay` is simply elapsed waiting time before the enter starts.
 
-One edge is special: a **visibility follower waiting on a scroll-zone leader** compiles without delay accumulation and instead waits at runtime for the leader's actual completion event — a scroll leader has a real completion to publish. The reverse directions are rejected outright:
+One edge is special: a **visibility follower waiting on a scroll-zone leader** compiles without delay accumulation and instead waits at runtime for the leader's actual completion event, since a scroll leader has a real completion to publish. The reverse directions are rejected outright:
 
 | Follower ↓ waits on → leader | drag | scroll | visibility |
 | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ One edge is special: a **visibility follower waiting on a scroll-zone leader** c
 | scroll | rejected | allowed | rejected |
 | visibility | rejected | allowed (runtime-completion-only) | allowed |
 
-Also outside the registry: the drag arrival lane (`sceneControlled: false`) skips registry participation entirely — an arrival element is not a valid `waitFor` target, and its own `waitFor` is ignored.
+Also outside the registry: the drag arrival lane (`sceneControlled: false`) skips registry participation entirely; an arrival element is not a valid `waitFor` target, and its own `waitFor` is ignored.
 
 ## Validation and reporting
 
@@ -78,7 +78,7 @@ The registry compiles the whole graph and reports issues instead of guessing:
 | Duplicate `animateId` | `INVALID_COMPONENT_HIERARCHY` | Reported; the registry refuses ambiguous references. |
 | Cross-driver edge | `INVALID_ANIMATION` | Rejected (see below). |
 
-One cross-driver edge is deliberately allowed: a **visibility follower may wait on a scroll-zone leader**. In that direction the follower's delay does *not* accumulate the leader's window — it waits at runtime for the leader's actual completion (runtime-completion-only). The reverse — a scroll-driven follower waiting on a visibility leader — is rejected: a scroll element's window must be a pure function of scroll position, and a visibility leader has no scroll-addressable end.
+One cross-driver edge is deliberately allowed: a **visibility follower may wait on a scroll-zone leader**. In that direction the follower's delay does *not* accumulate the leader's window; it waits at runtime for the leader's actual completion (runtime-completion-only). The reverse, a scroll-driven follower waiting on a visibility leader, is rejected: a scroll element's window must be a pure function of scroll position, and a visibility leader has no scroll-addressable end.
 
 ## Stagger: grouping inside one Animate
 
@@ -107,9 +107,9 @@ One cross-driver edge is deliberately allowed: a **visibility follower may wait 
 Rules that matter in practice:
 
 - `children` must be a single React element (type-enforced when `stagger` is set); each **direct** child of it is one stagger item.
-- The reveal runs through Framer's native variant propagation, so items may animate **any** Framer-animatable property (`clipPath`, `width`, …) — the enter/exit ten-property whitelist does not apply here.
+- The reveal runs through Framer's native variant propagation, so items may animate **any** Framer-animatable property (`clipPath`, `width`, …); the enter/exit ten-property whitelist does not apply here.
 - It is time-driven and never scrubs: the group plays when its lane says "enter" and resets on re-enter per `visibility.replayOnReenter`. For per-element scrub, use the render-prop `enterProgress` instead.
-- The completion clock is `max(authored duration, tail + item duration)` where `tail = lastOrder × each`. That effective duration is what the element registers — so a `waitFor` follower of a staggered group waits for the whole reveal, not the authored `duration.enter` alone.
+- The completion clock is `max(authored duration, tail + item duration)` where `tail = lastOrder × each`. That effective duration is what the element registers, so a `waitFor` follower of a staggered group waits for the whole reveal, not the authored `duration.enter` alone.
 
 ## Stagger timing by the numbers
 
@@ -123,42 +123,42 @@ Five items, `each: 120`, variant item duration 600 ms (the variant's own `transi
 
 Two consequences:
 
-- `from: 'center'` finishes measurably sooner — the reveal fans outward from the middle, so the farthest item is only half a list away.
-- The **effective** duration is what the element registers with the timeline — a `waitFor` follower of this group waits the full 1080 ms, not the authored 600. Budget your chain arithmetic against the stagger, not the variant.
+- `from: 'center'` finishes measurably sooner; the reveal fans outward from the middle, so the farthest item is only half a list away.
+- The **effective** duration is what the element registers with the timeline: a `waitFor` follower of this group waits the full 1080 ms, not the authored 600. Budget your chain arithmetic against the stagger, not the variant.
 
-The exit pass staggers with the same `each`/`from`, animating each item toward the `exitAnimation` exit record — or back toward the `initial` record when no `exitAnimation` is authored. Enter and exit use the same rhythm, so the group unwinds the way it assembled.
+The exit pass staggers with the same `each`/`from`, animating each item toward the `exitAnimation` exit record, or back toward the `initial` record when no `exitAnimation` is authored. Enter and exit use the same rhythm, so the group unwinds the way it assembled.
 
-Internally this is `StaggerContainer` (`src/components/Animate/StaggerContainer.tsx`), with one thin subscriber per mode (scroll reads the signed visual signal, drag reads the visual state, the drag arrival lane reads its phase). It is not a public export — `Animate`'s `stagger` prop is the public surface.
+Internally this is `StaggerContainer` (`src/components/Animate/StaggerContainer.tsx`), with one thin subscriber per mode (scroll reads the signed visual signal, drag reads the visual state, the drag arrival lane reads its phase). It is not a public export; `Animate`'s `stagger` prop is the public surface.
 
 ## Authoring checklist
 
 Before calling a cascade done:
 
-1. Every `waitFor` target exists in the same registry scope (same scene for drag, same zone for scroll takeover) — otherwise it reports `INVALID_ANIMATION` and the follower starts on its bare `delay`.
-2. No `animateId` is duplicated anywhere in the tree — duplicates report `INVALID_COMPONENT_HIERARCHY`.
-3. The chain has no cycle — every member of a cycle reports `CIRCULAR_DEPENDENCY` and falls back to its own delay.
+1. Every `waitFor` target exists in the same registry scope (same scene for drag, same zone for scroll takeover); otherwise it reports `INVALID_ANIMATION` and the follower starts on its bare `delay`.
+2. No `animateId` is duplicated anywhere in the tree; duplicates report `INVALID_COMPONENT_HIERARCHY`.
+3. The chain has no cycle; every member of a cycle reports `CIRCULAR_DEPENDENCY` and falls back to its own delay.
 4. A chain leader may carry a `timeline.phase` window (composition semantics below; supported since 2026-08-23).
 5. Exits mirror the enter chain in reverse, or the reverse pass rolls back as one blob.
 6. If a leader is a stagger group, chain arithmetic uses its effective duration, not the authored one.
 
 ## Phase windows on chain leaders: composition semantics (fixed 2026-08-23)
 
-Inside a scroll takeover zone, a chain leader may carry a `timeline.phase` window — the
+Inside a scroll takeover zone, a chain leader may carry a `timeline.phase` window; the
 budget compiler now makes the `waitFor` chain consume the leader's **effective end**
 (where its phase window closes) instead of its nominal ms end.
 
 Historically the two split into dual clocks (the ms chain and the px correction each did
-their own arithmetic; a follower once started while its leader was at 14 percent —
-task-flow 2026-08-23, T1.8). The fix resolves the circular dependency — phase fractions
-reference the zone total, chain extents feed the zone total — with a fixed-point
+their own arithmetic; a follower once started while its leader was at 14 percent, per
+task-flow 2026-08-23, T1.8). The fix resolves the circular dependency (phase fractions
+reference the zone total, chain extents feed the zone total) with a fixed-point
 iteration that converges geometrically for `phase.end < 1` (residual far below a visible
 pixel).
 
 Composition semantics: the moment the leader's phase window closes is the moment the
-follower starts. waitFor waits for **enter completion** — a leader's exit (pinned to the
+follower starts. waitFor waits for **enter completion**: a leader's exit (pinned to the
 zone end as the closing beat) is not a chain anchor, so a phase+exit leader's followers
 start at its enter-window close and overlap its closing exit: bounded and defined. The
-degenerate shape (`phase.end → 1` leading a follower) has no fixed point — the follower
+degenerate shape (`phase.end → 1` leading a follower) has no fixed point; the follower
 is placed past the zone end and never enters, which is defined behavior.
 
 The authoring guidance is unchanged: pure `waitFor` + `delay` cascades remain the

@@ -21,7 +21,7 @@ eyebrow: API REFERENCE
 
 ### DragDetail
 
-`onDragProgress` / `onDragCancel`（drag 专属）的载荷。注意没有独立的 `DragCancelDetail`——取消复用本类型。
+`onDragProgress` / `onDragCancel`（drag 专属）的载荷。注意没有独立的 `DragCancelDetail`，取消复用本类型。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ eyebrow: API REFERENCE
 
 ### DragStartDetail
 
-`onDragStart`（drag 专属）的载荷。结构上是 `DragDetail` 去掉可空的 `direction` 换成必填——起始时刻方向已决。
+`onDragStart`（drag 专属）的载荷。结构上是 `DragDetail` 去掉可空的 `direction` 换成必填，起始时刻方向已决。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ eyebrow: API REFERENCE
 
 ### DragBlockedDetail
 
-`onDragBlocked`（drag 专属）的载荷——越界方向的拖拽被阻挡。
+`onDragBlocked`（drag 专属）的载荷，越界方向的拖拽被阻挡。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -119,7 +119,7 @@ eyebrow: API REFERENCE
 
 ### AnimationType
 
-`AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`——预设名、自定义 variant、组合动画（sequential / parallel）三选一。`enterAnimation` / `exitAnimation` / `infiniteAnimation`（`Animate`、`AnimateVideo`、`Scene.transition`）都用它。组合编排见 [自定义与组合](/docs/custom)。
+`AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`，即预设名、自定义 variant、组合动画（sequential / parallel）三选一。`enterAnimation` / `exitAnimation` / `infiniteAnimation`（`Animate`、`AnimateVideo`、`Scene.transition`）都用它。组合编排见 [自定义与组合](/docs/custom)。
 
 ### PresetAnimation
 
@@ -131,11 +131,11 @@ eyebrow: API REFERENCE
 
 ### ScrollTimelineState（内部）
 
-scroll 接管 zone 的时间轴状态快照：`phase`（`SceneTimelinePhase` 五态：`before | enter | hold | exit | after`）+ `enterProgress` / `exitProgress` / `sceneProgress` + `rangeStart` / `rangeEnd` / `rangeLength` / `enterLength` / `exitLength`（px 预算）。**未从包出口导出**——消费者侧的对应物是 `useAnimateTimeline()`。
+scroll 接管 zone 的时间轴状态快照：`phase`（`SceneTimelinePhase` 五态：`before | enter | hold | exit | after`）+ `enterProgress` / `exitProgress` / `sceneProgress` + `rangeStart` / `rangeEnd` / `rangeLength` / `enterLength` / `exitLength`（px 预算）。**未从包出口导出**，消费者侧的对应物是 `useAnimateTimeline()`。
 
 ### SceneVariantRecords（内部）
 
-drag / scroll 双驱动共享的编译后 variant 记录：`enterInitial` / `enterAnimate` / `exitTarget` 三字段。arrival 轨刻意保持自己的两字段形态（`{ initial, animate }`）——它没有退场概念。**未从包出口导出**，列于此仅用于理解轨道差异。
+drag / scroll 双驱动共享的编译后 variant 记录：`enterInitial` / `enterAnimate` / `exitTarget` 三字段。arrival 轨刻意保持自己的两字段形态（`{ initial, animate }`），它没有退场概念。**未从包出口导出**，列于此仅用于理解轨道差异。
 
 ## 相关页面
 

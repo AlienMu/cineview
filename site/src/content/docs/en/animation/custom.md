@@ -3,7 +3,7 @@ title: Custom animations
 eyebrow: AUTHORED
 ---
 
-When no preset fits, author a variant object directly. A custom animation is a Framer Motion variant subset — `initial`, `animate`, `exit` records — passed inline where a preset name would go.
+When no preset fits, author a variant object directly. A custom animation is a Framer Motion variant subset (`initial`, `animate`, `exit` records) passed inline where a preset name would go.
 
 ## Custom variants
 
@@ -26,11 +26,11 @@ Parsing rules worth knowing:
 
 - A string is parsed as a preset name; an object is parsed as a custom variant; `parseAnimation` dispatches on the type.
 - `transformOrigin` strings are normalized to percentage pairs (`'top left'` → `'0% 0%'`, `'center'` → `'50% 50%'`).
-- Transition timing inside a variant (`transition.duration` in seconds, `transition.delay` in seconds) applies on time-driven lanes. Scrub lanes (scroll takeover, drag element track) interpolate by position and ignore transition timing — duration there comes from `duration.enter`, the scrub span.
+- Transition timing inside a variant (`transition.duration` in seconds, `transition.delay` in seconds) applies on time-driven lanes. Scrub lanes (scroll takeover, drag element track) interpolate by position and ignore transition timing; duration there comes from `duration.enter`, the scrub span.
 
 ## Keyframes and times
 
-Any property value may be an array — a full keyframe sequence. Keyframe positions come from `transition.times`: per-property (`transition: { opacity: { times: [0, 0.3, 0.9, 1] } }`) when present, otherwise a top-level `transition.times` of the same length; with no `times` at all, keyframes are spaced evenly (`index / (count - 1)`).
+Any property value may be an array holding a full keyframe sequence. Keyframe positions come from `transition.times`: per-property (`transition: { opacity: { times: [0, 0.3, 0.9, 1] } }`) when present, otherwise a top-level `transition.times` of the same length; with no `times` at all, keyframes are spaced evenly (`index / (count - 1)`).
 
 ```tsx
 // A background that fades in, holds, and fades out across one enter span.
@@ -67,7 +67,7 @@ Walk one property through the resolver. With `opacity: [0, 1, 1, 0]` and `times:
 | 0.45 | inside 0.3 → 0.9 (both keyframes are 1) | holds `1` |
 | 0.95 | 0.9 → 1 | lerps 1 → 0, at `(0.95 − 0.9) / 0.1 = 0.5`: `0.5` |
 
-Keyframes give a scrubbed element a *shape across its span* — enter, hold, and leave inside one `duration.enter` — which a plain from-to variant cannot express. This is the standard idiom for elements that must both arrive and depart within a single takeover zone: one lane, one span, four keyframes.
+Keyframes give a scrubbed element a *shape across its span* (enter, hold, and leave inside one `duration.enter`) which a plain from-to variant cannot express. This is the standard idiom for elements that must both arrive and depart within a single takeover zone: one lane, one span, four keyframes.
 
 ## Two shapes from real site code
 
@@ -94,11 +94,11 @@ export function riseVariant(amplitude: string) {
 }
 ```
 
-`solidVariant()` is the idiom for "I need a timeline lane (for render-props, `useAnimateTimeline` consumers, or a waitFor anchor) but no visual animation of my own" — the default `AnimateVideo` wrapper uses the same trick internally.
+`solidVariant()` is the idiom for "I need a timeline lane (for render-props, `useAnimateTimeline` consumers, or a waitFor anchor) but no visual animation of my own", and the default `AnimateVideo` wrapper uses the same trick internally.
 
 ## Exit variants
 
-`exitAnimation` accepts the same shapes, but the record that matters is `exit` — `initial`/`animate` exist for symmetry and are typically left still:
+`exitAnimation` accepts the same shapes, but the record that matters is `exit`: `initial`/`animate` exist for symmetry and are typically left still:
 
 ```tsx
 <Animate
@@ -114,9 +114,9 @@ export function riseVariant(amplitude: string) {
 </Animate>
 ```
 
-(The shape above is lifted from the site's slate scene — enter rises and settles, exit scales *up* while fading, a projector pulling back.)
+(The shape above is lifted from the site's slate scene: enter rises and settles, exit scales *up* while fading, a projector pulling back.)
 
-Exit keyframe arrays work exactly like enter ones — `times` included — and the element's terminal state is the last keyframe. The reverse pass of a scrub lane walks the same interpolation backwards, so an exit authored as keyframes unwinds keyframe by keyframe.
+Exit keyframe arrays work exactly like enter ones (`times` included), and the element's terminal state is the last keyframe. The reverse pass of a scrub lane walks the same interpolation backwards, so an exit authored as keyframes unwinds keyframe by keyframe.
 
 ## Which properties animate
 
@@ -126,12 +126,12 @@ The enter/exit property lanes own exactly ten properties:
 
 Custom variants on scrub lanes should stick to these. Two sanctioned ways past the whitelist:
 
-- The `stagger` prop reveals each direct child via Framer's native variant propagation, which accepts any Framer-animatable property (`clipPath`, `width`, …) — time-driven, never scrubs.
+- The `stagger` prop reveals each direct child via Framer's native variant propagation, which accepts any Framer-animatable property (`clipPath`, `width`, …); time-driven, never scrubs.
 - Canvas and custom renderers read `useAnimateTimeline()` MotionValues directly (the canvas exemption).
 
 ## Composed animations
 
-`ComposedAnimation` stitches multiple steps — preset names, custom variants, or a mix — into one animation:
+`ComposedAnimation` stitches multiple steps (preset names, custom variants, or a mix) into one animation:
 
 ```tsx
 <Animate
@@ -154,8 +154,8 @@ Composition rules (from `src/animations/composer.ts`):
 | `mode` | `'sequential'` — each step starts after the previous step's duration plus its own delay; `'parallel'` — all steps start at their own delay. |
 | `delays` | Per-step extra delay in ms, indexed by authoring position. |
 
-- `sequential`: step delay accumulates `previous duration + previous customDelay`; a step that declares no `transition.duration` is assumed to take 1s (Framer's implicit duration cannot be read at compose time — declare durations explicitly). `initial` comes from the first step, `exit` from the last.
+- `sequential`: step delay accumulates `previous duration + previous customDelay`; a step that declares no `transition.duration` is assumed to take 1s (Framer's implicit duration cannot be read at compose time; declare durations explicitly). `initial` comes from the first step, `exit` from the last.
 - `parallel`: every step keeps its own delay; `initial` and `exit` merge all steps (same-name properties last-wins).
-- Merged `animate` uses Framer's per-value transition form (`transition: { opacity: {...}, y: {...} }`), so each property carries its own step's delay/duration. Note this shape serves time-driven lanes — scrub paths lerp by value and ignore transition.
+- Merged `animate` uses Framer's per-value transition form (`transition: { opacity: {...}, y: {...} }`), so each property carries its own step's delay/duration. Note this shape serves time-driven lanes; scrub paths lerp by value and ignore transition.
 
-For sequencing *elements* rather than steps inside one element, use `waitFor` chains — the next page.
+For sequencing *elements* rather than steps inside one element, use `waitFor` chains, covered on the next page.

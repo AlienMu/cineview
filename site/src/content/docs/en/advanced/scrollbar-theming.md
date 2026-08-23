@@ -25,7 +25,7 @@ Two limits are fixed rather than configurable: the thumb never shrinks below 40p
 
 ## CSS variable linkage
 
-Color strings are written verbatim into `background`, so any CSS color value works — including `var()` references. A custom property that other parts of the page rewrite live re-themes the thumb with zero JS coupling.
+Color strings are written verbatim into `background`, so any CSS color value works, including `var()` references. A custom property that other parts of the page rewrite live re-themes the thumb with zero JS coupling.
 
 The site root does exactly this: the accent token is overwritten per scroll position by the background ribbon, and the thumb follows it frame by frame.
 
@@ -46,4 +46,4 @@ The site root does exactly this: the accent token is overwritten per scroll posi
 
 ## autoHide timing
 
-The fade is asymmetric on purpose: the bar snaps visible within 80ms of scrolling starting, then — after a 120ms idle timer flips the scrolling flag false — waits 0.15s and drifts out over 0.5s. A single symmetric duration cannot both appear instantly and linger after a short scroll. Keyboard focus on the rail keeps the bar visible regardless. The timings are fixed, not configurable.
+The fade is asymmetric on purpose: the bar snaps visible within 80ms of scrolling starting, then, after a 120ms idle timer flips the scrolling flag false, waits 0.15s and drifts out over 0.5s. A single symmetric duration cannot both appear instantly and linger after a short scroll. Keyboard focus on the rail keeps the bar visible regardless. The timings are fixed, not configurable.

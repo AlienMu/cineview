@@ -6,7 +6,7 @@ eyebrow: QUICK START
 A complete minimal app: one declarative tree that runs under both engines, with a `waitFor` cascade.
 
 > The code on this page is excerpted from the living example at
-> `examples/minimal/src/App.tsx`. Change them together, never apart — the
+> `examples/minimal/src/App.tsx`. Change them together, never apart: the
 > example is the source of truth, this page is its mirror.
 
 ## Run the example
@@ -22,8 +22,8 @@ pnpm --dir examples/minimal dev   # http://localhost:4100
 
 Two `Animate` elements in one scene: `subline` declares `waitFor: 'headline'`,
 so it cannot start until the headline has finished entering. The registry
-resolves the chain from each element's own `delay` and `duration` — no timers,
-no manual state.
+resolves the chain from each element's own `delay` and `duration`, with no
+timers and no manual state.
 
 ```tsx
 <Scene

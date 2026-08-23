@@ -40,7 +40,7 @@ Every field and default below is checked against `src/types/index.ts` (`CineView
 
 ## Callbacks
 
-The callback surface is **flat and mode-discriminated**: `DragModeCallbacks = CineViewCommonCallbacks & CineViewDragCallbacks & { [K in keyof CineViewScrollCallbacks]?: never }`, and `ScrollModeCallbacks` is the mirror. So **passing a scroll callback in drag mode, or the other way around, is a type error** — and the cross-exclusion closes both assignment paths: an inline object literal is caught by TS's excess-property check, while a callback first extracted into a variable (which is not subject to that check) is caught by the `?: never` arm.
+The callback surface is **flat and mode-discriminated**: `DragModeCallbacks = CineViewCommonCallbacks & CineViewDragCallbacks & { [K in keyof CineViewScrollCallbacks]?: never }`, and `ScrollModeCallbacks` is the mirror. So **passing a scroll callback in drag mode, or the other way around, is a type error**, and the cross-exclusion closes both assignment paths: an inline object literal is caught by TS's excess-property check, while a callback first extracted into a variable (which is not subject to that check) is caught by the `?: never` arm.
 
 The three tables hold 14 fields in total. Field-by-field payload docs for every `detail` live in the [type dictionary](/docs/types).
 
@@ -75,7 +75,7 @@ The three tables hold 14 fields in total. Field-by-field payload docs for every 
 
 ## Ref methods
 
-The first five methods always exist in both modes (required in the type — no per-method null checks at call sites); `goToZone` is scroll-only and optional.
+The first five methods always exist in both modes (required in the type, so no per-method null checks at call sites); `goToZone` is scroll-only and optional.
 
 | Method | Signature | Description |
 | --- | --- | --- |
@@ -105,7 +105,7 @@ ref.current?.preload(['hero']);
 ## FAQ
 
 **Why does passing a callback report a type error?**
-`mode` and `callbacks` are the two halves of the discriminated union. With `mode="drag"` (or omitted) only common + drag callbacks are accepted and the scroll keys are `never`; `mode="scroll"` mirrors it. Note the cross-exclusion also applies to the extract-into-a-variable-first style — it is not an inline-literal-only check.
+`mode` and `callbacks` are the two halves of the discriminated union. With `mode="drag"` (or omitted) only common + drag callbacks are accepted and the scroll keys are `never`; `mode="scroll"` mirrors it. Note the cross-exclusion also applies to the extract-into-a-variable-first style; it is not an inline-literal-only check.
 
 ```tsx
 /* OK: callbacks match the declared mode */
@@ -119,7 +119,7 @@ ref.current?.preload(['hero']);
 Use the `CineViewScrollRef` convenience type (where `goToZone` is required): `const ref = useRef<CineViewScrollRef>(null)` together with `mode="scroll"`. Due to React's forwardRef single-ref typing, it cannot be inferred from the `mode` prop.
 
 **`getPerformanceMetrics()` returns all zeros?**
-`performance.monitor` is off. The field defaults to `false` — sampling has a runtime cost; turn it on only when observing.
+`performance.monitor` is off. The field defaults to `false`: sampling has a runtime cost; turn it on only when observing.
 
 **What happens to non-Scene children?**
 CineView recognizes only `Scene` children. Zero Scenes reports `NO_SCENES`; non-Scene children interleaved among them do not join the scene stack.
