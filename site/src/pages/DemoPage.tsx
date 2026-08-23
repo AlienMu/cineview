@@ -114,7 +114,7 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
       mode="scroll"
       callbacks={{ onZoneProgress: handleZoneProgress }}
     >
-      <Scene sceneId="demo-scroll-intro" layout={{ width: '100%', height: '70%' }}>
+      <Scene sceneId="demo-scroll-intro" layout={{ width: '100%', height: '50vh' }}>
         <div className="demo-stage__document">
           <span className="demo-stage__index mono">SCROLL / NATIVE FLOW</span>
           <h2>Document distance stays real.</h2>
@@ -123,7 +123,7 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
       </Scene>
       <Scene
         sceneId="demo-scroll-zone"
-        layout={{ width: '100%', height: '100%', overflow: 'hidden' }}
+        layout={{ width: '100%', height: '84vh', overflow: 'hidden' }}
         scroll={{ zoneId: 'demo-scroll-zone', trigger: 'center-lock' }}
       >
         <div className="demo-stage__scene demo-stage__scene--scroll">
@@ -175,7 +175,7 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
           </Container>
         </div>
       </Scene>
-      <Scene sceneId="demo-scroll-outro" layout={{ width: '100%', height: '70%' }}>
+      <Scene sceneId="demo-scroll-outro" layout={{ width: '100%', height: '50vh' }}>
         <div className="demo-stage__document">
           <span className="demo-stage__index mono">SCROLL / RELEASE</span>
           <h2>Back to the document.</h2>

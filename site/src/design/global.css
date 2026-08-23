@@ -694,8 +694,17 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   box-shadow: 0 24px 70px rgba(26, 24, 20, 0.12);
 }
 
+.demo-stage__scene--scroll {
+  /* 84vh 舞台内给四交互位留呼吸位（默认 64px 顶到零余量）；顶对齐代替
+     垂直居中——密集交互面板布局，把底部交互位拉回折叠线上方 */
+  padding: 24px 48px;
+  justify-content: flex-start;
+}
+
 .demo-stage--scroll {
-  height: min(84vh, 840px);
+  /* 与 zone Scene 的 84vh 严格同高：场景内容零裁剪（D7 实证 % 高度会在
+     takeover shell 测量环坍缩 1px，min() 上限又会重新引入视口-舞台差） */
+  height: 84vh;
 }
 
 .demo-stage .cineview-responsive-container,
@@ -871,6 +880,10 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     height: 66vh;
     min-height: 480px;
     margin-top: 20px;
+  }
+
+  .demo-page .demo-stage--scroll {
+    height: 84vh;
   }
 
   .demo-stage__scene,
@@ -1060,16 +1073,16 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 
 .demo-manual {
   display: grid;
-  gap: 10px;
-  margin-top: 20px;
-  padding-top: 16px;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 10px;
   border-top: 1px dashed var(--frame-line);
   justify-items: start;
 }
 
 .demo-manual__card {
   margin: 0;
-  padding: 12px 18px;
+  padding: 10px 14px;
   border: 1px solid var(--frame-line);
   border-radius: 10px;
   background: var(--film-white-2);
