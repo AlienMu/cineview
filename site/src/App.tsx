@@ -2,7 +2,6 @@ import { Route, Routes, useLocation } from 'react-router-dom';
 import { BackgroundRibbon } from './components/BackgroundRibbon';
 import { LangToggle } from './components/LangToggle';
 import HomePage from './pages/HomePage';
-import DemoPage from './pages/DemoPage';
 import DocsPage from './pages/DocsPage';
 import DragPage from './pages/DragPage';
 import VideoDragAcceptancePage from './pages/VideoDragAcceptancePage';
@@ -24,7 +23,6 @@ export default function App(): JSX.Element {
       {isDrag || isAcceptance ? null : <LangToggle />}
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/demo" element={<DemoPage />} />
         <Route path="/drag" element={<DragPage />} />
         <Route path="/__acceptance/video-drag" element={<VideoDragAcceptancePage />} />
         <Route path="/__review/dual-clock" element={<DualClockFixturePage />} /> {/* TEMP */}

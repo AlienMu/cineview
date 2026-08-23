@@ -77,7 +77,6 @@ export default function DocsPage(): JSX.Element {
       ? {
           lead: '可验证的场景引擎文档：从最小用法到时间轴所有权。',
           back: '返回首页',
-          demo: '打开 Demo',
           toc: '本页内容',
           source: '查看源码',
           sourceUrl: 'https://github.com/AlienMu/cineview',
@@ -88,7 +87,6 @@ export default function DocsPage(): JSX.Element {
       : {
           lead: 'A verifiable scene runtime, documented from first frame to timeline ownership.',
           back: 'Back home',
-          demo: 'Open demo',
           toc: 'On this page',
           source: 'View source',
           sourceUrl: 'https://github.com/AlienMu/cineview',
@@ -109,9 +107,6 @@ export default function DocsPage(): JSX.Element {
         <div className="docs-page__actions">
           <Link to="/" className="btn btn--ghost">
             {copy.back}
-          </Link>
-          <Link to="/demo" className="btn btn--primary">
-            {copy.demo}
           </Link>
         </div>
       </header>

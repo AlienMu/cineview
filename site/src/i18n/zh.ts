@@ -152,7 +152,6 @@ export const zh = {
   'cta.github': 'Star on GitHub',
   'footer.tagline': '影院级叙事 · React UI 框架',
   'footer.docs': '文档',
-  'footer.demo': '演示',
   'footer.license': 'MIT 协议',
 
   // ── Demo Hub ──

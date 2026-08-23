@@ -155,7 +155,6 @@ export const en: Dict = {
   'cta.github': 'Star on GitHub',
   'footer.tagline': 'Cinematic storytelling · React UI framework',
   'footer.docs': 'Docs',
-  'footer.demo': 'Demo',
   'footer.license': 'MIT License',
 
   // ── Demo Hub ──

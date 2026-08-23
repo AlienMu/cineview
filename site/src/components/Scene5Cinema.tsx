@@ -655,9 +655,6 @@ export function Scene5Cinema(): JSX.Element {
                       <Link to="/docs" tabIndex={scene5TabIndex(split)}>
                         {t('footer.docs')}
                       </Link>
-                      <Link to="/demo" tabIndex={scene5TabIndex(split)}>
-                        {t('footer.demo')}
-                      </Link>
                       <span className="scene5-cinema__footer-sep" aria-hidden="true" />
                       <span>{t('footer.license')}</span>
                     </nav>
