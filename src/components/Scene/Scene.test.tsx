@@ -1254,6 +1254,7 @@ describe('Scene Component', () => {
 
       // Should warn about non-existent waitFor reference
       expect(consoleSpy).toHaveBeenCalledWith(
+        '[CineView]',
         expect.stringContaining('references non-existent component')
       );
 
@@ -1544,6 +1545,7 @@ describe('Scene Component', () => {
       expect(parseSpy).not.toHaveBeenCalled();
       expect(warningSpy).toHaveBeenCalledTimes(1);
       expect(warningSpy).toHaveBeenCalledWith(
+        '[CineView]',
         expect.stringContaining('ignores enterAnimation and exitAnimation in drag mode')
       );
 

@@ -137,19 +137,30 @@ Before calling a cascade done:
 1. Every `waitFor` target exists in the same registry scope (same scene for drag, same zone for scroll takeover) — otherwise it reports `INVALID_ANIMATION` and the follower starts on its bare `delay`.
 2. No `animateId` is duplicated anywhere in the tree — duplicates report `INVALID_COMPONENT_HIERARCHY`.
 3. The chain has no cycle — every member of a cycle reports `CIRCULAR_DEPENDENCY` and falls back to its own delay.
-4. No chain leader carries `timeline.phase` (see the constraint below).
+4. A chain leader may carry a `timeline.phase` window (composition semantics below; supported since 2026-08-23).
 5. Exits mirror the enter chain in reverse, or the reverse pass rolls back as one blob.
 6. If a leader is a stagger group, chain arithmetic uses its effective duration, not the authored one.
 
-## Current constraint: chain leaders must not carry a phase window
+## Phase windows on chain leaders: composition semantics (fixed 2026-08-23)
 
-Inside a scroll takeover zone, do **not** combine `timeline.phase` on a chain leader with `waitFor` followers.
+Inside a scroll takeover zone, a chain leader may carry a `timeline.phase` window — the
+budget compiler now makes the `waitFor` chain consume the leader's **effective end**
+(where its phase window closes) instead of its nominal ms end.
 
-`sceneScrollBudget` keeps two clocks. The ms clock (`resolveTiming`) resolves the waitFor chain: the follower's start derives from the leader's `totalEndMs`. The px clock applies authored phase corrections — a phase-windowed element's effective end becomes `phaseEndPx`. The phase correction is applied **only to the px clock**; the ms-level chain never consumes the leader's `phaseEnd`. The follower's start px, derived from the uncorrected ms clock, therefore lands early.
+Historically the two split into dual clocks (the ms chain and the px correction each did
+their own arithmetic; a follower once started while its leader was at 14 percent —
+task-flow 2026-08-23, T1.8). The fix resolves the circular dependency — phase fractions
+reference the zone total, chain extents feed the zone total — with a fixed-point
+iteration that converges geometrically for `phase.end < 1` (residual far below a visible
+pixel).
 
-This was measured, not theorized (task-flow `2026-08-23-stage3-demo-hub-docs.md`, T1.8): with a phase-windowed title leading a chain, the subline started while the title was at 14% progress. The demo was fixed by removing the phase window and authoring a pure three-level waitFor chain.
+Composition semantics: the moment the leader's phase window closes is the moment the
+follower starts. waitFor waits for **enter completion** — a leader's exit (pinned to the
+zone end as the closing beat) is not a chain anchor, so a phase+exit leader's followers
+start at its enter-window close and overlap its closing exit: bounded and defined. The
+degenerate shape (`phase.end → 1` leading a follower) has no fixed point — the follower
+is placed past the zone end and never enters, which is defined behavior.
 
-Until the framework closes the gap (either the budget consumes the leader's `phaseEnd` for the chain, or the constraint moves into the types — currently recorded as a pending decision), author by these rules:
-
-- Author chains as pure `waitFor` + `delay` cascades; let the chain arithmetic place the windows.
-- Keep phase-windowed elements out of chains — an element with `timeline.phase` may exist in the same zone, but nothing should `waitFor` it.
+The authoring guidance is unchanged: pure `waitFor` + `delay` cascades remain the
+simplest mental model; phase windows are for elements that spread proportionally
+across the whole segment.

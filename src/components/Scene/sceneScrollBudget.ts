@@ -75,7 +75,8 @@ function resolveTiming(
   registrations: Map<string, SceneScrollAnimationRegistration>,
   cache: Map<string, SceneScrollAnimationTiming>,
   chain: Set<string>,
-  circularFollowers: Set<string>
+  circularFollowers: Set<string>,
+  phaseChainEndEstimates: Map<string, number>
 ): SceneScrollAnimationTiming {
   const cached = cache.get(animateId);
   if (cached) {
@@ -127,10 +128,17 @@ function resolveTiming(
       registrations,
       cache,
       chain,
-      circularFollowers
+      circularFollowers,
+      phaseChainEndEstimates
     );
     if (!circularFollowers.has(animateId)) {
-      predecessorEnd = predecessor.totalEndMs;
+      // Chained followers wait for the leader's EFFECTIVE end. A phase-authored
+      // leader finishes visually at its phase window end (a fraction of the zone
+      // total), not at its nominal ms end — consuming the raw nominal end here
+      // splits the ms/px clocks and starts the follower while the leader is
+      // still mid-window (T1.8 acceptance trace; task-flow 2026-08-23-scene-
+      // scroll-budget-dual-clock).
+      predecessorEnd = phaseChainEndEstimates.get(registration.waitFor) ?? predecessor.totalEndMs;
     }
   }
   const startMs = predecessorEnd + clampToNonNegative(registration.delay);
@@ -158,15 +166,106 @@ function resolveTiming(
   return resolved;
 }
 
+/**
+ * Chain anchor for a phase-authored element, mirroring what the px assembly
+ * computes as its enter-window close (`phaseEndPx`) — the documented waitFor
+ * semantics is "wait for the leader's ENTER completion". Authored exits are
+ * deliberately NOT chain anchors: the assembly pins them to the zone end, and
+ * waiting for "the last thing in the zone" has no fixed point (review PROBE1:
+ * the zone ballooned ~600,000px under that anchor). A phase+exit leader's
+ * followers therefore start at its enter-window close, overlapping its
+ * zone-end exit — defined, bounded composition.
+ *
+ * Mirrors the assembly exactly (px ≡ ms numerically): the start floor
+ * `phaseStartPx + 1` included.
+ */
+function resolvePhaseChainEndEstimateMs(
+  registration: SceneScrollAnimationRegistration,
+  resolved: SceneScrollAnimationTiming,
+  totalDurationMs: number
+): number {
+  const estimateStartMs =
+    registration.phase?.start !== undefined
+      ? clamp(registration.phase.start, 0, 1) * totalDurationMs
+      : resolved.startMs;
+  const estimateEndMs =
+    registration.phase?.end !== undefined
+      ? clamp(registration.phase.end, 0, 1) * totalDurationMs
+      : Math.max(resolved.enterEndMs, resolved.startMs + 1);
+  return Math.max(estimateEndMs, estimateStartMs + 1);
+}
+
 export function resolveSceneScrollAnimationBudgets(
   registrations: Map<string, SceneScrollAnimationRegistration>
 ): ResolvedSceneScrollSequence {
   const cache = new Map<string, SceneScrollAnimationTiming>();
   const circularFollowers = new Set<string>();
+  const phaseChainEndEstimates = new Map<string, number>();
 
-  registrations.forEach((_, animateId) => {
-    resolveTiming(animateId, registrations, cache, new Set<string>(), circularFollowers);
-  });
+  const hasPhaseAuthored = [...registrations.values()].some(
+    (registration) =>
+      registration.phase?.start !== undefined || registration.phase?.end !== undefined
+  );
+
+  const resolveAll = (): void => {
+    registrations.forEach((_, animateId) => {
+      resolveTiming(
+        animateId,
+        registrations,
+        cache,
+        new Set<string>(),
+        circularFollowers,
+        phaseChainEndEstimates
+      );
+    });
+  };
+
+  if (hasPhaseAuthored) {
+    // Phase windows reference the zone total; chained followers reference phase
+    // ends; chain extents feed the zone total — a fixed-point system. With
+    // phase.end < 1 the update is a contraction (T = f·T + rest, f < 1) and
+    // converges geometrically; the generous cap only bounds degenerate
+    // phase.end → 1 chains, where followers pile past the zone end (defined,
+    // never-entering state) instead of looping forever. For f = 0.999 the
+    // residual after the cap is f^100000 ≈ e^-100 — far below any visible px;
+    // the cap only bites for pathological near-1 fractions, where recompute
+    // cost is mount-time (registration changes), never per frame.
+    const maxIterations = 100000;
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+      cache.clear();
+      circularFollowers.clear();
+      resolveAll();
+
+      let totalMs = 0;
+      cache.forEach((resolvedBudget) => {
+        totalMs = Math.max(totalMs, resolvedBudget.totalEndMs);
+      });
+
+      let stable = true;
+      registrations.forEach((registration, animateId) => {
+        const authored =
+          registration.phase?.start !== undefined || registration.phase?.end !== undefined;
+        if (!authored) return;
+        const resolved = cache.get(animateId);
+        if (!resolved) return;
+        const effectiveEndMs = resolvePhaseChainEndEstimateMs(registration, resolved, totalMs);
+        const previous = phaseChainEndEstimates.get(animateId);
+        if (previous === undefined || Math.abs(previous - effectiveEndMs) > 1e-9) {
+          stable = false;
+        }
+        phaseChainEndEstimates.set(animateId, effectiveEndMs);
+      });
+
+      if (stable) break;
+    }
+  }
+
+  // Final pass with the (converged or empty) estimates — for phase-free zone
+  // registrations the estimates map stays empty and this is byte-identical to
+  // the pre-fix single-pass resolution.
+  cache.clear();
+  circularFollowers.clear();
+  resolveAll();
 
   let totalDurationMs = 0;
   cache.forEach((resolvedBudget) => {

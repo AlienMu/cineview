@@ -130,10 +130,10 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
           <Container>
             <span className="demo-stage__index mono">CENTER-LOCK / ZONE</span>
             <ZoneReadout ref={readoutRef} />
-            {/* waitFor 三级链沿滚动推进。链的每一环都不带 phase 窗口：
-                T1.8 终验实证 leader 带 phase 时预算编译器会分裂双时钟
-                （px 级窗口被校正、ms 级 waitFor 链没跟上），链序立即劣化——
-                纯链式（title → subline → video）则严格有序（minimal 例同证）。 */}
+            {/* waitFor 三级链沿滚动推进。链的每一环都不带 phase 窗口——纯链是
+                最简单的教学形态（组合语义自 2026-08-23 起也已闭合：leader 带
+                phase 时 follower 以其窗口关闭处起动，见 docs 动画组；本 demo
+                保持纯链示教基础形态）。 */}
             <Animate
               animateId="demo-scroll-title"
               enterAnimation="focus-in"

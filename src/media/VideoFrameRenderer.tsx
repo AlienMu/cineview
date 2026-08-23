@@ -46,6 +46,7 @@ import {
   type VideoPlaybackOwnershipEvent,
   type VideoPlaybackOwnershipState,
 } from './videoPlaybackOwnership';
+import { devWarn } from '../utils/devLog';
 
 const SLOW_SCRUB_SEEK_MS = 50;
 const SCRUB_SAMPLE_MIN = 6;
@@ -170,6 +171,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       WeakMap<Event, { generation: number; activationId: number }>
     >(new WeakMap());
     const readyMediaGenerationRef = useRef<number | null>(null);
+    const releasedSrcRef = useRef<string | null>(null);
 
     const bindNativeMediaListeners = useCallback(
       (video: HTMLVideoElement | null, activationId: number): void => {
@@ -295,12 +297,27 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           setReleased(true);
           if (video) {
             video.pause();
+            // 暂存被摘除的源：同一 tick 内紧跟的 warmUp() 无法依赖 React 属性 diff
+            // 恢复它（released true→false 批处理抵消，src prop 前后同值，React 跳过
+            // DOM 写入），存活节点会永远无源。见 warmUp 的命令式恢复。
+            releasedSrcRef.current = video.getAttribute('src');
             video.removeAttribute('src');
             video.load();
           }
           resetOwnership(false);
         },
         warmUp: (): void => {
+          const video = videoRef.current;
+          // 存活节点（未经过 key 变化换新）且源缺失：命令式写回。正常的
+          // release→warmUp 跨 commit 序列会经 key 变化换节点、由 React 重挂 src，
+          // 不走这里；只有背靠背同 tick 调用才需要（P3 边界，2026-08-23 修复）。
+          if (video && !video.getAttribute('src')) {
+            const restore = releasedSrcRef.current;
+            if (restore) {
+              video.src = restore;
+              releasedSrcRef.current = null;
+            }
+          }
           setReleased(false);
           setMediaEpoch((epoch) => epoch + 1);
           resetOwnership(false);
@@ -395,8 +412,8 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
               const median = sorted[Math.floor(sorted.length / 2)];
               if (median > SLOW_SCRUB_SEEK_MS) {
                 scrubWarnedSrcs.add(src);
-                console.warn(
-                  `[CineView Warning] AnimateVideo scrub seek is slow (median ${median.toFixed(0)}ms/seek for "${src}").\n\n` +
+                devWarn(
+                  `AnimateVideo scrub seek is slow (median ${median.toFixed(0)}ms/seek for "${src}").\n\n` +
                     `Cause: the video has sparse keyframes, so each scroll frame must decode a long run of frames from the nearest keyframe.\n` +
                     `Fix: re-encode the scrub video as all-keyframe (every frame an I-frame), e.g.\n` +
                     `  ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4\n` +

@@ -137,19 +137,23 @@ registry 编译整张图并如实上报问题，不做猜测：
 1. 每个 `waitFor` 目标都在同一 registry 作用域内（drag 同 scene、scroll 接管同 zone）——否则上报 `INVALID_ANIMATION`，follower 按裸 `delay` 起跑。
 2. 全树无重复 `animateId`——重复会上报 `INVALID_COMPONENT_HIERARCHY`。
 3. 链上无环——环上每个成员上报 `CIRCULAR_DEPENDENCY` 并回退为自身 delay。
-4. 链的 leader 不带 `timeline.phase`（见下方约束）。
+4. 链的 leader 可以携带 `timeline.phase` 窗口（组合语义见下节，2026-08-23 起支持）。
 5. 退场按入场链的逆序镜像，否则反向回放会打包成一坨同时回滚。
 6. leader 若是错峰组，链上算术用它的有效时长，不是 authored 时长。
 
-## 当前约束：链的 leader 不应带 phase 窗口
+## phase 窗口与链的组合语义（2026-08-23 修复）
 
-scroll 接管 zone 内，**不要**给链的 leader 写 `timeline.phase` 再挂 `waitFor` follower。
+scroll 接管 zone 内，链的 leader 可以携带 `timeline.phase` 窗口——预算编译器已让
+`waitFor` 链消费 leader 的**有效终点**（phase 窗口的关闭处），而非名义 ms 终点。
 
-`sceneScrollBudget` 维护两套时钟。ms 时钟（`resolveTiming`）解析 waitFor 链：follower 的起点取 leader 的 `totalEndMs`。px 时钟套用 authored 的 phase 校正——带 phase 窗口的元素其有效终点变成 `phaseEndPx`。而 phase 校正**只落在 px 时钟**上；ms 层的链从不消费 leader 的 `phaseEnd`。于是 follower 的起点 px（从未校正的 ms 时钟推导）会提前落位。
+历史上两者会分裂双时钟（ms 链与 px 校正各算各的，follower 曾在 leader 14% 时起动，
+task-flow 2026-08-23 T1.8 实证）；修复以不动点迭代联立「phase 分数引用 zone 总量、
+链终点反哺总量」的循环依赖（`phase.end < 1` 时几何收敛，残差低于可视像素）。
 
-这是实测而非推演（task-flow `2026-08-23-stage3-demo-hub-docs.md`，T1.8）：带 phase 窗口的 title 领链时，subline 在 title 进行到 14% 时就启动了。修复方式是摘掉 phase 窗口，改写成纯三级 waitFor 链。
+组合语义：leader 的 phase 窗口关闭之刻即 follower 的起动之刻。waitFor 等的是**入场
+完成**——leader 的 exit（钉在 zone 末端的收尾）不是链锚，phase+exit leader 的 follower
+会在其入场窗口关闭处起动、与其收尾重叠，有界且已定义。退化形态（`phase.end → 1` 的
+leader 挂 follower）没有不动点——follower 被安放在 zone 之外、永不入场，属已定义行为。
 
-在框架补上这个缺口之前（要么 budget 让链消费 leader 的 `phaseEnd`，要么约束进类型——目前记档为待裁决项），请按以下规则编写：
-
-- 链写成纯 `waitFor` + `delay` 级联，让链的算术自己安放窗口。
-- 带 phase 窗口的元素移出链——写了 `timeline.phase` 的元素可以存在于同一 zone，但不要让任何元素 `waitFor` 它。
+编写建议不变：纯 `waitFor` + `delay` 级联仍是最简单的心智模型；phase 窗口留给
+「按比例铺满整段」的元素。

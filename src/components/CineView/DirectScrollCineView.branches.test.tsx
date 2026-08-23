@@ -1452,6 +1452,10 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   });
 
   it('rejects duplicate authored zone ids and keeps only the first takeover shell', () => {
+    // duplicate-zone 的 console.error 镜像走 devError（仅 development 发声）；
+    // 本用例验证的就是该 dev 镜像，须显式置 development。
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     const onError = jest.fn();
     const ref = createRef<CineViewRef>();
@@ -1479,7 +1483,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
         }),
       })
     );
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('duplicate-zone'));
+    expect(errorSpy).toHaveBeenCalledWith('[CineView]', expect.stringContaining('duplicate-zone'));
     expect(container.querySelectorAll('[data-cineview-takeover-shell]')).toHaveLength(1);
     expect(
       container.querySelector('[data-scene-index="1"] [data-cineview-scroll-zone]')
@@ -1498,6 +1502,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
     });
     expect(ref.current?.getCurrentScene()).toBe(1);
     errorSpy.mockRestore();
+    process.env.NODE_ENV = originalEnv;
   });
 
   // B11: out-of-range goToScene must warn in dev instead of a silent no-op

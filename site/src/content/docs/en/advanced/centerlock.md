@@ -19,7 +19,7 @@ onZoneProgress reports the changed zone snapshot without debounce and retains ex
 
 ## Phase windows vs waitFor chains
 
-An acceptance-tested constraint: do not mix the two in one cascade. When a chain leader carries an authored phase window, its px-clock end gets the phase correction while `waitFor` followers still key off the ms-clock chain end — the clocks split and a follower can start early (observed: a follower firing while its leader was at 14 percent). Pure waitFor chains are strictly ordered; pure phase windows compose by fractions. Pick one per cascade.
+The two compose (semantics closed since 2026-08-23): when a chain leader carries an authored phase window, `waitFor` followers key off the **close of the leader's phase window** — the budget compiler resolves the circular dependency (phase fractions reference the zone total; chain extents feed the zone total) with a fixed-point iteration that converges geometrically for `phase.end < 1`. Historically this was a dual-clock split (a follower once fired while its leader was at 14 percent; measured on-device, then fixed). Pure waitFor chains and pure phase windows remain the simplest shapes to author on their own.
 
 ## Large-flick anti-skip
 

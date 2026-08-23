@@ -316,7 +316,7 @@ describe('VideoFrameRenderer', () => {
       });
     }
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain('scrub seek is slow');
+    expect(warnSpy.mock.calls[0].join(' ')).toContain('scrub seek is slow');
 
     process.env.NODE_ENV = prevEnv;
   });

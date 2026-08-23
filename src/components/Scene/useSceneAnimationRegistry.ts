@@ -11,6 +11,7 @@ import {
 } from '../../animations/registry';
 import type { ParsedAnimationVariant } from '../../types';
 import type { CineViewRuntimeContextValue } from '../runtime/runtimeContext';
+import { devWarn } from '../../utils/devLog';
 
 interface UseSceneAnimationRegistryParams {
   sceneIndex: number;
@@ -206,8 +207,6 @@ export function useSceneAnimationRegistry({
 
   const reportIssues = useCallback(
     (issues: AnimationRegistryIssue[]): void => {
-      const isDev = process.env.NODE_ENV === 'development';
-
       issues.forEach((issue) => {
         const key = getIssueKey(issue);
         if (reportedIssuesRef.current.has(key)) return;
@@ -221,7 +220,7 @@ export function useSceneAnimationRegistry({
           code = 'INVALID_ANIMATION';
           message = `Animate "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor in Scene ${sceneIndex}.`;
           devWarning =
-            `[CineView Warning] Animation dependency error in Scene ${sceneIndex}.\n\n` +
+            `Animation dependency error in Scene ${sceneIndex}.\n\n` +
             `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor.\n` +
             `Fallback: The invalid dependency is ignored so the animation can continue.\n` +
             `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`;
@@ -229,7 +228,7 @@ export function useSceneAnimationRegistry({
           code = 'CIRCULAR_DEPENDENCY';
           message = `Animate waitFor chain contains a cycle in Scene ${sceneIndex}: ${issue.cycle.join(' -> ')}.`;
           devWarning =
-            `[CineView Warning] Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
+            `Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
             `Problem: Animate waitFor chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
             `Fallback: The invalid dependency is ignored so the animations can continue.\n` +
             `Fix: Remove the circular waitFor reference so each Animate starts after an earlier independent animation.\n`;
@@ -237,7 +236,7 @@ export function useSceneAnimationRegistry({
           code = 'INVALID_COMPONENT_HIERARCHY';
           message = `More than one Animate component registered animateId "${issue.animateId}" in Scene ${sceneIndex}.`;
           devWarning =
-            `[CineView Warning] Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
+            `Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
             `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
             `Fallback: Dependents ignore the ambiguous dependency and continue.\n` +
             `Fix: Give each Animate component in a Scene a unique animateId.\n`;
@@ -247,7 +246,7 @@ export function useSceneAnimationRegistry({
             `Animate "${issue.animateId}" uses ${issue.followerDriver} waitFor "${issue.waitFor}" ` +
             `driven by ${issue.leaderDriver} in Scene ${sceneIndex}; this dependency direction is incompatible.`;
           devWarning =
-            `[CineView Warning] Incompatible animation dependency in Scene ${sceneIndex}.\n\n` +
+            `Incompatible animation dependency in Scene ${sceneIndex}.\n\n` +
             `Problem: ${issue.followerDriver} Animate "${issue.animateId}" cannot waitFor ` +
             `${issue.leaderDriver} Animate "${issue.waitFor}".\n` +
             `Fallback: The incompatible dependency is ignored so the animation can continue.\n` +
@@ -255,7 +254,7 @@ export function useSceneAnimationRegistry({
         }
 
         reportErrorRef.current?.({ code, message, context: { sceneIndex } });
-        if (isDev) console.warn(devWarning);
+        devWarn(devWarning);
       });
     },
     [sceneIndex]
@@ -534,9 +533,9 @@ export function useSceneAnimationRegistry({
         console.log(`[Scene ${sceneIndex}] Timeline duration: ${timelineDurationRef.current}ms`);
       }
 
-      if (registrationsRef.current.size > 100 && process.env.NODE_ENV === 'development') {
-        console.warn(
-          `[CineView Warning] Scene ${sceneIndex} has ${registrationsRef.current.size} Animate components.\n\n` +
+      if (registrationsRef.current.size > 100) {
+        devWarn(
+          `Scene ${sceneIndex} has ${registrationsRef.current.size} Animate components.\n\n` +
             `Recommendation: Consider reducing the number of animated elements or splitting into multiple scenes.`
         );
       }

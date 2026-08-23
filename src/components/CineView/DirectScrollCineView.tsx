@@ -12,6 +12,7 @@ import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
 import { acquirePerformanceMonitoring, performanceMonitor } from '../../utils/performanceMonitor';
 import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
+import { devError } from '../../utils/devLog';
 import type {
   CineViewErrorCode,
   CineViewPreloadTarget,
@@ -209,9 +210,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           ownerSceneIndex,
           rejectedSceneIndex,
         });
-        if (process.env.NODE_ENV !== 'production') {
-          console.error(`[CineView] INVALID_COMPONENT_HIERARCHY: ${message}`);
-        }
+        devError(`INVALID_COMPONENT_HIERARCHY: ${message}`);
       });
     }, [duplicateScrollZones, emitRecoverableError]);
 

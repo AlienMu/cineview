@@ -40,7 +40,9 @@ export const TAKEOVER_PROGRESS_SNAP_EPSILON_PX = 0.01;
 export const CENTER_LOCK_BOUNDARY_EPSILON_PX = 0.5;
 
 export function isScrollDebugEnabled(): boolean {
-  if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') {
+  // 纯运行时判定：NODE_ENV === 'production' 条件会被 esbuild 构建期常量折叠，
+  // dist 产物里旗标就成了不可达死开关（N6 验收实证，探针被迫改用几何测位）。
+  if (typeof window === 'undefined') {
     return false;
   }
 

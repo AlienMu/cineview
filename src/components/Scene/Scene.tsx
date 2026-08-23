@@ -10,6 +10,7 @@ import { useCineViewContext } from '../../context/CineViewContext';
 import type { PresetAnimation } from '../../animations/presets';
 import type { FrozenAnimationRegistrySnapshot } from '../../animations/registry';
 import type { ParsedAnimationVariant } from '../../types';
+import { devWarn } from '../../utils/devLog';
 import { parseAnimationSafely, type AnimationParseFailure } from '../../utils/animationHelpers';
 import type { SceneInternalProps, SceneState } from './types';
 import type { DragReleaseInput } from '../../hooks/useSceneManager';
@@ -429,8 +430,8 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
             dragTransitionWarningRef.current !== warningKey
           ) {
             dragTransitionWarningRef.current = warningKey;
-            console.warn(
-              `[CineView] Scene ${sceneIndex} ignores ${ignoredFields.join(
+            devWarn(
+              `Scene ${sceneIndex} ignores ${ignoredFields.join(
                 ' and '
               )} in drag mode. Use child <Animate> components for element animations.`
             );

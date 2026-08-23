@@ -14,6 +14,7 @@ import {
   type VariantRecord,
 } from './animateInterpolation';
 import { useAnimatedPropertyLanes } from './useAnimatedPropertyLanes';
+import { devWarn } from '../../utils/devLog';
 
 interface UseAnimateDragParams {
   sceneContext: SceneContextType | null;
@@ -482,13 +483,13 @@ export function useAnimateDrag({
     const warnOnce = (category: 'dynamic-mount' | 'mutation', message: string): void => {
       if (playbackWarningRef.current.categories.has(category)) return;
       playbackWarningRef.current.categories.add(category);
-      console.warn(message);
+      devWarn(message);
     };
 
     if (isExcludedFromPlayback && sceneContext?.isActive && sceneContext.sceneOffset === 0) {
       warnOnce(
         'dynamic-mount',
-        `[CineView Warning] Animate "${componentId}" mounted after the active Scene playback snapshot was captured. ` +
+        `Animate "${componentId}" mounted after the active Scene playback snapshot was captured. ` +
           'It remains at its authored terminal state for this activation and will join the next activation.'
       );
       return;
@@ -504,7 +505,7 @@ export function useAnimateDrag({
     if (orchestrationChanged || enterVisualChanged) {
       warnOnce(
         'mutation',
-        `[CineView Warning] Animate "${componentId}" changed its drag choreography or enter visual during an active transaction. ` +
+        `Animate "${componentId}" changed its drag choreography or enter visual during an active transaction. ` +
           'The current transaction remains frozen; the new values take effect on the next activation.'
       );
     }

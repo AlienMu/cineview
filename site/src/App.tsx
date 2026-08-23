@@ -6,6 +6,7 @@ import DemoPage from './pages/DemoPage';
 import DocsPage from './pages/DocsPage';
 import DragPage from './pages/DragPage';
 import VideoDragAcceptancePage from './pages/VideoDragAcceptancePage';
+import DualClockFixturePage from './pages/DualClockFixture'; // TEMP review fixture
 
 export default function App(): JSX.Element {
   // /drag mounts its own LangToggle INSIDE act 1's <Scene> (SceneRolling's
@@ -26,6 +27,7 @@ export default function App(): JSX.Element {
         <Route path="/demo" element={<DemoPage />} />
         <Route path="/drag" element={<DragPage />} />
         <Route path="/__acceptance/video-drag" element={<VideoDragAcceptancePage />} />
+        <Route path="/__review/dual-clock" element={<DualClockFixturePage />} /> {/* TEMP */}
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/docs/:slug" element={<DocsPage />} />
         <Route path="*" element={<HomePage />} />

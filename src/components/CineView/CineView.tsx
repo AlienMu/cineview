@@ -46,6 +46,7 @@ import {
 } from '../runtime/runtimeContext';
 import { useCineViewImperativeApi } from './useCineViewImperativeApi';
 import { DEFAULT_SLIDE_DURATION } from '../../types';
+import { devWarn } from '../../utils/devLog';
 import type {
   AnimationType,
   CineViewErrorCode,
@@ -584,11 +585,9 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
 
         const prepared = preparedSceneStoreRef.current.getPrepared(targetSceneIndex);
         if (!prepared) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(
-              `[CineView Warning] Drag ${direction} from Scene ${fromIndex} was not acquired because target Scene ${targetSceneIndex} is not internally ready.`
-            );
-          }
+          devWarn(
+            `Drag ${direction} from Scene ${fromIndex} was not acquired because target Scene ${targetSceneIndex} is not internally ready.`
+          );
           return false;
         }
 

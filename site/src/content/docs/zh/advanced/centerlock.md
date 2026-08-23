@@ -19,7 +19,7 @@ onZoneProgress 无 debounce 地上报发生变化的 zone 快照，并保留精�
 
 ## phase 窗口与 waitFor 链
 
-一条经真机验收的约束：同一条级联里不要混用两者。当链条 leader 带了 phase 窗口，它的 px 时钟终点会做 phase 校正，而 `waitFor` 跟随者仍按 ms 时钟的链终点对齐——双时钟分裂，跟随者可能提前起动（实测出现过 leader 走到 14% 时跟随者已入场）。纯 waitFor 链严格有序；纯 phase 窗口按比例组合。每条级联二选一。
+两者可以组合（2026-08-23 起语义闭合）：当链条 leader 带 phase 窗口，`waitFor` 跟随者以 **leader 的 phase 窗口关闭处**为起动点——预算编译器经不动点迭代联立「phase 分数引用 zone 总量、链终点反哺总量」（`phase.end < 1` 几何收敛）。历史上此处曾是双时钟分裂缺口（跟随者在 leader 14% 时起动，真机实证后修复）。纯 waitFor 链与纯 phase 窗口仍是各自最简单的编写形态。
 
 ## 大 flick 防跳过
 
