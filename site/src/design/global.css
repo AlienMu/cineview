@@ -419,6 +419,159 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   letter-spacing: 0.12em;
 }
 
+@media (max-width: 1080px) {
+}
+
+@media (max-width: 760px) {
+}
+
+/* ============================================================
+ * docs markdown 管线（阶段 3 T1.1）：react-markdown 正文 + hljs 高亮。
+ * 仅作用于 .docs-article__markdown，不外溢；色值全部走 tokens 令牌。
+ * ============================================================ */
+
+.docs-article__markdown {
+  display: grid;
+  gap: 1rem;
+  font-size: var(--text-base);
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+/* hljs 最小主题：暖纸底上一套中性墨 + 强调色 token，不引第三方主题 css。 */
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section {
+  color: var(--accent-ink);
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-template-variable,
+.hljs-variable {
+  color: var(--ink-soft);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-meta {
+  color: var(--rec);
+}
+
+.hljs-built_in,
+.hljs-type {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/* 未知 slug 404 态（审计 P1-1） */
+
+.docs-article__notfound {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  padding-top: 24px;
+  color: var(--ink-soft);
+}
+
+/* 表格溢出修复（审计 P1-3）：grid 隐式轨道 min-width:auto 被长表格撑宽——
+   文章列允许收缩 + 表格自带横向滚动。 */
+
+.docs-article {
+  min-width: 0;
+}
+
+/* ============================================================
+ * 文档第二轮（R1）：代码块 chrome / 标题间距 / sticky 双栏 / 锚点精度
+ * ============================================================ */
+
+/* 代码块：语言标签头 + 收束的框体（标签头与 hljs 令牌共用一套色板） */
+.docs-code {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+/* 旧裸 pre 样式让位于 .docs-code 包裹（未包裹场景兜底保留边框） */
+.docs-article__markdown > pre {
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+}
+
+/* 标题间距：页标题与 md 小节标题的呼吸位 */
+.docs-article > h2 {
+  margin: 0 0 28px;
+}
+
+/* sticky 双栏：长页滚动时导航与目录常驻。仅桌面——移动端导航是横向块状
+   元素（高 365px），sticky 会无背景常驻视口顶并让正文滚进导航文字下方
+   （R3 复审 FAIL 项：文字压文字破版），窄屏让它随文档流正常滚动。 */
+@media (min-width: 760px) {
+  .docs-nav,
+  .docs-toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/* Documentation workspace ------------------------------------------------- */
+.docs-page {
+  min-height: 100vh;
+  background: #ffffff;
+}
+.docs-page__header {
+  width: min(100% - 64px, 1440px);
+  margin: 0 auto;
+  padding: 72px 0 36px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  border-bottom: 1px solid var(--frame-line);
+}
+.docs-page__header h1 {
+  margin-top: 8px;
+  font-size: var(--text-4xl);
+  letter-spacing: 0;
+}
+.docs-page__lead {
+  max-width: 680px;
+  margin-top: 14px;
+  color: var(--ink-soft);
+  font-size: var(--text-lg);
+}
+.docs-page__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.eyebrow {
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
 .docs-layout {
   width: min(100% - 64px, 1440px);
   margin: 0 auto;
@@ -426,16 +579,13 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   grid-template-columns: 220px minmax(0, 1fr) 190px;
   min-height: calc(100vh - 205px);
 }
-
 .docs-nav {
   padding: 32px 24px 80px 0;
   border-right: 1px solid var(--frame-line);
 }
-
 .docs-nav__group + .docs-nav__group {
   margin-top: 28px;
 }
-
 .docs-nav__group h2 {
   margin-bottom: 8px;
   color: var(--ink-mute);
@@ -446,7 +596,6 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-
 .docs-nav__link {
   min-height: 34px;
   display: grid;
@@ -459,23 +608,19 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     color 0.18s ease,
     border-color 0.18s ease;
 }
-
 .docs-nav__link:hover,
 .docs-nav__link.is-active {
   color: var(--ink);
   border-left-color: var(--accent-ink);
 }
-
 .docs-nav__index {
   color: var(--ink-mute);
   font-size: 10px;
 }
-
 .docs-article {
   min-width: 0;
   padding: 48px clamp(28px, 5vw, 80px) 120px;
 }
-
 .docs-article__meta {
   display: flex;
   justify-content: space-between;
@@ -485,13 +630,11 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   font-size: 11px;
   border-bottom: 1px solid var(--frame-line-soft);
 }
-
 .docs-article > h2 {
   margin-top: 30px;
   font-size: var(--text-3xl);
   letter-spacing: 0;
 }
-
 .docs-article__intro {
   max-width: 780px;
   margin-top: 18px;
@@ -499,42 +642,35 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   font-size: var(--text-lg);
   line-height: 1.75;
 }
-
 .docs-article__body {
   margin-top: 56px;
 }
-
 .docs-section {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 18px;
   scroll-margin-top: 24px;
 }
-
 .docs-section + .docs-section {
   margin-top: 58px;
   padding-top: 42px;
   border-top: 1px solid var(--frame-line-soft);
 }
-
 .docs-section__number {
   padding-top: 5px;
   color: var(--accent-ink);
   font-size: 11px;
 }
-
 .docs-section h3 {
   font-size: var(--text-xl);
   letter-spacing: 0;
 }
-
 .docs-section p {
   max-width: 780px;
   margin-top: 14px;
   color: var(--ink-soft);
   line-height: 1.8;
 }
-
 .docs-section pre {
   max-width: 100%;
   margin-top: 24px;
@@ -546,25 +682,21 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   border-radius: 4px;
   box-shadow: var(--shadow-sm);
 }
-
 .docs-section code {
   font-size: 13px;
   line-height: 1.7;
   white-space: pre;
 }
-
 .docs-toc {
   padding: 48px 0 80px 24px;
   border-left: 1px solid var(--frame-line);
 }
-
 .docs-toc__label {
   margin-bottom: 12px;
   color: var(--ink-mute);
   font-size: 11px;
   text-transform: uppercase;
 }
-
 .docs-toc a {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
@@ -574,73 +706,19 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   font-size: 13px;
   line-height: 1.45;
 }
-
 .docs-toc a:hover {
   color: var(--accent-ink);
 }
-
 .docs-toc a span {
   color: var(--ink-mute);
   font-size: 10px;
 }
-
 .docs-toc .docs-toc__source {
   display: block;
   margin-top: 26px;
   padding-top: 16px;
   color: var(--accent-ink);
   border-top: 1px solid var(--frame-line-soft);
-}
-
-@media (max-width: 1080px) {
-  .docs-layout {
-    grid-template-columns: 200px minmax(0, 1fr);
-  }
-
-  .docs-toc {
-    display: none;
-  }
-}
-
-@media (max-width: 760px) {
-  .docs-layout {
-    display: block;
-  }
-
-  .docs-nav {
-    padding: 18px 0;
-    overflow-x: auto;
-    display: flex;
-    gap: 24px;
-    border-right: 0;
-    border-bottom: 1px solid var(--frame-line);
-  }
-
-  .docs-nav__group {
-    min-width: 180px;
-  }
-
-  .docs-nav__group + .docs-nav__group {
-    margin-top: 0;
-  }
-
-  .docs-article {
-    padding: 36px 0 80px;
-  }
-
-  .docs-article > h2 {
-    font-size: var(--text-2xl);
-  }
-
-  .docs-section {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .docs-section pre {
-    margin-left: -40px;
-    padding: 18px;
-  }
 }
 
 /* ============================================================
@@ -677,18 +755,18 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 .docs-article__markdown pre {
   padding: 1rem 1.25rem;
   overflow-x: auto;
-  border: 1px solid var(--frame-line);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
-  background: var(--film-white);
+  background: #f7f8fa;
   font-size: 0.85rem;
   line-height: 1.6;
 }
 
 .docs-article__markdown :not(pre) > code {
   padding: 0.1em 0.4em;
-  border: 1px solid var(--frame-line-soft);
+  border: 1px solid #eceef1;
   border-radius: 5px;
-  background: var(--film-white-2);
+  background: #f1f3f5;
   font-size: 0.85em;
   color: var(--accent-ink);
 }
@@ -714,7 +792,7 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 }
 
 .docs-article__markdown th {
-  background: var(--film-white-2);
+  background: #f7f8fa;
   color: var(--ink);
 }
 
@@ -791,16 +869,15 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   max-width: 100%;
   overflow-x: auto;
 }
-
 /* ============================================================
  * 文档第二轮（R1）：代码块 chrome / 标题间距 / sticky 双栏 / 锚点精度
  * ============================================================ */
 
 /* 代码块：语言标签头 + 收束的框体（标签头与 hljs 令牌共用一套色板） */
 .docs-code {
-  border: 1px solid var(--frame-line);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
-  background: var(--film-white);
+  background: #ffffff;
   overflow: hidden;
 }
 
@@ -809,8 +886,8 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--frame-line-soft);
-  background: var(--film-white-2);
+  border-bottom: 1px solid #eceef1;
+  background: #f7f8fa;
   font-size: 0.7rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;

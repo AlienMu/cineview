@@ -57,7 +57,7 @@ Fires when the scene enters/leaves the viewport, with a `SceneVisibilityDetail` 
 
 Two caveats:
 
-- **This is an event callback, not a render-state source.** `progress` changes frame by frame with the scroll; setting state on it directly re-renders the whole host every frame, so renderers that need the progress should use `useAnimateTimeline()` (see [its page](/docs/use-animate-timeline)).
+- **This is an event callback, not a render-state source.** `progress` changes frame by frame with the scroll; setting state on it directly re-renders the whole host every frame, so renderers that need the progress should use `useAnimateTimeline()` (see [its page](/docs/use-animate-timeline-api)).
 - **Same source and payload as the root-level `onSceneVisibilityChange`.** In scroll mode, one visibility event fans out to both the Scene-level callback and the root-level `callbacks.onSceneVisibilityChange`: declared on the Scene it fires for this scene only, declared on the root it fires for every scene. Do not do heavy work in both places.
 
 ## Types

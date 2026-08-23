@@ -57,7 +57,7 @@ eyebrow: API REFERENCE
 
 两个注意点：
 
-- **这是事件回调，不是渲染状态源**。`progress` 随滚动逐帧变化，直接 `setState` 会让整个宿主组件每帧重渲染，需要读进度的渲染器用 `useAnimateTimeline()`（见 [该页](/docs/use-animate-timeline)）。
+- **这是事件回调，不是渲染状态源**。`progress` 随滚动逐帧变化，直接 `setState` 会让整个宿主组件每帧重渲染，需要读进度的渲染器用 `useAnimateTimeline()`（见 [该页](/docs/use-animate-timeline-api)）。
 - **与根级 `onSceneVisibilityChange` 同源同载荷**。scroll 模式下，同一份可见性事件同时扇出到 Scene 级回调与 CineView 根级 `callbacks.onSceneVisibilityChange`，Scene 上写只收本场景，根上写收全部场景。不要两处都做重活。
 
 ## 类型
