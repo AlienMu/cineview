@@ -5,6 +5,12 @@ eyebrow: FRAME SCRUB
 
 AnimateVideo 用时间轴位置驱动原生 `<video>`：drag 或 scroll 的位置直接映射 `currentTime`，反向输入即倒放。它是 `Animate` 的薄封装——复用 render-prop 把内部 `enterProgress` 喂给帧渲染器——零依赖库、无控件、恒为静音 + `playsInline`。
 
+## When to use
+
+- 叙事需要「滚动 / 拖拽逐帧擦洗」的视频——位置是输入、帧是输出，而非点播式播放。
+- 需要反向倒放（往回滚/往回拖逐帧回去）且不接受「倒放另写一套」的成本时。
+- 素材结尾需要按自己的节奏真实播完（终点交接），而不是跟着观众滚动速度走时。
+
 ## 帧擦洗语义
 
 外层 `Animate` 拥有 progress（单一写者纪律）；video 以纯 MotionValue 消费它，没有每帧 React state。位置是输入，帧是输出：
@@ -107,47 +113,8 @@ ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
 
 ## 原生媒体回调
 
-原生媒体事件可直接消费：
+`onPlay` / `onPause` / `onEnded` / `onTimeUpdate` / `onError` 透传给底层 `<video>`。前三个经播放所有权门控——已释放/已替换节点还在途的事件会被丢弃，直接拿它们做 UI 状态是安全的。字段表与门控语义见 [AnimateVideo API](/docs/animate-video-api)。
 
-```tsx
-<AnimateVideo
-  src="/clip.mp4"
-  duration={{ enter: 3000 }}
-  onEnded={() => setFinished(true)}
-  onPlay={() => setPlaying(true)}
-  onPause={() => setPlaying(false)}
-/>
-```
+---
 
-`onPlay` / `onPause` / `onEnded` 经播放所有权门控：只有提交到当前 source generation 与 activation 的事件才会送达。已释放/已替换 video 节点还在途的事件会被丢弃，不会以幽灵回调的形式冒出来——直接用它们做 UI 状态是安全的，无需自行去重。`onTimeUpdate` 与 `onError` 不经门控、直接透传。
-
-## 属性
-
-下表逐字段核对自 `src/components/Animate/AnimateVideo.tsx` 的 `AnimateVideoProps`。
-
-| 属性 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `src` | `string` | `必填` | 视频资源 URL。用于擦洗的视频应高密度关键帧——全关键帧才有可预期的反向 seek（见上文）。 |
-| `aria-label` | `string` | — | video 元素的无障碍名称。 |
-| `width` | `number \| string` | — | 数值经 px2vw 换算；字符串原样透传。 |
-| `height` | `number \| string` | — | 换算规则同 `width`。 |
-| `style` | `CSSProperties` | — | 其中的长度值由 px2vw 上下文换算。 |
-| `preload` | `boolean` | `true` | 是否积极填充共享视频预加载缓存（整段 blob objectURL，保证可 seek）。首屏媒体纳入 `priorityComplete` 冷启动门控。 |
-| `poster` | `string` | — | 媒体就绪前的占位帧。 |
-| `playbackRate` | `number` | `1` | 作用于原生元素的播放速率（影响终点交接后的尾部播放，不影响擦洗）。 |
-| `scrubRange` | `readonly [fromSeconds: number, toSeconds: number]` | — | 由 progress 驱动的视频时间区间；两端钳制到 `[0, duration]`；反向区间合法；终点早于素材结尾才启用终点交接。 |
-| `animateId` | `string` | `auto` | 元素标识，供 `waitFor` 引用。 |
-| `duration.enter` | `number` | `600` | scrub 跨度。scroll 接管下即真实滚动 px（`1ms = 1px`）。 |
-| `duration.exit` | `number` | `600` | 包装层的退场时长。 |
-| `enterAnimation` | `AnimationType` | 中性变体 | 包装层动画。默认为中性 `opacity: 1 → 1` 变体，让帧擦洗保持为唯一可见动画；与擦洗共享 `duration.enter` 轴。 |
-| `exitAnimation` | `AnimationType` | — | 包装层退场动画。 |
-| `timeline.delay` | `number` | `0` | 擦洗窗口的入场延迟（接管下即真实滚动 px）。 |
-| `timeline.waitFor` | `string` | — | 等待另一 `animateId` 入场完成后才开始擦洗窗口。 |
-| `visibility.replayOnReenter` | `boolean` | `true` | 重新进入视口时从初始帧重放。 |
-| `visibility.enterMargin` | `number` | `inherit` | 入场闸门的视口边距（设计 px），继承 `modes.scroll.enterMargin`。 |
-| `visibility.exitMargin` | `number` | `inherit` | 退场闸门同理，继承 `modes.scroll.exitMargin`。 |
-| `releaseOnLeave` | `boolean` | `false` | 按频带管理解码帧驻留（见上文）。仅 scroll 接管 zone 生效。 |
-| `onPlay` / `onPause` / `onEnded` | 事件处理器 | — | 原生媒体回调。经播放所有权门控：只对提交到当前 source generation 与 activation 的事件触发，不会冒出已释放/已替换节点的过期事件。 |
-| `onTimeUpdate` | 事件处理器 | — | 原生回调，直接透传。 |
-| `onError` | 事件处理器 | — | 原生错误回调，透传。 |
-| `ref` | `HTMLVideoElement` | — | 转发到底层 `<video>` 元素。 |
+完整字段参考见 [AnimateVideo API](/docs/animate-video-api)。

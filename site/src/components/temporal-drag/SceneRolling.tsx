@@ -522,7 +522,12 @@ function GatedActions({
           <a className="tp-btn tp-btn--primary" href="/docs">
             {btnDocs}
           </a>
-          <a className="tp-btn tp-btn--ghost" href="/">
+          <a
+            className="tp-btn tp-btn--ghost"
+            href="https://github.com/AlienMu/cineview"
+            target="_blank"
+            rel="noreferrer"
+          >
             {btnHome}
           </a>
         </nav>

@@ -18,6 +18,7 @@ const GROUPS: DictKey[] = [
   'docs.group.start',
   'docs.group.concepts',
   'docs.group.components',
+  'docs.group.api',
   'docs.group.animation',
   'docs.group.advanced',
 ];
@@ -26,6 +27,7 @@ const GROUP_KEY_BY_ID: Record<DocsGroupId, DictKey> = {
   start: 'docs.group.start',
   concepts: 'docs.group.concepts',
   components: 'docs.group.components',
+  api: 'docs.group.api',
   animation: 'docs.group.animation',
   advanced: 'docs.group.advanced',
 };
@@ -78,7 +80,10 @@ export default function DocsPage(): JSX.Element {
           demo: '打开 Demo',
           toc: '本页内容',
           source: '查看源码',
-          sourceUrl: 'https://github.com/cineview/cineview',
+          sourceUrl: 'https://github.com/AlienMu/cineview',
+          notFoundTitle: '没有这一页',
+          notFoundBody: '该文档不存在或已更名。侧边栏可以从任意分组继续。',
+          notFoundCta: '回到介绍页',
         }
       : {
           lead: 'A verifiable scene runtime, documented from first frame to timeline ownership.',
@@ -86,7 +91,11 @@ export default function DocsPage(): JSX.Element {
           demo: 'Open demo',
           toc: 'On this page',
           source: 'View source',
-          sourceUrl: 'https://github.com/cineview/cineview',
+          sourceUrl: 'https://github.com/AlienMu/cineview',
+          notFoundTitle: 'Page not found',
+          notFoundBody:
+            'This document does not exist or was renamed. The sidebar has every section.',
+          notFoundCta: 'Back to the introduction',
         };
 
   return (
@@ -152,7 +161,18 @@ export default function DocsPage(): JSX.Element {
                 </ReactMarkdown>
               </div>
             </>
-          ) : null}
+          ) : (
+            // 未知 slug：显式 404 态而非空 article（审计 P1-1——空 article 让
+            // 读者以为页面坏了；sidebar 仍可用作导航出口）
+            <div className="docs-article__notfound">
+              <p className="docs-article__meta mono">404 / {slug}</p>
+              <h2>{copy.notFoundTitle}</h2>
+              <p>{copy.notFoundBody}</p>
+              <Link to="/docs/introduction" className="btn btn--primary">
+                {copy.notFoundCta}
+              </Link>
+            </div>
+          )}
         </article>
 
         <aside className="docs-toc" aria-label={copy.toc}>

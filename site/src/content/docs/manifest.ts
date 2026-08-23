@@ -11,12 +11,13 @@
  * - 标题在 frontmatter，语言各自维护（不走 i18n DictKey——md 本身就是语言真源）。
  */
 
-export type DocsGroupId = 'start' | 'concepts' | 'components' | 'animation' | 'advanced';
+export type DocsGroupId = 'start' | 'concepts' | 'components' | 'api' | 'animation' | 'advanced';
 
 export const DOC_GROUP_ORDER: DocsGroupId[] = [
   'start',
   'concepts',
   'components',
+  'api',
   'animation',
   'advanced',
 ];

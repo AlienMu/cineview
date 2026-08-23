@@ -5,6 +5,18 @@ eyebrow: ROOT
 
 CineView selects the mode engine, provides the design-width context, schedules preload, and exposes imperative navigation.
 
+## When to use
+
+- You want a cinematic narrative page — content organized into chapters (`Scene`) with enter/exit choreography between them — rather than an ordinary scrolling document.
+- You need one of the two mode engines — drag (paged dragging, full-screen stack semantics) or scroll (real document-flow takeover with center-lock segments) — as the root of the whole page.
+- You want one site-wide design-draft ruler (`config.size`, width-only) or unified preload scheduling — even without the scene stack, do not build a second ruler.
+
+## Modes and the scrollbar
+
+`mode` and `callbacks` form a discriminated union: passing a scroll callback in drag mode (or vice versa) is a type error — both the inline-literal and the extracted-variable assignment paths are closed. Once the mode is chosen, the runtime dispatches to the matching engine (`CineView` is the single entry; both engines ship in the package — UMD consumers who care about size can use the per-mode entries `cineview/drag` / `cineview/scroll`).
+
+The scrollbar overlay is a scroll-mode option: passing an object enables it; theming (thickness / radius / colors / inset) and the autoHide behaviour are covered field-by-field in the API reference. Beyond hiding the native bar, it also takes drag navigation and keyboard interaction.
+
 ## Ref API
 
 The common methods are always available. goToZone is scroll-only and is required by CineViewScrollRef.
@@ -18,69 +30,12 @@ ref.current?.refreshLayout();
 ref.current?.preload(['hero']);
 ```
 
-## Props
+## Common misuse
 
-Every field and default below is checked against `src/types/index.ts` (`CineViewProps`, a union discriminated by `mode`) and the engine implementations.
+- **Passing `scroll` callbacks in drag mode** (or the reverse) — the discriminated union reports a type error; it is not silently ignored at runtime.
+- **Treating `config.size` as a zoom knob** — it is the draft basis, not a theme parameter; changing the ruler changes the meaning of every design px.
+- **Omitting `Scene` from `children`** — CineView recognizes only Scene children; zero of them reports `NO_SCENES`.
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `config` | `CineViewDesignConfig` | `{ size: 750 }` | Design draft width basis (design px). `scale = viewportWidth / size` is the site-wide single ruler: width-only, never distorted. `size` is its only sub-field. |
-| `mode` | `'drag' \| 'scroll'` | `'drag'` | Mode engine selection. `mode` and `callbacks` form a discriminated union: passing a scroll callback in drag mode (or vice versa) is a type error. |
-| `modes.drag.direction` | `'x' \| 'y'` | `'y'` | Drag axis. |
-| `modes.drag.transitionDuration` | `number` | `800` | Scene-switch settle duration (ms). |
-| `modes.drag.threshold` | `DragThresholdConfig` | — | Velocity-to-commit-threshold mapping. Sub-field defaults: `minVelocity` `0`, `maxVelocity` `1000`, `minRatio` `0.15`, `maxRatio` `0.3`; the release threshold interpolates linearly between the two ratios by velocity. |
-| `modes.drag.unit` | `'time' \| 'percent'` | `'time'` | Unit mapping drag progress onto the element timeline (root default; overridable per Scene via `Scene.drag`). |
-| `modes.drag.scale` | `number` | `10 / 1` | Milliseconds per 1% of drag progress under `time` (default `10`); percent of the Scene's compiled element timeline under `percent` (default `1`). |
-| `modes.drag.firstSceneTimeout` | `number` | `3000` | Max wait for first-screen priority images (ms). On timeout a `FIRST_SCENE_TIMEOUT` error is emitted (`preventDefault()` to take over; otherwise the framework statically places the first scene). |
-| `modes.scroll.direction` | `'x' \| 'y'` | `'y'` | Scroll axis. |
-| `modes.scroll.zoneTrigger` | `'center-lock'` | `'center-lock'` | Zone trigger model (currently the only value). |
-| `modes.scroll.sceneSizing` | `'content' \| 'screen'` | `'content'` | Scene height semantics: natural content height or one screen. |
-| `modes.scroll.enterMargin` | `number` | `50` | Global default enter margin for the visibility gate (design px); overridable per Animate via `visibility.enterMargin`. |
-| `modes.scroll.exitMargin` | `number` | `50` | Global default exit margin for the visibility gate (design px); overridable per Animate via `visibility.exitMargin`. |
-| `scrollbar` | `false \| ScrollbarConfig` | `false` | Scrollbar overlay for scroll mode. Passing an object enables it; omitted or `false` disables it. |
-| `scrollbar.enabled` | `boolean` | `true` | Overlay on/off (only takes effect when `scrollbar` is an object). |
-| `scrollbar.ariaLabel` | `string` | `'CineView scroll position'` | Accessible label of the overlay. |
-| `scrollbar.width` | `number` | `6` | Bar thickness (px, floored at `4`). |
-| `scrollbar.radius` | `number` | `999` | Bar corner radius (px, floored at `0`). |
-| `scrollbar.inset` | `number` | `0` | Inset from the scroll container edge (px, floored at `0`). |
-| `scrollbar.trackColor` | `string` | `'transparent'` | Track color. |
-| `scrollbar.thumbColor` | `string` | `'rgba(255, 255, 255, 0.28)'` | Thumb color. |
-| `scrollbar.thumbHoverColor` | `string` | `'rgba(255, 255, 255, 0.42)'` | Thumb hover color. |
-| `scrollbar.autoHide` | `boolean` | `true` | Auto-hide when idle. |
-| `callbacks` | `DragModeCallbacks \| ScrollModeCallbacks` | — | Flat, mode-discriminated callback surface — see the table below. |
-| `performance` | `CineViewPerformanceConfig` | `{ monitor: false }` | A single `monitor` field: enables runtime metric sampling (without it `getPerformanceMetrics()` returns no live data). |
-| `children` | `ReactNode` | `required` | At least one `Scene` child; zero Scenes reports `NO_SCENES`. |
+---
 
-### callbacks
-
-Common callbacks are accepted in both modes; drag/scroll-specific callbacks are `never` in the other mode (type error).
-
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `onReady` | `(api: CineViewRef) => void` | — | Common. Fires once when the runtime is ready (not re-fired across scene switches). |
-| `onLoadProgress` | `(progress: number) => void` | — | Common. Preload progress `0..1`. |
-| `onSceneWillChange` | `(detail: SceneChangeDetail) => void` | — | Common. Before a scene switch. |
-| `onSceneDidChange` | `(detail: SceneChangeDetail) => void` | — | Common. After a scene switch. |
-| `onError` | `(detail: CineViewErrorDetail) => void` | — | Common. Error reporting; recoverable errors carry `preventDefault()`. |
-| `onDragStart` | `(detail: DragStartDetail) => void` | — | Drag-only. Fires once the first direction-qualified move acquires drag ownership. |
-| `onDragProgress` | `(detail: DragDetail) => void` | — | Drag-only. Drag progress. |
-| `onDragBlocked` | `(detail: DragBlockedDetail) => void` | — | Drag-only. A drag toward a blocked boundary is rejected. |
-| `onDragCommit` | `(detail: DragCommitDetail) => void` | — | Drag-only. Release commits a scene switch. |
-| `onDragCancel` | `(detail: DragDetail) => void` | — | Drag-only. Drag cancelled. |
-| `onZoneEnter` | `(detail: ZoneDetail) => void` | — | Scroll-only. Entering a zone. |
-| `onZoneLeave` | `(detail: ZoneDetail) => void` | — | Scroll-only. Leaving a zone. |
-| `onZoneProgress` | `(detail: ZoneProgressDetail) => void` | — | Scroll-only. In-zone progress `0..1`. |
-| `onSceneVisibilityChange` | `(detail: SceneVisibilityDetail) => void` | — | Scroll-only. Scene enters/leaves the viewport. |
-
-### Ref methods
-
-The first five methods always exist in both modes (required in the type); `goToZone` is scroll-only and optional.
-
-| Method | Signature | Description |
-| --- | --- | --- |
-| `goToScene` | `(index: number, animated?: boolean) => void` | Jump to the scene at the given index. |
-| `refreshLayout` | `() => void` | Re-measure viewport and scene layouts. |
-| `preload` | `(targets?: CineViewPreloadTarget[]) => Promise<void>` | Preload. `number` is a scene index; `string` is a `sceneId` (in scroll mode it can also match a `scroll.zoneId`). |
-| `getCurrentScene` | `() => number` | Current scene index. |
-| `getPerformanceMetrics` | `() => PerformanceMetrics` | Performance metric snapshot (requires `performance.monitor`). |
-| `goToZone` | `(zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void` | Scroll-only, optional. Scroll consumers can use the `CineViewScrollRef` convenience type to get a view where `goToZone` is required. |
+For the complete field reference see the [CineView API](/docs/cineview-api).

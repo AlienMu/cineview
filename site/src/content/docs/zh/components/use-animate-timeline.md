@@ -5,25 +5,13 @@ eyebrow: ESCAPE HATCH
 
 `useAnimateTimeline()` 是 Animate 时间轴的零渲染出口：返回对象里的 `progress` / `signedProgress` / `phase` / `frame` 全部是 MotionValue，更新绕过 React 渲染管线，且不暴露任何写入方法。CineView 仍是时间轴的唯一写者——这个 hook 只给你读的资格，而且读的过程不触发渲染。
 
-## 返回值
+## When to use
 
-```ts
-import type { MotionValue } from 'framer-motion';
+- 自定义渲染器（canvas / WebGL / 逐帧绘制）需要动画进度或相位作为输入，而 `Animate` 的声明式属性表达不了时。
+- 调试面板或遥测需要原子地读「progress + phase + 来源」而不引入任何重渲染时。
+- 需要区分「进入中」与「退出中」（`signedProgress`）或「为什么动了」（`frame.source`）时。
 
-interface AnimateTimeline {
-  readonly mode: ScrollMode; // 'drag' | 'scroll'
-  readonly driver: AnimateTimelineDriver; // 'drag' | 'scroll' | 'visibility'
-  readonly progress: MotionValue<number>; // 0..1, 0 = initial frame, 1 = fully entered
-  readonly signedProgress: MotionValue<number>; // retains the exit direction
-  readonly phase: MotionValue<AnimatePhase>;
-  readonly frame: MotionValue<AnimateTimelineFrame>; // atomic snapshot for imperative consumers
-}
-```
-
-- `mode` 是根声明（drag / scroll）；`driver` 是这个 Animate 实际挂载的轨道——scroll 模式下不在 takeover zone 内的元素会优雅降级为 `visibility` 驱动，读 `driver` 能区分真实时间与几何可见性。
-- `progress` 取值 0..1：0 为 initial 帧，1 为完全进入。
-- `signedProgress` 保留退场方向——退场时它是负向推进的进度，需要区分「进入中」与「退出中」的渲染器用它。
-- `phase` 与 `frame` 见下节。
+返回对象的全部字段（`mode` / `driver` / `progress` / `signedProgress` / `phase` / `frame`）、六态相位词表与帧快照的逐字段表见 [useAnimateTimeline API](/docs/use-animate-timeline-api)。两个快速事实：`mode` 是根声明（drag / scroll），`driver` 是这个 Animate 实际挂载的轨道——scroll 模式下不在接管 zone 内的元素会优雅降级为 `visibility` 驱动，读 `driver` 能区分真实时间与几何可见性；`frame` 把 progress / signedProgress / phase / source 四个值在同一次提交里原子发布，避免跨提交读到「新 progress 配旧 phase」。
 
 调用位置有硬约束：必须在 `<Animate>` 的子元素里调用（普通 children 与 render-prop 内都行），在别处调用直接抛错 `useAnimateTimeline must be used inside an <Animate> child.`。返回对象身份稳定——effect 依赖里放 `timeline` 不会每帧重跑。
 
@@ -52,29 +40,6 @@ function PhaseLogger() {
 ```
 
 另一种消费方式是把 MotionValue 原样传给自定义渲染器（canvas / video / WebGL），由渲染器自己订阅——这是下一节的正题。两种方式共同的纪律：**传 MotionValue 本身，不要传 `.get()` 的快照**——快照是订阅那一刻的静态值，之后永远不再更新。
-
-## phase 词表与 frame 快照
-
-`phase` 是共享的相位词表，六个状态：
-
-```ts
-type AnimatePhase = 'idle' | 'waiting' | 'entering' | 'entered' | 'exiting' | 'exited';
-```
-
-`idle` 是从未开始；`waiting` 是被 `delay` / `waitFor` 门控在 initial 帧；`entering` / `entered` / `exiting` / `exited` 依次覆盖入场、入场完成、退场与退场完成。
-
-`frame` 是为命令式消费者准备的原子快照：
-
-```ts
-interface AnimateTimelineFrame {
-  progress: number;
-  signedProgress: number;
-  phase: AnimatePhase;
-  source: AnimateTimelineSource; // 'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility'
-}
-```
-
-为什么需要它：分开订阅 `progress` 和 `phase` 的消费者，可能读到跨提交的组合——新的 progress 配上旧的 phase，画出一帧从未存在过的中间态。`frame` 把四个值在同一次提交里原子发布。`source` 进一步告诉你这次变化从哪来：手势（`gesture`）、release 续跑（`continuation`）、程序化导航（`programmatic`）、滚动（`scroll`）还是可见性闸门（`visibility`）——做调试面板或遥测时它比 phase 更能回答「为什么动了」。
 
 ## canvas 豁免模式
 
@@ -171,3 +136,7 @@ function ParticleCanvas({ progress, phase }: ParticleCanvasProps) {
 - 双轨模型（见 concepts 组的双轨页）保证 progress 唯一写者；自建驱动是事实上的第二写者，写入会被下一帧覆盖，白白付出实现成本。
 
 注意边界：禁令针对「动画驱动」。数据源型 hook（比如随时间码更新的 `useTimecode`）不算动画，不受限；从 framer-motion import 纯类型（`type MotionValue`）也不算驱动，上节示例第一行就是合法用法。
+
+---
+
+接口全字段、六态词表与帧快照六来源见 [useAnimateTimeline API](/docs/use-animate-timeline-api)。

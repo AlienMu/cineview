@@ -11,7 +11,7 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const DOCS_ROOT = join(__dirname, '../../../site/src/content/docs');
-const VALID_GROUPS = new Set(['start', 'concepts', 'components', 'animation', 'advanced']);
+const VALID_GROUPS = new Set(['start', 'concepts', 'components', 'api', 'animation', 'advanced']);
 const LANGS = ['zh', 'en'] as const;
 
 function collectMarkdownFiles(dir: string, prefix = ''): string[] {

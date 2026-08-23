@@ -185,7 +185,8 @@ export const zh = {
   // 文档导航分组（条目标题走各语言 md frontmatter，不再经 i18n）
   'docs.group.start': '入门',
   'docs.group.concepts': '核心概念',
-  'docs.group.components': '组件 API',
+  'docs.group.components': '组件指南',
+  'docs.group.api': 'API 参考',
   'docs.group.animation': '动画',
   'docs.group.advanced': '进阶',
 

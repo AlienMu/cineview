@@ -114,7 +114,7 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
       mode="scroll"
       callbacks={{ onZoneProgress: handleZoneProgress }}
     >
-      <Scene sceneId="demo-scroll-intro" layout={{ width: '100%', height: '80vh' }}>
+      <Scene sceneId="demo-scroll-intro" layout={{ width: '100%', height: '70%' }}>
         <div className="demo-stage__document">
           <span className="demo-stage__index mono">SCROLL / NATIVE FLOW</span>
           <h2>Document distance stays real.</h2>
@@ -123,7 +123,7 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
       </Scene>
       <Scene
         sceneId="demo-scroll-zone"
-        layout={{ width: '100%', height: '100vh', overflow: 'hidden' }}
+        layout={{ width: '100%', height: '100%', overflow: 'hidden' }}
         scroll={{ zoneId: 'demo-scroll-zone', trigger: 'center-lock' }}
       >
         <div className="demo-stage__scene demo-stage__scene--scroll">
@@ -162,8 +162,8 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
               animateId="demo-zone-video"
               duration={{ enter: 6000 }}
               timeline={{ waitFor: 'demo-scroll-subline', delay: 0 }}
-              width={480}
-              height={270}
+              width={320}
+              height={180}
               aria-label={copy.videoLabel}
             />
             <ManualControlSlot
@@ -175,7 +175,7 @@ function ScrollDemo({ copy }: { copy: ScrollDemoCopy }): JSX.Element {
           </Container>
         </div>
       </Scene>
-      <Scene sceneId="demo-scroll-outro" layout={{ width: '100%', height: '80vh' }}>
+      <Scene sceneId="demo-scroll-outro" layout={{ width: '100%', height: '70%' }}>
         <div className="demo-stage__document">
           <span className="demo-stage__index mono">SCROLL / RELEASE</span>
           <h2>Back to the document.</h2>
@@ -305,7 +305,10 @@ export default function DemoPage(): JSX.Element {
         </button>
       </div>
 
-      <section className="demo-stage" aria-live="polite">
+      <section
+        className={`demo-stage${mode === 'scroll' ? ' demo-stage--scroll' : ''}`}
+        aria-live="polite"
+      >
         {mode === 'drag' ? (
           <DragDemo cineViewRef={cineViewRef} />
         ) : (

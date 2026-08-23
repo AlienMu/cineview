@@ -190,7 +190,8 @@ export const en: Dict = {
   // Docs nav groups (page titles live in per-language md frontmatter, not i18n)
   'docs.group.start': 'Getting Started',
   'docs.group.concepts': 'Core Concepts',
-  'docs.group.components': 'Components',
+  'docs.group.components': 'Guides',
+  'docs.group.api': 'API Reference',
   'docs.group.animation': 'Animation',
   'docs.group.advanced': 'Advanced',
 

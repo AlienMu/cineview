@@ -694,6 +694,10 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   box-shadow: 0 24px 70px rgba(26, 24, 20, 0.12);
 }
 
+.demo-stage--scroll {
+  height: min(84vh, 840px);
+}
+
 .demo-stage .cineview-responsive-container,
 .demo-stage .cineview-container {
   height: 100% !important;
@@ -1084,4 +1088,31 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* 未知 slug 404 态（审计 P1-1） */
+
+.docs-article__notfound {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  padding-top: 24px;
+  color: var(--ink-soft);
+}
+
+/* 表格溢出修复（审计 P1-3）：grid 隐式轨道 min-width:auto 被长表格撑宽——
+   文章列允许收缩 + 表格自带横向滚动。 */
+
+.docs-article {
+  min-width: 0;
+}
+
+.docs-article__markdown > * {
+  min-width: 0;
+}
+
+.docs-article__markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
