@@ -289,8 +289,9 @@ async function renderHarness(): Promise<React.RefObject<CineViewRef>> {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-      config={{ size: 750 }}
+      direction={'y'}
+      transitionDuration={800}
+      designWidth={750}
     >
       {[0, 1, 2].map((index) => (
         <Scene key={index} sceneId={`scene-${index}`}>
@@ -310,7 +311,7 @@ async function renderHarness(): Promise<React.RefObject<CineViewRef>> {
   );
 
   await waitFor(() => {
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
   });
   // Let async animation parsing + registry registration settle so scene
   // timelines (T = 4000) are known before the gesture starts.
@@ -356,7 +357,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
   it('takes the in-flight release over instead of flush-committing: no teleport, and continuing the push commits forward once', async () => {
     const cineViewRef = await renderHarness();
     releaseIntoSettle();
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0); // commit pending
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0); // commit pending
 
     // The settle page-slide advanced the page from the 0.5 release ratio toward
     // 1 — freeze it partway (0.8) so the takeover has a real remainder to NOT
@@ -372,7 +373,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     // page does NOT jump — the frozen 0.8 is held under the finger.
     const surface = sceneSurface(0);
     firePointer(surface, 'pointerDown', { pointerId: 2, clientY: 500 });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(inFlightLane.stopped).toBe(true);
     expect(sceneWrapper(0).style.transform).toBe('translate3d(0, -80%, 0)');
 
@@ -380,7 +381,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     act(() => {
       inFlightLane.complete();
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
     // The first directional frame acquires ownership and becomes the zero
     // baseline. The next frame adds +0.1 on top of frozen 0.8 -> 0.9.
@@ -412,7 +413,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
       // hidden/initial handoff here would flash the content even if wrappers stay put.
       expect(readAnimateOpacity('title-1')).toBeCloseTo(incomingOpacityBeforeCommit, 6);
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     expect(sceneWrapper(0).style.transform).toBe('translate3d(0, -100%, 0)');
     expect(sceneWrapper(1).style.transform).toBe('translate3d(0, 0%, 0)');
     expect(readAnimateOpacity('title-1')).toBeCloseTo(incomingOpacityBeforeCommit, 6);
@@ -434,7 +435,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     // different Scene engine from the one that created the shared render lane.
     const incomingSurface = sceneSurface(1);
     firePointer(incomingSurface, 'pointerDown', { pointerId: 31, clientY: 500 });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(inFlightLane.stopped).toBe(true);
     expect(sceneOffsetPercent(0)).toBeCloseTo(-80, 6);
     expect(sceneOffsetPercent(1)).toBeCloseTo(20, 6);
@@ -458,7 +459,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     act(() => {
       replacementLane.complete();
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     await flushAsync();
   });
 
@@ -468,7 +469,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     act(() => {
       cineViewRef.current?.goToScene(1, false);
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     expect(sceneWrapper(0).style.transform).toBe('translate3d(0, -100%, 0)');
     expect(sceneWrapper(1).style.transform).toBe('translate3d(0, 0%, 0)');
 
@@ -497,7 +498,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
       );
     });
 
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(sceneWrapper(0).style.transform).toBe('translate3d(0, 0%, 0)');
     expect(sceneWrapper(1).style.transform).toBe('translate3d(0, 100%, 0)');
     await flushAsync();
@@ -516,7 +517,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     });
     const surface = sceneSurface(0);
     firePointer(surface, 'pointerDown', { pointerId: 2, clientY: 500 });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(inFlightLane.stopped).toBe(true);
     expect(settleContinuation.stopped).toBe(true);
     const renderCallsBeforeTap = renderLaneCalls().length;
@@ -537,13 +538,13 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     act(() => {
       resumedRender[0].complete();
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
 
     act(() => {
       resumedElement[0].complete();
     });
     expect(resumedElement[0].completed).toBe(true);
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     await flushAsync();
   });
 
@@ -576,7 +577,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     const callsBeforeTap = animateCalls.length;
     firePointer(surface, 'pointerDown', { pointerId: 12, clientY: 500 });
 
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(renderBounce?.stopped).toBe(true);
     expect(elementBounce?.stopped).toBe(true);
     expect(sceneOffsetPercent(0)).toBeCloseTo(-6, 6);
@@ -595,7 +596,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     act(() => {
       resumedBounces.forEach((call) => call.complete());
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(sceneOffsetPercent(0)).toBeCloseTo(0, 6);
     expect(readVideoTime(1)).toBeCloseTo(0, 6);
     await flushAsync();
@@ -612,7 +613,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     });
     const surface = sceneSurface(0);
     firePointer(surface, 'pointerDown', { pointerId: 2, clientY: 300 });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(inFlightLane.stopped).toBe(true);
 
     // Drag DOWN by exactly the frozen progress: 0.6 - 0.6 = 0. The page returns
@@ -629,7 +630,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     // change, and the would-be incoming scene's element track is rewound.
     const trackCallsBeforeRelease = elementTrackCalls().length;
     firePointer(surface, 'pointerUp', { pointerId: 2, clientY: 301 + VIEWPORT * 0.6 });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
     const rewind = elementTrackCalls().slice(trackCallsBeforeRelease);
     expect(rewind.length).toBe(1);
@@ -637,7 +638,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     act(() => {
       rewind[0].complete();
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     await flushAsync();
   });
 
@@ -662,7 +663,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     // The finger already drove render progress to the exact target. Release must
     // commit synchronously instead of allocating a zero-length render tween.
     expect(renderLaneCalls().slice(-1)[0]).toBe(inFlightLane);
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     await flushAsync();
   });
 
@@ -685,7 +686,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
       renderLane.complete();
       expect(readVideoTime(1)).toBeCloseTo(settledTime, 6);
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     expect(readVideoTime(1)).toBeCloseTo(settledTime, 6);
 
     act(() => {
@@ -708,7 +709,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
     expect(draggedTime).toBeLessThan(10);
     firePointer(surface, 'pointerUp', { pointerId: 21, clientY: 500 });
 
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     const rewinds = elementTrackCalls()
       .slice(callsBefore)
       .filter((call) => call.target === 0 && call.fromValue > 0 && !call.stopped);
@@ -774,7 +775,7 @@ describe('D-F1: rush re-grab during the release settle window', () => {
       backwardLane.complete();
       expect(readVideoTime(0)).toBeCloseTo(timeBeforeCommit, 6);
     });
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     expect(readVideoTime(0)).toBeCloseTo(timeBeforeCommit, 6);
     await flushAsync();
   });

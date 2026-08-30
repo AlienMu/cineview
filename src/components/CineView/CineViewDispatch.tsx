@@ -1,7 +1,12 @@
 import { forwardRef } from 'react';
 import { CineViewDragEngine, resolveRootMode } from './CineView';
 import { DirectScrollCineView } from './DirectScrollCineView';
-import type { CineViewProps, CineViewRef } from '../../types';
+import type {
+  CineViewDragModeProps,
+  CineViewProps,
+  CineViewRef,
+  CineViewScrollModeProps,
+} from '../../types';
 
 /**
  * `mode` 派发器 —— 全量入口（ES / bundler 消费者）用的 `CineView`。
@@ -19,9 +24,9 @@ import type { CineViewProps, CineViewRef } from '../../types';
  */
 const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
   if (resolveRootMode(props.mode) === 'scroll') {
-    return <DirectScrollCineView {...props} ref={ref} />;
+    return <DirectScrollCineView {...(props as CineViewScrollModeProps)} ref={ref} />;
   }
-  return <CineViewDragEngine {...props} ref={ref} />;
+  return <CineViewDragEngine {...(props as CineViewDragModeProps)} ref={ref} />;
 });
 
 CineViewComponent.displayName = 'CineView';

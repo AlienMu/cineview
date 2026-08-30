@@ -23,7 +23,7 @@ export function TimelinePlayhead(): JSX.Element {
           enterAnimation={{ initial: { opacity: 1 }, animate: { opacity: 1 } }}
           duration={{ enter: timing.duration(1) }}
           timeline={{ delay: timing.delay(0) }}
-          infiniteAnimation={
+          loopAnimation={
             timing.reduced
               ? undefined
               : {

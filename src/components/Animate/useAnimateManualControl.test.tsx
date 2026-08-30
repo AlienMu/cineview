@@ -210,7 +210,7 @@ function ManualProbe({
       enterAnimation="fade-in"
       exitAnimation="fade-out"
       duration={{ enter: 40, exit: 40 }}
-      timeline={{ sceneControlled: false, ...(delay === undefined ? {} : { delay }) }}
+      timeline={{ driver: 'clock', ...(delay === undefined ? {} : { delay }) }}
       enterRef={enterRefOut ? enterRef : undefined}
       exitRef={exitRefOut ? exitRef : undefined}
     >
@@ -340,7 +340,7 @@ describe('Animate manual control (enterRef / exitRef)', () => {
 
   it('keeps a manual exit sticky while the element is still inside the viewport', async () => {
     // Regression: `autoExitSuppressed` only closed the EXIT gate. With the element
-    // still on screen and `replayOnReenter` defaulting to true, the very next scroll
+    // still on screen and `replay` defaulting to true, the very next scroll
     // tick saw phase 'exited' + enterGate true and replayed the entrance — undoing
     // the consumer's exit. Exiting by hand must claim the enter gate too.
     let exitRef!: MutableRefObject<(() => void) | null>;

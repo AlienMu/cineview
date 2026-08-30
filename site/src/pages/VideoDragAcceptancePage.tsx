@@ -43,22 +43,18 @@ export default function VideoDragAcceptancePage(): JSX.Element {
       style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#05070b' }}
     >
       <CineView
-        config={{ size: 430 }}
+        designWidth={430}
         mode="drag"
-        modes={{
-          drag: {
-            direction: 'y',
-            transitionDuration: 800,
-            unit: 'percent',
-            scale: 1,
-          },
-        }}
+        direction="y"
+        transitionDuration={800}
+        unit="percent"
+        scale={1}
         callbacks={{
-          onSceneDidChange: handleSceneDidChange,
+          onSceneLeave: handleSceneDidChange,
           onDragStart: () => incrementDragCounter('starts'),
           onDragBlocked: () => incrementDragCounter('blocked'),
           onDragCancel: () => incrementDragCounter('cancels'),
-          onDragCommit: () => incrementDragCounter('commits'),
+          onDragEnd: () => incrementDragCounter('commits'),
         }}
       >
         {SCENES.map((scene, index) => (

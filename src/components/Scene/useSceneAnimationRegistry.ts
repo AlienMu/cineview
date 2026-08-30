@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   buildAnimationRegistrySnapshot,
   freezeAnimationRegistrySnapshot,
-  isWaitForDriverCompatible,
+  isLaneCompatible,
   type AnimateRegistrationInfo,
-  type AnimateTimelineDriver,
+  type AnimateTimelineLane,
   type AnimationRegistryIssue,
   type AnimationRegistrySnapshot,
   type FrozenAnimationRegistrySnapshot,
@@ -31,14 +31,14 @@ export interface ScenePreparationLease {
   cancel: () => void;
 }
 
-export type WaitForInvalidReason =
+export type AfterInvalidReason =
   | 'missing'
   | 'cycle'
   | 'duplicate'
   | 'leader-unregistered'
-  | 'incompatible-driver';
+  | 'incompatible-lane';
 
-export type WaitForOutcome =
+export type AfterOutcome =
   | { kind: 'pending'; leaderId: string; generation?: number }
   | {
       kind: 'satisfied';
@@ -46,19 +46,19 @@ export type WaitForOutcome =
       leaderId?: string;
       generation?: number;
     }
-  | { kind: 'invalid'; leaderId: string; reason: WaitForInvalidReason };
+  | { kind: 'invalid'; leaderId: string; reason: AfterInvalidReason };
 
 export interface SceneAnimationRegistrationLease {
   readonly animateId: string;
   readonly generation: number;
   getCalculatedDelay: () => number;
   setEnterVariant?: (variant: ParsedAnimationVariant) => void;
-  observeWaitFor: (listener: (outcome: WaitForOutcome) => void) => () => void;
+  observeAfter: (listener: (outcome: AfterOutcome) => void) => () => void;
   publishEnterCompleted: () => void;
   dispose: () => void;
 }
 
-export interface SceneAnimationDriverDeclarationLease {
+export interface SceneAnimationLaneDeclarationLease {
   dispose: () => void;
 }
 
@@ -67,11 +67,8 @@ export interface SceneAnimationRegistryPort {
   isStable: boolean;
   beginPreparation: () => ScenePreparationLease;
   registerAnimate: (id: string, info: AnimateRegistrationInfo) => SceneAnimationRegistrationLease;
-  /** Declare a non-scene driver for dependency diagnostics without extending T_self. */
-  declareAnimateDriver: (
-    id: string,
-    driver: AnimateTimelineDriver
-  ) => SceneAnimationDriverDeclarationLease;
+  /** Declare a non-scene lane for dependency diagnostics without extending T_self. */
+  declareAnimateLane: (id: string, lane: AnimateTimelineLane) => SceneAnimationLaneDeclarationLease;
   /** Legacy registration adapter for callers not yet migrated to lease.dispose(). */
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (animateId: string) => number;
@@ -88,16 +85,16 @@ interface RegistrationRecord {
   disposed: boolean;
 }
 
-interface DriverDeclarationRecord {
+interface LaneDeclarationRecord {
   token: symbol;
   id: string;
-  driver: AnimateTimelineDriver;
+  lane: AnimateTimelineLane;
   disposed: boolean;
 }
 
-interface WaitForSubscription {
+interface AfterSubscription {
   follower: RegistrationRecord;
-  listener: (outcome: WaitForOutcome) => void;
+  listener: (outcome: AfterOutcome) => void;
   leaderId: string;
   sawLeader: boolean;
   lastSignature: string | null;
@@ -107,17 +104,17 @@ interface WaitForSubscription {
 function getIssueKey(issue: AnimationRegistryIssue): string {
   switch (issue.type) {
     case 'missing-dependency':
-      return `${issue.type}:${issue.animateId}:${issue.waitFor}`;
+      return `${issue.type}:${issue.animateId}:${issue.after}`;
     case 'circular-dependency':
       return `${issue.type}:${issue.animateId}:${issue.cycle.join('>')}`;
     case 'duplicate-id':
       return `${issue.type}:${issue.animateId}`;
-    case 'incompatible-driver':
-      return `${issue.type}:${issue.animateId}:${issue.waitFor}:${issue.followerDriver}:${issue.leaderDriver}`;
+    case 'incompatible-lane':
+      return `${issue.type}:${issue.animateId}:${issue.after}:${issue.followerLane}:${issue.leaderLane}`;
   }
 }
 
-function outcomeSignature(outcome: WaitForOutcome): string {
+function outcomeSignature(outcome: AfterOutcome): string {
   if (outcome.kind === 'invalid') {
     return `${outcome.kind}:${outcome.leaderId}:${outcome.reason}`;
   }
@@ -155,8 +152,8 @@ function registrySnapshotsEqual(
       Boolean(
         leftInfo.delay === rightInfo.delay &&
         leftInfo.duration === rightInfo.duration &&
-        leftInfo.waitFor === rightInfo.waitFor &&
-        leftInfo.driver === rightInfo.driver
+        leftInfo.after === rightInfo.after &&
+        leftInfo.lane === rightInfo.lane
       )
     ) &&
     mapsEqual(left.calculatedDelays, right.calculatedDelays) &&
@@ -172,11 +169,11 @@ export function useSceneAnimationRegistry({
   onStableSnapshot,
 }: UseSceneAnimationRegistryParams): SceneAnimationRegistryPort {
   const ownersByIdRef = useRef<Map<string, Map<symbol, RegistrationRecord>>>(new Map());
-  const driverDeclarationsByIdRef = useRef<Map<string, Map<symbol, DriverDeclarationRecord>>>(
+  const laneDeclarationsByIdRef = useRef<Map<string, Map<symbol, LaneDeclarationRecord>>>(
     new Map()
   );
   const registrationsRef = useRef<Map<string, AnimateRegistrationInfo>>(new Map());
-  const declaredDriversRef = useRef<Map<string, AnimateTimelineDriver>>(new Map());
+  const declaredLanesRef = useRef<Map<string, AnimateTimelineLane>>(new Map());
   const duplicateIdsRef = useRef<Set<string>>(new Set());
   const snapshotRef = useRef<AnimationRegistrySnapshot>(
     buildAnimationRegistrySnapshot({
@@ -186,7 +183,7 @@ export function useSceneAnimationRegistry({
   );
   const reportedIssuesRef = useRef<Set<string>>(new Set());
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const subscriptionsByLeaderRef = useRef<Map<string, Set<WaitForSubscription>>>(new Map());
+  const subscriptionsByLeaderRef = useRef<Map<string, Set<AfterSubscription>>>(new Map());
   const generationRef = useRef(0);
   const preparationCountRef = useRef(0);
   const stableRevisionRef = useRef(0);
@@ -218,20 +215,20 @@ export function useSceneAnimationRegistry({
 
         if (issue.type === 'missing-dependency') {
           code = 'INVALID_ANIMATION';
-          message = `Animate "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor in Scene ${sceneIndex}.`;
+          message = `Animate "${issue.animateId}" references non-existent component "${issue.after}" via after in Scene ${sceneIndex}.`;
           devWarning =
             `Animation dependency error in Scene ${sceneIndex}.\n\n` +
-            `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.waitFor}" via waitFor.\n` +
+            `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.after}" via after.\n` +
             `Fallback: The invalid dependency is ignored so the animation can continue.\n` +
-            `Fix: Ensure the waitFor component ID matches an existing Animate component's animateId prop.\n`;
+            `Fix: Ensure the after component ID matches an existing Animate component's animateId prop.\n`;
         } else if (issue.type === 'circular-dependency') {
           code = 'CIRCULAR_DEPENDENCY';
-          message = `Animate waitFor chain contains a cycle in Scene ${sceneIndex}: ${issue.cycle.join(' -> ')}.`;
+          message = `Animate after chain contains a cycle in Scene ${sceneIndex}: ${issue.cycle.join(' -> ')}.`;
           devWarning =
             `Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
-            `Problem: Animate waitFor chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
+            `Problem: Animate after chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
             `Fallback: The invalid dependency is ignored so the animations can continue.\n` +
-            `Fix: Remove the circular waitFor reference so each Animate starts after an earlier independent animation.\n`;
+            `Fix: Remove the circular after reference so each Animate starts after an earlier independent animation.\n`;
         } else if (issue.type === 'duplicate-id') {
           code = 'INVALID_COMPONENT_HIERARCHY';
           message = `More than one Animate component registered animateId "${issue.animateId}" in Scene ${sceneIndex}.`;
@@ -243,14 +240,14 @@ export function useSceneAnimationRegistry({
         } else {
           code = 'INVALID_ANIMATION';
           message =
-            `Animate "${issue.animateId}" uses ${issue.followerDriver} waitFor "${issue.waitFor}" ` +
-            `driven by ${issue.leaderDriver} in Scene ${sceneIndex}; this dependency direction is incompatible.`;
+            `Animate "${issue.animateId}" uses ${issue.followerLane} after "${issue.after}" ` +
+            `driven by ${issue.leaderLane} in Scene ${sceneIndex}; this dependency direction is incompatible.`;
           devWarning =
             `Incompatible animation dependency in Scene ${sceneIndex}.\n\n` +
-            `Problem: ${issue.followerDriver} Animate "${issue.animateId}" cannot waitFor ` +
-            `${issue.leaderDriver} Animate "${issue.waitFor}".\n` +
+            `Problem: ${issue.followerLane} Animate "${issue.animateId}" cannot follow ` +
+            `${issue.leaderLane} Animate "${issue.after}".\n` +
             `Fallback: The incompatible dependency is ignored so the animation can continue.\n` +
-            `Fix: Keep both animations on one compatible driver or remove the waitFor edge.\n`;
+            `Fix: Keep both animations on one compatible lane or remove the after edge.\n`;
         }
 
         reportErrorRef.current?.({ code, message, context: { sceneIndex } });
@@ -262,7 +259,7 @@ export function useSceneAnimationRegistry({
 
   const syncSelectedRegistrations = useCallback((): void => {
     registrationsRef.current.clear();
-    declaredDriversRef.current.clear();
+    declaredLanesRef.current.clear();
     duplicateIdsRef.current.clear();
 
     ownersByIdRef.current.forEach((owners, id) => {
@@ -271,12 +268,12 @@ export function useSceneAnimationRegistry({
       if (owners.size > 1) duplicateIdsRef.current.add(id);
     });
 
-    driverDeclarationsByIdRef.current.forEach((declarations, id) => {
-      let latest: DriverDeclarationRecord | undefined;
+    laneDeclarationsByIdRef.current.forEach((declarations, id) => {
+      let latest: LaneDeclarationRecord | undefined;
       declarations.forEach((declaration) => {
         if (!declaration.disposed) latest = declaration;
       });
-      if (latest) declaredDriversRef.current.set(id, latest.driver);
+      if (latest) declaredLanesRef.current.set(id, latest.lane);
     });
   }, []);
 
@@ -285,7 +282,7 @@ export function useSceneAnimationRegistry({
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration,
       registrations: registrationsRef.current,
-      declaredDrivers: declaredDriversRef.current,
+      declaredLanes: declaredLanesRef.current,
       duplicateIds: duplicateIdsRef.current,
     });
     snapshotRef.current = snapshot;
@@ -305,20 +302,20 @@ export function useSceneAnimationRegistry({
   }, []);
 
   const evaluateSubscription = useCallback(
-    (subscription: WaitForSubscription, stable: boolean): WaitForOutcome => {
+    (subscription: AfterSubscription, stable: boolean): AfterOutcome => {
       const { follower, leaderId } = subscription;
       const leaderOwners = ownersByIdRef.current.get(leaderId);
-      const declaredLeaderDriver = declaredDriversRef.current.get(leaderId);
+      const declaredLeaderLane = declaredLanesRef.current.get(leaderId);
 
       if (!leaderOwners || leaderOwners.size === 0) {
         if (
           stable &&
-          declaredLeaderDriver !== undefined &&
-          follower.info.driver !== undefined &&
-          !isWaitForDriverCompatible(follower.info.driver, declaredLeaderDriver)
+          declaredLeaderLane !== undefined &&
+          follower.info.lane !== undefined &&
+          !isLaneCompatible(follower.info.lane, declaredLeaderLane)
         ) {
           subscription.sawLeader = true;
-          return { kind: 'invalid', leaderId, reason: 'incompatible-driver' };
+          return { kind: 'invalid', leaderId, reason: 'incompatible-lane' };
         }
         return stable
           ? {
@@ -340,11 +337,11 @@ export function useSceneAnimationRegistry({
       }
       if (
         stable &&
-        follower.info.driver !== undefined &&
-        leader.info.driver !== undefined &&
-        !isWaitForDriverCompatible(follower.info.driver, leader.info.driver)
+        follower.info.lane !== undefined &&
+        leader.info.lane !== undefined &&
+        !isLaneCompatible(follower.info.lane, leader.info.lane)
       ) {
-        return { kind: 'invalid', leaderId, reason: 'incompatible-driver' };
+        return { kind: 'invalid', leaderId, reason: 'incompatible-lane' };
       }
       if (leader.enterCompleted) {
         return {
@@ -360,7 +357,7 @@ export function useSceneAnimationRegistry({
   );
 
   const emitOutcome = useCallback(
-    (subscription: WaitForSubscription, outcome: WaitForOutcome): void => {
+    (subscription: AfterSubscription, outcome: AfterOutcome): void => {
       if (subscription.terminal) return;
       const signature = outcomeSignature(outcome);
       if (subscription.lastSignature === signature) return;
@@ -552,15 +549,15 @@ export function useSceneAnimationRegistry({
           record.enterVariant = variant;
           scheduleValidation();
         },
-        observeWaitFor: (listener): (() => void) => {
-          if (!record.info.waitFor) {
+        observeAfter: (listener): (() => void) => {
+          if (!record.info.after) {
             listener({ kind: 'satisfied', source: 'none' });
             return () => undefined;
           }
-          const subscription: WaitForSubscription = {
+          const subscription: AfterSubscription = {
             follower: record,
             listener,
-            leaderId: record.info.waitFor,
+            leaderId: record.info.after,
             sawLeader: false,
             lastSignature: null,
             terminal: false,
@@ -609,18 +606,18 @@ export function useSceneAnimationRegistry({
     ]
   );
 
-  const declareAnimateDriver = useCallback(
-    (id: string, driver: AnimateTimelineDriver): SceneAnimationDriverDeclarationLease => {
-      const record: DriverDeclarationRecord = {
+  const declareAnimateLane = useCallback(
+    (id: string, lane: AnimateTimelineLane): SceneAnimationLaneDeclarationLease => {
+      const record: LaneDeclarationRecord = {
         token: Symbol(id),
         id,
-        driver,
+        lane,
         disposed: false,
       };
-      let declarations = driverDeclarationsByIdRef.current.get(id);
+      let declarations = laneDeclarationsByIdRef.current.get(id);
       if (!declarations) {
         declarations = new Map();
-        driverDeclarationsByIdRef.current.set(id, declarations);
+        laneDeclarationsByIdRef.current.set(id, declarations);
       }
       declarations.set(record.token, record);
       rebuildSnapshot();
@@ -630,9 +627,9 @@ export function useSceneAnimationRegistry({
         dispose: (): void => {
           if (record.disposed) return;
           record.disposed = true;
-          const current = driverDeclarationsByIdRef.current.get(id);
+          const current = laneDeclarationsByIdRef.current.get(id);
           current?.delete(record.token);
-          if (current?.size === 0) driverDeclarationsByIdRef.current.delete(id);
+          if (current?.size === 0) laneDeclarationsByIdRef.current.delete(id);
           rebuildSnapshot();
           scheduleValidation();
         },
@@ -667,9 +664,9 @@ export function useSceneAnimationRegistry({
   useEffect(() => {
     mountedRef.current = true;
     const ownersById = ownersByIdRef.current;
-    const driverDeclarationsById = driverDeclarationsByIdRef.current;
+    const laneDeclarationsById = laneDeclarationsByIdRef.current;
     const registrations = registrationsRef.current;
-    const declaredDrivers = declaredDriversRef.current;
+    const declaredLanes = declaredLanesRef.current;
     const duplicateIds = duplicateIdsRef.current;
     const reportedIssues = reportedIssuesRef.current;
     const subscriptionsByLeader = subscriptionsByLeaderRef.current;
@@ -682,9 +679,9 @@ export function useSceneAnimationRegistry({
       }
       preparationCountRef.current = 0;
       ownersById.clear();
-      driverDeclarationsById.clear();
+      laneDeclarationsById.clear();
       registrations.clear();
-      declaredDrivers.clear();
+      declaredLanes.clear();
       duplicateIds.clear();
       reportedIssues.clear();
       subscriptionsByLeader.clear();
@@ -696,7 +693,7 @@ export function useSceneAnimationRegistry({
     isStable,
     beginPreparation,
     registerAnimate,
-    declareAnimateDriver,
+    declareAnimateLane,
     unregisterAnimate,
     getCalculatedDelay,
     getTimelineDuration,

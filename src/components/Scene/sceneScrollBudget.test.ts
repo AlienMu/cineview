@@ -87,7 +87,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
       delay: 50,
       enterDuration: 200,
       exitDuration: 0,
-      waitFor: 'intro',
+      after: 'intro',
     });
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
@@ -106,14 +106,14 @@ describe('resolveSceneScrollAnimationBudgets', () => {
       delay: 1,
       enterDuration: 10,
       exitDuration: 0,
-      waitFor: 'b',
+      after: 'b',
     });
     registrations.set('b', {
       animateId: 'b',
       delay: 2,
       enterDuration: 20,
       exitDuration: 0,
-      waitFor: 'a',
+      after: 'a',
     });
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
@@ -135,7 +135,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
           delay: 1,
           enterDuration: 10,
           exitDuration: 1,
-          waitFor: 'b',
+          after: 'b',
         },
       ],
       [
@@ -145,7 +145,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
           delay: 2,
           enterDuration: 20,
           exitDuration: 2,
-          waitFor: 'c',
+          after: 'c',
         },
       ],
       [
@@ -155,7 +155,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
           delay: 3,
           enterDuration: 30,
           exitDuration: 3,
-          waitFor: 'a',
+          after: 'a',
         },
       ],
     ]);
@@ -190,14 +190,14 @@ describe('resolveSceneScrollAnimationBudgets', () => {
       delay: 0,
       enterDuration: 600,
       exitDuration: 0,
-      waitFor: 'title',
+      after: 'title',
     });
     registrations.set('video', {
       animateId: 'video',
       delay: 0,
       enterDuration: 6000,
       exitDuration: 0,
-      waitFor: 'subline',
+      after: 'subline',
     });
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
@@ -263,7 +263,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
       delay: 0,
       enterDuration: 600,
       exitDuration: 0,
-      waitFor: 'leader',
+      after: 'leader',
     });
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
@@ -295,7 +295,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
       delay: 0,
       enterDuration: 200,
       exitDuration: 0,
-      waitFor: 'leader',
+      after: 'leader',
     });
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);

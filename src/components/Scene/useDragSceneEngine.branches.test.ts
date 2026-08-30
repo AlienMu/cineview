@@ -112,7 +112,7 @@ function setup(overrides: Partial<Params> = {}) {
     onDraggingChange: jest.fn(),
     onSharedTimelineDurationChange: jest.fn(),
     onDragRelease: jest.fn(),
-    onDragCommit: jest.fn(),
+    onDragEnd: jest.fn(),
     onDragReset: jest.fn(),
   };
   const dragProgressMotion = createMotionValueStub(0);
@@ -283,7 +283,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     view.result.current.handlePanEnd(new MouseEvent('mouseup'), panInfo(0));
 
     expect(spies.onDraggingChange).toHaveBeenCalledWith(false);
-    expect(spies.onDragCommit).toHaveBeenCalledWith('forward', 1, 800, 800);
+    expect(spies.onDragEnd).toHaveBeenCalledWith('forward', 1, 800, 800);
     expect(spies.setIsAnimating).toHaveBeenLastCalledWith(false);
   });
 
@@ -303,7 +303,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     expect(slide).toBeDefined();
 
     slide!.complete();
-    expect(spies.onDragCommit).toHaveBeenCalledWith('forward', 0.8, 0.8 * 800, 800);
+    expect(spies.onDragEnd).toHaveBeenCalledWith('forward', 0.8, 0.8 * 800, 800);
     expect(spies.onRenderProgressChange).toHaveBeenLastCalledWith(0);
     expect(spies.setIsAnimating).toHaveBeenLastCalledWith(false);
   });
@@ -369,7 +369,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     // left in-flight by the step-driver mock).
     dragProgressMotion.set(0.8);
     view.result.current.handlePanEnd(new MouseEvent('mouseup'), panInfo(0));
-    expect(spies.onDragCommit).not.toHaveBeenCalled(); // slide still in flight
+    expect(spies.onDragEnd).not.toHaveBeenCalled(); // slide still in flight
     const slide = animateCalls.find((c) => !c.isMotion && c.target === 1);
     expect(slide).toBeDefined();
 
@@ -381,7 +381,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     // teleports the whole stack by the remaining progress in one frame). The
     // lane is stopped where it is and the gesture baseline is seeded from the
     // frozen render position.
-    expect(spies.onDragCommit).not.toHaveBeenCalled();
+    expect(spies.onDragEnd).not.toHaveBeenCalled();
     expect(slide!.stopped).toBe(true);
     expect(dragProgressMotion.get()).toBe(0.9);
     expect(spies.onDragProgressChange).toHaveBeenLastCalledWith(0.9);
@@ -390,7 +390,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
 
     // A late frame of the stopped slide tween is inert — it can never commit.
     slide!.complete();
-    expect(spies.onDragCommit).not.toHaveBeenCalled();
+    expect(spies.onDragEnd).not.toHaveBeenCalled();
 
     // The pan continues from the frozen baseline, never from a fresh 0:
     // finger delta -102.4px on a 1024px viewport = +0.1 -> 0.9 + 0.1 = 1.0.
@@ -402,8 +402,8 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     // already been permanently preempted by ownership.
     view.result.current.handlePanEnd(new MouseEvent('mouseup'), panInfo(-102.4));
     expect(animateCalls.filter((c) => !c.isMotion && c.target === 1)).toEqual([slide]);
-    expect(spies.onDragCommit).toHaveBeenCalledTimes(1);
-    expect(spies.onDragCommit).toHaveBeenCalledWith('forward', 1, 800, 800);
+    expect(spies.onDragEnd).toHaveBeenCalledTimes(1);
+    expect(spies.onDragEnd).toHaveBeenCalledWith('forward', 1, 800, 800);
   });
 
   it('a takeover scrubbed back to rest abandons the transition: tiny release publishes the bounce rewind (D-F7)', () => {
@@ -422,7 +422,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     view.result.current.handlePan(new MouseEvent('mousemove'), panInfo(921.6)); // 0.9 - 0.9
     view.result.current.handlePanEnd(new MouseEvent('mouseup'), panInfo(921.6));
 
-    expect(spies.onDragCommit).not.toHaveBeenCalled();
+    expect(spies.onDragEnd).not.toHaveBeenCalled();
     expect(spies.onDragRelease).toHaveBeenCalledWith({
       mode: 'bounce',
       direction: 'forward',
@@ -495,7 +495,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     const engineA = setup({ sceneIndex: 0, currentSceneIndex: 0, renderLaneRef: sharedLane });
     engineA.dragProgressMotion.set(0.8);
     engineA.view.result.current.handlePanEnd(new MouseEvent('mouseup'), panInfo(0));
-    expect(engineA.spies.onDragCommit).not.toHaveBeenCalled(); // slide in flight
+    expect(engineA.spies.onDragEnd).not.toHaveBeenCalled(); // slide in flight
     expect(sharedLane.current?.kind).toBe('settle');
     expect(sharedLane.current?.ownerSceneIndex).toBe(0);
 
@@ -514,7 +514,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     // Takeover, not flush: A's release is NOT finalized, its lane is stopped
     // where it stood, and the shared slot is drained so B's pan is the sole
     // render-lane writer.
-    expect(engineA.spies.onDragCommit).not.toHaveBeenCalled();
+    expect(engineA.spies.onDragEnd).not.toHaveBeenCalled();
     expect(sharedLane.current).toBeNull();
     expect(engineB.spies.onDraggingChange).toHaveBeenLastCalledWith(true);
 
@@ -522,7 +522,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     expect(slide!.stopped).toBe(true);
     // A late frame of the stopped slide is inert — it can never commit.
     slide!.complete();
-    expect(engineA.spies.onDragCommit).not.toHaveBeenCalled();
+    expect(engineA.spies.onDragEnd).not.toHaveBeenCalled();
 
     // B's gesture continues from the frozen position (0.9), not from a fresh 0.
     expect(engineB.dragProgressMotion.get()).toBe(0.9);
@@ -536,8 +536,8 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     engineB.view.result.current.handlePanEnd(new MouseEvent('mouseup'), panInfo(-102.4));
     expect(sharedLane.current).toBeNull();
     expect(animateCalls.filter((c) => !c.isMotion && c.target === 1)).toEqual([slide]);
-    expect(engineB.spies.onDragCommit).toHaveBeenCalledTimes(1);
-    expect(engineA.spies.onDragCommit).not.toHaveBeenCalled();
+    expect(engineB.spies.onDragEnd).toHaveBeenCalledTimes(1);
+    expect(engineA.spies.onDragEnd).not.toHaveBeenCalled();
   });
 
   it("unmounting a scene does NOT tear down another engine's lane in the shared slot", () => {
@@ -600,7 +600,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     dragProgressMotion.set(0.8);
     view.result.current.handlePanEnd(new Event('pointercancel') as PointerEvent, panInfo(0));
 
-    expect(spies.onDragCommit).not.toHaveBeenCalled();
+    expect(spies.onDragEnd).not.toHaveBeenCalled();
     expect(spies.onDragRelease).toHaveBeenCalledWith({
       mode: 'bounce',
       direction: 'forward',
@@ -620,7 +620,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     expect(dragProgressMotion.get()).toBe(0);
     expect(spies.onDragReset).toHaveBeenCalledTimes(1);
     expect(spies.onDraggingChange).toHaveBeenCalledTimes(1);
-    expect(spies.onDragCommit).not.toHaveBeenCalled();
+    expect(spies.onDragEnd).not.toHaveBeenCalled();
     expect(spies.setIsAnimating).toHaveBeenLastCalledWith(false);
   });
 
@@ -629,7 +629,7 @@ describe('useDragSceneEngine — handlePanEnd', () => {
     dragProgressMotion.set(0.9); // far above the 0.5 standalone threshold
     view.result.current.handlePanEnd(new Event('pointercancel') as PointerEvent, panInfo(0));
 
-    expect(spies.onDragCommit).not.toHaveBeenCalled();
+    expect(spies.onDragEnd).not.toHaveBeenCalled();
     expect(spies.onDragRelease).toHaveBeenCalledWith(expect.objectContaining({ mode: 'bounce' }));
   });
 

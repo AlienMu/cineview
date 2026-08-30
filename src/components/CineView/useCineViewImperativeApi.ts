@@ -45,7 +45,7 @@ export function useCineViewImperativeApi({
       const activeSceneIndex = currentSceneRef.current;
       const sceneCount = scenesRef.current.length;
       if (index >= 0 && index < sceneCount && index !== activeSceneIndex) {
-        resolvedCallbacksRef.current.drag?.onDragCommit?.({
+        resolvedCallbacksRef.current.drag?.onDragEnd?.({
           sceneIndex: activeSceneIndex,
           targetSceneIndex: index,
           progress: 1,
@@ -78,7 +78,7 @@ export function useCineViewImperativeApi({
     [preloadActionsRef, scenesRef]
   );
 
-  const getCurrentScene = useCallback((): number => currentSceneRef.current, [currentSceneRef]);
+  const getCurrentIndex = useCallback((): number => currentSceneRef.current, [currentSceneRef]);
   const getPerformanceMetrics = useCallback(
     (): PerformanceMetrics => performanceMonitor.getMetrics(),
     []
@@ -88,10 +88,10 @@ export function useCineViewImperativeApi({
       goToScene,
       refreshLayout,
       preload,
-      getCurrentScene,
+      getCurrentIndex,
       getPerformanceMetrics,
     }),
-    [getCurrentScene, getPerformanceMetrics, goToScene, preload, refreshLayout]
+    [getCurrentIndex, getPerformanceMetrics, goToScene, preload, refreshLayout]
   );
 
   useImperativeHandle(ref, () => runtimeApi, [runtimeApi]);

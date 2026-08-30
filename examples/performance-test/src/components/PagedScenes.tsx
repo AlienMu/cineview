@@ -66,7 +66,7 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
             exitAnimation="zoom-out"
             animateId={`drag-${section.id}-copy`}
             enterAnimation="slide-up"
-            timeline={{ delay: 2000, waitFor: `drag-${section.id}-media` }}
+            timeline={{ delay: 2000, after: `drag-${section.id}-media` }}
             duration={{ enter: 760, exit: 360 }}
           >
             <SectionCopy
@@ -101,7 +101,7 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
         <Position at={{ x: 96, y: 194 }}>
           <Animate
             animateId={`drag-${section.id}-copy`}
-            timeline={{ delay: 100, waitFor: `drag-${section.id}-media` }}
+            timeline={{ delay: 100, after: `drag-${section.id}-media` }}
             enterAnimation="slide-right"
             duration={{ enter: 720, exit: 340 }}
           >
@@ -125,7 +125,7 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
             animateId={`drag-${section.id}-details`}
             enterAnimation="rotate-in"
             duration={{ enter: 720, exit: 340 }}
-            timeline={{ delay: 0, waitFor: `drag-${section.id}-copy` }}
+            timeline={{ delay: 0, after: `drag-${section.id}-copy` }}
           >
             <div style={{ width: 240 }}>
               <DetailList

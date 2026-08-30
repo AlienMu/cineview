@@ -22,7 +22,7 @@ function SceneTexture({ id }: { id: string }): JSX.Element {
       ) : (
         <Animate
           animateId={`${id}-grain`}
-          infiniteAnimation={{
+          loopAnimation={{
             animate: {
               x: ['0%', '0%', '-3%', '-3%', '2%', '2%', '-1%', '-1%', '0%'],
               y: ['0%', '0%', '1%', '1%', '-2%', '-2%', '2%', '2%', '0%'],
@@ -70,7 +70,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
   /* 第四条消息：`cineview-embed-finished` / `cineview-embed-unfinished`（2026-08-06；
    * 2026-08-09 增加反向 —— 用户访谈裁决「退场 = 完整反向编排」）。
    * 用户要的时序是「在 /drag 页面滑动到结束并且 commit 完成的情况」才让外层手机左移。
-   * 判据必须是 **commit 完成**而非 drag 进行中 —— `onSceneDidChange` 正是转场结算后
+   * 判据必须是 **commit 完成**而非 drag 进行中 —— `onSceneLeave` 正是转场结算后
    * 才发，且带 toIndex，故用它而不用 `onDragProgress`（后者在手指还没松时就到 1）。
    * 反向同理：commit 离开末幕（toIndex < LAST_SCENE_INDEX）发 unfinished，外层
    * 标题/副标题镜像退场、手机移回居中（split 从单向 latch 变双向）。两向都幂等：
@@ -211,25 +211,21 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
       <div ref={blackRef} className="tp-act5-black" aria-hidden="true" />
       <TemporalMotionProvider>
         <CineView
-          config={{ size: 390 }}
+          designWidth={390}
           mode="drag"
+          direction="y"
+          transitionDuration={720}
+          unit="time"
+          threshold={{
+            minVelocity: 0,
+            maxVelocity: 1200,
+            minRatio: 0.15,
+            maxRatio: 0.32,
+          }}
           callbacks={{
-            onSceneDidChange: handleSceneSettled,
+            onSceneLeave: handleSceneSettled,
             onDragProgress: handleBlackOpacity,
             onDragCancel: handleBlackSessionEnd,
-          }}
-          modes={{
-            drag: {
-              direction: 'y',
-              transitionDuration: 720,
-              unit: 'time',
-              threshold: {
-                minVelocity: 0,
-                maxVelocity: 1200,
-                minRatio: 0.15,
-                maxRatio: 0.32,
-              },
-            },
           }}
         >
           <Scene

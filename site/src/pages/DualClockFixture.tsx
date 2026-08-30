@@ -4,8 +4,8 @@
  *
  * Reproduces the unit-test mixed configuration in a real browser:
  *   title   : phase {start: 0.05, end: 0.3}, enter 600, no exit
- *   subline : waitFor title,  enter 600
- *   tail    : waitFor subline, enter 6000
+ *   subline : after title,  enter 600
+ *   tail    : after subline, enter 6000
  * Predicted fixed point: T = 6600 / 0.7 ≈ 9428.57 px; title window
  * [471.43, 2828.57]; subline [2828.57, 3428.57]; tail [3428.57, 9428.57].
  */
@@ -13,7 +13,7 @@ import { Animate, CineView, Scene } from 'cineview';
 
 export default function DualClockFixturePage(): JSX.Element {
   return (
-    <CineView config={{ size: 1440 }} mode="scroll">
+    <CineView designWidth={1440} mode="scroll">
       <Scene sceneId="dual-intro" layout={{ width: '100%', height: '80vh' }}>
         <div style={{ padding: '10vh 8vw' }}>
           <h2>Intro (document flow)</h2>
@@ -37,17 +37,17 @@ export default function DualClockFixturePage(): JSX.Element {
             animateId="dual-subline"
             enterAnimation="fade-in"
             duration={{ enter: 600 }}
-            timeline={{ waitFor: 'dual-title', delay: 0 }}
+            timeline={{ after: 'dual-title', delay: 0 }}
           >
-            <p style={{ fontSize: 24 }}>SUBLINE (waitFor title)</p>
+            <p style={{ fontSize: 24 }}>SUBLINE (after title)</p>
           </Animate>
           <Animate
             animateId="dual-tail"
             enterAnimation="fade-in"
             duration={{ enter: 6000 }}
-            timeline={{ waitFor: 'dual-subline', delay: 0 }}
+            timeline={{ after: 'dual-subline', delay: 0 }}
           >
-            <p style={{ fontSize: 24 }}>TAIL (waitFor subline, 6000)</p>
+            <p style={{ fontSize: 24 }}>TAIL (after subline, 6000)</p>
           </Animate>
         </div>
       </Scene>

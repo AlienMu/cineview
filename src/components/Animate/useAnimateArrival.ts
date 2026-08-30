@@ -24,7 +24,7 @@ interface UseAnimateArrivalParams {
   /** Manual enter trigger (see `AnimateProps.enterRef`). `delay` is this lane's
    *  fallback switch: with a delay authored the pass still self-starts after it,
    *  with none the element holds at its initial frame until the consumer calls.
-   *  (`waitFor` is ignored on this lane by design, so it is not a fallback here.) */
+   *  (`after` is ignored on this lane by design, so it is not a fallback here.) */
   enterRef?: MutableRefObject<(() => void) | null>;
 }
 
@@ -90,7 +90,7 @@ function resolveArrivalNumericPropertyValue(
 }
 
 /**
- * Real-time post-arrival driver for drag + timeline.sceneControlled=false.
+ * * Real-time post-arrival driver for drag + timeline driver 'clock'.
  *
  * It never reads drag progress and never registers with the Scene element track.
  * The sole start signal is Scene.activationToken. A Scene departure resets the

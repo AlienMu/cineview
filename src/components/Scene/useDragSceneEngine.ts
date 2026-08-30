@@ -103,7 +103,7 @@ interface UseDragSceneEngineParams {
    */
   renderLaneRef?: MutableRefObject<DragRenderLane | null>;
   completeReleaseImmediately?: boolean;
-  onDragCommit?: (
+  onDragEnd?: (
     direction: 'forward' | 'backward',
     progressRatio: number,
     elapsedMs: number,
@@ -152,7 +152,7 @@ export function useDragSceneEngine({
   onDragRelease,
   renderLaneRef,
   completeReleaseImmediately = false,
-  onDragCommit,
+  onDragEnd,
   onDragReset,
   thresholdConfig,
 }: UseDragSceneEngineParams): UseDragSceneEngineResult {
@@ -631,8 +631,8 @@ export function useDragSceneEngine({
         onDraggingChange?.(false);
         if (completeReleaseImmediately) {
           // Standalone mode: no incoming-scene coordination. Commit at 100%
-          // immediately (the local onDragCommit closure rests the element track).
-          onDragCommit?.(direction, 1, timelineDuration, timelineDuration);
+          // immediately (the local onDragEnd closure rests the element track).
+          onDragEnd?.(direction, 1, timelineDuration, timelineDuration);
           setIsAnimating(false);
           return;
         }
@@ -686,7 +686,7 @@ export function useDragSceneEngine({
               sceneTravelDurationMs: (sceneTravelDuration * 1000).toFixed(1),
             }
           );
-          onDragCommit?.(
+          onDragEnd?.(
             direction,
             committedProgress,
             committedProgress * timelineDuration,
@@ -820,7 +820,7 @@ export function useDragSceneEngine({
       onDragTimelineProgressChange,
       onRenderProgressChange,
       onDragRelease,
-      onDragCommit,
+      onDragEnd,
       onDragReset,
       onDraggingChange,
       resolveDragProgress,

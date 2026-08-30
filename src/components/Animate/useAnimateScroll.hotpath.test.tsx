@@ -70,8 +70,8 @@ describe('useAnimateScroll progress hot path', () => {
         hasAuthoredExitAnimation: false,
         componentId: 'probe',
         duration: { enter: 100, exit: 0 },
-        timeline: { driver: 'scroll', delay: 0 },
-        visibility: { replayOnReenter: true },
+        timeline: { lane: 'scroll', delay: 0 },
+        visibility: { replay: true },
       });
       return <output data-testid="render-count">{renderCount}</output>;
     }
@@ -97,7 +97,7 @@ describe('useAnimateScroll progress hot path', () => {
       store.setSnapshot({ 'zone-hotpath': createZoneState(100) });
     });
     expect(resultRef.current?.visualMotion.get()).toBe(1);
-    // This probe has no infiniteAnimation. Reaching the enter boundary must not
+    // This probe has no loopAnimation. Reaching the enter boundary must not
     // run a second per-frame zone consumer or trigger an unused React state flip.
     expect(renderCount).toBe(settledRenderCount);
   });
@@ -131,8 +131,8 @@ describe('useAnimateScroll progress hot path', () => {
         hasInfiniteAnimation: true,
         componentId: 'probe',
         duration: { enter: 100, exit: 0 },
-        timeline: { driver: 'scroll', delay: 0 },
-        visibility: { replayOnReenter: true },
+        timeline: { lane: 'scroll', delay: 0 },
+        visibility: { replay: true },
       });
       return <output data-testid="infinite-probe" />;
     }

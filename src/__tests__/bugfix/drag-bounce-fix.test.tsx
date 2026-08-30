@@ -37,7 +37,7 @@ describe('Drag Bounce Fix', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
+            loopAnimation="pulse"
             animateId="test-bounce"
           >
             <div>Test Content</div>

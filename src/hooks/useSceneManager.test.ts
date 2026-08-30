@@ -544,7 +544,7 @@ describe('useSceneManager', () => {
       // fixed slideDuration (~800ms) while the incoming scene's element settle
       // runs on its own T_self. When T_self < slideDuration the element track
       // reaches T — and fires completeDragTransition — BEFORE the render lane
-      // commits. The public onSceneDidChange fires at commit (exactly once); the
+      // commits. The public onSceneLeave fires at commit (exactly once); the
       // early element arm only records its arrival so the commit can run the state
       // cleanup. The two arms form an order-independent join for CLEANUP, not for
       // the callback.

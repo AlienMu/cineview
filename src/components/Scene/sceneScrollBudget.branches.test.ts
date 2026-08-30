@@ -23,7 +23,7 @@ describe('resolveSceneScrollAnimationBudgets — uncovered timing branches', () 
         delay: 0,
         enterDuration: 200,
         exitDuration: 0,
-        waitFor: 'ghost',
+        after: 'ghost',
       },
     ]);
 
@@ -49,8 +49,8 @@ describe('resolveSceneScrollAnimationBudgets — uncovered timing branches', () 
     // 'a' waitFor 'b', 'b' waitFor 'a'. Both dependency edges are invalid, so
     // each animation keeps only its own delay and duration.
     const registrations = makeRegistrations([
-      { animateId: 'a', delay: 10, enterDuration: 200, exitDuration: 0, waitFor: 'b' },
-      { animateId: 'b', delay: 20, enterDuration: 300, exitDuration: 0, waitFor: 'a' },
+      { animateId: 'a', delay: 10, enterDuration: 200, exitDuration: 0, after: 'b' },
+      { animateId: 'b', delay: 20, enterDuration: 300, exitDuration: 0, after: 'a' },
     ]);
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
@@ -69,11 +69,11 @@ describe('resolveSceneScrollAnimationBudgets — uncovered timing branches', () 
         delay: 7,
         enterDuration: 50,
         exitDuration: 0,
-        waitFor: 'a',
+        after: 'a',
       },
-      { animateId: 'a', delay: 10, enterDuration: 20, exitDuration: 5, waitFor: 'b' },
-      { animateId: 'b', delay: 20, enterDuration: 30, exitDuration: 5, waitFor: 'c' },
-      { animateId: 'c', delay: 30, enterDuration: 40, exitDuration: 5, waitFor: 'a' },
+      { animateId: 'a', delay: 10, enterDuration: 20, exitDuration: 5, after: 'b' },
+      { animateId: 'b', delay: 20, enterDuration: 30, exitDuration: 5, after: 'c' },
+      { animateId: 'c', delay: 30, enterDuration: 40, exitDuration: 5, after: 'a' },
     ]);
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);

@@ -146,8 +146,9 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -175,8 +176,9 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={800}
+          designWidth={750}
         >
           <Scene>
             <h1>拖拽场景</h1>
@@ -204,8 +206,9 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'x', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'x'}
+          transitionDuration={500}
+          designWidth={750}
         >
           <Scene>
             <h1>横向场景</h1>
@@ -219,8 +222,9 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
         >
           <Scene>
             <h1>纵向场景</h1>
@@ -254,9 +258,10 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
-          callbacks={{ onSceneDidChange: onAfterSceneChange }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
+          callbacks={{ onSceneLeave: onAfterSceneChange }}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -282,7 +287,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       await waitFor(() => {
-        expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+        expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
       });
 
       expect(onAfterSceneChange).toHaveBeenCalledWith(
@@ -295,7 +300,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       await waitFor(() => {
-        expect(cineViewRef.current?.getCurrentScene()).toBe(2);
+        expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
       });
 
       expect(onAfterSceneChange).toHaveBeenCalledWith(
@@ -308,7 +313,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       await waitFor(() => {
-        expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+        expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
       });
 
       expect(onAfterSceneChange).toHaveBeenCalledWith(
@@ -327,7 +332,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 750, y: 100 }}>
               <div data-testid="positioned-element">右边缘元素</div>
@@ -362,7 +367,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="centered-element">居中元素</div>
@@ -396,7 +401,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="desktop-element">桌面元素</div>
@@ -430,7 +435,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="responsive-element">响应式元素</div>
@@ -478,7 +483,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="rem-element">rem 单位元素</div>
@@ -505,7 +510,7 @@ describe('跨平台兼容性测试', () => {
       });
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="vw-element">vw 单位元素</div>
@@ -533,7 +538,7 @@ describe('跨平台兼容性测试', () => {
       delete window.IntersectionObserver;
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -555,8 +560,9 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -588,9 +594,10 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
-          callbacks={{ onSceneDidChange: onAfterSceneChange }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
+          callbacks={{ onSceneLeave: onAfterSceneChange }}
         >
           <Scene>
             <h1>Drag 场景 1</h1>
@@ -624,8 +631,9 @@ describe('跨平台兼容性测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={800}
+          designWidth={750}
         >
           <Scene>
             <Animate animateId="drag-test" enterAnimation="fade-in" exitAnimation="fade-out">

@@ -6,7 +6,7 @@ import './Scene5Cinema.css';
 /**
  * 手机 mockup：332×720 设计基准（19.5:9），CSS `max-height:75vh` 等比钳制。
  *
- * 呼吸 box-shadow（3s）与径向光晕（5s）按 CLAUDE.md 规则 6 走 infiniteAnimation
+ * 呼吸 box-shadow（3s）与径向光晕（5s）按 CLAUDE.md 规则 6 走 loopAnimation
  * （禁 CSS `animation: … infinite`）：infinite-only lane 由 scene runtimeState 门控，
  * 场景离场自动 stop。lane 循环写 CSS 变量（--phone-breathe / --glow-pulse，沿用
  * film-pan `--film-perf-phase` 模式），阴影/光晕在 CSS 里 calc() 消费——变量落在
@@ -30,7 +30,7 @@ export function PhoneMockup({ children }: { children: ReactNode }): JSX.Element 
       ) : (
         <Animate
           animateId="cinema-phone-glow"
-          infiniteAnimation={{
+          loopAnimation={{
             animate: {
               '--glow-pulse': [0, 1, 0],
               transition: { duration: 5, ease: 'easeInOut', repeat: Infinity },
@@ -45,7 +45,7 @@ export function PhoneMockup({ children }: { children: ReactNode }): JSX.Element 
       ) : (
         <Animate
           animateId="cinema-phone-breathe"
-          infiniteAnimation={{
+          loopAnimation={{
             animate: {
               '--phone-breathe': [0, 1, 0],
               transition: { duration: 3, ease: 'easeInOut', repeat: Infinity },

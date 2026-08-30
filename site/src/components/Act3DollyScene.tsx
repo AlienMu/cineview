@@ -67,7 +67,7 @@ import './Act3DollyScene.css';
  * ── 框架边界（勿越）────────────────────────────────────────────────────
  * - scale/opacity/filter 全部由 Animate lane 拥有；site 侧不 import framer-motion、
  *   不自建 rAF、不每帧 setState（CLAUDE.md 规则 6 第二条 / 规则 2）。
- * - panel **无常驻动效**：推进本身就是运动，再叠 6 条 infiniteAnimation 是纯开销。
+ * - panel **无常驻动效**：推进本身就是运动，再叠 6 条 loopAnimation 是纯开销。
  * - 尺寸/位置一律走 --cv-u 单尺子（认宽不认高），窄屏等比收窄。
  */
 
@@ -373,7 +373,7 @@ function developVariant(scaleFrom: number): {
  * 全部是静态 DOM（无动效）：放大时靠 panel 整体 scale 一起放大，细节随之变清楚，
  * 正是「一张图片在原位放大」的观感。用 em 单位跟随 panel 字号等比缩放。 */
 
-/** waitFor：三节点链，前一个完成才轮下一个。 */
+/** after：三节点链，前一个完成才轮下一个。 */
 function ChainBody(): JSX.Element {
   const rows = [
     { name: 'title', wait: '—', on: true },
@@ -386,7 +386,7 @@ function ChainBody(): JSX.Element {
         <div key={r.name} className="a3-chain__row">
           <span className={`a3-chain__dot${r.on ? ' is-on' : ''}`} />
           <span className="a3-chain__name">{r.name}</span>
-          <span className="a3-chain__wait">waitFor: {r.wait}</span>
+          <span className="a3-chain__wait">after: {r.wait}</span>
           {i < rows.length - 1 ? <span className="a3-chain__wire" /> : null}
         </div>
       ))}
@@ -476,7 +476,7 @@ const PANEL_BODY: Record<PanelId, () => JSX.Element> = {
 };
 
 const PANEL_CODE: Record<PanelId, string> = {
-  chain: '<Animate timeline={{ waitFor: "title", delay: 160 }} />',
+  chain: '<Animate timeline={{ after: "title", delay: 160 }} />',
   stagger: '<Animate stagger={{ each: 80 }} />',
   position: '<Position at={{ x: 480, y: 220 }} />',
   container: '<Container width={640} height={360} />',
@@ -504,7 +504,7 @@ const PANEL_CODE: Record<PanelId, string> = {
  * —— 仍不够，故进一步压到 ≤18 字符的核心形式。
  */
 const PANEL_CODE_NARROW: Record<PanelId, string> = {
-  chain: 'waitFor: "title"',
+  chain: 'after: "title"',
   stagger: 'stagger: 80ms',
   position: 'at: 480, 220',
   container: '640 × 360',

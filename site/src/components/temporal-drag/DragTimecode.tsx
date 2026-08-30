@@ -115,7 +115,7 @@ export function DragTimecode({ spanFrames }: DragTimecodeProps): JSX.Element {
           }}
           // Long budget, overlapped rather than chained: the element clock advances ~100ms
           // per 1% of drag, so a real gesture spends 3000ms+ before act 4 lands. Chaining 11
-          // lanes end to end (waitFor + positive delay) serialised 11 budgets and pushed the
+          // lanes end to end (after + positive delay) serialised 11 budgets and pushed the
           // tail past the visible window entirely.
           duration={{ enter: timing.duration(CHAR_ENTER_MS), exit: timing.duration(120) }}
           // Absolute start per character, replacing the chain (char 0 waited on `s04-label`,

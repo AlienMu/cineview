@@ -246,7 +246,7 @@ describe('/drag W1 calibration dial contract', () => {
         }
         if (
           ts.isJsxAttribute(node) &&
-          jsxAttributeName(node.name) === 'infiniteAnimation' &&
+          jsxAttributeName(node.name) === 'loopAnimation' &&
           node.initializer?.getText().includes('timing.reduced') &&
           node.initializer.getText().includes('? undefined') &&
           node.initializer.getText().includes('ACT1_LIVE_SPIN_SECONDS.') &&
@@ -315,7 +315,11 @@ describe('/drag W1 calibration dial contract', () => {
 
     const app = stripComments(fs.readFileSync(APP_FILE, 'utf8'));
     expect(app).toContain("const isDrag = pathname === '/drag'");
-    expect(app).toContain('{isDrag || isAcceptance ? null : <LangToggle />}');
+    // 本契约要守的是「/drag 不挂全局 LangToggle」（act1 自己在 Scene 内挂一个）。
+    // 断言从整行字面量收窄为「isDrag 参与了排除判断」——否则每次给排除列表新增
+    // 路由（2026-08-27 加了 /docs，其切换器由 DocsShell 挂在应用栏内）都会误红，
+    // 而那与本契约无关。
+    expect(app).toMatch(/\{isDrag \|\|[^}]*\? null : <LangToggle \/>\}/);
   });
 
   it('defaults to English unless the visitor explicitly stored a language choice', () => {

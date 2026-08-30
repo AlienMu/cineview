@@ -159,15 +159,16 @@ jest.mock('framer-motion', () => {
   disconnect: () => null,
 }));
 
-function renderDragApp(onSceneDidChange: jest.Mock) {
+function renderDragApp(onSceneLeave: jest.Mock) {
   const cineViewRef = createRef<CineViewRef>();
   render(
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-      config={{ size: 750 }}
-      callbacks={{ onSceneDidChange }}
+      direction={'y'}
+      transitionDuration={800}
+      designWidth={750}
+      callbacks={{ onSceneLeave }}
     >
       <Scene transition={{ exitDuration: 800 }}>
         <Position at={{ x: 375, y: 220 }}>
@@ -215,11 +216,11 @@ describe('drag release single settle (no double animation)', () => {
     pendingNumberAnimations.length = 0;
   });
 
-  it('commits at 100% after a partial release and fires onSceneDidChange exactly once with no second settle pass', async () => {
-    const onSceneDidChange = jest.fn();
-    const cineViewRef = renderDragApp(onSceneDidChange);
+  it('commits at 100% after a partial release and fires onSceneLeave exactly once with no second settle pass', async () => {
+    const onSceneLeave = jest.fn();
+    const cineViewRef = renderDragApp(onSceneLeave);
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -231,16 +232,16 @@ describe('drag release single settle (no double animation)', () => {
     await flushPendingObjectAnimations();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // Single-settle contract: the change callback fires immediately at commit
     // because the release already drove the incoming timeline to 100%. No
     // deferred activation-settle, no second pass.
     await waitFor(() => {
-      expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+      expect(onSceneLeave).toHaveBeenCalledTimes(1);
     });
-    expect(onSceneDidChange).toHaveBeenCalledWith(
+    expect(onSceneLeave).toHaveBeenCalledWith(
       expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
     );
 

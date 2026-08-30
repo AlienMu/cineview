@@ -1,6 +1,11 @@
 import { isValidElement } from 'react';
 import type React from 'react';
-import type { AnimationType, CineViewProps, ScrollTimelineState, SceneProps } from '../../types';
+import type {
+  AnimationType,
+  CineViewBaseProps,
+  ScrollTimelineState,
+  SceneProps,
+} from '../../types';
 
 export type SceneAuthoringCompatProps = SceneProps & {
   sceneId?: string;
@@ -325,31 +330,29 @@ export function isLegacyDisplayNameSceneElement(node: React.ReactNode): boolean 
   return false;
 }
 
-// Dev-only dedupe so an invalid config.size warns once per value instead of
+// Dev-only dedupe so an invalid designWidth warns once per value instead of
 // once per render (resolveDesignDimensions runs on every root render).
 const warnedInvalidDesignSizes = new Set<unknown>();
 
-export function resolveDesignDimensions(config: CineViewProps['config'] | undefined): {
-  designSize: number;
-} {
-  const rawSize = config?.size;
+export function resolveDesignDimensions(
+  designWidth: CineViewBaseProps['designWidth'] | undefined
+): { designSize: number } {
+  const rawSize = designWidth;
   if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
     return { designSize: rawSize };
   }
 
-  // config itself is optional (defaults to the 750 mobile design ruler). Only
-  // an explicitly provided but invalid size (0 / negative / NaN / Infinity /
-  // non-number) deserves a dev diagnostic — `0 ?? 750` used to let size: 0
-  // through and produce an Infinity scale downstream. console.error keeps the
-  // 'Invalid config.size' contract of the drag root's legacy dev check, whose
-  // designSize <= 0 branch this fallback makes unreachable.
+  // designWidth itself is optional (defaults to the 750 mobile design ruler).
+  // Only an explicitly provided but invalid value (0 / negative / NaN /
+  // Infinity / non-number) deserves a dev diagnostic — `0 ?? 750` used to let
+  // designWidth 0 through and produce an Infinity scale downstream.
   if (rawSize !== undefined && process.env.NODE_ENV !== 'production') {
     if (!warnedInvalidDesignSizes.has(rawSize)) {
       warnedInvalidDesignSizes.add(rawSize);
       console.error(
-        `[CineView] Invalid config.size. It must be a finite positive number; received ${String(
+        `[CineView] Invalid designWidth. It must be a finite positive number; received ${String(
           rawSize
-        )}. Falling back to the default design size 750.`
+        )}. Falling back to the default design width 750.`
       );
     }
   }
@@ -376,7 +379,7 @@ export function getSceneTransitionConfig(sceneProps: SceneAuthoringCompatProps):
 export function resolveRootSceneStackMode(
   sceneProps: SceneAuthoringCompatProps
 ): 'replace' | 'cover' {
-  return sceneProps.stack?.mode ?? 'cover';
+  return sceneProps.layout?.overlap ?? 'cover';
 }
 
 /**

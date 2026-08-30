@@ -31,8 +31,8 @@ describe('renderScrollScenes', () => {
 
     const animate = findAnimateById(ordinaryBlock, 'ordinary-document-visibility');
     expect(animate?.props.exitAnimation).toBe('fade-out');
-    expect(animate?.props.infiniteAnimation).toBe('pulse');
-    expect(animate?.props.timeline).toEqual({ sceneControlled: false });
+    expect(animate?.props.loopAnimation).toBe('pulse');
+    expect(animate?.props.timeline).toEqual({ driver: 'clock' });
   });
 
   it('keeps browser acceptance fixtures for nested scroll and dynamic layout mutation', () => {
@@ -56,10 +56,10 @@ describe('renderScrollScenes', () => {
     expect(findElementByTestId(renderedFixtures, 'dynamic-layout-toggle')?.type).toBe('summary');
   });
 
-  it('configures ordinary visibility scenes with visible infinite motion on media or metrics', () => {
+  it('configures ordinary visibility scenes with visible loop motion on media or metrics', () => {
     const scenes = renderScrollScenes(PERFORMANCE_EXPERIENCE.sections);
 
-    for (const expectation of VISIBILITY_INFINITE_EXPECTATIONS) {
+    for (const expectation of VISIBILITY_LOOP_EXPECTATIONS) {
       const authoredScene = renderAuthoredTakeoverScene(
         scenes,
         expectation.sectionId,
@@ -67,8 +67,8 @@ describe('renderScrollScenes', () => {
       );
 
       expect(findAnimateById(authoredScene, expectation.animateId)?.props).toMatchObject({
-        infiniteAnimation: expectation.infiniteAnimation,
-        timeline: { sceneControlled: false },
+        loopAnimation: expectation.loopAnimation,
+        timeline: { driver: 'clock' },
       });
     }
   });
@@ -284,30 +284,30 @@ const TAKEOVER_SCENE_EXPECTATIONS = [
   },
 ] as const;
 
-const VISIBILITY_INFINITE_EXPECTATIONS = [
+const VISIBILITY_LOOP_EXPECTATIONS = [
   {
     sectionId: 'hero',
     componentName: 'DocumentHero',
     animateId: 'hero-media',
-    infiniteAnimation: 'pulse',
+    loopAnimation: 'pulse',
   },
   {
     sectionId: 'highlights',
     componentName: 'EditorialSplit',
     animateId: 'highlights-stats',
-    infiniteAnimation: 'pulse',
+    loopAnimation: 'pulse',
   },
   {
     sectionId: 'details',
     componentName: 'ExplodedStory',
     animateId: 'details-media',
-    infiniteAnimation: 'wave',
+    loopAnimation: 'wave',
   },
   {
     sectionId: 'cta',
     componentName: 'DecisionAppendix',
     animateId: 'cta-grid',
-    infiniteAnimation: 'pulse',
+    loopAnimation: 'pulse',
   },
 ] as const;
 

@@ -26,11 +26,11 @@ const RISE_ENTER_MS = 1400;
  *
  * Both animations drive `y`, so they cannot share a node — the second writer would
  * simply overwrite the first. The requirement 「外层 enterAnimation 做位移，内层
- * infiniteAnimation 做滚动。两个 y 在不同 DOM 层，互不干扰」 is therefore structural,
+ * loopAnimation 做滚动。两个 y 在不同 DOM 层，互不干扰」 is therefore structural,
  * not stylistic:
  *
  *   <Animate s04-stream-rise-*>      enterAnimation: y 12% -> 0      (rises from below)
- *     <Animate s04-stream-*>         infiniteAnimation: y 0% -> -50% (scrolls forever)
+ *     <Animate s04-stream-*>         loopAnimation: y 0% -> -50% (scrolls forever)
  *       <div .s04-stream>            the doubled timecode list
  *
  * The framework renders an extra anonymous motion.div inside EACH <Animate> host, and
@@ -59,7 +59,7 @@ function StreamColumn({ position }: { position: 'left' | 'center' | 'right' }): 
   const scrolling = (
     <Animate
       animateId={`s04-stream-${position}`}
-      infiniteAnimation={{
+      loopAnimation={{
         animate: {
           // Keyframes START at the enter lane's landing point (y 0). §1.5 rule 2: an
           // infinite lane that opens somewhere else jumps on the handover frame.

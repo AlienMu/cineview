@@ -3,7 +3,7 @@ import type { ScrollMode } from '../../types';
 
 export interface CineViewRuntimeContextValue {
   mode: ScrollMode;
-  // Routes framework-detected runtime issues (e.g. waitFor cycles, missing
+  // Routes framework-detected runtime issues (e.g. after chains, missing
   // dependencies, duplicate Animate ids) to the consumer's onError callback.
   // Without this, validation only surfaced via dev-only console.warn and was
   // silent in production builds.

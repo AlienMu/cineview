@@ -117,7 +117,7 @@ export function useElementTrack({
   // Whatever source is currently driving the track stores its controls here so
   // the next source (or a preempting drag) can stop it in place.
   const controlsRef = useRef<{ stop: () => void } | null>(null);
-  // What the current in-flight animation is doing. onSceneDidChange now fires at
+  // What the current in-flight animation is doing. onSceneLeave now fires at
   // the render commit, so a preempted settle has NO orphaned public callback to
   // fire — preempt just stops the track in place. This ref is now write-only
   // (kept for debug/clarity of which source last drove the track); no control
@@ -136,7 +136,7 @@ export function useElementTrack({
   // True from the moment scene 0's cold-start launches until a gesture takes
   // ownership of the track. Extend-on-growth keys off THIS, not off a live
   // `controlsRef`: a warm-cache cold-start can finish (controlsRef → null) before
-  // the waitFor-bearing Animate children register and grow T. The old guard
+  // the after-bearing Animate children register and grow T. The old guard
   // (`if (!controlsRef.current) return`) bailed in exactly that case, capping the
   // track below the cascaded delay so the dependent element never crossed its
   // gate. A gesture preempt clears this so a later drag-back can't resurrect it.

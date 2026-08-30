@@ -87,14 +87,15 @@ export default function AcceptanceDragPage(): JSX.Element {
           onDragStart: () => increment('starts'),
           onDragBlocked: () => increment('blocked'),
           onDragCancel: () => increment('cancels'),
-          onDragCommit: (detail) => {
+          onDragEnd: (detail) => {
             increment('commits');
             setCurrentScene(detail.targetSceneIndex);
           },
         }}
-        config={{ size: 390 }}
+        designWidth={390}
         mode="drag"
-        modes={{ drag: { direction: 'y', transitionDuration: 180 } }}
+        direction="y"
+        transitionDuration={180}
       >
         {[0, 1, 2].map((index) => (
           <Scene key={index} drag={index === 2 ? { enabled: false } : undefined}>

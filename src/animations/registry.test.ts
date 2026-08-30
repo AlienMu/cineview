@@ -6,8 +6,8 @@ describe('animation registry', () => {
       baseDuration: 500,
       registrations: new Map([
         ['title', { delay: 100, duration: 200 }],
-        ['copy', { delay: 50, duration: 300, waitFor: 'title' }],
-        ['cta', { delay: 25, duration: 100, waitFor: 'copy' }],
+        ['copy', { delay: 50, duration: 300, after: 'title' }],
+        ['cta', { delay: 25, duration: 100, after: 'copy' }],
       ]),
     });
 
@@ -21,13 +21,13 @@ describe('animation registry', () => {
   it('reports missing waitFor dependencies without dropping the animation', () => {
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 500,
-      registrations: new Map([['copy', { delay: 50, duration: 300, waitFor: 'title' }]]),
+      registrations: new Map([['copy', { delay: 50, duration: 300, after: 'title' }]]),
     });
 
     expect(snapshot.calculatedDelays.get('copy')).toBe(50);
     expect(snapshot.timelineDuration).toBe(500);
     expect(snapshot.issues).toEqual([
-      { type: 'missing-dependency', animateId: 'copy', waitFor: 'title' },
+      { type: 'missing-dependency', animateId: 'copy', after: 'title' },
     ]);
   });
 
@@ -35,8 +35,8 @@ describe('animation registry', () => {
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 200,
       registrations: new Map([
-        ['a', { delay: 10, duration: 100, waitFor: 'b' }],
-        ['b', { delay: 20, duration: 100, waitFor: 'a' }],
+        ['a', { delay: 10, duration: 100, after: 'b' }],
+        ['b', { delay: 20, duration: 100, after: 'a' }],
       ]),
     });
 
@@ -53,18 +53,18 @@ describe('animation registry', () => {
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 0,
       registrations: new Map([
-        ['leader', { delay: 10, duration: 200, driver: 'visibility' }],
-        ['follower', { delay: 25, duration: 100, waitFor: 'leader', driver: 'scroll' }],
+        ['leader', { delay: 10, duration: 200, lane: 'visibility' }],
+        ['follower', { delay: 25, duration: 100, after: 'leader', lane: 'scroll' }],
       ]),
     });
 
     expect(snapshot.calculatedDelays.get('follower')).toBe(25);
     expect(snapshot.issues).toContainEqual({
-      type: 'incompatible-driver',
+      type: 'incompatible-lane',
       animateId: 'follower',
-      waitFor: 'leader',
-      followerDriver: 'scroll',
-      leaderDriver: 'visibility',
+      after: 'leader',
+      followerLane: 'scroll',
+      leaderLane: 'visibility',
     });
   });
 
@@ -72,8 +72,8 @@ describe('animation registry', () => {
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 0,
       registrations: new Map([
-        ['leader', { delay: 10, duration: 100, driver: 'scroll' }],
-        ['follower', { delay: 25, duration: 50, waitFor: 'leader', driver: 'visibility' }],
+        ['leader', { delay: 10, duration: 100, lane: 'scroll' }],
+        ['follower', { delay: 25, duration: 50, after: 'leader', lane: 'visibility' }],
       ]),
     });
 

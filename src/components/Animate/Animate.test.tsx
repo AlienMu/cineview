@@ -277,9 +277,9 @@ describe('Animate Component', () => {
         hasInfiniteAnimation: true,
         componentId: 'scroll-infinite',
         duration: { enter: 100, exit: 0 },
-        timeline: { driver: 'scroll', delay: 0, phase: {} },
+        timeline: { lane: 'scroll', delay: 0, phase: {} },
         visibility: {
-          replayOnReenter: true,
+          replay: true,
         },
       });
 
@@ -310,8 +310,8 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-1', {
           delay: 100,
           duration: 500,
-          waitFor: undefined,
-          driver: 'drag',
+          after: undefined,
+          lane: 'drag',
         });
       });
     });
@@ -331,8 +331,8 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-2', {
           delay: 0,
           duration: 600,
-          waitFor: undefined,
-          driver: 'drag',
+          after: undefined,
+          lane: 'drag',
         });
       });
 
@@ -343,7 +343,7 @@ describe('Animate Component', () => {
       });
     });
 
-    it('should support waitFor parameter for animation chaining', async () => {
+    it('should support after parameter for animation chaining', async () => {
       const mockContext = createMockSceneContext();
 
       render(
@@ -351,7 +351,7 @@ describe('Animate Component', () => {
           <Animate
             animateId="test-3"
             enterAnimation="fade-in"
-            timeline={{ waitFor: 'test-1', delay: 200 }}
+            timeline={{ after: 'test-1', delay: 200 }}
           >
             <div>Test Content</div>
           </Animate>
@@ -362,13 +362,13 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-3', {
           delay: 200,
           duration: 600,
-          waitFor: 'test-1',
-          driver: 'drag',
+          after: 'test-1',
+          lane: 'drag',
         });
       });
     });
 
-    it('registers waitFor plus stagger with the full visual group duration', async () => {
+    it('registers after plus stagger with the full visual group duration', async () => {
       const mockContext = createMockSceneContext();
 
       render(
@@ -377,7 +377,7 @@ describe('Animate Component', () => {
             animateId="stagger-follower"
             enterAnimation="fade-in"
             duration={{ enter: 600 }}
-            timeline={{ waitFor: 'leader' }}
+            timeline={{ after: 'leader' }}
             stagger={{ each: 80 }}
           >
             <div>
@@ -395,8 +395,8 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenLastCalledWith('stagger-follower', {
           delay: 0,
           duration: 920,
-          waitFor: 'leader',
-          driver: 'drag',
+          after: 'leader',
+          lane: 'drag',
         });
       });
     });
@@ -569,7 +569,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" infiniteAnimation="pulse">
+          <Animate enterAnimation="fade-in" loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -594,7 +594,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
+            loopAnimation="pulse"
             animateId="test-exit-stop"
           >
             <div>Test Content</div>
@@ -617,7 +617,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
+            loopAnimation="pulse"
             animateId="test-exit-stop"
           >
             <div>Test Content</div>
@@ -640,7 +640,7 @@ describe('Animate Component', () => {
 
       const { rerender } = render(
         <SceneContext.Provider value={mockContext}>
-          <Animate exitAnimation="fade-out" infiniteAnimation="pulse" animateId="test-drag-stop">
+          <Animate exitAnimation="fade-out" loopAnimation="pulse" animateId="test-drag-stop">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -660,7 +660,7 @@ describe('Animate Component', () => {
 
       rerender(
         <SceneContext.Provider value={draggingContext}>
-          <Animate exitAnimation="fade-out" infiniteAnimation="pulse" animateId="test-drag-stop">
+          <Animate exitAnimation="fade-out" loopAnimation="pulse" animateId="test-drag-stop">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -679,7 +679,7 @@ describe('Animate Component', () => {
 
       const { rerender } = render(
         <SceneContext.Provider value={mockContext}>
-          <Animate infiniteAnimation="pulse">
+          <Animate loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -692,7 +692,7 @@ describe('Animate Component', () => {
 
       rerender(
         <SceneContext.Provider value={inactiveContext}>
-          <Animate infiniteAnimation="pulse">
+          <Animate loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -710,7 +710,7 @@ describe('Animate Component', () => {
 
       const { rerender } = render(
         <SceneContext.Provider value={mockContext}>
-          <Animate infiniteAnimation="heartbeat">
+          <Animate loopAnimation="heartbeat">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -723,7 +723,7 @@ describe('Animate Component', () => {
 
       rerender(
         <SceneContext.Provider value={activeContext}>
-          <Animate infiniteAnimation="heartbeat">
+          <Animate loopAnimation="heartbeat">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -744,7 +744,7 @@ describe('Animate Component', () => {
         <SceneContext.Provider value={mockContext}>
           <Animate
             enterAnimation="fade-in"
-            infiniteAnimation="pulse"
+            loopAnimation="pulse"
             animateId="test-infinite"
             duration={{ enter: 300 }}
           >
@@ -761,8 +761,8 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('test-infinite', {
           delay: 0,
           duration: 300,
-          waitFor: undefined,
-          driver: 'drag',
+          after: undefined,
+          lane: 'drag',
         });
       });
     });
@@ -778,7 +778,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
+            loopAnimation="pulse"
             duration={{ enter: 200, exit: 200 }}
           >
             <div>Test Content</div>
@@ -802,7 +802,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
+            loopAnimation="pulse"
             duration={{ enter: 200, exit: 200 }}
           >
             <div>Test Content</div>
@@ -825,7 +825,7 @@ describe('Animate Component', () => {
 
       const { rerender } = render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" exitAnimation="fade-out" infiniteAnimation="pulse">
+          <Animate enterAnimation="fade-in" exitAnimation="fade-out" loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -845,7 +845,7 @@ describe('Animate Component', () => {
 
       rerender(
         <SceneContext.Provider value={draggingContext}>
-          <Animate enterAnimation="fade-in" exitAnimation="fade-out" infiniteAnimation="pulse">
+          <Animate enterAnimation="fade-in" exitAnimation="fade-out" loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -865,7 +865,7 @@ describe('Animate Component', () => {
 
       rerender(
         <SceneContext.Provider value={releasedContext}>
-          <Animate enterAnimation="fade-in" exitAnimation="fade-out" infiniteAnimation="pulse">
+          <Animate enterAnimation="fade-in" exitAnimation="fade-out" loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -1043,7 +1043,7 @@ describe('Animate Component', () => {
           <Animate
             animateId="arrival-authoring-freeze"
             enterAnimation="fade-in"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <div data-testid="arrival-frozen-child">Frozen arrival content</div>
           </Animate>
@@ -1064,7 +1064,7 @@ describe('Animate Component', () => {
           <Animate
             animateId="arrival-authoring-freeze"
             enterAnimation="slide-up"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <div data-testid="arrival-frozen-child">Frozen arrival content</div>
           </Animate>
@@ -1615,7 +1615,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="slide-up"
             animateId="second"
-            timeline={{ delay: 500, waitFor: 'first' }}
+            timeline={{ delay: 500, after: 'first' }}
             duration={{ enter: 1000 }}
           >
             <div>Second</div>
@@ -1623,7 +1623,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="zoom-in"
             animateId="third"
-            timeline={{ delay: 500, waitFor: 'second' }}
+            timeline={{ delay: 500, after: 'second' }}
             duration={{ enter: 800 }}
           >
             <div>Third</div>
@@ -1684,7 +1684,7 @@ describe('Animate Component', () => {
           <Animate enterAnimation="fade-in" animateId="first" duration={{ enter: 1000 }}>
             <div>First</div>
           </Animate>
-          <Animate enterAnimation="slide-up" animateId="second" timeline={{ waitFor: 'first' }}>
+          <Animate enterAnimation="slide-up" animateId="second" timeline={{ after: 'first' }}>
             <div>Second</div>
           </Animate>
         </SceneContext.Provider>
@@ -1694,15 +1694,15 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('first', {
           delay: 0,
           duration: 1000,
-          waitFor: undefined,
-          driver: 'drag',
+          after: undefined,
+          lane: 'drag',
         });
 
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
           delay: 0,
           duration: 600,
-          waitFor: 'first',
-          driver: 'drag',
+          after: 'first',
+          lane: 'drag',
         });
       });
 
@@ -1732,7 +1732,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="slide-up"
             animateId="b"
-            timeline={{ waitFor: 'a' }}
+            timeline={{ after: 'a' }}
             duration={{ enter: 700 }}
           >
             <div>B</div>
@@ -1740,7 +1740,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="zoom-in"
             animateId="c"
-            timeline={{ waitFor: 'b' }}
+            timeline={{ after: 'b' }}
             duration={{ enter: 800 }}
           >
             <div>C</div>
@@ -1748,7 +1748,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="rotate"
             animateId="d"
-            timeline={{ waitFor: 'c' }}
+            timeline={{ after: 'c' }}
             duration={{ enter: 600 }}
           >
             <div>D</div>
@@ -1789,7 +1789,7 @@ describe('Animate Component', () => {
           <Animate
             enterAnimation="slide-up"
             animateId="second"
-            timeline={{ delay: 500, waitFor: 'first' }}
+            timeline={{ delay: 500, after: 'first' }}
           >
             <div>Second</div>
           </Animate>
@@ -1800,8 +1800,8 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('second', {
           delay: 500,
           duration: 600,
-          waitFor: 'first',
-          driver: 'drag',
+          after: 'first',
+          lane: 'drag',
         });
       });
 
@@ -1826,10 +1826,10 @@ describe('Animate Component', () => {
       // For now, we just verify registration happens
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" animateId="a" timeline={{ waitFor: 'b' }}>
+          <Animate enterAnimation="fade-in" animateId="a" timeline={{ after: 'b' }}>
             <div>A</div>
           </Animate>
-          <Animate enterAnimation="slide-up" animateId="b" timeline={{ waitFor: 'a' }}>
+          <Animate enterAnimation="slide-up" animateId="b" timeline={{ after: 'a' }}>
             <div>B</div>
           </Animate>
         </SceneContext.Provider>
@@ -1839,15 +1839,15 @@ describe('Animate Component', () => {
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('a', {
           delay: 0,
           duration: 600,
-          waitFor: 'b',
-          driver: 'drag',
+          after: 'b',
+          lane: 'drag',
         });
 
         expect(mockContext.registerAnimate).toHaveBeenCalledWith('b', {
           delay: 0,
           duration: 600,
-          waitFor: 'a',
-          driver: 'drag',
+          after: 'a',
+          lane: 'drag',
         });
       });
 
@@ -1862,13 +1862,13 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" animateId="a" timeline={{ waitFor: 'c' }}>
+          <Animate enterAnimation="fade-in" animateId="a" timeline={{ after: 'c' }}>
             <div>A</div>
           </Animate>
-          <Animate enterAnimation="slide-up" animateId="b" timeline={{ waitFor: 'a' }}>
+          <Animate enterAnimation="slide-up" animateId="b" timeline={{ after: 'a' }}>
             <div>B</div>
           </Animate>
-          <Animate enterAnimation="zoom-in" animateId="c" timeline={{ waitFor: 'b' }}>
+          <Animate enterAnimation="zoom-in" animateId="c" timeline={{ after: 'b' }}>
             <div>C</div>
           </Animate>
         </SceneContext.Provider>
@@ -2161,11 +2161,7 @@ describe('Animate Component', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate
-            enterAnimation="fade-in"
-            infiniteAnimation="blink"
-            animateId="test-infinite-error"
-          >
+          <Animate enterAnimation="fade-in" loopAnimation="blink" animateId="test-infinite-error">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -2173,7 +2169,7 @@ describe('Animate Component', () => {
 
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Error parsing infinite animation'),
+          expect.stringContaining('Error parsing loop animation'),
           expect.any(Error)
         );
       });
@@ -2202,7 +2198,7 @@ describe('Animate Component', () => {
         <SceneContext.Provider value={mockContext}>
           <Animate
             enterAnimation="fade-in"
-            infiniteAnimation={'invalid' as PresetAnimation}
+            loopAnimation={'invalid' as PresetAnimation}
             animateId="test-infinite-null"
           >
             <div>Test Content</div>
@@ -2212,7 +2208,7 @@ describe('Animate Component', () => {
 
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to parse infinite animation')
+          expect.stringContaining('Failed to parse loop animation')
         );
       });
 
@@ -2335,12 +2331,12 @@ describe('Additional Animate Branch Coverage Tests', () => {
   };
 
   describe('Infinite animation edge cases', () => {
-    it('should handle infiniteAnimation without enterAnimation', async () => {
+    it('should handle loopAnimation without enterAnimation', async () => {
       const mockContext = createMockSceneContext();
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate infiniteAnimation="pulse">
+          <Animate loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>
@@ -2351,7 +2347,7 @@ describe('Additional Animate Branch Coverage Tests', () => {
       });
     });
 
-    it('should handle infiniteAnimation parsing that returns null', async () => {
+    it('should handle loopAnimation parsing that returns null', async () => {
       const mockContext = createMockSceneContext();
 
       // Mock parseAnimationWithComposition to return null
@@ -2360,7 +2356,7 @@ describe('Additional Animate Branch Coverage Tests', () => {
 
       render(
         <SceneContext.Provider value={mockContext}>
-          <Animate infiniteAnimation="pulse">
+          <Animate loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>

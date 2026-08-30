@@ -168,7 +168,7 @@ describe('Drag Progress Control Bug Fix', () => {
 
       return (
         <SceneContext.Provider value={mockContext}>
-          <Animate enterAnimation="fade-in" exitAnimation="fade-out" infiniteAnimation="pulse">
+          <Animate enterAnimation="fade-in" exitAnimation="fade-out" loopAnimation="pulse">
             <div>Test Content</div>
           </Animate>
         </SceneContext.Provider>

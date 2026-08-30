@@ -36,7 +36,7 @@ const TIMECODE_VISUAL_SETTLE = TIMECODE_VISUAL_ENTER_MS / ACT4_TIMELINE_DURATION
  * identical slot but a shorter budget. Everything the iris draws moves INWARD, which is the
  * reading the corona failed to get.
  *
- * NO `waitFor` anywhere in this act. A chained start resolves to
+ * NO `after` anywhere in this act. A chained start resolves to
  * `prev_start + prev_REGISTERED_duration + delay`, and the registered duration is the
  * stagger-inflated budget rather than the authored one, so the error compounds down the
  * chain (act 05 measured an authored 950ms gap running as 299ms). Every lane here states
@@ -95,7 +95,7 @@ export const SceneFlux = memo(function SceneFlux(): JSX.Element {
             // Keyframes START at the enter landing value (scale 1), not at an offset —
             // `[1, 1.012, 1]`, never `[0.988, 1, 0.988]`. Starting anywhere else makes
             // the handover frame jump.
-            infiniteAnimation={
+            loopAnimation={
               timing.reduced
                 ? undefined
                 : {

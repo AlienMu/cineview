@@ -311,7 +311,7 @@ describe('useAnimateScroll orphan warning', () => {
               duration={{ enter: 320, exit: 180 }}
               timeline={{
                 delay: 90,
-                waitFor: 'intro',
+                after: 'intro',
               }}
             >
               <div>Timeline registration</div>
@@ -327,7 +327,7 @@ describe('useAnimateScroll orphan warning', () => {
         delay: 90,
         enterDuration: 320,
         exitDuration: 180,
-        waitFor: 'intro',
+        after: 'intro',
       });
     });
   });
@@ -352,7 +352,7 @@ describe('useAnimateScroll orphan warning', () => {
               animateId="stable-registration"
               enterAnimation="fade-in"
               duration={{ enter: 320, exit: 180 }}
-              timeline={{ delay: 90, waitFor: 'intro' }}
+              timeline={{ delay: 90, after: 'intro' }}
             >
               <div>Stable registration</div>
             </Animate>
@@ -381,7 +381,7 @@ describe('useAnimateScroll orphan warning', () => {
               animateId="stable-registration"
               enterAnimation="fade-in"
               duration={{ enter: 320, exit: 180 }}
-              timeline={{ delay: 90, waitFor: 'intro' }}
+              timeline={{ delay: 90, after: 'intro' }}
             >
               <div>Stable registration</div>
             </Animate>
@@ -422,7 +422,7 @@ describe('useAnimateScroll orphan warning', () => {
         delay: 0,
         enterDuration: 600,
         exitDuration: 0,
-        waitFor: undefined,
+        after: undefined,
       });
       expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
@@ -447,8 +447,8 @@ describe('useAnimateScroll orphan warning', () => {
             <Animate
               animateId="visibility-driver"
               enterAnimation="fade-in"
-              timeline={{ sceneControlled: false }}
-              visibility={{ replayOnReenter: false }}
+              timeline={{ driver: 'clock' }}
+              visibility={{ replay: false }}
             >
               <div>Visibility driver</div>
             </Animate>

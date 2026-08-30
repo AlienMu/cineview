@@ -41,9 +41,9 @@ function IconGithub(): JSX.Element {
   );
 }
 
-// 入场时序常量(ms)。与 Animate 的 waitFor 折叠公式对齐:
-//   title(链头)→ slogan(waitFor title)→ intro 打字(stagger 逐字,自身 duration 占时长)
-//   → buttons(waitFor intro)→ hint(waitFor btn-2)。
+// 入场时序常量(ms)。与 Animate 的 after 折叠公式对齐:
+//   title(链头)→ slogan(after title)→ intro 打字(stagger 逐字,自身 duration 占时长)
+//   → buttons(after intro)→ hint(after btn-2)。
 const TITLE_DELAY = 160;
 const TITLE_DUR = 720;
 const SLOGAN_DUR = 880;
@@ -128,15 +128,15 @@ function buildIntroItems(intro: string): JSX.Element[] {
 /**
  * 第一幕 Hero。布局与入场时序全部由框架能力驱动:
  *   - 布局:单个 <Position anchor:'center'> 锚整块,内部 flex column(框架定位系统)。
- *   - 时序:<Animate> 的 enterAnimation + duration + timeline.waitFor 声明式串联,
+ *   - 时序:<Animate> 的 enterAnimation + duration + timeline.after 声明式串联,
  *     title → slogan(两行 slide-right/left 视差)→ intro(Tier 2 stagger 逐字揭示)
- *     → buttons(slide-up 错峰,waitFor='hero-intro')→ hint。
+ *     → buttons(slide-up 错峰,after='hero-intro')→ hint。
  *
- * intro 打字使用框架 Tier 2 stagger。slogan 光束与滚动提示使用 infiniteAnimation，
+ * intro 打字使用框架 Tier 2 stagger。slogan 光束与滚动提示使用 loopAnimation，
  * 由框架 phase 门控；光束通过继承 CSS 变量投影到 background-position。
  *
  * reduced-motion:所有 Animate duration/delay 归零(瞬间到位),stagger each=0 一次铺开;
- *   infiniteAnimation 不注册，保留静态终态。
+ *   loopAnimation 不注册，保留静态终态。
  */
 export function HeroScene(): JSX.Element {
   const { t, lang } = useI18n();
@@ -165,8 +165,8 @@ export function HeroScene(): JSX.Element {
             animateId="hero-beam-clock"
             enterAnimation={heldVariant()}
             duration={{ enter: 0 }}
-            timeline={{ waitFor: 'hero-slogan-1' }}
-            infiniteAnimation={
+            timeline={{ after: 'hero-slogan-1' }}
+            loopAnimation={
               reduced
                 ? undefined
                 : {
@@ -213,7 +213,7 @@ export function HeroScene(): JSX.Element {
                     enterAnimation={sloganSlideVariant(i === 0 ? 'right' : 'left')}
                     duration={{ enter: dur(SLOGAN_DUR) }}
                     timeline={{
-                      waitFor: 'hero-title',
+                      after: 'hero-title',
                       delay: i === 0 ? 0 : dur(SLOGAN_DUR - SLOGAN_OVERLAP),
                     }}
                   >
@@ -235,12 +235,12 @@ export function HeroScene(): JSX.Element {
           </Animate>
 
           {/* intro 逐字揭示使用框架 stagger；有效组时长由直接子项数量、each 与子项
-              transition.duration 自动结算，buttons 的 waitFor 会等最后一个字符完成。 */}
+              transition.duration 自动结算，buttons 的 after 会等最后一个字符完成。 */}
           <Animate
             animateId="hero-intro"
             enterAnimation={introCharVariant(reduced, lang)}
             stagger={{ each: dur(CHAR_INTERVAL) }}
-            timeline={{ waitFor: 'hero-slogan-1' }}
+            timeline={{ after: 'hero-slogan-1' }}
           >
             <p className="hero__intro" data-lang={lang}>
               {introItems}
@@ -252,9 +252,9 @@ export function HeroScene(): JSX.Element {
               animateId="hero-btn-0"
               enterAnimation={buttonEnterVariant()}
               duration={{ enter: dur(BTN_DUR) }}
-              timeline={{ waitFor: 'hero-intro', delay: 50 }}
+              timeline={{ after: 'hero-intro', delay: 50 }}
             >
-              <Link className="btn btn--primary" to="/docs/quickstart">
+              <Link className="btn btn--primary" to="/docs/03-quickstart">
                 <IconArrow />
                 {t('hero.ctaStart')}
               </Link>
@@ -264,11 +264,13 @@ export function HeroScene(): JSX.Element {
               enterAnimation={buttonEnterVariant()}
               duration={{ enter: dur(BTN_DUR) }}
               timeline={{
-                waitFor: 'hero-intro',
+                after: 'hero-intro',
                 delay: 150,
               }}
             >
-              <Link className="btn btn--ghost" to="/docs/cineview">
+              {/* 次级动作降级为文本链接（2026-08-29 方案 a）：一个首屏只留一个按钮，
+                  API/GitHub 是出口，不分享按钮层级。 */}
+              <Link className="hero__link" to="/docs/01-cineview">
                 <IconBook />
                 {t('hero.ctaApi')}
               </Link>
@@ -278,11 +280,11 @@ export function HeroScene(): JSX.Element {
               enterAnimation={buttonEnterVariant()}
               duration={{ enter: dur(BTN_DUR) }}
               timeline={{
-                waitFor: 'hero-intro',
+                after: 'hero-intro',
                 delay: 200,
               }}
             >
-              <a className="btn btn--ghost" href={GITHUB_URL} target="_blank" rel="noreferrer">
+              <a className="hero__link" href={GITHUB_URL} target="_blank" rel="noreferrer">
                 <IconGithub />
                 {t('hero.ctaGithub')}
               </a>
@@ -296,8 +298,8 @@ export function HeroScene(): JSX.Element {
           animateId="hero-hint"
           enterAnimation="fade-in"
           duration={{ enter: dur(HINT_DUR) }}
-          timeline={{ waitFor: 'hero-btn-2', delay: 0 }}
-          infiniteAnimation={
+          timeline={{ after: 'hero-btn-2', delay: 0 }}
+          loopAnimation={
             reduced
               ? undefined
               : {

@@ -41,7 +41,7 @@ interface CapturedAnimateProps {
   };
   duration?: { enter?: number; exit?: number };
   timeline?: { delay?: number };
-  infiniteAnimation?: unknown;
+  loopAnimation?: unknown;
   children?: ReactNode;
 }
 
@@ -226,7 +226,7 @@ describe('SceneSync motion contract', () => {
       const selection = lane(`${id}-selection`);
       // Reveals and retracts within its own segment: 0 → 1 → 1 → 0.
       expect(selection.enterAnimation?.animate?.opacity).toEqual([0, 1, 1, 0]);
-      expect(selection.infiniteAnimation).toBeUndefined();
+      expect(selection.loopAnimation).toBeUndefined();
 
       /**
        * The overlay must stay WELDED to the stroke it annotates — same start, same span.
@@ -244,10 +244,10 @@ describe('SceneSync motion contract', () => {
     for (const animateId of DEMO_IDS) {
       const demo = lane(animateId);
 
-      // ONE-SHOT, not a loop: 「不是持续动画，而是入场动画」. An `infiniteAnimation` here is the
+      // ONE-SHOT, not a loop: 「不是持续动画，而是入场动画」. An `loopAnimation` here is the
       // exact regression — it would also re-introduce the anonymous wrapper node that once
       // collapsed clip 2 to 2px tall.
-      expect(demo.infiniteAnimation).toBeUndefined();
+      expect(demo.loopAnimation).toBeUndefined();
 
       // Leftward travel, and `x` in percent (of the block's own box) so the lap survives every
       // viewport width — a px stroke would only assemble correctly at one track width.
@@ -377,7 +377,7 @@ describe('SceneSync motion contract', () => {
     expect(SEAM_IDS).toHaveLength(laps.length);
     for (const [index, seamId] of SEAM_IDS.entries()) {
       const seam = lane(seamId);
-      expect(seam.infiniteAnimation).toBeUndefined();
+      expect(seam.loopAnimation).toBeUndefined();
       // Seam N marks the lap between clip N and clip N+1, so it waits on clip N+1's stroke —
       // which is `DEMO_IDS[index]` now that DEMO_IDS starts at clip 2.
       const strokeLane = lane(DEMO_IDS[index]);

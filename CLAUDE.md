@@ -101,28 +101,23 @@ pnpm format                  # Prettier
 
 ```tsx
 <CineView
-  config={{ size: 750 }}                // 设计稿尺寸基准（px2vw 单尺子的唯一基准）
-  mode="scroll"                        // 'drag' | 'scroll'，默认 'drag'
-  modes={{
-    drag: { direction: 'y', transitionDuration: 800, threshold: {...} },
-    scroll: { direction: 'y', zoneTrigger: 'center-lock' },
-  }}
+  designWidth={750}                // 设计稿尺寸基准（px2vw 单尺子的唯一基准）
+  mode="scroll"                        // 'drag' | 'scroll'，默认 'drag'；判别联合判别字段
   scrollbar={{ enabled: true, width: 6, autoHide: true }}
   callbacks={{ onReady, onZoneProgress }} // mode='scroll'：common + scroll 回调扁平传入
-  performance={{ monitor: true }}
+  monitor
   ref={cineViewRef}
 >
 ```
 
-**Ref 方法**: `goToScene(index, animated?)` / `refreshLayout()` / `preload(targets?)` / `getCurrentScene()` / `getPerformanceMetrics()`（公共，必填）；`goToZone(zoneId, opts?)`（scroll 专属，可选；scroll 消费者可用 `CineViewScrollRef` 便捷类型）
+**Ref 方法**: `goToScene(index, animated?)` / `refreshLayout()` / `preload(targets?)` / `getCurrentIndex()` / `getPerformanceMetrics()`（公共，必填）；`goToZone(zoneId, opts?)`（scroll 专属，可选；scroll 消费者可用 `CineViewScrollRef` 便捷类型）
 
 ### Scene
 
 ```tsx
 <Scene
   sceneId="hero"
-  layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
-  stack={{ mode: 'replace', zIndex: 1 }}
+  layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden', overlap: 'replace', zIndex: 1 }}
   transition={{ enterAnimation: 'fade-in', exitAnimation: 'fade-out', exitDuration: 400 }}
   assets={{ preloadImages: ['/hero.jpg'] }}
   scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}  // scroll 模式下才需要
@@ -136,8 +131,8 @@ pnpm format                  # Prettier
 <AnimateVideo
   src="/clip.mp4"
   duration={{ enter: 2000 }} // scrub 跨度（scroll 下即真实滚动 px）
-  timeline={{ delay: 100, waitFor: 'intro' }}
-  visibility={{ replayOnReenter: true }}
+  timeline={{ delay: 100, after: 'intro' }}
+  visibility={{ replay: true }}
 />
 ```
 
@@ -153,19 +148,19 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
   enterAnimation="fade-in"
   exitAnimation="fade-out"
   duration={{ enter: 800, exit: 400 }}
-  timeline={{ sceneControlled: true, delay: 200, waitFor: 'subtitle' }}
-  visibility={{ replayOnReenter: true }}
+  timeline={{ driver: 'scene', delay: 200, after: 'subtitle' }}
+  visibility={{ replay: true }}
 >
 ```
 
-`timeline.sceneControlled` 默认 `true`：scroll 下位于 `Scene.scroll` 内时绑定该 scene 的 takeover 时间轴；无 takeover 时降级为 visibility。设为 `false` 可在 takeover scene 内强制使用 visibility。drag 下该字段不改变场景级时间语义。
+`timeline.driver` 默认 `'scene'`：scroll 下位于 `Scene.scroll` 内时绑定该 scene 的 takeover 时间轴；无 takeover 时降级为 visibility。设为 `'clock'` 可在 takeover scene 内强制使用 visibility。drag 下保持 `'scene'` 即跟随场景时间轴，`'clock'` 则按真实时间独立播放。
 
 ### Position
 
 ```tsx
 <Position
   at={{ x: 100, y: 200, offsetX: 10, offsetY: 0 }}
-  layer={{ fixed: true }}   // scroll 模式下 → scene-scoped fixed layer
+  fixed   // scroll 模式下 → scene-scoped fixed layer
 >
 ```
 
@@ -183,7 +178,7 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 
 - **（已修复）scroll 侧 `onReady` 重复触发**：`DirectScrollCineView.tsx` 的 onReady effect 原依赖 `getRuntimeApi`，而后者依赖 `activeSceneIndex`，每次切场景重触发。改为 ref 持有最新 API + 挂载时仅触发一次，对齐 drag 侧（`CineView.tsx`）语义。回归测试 "fires onReady exactly once across active-scene changes"。
 - **（已修复）scrollbar 拖拽 listener 泄漏**：`handleScrollbarMouseDown` 在 window 挂 mousemove/mouseup，仅 mouseup 注销；拖拽中卸载会泄漏。改为 `scrollbarDragCleanupRef` 跟踪 + unmount effect 兜底清理 + 新 mousedown 前先清理上一次未释放的拖拽。回归测试 "removes window mousemove/mouseup listeners when unmounted mid scrollbar drag"。
-- **（已修复）`CineViewContext.test.tsx` 确定性失败**：resize 测试用裸 `setTimeout(200ms)` + 同步断言，与 debounce(150ms)+act flush 竞态（确定性失败，非 flaky）。改用 `act` 包裹派发 + `waitFor` 轮询，对齐同文件通过副本。
+- **（已修复）`CineViewContext.test.tsx` 确定性失败**：resize 测试用裸 `setTimeout(200ms)` + 同步断言，与 debounce(150ms)+act flush 竞态（确定性失败，非 flaky）。改用 `act` 包裹派发 + `after` 轮询，对齐同文件通过副本。
 - **（已修复）dist 类型漂移**：`dist/index.d.ts` 曾缺源码已加的 `ScrollModeConfig.enterMargin/exitMargin`、`AnimateProps.visibility.enterMargin/exitMargin`。已重新 `pnpm build:verify`（8/8 通过），dist 与源码同步。
 - **（已修复 2026-06-30）ES 模块未被压缩 + console 泄漏 + 超 50 KB 目标**：`vite.config.ts` 原用 `minify: 'terser'`，但 lib 多格式（es + umd）下 terser 只压 umd、**静默跳过 es 输出**（Vite 已知问题）——es 产物 307 KB 未压缩、保留 39 处 console 调用、gzip 59.47 KB 超 50 KB 目标。改用 `minify: 'esbuild'`（Vite 默认压缩器，对两格式都可靠）+ build-only `esbuild.drop: ['console','debugger']`（用 `defineConfig(({command})=>...)` 按 `command==='build'` 门控，dev server 保留诊断 console）。删除未用的 `@rollup/plugin-terser` 与无效的 `terser` devDep。结果：es 307→178 KB、gzip **44.9 KB**（达标），无 console 调用（残留 7 处为 framer-motion 字符串字面量，非调用），UMD gzip 38.51 KB；`build:verify` 8/8。
 
@@ -209,14 +204,14 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 - **（已清理 2026-06-26）`VirtualScrollPhase`**：重命名为 `SceneTimelinePhase`（`hold` 仍是活跃的进退场中段相位，非虚拟轨道坐标）。
 - **（已清理 2026-06-26）`ScrollTimelineState.holdProgress/holdLength`**：纯死输出字段，已删除（含 `SceneLayoutInfo.holdLength` 内部 vestigial 字段）。
 - **`SceneLegacyCompatProps` 仍可读**（`src/components/Scene/types.ts`）：`scrollSpeed`/`scrollEnterLength`/`scrollHoldLength`/`scrollExitLength`/`slideDirection`/`slideDuration` 等。**注**：公共 `SceneProps`（barrel 导出）已干净，`Scene.publicApi.test` 用 tsc fixture 证明 legacy props 会触发类型错误；这些字段仅作内部兼容存在，属内部整洁问题，非公共 API 污染。
-- **（已统一 2026-07-17）`CineViewContext` 单尺子**：运行时只暴露 `scale` / `convert`，唯一基准为 `config.size`（默认 750），`scale = viewportWidth / size`。Position、Container、Image 等设计长度共用同一比例；不存在 `config.height`、`designHeight` 或双轴换算。scroll takeover 时间预算仍为 `1ms=1px`，绝对场景跨度回退 DOM 实测。
+- **（已统一 2026-07-17）`CineViewContext` 单尺子**：运行时只暴露 `scale` / `convert`，唯一基准为 `designWidth`（默认 750），`scale = viewportWidth / size`。Position、Container、Image 等设计长度共用同一比例；不存在 `config.height`、`designHeight` 或双轴换算。scroll takeover 时间预算仍为 `1ms=1px`，绝对场景跨度回退 DOM 实测。
 
 #### P2：结构问题
 
 - **（已收敛 2026-06-26）`SceneInternalProps` global\* 膨胀**：删除 ~20 个生产已不传的扁平 `global*` 数据 props，`globalFirstSceneEnter*` 收入 grouped `sceneRuntime`，`normalizeSceneProps` 删除 `?? props.globalX` 兜底链。两个生产入口（drag/scroll）均走 grouped 对象。**遗留**：`on*Change` 回调层仍扁平（standalone sink，待后续）；冷启动 `firstSceneEnterActive/Ready` 双 boolean 可合并为三态枚举（高风险，见 task-flow 单列项）。
 - **（已修复 2026-06-26）`framer-motion` 移入 `peerDependencies`**（`>=10.0.0`）+ 保留 devDep；`vite.config.ts` 已 external，无需改。
 - **（已过期）`CineViewRef.goToSceneAdvanced`**：已核实不存在，无需处理。
-- **（已修复 2026-06-29）`CineViewRef` 方法全可选**：`goToScene`/`refreshLayout`/`preload`/`getCurrentScene`/`getPerformanceMetrics` 两模式均真实现，改为**必填**，消除调用点 `ref.current?.x?.()` 噪音。`goToZone` 是唯一 mode-specific 方法（drag 侧原为 no-op 空桩，已删），保持可选；新增便捷类型 `CineViewScrollRef`（`goToZone` 必填）供 scroll 消费者使用。受 React forwardRef 单 ref 类型限制，无法靠 `mode` prop 自动推断，故用「公共必填 + scroll 专属可选 + 便捷类型」方案而非完整判别共用体。
+- **（已修复 2026-06-29）`CineViewRef` 方法全可选**：`goToScene`/`refreshLayout`/`preload`/`getCurrentIndex`/`getPerformanceMetrics` 两模式均真实现，改为**必填**，消除调用点 `ref.current?.x?.()` 噪音。`goToZone` 是唯一 mode-specific 方法（drag 侧原为 no-op 空桩，已删），保持可选；新增便捷类型 `CineViewScrollRef`（`goToZone` 必填）供 scroll 消费者使用。受 React forwardRef 单 ref 类型限制，无法靠 `mode` prop 自动推断，故用「公共必填 + scroll 专属可选 + 便捷类型」方案而非完整判别共用体。
 
 #### P3：性能（未验证）
 
@@ -232,10 +227,10 @@ drag/scroll 位置即 `currentTime`，反向倒放。原生 `<video>`，零库�
 4. **验收必须多 agent 真实环境实测**：scroll/drag 交互路径不能只靠实现者自跑单测收口；必须由独立 agent 在真实浏览器环境（独立 lane）跑通用户描述的完整手势/输入路径后才算验收通过
 5. **每节点完成后立即读 task-flow**：不停在已通过节点上，检查下一个可执行节点
 6. **禁止在框架外自建框架已有的行为（不能再犯）**：站点/示例是框架的使用方，不是第二套动画引擎。以下四条是硬规则：
-   - **常驻/循环动效一律用 `Animate` 的 `infiniteAnimation`，禁止用 CSS `animation: … infinite`**。理由不是风格：`infiniteAnimation` 由 `shouldRunInfinite` 门控（见 `useAnimateScroll.ts` 的决策注释），循环只在元素同时处于自身 phase 且在视口内时运行，离屏/退场自动 `controls.stop()`。CSS `infinite` 不受 phase 约束，会出现「其他元素都已退场、这个还在动」的破窗。正确范例：`site/src/components/temporal-drag/DragHint.tsx`。
+   - **常驻/循环动效一律用 `Animate` 的 `loopAnimation`，禁止用 CSS `animation: … infinite`**。理由不是风格：`loopAnimation` 由 `shouldRunInfinite` 门控（见 `useAnimateScroll.ts` 的决策注释），循环只在元素同时处于自身 phase 且在视口内时运行，离屏/退场自动 `controls.stop()`。CSS `infinite` 不受 phase 约束，会出现「其他元素都已退场、这个还在动」的破窗。正确范例：`site/src/components/temporal-drag/DragHint.tsx`。
    - **站点组件禁止直接 import framer-motion**（`motion.*` / `useSpring` / `useTransform` 自建驱动）。需要读进度/相位时用框架出口 `useAnimateTimeline()`（`progress` / `signedProgress` / `phase` 均为 MotionValue）。自建 `useSpring` 有自己的时间常数，不跟随 exit 进度收敛。
    - **canvas 自绘是唯一豁免**（DESIGN.md §0 许可：子元素读 MotionValue 自驱 rAF，零 per-frame setState），但**必须订阅 `timeline.phase` 并在 `exited`/`idle` 暂停 rAF**，且在文件头注释标注豁免理由。参考 `clapperboard/ClapperboardCanvas.tsx`。
-   - **入场用 `waitFor` + `delay` 做了级联编排的，退场必须有对应的反向编排**。只写 `enterAnimation` 链而不编排 exit，会导致入场逐个有序、退场全部同时触发（「打包回滚」），时序不对称。
+   - **入场用 `after` + `delay` 做了级联编排的，退场必须有对应的反向编排**。只写 `enterAnimation` 链而不编排 exit，会导致入场逐个有序、退场全部同时触发（「打包回滚」），时序不对称。
    - 自建 rAF/`setInterval` 驱动动画同样受本条约束；数据源型 hook（如 `useTimecode`）不算动画，不受限。
 
 ---
@@ -255,7 +250,7 @@ cineview/
 │   │   └── Container/         # px2vw 盒模型换算容器
 │   ├── animations/
 │   │   ├── presets/           # 40+ 预设动画（fade/slide/zoom/rotate/flip/bounce/blink/shake/blur/elastic/special）
-│   │   ├── registry.ts        # 纯模块：waitFor 链计算 + 循环依赖检测
+│   │   ├── registry.ts        # 纯模块：after 链计算 + 循环依赖检测
 │   │   ├── composer.ts        # 组合动画（sequential/parallel）处理器
 │   │   └── animationParser.ts # 动画解析（string → variant）
 │   ├── hooks/
@@ -283,9 +278,9 @@ cineview/
 
 1. **阶段 3 官网文档站**（**已完成** 2026-08-23，task-flow `2026-08-23-stage3-demo-hub-docs.md`）：
    双语 Markdown 文档站 25 页 ×2（入门/核心概念/组件 API/动画/进阶五组）+ Demo Hub 交互位
-   （进度读数/waitFor 三级链/帧擦洗/enter·exitRef）+ 教学示例 examples/minimal；两波均经
+   （进度读数/after 三级链/帧擦洗/enter·exitRef）+ 教学示例 examples/minimal；两波均经
    fresh-agent 终验（API 断言审计 + 真机浏览器 lane）。遗留可选项：旧计划 X.1 框架长文。
-   **P2 框架缺口待裁决**：phase 窗口 leader + waitFor 链的 ms/px 双时钟分裂
+   **P2 框架缺口待裁决**：phase 窗口 leader + after 链的 ms/px 双时钟分裂
    （sceneScrollBudget.resolveTiming——修编译器或文档化约束，详见 stage3 task-flow T1.8 节）。
 
 2. ~~scroll 真实浏览器验收~~ **已完成**（2026-08-22 N6 lane PASS，证据

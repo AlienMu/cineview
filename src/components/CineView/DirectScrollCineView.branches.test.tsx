@@ -338,10 +338,6 @@ async function flushAnimationFrame(): Promise<void> {
   });
 }
 
-const config = {
-  size: 750,
-};
-
 afterEach(async () => {
   await flushAnimationFrame();
   delete (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__;
@@ -355,7 +351,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('keyboard delta normalization', () => {
     function renderTallDocument(): HTMLDivElement {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -522,7 +518,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('wheel delta normalization', () => {
     function renderTallDocument(): HTMLDivElement {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -593,7 +589,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('touch handling', () => {
     function renderTallDocument(): HTMLDivElement {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -671,7 +667,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('horizontal (x) scroll direction', () => {
     it('normalizes deltaX and scrolls the container horizontally', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config} modes={{ scroll: { direction: 'x' } }}>
+        <DirectScrollCineView designWidth={750} direction={'x'}>
           <TestScene sceneId="scene-0" sceneWidth={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -699,7 +695,7 @@ describe('DirectScrollCineView — branch coverage', () => {
 
     it('drives horizontal scroll from a horizontal touch drag', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config} modes={{ scroll: { direction: 'x' } }}>
+        <DirectScrollCineView designWidth={750} direction={'x'}>
           <TestScene sceneId="scene-0" sceneWidth={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -728,7 +724,7 @@ describe('DirectScrollCineView — branch coverage', () => {
 
     it('falls back to scrollLeft assignment when scrollTo is unavailable in x mode', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config} modes={{ scroll: { direction: 'x' } }}>
+        <DirectScrollCineView designWidth={750} direction={'x'}>
           <TestScene sceneId="scene-0" sceneWidth={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -759,7 +755,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('setNativeOffset fallback without scrollTo (y mode)', () => {
     it('assigns scrollTop directly when scrollTo is unavailable', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -789,10 +785,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('declared span string parsing (non-takeover scenes)', () => {
     it('measures scenes authored with px / vh / auto / invalid string heights', async () => {
       const { container } = render(
-        <DirectScrollCineView
-          config={config}
-          modes={{ scroll: { direction: 'y', sceneSizing: 'screen' } }}
-        >
+        <DirectScrollCineView designWidth={750} direction={'y'} sceneSizing={'screen'}>
           <TestScene sceneId="scene-px" layout={{ height: '1200px' }}>
             <div>px scene</div>
           </TestScene>
@@ -834,10 +827,7 @@ describe('DirectScrollCineView — branch coverage', () => {
 
     it('parses a vw declared span in horizontal mode', async () => {
       const { container } = render(
-        <DirectScrollCineView
-          config={config}
-          modes={{ scroll: { direction: 'x', sceneSizing: 'screen' } }}
-        >
+        <DirectScrollCineView designWidth={750} direction={'x'} sceneSizing={'screen'}>
           <TestScene sceneId="scene-vw" layout={{ width: '80vw' }}>
             <div>vw scene</div>
           </TestScene>
@@ -867,7 +857,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('takeover span string parsing', () => {
     it('resolves px / vh / vw / auto / invalid takeover scene spans', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -936,7 +926,7 @@ describe('DirectScrollCineView — branch coverage', () => {
 
     it('resolves a vw takeover span in horizontal mode', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config} modes={{ scroll: { direction: 'x' } }}>
+        <DirectScrollCineView designWidth={750} direction={'x'}>
           <TestScene sceneId="scene-0" sceneWidth={750}>
             <div>Scene 0</div>
           </TestScene>
@@ -972,7 +962,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('scene timeline exit phase', () => {
     it('reports the exit phase when the viewport top passes a scene exit start', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -1011,10 +1001,10 @@ describe('DirectScrollCineView — branch coverage', () => {
   });
 
   describe('imperative ref API', () => {
-    it('exposes goToScene, refreshLayout, getCurrentScene and getPerformanceMetrics', async () => {
+    it('exposes goToScene, refreshLayout, getCurrentIndex and getPerformanceMetrics', async () => {
       const ref = createRef<CineViewRef>();
       const { container } = render(
-        <DirectScrollCineView ref={ref} config={config}>
+        <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -1059,7 +1049,7 @@ describe('DirectScrollCineView — branch coverage', () => {
         bundleSize: 12,
       });
 
-      expect(typeof ref.current?.getCurrentScene()).toBe('number');
+      expect(typeof ref.current?.getCurrentIndex()).toBe('number');
     });
 
     it('no-ops goToScene for an unknown index', async () => {
@@ -1068,7 +1058,7 @@ describe('DirectScrollCineView — branch coverage', () => {
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       const ref = createRef<CineViewRef>();
       const { container } = render(
-        <DirectScrollCineView ref={ref} config={config}>
+        <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -1094,7 +1084,7 @@ describe('DirectScrollCineView — branch coverage', () => {
     it('moves to a registered scroll zone via goToZone and no-ops for an unknown zone', async () => {
       const ref = createRef<CineViewRef>();
       const { container } = render(
-        <DirectScrollCineView ref={ref} config={config}>
+        <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -1154,7 +1144,7 @@ describe('DirectScrollCineView — branch coverage', () => {
 
       const ref = createRef<CineViewRef>();
       render(
-        <DirectScrollCineView ref={ref} config={config}>
+        <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" assets={{ preloadImages: ['target.jpg'] }}>
             <div>Scene 0</div>
           </TestScene>
@@ -1176,7 +1166,7 @@ describe('DirectScrollCineView — branch coverage', () => {
       const { performanceMonitor } = require('../../utils/performanceMonitor');
 
       const { unmount } = render(
-        <DirectScrollCineView config={config} performance={{ monitor: true }}>
+        <DirectScrollCineView designWidth={750} monitor>
           <TestScene sceneId="scene-0">
             <div>Scene 0</div>
           </TestScene>
@@ -1193,7 +1183,7 @@ describe('DirectScrollCineView — branch coverage', () => {
     it('routes reportError through the common onError callback', () => {
       const onError = jest.fn();
       render(
-        <DirectScrollCineView config={config} callbacks={{ onError }}>
+        <DirectScrollCineView designWidth={750} callbacks={{ onError }}>
           <TestScene sceneId="scene-0">
             <ReportErrorProbe />
             <div>Scene 0</div>
@@ -1210,7 +1200,7 @@ describe('DirectScrollCineView — branch coverage', () => {
       (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__ = true;
 
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -1247,7 +1237,7 @@ describe('DirectScrollCineView — branch coverage', () => {
   describe('window resize handling', () => {
     it('remeasures layouts and resyncs scroll state on a window resize', async () => {
       const { container } = render(
-        <DirectScrollCineView config={config}>
+        <DirectScrollCineView designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
             <div>Scene 0</div>
           </TestScene>
@@ -1287,7 +1277,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   it('resolves the nearest scene when the viewport center sits in a gap between scenes', async () => {
     const ref = createRef<CineViewRef>();
     const { container } = render(
-      <DirectScrollCineView ref={ref} config={config}>
+      <DirectScrollCineView ref={ref} designWidth={750}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -1316,7 +1306,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
       fireEvent.scroll(root);
     });
     await flushAnimationFrame();
-    expect(ref.current?.getCurrentScene()).toBe(0);
+    expect(ref.current?.getCurrentIndex()).toBe(0);
 
     // Center = 2700 → gap before scene 1, nearest scene 1 (300 vs 1700).
     act(() => {
@@ -1324,7 +1314,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
       fireEvent.scroll(root);
     });
     await flushAnimationFrame();
-    expect(ref.current?.getCurrentScene()).toBe(1);
+    expect(ref.current?.getCurrentIndex()).toBe(1);
 
     // Containment still wins outright.
     act(() => {
@@ -1332,7 +1322,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
       fireEvent.scroll(root);
     });
     await flushAnimationFrame();
-    expect(ref.current?.getCurrentScene()).toBe(1);
+    expect(ref.current?.getCurrentIndex()).toBe(1);
   });
 
   // S-F3: the container's onKeyDownCapture must release scroll keys to
@@ -1340,7 +1330,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   // requirement here, unlike the window-level handler).
   it('does not swallow Space or arrow keys typed into editable fields inside the container', async () => {
     const { container } = render(
-      <DirectScrollCineView config={config}>
+      <DirectScrollCineView designWidth={750}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <input data-testid="text-field" type="text" />
           <textarea data-testid="text-area" />
@@ -1399,7 +1389,11 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   it('does not flash the autoHide scrollbar overlay on programmatic refreshLayout', async () => {
     const ref = createRef<CineViewRef>();
     const { container } = render(
-      <DirectScrollCineView ref={ref} config={config} scrollbar={{ enabled: true, autoHide: true }}>
+      <DirectScrollCineView
+        ref={ref}
+        designWidth={750}
+        scrollbar={{ enabled: true, autoHide: true }}
+      >
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
@@ -1436,18 +1430,18 @@ describe('DirectScrollCineView — review remediation regressions', () => {
     expect(overlay.style.opacity).toBe('1');
   });
 
-  // A3: the scroll root must emit NO_SCENES like the drag root does.
-  it('emits NO_SCENES through onError when the scroll root has no Scene children', () => {
+  // A3: the scroll root must emit EMPTY_SCENES like the drag root does.
+  it('emits EMPTY_SCENES through onError when the scroll root has no Scene children', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const onError = jest.fn();
     render(
-      <DirectScrollCineView config={config} mode="scroll" callbacks={{ onError }}>
+      <DirectScrollCineView designWidth={750} mode="scroll" callbacks={{ onError }}>
         <div>not a scene</div>
       </DirectScrollCineView>
     );
 
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'NO_SCENES' }));
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('NO_SCENES'));
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'EMPTY_SCENES' }));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('EMPTY_SCENES'));
     warnSpy.mockRestore();
   });
 
@@ -1460,7 +1454,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
     const onError = jest.fn();
     const ref = createRef<CineViewRef>();
     const { container } = render(
-      <DirectScrollCineView ref={ref} config={config} mode="scroll" callbacks={{ onError }}>
+      <DirectScrollCineView ref={ref} designWidth={750} mode="scroll" callbacks={{ onError }}>
         <TestScene sceneId="first" scroll={{ zoneId: 'duplicate-zone' }}>
           First
         </TestScene>
@@ -1500,7 +1494,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
       root.scrollTop = 1928;
       fireEvent.scroll(root);
     });
-    expect(ref.current?.getCurrentScene()).toBe(1);
+    expect(ref.current?.getCurrentIndex()).toBe(1);
     errorSpy.mockRestore();
     process.env.NODE_ENV = originalEnv;
   });
@@ -1511,7 +1505,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const ref = createRef<CineViewRef>();
     const { container } = render(
-      <DirectScrollCineView ref={ref} config={config}>
+      <DirectScrollCineView ref={ref} designWidth={750}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>

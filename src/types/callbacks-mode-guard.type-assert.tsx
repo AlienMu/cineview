@@ -11,43 +11,36 @@
  * *.test/*.spec, so it never runs as a test.
  */
 import { CineView, Scene } from '../index';
-import type {
-  CineViewProps,
-  DragModeCallbacks,
-  ScrollModeCallbacks,
-  CineViewDesignConfig,
-} from '../index';
-
-const config: CineViewDesignConfig = { size: 750 };
+import type { CineViewProps, DragModeCallbacks, ScrollModeCallbacks } from '../index';
 
 // --- Positive: the per-mode flat callbacks are accepted ---------------------
 const dragOk: DragModeCallbacks = {
-  onSceneDidChange: () => {},
+  onSceneLeave: () => {},
   onDragStart: () => {},
-  onDragCommit: () => {},
+  onDragEnd: () => {},
 };
 const scrollOk: ScrollModeCallbacks = {
-  onSceneDidChange: () => {},
+  onSceneLeave: () => {},
   onZoneProgress: () => {},
 };
 
 // --- Positive: assignable to CineViewProps in the matching mode -------------
 const dragProps: CineViewProps = {
-  config,
+  designWidth: 750,
   mode: 'drag',
-  callbacks: { onDragCommit: () => {}, onSceneDidChange: () => {} },
+  callbacks: { onDragEnd: () => {}, onSceneLeave: () => {} },
   children: null,
 };
 const scrollProps: CineViewProps = {
-  config,
+  designWidth: 750,
   mode: 'scroll',
-  callbacks: { onZoneProgress: () => {}, onSceneDidChange: () => {} },
+  callbacks: { onZoneProgress: () => {}, onSceneLeave: () => {} },
   children: null,
 };
 // mode omitted defaults to drag — drag callbacks accepted.
 const defaultModeProps: CineViewProps = {
-  config,
-  callbacks: { onDragCommit: () => {} },
+  designWidth: 750,
+  callbacks: { onDragEnd: () => {} },
   children: null,
 };
 
@@ -56,18 +49,32 @@ const defaultModeProps: CineViewProps = {
 // assignment, so the directive sits on the `const` line (not the `callbacks:` line).
 // @ts-expect-error onZoneProgress is not a drag-mode callback
 const dragWithScrollCb: CineViewProps = {
-  config,
+  designWidth: 750,
   mode: 'drag',
   callbacks: { onZoneProgress: () => {} },
   children: null,
 };
 
 // --- Negative: a drag callback in scroll mode must be rejected --------------
-// @ts-expect-error onDragCommit is not a scroll-mode callback
+// @ts-expect-error onDragEnd is not a scroll-mode callback
 const scrollWithDragCb: CineViewProps = {
-  config,
+  designWidth: 750,
   mode: 'scroll',
-  callbacks: { onDragCommit: () => {} },
+  callbacks: { onDragEnd: () => {} },
+  children: null,
+};
+
+// --- Negative: mode-specific config keys on the wrong branch -----------------
+const dragWithScrollConfig: CineViewProps = {
+  mode: 'drag',
+  // @ts-expect-error zoneTrigger is a scroll-mode config key
+  zoneTrigger: 'center-lock',
+  children: null,
+};
+// @ts-expect-error firstSceneTimeout is a drag-mode config key
+const scrollWithDragConfig: CineViewProps = {
+  mode: 'scroll',
+  firstSceneTimeout: 1000,
   children: null,
 };
 
@@ -75,7 +82,7 @@ const scrollWithDragCb: CineViewProps = {
 export function DragModeScrollCallbackJsx(): JSX.Element {
   return (
     // @ts-expect-error onZoneProgress is not valid in drag mode
-    <CineView config={config} mode="drag" callbacks={{ onZoneProgress: () => {} }}>
+    <CineView designWidth={750} mode="drag" callbacks={{ onZoneProgress: () => {} }}>
       <Scene>drag</Scene>
     </CineView>
   );
@@ -83,8 +90,8 @@ export function DragModeScrollCallbackJsx(): JSX.Element {
 
 export function ScrollModeDragCallbackJsx(): JSX.Element {
   return (
-    // @ts-expect-error onDragCommit is not valid in scroll mode
-    <CineView config={config} mode="scroll" callbacks={{ onDragCommit: () => {} }}>
+    // @ts-expect-error onDragEnd is not valid in scroll mode
+    <CineView designWidth={750} mode="scroll" callbacks={{ onDragEnd: () => {} }}>
       <Scene>scroll</Scene>
     </CineView>
   );
@@ -98,11 +105,11 @@ export function ScrollModeDragCallbackJsx(): JSX.Element {
 // (weak-type check passed on the shared property). The `?: never` on each mode's
 // foreign keys now rejects it even via a variable.
 const extractedMixedCb = {
-  onDragCommit: (): void => {},
+  onDragEnd: (): void => {},
   onZoneProgress: (): void => {},
 };
 const dragWithExtractedMixedCb: CineViewProps = {
-  config,
+  designWidth: 750,
   mode: 'drag',
   // @ts-expect-error onZoneProgress (scroll-only) is rejected even via a variable
   callbacks: extractedMixedCb,
@@ -118,3 +125,5 @@ void scrollProps;
 void defaultModeProps;
 void dragWithScrollCb;
 void scrollWithDragCb;
+void dragWithScrollConfig;
+void scrollWithDragConfig;

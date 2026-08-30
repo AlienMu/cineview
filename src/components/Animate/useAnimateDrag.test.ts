@@ -204,7 +204,7 @@ describe('useAnimateDrag', () => {
             {
               delay: 0,
               duration: 500,
-              driver: 'drag' as const,
+              lane: 'drag' as const,
             },
           ],
         ]),
@@ -228,7 +228,7 @@ describe('useAnimateDrag', () => {
       generation: 1,
       getCalculatedDelay: () => 0,
       setEnterVariant: jest.fn(),
-      observeWaitFor: () => () => undefined,
+      observeAfter: () => () => undefined,
       publishEnterCompleted: jest.fn(),
       dispose,
     }));
@@ -285,7 +285,7 @@ describe('useAnimateDrag', () => {
             {
               delay: 0,
               duration: 500,
-              driver: 'drag' as const,
+              lane: 'drag' as const,
             },
           ],
         ]),

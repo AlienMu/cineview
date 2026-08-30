@@ -221,12 +221,12 @@ export function useNativeScrollController({
       if (previousIndex === nearestIndex) return;
 
       const transitionDirection = nearestIndex >= previousIndex ? 'forward' : 'backward';
-      callbacks.common?.onSceneWillChange?.({
+      callbacks.common?.onSceneEnter?.({
         fromIndex: previousIndex,
         toIndex: nearestIndex,
         direction: transitionDirection,
       });
-      callbacks.common?.onSceneDidChange?.({
+      callbacks.common?.onSceneLeave?.({
         fromIndex: previousIndex,
         toIndex: nearestIndex,
         direction: transitionDirection,

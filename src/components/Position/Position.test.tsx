@@ -665,7 +665,7 @@ describe('Position Component', () => {
       const { container } = renderWithContext(
         <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <SceneFixedLayerContext.Provider value={fixedHost}>
-            <Position x={100} y={200} layer={{ fixed: true }}>
+            <Position x={100} y={200} fixed>
               <div data-testid="sticky-child">Content</div>
             </Position>
           </SceneFixedLayerContext.Provider>
@@ -690,7 +690,7 @@ describe('Position Component', () => {
       renderWithContext(
         <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <section data-testid="ordinary-region">
-            <Position x={64} y={128} layer={{ fixed: true }}>
+            <Position x={64} y={128} fixed>
               <div data-testid="ordinary-sticky-child">Content</div>
             </Position>
           </section>
@@ -711,7 +711,7 @@ describe('Position Component', () => {
 
     it('应该在没有 scene host 时保留 fixed 内容，而不是直接消失', () => {
       renderWithContext(
-        <Position x={100} y={200} layer={{ fixed: true }}>
+        <Position x={100} y={200} fixed>
           <div data-testid="inline-fixed-child">Content</div>
         </Position>
       );

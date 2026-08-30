@@ -21,16 +21,16 @@ export const en: Dict = {
 
   // ── Act 2 Idea ──
   'idea.eyebrow': 'Why CineView',
-  'idea.title': 'Scroll should not be mere\ntranslation, but choreographed time',
+  'idea.title': 'Scroll should not be mere\ntranslation, but time on a timeline',
   'idea.body':
-    'On a normal page, scrolling just pushes content up. In CineView, scrolling advances the film — every bit of travel maps to a scene’s enter/exit timeline, and elements arrive in turn by delay and waitFor, choreographed as precisely as a shot list.',
+    'On a normal page, scrolling just pushes content up. In CineView, scrolling advances the film — every bit of travel maps to a scene’s enter/exit timeline, and elements arrive in turn by delay and after, arranged on a timeline as precisely as a shot list.',
 
   // ── Act 2 Capabilities (framework-as-demo · two shots + timecode capsule) ──
   // Title uses '|' split: the part after the bar renders as italic Fraunces accent.
   // slate/code are API literals, identical zh/en (mono).
   'cap.tc.rec': 'REC',
 
-  'cap.shot1.slate': 'SCENE ORCHESTRATION',
+  'cap.shot1.slate': 'SCENE TIMELINE',
   'cap.shot1.title': 'Pick an entrance|like picking a shot',
   'cap.shot1.intro':
     'Forty-odd entrance presets built in — from fade to shake, swap with a single prop, never hand-writing a motion curve.',
@@ -75,7 +75,7 @@ export const en: Dict = {
   'cap.shot3.slate': 'DOLLY IN · DECLARATIVE TIMELINE',
   'cap.shot3.card.chain.label': 'Chained order',
   'cap.shot3.card.stagger.label': 'Staggered cascade',
-  'cap.shot3.card.position.label': 'One-ruler placement',
+  'cap.shot3.card.position.label': 'Base placement',
   'cap.shot3.card.container.label': 'Box conversion',
   'cap.shot3.card.scrub.label': 'Scroll takeover',
   'cap.shot3.card.image.label': 'Asset preloading',
@@ -103,13 +103,13 @@ export const en: Dict = {
   'demoDrag.s1.eyebrow': 'Shot one',
   'demoDrag.s1.title': 'CineView',
   'demoDrag.s1.sub': 'Cinematic storytelling, within reach',
-  'demoDrag.s2.eyebrow': 'Shot two · choreography',
+  'demoDrag.s2.eyebrow': 'Shot two · timeline',
   'demoDrag.s2.title': 'Elements arrive in turn',
   'demoDrag.s2.line1': 'Title lands first',
-  'demoDrag.s2.line2': 'Subtitle waits for it (waitFor)',
+  'demoDrag.s2.line2': 'Subtitle waits for it (after)',
   'demoDrag.s2.line3': 'Body follows, delayed 300ms',
   'demoDrag.s3.eyebrow': 'Shot three · positioning',
-  'demoDrag.s3.title': 'Single-ruler coordinates',
+  'demoDrag.s3.title': 'Design-draft coordinates',
   'demoDrag.s3.badge': 'Fixed layer',
   'demoDrag.s3.sub': 'Elements land exactly on design-draft coords',
   'demoDrag.s4.eyebrow': 'Shot four · presets',
@@ -132,12 +132,12 @@ export const en: Dict = {
   'caps.1.title': '40+ animation presets',
   'caps.1.desc':
     'fade, slide, zoom, flip, bounce, blur, elastic and more — composable sequentially or in parallel.',
-  'caps.2.title': 'Single-ruler responsive',
+  'caps.2.title': 'Single-base responsive',
   'caps.2.desc':
     'Write in design-draft coordinates; every length shares one width-based scale, preserving shape without hand-written media queries.',
-  'caps.3.title': 'waitFor choreography',
+  'caps.3.title': 'after timeline',
   'caps.3.desc':
-    'Chain elements into dependency links with waitFor, pace them with delay; circular dependencies are detected statically.',
+    'Chain elements into dependency links with after, pace them with delay; circular dependencies are detected statically.',
   'caps.4.title': 'Image preloading',
   'caps.4.desc':
     'Enter animations start only after first-screen priority assets are ready; recoverable on timeout, no white-flash.',
@@ -173,7 +173,7 @@ export const en: Dict = {
   'demoVideo.intro':
     'From frame-by-frame,\nto a scroll of light and shadow —\nevery motion shares one rhythm;\nunlock the frame, and let the story play freely.',
   'demoVideo.code':
-    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ waitFor: "intro" }}\n  />\n</Scene>',
+    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc':
     'Scroll is the timeline: progress 0→1 maps to first frame→last, and scrolling back plays it in reverse.',
 
@@ -187,11 +187,11 @@ export const en: Dict = {
   'docs.notFound': 'Document not found',
 
   // Docs nav groups (page titles live in per-language md frontmatter, not i18n)
-  'docs.group.start': 'Getting Started',
+  'docs.group.getting-started': 'Getting Started',
   'docs.group.concepts': 'Core Concepts',
-  'docs.group.components': 'Guides',
-  'docs.group.api': 'API Reference',
-  'docs.group.animation': 'Animation',
+  'docs.group.drag': 'Drag engine',
+  'docs.group.scroll': 'Scroll engine',
+  'docs.group.components': 'Components',
   'docs.group.advanced': 'Advanced',
 
   // ── Common ──

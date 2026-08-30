@@ -111,10 +111,10 @@ const TITLE_OUT_END = 1;
 const BG_OUT_START = 0.94;
 
 /** 逐行反向淡出:末行先走。返回该行开始淡出的轴位置。
- *  修 CLAUDE.md 规则 6 第四条——入场用 waitFor/times 做了级联,退场就必须有反向编排,
+ *  修 CLAUDE.md 规则 6 第四条——入场用 after/times 做了级联,退场就必须有反向编排,
  *  否则入场逐行有序、退场四行同时消失(「打包回滚」),时序不对称。
  *
- *  ⚠️ 窗口值是**实测定的，不是按常量推的**。四条 lane 虽同为 4000ms 且同 waitFor，
+ *  ⚠️ 窗口值是**实测定的，不是按常量推的**。四条 lane 虽同为 4000ms 且同 after，
  *  但实测（scripts/_tail.mjs 沿幕尾 0.70→1.00 密采）标题的 `demo-title-out` 在
  *  f≈0.820 就已归零，而副标题四行要到 f≈0.850 —— 标题反而先走完，次序是错的。
  *  所以副标题必须整体前移，给标题留出「最后一个文字元素」的位置。
@@ -222,7 +222,7 @@ function TimeSubtitle({ text }: { text: string }): JSX.Element {
               },
             }}
             duration={{ enter: SUBTITLE_DURATION_MS }}
-            timeline={{ waitFor: 'demo-title', delay: 0 }}
+            timeline={{ after: 'demo-title', delay: 0 }}
           >
             <span className="demo-video__subtitle-line" aria-hidden="true">
               {line.chars.map(({ char, index }) => (
@@ -255,7 +255,7 @@ export function DemoVideoScene(): JSX.Element {
 
   return (
     <div className="demo-video" data-lang={lang}>
-      {/* 铺底:全屏视频 + 4 光圈层。视频 waitFor 标题 → 标题入场后擦洗。 */}
+      {/* 铺底:全屏视频 + 4 光圈层。视频 after 标题 → 标题入场后擦洗。 */}
       <div className="demo-video__stage">
         {/* enterAnimation 只作用于 AnimateVideo 的包装层视觉态;帧擦洗仍由内部
             enterProgress 驱动,两者共用同一条 duration.enter 轴,互不挤占。 */}
@@ -280,7 +280,7 @@ export function DemoVideoScene(): JSX.Element {
             },
           }}
           duration={{ enter: 4000 }}
-          timeline={{ waitFor: 'demo-title', delay: 0 }}
+          timeline={{ after: 'demo-title', delay: 0 }}
           /* 2026-08-14 掉帧修复（task-flow N2，方案 A「远离释放、靠近预热」）：
            * 播完保留的解码帧在倒回第三幕时实测掉帧（_rv-video-residency.mjs：
            * 保留 10 长帧 / 卸载 0 长帧）。releaseOnLeave 让驻留随 zone approach
@@ -302,7 +302,7 @@ export function DemoVideoScene(): JSX.Element {
             },
           }}
           duration={{ enter: SUBTITLE_DURATION_MS }}
-          timeline={{ waitFor: 'demo-title', delay: 0 }}
+          timeline={{ after: 'demo-title', delay: 0 }}
         >
           <div className="demo-video__scrim" />
         </Animate>
@@ -321,7 +321,7 @@ export function DemoVideoScene(): JSX.Element {
 
       {/* 顶部:主标题快速入场(开头即就位),收尾时最后淡出。
           两条 lane 分工:
-            demo-title      —— 640ms 快速入场轴(其他 lane 靠 waitFor 挂在它后面,不可改)
+            demo-title      —— 640ms 快速入场轴(其他 lane 靠 after 挂在它后面,不可改)
             demo-title-out  —— 4000ms 收束轴(与视频/副标题同轴),只负责反向退场。
           标题是画面框架,故排在四行副标题**之后**淡出(0.95),形成由内向外的收束。 */}
       <Position at={{ anchor: 'center-x', y: 200 }}>
@@ -350,7 +350,7 @@ export function DemoVideoScene(): JSX.Element {
               },
             }}
             duration={{ enter: SUBTITLE_DURATION_MS }}
-            timeline={{ waitFor: 'demo-title', delay: 0 }}
+            timeline={{ after: 'demo-title', delay: 0 }}
           >
             <div className="demo-video__titleblock">
               <VideoTitle text={t('demoVideo.title')} />
@@ -359,13 +359,13 @@ export function DemoVideoScene(): JSX.Element {
         </Animate>
       </Position>
 
-      {/* 画面正中:时光副标题(新主角),waitFor 标题 → 与视频并行、逐行显影 + 逐字暖色 */}
+      {/* 画面正中:时光副标题(新主角),after 标题 → 与视频并行、逐行显影 + 逐字暖色 */}
       <Position at={{ anchor: 'center' }}>
         <Animate
           animateId="demo-subtitle"
           enterAnimation={{ initial: { opacity: 1 }, animate: { opacity: 1 } }}
           duration={{ enter: SUBTITLE_DURATION_MS }}
-          timeline={{ waitFor: 'demo-title', delay: 0 }}
+          timeline={{ after: 'demo-title', delay: 0 }}
         >
           <TimeSubtitle text={t('demoVideo.intro')} />
         </Animate>

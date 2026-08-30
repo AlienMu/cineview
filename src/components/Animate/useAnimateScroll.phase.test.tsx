@@ -14,7 +14,7 @@ import { useScrollZoneRegistry } from '../CineView/useScrollZoneRegistry';
 import {
   useSceneAnimationRegistry,
   type SceneAnimationRegistrationLease,
-  type WaitForOutcome,
+  type AfterOutcome,
 } from '../Scene/useSceneAnimationRegistry';
 
 const animationControlsRegistry: Array<{
@@ -186,7 +186,7 @@ function createLeaseHarness(): {
   let generation = 0;
   const completed = new Set<string>();
   const generations = new Map<string, number>();
-  const subscribers = new Map<string, Set<(outcome: WaitForOutcome) => void>>();
+  const subscribers = new Map<string, Set<(outcome: AfterOutcome) => void>>();
   const publishSpy = jest.fn();
 
   const complete = (id: string): void => {
@@ -216,34 +216,34 @@ function createLeaseHarness(): {
         animateId: id,
         generation: leaseGeneration,
         getCalculatedDelay: () => info.delay,
-        observeWaitFor: (listener) => {
-          if (!info.waitFor) {
+        observeAfter: (listener) => {
+          if (!info.after) {
             listener({ kind: 'satisfied', source: 'none' });
             return () => undefined;
           }
-          if (completed.has(info.waitFor)) {
+          if (completed.has(info.after)) {
             listener({
               kind: 'satisfied',
               source: 'completed',
-              leaderId: info.waitFor,
-              generation: generations.get(info.waitFor),
+              leaderId: info.after,
+              generation: generations.get(info.after),
             });
             return () => undefined;
           }
           listener({
             kind: 'pending',
-            leaderId: info.waitFor,
-            generation: generations.get(info.waitFor),
+            leaderId: info.after,
+            generation: generations.get(info.after),
           });
-          let listeners = subscribers.get(info.waitFor);
+          let listeners = subscribers.get(info.after);
           if (!listeners) {
             listeners = new Set();
-            subscribers.set(info.waitFor, listeners);
+            subscribers.set(info.after, listeners);
           }
           listeners.add(listener);
           return () => {
             listeners?.delete(listener);
-            if (listeners?.size === 0) subscribers.delete(info.waitFor!);
+            if (listeners?.size === 0) subscribers.delete(info.after!);
           };
         },
         publishEnterCompleted: () => {
@@ -357,7 +357,7 @@ function ProductionZoneOwnerHarness({
             animateId="owner-lifecycle-follower"
             enterAnimation="fade-in"
             duration={{ enter: 20 }}
-            timeline={{ sceneControlled: false, waitFor: 'shared-zone-leader' }}
+            timeline={{ driver: 'clock', after: 'shared-zone-leader' }}
           >
             {({ phase }) => <output data-testid="owner-lifecycle-follower-phase">{phase}</output>}
           </Animate>
@@ -765,7 +765,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           animateId="visibility-probe"
           enterAnimation="fade-in"
           exitAnimation="fade-out"
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div>Visibility probe</div>
         </Animate>
@@ -816,7 +816,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="oversized-probe"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Oversized content</article>
           </Animate>
@@ -882,7 +882,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="margin-probe"
             enterAnimation="fade-in"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
             visibility={{ enterMargin: 300 }}
           >
             <article>Custom margin content</article>
@@ -926,7 +926,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             <Animate
               animateId="global-margin-probe"
               enterAnimation="fade-in"
-              timeline={{ sceneControlled: false }}
+              timeline={{ driver: 'clock' }}
             >
               <article>Global margin content</article>
             </Animate>
@@ -972,7 +972,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             <Animate
               animateId="partial-doc-content"
               enterAnimation="fade-in"
-              timeline={{ sceneControlled: false }}
+              timeline={{ driver: 'clock' }}
             >
               <article>Partially visible content</article>
             </Animate>
@@ -1030,7 +1030,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="above-top-probe"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Above top content</article>
           </Animate>
@@ -1070,7 +1070,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           animateId="first-screen-timeout-probe"
           enterAnimation="fade-in"
           duration={{ enter: 60 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <article>First screen timeout content</article>
         </Animate>
@@ -1092,7 +1092,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           animateId="first-screen-timeout-probe"
           enterAnimation="fade-in"
           duration={{ enter: 60 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <article>First screen timeout content</article>
         </Animate>
@@ -1124,7 +1124,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           animateId="unknown-first-screen-gate"
           enterAnimation="fade-in"
           duration={{ enter: 60 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <article>Unknown first-screen gate</article>
         </Animate>
@@ -1170,7 +1170,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         <Animate
           animateId="timeout-rearm-probe"
           enterAnimation="fade-in"
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <article>Timeout re-arm content</article>
         </Animate>
@@ -1225,7 +1225,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ exit: 40 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           {({ phase }) => <output data-testid="timeout-fallback-phase">{phase}</output>}
         </Animate>
@@ -1289,7 +1289,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             <Animate
               animateId="timeout-static-leader"
               enterAnimation="fade-in"
-              timeline={{ sceneControlled: false }}
+              timeline={{ driver: 'clock' }}
             >
               <article>Static leader</article>
             </Animate>
@@ -1299,7 +1299,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               animateId="timeout-waitfor-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'timeout-static-leader' }}
+              timeline={{ driver: 'clock', after: 'timeout-static-leader' }}
             >
               <article>WaitFor follower</article>
             </Animate>
@@ -1355,7 +1355,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Timeout exit content</article>
           </Animate>
@@ -1402,8 +1402,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="timeout-infinite-probe"
             enterAnimation="fade-in"
-            infiniteAnimation="pulse"
-            timeline={{ sceneControlled: false }}
+            loopAnimation="pulse"
+            timeline={{ driver: 'clock' }}
           >
             <article>Timeout infinite content</article>
           </Animate>
@@ -1466,7 +1466,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="first-screen-bottom-probe"
             enterAnimation="fade-in"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>First screen bottom content</article>
           </Animate>
@@ -1517,7 +1517,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="first-screen-delayed-follower"
             enterAnimation="fade-in"
             duration={{ enter: 60 }}
-            timeline={{ sceneControlled: false, waitFor: 'cold-start-leader', delay: 40 }}
+            timeline={{ driver: 'clock', after: 'cold-start-leader', delay: 40 }}
           >
             {({ phase }) => <output data-testid="first-screen-delayed-phase">{phase}</output>}
           </Animate>
@@ -1550,8 +1550,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
-  it('holds an entered no-exit element at its entered frame when replayOnReenter is false', async () => {
-    // No authored exit + replayOnReenter:false: once entered, leaving the top
+  it('holds an entered no-exit element at its entered frame when replay is false', async () => {
+    // No authored exit + replay:false: once entered, leaving the top
     // must NOT reset to initial — it holds at the entered frame.
     const originalInnerHeight = window.innerHeight;
     let hostRect = createHostRect(300, 700);
@@ -1565,8 +1565,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="no-exit-hold-probe"
             enterAnimation="fade-in"
-            visibility={{ replayOnReenter: false }}
-            timeline={{ sceneControlled: false }}
+            visibility={{ replay: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>No exit hold content</article>
           </Animate>
@@ -1580,8 +1580,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="no-exit-hold-probe"
             enterAnimation="fade-in"
-            visibility={{ replayOnReenter: false }}
-            timeline={{ sceneControlled: false }}
+            visibility={{ replay: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>No exit hold content</article>
           </Animate>
@@ -1605,7 +1605,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       });
 
       // Leave the top (top edge crosses above the viewport top → relTop < 0).
-      // With no exit and replayOnReenter:false, it must stay at the entered frame,
+      // With no exit and replay:false, it must stay at the entered frame,
       // not reset to 0.
       hostRect = createHostRect(-60, 340);
       renderAt(rerender, 1);
@@ -1621,11 +1621,11 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     }
   });
 
-  it('keeps a no-exit element visible on leave even when replayOnReenter is true', async () => {
+  it('keeps a no-exit element visible on leave even when replay is true', async () => {
     // No authored exitAnimation: the element must stay at its entered frame
-    // (opacity 1) when it leaves the top, regardless of replayOnReenter. Without
+    // (opacity 1) when it leaves the top, regardless of replay. Without
     // an exit animation there is no exit — "no exit => stay visible". (Previously
-    // replayOnReenter:true reset it to opacity 0, which read as a snap-disappear.)
+    // replay:true reset it to opacity 0, which read as a snap-disappear.)
     const originalInnerHeight = window.innerHeight;
     let hostRect = createHostRect(300, 700);
     const sceneContext = createScrollSceneContext();
@@ -1638,7 +1638,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="no-exit-replay-probe"
             enterAnimation="fade-in"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>No exit replay content</article>
           </Animate>
@@ -1652,7 +1652,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
           <Animate
             animateId="no-exit-replay-probe"
             enterAnimation="fade-in"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>No exit replay content</article>
           </Animate>
@@ -1677,7 +1677,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
       // Leave the top (top edge crosses above the viewport top → relTop < 0). With
       // no exitAnimation the element holds at its entered frame (opacity 1) — it
-      // does NOT snap to hidden, regardless of replayOnReenter.
+      // does NOT snap to hidden, regardless of replay.
       hostRect = createHostRect(-60, 340);
       renderAt(rerender, 1);
       await flushScroll(window);
@@ -1717,7 +1717,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="handoff-doc-content"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Handoff content</article>
           </Animate>
@@ -1733,7 +1733,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="handoff-doc-content"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Handoff content</article>
           </Animate>
@@ -1779,7 +1779,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         expect(readMotionOpacity()).toBe(0);
       });
 
-      // re-enter from below (replayOnReenter default true) -> tween back to 1.
+      // re-enter from below (replay default true) -> tween back to 1.
       hostRect = createHostRect(1000, 1400);
       await renderAt(rerender, 4);
       hostRect = createHostRect(300, 700);
@@ -1817,7 +1817,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="slide-up"
             exitAnimation="slide-up"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Visibility exit variant content</article>
           </Animate>
@@ -1848,7 +1848,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="slide-up"
             exitAnimation="slide-up"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Visibility exit variant content</article>
           </Animate>
@@ -1875,7 +1875,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="slide-up"
             exitAnimation="slide-up"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Visibility exit variant content</article>
           </Animate>
@@ -1915,7 +1915,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Reverse bottom exit content</article>
           </Animate>
@@ -1931,7 +1931,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Reverse bottom exit content</article>
           </Animate>
@@ -1990,8 +1990,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="visibility-infinite-exit"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
-            timeline={{ sceneControlled: false }}
+            loopAnimation="pulse"
+            timeline={{ driver: 'clock' }}
           >
             <article>Visibility infinite content</article>
           </Animate>
@@ -2042,8 +2042,8 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="visibility-infinite-exit"
             enterAnimation="fade-in"
             exitAnimation="fade-out"
-            infiniteAnimation="pulse"
-            timeline={{ sceneControlled: false }}
+            loopAnimation="pulse"
+            timeline={{ driver: 'clock' }}
           >
             <article>Visibility infinite content</article>
           </Animate>
@@ -2084,7 +2084,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="waitfor-visibility-probe"
             enterAnimation="fade-in"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false, delay: 40, waitFor: 'leader' }}
+            timeline={{ driver: 'clock', delay: 40, after: 'leader' }}
           >
             <article>WaitFor visibility content</article>
           </Animate>
@@ -2110,7 +2110,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="waitfor-visibility-probe"
             enterAnimation="fade-in"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false, delay: 40, waitFor: 'leader' }}
+            timeline={{ driver: 'clock', delay: 40, after: 'leader' }}
           >
             <article>WaitFor visibility content</article>
           </Animate>
@@ -2153,7 +2153,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="late-follower"
             enterAnimation="fade-in"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false, delay: 20, waitFor: 'leader' }}
+            timeline={{ driver: 'clock', delay: 20, after: 'leader' }}
           >
             <article>Late follower content</article>
           </Animate>
@@ -2202,7 +2202,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="cascade-leader"
             enterAnimation="fade-in"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false }}
+            timeline={{ driver: 'clock' }}
           >
             <article>Cascade leader</article>
           </Animate>
@@ -2210,7 +2210,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
             animateId="cascade-follower"
             enterAnimation="fade-in"
             duration={{ enter: 80, exit: 80 }}
-            timeline={{ sceneControlled: false, waitFor: 'cascade-leader' }}
+            timeline={{ driver: 'clock', after: 'cascade-leader' }}
           >
             <article>Cascade follower</article>
           </Animate>
@@ -2496,10 +2496,10 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
     return Number(node?.getAttribute('data-opacity') ?? '0');
   }
 
-  it('shows an infiniteAnimation-only element inside a takeover zone at its entered rest frame and runs its loop', async () => {
+  it('shows an loopAnimation-only element inside a takeover zone at its entered rest frame and runs its loop', async () => {
     // S-F6: no authored enter/exit -> no zone budget. The old code held such an
     // element at the initial frame (visualMotion 0 -> empty-variant default
-    // opacity 0), so an infiniteAnimation-only element was permanently invisible
+    // opacity 0), so an loopAnimation-only element was permanently invisible
     // inside a takeover zone AND its infinite loop never started (budget lookup
     // pinned shouldRunInfinite to false). It must instead rest at its entered
     // frame with the loop gated by the scene runtime state.
@@ -2509,7 +2509,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
       <SceneContext.Provider value={{ ...sceneContext, ...overrides }}>
         <ScrollZoneProviders runtime={createZoneRuntime(0, 1)}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
-            <Animate animateId="pulse-only" infiniteAnimation="pulse">
+            <Animate animateId="pulse-only" loopAnimation="pulse">
               <div>Persistent pulse</div>
             </Animate>
           </SceneScrollTakeoverContext.Provider>
@@ -2598,7 +2598,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
             animateId="zone-follower"
             enterAnimation="fade-in"
             duration={{ enter: 60, exit: 60 }}
-            timeline={{ sceneControlled: false, waitFor: 'intro' }}
+            timeline={{ driver: 'clock', after: 'intro' }}
           >
             <article>Cross-driver follower</article>
           </Animate>
@@ -2669,7 +2669,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
           animateId="late-zone-follower"
           enterAnimation="fade-in"
           duration={{ enter: 60, exit: 60 }}
-          timeline={{ sceneControlled: false, waitFor: 'intro' }}
+          timeline={{ driver: 'clock', after: 'intro' }}
         >
           <article>Late cross-driver follower</article>
         </Animate>
@@ -2783,7 +2783,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
                 animateId="strict-leader"
                 enterAnimation="fade-in"
                 duration={{ enter: 20 }}
-                timeline={{ sceneControlled: false }}
+                timeline={{ driver: 'clock' }}
               >
                 {({ phase }) => <output data-testid="strict-leader-phase">{phase}</output>}
               </Animate>
@@ -2791,7 +2791,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
                 animateId="strict-follower"
                 enterAnimation="fade-in"
                 duration={{ enter: 20 }}
-                timeline={{ sceneControlled: false, waitFor: 'strict-leader' }}
+                timeline={{ driver: 'clock', after: 'strict-leader' }}
               >
                 {({ phase }) => <output data-testid="strict-follower-phase">{phase}</output>}
               </Animate>
@@ -2846,14 +2846,14 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
             <Animate
               animateId="subscriber-waiting-follower"
               enterAnimation="fade-in"
-              timeline={{ sceneControlled: false, waitFor: 'never-ready-leader' }}
+              timeline={{ driver: 'clock', after: 'never-ready-leader' }}
             >
               {({ phase }) => <output data-testid="subscriber-waiting-phase">{phase}</output>}
             </Animate>
             <Animate
               animateId="recheck-waiting-follower"
               enterAnimation="fade-in"
-              timeline={{ sceneControlled: false, waitFor: 'recheck-ready-leader' }}
+              timeline={{ driver: 'clock', after: 'recheck-ready-leader' }}
             >
               {({ phase }) => <output data-testid="recheck-waiting-phase">{phase}</output>}
             </Animate>
@@ -2861,8 +2861,8 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="timer-waiting-follower"
               enterAnimation="fade-in"
               timeline={{
-                sceneControlled: false,
-                waitFor: 'delay-ready-leader',
+                driver: 'clock',
+                after: 'delay-ready-leader',
                 delay: 1000,
               }}
             >
@@ -2935,7 +2935,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="production-missing-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'production-missing-leader' }}
+              timeline={{ driver: 'clock', after: 'production-missing-leader' }}
             >
               {({ phase }) => <output data-testid="production-missing-phase">{phase}</output>}
             </Animate>
@@ -2979,7 +2979,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="production-cycle-a"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'production-cycle-b' }}
+              timeline={{ driver: 'clock', after: 'production-cycle-b' }}
             >
               {({ phase }) => <output data-testid="production-cycle-a-phase">{phase}</output>}
             </Animate>
@@ -2987,7 +2987,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="production-cycle-b"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'production-cycle-a' }}
+              timeline={{ driver: 'clock', after: 'production-cycle-a' }}
             >
               {({ phase }) => <output data-testid="production-cycle-b-phase">{phase}</output>}
             </Animate>
@@ -3035,7 +3035,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
             animateId="reregistered-leader"
             enterAnimation="fade-in"
             duration={{ enter: 40 }}
-            timeline={{ sceneControlled: false, delay: leaderDelay }}
+            timeline={{ driver: 'clock', delay: leaderDelay }}
           >
             {({ phase }) => <output data-testid="reregistered-leader-phase">{phase}</output>}
           </Animate>
@@ -3044,7 +3044,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="reregistered-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'reregistered-leader' }}
+              timeline={{ driver: 'clock', after: 'reregistered-leader' }}
             >
               {({ phase }) => <output data-testid="reregistered-follower-phase">{phase}</output>}
             </Animate>
@@ -3110,7 +3110,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
             enterAnimation="fade-in"
             exitAnimation="fade-out"
             duration={{ enter: 40, exit: 40 }}
-            timeline={{ sceneControlled: false, delay: leaderDelay }}
+            timeline={{ driver: 'clock', delay: leaderDelay }}
           >
             {({ phase }) => <output data-testid="exited-reregistered-leader-phase">{phase}</output>}
           </Animate>
@@ -3119,7 +3119,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="exited-reregistered-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'exited-reregistered-leader' }}
+              timeline={{ driver: 'clock', after: 'exited-reregistered-leader' }}
             >
               {({ phase }) => (
                 <output data-testid="exited-reregistered-follower-phase">{phase}</output>
@@ -3197,7 +3197,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
             animateId="stale-tween-leader"
             enterAnimation="fade-in"
             duration={{ enter: 120 }}
-            timeline={{ sceneControlled: false, delay: leaderDelay }}
+            timeline={{ driver: 'clock', delay: leaderDelay }}
           >
             {({ phase }) => <output data-testid="stale-tween-leader-phase">{phase}</output>}
           </Animate>
@@ -3248,7 +3248,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="waiting-phase-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'waiting-phase-leader' }}
+              timeline={{ driver: 'clock', after: 'waiting-phase-leader' }}
             >
               {({ phase }) => <output data-testid="waiting-phase">{phase}</output>}
             </Animate>
@@ -3291,7 +3291,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="dependency-cancel-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'dependency-cancel-leader' }}
+              timeline={{ driver: 'clock', after: 'dependency-cancel-leader' }}
             >
               {({ phase }) => <output data-testid="dependency-cancel-phase">{phase}</output>}
             </Animate>
@@ -3343,7 +3343,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
               animateId="delay-cancel-follower"
               enterAnimation="fade-in"
               duration={{ enter: 40 }}
-              timeline={{ sceneControlled: false, waitFor: 'delay-cancel-leader', delay: 80 }}
+              timeline={{ driver: 'clock', after: 'delay-cancel-leader', delay: 80 }}
             >
               {({ phase }) => <output data-testid="delay-cancel-phase">{phase}</output>}
             </Animate>

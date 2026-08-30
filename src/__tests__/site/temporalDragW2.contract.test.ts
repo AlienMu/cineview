@@ -599,7 +599,7 @@ describe('/drag W2 clapperboard contract', () => {
     const lightRuntime = stripComments(fs.readFileSync(LIGHT_FILE, 'utf8'));
     expect(lightRuntime).toContain('ACT2_LIGHT_LAYERS.map((layer) =>');
     expect(lightRuntime).toContain('animateId={layer.id}');
-    expect(lightRuntime).not.toContain('infiniteAnimation');
+    expect(lightRuntime).not.toContain('loopAnimation');
     expect(lightRuntime).not.toContain('s02-light-spill');
   });
 });

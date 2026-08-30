@@ -127,34 +127,22 @@
   align-items: center;
   gap: 6px;
   padding: 7px 12px;
-  border-radius: 999px;
   color: var(--ink-mute);
   /* 2026-08-09 用户指令「去掉按钮的背景」：删 background + backdrop-filter
-   * （原「暖白半透明药丸 + 毛玻璃」），只留图标+文字。padding/圆角保留——
-   * hover 光晕仍以这个盒为界，去底不等于去点击热区。 */
-  border: 1px solid transparent;
+   * （原「暖白半透明药丸 + 毛玻璃」），只留图标+文字。
+   * 2026-08-29：药丸轮廓本身还在（radius 999px），但**无框无底色**——
+   * hover 也不出边框，只加深字色。 */
+  border: none;
+  border-radius: 999px;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: 0.08em;
 
-  box-shadow:
-    0 0 50px 10px transparent,
-    0 0 50px 10px transparent;
-  transition:
-    color 0.35s var(--ease-out),
-    border-color 0.35s var(--ease-out),
-    box-shadow 1s var(--ease-out);
+  transition: color 0.25s var(--ease-out);
 }
 
-/* hover:加深色 + accent 柔光晕环(与按钮同款,风格统一),不动位移/边框。
- * 2026-08-14:光晕色从写死 rgba(201,138,106) 改 color-mix(var(--accent)) 派生——
- * 首屏 LUT[0] 回奶白桃后写死琥珀与镜头色脱钩;派生后 hover 光晕随滚动流动。
- * 与「中性墨投影」裁决不冲突(光晕是强调件,非投影)。 */
 .lang-toggle:hover {
   color: var(--accent-ink);
-  box-shadow:
-    0 0 10px 2px color-mix(in srgb, var(--accent) 12%, transparent),
-    0 0 14px 0 color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .lang-toggle__globe {
@@ -331,8 +319,37 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   justify-content: center;
 }
 
+/* hero 次级动作：mono 小字文本链 + 图标，不是按钮——无边框无底，
+ * hover 字色变 accent + 1px 下划线（编辑风的"出口"）。 */
+.hero__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out);
+}
+
+.hero__link svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.hero__link:hover {
+  color: var(--accent-ink);
+  border-bottom-color: var(--accent-ink);
+}
+
 /* 按钮:hover 用 accent 光晕环(双层 box-shadow:内圈柔环 + 外圈光晕),
- * 有"打光"电影感,不动盒模型/位移。gap 给图标与文字留距;图标随按钮色。 */
+ * 有"打光"电影感,不动盒模型/位移。gap 给图标与文字留距;图标随按钮色。
+ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -419,138 +436,144 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   letter-spacing: 0.12em;
 }
 
-/* 未知 slug 404 态（审计 P1-1） */
+/* ============================================================================
+ * 文档站排版系统（2026-08-24 重构，task-flow 2026-08-24-docs-full-revamp N4）
+ *
+ * 一页 = .docs-page
+ * ├── .docs-page__header（页头：eyebrow + 大标题 + 导语 + 返回）
+ * └── .docs-layout（三栏 grid）
+ *     ├── .docs-nav（分组导航，桌面 sticky）
+ *     ├── .docs-article（正文；markdown 全部渲染进 .docs-article__markdown）
+ *     └── .docs-toc（本页锚点目录，桌面 sticky，≤1080px 隐藏）
+ *
+ * 纪律：色值全走 tokens（--ink* / --frame-line* / --accent-ink / --rec），
+ * 不新造色板；投影/描边一律中性墨，不引暖色；无无限动画。
+ * ========================================================================== */
 
-.docs-article__notfound {
-  display: grid;
-  gap: 14px;
-  justify-items: start;
-  padding-top: 24px;
-  color: var(--ink-soft);
-}
+/* —— 页面骨架 —— */
 
-/* 表格溢出修复（审计 P1-3）：grid 隐式轨道 min-width:auto 被长表格撑宽——
-   文章列允许收缩 + 表格自带横向滚动。 */
-
-.docs-article {
-  min-width: 0;
-}
-
-/* ============================================================
- * 文档第二轮（R1）：代码块 chrome / 标题间距 / sticky 双栏 / 锚点精度
- * ============================================================ */
-
-/* 代码块：语言标签头 + 收束的框体（标签头与 hljs 令牌共用一套色板） */
-.docs-code {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #ffffff;
-  overflow: hidden;
-}
-
-/* 旧裸 pre 样式让位于 .docs-code 包裹（未包裹场景兜底保留边框） */
-
-/* 标题间距：页标题与 md 小节标题的呼吸位 */
-.docs-article > h2 {
-  margin: 0 0 28px;
-}
-
-/* sticky 双栏：长页滚动时导航与目录常驻。仅桌面——移动端导航是横向块状
-   元素（高 365px），sticky 会无背景常驻视口顶并让正文滚进导航文字下方
-   （R3 复审 FAIL 项：文字压文字破版），窄屏让它随文档流正常滚动。 */
-@media (min-width: 760px) {
-  .docs-nav,
-  .docs-toc {
-    position: sticky;
-    top: 0;
-    align-self: start;
-    max-height: 100vh;
-    overflow-y: auto;
-    scrollbar-width: thin;
-  }
-}
-
-/* Documentation workspace ------------------------------------------------- */
 .docs-page {
   min-height: 100vh;
-  background: #ffffff;
+  /* 2026-08-29 像素风整改：纯白 → 暖纸，滤掉冷感、与 header #fffcf7 同族。 */
+  background: #fff9f2;
 }
+
 .docs-page__header {
   width: min(100% - 64px, 1440px);
   margin: 0 auto;
-  padding: 72px 0 36px;
+  padding: 72px 0 40px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 32px;
   border-bottom: 1px solid var(--frame-line);
 }
-.docs-page__header h1 {
+
+/* 页头站点名：视觉上仍是大标题，语义上已不是 h1（见 DocsPage.tsx）。
+   沿用 h1 的字阶，避免 N0 改层级时顺带改动视觉。 */
+/* 值逐条对齐 tokens.css:102-111 的 h1..h4 基规则，只有 letter-spacing 沿用
+   原 .docs-page__header h1 的覆盖值 0，确保改层级不改像素。 */
+.docs-page__title {
   margin-top: 8px;
+  font-family: var(--font-display);
   font-size: var(--text-4xl);
+  font-weight: 600;
+  line-height: 1.08;
   letter-spacing: 0;
+  color: var(--ink);
 }
+
 .docs-page__lead {
   max-width: 680px;
   margin-top: 14px;
   color: var(--ink-soft);
   font-size: var(--text-lg);
 }
+
 .docs-page__actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* TOC 栏 200 → 180：正文栏是四列 props 表的宿主，宽度直接决定说明列能否
+   一行写完（N0 实测：1440 视口下 markdown 仅得 730px，desktop 就有 22 处
+   单元格换 3 行以上）。TOC 只放锚点短标题，180 足够。 */
 .docs-layout {
   width: min(100% - 64px, 1440px);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 190px;
+  grid-template-columns: 232px minmax(0, 1fr) 180px;
   min-height: calc(100vh - 205px);
 }
+
+/* —— 左侧分组导航 —— */
+
 .docs-nav {
-  padding: 32px 24px 80px 0;
+  padding: 36px 28px 80px 0;
   border-right: 1px solid var(--frame-line);
 }
+
 .docs-nav__group + .docs-nav__group {
-  margin-top: 28px;
+  margin-top: 32px;
 }
+
 .docs-nav__group h2 {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  padding-left: 32px;
   color: var(--ink-mute);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   line-height: 1.3;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
 .docs-nav__link {
-  min-height: 34px;
+  min-height: 36px;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   color: var(--ink-soft);
   font-size: 14px;
+  line-height: 1.4;
   border-left: 2px solid transparent;
   transition:
     color 0.18s ease,
-    border-color 0.18s ease;
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
-.docs-nav__link:hover,
+
+.docs-nav__link:hover {
+  color: var(--ink);
+}
+
 .docs-nav__link.is-active {
   color: var(--ink);
+  font-weight: 600;
   border-left-color: var(--accent-ink);
+  background: var(--frame-line-soft);
 }
+
 .docs-nav__index {
+  padding-left: 8px;
   color: var(--ink-mute);
   font-size: 10px;
 }
+
+/* —— 中间正文 —— */
+
+/* min-width:0 —— grid 隐式轨道 min-width:auto 会被长表格/代码撑破（审计 P1-3）。
+   横向 padding 从 clamp(28,5vw,72) 收到 clamp(24,3vw,44)：原值在 1440 视口下
+   左右各吃 72px，944px 的栏只剩 730px 给正文。收窄后可用宽 ≥840px，四列表的
+   说明列才有余量。 */
 .docs-article {
   min-width: 0;
-  padding: 48px clamp(28px, 5vw, 80px) 120px;
+  padding: 44px clamp(24px, 3vw, 44px) 120px;
 }
+
 .docs-article__meta {
   display: flex;
   justify-content: space-between;
@@ -560,89 +583,58 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   font-size: 11px;
   border-bottom: 1px solid var(--frame-line-soft);
 }
-.docs-article > h2 {
-  margin-top: 30px;
+
+/* 文章标题。原为 h2，与正文自身的 h2 同级（层级错位：一页出现两种含义的 h2，
+   且页头另有一个 h1）。改为 h1 后本页只有一个 h1，正文 h2 是其真子级。 */
+.docs-article > h1 {
+  margin: 30px 0 28px;
   font-size: var(--text-3xl);
   letter-spacing: 0;
 }
-.docs-article__intro {
-  max-width: 780px;
-  margin-top: 18px;
-  color: var(--ink-soft);
-  font-size: var(--text-lg);
-  line-height: 1.75;
-}
-.docs-article__body {
-  margin-top: 56px;
-}
-.docs-section {
+
+/* 未知 slug 404 态（审计 P1-1） */
+.docs-article__notfound {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 18px;
-  scroll-margin-top: 24px;
-}
-.docs-section + .docs-section {
-  margin-top: 58px;
-  padding-top: 42px;
-  border-top: 1px solid var(--frame-line-soft);
-}
-.docs-section__number {
-  padding-top: 5px;
-  color: var(--accent-ink);
-  font-size: 11px;
-}
-.docs-section h3 {
-  font-size: var(--text-xl);
-  letter-spacing: 0;
-}
-.docs-section p {
-  max-width: 780px;
-  margin-top: 14px;
+  gap: 14px;
+  justify-items: start;
+  padding-top: 24px;
   color: var(--ink-soft);
-  line-height: 1.8;
 }
-.docs-section pre {
-  max-width: 100%;
-  margin-top: 24px;
-  padding: 22px 24px;
-  overflow: auto;
-  color: #f6f2e9;
-  background: #1b1f24;
-  border-left: 3px solid #c98a6a;
-  border-radius: 4px;
-  box-shadow: var(--shadow-sm);
-}
-.docs-section code {
-  font-size: 13px;
-  line-height: 1.7;
-  white-space: pre;
-}
+
+/* —— 右侧锚点目录 —— */
+
 .docs-toc {
-  padding: 48px 0 80px 24px;
+  padding: 44px 0 80px 24px;
   border-left: 1px solid var(--frame-line);
 }
+
 .docs-toc__label {
   margin-bottom: 12px;
   color: var(--ink-mute);
   font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
 .docs-toc a {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   gap: 6px;
-  padding: 7px 0;
+  padding: 6px 0;
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.45;
 }
+
 .docs-toc a:hover {
   color: var(--accent-ink);
 }
+
 .docs-toc a span {
   color: var(--ink-mute);
   font-size: 10px;
 }
+
 .docs-toc .docs-toc__source {
   display: block;
   margin-top: 26px;
@@ -651,85 +643,347 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   border-top: 1px solid var(--frame-line-soft);
 }
 
-/* ============================================================
- * docs markdown 管线（阶段 3 T1.1）：react-markdown 正文 + hljs 高亮。
- * 仅作用于 .docs-article__markdown，不外溢；色值全部走 tokens 令牌。
- * ============================================================ */
+/* —— markdown 正文排版 ——
+ * 仅作用于 .docs-article__markdown，不外溢。 */
 
+/* 76ch 是**散文**的可读行长上限。它原先挂在这个容器上，于是把表格一并钉死在
+   ~730px —— N0 实测：把 article 横向 padding 从 72 收到 44 后，desktop 可用宽
+   仍是 730，因为真正的约束在这里，不在 padding。
+   容器封顶时子元素无法反向突破（`max-width:none` 在被压扁的父级里无意义），
+   所以把测度**下移到散文元素自身**：容器放开吃满栏宽，p/列表/标题/引用各自
+   限 76ch，表格与代码块因此自然获得整栏宽度。 */
 .docs-article__markdown {
   display: grid;
-  gap: 1rem;
+  gap: 1.05rem;
   font-size: var(--text-base);
-  line-height: 1.75;
+  line-height: 1.8;
   color: var(--ink-soft);
 }
 
+/* 散文测度：逐元素限宽，值与原容器一致（76ch）。 */
+.docs-article__markdown > p,
+.docs-article__markdown > ul,
+.docs-article__markdown > ol,
+.docs-article__markdown > blockquote,
+.docs-article__markdown > h2,
+.docs-article__markdown > h3,
+.docs-article__markdown > hr {
+  max-width: 76ch;
+}
+
+.docs-article__markdown > * {
+  min-width: 0;
+}
+
+/* 首段承担导语角色 */
 .docs-article__markdown > p:first-child {
-  /* 首段承担 legacy .docs-article__intro 的导语角色 */
   font-size: var(--text-lg);
+  line-height: 1.75;
   color: var(--ink);
+}
+
+/* 锚点精度：标题落点离视口顶留稳定呼吸位（无 fixed 头，32px 恒定） */
+.docs-article__markdown h2,
+.docs-article__markdown h3 {
+  scroll-margin-top: 32px;
+  color: var(--ink);
+  letter-spacing: 0;
 }
 
 .docs-article__markdown h2 {
-  margin-top: 1.25rem;
-  font-size: var(--text-xl);
-  color: var(--ink);
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--frame-line-soft);
+  font-size: var(--text-2xl);
+}
+
+/* 第一节 h2 不需要分隔线 */
+.docs-article__markdown > h2:first-of-type {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .docs-article__markdown h3 {
-  margin-top: 0.75rem;
+  margin-top: 1.5rem;
   font-size: var(--text-lg);
-  color: var(--ink);
 }
 
-.docs-article__markdown pre {
-  padding: 1rem 1.25rem;
-  overflow-x: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #f7f8fa;
-  font-size: 0.85rem;
-  line-height: 1.6;
+.docs-article__markdown p {
+  max-width: 76ch;
 }
 
-.docs-article__markdown :not(pre) > code {
-  padding: 0.1em 0.4em;
-  border: 1px solid #eceef1;
-  border-radius: 5px;
-  background: #f1f3f5;
-  font-size: 0.85em;
+.docs-article__markdown a {
   color: var(--accent-ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.18s ease;
+}
+
+.docs-article__markdown a:hover {
+  border-bottom-color: var(--accent-ink);
+}
+
+.docs-article__markdown strong {
+  color: var(--ink);
 }
 
 .docs-article__markdown ul,
 .docs-article__markdown ol {
   display: grid;
-  gap: 0.4rem;
-  padding-left: 1.25rem;
+  gap: 0.45rem;
+  padding-left: 1.4rem;
 }
 
+.docs-article__markdown li::marker {
+  color: var(--ink-mute);
+}
+
+/* 行内 code：浅墨底 + 细描边，与正文基线对齐 */
+.docs-article__markdown :not(pre) > code {
+  padding: 0.12em 0.42em;
+  border: 1px solid var(--frame-line);
+  border-radius: 0;
+  background: var(--film-white-2);
+  font-size: 0.85em;
+  color: var(--accent-ink);
+  /* 长标识符必须能断行，否则会撑破页面产生**页面级**横向滚动：N0 实测 mobile
+     `03-animate` 的散文里 `enterAnimation/exitAnimation/loopAnimation`
+     （47 字符不可断）让 docScrollWidth 449 > 视口 390。
+     `overflow-wrap: anywhere` 只在没有可用断点时才切，不影响正常英文换行；
+     表格首列的 `white-space: nowrap` 优先级更高，标识符列仍不折行（≥761px）。 */
+  overflow-wrap: anywhere;
+}
+
+/* 代码块 chrome：语言标签头 + 收束框体（编辑风：1px 暖线、无投影）。 */
+.docs-code {
+  border: 1px solid var(--frame-line);
+  border-radius: 0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.docs-code__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--frame-line);
+  background: var(--film-white-2);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.docs-code__dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent-ink);
+  opacity: 0.75;
+}
+
+.docs-code pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* 未包裹的裸 pre 兜底（正常路径已由 markdownComponents.pre 包成 .docs-code） */
+.docs-article__markdown > pre {
+  border: 1px solid var(--frame-line);
+  border-radius: 0;
+}
+
+.docs-article__markdown pre {
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+/* 表格：中性描边 + th 浅底；长表自带横向滚动（宽度不撑破栏）。
+ *
+ * N0 列宽治理（2026-08-27，探针 site/scripts/_docs-audit.mjs 实测驱动）：
+ * 原先只有 `display:block; overflow-x:auto`，没有任何列宽约束 —— 列宽由内容按
+ * 比例挤压，四列 props 表在 730px 里每列只剩 140-230px，实测 desktop 22 处
+ * 单元格换 ≥3 行、`03-animate` 的 Props 表 48/64 单元格在换行、
+ * `09-use-animate-timeline` 的 frame 行（141px 列宽塞 130 字）换到 7-10 行。
+ *
+ * 治法：`table-layout: auto` + 首列 min-width（prop/字段名列）+ 首列 code 不折行。
+ * 说明列不设 min-width，让它吃掉剩余空间。窄屏保留 overflow-x 横滚兜底。 */
 .docs-article__markdown table {
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .docs-article__markdown th,
 .docs-article__markdown td {
-  padding: 0.45rem 0.75rem;
+  padding: 0.5rem 0.8rem;
   border: 1px solid var(--frame-line);
   text-align: left;
+  vertical-align: top;
+}
+
+/* 列宽下限只在**真表格档位**生效（≥1281px）。断点与下方卡片档（≤1280px）严格互补，
+   两者不得重叠 —— 否则卡片模式下的 td 会同时吃到 min-width，把「列名 + 值」的
+   两栏 grid 撑出容器。 */
+@media (min-width: 1281px) {
+  /* 首列是 prop / 字段 / 回调名，几乎总是 inline code。给它一个下限并禁止
+     在标识符内部折行 —— `animateId` 被断成两行是最刺眼的一处。 */
+  .docs-article__markdown table th:first-child,
+  .docs-article__markdown table td:first-child {
+    min-width: 8.5rem;
+  }
+
+  /* 类型列（第二列）同样是 code，给略小的下限。 */
+  .docs-article__markdown table td:nth-child(2) {
+    min-width: 7rem;
+  }
+
+  /* 说明列在此区间**不设下限**：试过 18rem，结果是表格开始横滚但换行反而更多
+     （laptop 22→29、narrow 23→31 处 ≥3 行），因为撑宽后其余列被压。中等视口
+     （1024-1280）的四列表仍有 7 行单元格，属 N0 未闭合项，见 task-flow。 */
+}
+
+/* 标识符不在内部断行 —— 同样只在真表格档（≥1281px）。卡片档里值区独占一整行，
+   长标识符靠 `overflow-wrap: anywhere` 换行即可，强制 nowrap 会撑破卡片。 */
+@media (min-width: 1281px) {
+  .docs-article__markdown table td:first-child > code,
+  .docs-article__markdown table th:first-child > code {
+    white-space: nowrap;
+  }
+}
+
+/* —— 窄屏 / 中屏：宽表转「堆叠卡片」 ——
+ *
+ * 为什么不用列宽下限：326px 容器里给任一列 min-width，只是把压缩转移给别的列
+ * （N0 实测两次：末列 15rem → 中间列被压到 64px、最坏单元格 9→20 行；末列 18rem
+ * → laptop ≥3 行表 22→29）。列数不变的前提下，窄容器里的四列表无解。
+ *
+ * 卡片模式：一行 = 一张卡，单元格改为「列名 + 值」的两栏 grid。列名来自渲染期
+ * 注入的 `data-label`（见 DocsPage.tsx 的 TableHeadersContext —— CSS 取不到
+ * thead 文本，必须由 JS 下发）。表头行整体隐藏。
+ *
+ * 触发档位：≤1280px。实测定档依据：正文栏宽 = 视口 − 侧栏 − TOC − padding，
+ * 1280 视口只剩 727px、1024 剩 699px、920 剩 601px，四列表在这些宽度下最坏单元格
+ * 分别换 6/7/9 行 —— 全都压不开。只有 ≥1281px（正文栏 ≥878px）才够放真表格。 */
+@media (max-width: 1280px) {
+  /* 表格容器回归块级流：不再需要横滚，卡片天然纵向堆叠。 */
+  .docs-article__markdown table {
+    display: block;
+    overflow-x: visible;
+  }
+
+  .docs-article__markdown thead {
+    /* 不用 display:none —— 那会把表头从无障碍树里摘掉。clip 保留语义、不占位。 */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .docs-article__markdown tbody,
+  .docs-article__markdown tr,
+  .docs-article__markdown td {
+    display: block;
+    width: auto;
+  }
+
+  /* 一行 = 一张卡。行间用间距分隔，卡内单元格用细线分隔。 */
+  .docs-article__markdown tr {
+    margin: 0 0 0.85rem;
+    border: 1px solid var(--frame-line);
+    border-radius: 0;
+    overflow: hidden;
+    background: #ffffff;
+  }
+
+  .docs-article__markdown tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* 单元格：左列名 + 右值。列名用等宽小字，与正文区分。 */
+  .docs-article__markdown td {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.5rem 0.8rem;
+    border: 0;
+    border-top: 1px solid var(--frame-line-soft);
+  }
+
+  .docs-article__markdown td:first-child {
+    border-top: 0;
+    background: var(--frame-line-soft);
+  }
+
+  .docs-article__markdown td::before {
+    content: attr(data-label);
+    color: var(--ink-mute);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.55;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+  }
+
+  /* 无 data-label（渲染期未注入，或非标准表结构）时退回单栏，不留空位。 */
+  .docs-article__markdown td:not([data-label])::before,
+  .docs-article__markdown td[data-label='']::before {
+    display: none;
+  }
+
+  .docs-article__markdown td:not([data-label]),
+  .docs-article__markdown td[data-label=''] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* hover 高亮改到卡片级；原 `tbody tr:hover td` 的底色在卡片里会盖掉首格底色。 */
+  .docs-article__markdown tbody tr:hover td {
+    background: transparent;
+  }
+
+  .docs-article__markdown tbody tr:hover td:first-child {
+    background: var(--frame-line-soft);
+  }
 }
 
 .docs-article__markdown th {
-  background: #f7f8fa;
+  background: var(--film-white-2);
   color: var(--ink);
+  font-weight: 600;
 }
 
+.docs-article__markdown tbody tr:hover td {
+  background: var(--film-white);
+}
+
+/* 警告 / 提示块：细暖线 + accent 左条。 */
 .docs-article__markdown blockquote {
-  padding-left: 1rem;
-  border-left: 3px solid var(--accent);
-  color: var(--ink-mute);
+  margin: 0;
+  padding: 0.85rem 1.15rem;
+  border: 1px solid var(--frame-line);
+  border-left: 3px solid var(--accent-ink);
+  border-radius: 0;
+  background: var(--film-white-2);
+  color: var(--ink-soft);
+}
+
+.docs-article__markdown blockquote p {
+  margin: 0;
+}
+
+.docs-article__markdown hr {
+  border: 0;
+  border-top: 1px solid var(--frame-line-soft);
 }
 
 /* hljs 最小主题：暖纸底上一套中性墨 + 强调色 token，不引第三方主题 css。 */
@@ -773,6 +1027,22 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   font-weight: 600;
 }
 
+/* —— 响应式 —— */
+
+/* sticky 双栏仅桌面：移动端导航是横向块（高 ~365px），sticky 会无背景常驻视口顶、
+   让正文滚进导航文字下方（R3 复审 FAIL 项），窄屏让它随文档流正常滚动。 */
+@media (min-width: 760px) {
+  .docs-nav,
+  .docs-toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
 @media (max-width: 1080px) {
   .docs-layout {
     grid-template-columns: 200px minmax(0, 1fr);
@@ -788,9 +1058,21 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     display: block;
   }
 
+  /* 横向滚动的分组导航。`min-width` 会让 flex 子项参与父级的内容宽度计算，
+     六组 × 180px 撑破 326px 容器、造成**页面级**横向溢出（N0 实测 mobile
+     `03-animate` docScrollWidth 449 > 390，元凶是这里而非表格 —— 表格自带
+     overflow-x 收得住）。改用 `flex: 0 0 <basis>` 固定尺寸而不贡献 min-content，
+     再用 overscroll-behavior-x 防止横滚链传到页面。 */
+  /* 横向滚动的分组导航。六组 × 180px 会撑破 326px 容器并造成**页面级**横向溢出
+     （N0 实测 mobile docScrollWidth 449 > 390；元凶是这里，不是表格 —— 表格自带
+     overflow-x 收得住）。`min-width` 与 `flex-basis` 都会参与祖先的内容宽度计算，
+     所以还需要 `contain: inline-size` 把内联尺寸与外部布局隔断，滚动区才不会
+     把自己的内容宽度上报给页面。 */
   .docs-nav {
     padding: 18px 0;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    contain: inline-size;
     display: flex;
     gap: 24px;
     border-right: 0;
@@ -798,7 +1080,12 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   }
 
   .docs-nav__group {
-    min-width: 180px;
+    flex: 0 0 180px;
+    min-width: 0;
+  }
+
+  .docs-nav__group h2 {
+    padding-left: 0;
   }
 
   .docs-nav__group + .docs-nav__group {
@@ -809,113 +1096,352 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     padding: 36px 0 80px;
   }
 
-  .docs-article > h2 {
+  .docs-article > h1 {
     font-size: var(--text-2xl);
   }
 }
 
-/* 未知 slug 404 态（审计 P1-1） */
+/* ============================================================================
+ * 文档站 shell（N3，2026-08-27）：顶部应用栏 + ⌘K 搜索 + 面包屑 + 翻页器。
+ *
+ * 取代原来的 `.docs-page__header`（eyebrow + 大标题 + 导语 + 返回按钮，实测占
+ * 287px / mobile 351px）。站点标识与分组导航上移到 sticky 应用栏，页头只剩单行
+ * 面包屑，首屏留给正文。
+ * 纪律同上：色值全走 tokens，投影/描边中性墨，无无限动画。
+ * ========================================================================== */
 
-.docs-article__notfound {
-  display: grid;
-  gap: 14px;
-  justify-items: start;
-  padding-top: 24px;
+.docs-shell {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: #fffcf7;
+  border-bottom: 1px solid var(--frame-line);
+}
+
+.docs-shell__inner {
+  width: min(100% - 64px, 1440px);
+  margin: 0 auto;
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 44px;
+}
+
+.docs-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* 品牌 logo：站点图标同款（favicon 图案），全站唯一的像素记号，不套描边。 */
+.docs-shell__mark {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
+.docs-shell__version {
+  color: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border: 1px solid var(--ink-mute);
+  background: var(--frame-line-soft);
+}
+
+.docs-shell__nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-right: auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.docs-shell__nav::-webkit-scrollbar {
+  display: none;
+}
+
+/* 导航不是按钮：无底色无底衬，mono 小字。
+ * hover 加深字色，当前页加粗 + accent 细下划线。 */
+.docs-shell__navlink {
+  padding: 4px 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.docs-shell__navlink:hover {
+  color: var(--ink);
+}
+
+.docs-shell__navlink.is-active {
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom: 2px solid var(--accent-ink);
+}
+
+.docs-shell__navlink:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+
+.docs-shell__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* 搜索入口：细暖线框，hover 线加深字变墨。 */
+.docs-shell__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 176px;
+  padding: 8px 12px;
+  border: 1px solid var(--frame-line);
+  background: #ffffff;
+  color: var(--ink-mute);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.docs-shell__search:hover {
+  border-color: var(--ink-mute);
+  color: var(--ink);
+}
+
+.docs-shell__search kbd {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--frame-line);
+  background: #fff;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* shell 内的语言切换器：交出 .lang-toggle 的 fixed 定位，跟随栏内 flex 布局。
+ * 交出 fixed 定位后仅保留 mono 字体，与 search 保持同一套细线气质。 */
+.lang-toggle--shell {
+  position: static;
+  top: auto;
+  right: auto;
+  font-family: var(--font-mono);
+}
+
+.lang-toggle--shell:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--frame-line);
+}
+
+/* —— ⌘K 搜索面板 —— */
+
+.docs-search {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  padding: 12vh 16px 0;
+  background: rgba(26, 24, 20, 0.28);
+}
+
+.docs-search__panel {
+  width: min(100%, 560px);
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--frame-line);
+  background: #ffffff;
+  box-shadow: var(--shadow-lg);
+}
+
+.docs-search__input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--frame-line);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+}
+
+.docs-search__input:focus {
+  outline: none;
+}
+
+.docs-search__results {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.docs-search__hit {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.docs-search__hit.is-active {
+  background: var(--frame-line-soft);
+}
+
+.docs-search__hit-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docs-search__hit-path {
+  flex: 0 0 auto;
+  color: var(--ink-mute);
+  font-size: 11px;
+}
+
+/* —— 面包屑 —— */
+
+.docs-crumbs {
+  width: min(100% - 64px, 1440px);
+  margin: 0 auto;
+  padding: 18px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--frame-line);
+  font-size: 13px;
   color: var(--ink-soft);
 }
 
-/* 表格溢出修复（审计 P1-3）：grid 隐式轨道 min-width:auto 被长表格撑宽——
-   文章列允许收缩 + 表格自带横向滚动。 */
-
-.docs-article {
-  min-width: 0;
+.docs-crumbs__link {
+  color: var(--ink-soft);
 }
 
-.docs-article__markdown > * {
-  min-width: 0;
+.docs-crumbs__link:hover {
+  color: var(--ink);
 }
 
-.docs-article__markdown table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-}
-/* ============================================================
- * 文档第二轮（R1）：代码块 chrome / 标题间距 / sticky 双栏 / 锚点精度
- * ============================================================ */
-
-/* 代码块：语言标签头 + 收束的框体（标签头与 hljs 令牌共用一套色板） */
-.docs-code {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #ffffff;
-  overflow: hidden;
-}
-
-.docs-code__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid #eceef1;
-  background: #f7f8fa;
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.docs-crumbs__sep {
   color: var(--ink-mute);
 }
 
-.docs-code__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-ink);
-  opacity: 0.75;
+.docs-crumbs__current {
+  color: var(--ink);
+  font-weight: 600;
 }
 
-.docs-code pre {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+.docs-crumbs__tip {
+  margin-left: auto;
+  color: var(--ink-mute);
+  font-size: 11px;
 }
 
-/* 旧裸 pre 样式让位于 .docs-code 包裹（未包裹场景兜底保留边框） */
-.docs-article__markdown > pre {
+/* —— 翻页器 —— */
+
+.docs-pager {
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid var(--frame-line);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.docs-pager__link {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
   border: 1px solid var(--frame-line);
-  border-radius: 10px;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
-/* 标题间距：页标题与 md 小节标题的呼吸位 */
-.docs-article > h2 {
-  margin: 0 0 28px;
+.docs-pager__link:hover {
+  border-color: var(--ink-mute);
+  background: var(--frame-line-soft);
 }
 
-.docs-article__markdown h2 {
-  margin-top: 2.75rem;
+.docs-pager__link--next {
+  text-align: right;
 }
 
-.docs-article__markdown h3 {
-  margin-top: 1.75rem;
+.docs-pager__label {
+  color: var(--ink-mute);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-/* sticky 双栏：长页滚动时导航与目录常驻。仅桌面——移动端导航是横向块状
-   元素（高 365px），sticky 会无背景常驻视口顶并让正文滚进导航文字下方
-   （R3 复审 FAIL 项：文字压文字破版），窄屏让它随文档流正常滚动。 */
-@media (min-width: 760px) {
-  .docs-nav,
-  .docs-toc {
-    position: sticky;
-    top: 0;
-    align-self: start;
-    max-height: 100vh;
-    overflow-y: auto;
-    scrollbar-width: thin;
+.docs-pager__title {
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+@media (max-width: 1080px) {
+  .docs-shell__inner,
+  .docs-crumbs {
+    width: min(100% - 32px, 1440px);
+  }
+
+  /* 宽不足一行装下（品牌 + 6 链接 + 搜索 + 语言切换）时：
+   * 品牌与操作区一行，分组导航折到第二行横滚。 */
+  .docs-shell__inner {
+    flex-wrap: wrap;
+    padding: 10px 0;
+    gap: 10px 16px;
+  }
+
+  .docs-shell__nav {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .docs-shell__actions {
+    margin-left: auto;
+  }
+
+  .docs-crumbs__tip {
+    display: none;
+  }
+
+  .docs-pager {
+    grid-template-columns: 1fr;
   }
 }
 
-/* 锚点精度：标题落点离视口顶留稳定呼吸位（无 fixed 头，32px 恒定） */
-.docs-article__markdown h2,
-.docs-article__markdown h3 {
-  scroll-margin-top: 32px;
+@media (max-width: 760px) {
+  /* 更窄：版本徽章与搜索的 ⌘K 提示让位，只留主体。 */
+  .docs-shell__version,
+  .docs-shell__search kbd {
+    display: none;
+  }
+
+  .docs-shell__search {
+    min-width: 0;
+  }
 }

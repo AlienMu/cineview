@@ -61,7 +61,7 @@ function HeavyStack({ idPrefix }: { idPrefix: string }): JSX.Element {
           exitAnimation="fade-out"
           duration={{ enter: 600 + (i % 3) * 200, exit: 400 }}
           timeline={{ delay: (i % 12) * 100 }}
-          {...(i % 6 === 5 ? { infiniteAnimation: 'pulse' } : {})}
+          {...(i % 6 === 5 ? { loopAnimation: 'pulse' } : {})}
         >
           <div style={tileStyle(i)}>{`${idPrefix}-${i}`}</div>
         </Animate>
@@ -73,11 +73,7 @@ function HeavyStack({ idPrefix }: { idPrefix: string }): JSX.Element {
 function DragStressPage(): JSX.Element {
   return (
     <main data-page="stress-drag" style={{ height: '100vh', overflow: 'hidden' }}>
-      <CineView
-        config={{ size: 390 }}
-        mode="drag"
-        modes={{ drag: { direction: 'y', transitionDuration: 600 } }}
-      >
+      <CineView designWidth={390} mode="drag" direction="y" transitionDuration={600}>
         <Scene
           sceneId="stress-drag-0"
           layout={{ width: '100%', height: '100vh', overflow: 'hidden' }}
@@ -124,11 +120,7 @@ function DragStressPage(): JSX.Element {
 function ScrollStressPage(): JSX.Element {
   return (
     <main data-page="stress-scroll">
-      <CineView
-        config={{ size: 390 }}
-        mode="scroll"
-        modes={{ scroll: { direction: 'y', zoneTrigger: 'center-lock' } }}
-      >
+      <CineView designWidth={390} mode="scroll" direction="y" zoneTrigger="center-lock">
         <section
           style={{
             height: '100vh',

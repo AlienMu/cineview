@@ -173,8 +173,11 @@ function renderDragApp() {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600, unit: 'time', scale: 25 } }}
-      config={{ size: 750 }}
+      direction={'y'}
+      transitionDuration={600}
+      unit={'time'}
+      scale={25}
+      designWidth={750}
     >
       <Scene
         transition={{ enterAnimation: 'slide-up', exitAnimation: 'fade-out', exitDuration: 600 }}
@@ -225,7 +228,7 @@ describe('drag two-track parallel release (RED1)', () => {
   it('starts the render track and the element-track continuation as parallel independent clocks at release', async () => {
     const cineViewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -268,7 +271,7 @@ describe('drag two-track continuity across commit (RED2)', () => {
   it('continues the element track from the release elapsed across commit — no replay from 0, no second pass', async () => {
     const cineViewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -300,7 +303,7 @@ describe('drag two-track continuity across commit (RED2)', () => {
       renderLane!.onComplete?.();
     });
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // No second element-track pass is created at/after commit. The SAME in-flight

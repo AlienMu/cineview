@@ -34,7 +34,7 @@ const PositionContext = createContext<PositionContextValue>({ lastX: 0, lastY: 0
 export const SceneFixedLayerContext = createContext<HTMLElement | null>(null);
 
 export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(function Position(
-  { at, layer, x, y, offsetX, offsetY, fixed = false, children, style, className, ...restProps },
+  { at, x, y, offsetX, offsetY, fixed = false, children, style, className, ...restProps },
   ref
 ) {
   const context = useCineViewContext();
@@ -45,7 +45,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
   const resolvedY = at?.y ?? y;
   const resolvedOffsetX = at?.offsetX ?? offsetX;
   const resolvedOffsetY = at?.offsetY ?? offsetY;
-  const resolvedFixed = layer?.fixed ?? fixed;
+  const resolvedFixed = fixed;
   const anchor = at?.anchor;
   const centerX = anchor === 'center' || anchor === 'center-x';
   const centerY = anchor === 'center' || anchor === 'center-y';

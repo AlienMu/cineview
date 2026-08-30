@@ -47,7 +47,7 @@ export function TimecodeAxis({ shotIndex, seconds = 9 }: TimecodeAxisProps): JSX
       ) : (
         <Animate
           animateId={`tc-rec-${shotIndex}`}
-          infiniteAnimation={{
+          loopAnimation={{
             animate: {
               opacity: [1, 0.45, 1],
               scale: [1, 1.45, 1],

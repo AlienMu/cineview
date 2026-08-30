@@ -8,7 +8,7 @@ import { AmbientStage } from './AmbientStage';
 
 // SEQUENCE (act 1 — calibration dial, 2026-07-29 five-act redesign):
 // The hand is the CAUSE of the ticks. Every lane is a framework <Animate> on an
-// ABSOLUTE delay against this scene's element track — no waitFor anywhere in the
+// ABSOLUTE delay against this scene's element track — no after anywhere in the
 // act. The minute hand's fixed first rotation spans DIAL_SWEEP_MS and each tick's delay is
 // the moment the hand crosses it (see tickSweepDelay), so a lit tick always has a
 // visible cause. Two properties of that guarantee are load-bearing:
@@ -167,7 +167,7 @@ function RunningSecondHand({ startAngle }: { startAngle: number }): JSX.Element 
             exit: timing.duration(EXIT_MS.ring),
           }}
           timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.hand) }}
-          infiniteAnimation={
+          loopAnimation={
             timing.reduced
               ? undefined
               : {
@@ -235,7 +235,7 @@ function RunningMinuteHand({ targetAngle }: { targetAngle: number }): JSX.Elemen
                 exit: timing.duration(EXIT_MS.ring),
               }}
               timeline={{ delay: timing.delay(DIAL_SWEEP_MS) }}
-              infiniteAnimation={
+              loopAnimation={
                 timing.reduced
                   ? undefined
                   : {
@@ -326,7 +326,7 @@ function GatedCenterNumber({
                 animate: { opacity: 0, y: '-72%' },
               }}
               duration={{ enter: timing.duration(480) }}
-              timeline={{ sceneControlled: false }}
+              timeline={{ driver: 'clock' }}
             >
               <span className="s01-center-number__value">{previousHour}</span>
             </Animate>
@@ -338,7 +338,7 @@ function GatedCenterNumber({
                 animate: { opacity: 1, y: '0%' },
               }}
               duration={{ enter: timing.duration(480) }}
-              timeline={{ sceneControlled: false }}
+              timeline={{ driver: 'clock' }}
             >
               <span className="s01-center-number__value">{hour}</span>
             </Animate>
@@ -391,7 +391,7 @@ function GatedTitle(): JSX.Element {
       }}
       timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.title) }}
     >
-      <h1 className="s01-title">CineView</h1>
+      <h1 className="s01-title">cineview</h1>
     </Animate>
   );
 }

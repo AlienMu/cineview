@@ -424,7 +424,7 @@ describe('resolveDesignDimensions（A2：config 兜底 + 非法 size 回退）',
   let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    // 非法 size 走 console.error（保持 drag 根既有 'Invalid config.size' 诊断契约）。
+    // 非法 size 走 console.error（保持 drag 根既有 'Invalid designWidth' 诊断契约）。
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
@@ -432,32 +432,32 @@ describe('resolveDesignDimensions（A2：config 兜底 + 非法 size 回退）',
     errorSpy.mockRestore();
   });
 
-  it('config 缺省时回退 750，且无诊断（缺省是合法用法）', () => {
-    // 修复前：config.size 直接解引用，undefined config 抛 TypeError。
+  it('designWidth 缺省时回退 750，且无诊断（缺省是合法用法）', () => {
+    // 修复前：designWidth 直接解引用旧 config.size 路径。
     expect(resolveDesignDimensions(undefined)).toEqual({ designSize: 750 });
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it('size 未提供时回退 750，无诊断', () => {
-    expect(resolveDesignDimensions({})).toEqual({ designSize: 750 });
+  it('designWidth 未提供时回退 750，无诊断', () => {
+    expect(resolveDesignDimensions(undefined)).toEqual({ designSize: 750 });
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it('size=0 回退 750 并发 dev 诊断（修复前 0 ?? 750 === 0 → Infinity scale）', () => {
-    expect(resolveDesignDimensions({ size: 0 })).toEqual({ designSize: 750 });
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid config.size'));
+  it('designWidth=0 回退 750 并发 dev 诊断（0 ?? 750 === 0 会产生 Infinity scale）', () => {
+    expect(resolveDesignDimensions(0)).toEqual({ designSize: 750 });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid designWidth'));
   });
 
   it('负数 / NaN / Infinity 一律回退 750', () => {
-    expect(resolveDesignDimensions({ size: -10 })).toEqual({ designSize: 750 });
-    expect(resolveDesignDimensions({ size: Number.NaN })).toEqual({ designSize: 750 });
-    expect(resolveDesignDimensions({ size: Number.POSITIVE_INFINITY })).toEqual({
+    expect(resolveDesignDimensions(-10)).toEqual({ designSize: 750 });
+    expect(resolveDesignDimensions(Number.NaN)).toEqual({ designSize: 750 });
+    expect(resolveDesignDimensions(Number.POSITIVE_INFINITY)).toEqual({
       designSize: 750,
     });
   });
 
   it('合法正数原样返回，无诊断', () => {
-    expect(resolveDesignDimensions({ size: 600 })).toEqual({ designSize: 600 });
+    expect(resolveDesignDimensions(600)).toEqual({ designSize: 600 });
     expect(errorSpy).not.toHaveBeenCalled();
   });
 });

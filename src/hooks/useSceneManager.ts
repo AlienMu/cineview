@@ -167,7 +167,7 @@ export const useSceneManager = (
 
   const animatingRef = useRef<boolean>(false);
   const currentSceneRef = useRef<number>(currentScene);
-  // The public onSceneDidChange now fires at COMMIT (render arm), not at the join
+  // The public onSceneLeave now fires at COMMIT (render arm), not at the join
   // close. The two-arm join is RETAINED but its job is narrowed to STATE CLEANUP
   // timing — deciding WHEN it is safe to clear `dragRelease`/`direction`/scalars:
   //  - render arm: the page-slide reaches the target -> commitDragSceneChange
@@ -497,7 +497,7 @@ export const useSceneManager = (
       }
 
       // Two-track commit: the page-slide (render lane) reached the target. This
-      // IS the scene-switch-complete moment, so onAfterChange (-> onSceneDidChange)
+      // IS the scene-switch-complete moment, so onAfterChange (-> onSceneLeave)
       // fires HERE, at commit — NOT deferred to the element track. The element
       // timeline is a separate, interruptible line: it keeps running to T on the
       // incoming scene's own track for the visual enter continuation, but it no

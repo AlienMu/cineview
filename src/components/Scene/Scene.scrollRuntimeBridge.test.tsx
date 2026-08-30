@@ -422,7 +422,7 @@ describe('Scene scroll runtime bridge', () => {
         sceneIndex={0}
         totalScenes={3}
         currentSceneIndex={1}
-        stack={{ mode: 'cover' }}
+        layout={{ overlap: 'cover' }}
         scrollRuntime={{
           progress: 0.5,
           isScrolling: true,

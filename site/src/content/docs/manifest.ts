@@ -11,14 +11,31 @@
  * - 标题在 frontmatter，语言各自维护（不走 i18n DictKey——md 本身就是语言真源）。
  */
 
-export type DocsGroupId = 'start' | 'concepts' | 'components' | 'api' | 'animation' | 'advanced';
+export type DocsGroupId =
+  | 'getting-started'
+  | 'concepts'
+  | 'drag'
+  | 'scroll'
+  | 'components'
+  | 'advanced';
 
+/**
+ * 侧边栏与路由的组序。drag / scroll 两组承载各自引擎的专章，位置在概念之后、
+ * 参考之前——读者先建立概念，再按自己用的引擎深入，最后查 API。
+ *
+ * ⚠️ 新增组时有四处必须同步，漏掉任一处的失败形态不同：
+ *   1. 本文件的 DocsGroupId 联合
+ *   2. 本文件的 DOC_GROUP_ORDER（漏则该组页面不进侧栏索引）
+ *   3. DocsPage.tsx 的 GROUP_KEY_BY_ID（Record<DocsGroupId,…>，漏则 type-check 失败）
+ *   4. DocsPage.tsx 的 GROUPS（裸数组无穷尽性约束，漏则该组静默不渲染）
+ * 另需同步 i18n（zh 先 en 后，否则 en.ts 过不了 Dict 类型）与契约测试的 VALID_GROUPS。
+ */
 export const DOC_GROUP_ORDER: DocsGroupId[] = [
-  'start',
+  'getting-started',
   'concepts',
+  'drag',
+  'scroll',
   'components',
-  'api',
-  'animation',
   'advanced',
 ];
 
@@ -76,7 +93,7 @@ const pages = new Map<string, DocsPageMeta>();
 
 for (const [path, source] of Object.entries(rawDocFiles)) {
   // path 形如 './zh/start/introduction.md'
-  const segments = /^\.\/(zh|en)\/([a-z]+)\/([a-z0-9-]+)\.md$/.exec(path);
+  const segments = /^\.\/(zh|en)\/([a-z-]+)\/([a-z0-9-]+)\.md$/.exec(path);
   if (!segments) continue;
   const [, lang, group, slug] = segments;
   const parsed = parseDocSource(source);

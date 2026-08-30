@@ -11,7 +11,7 @@
  *  - completing the page-slide (render) lane ALONE commits the scene change
  *    (the long element timeline must NOT gate the commit);
  *  - the commit lands at the PARTIAL release elapsed (< T), so a settle
- *    continuation is created on the incoming scene; onSceneDidChange fires AT
+ *    continuation is created on the incoming scene; onSceneLeave fires AT
  *    the commit (scene-switch-complete = render commit), NOT gated on the
  *    continuation — the element line is independent and interruptible;
  *  - the continuation advances the remaining timeline at natural rate (its
@@ -165,15 +165,18 @@ jest.mock('framer-motion', () => {
 // well above the page slide. Dragging away from scene 0 exercises the partial
 // outgoing commit; scene 1's matching timeline gives the activation-settle a
 // remaining window to continue at natural rate.
-function renderDragApp(onSceneDidChange?: jest.Mock) {
+function renderDragApp(onSceneLeave?: jest.Mock) {
   const cineViewRef = createRef<CineViewRef>();
   render(
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600, unit: 'time', scale: 25 } }}
-      config={{ size: 750 }}
-      callbacks={{ onSceneDidChange }}
+      direction={'y'}
+      transitionDuration={600}
+      unit={'time'}
+      scale={25}
+      designWidth={750}
+      callbacks={{ onSceneLeave }}
     >
       <Scene
         transition={{ enterAnimation: 'slide-up', exitAnimation: 'fade-out', exitDuration: 600 }}
@@ -231,11 +234,11 @@ describe('drag continuous cross-commit completion', () => {
     animateCalls.length = 0;
   });
 
-  it('commits on the page-slide lane alone and fires onSceneDidChange AT commit; the element continuation runs on independently', async () => {
-    const onSceneDidChange = jest.fn();
-    const cineViewRef = renderDragApp(onSceneDidChange);
+  it('commits on the page-slide lane alone and fires onSceneLeave AT commit; the element continuation runs on independently', async () => {
+    const onSceneLeave = jest.fn();
+    const cineViewRef = renderDragApp(onSceneLeave);
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -252,15 +255,15 @@ describe('drag continuous cross-commit completion', () => {
 
     // Page-slide completion alone commits the scene change.
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     });
 
-    // The scene switch is COMPLETE at the render commit, so onSceneDidChange has
+    // The scene switch is COMPLETE at the render commit, so onSceneLeave has
     // already fired exactly once — it is NOT gated on the element continuation.
     await waitFor(() => {
-      expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+      expect(onSceneLeave).toHaveBeenCalledTimes(1);
     });
-    expect(onSceneDidChange).toHaveBeenCalledWith(
+    expect(onSceneLeave).toHaveBeenCalledWith(
       expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
     );
 
@@ -278,11 +281,11 @@ describe('drag continuous cross-commit completion', () => {
     expect(continuation!.durationMs!).toBeGreaterThan(200);
 
     // Finishing the continuation drives the visual enter to completion but does
-    // NOT fire onSceneDidChange a second time — the public callback already fired
+    // NOT fire onSceneLeave a second time — the public callback already fired
     // at commit; the element line only triggers internal cleanup.
     await act(async () => {
       continuation!.onComplete?.();
     });
-    expect(onSceneDidChange).toHaveBeenCalledTimes(1);
+    expect(onSceneLeave).toHaveBeenCalledTimes(1);
   });
 });

@@ -27,7 +27,7 @@ function AmbientLoop({ id, className, animate, seconds, children }: AmbientLoopP
   return (
     <Animate
       animateId={id}
-      infiniteAnimation={{
+      loopAnimation={{
         animate: {
           ...animate,
           transition: {

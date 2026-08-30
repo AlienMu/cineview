@@ -513,7 +513,7 @@ export function Scene5Cinema(): JSX.Element {
       <div className="scene5-cinema__gold-mist" aria-hidden="true">
         <Animate
           animateId="cinema-gold-mist-a"
-          infiniteAnimation={{
+          loopAnimation={{
             animate: {
               '--gold-drift-1': [0.55, 1, 0.55],
               transition: { duration: 9, ease: 'easeInOut', repeat: Infinity },
@@ -523,7 +523,7 @@ export function Scene5Cinema(): JSX.Element {
         >
           <Animate
             animateId="cinema-gold-mist-b"
-            infiniteAnimation={{
+            loopAnimation={{
               animate: {
                 '--gold-drift-2': [1, 0.5, 1],
                 transition: { duration: 14, ease: 'easeInOut', repeat: Infinity },
@@ -584,7 +584,7 @@ export function Scene5Cinema(): JSX.Element {
               - 挂载门控在 finished latch（closing）上：latch 才渲染，串行入场
                 由子元素一次性 CSS 动画承担（delay 0/0.25s/0.6s/0.9s，
                 Scene5Cinema.css `scene5-closing-*`，规则 6 允许一次性插值）。
-              - 每个元素一条 scrub lane：timeline.phase 窗 0.85→1（sceneControlled
+              - 每个元素一条 scrub lane：timeline.phase 窗 0.85→1（driver 默认 'scene'
                 默认，绑本 zone takeover 时间轴）——包装层 opacity 是 progress
                 的纯函数，往上滚跟手淡出、滚回来原样回来，无消息/定时器参与。
               - FOUC：latch 挂载时 progress 已为 1，包装层 opacity 由 scrub 立即
@@ -623,7 +623,7 @@ export function Scene5Cinema(): JSX.Element {
                     <div className="scene5-cinema__cta-buttons">
                       <Link
                         className="scene5-cinema__btn scene5-cinema__btn--primary"
-                        to="/docs/quickstart"
+                        to="/docs/03-quickstart"
                         tabIndex={scene5TabIndex(split)}
                       >
                         {t('cta.start')}

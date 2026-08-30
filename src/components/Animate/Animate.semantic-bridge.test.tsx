@@ -77,7 +77,7 @@ describe('Animate grouped semantics', () => {
           animateId="grouped-priority"
           enterAnimation="fade-in"
           duration={{ enter: 420 }}
-          timeline={{ delay: 110, waitFor: 'grouped-anchor' }}
+          timeline={{ delay: 110, after: 'grouped-anchor' }}
         >
           <div>Grouped priority</div>
         </Animate>
@@ -88,8 +88,8 @@ describe('Animate grouped semantics', () => {
       expect(sceneContext.registerAnimate).toHaveBeenCalledWith('grouped-priority', {
         delay: 110,
         duration: 420,
-        waitFor: 'grouped-anchor',
-        driver: 'drag',
+        after: 'grouped-anchor',
+        lane: 'drag',
       });
     });
   });
@@ -108,7 +108,7 @@ describe('Animate grouped semantics', () => {
           animateId="grouped-drag-priority"
           enterAnimation="fade-in"
           duration={{ enter: 360 }}
-          timeline={{ delay: 95, waitFor: 'drag-grouped-anchor' }}
+          timeline={{ delay: 95, after: 'drag-grouped-anchor' }}
         >
           <div>Grouped drag priority</div>
         </Animate>
@@ -119,8 +119,8 @@ describe('Animate grouped semantics', () => {
       expect(sceneContext.registerAnimate).toHaveBeenCalledWith('grouped-drag-priority', {
         delay: 95,
         duration: 360,
-        waitFor: 'drag-grouped-anchor',
-        driver: 'drag',
+        after: 'drag-grouped-anchor',
+        lane: 'drag',
       });
     });
   });

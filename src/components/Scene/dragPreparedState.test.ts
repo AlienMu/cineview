@@ -26,7 +26,7 @@ function createPrepared(
           {
             delay: 0,
             duration,
-            driver: 'drag',
+            lane: 'drag',
           },
         ],
       ]),

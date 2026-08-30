@@ -49,10 +49,10 @@ import { DEFAULT_SLIDE_DURATION } from '../../types';
 import { devWarn } from '../../utils/devLog';
 import type {
   AnimationType,
+  CineViewDragModeProps,
   CineViewErrorCode,
-  CineViewProps,
   CineViewRef,
-  CineViewPerformanceConfig,
+  DragModeConfig,
   SceneChangeDetail,
   SceneProps,
   ScrollMode,
@@ -99,16 +99,14 @@ export function resolveRootMode(mode: ScrollMode | undefined): ScrollMode {
 function getSceneSettleDuration(
   sceneProps: SceneAuthoringCompatProps,
   rootMode: ScrollMode,
-  modes: CineViewProps['modes'] | undefined
+  rootTransitionDuration: number | undefined
 ): number {
   // A10: the settle fallback shares DEFAULT_SLIDE_DURATION (800) — the same
   // default the Scene slide itself uses (helpers.ts) — instead of a divergent
   // local 500 that would fire setAnimating(false) before the slide finished.
   if (rootMode === 'drag') {
     return Math.max(
-      modes?.drag?.transitionDuration ??
-        sceneProps.sceneTransitionDuration ??
-        DEFAULT_SLIDE_DURATION,
+      rootTransitionDuration ?? sceneProps.sceneTransitionDuration ?? DEFAULT_SLIDE_DURATION,
       0
     );
   }
@@ -163,19 +161,43 @@ function collectScenePreloadPlan(
 }
 
 export function resolveRootSceneStackMode(
-  sceneProps: Pick<SceneAuthoringCompatProps, 'stack' | 'sceneStackMode'>,
+  sceneProps: Pick<SceneAuthoringCompatProps, 'layout' | 'sceneStackMode'>,
   rootMode: ScrollMode
 ): 'replace' | 'cover' {
-  return sceneProps.stack?.mode ?? (rootMode === 'scroll' ? 'cover' : 'replace');
+  return sceneProps.layout?.overlap ?? (rootMode === 'scroll' ? 'cover' : 'replace');
 }
 
 /**
  * CineView 组件实现
  */
-const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
-  const { config, mode, modes, scrollbar, callbacks, performance, children } = props;
+const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((props, ref) => {
+  const {
+    designWidth,
+    mode,
+    direction: dragDirection,
+    transitionDuration,
+    threshold,
+    unit,
+    scale,
+    firstSceneTimeout,
+    scrollbar,
+    callbacks,
+    monitor,
+    children,
+  } = props;
 
-  const { designSize } = resolveDesignDimensions(config);
+  const { designSize } = resolveDesignDimensions(designWidth);
+  const dragConfig = useMemo<DragModeConfig>(
+    () => ({
+      direction: dragDirection,
+      transitionDuration,
+      threshold,
+      unit,
+      scale,
+      firstSceneTimeout,
+    }),
+    [dragDirection, transitionDuration, threshold, unit, scale, firstSceneTimeout]
+  );
 
   // 场景引用存储（使用 WeakMap 避免内存泄漏）
   // Validates Requirement 26.2: Use WeakMap to store component references
@@ -296,7 +318,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
 
   useEffect(() => {
     if (totalScenes === 0) {
-      emitError('NO_SCENES', 'CineView requires at least one Scene child.', {
+      emitError('EMPTY_SCENES', 'CineView requires at least one Scene child.', {
         mode: resolvedRootMode,
       });
     }
@@ -307,7 +329,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
 
     scenes.forEach((scene, sceneIndex) => {
       const sceneProps = scene.props as SceneAuthoringCompatProps;
-      resolveDragTimelineConfig(modes?.drag, sceneProps.drag, ({ field, value }) => {
+      resolveDragTimelineConfig(dragConfig, sceneProps.drag, ({ field, value }) => {
         const dedupeKey = `${sceneIndex}:${field}`;
         if (reportedInvalidDragConfigRef.current.has(dedupeKey)) return;
         reportedInvalidDragConfigRef.current.add(dedupeKey);
@@ -330,14 +352,8 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         });
       }
     });
-  }, [emitError, modes?.drag, resolvedRootMode, scenes]);
+  }, [emitError, dragConfig, resolvedRootMode, scenes]);
 
-  const resolvedPerformance = useMemo<CineViewPerformanceConfig>(
-    () => ({
-      ...performance,
-    }),
-    [performance]
-  );
   const [viewportWidth, setViewportWidth] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
 
@@ -349,7 +365,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
         toIndex,
         direction: toIndex > fromIndex ? 'forward' : toIndex < fromIndex ? 'backward' : null,
       } satisfies SceneChangeDetail;
-      resolvedCallbacks.common?.onSceneWillChange?.(detail);
+      resolvedCallbacks.common?.onSceneEnter?.(detail);
     },
     [resolvedCallbacks]
   );
@@ -371,7 +387,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
                 ? 'backward'
                 : null,
       } satisfies SceneChangeDetail;
-      resolvedCallbacks.common?.onSceneDidChange?.(detail);
+      resolvedCallbacks.common?.onSceneLeave?.(detail);
     },
     [resolvedCallbacks]
   );
@@ -426,7 +442,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
     if (!currentSceneElement) return;
 
     const sceneProps = currentSceneElement.props as SceneAuthoringCompatProps;
-    const duration = getSceneSettleDuration(sceneProps, resolvedRootMode, modes);
+    const duration = getSceneSettleDuration(sceneProps, resolvedRootMode, transitionDuration);
 
     // 等待动画完成后通知 scene manager
     const timer = setTimeout(() => {
@@ -441,7 +457,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       clearTimeout(timer);
       timersRef.delete(timer);
     };
-  }, [isAnimating, currentScene, scenes, sceneActions, resolvedRootMode, modes]);
+  }, [isAnimating, currentScene, scenes, sceneActions, resolvedRootMode, transitionDuration]);
 
   useEffect(() => {
     if (resolvedRootMode === 'drag') return;
@@ -860,7 +876,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   // plays the tween. `enabled` is no longer drag-only — scroll's visibility path
   // consumes `firstSceneEnterReady` too. The drag grab preempt is passed as
   // `preemptSignal`; scroll has no equivalent (false).
-  const firstSceneTimeoutMs = Math.max(0, modes?.drag?.firstSceneTimeout ?? 3000);
+  const firstSceneTimeoutMs = Math.max(0, firstSceneTimeout ?? 3000);
   const getPreloadCounts = useCallback(
     () => ({
       loadedCount: preloadCountsRef.current.loadedCount,
@@ -915,12 +931,12 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   }, [ref]); // 只在组件挂载时执行一次
 
   useEffect(() => {
-    if (!resolvedPerformance.monitor) {
+    if (!monitor) {
       return;
     }
 
     return acquirePerformanceMonitoring();
-  }, [resolvedPerformance.monitor]);
+  }, [monitor]);
 
   useEffect(() => {
     const signature = `${priorityImages.join('|')}::${backgroundImages.join('|')}`;
@@ -1006,7 +1022,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
       dragSessionActiveRef.current = false;
       lastDragProgressRef.current = 0;
       pendingDragCancelRef.current = null;
-      resolvedCallbacksRef.current.drag?.onDragCommit?.({
+      resolvedCallbacksRef.current.drag?.onDragEnd?.({
         sceneIndex: activeSceneIndex,
         targetSceneIndex,
         progress: normalizedDragProgress,
@@ -1066,13 +1082,13 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
   const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
     () => ({
       mode: resolvedRootMode,
-      scrollEnterMargin: modes?.scroll?.enterMargin,
-      scrollExitMargin: modes?.scroll?.exitMargin,
+      scrollEnterMargin: undefined,
+      scrollExitMargin: undefined,
       reportError: (detail): void => {
         emitError(detail.code as CineViewErrorCode, detail.message, detail.context);
       },
     }),
-    [resolvedRootMode, modes?.scroll?.enterMargin, modes?.scroll?.exitMargin, emitError]
+    [resolvedRootMode, emitError]
   );
 
   return (
@@ -1091,7 +1107,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref
               currentScene={currentScene}
               totalScenes={totalScenes}
               mode={resolvedRootMode}
-              dragConfig={modes?.drag}
+              dragConfig={dragConfig}
               dragProgress={dragProgress}
               dragTimelineProgress={dragTimelineProgress}
               renderProgress={renderProgress}

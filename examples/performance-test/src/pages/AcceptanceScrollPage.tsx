@@ -26,7 +26,7 @@ function renderAcceptanceTakeoverScene(zoneId: string, label: string): JSX.Eleme
           width: '100%',
         }}
       >
-        <Position at={{ x: 20, y: 20 }} layer={{ fixed: true }}>
+        <Position at={{ x: 20, y: 20 }} fixed>
           <div
             data-fixed-probe={zoneId}
             style={{ background: '#fff', color: '#111', font: '600 12px system-ui', padding: 8 }}
@@ -122,16 +122,17 @@ export default function AcceptanceScrollPage(): JSX.Element {
           onReady: () => {
             if (rootRef.current) rootRef.current.dataset.ready = 'true';
           },
-          onSceneDidChange: (detail) => {
+          onSceneLeave: (detail) => {
             if (rootRef.current) rootRef.current.dataset.currentScene = String(detail.toIndex);
           },
           onZoneEnter: () => updateCounter(rootRef.current, 'zoneEnters'),
           onZoneLeave: () => updateCounter(rootRef.current, 'zoneLeaves'),
           onZoneProgress: recordProgress,
         }}
-        config={{ size: 390 }}
+        designWidth={390}
         mode="scroll"
-        modes={{ scroll: { direction: 'y', sceneSizing: 'content' } }}
+        direction="y"
+        sceneSizing="content"
         scrollbar={{
           enabled: true,
           ariaLabel: 'Framework scroll acceptance timeline',

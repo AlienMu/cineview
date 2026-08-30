@@ -16,11 +16,13 @@ export default function App(): JSX.Element {
   const pathname = useLocation().pathname;
   const isDrag = pathname === '/drag';
   const isAcceptance = pathname === '/__acceptance/video-drag';
+  // /docs 的切换器由 DocsShell 挂在应用栏里；这里必须排除，否则两个都渲染。
+  const isDocs = pathname === '/docs' || pathname.startsWith('/docs/');
 
   return (
     <>
       <BackgroundRibbon />
-      {isDrag || isAcceptance ? null : <LangToggle />}
+      {isDrag || isAcceptance || isDocs ? null : <LangToggle />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/drag" element={<DragPage />} />

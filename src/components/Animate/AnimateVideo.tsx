@@ -46,10 +46,10 @@ export interface AnimateVideoProps extends NativeVideoEventProps {
   exitAnimation?: AnimationType;
   timeline?: {
     delay?: number;
-    waitFor?: string;
+    after?: string;
   };
   visibility?: {
-    replayOnReenter?: boolean;
+    replay?: boolean;
     enterMargin?: number;
     exitMargin?: number;
   };

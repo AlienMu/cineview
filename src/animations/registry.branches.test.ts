@@ -22,8 +22,8 @@ describe('animation registry branch coverage', () => {
       baseDuration: 0,
       registrations: new Map([
         ['base', { delay: 10, duration: 100 }],
-        ['a', { delay: 5, duration: 50, waitFor: 'base' }],
-        ['b', { delay: 7, duration: 50, waitFor: 'base' }],
+        ['a', { delay: 5, duration: 50, after: 'base' }],
+        ['b', { delay: 7, duration: 50, after: 'base' }],
       ]),
     });
 
@@ -57,8 +57,8 @@ describe('animation registry branch coverage', () => {
       baseDuration: 0,
       registrations: new Map([
         ['c', { delay: 10, duration: 100 }],
-        ['a', { delay: 5, duration: 50, waitFor: 'c' }],
-        ['b', { delay: 7, duration: 50, waitFor: 'c' }],
+        ['a', { delay: 5, duration: 50, after: 'c' }],
+        ['b', { delay: 7, duration: 50, after: 'c' }],
       ]),
     });
 
@@ -71,17 +71,17 @@ describe('animation registry branch coverage', () => {
   });
 
   it('records a missing-dependency issue when waitFor targets an unregistered id', () => {
-    // 'a' waitFor 'ghost' which is not registered -> the `!waitForInfo` branch
+    // 'a' waitFor 'ghost' which is not registered -> the `!leaderInfo` branch
     // (line 97) fires, recording a missing-dependency issue; 'a' keeps its own
     // delay (5) with no chain contribution.
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 0,
-      registrations: new Map([['a', { delay: 5, duration: 50, waitFor: 'ghost' }]]),
+      registrations: new Map([['a', { delay: 5, duration: 50, after: 'ghost' }]]),
     });
 
     expect(snapshot.calculatedDelays.get('a')).toBe(5);
     expect(snapshot.issues).toEqual([
-      { type: 'missing-dependency', animateId: 'a', waitFor: 'ghost' },
+      { type: 'missing-dependency', animateId: 'a', after: 'ghost' },
     ]);
   });
 
@@ -100,8 +100,8 @@ describe('animation registry branch coverage', () => {
     const snapshot = buildAnimationRegistrySnapshot({
       baseDuration: 0,
       registrations: new Map([
-        ['a', { delay: 1, duration: 10, waitFor: 'b' }],
-        ['b', { delay: 2, duration: 20, waitFor: 'a' }],
+        ['a', { delay: 1, duration: 10, after: 'b' }],
+        ['b', { delay: 2, duration: 20, after: 'a' }],
       ]),
     });
 
@@ -115,10 +115,10 @@ describe('animation registry branch coverage', () => {
 
   it('fails open a three-node cycle while preserving a downstream dependency on one member', () => {
     const registrations = new Map([
-      ['downstream', { delay: 4, duration: 40, waitFor: 'a', driver: 'visibility' as const }],
-      ['a', { delay: 1, duration: 10, waitFor: 'b', driver: 'visibility' as const }],
-      ['b', { delay: 2, duration: 20, waitFor: 'c', driver: 'visibility' as const }],
-      ['c', { delay: 3, duration: 30, waitFor: 'a', driver: 'visibility' as const }],
+      ['downstream', { delay: 4, duration: 40, after: 'a', lane: 'visibility' as const }],
+      ['a', { delay: 1, duration: 10, after: 'b', lane: 'visibility' as const }],
+      ['b', { delay: 2, duration: 20, after: 'c', lane: 'visibility' as const }],
+      ['c', { delay: 3, duration: 30, after: 'a', lane: 'visibility' as const }],
     ]);
 
     const first = buildAnimationRegistrySnapshot({ baseDuration: 0, registrations });
@@ -146,10 +146,10 @@ describe('animation registry branch coverage', () => {
 
   it('reports the same canonical cycle for every registration order', () => {
     const entries: Array<readonly [string, AnimateRegistrationInfo]> = [
-      ['a', { delay: 1, duration: 10, waitFor: 'b', driver: 'visibility' as const }],
-      ['b', { delay: 2, duration: 20, waitFor: 'c', driver: 'visibility' as const }],
-      ['c', { delay: 3, duration: 30, waitFor: 'a', driver: 'visibility' as const }],
-      ['downstream', { delay: 4, duration: 40, waitFor: 'a', driver: 'visibility' as const }],
+      ['a', { delay: 1, duration: 10, after: 'b', lane: 'visibility' as const }],
+      ['b', { delay: 2, duration: 20, after: 'c', lane: 'visibility' as const }],
+      ['c', { delay: 3, duration: 30, after: 'a', lane: 'visibility' as const }],
+      ['downstream', { delay: 4, duration: 40, after: 'a', lane: 'visibility' as const }],
     ];
     const permutations = entries.reduce<Array<(typeof entries)[number][]>>(
       (current, entry) =>
@@ -190,11 +190,8 @@ describe('animation registry branch coverage', () => {
 
   it('treats an incompatible mixed-driver edge as a stable fail-open cycle break', () => {
     const registrations = new Map([
-      ['scroll-a', { delay: 5, duration: 100, waitFor: 'visibility-b', driver: 'scroll' as const }],
-      [
-        'visibility-b',
-        { delay: 7, duration: 50, waitFor: 'scroll-a', driver: 'visibility' as const },
-      ],
+      ['scroll-a', { delay: 5, duration: 100, after: 'visibility-b', lane: 'scroll' as const }],
+      ['visibility-b', { delay: 7, duration: 50, after: 'scroll-a', lane: 'visibility' as const }],
     ]);
 
     const first = buildAnimationRegistrySnapshot({ baseDuration: 0, registrations });
@@ -213,11 +210,11 @@ describe('animation registry branch coverage', () => {
     expect([...first.calculatedDelays.values()].every(Number.isFinite)).toBe(true);
     expect(first.issues).toEqual([
       {
-        type: 'incompatible-driver',
+        type: 'incompatible-lane',
         animateId: 'scroll-a',
-        waitFor: 'visibility-b',
-        followerDriver: 'scroll',
-        leaderDriver: 'visibility',
+        after: 'visibility-b',
+        followerLane: 'scroll',
+        leaderLane: 'visibility',
       },
     ]);
     expect(second.calculatedDelays).toEqual(first.calculatedDelays);

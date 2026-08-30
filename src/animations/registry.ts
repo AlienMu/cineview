@@ -1,29 +1,26 @@
-export type AnimateTimelineDriver = 'drag' | 'scroll' | 'visibility';
+export type AnimateTimelineLane = 'drag' | 'scroll' | 'visibility';
 
-export function isWaitForDriverCompatible(
-  followerDriver: AnimateTimelineDriver,
-  leaderDriver: AnimateTimelineDriver
+export function isLaneCompatible(
+  followerLane: AnimateTimelineLane,
+  leaderLane: AnimateTimelineLane
 ): boolean {
-  return (
-    followerDriver === leaderDriver ||
-    (followerDriver === 'visibility' && leaderDriver === 'scroll')
-  );
+  return followerLane === leaderLane || (followerLane === 'visibility' && leaderLane === 'scroll');
 }
 
 export interface AnimateRegistrationInfo {
   delay: number;
   duration: number;
-  waitFor?: string;
+  after?: string;
   /** Concrete runtime driver. Optional only for legacy/internal callers while the
    * registration API migrates to owner-safe leases. */
-  driver?: AnimateTimelineDriver;
+  lane?: AnimateTimelineLane;
 }
 
 export type AnimationRegistryIssue =
   | {
       type: 'missing-dependency';
       animateId: string;
-      waitFor: string;
+      after: string;
     }
   | {
       type: 'circular-dependency';
@@ -35,11 +32,11 @@ export type AnimationRegistryIssue =
       animateId: string;
     }
   | {
-      type: 'incompatible-driver';
+      type: 'incompatible-lane';
       animateId: string;
-      waitFor: string;
-      followerDriver: AnimateTimelineDriver;
-      leaderDriver: AnimateTimelineDriver;
+      after: string;
+      followerLane: AnimateTimelineLane;
+      leaderLane: AnimateTimelineLane;
     };
 
 export interface AnimationRegistrySnapshot {
@@ -126,20 +123,20 @@ export interface BuildAnimationRegistrySnapshotOptions {
   baseDuration: number;
   registrations: Map<string, AnimateRegistrationInfo>;
   /** Driver-only declarations never enter registrations or extend timelineDuration. */
-  declaredDrivers?: ReadonlyMap<string, AnimateTimelineDriver>;
+  declaredLanes?: ReadonlyMap<string, AnimateTimelineLane>;
   duplicateIds?: Iterable<string>;
 }
 
 function issueKey(issue: AnimationRegistryIssue): string {
   switch (issue.type) {
     case 'missing-dependency':
-      return `${issue.type}:${issue.animateId}:${issue.waitFor}`;
+      return `${issue.type}:${issue.animateId}:${issue.after}`;
     case 'circular-dependency':
       return `${issue.type}:${issue.animateId}:${issue.cycle.join('>')}`;
     case 'duplicate-id':
       return `${issue.type}:${issue.animateId}`;
-    case 'incompatible-driver':
-      return `${issue.type}:${issue.animateId}:${issue.waitFor}:${issue.followerDriver}:${issue.leaderDriver}`;
+    case 'incompatible-lane':
+      return `${issue.type}:${issue.animateId}:${issue.after}:${issue.followerLane}:${issue.leaderLane}`;
   }
 }
 
@@ -164,7 +161,7 @@ function canonicalizeCycle(cycle: string[]): string[] {
 export function buildAnimationRegistrySnapshot({
   baseDuration,
   registrations,
-  declaredDrivers = new Map(),
+  declaredLanes = new Map(),
   duplicateIds = [],
 }: BuildAnimationRegistrySnapshotOptions): AnimationRegistrySnapshot {
   const calculatedDelays = new Map<string, number>();
@@ -196,47 +193,46 @@ export function buildAnimationRegistrySnapshot({
     visiting.add(animateId);
 
     let totalDelay = info.delay;
-    if (info.waitFor) {
-      const waitForInfo = registrations.get(info.waitFor);
-      const declaredLeaderDriver = declaredDrivers.get(info.waitFor);
-      if (!waitForInfo) {
+    if (info.after) {
+      const leaderInfo = registrations.get(info.after);
+      const declaredLeaderDriver = declaredLanes.get(info.after);
+      if (!leaderInfo) {
         if (
-          info.driver !== undefined &&
+          info.lane !== undefined &&
           declaredLeaderDriver !== undefined &&
-          !isWaitForDriverCompatible(info.driver, declaredLeaderDriver)
+          !isLaneCompatible(info.lane, declaredLeaderDriver)
         ) {
           pushIssueOnce(issues, {
-            type: 'incompatible-driver',
+            type: 'incompatible-lane',
             animateId,
-            waitFor: info.waitFor,
-            followerDriver: info.driver,
-            leaderDriver: declaredLeaderDriver,
+            after: info.after,
+            followerLane: info.lane,
+            leaderLane: declaredLeaderDriver,
           });
         } else {
           pushIssueOnce(issues, {
             type: 'missing-dependency',
             animateId,
-            waitFor: info.waitFor,
+            after: info.after,
           });
         }
       } else if (
-        info.driver !== undefined &&
-        waitForInfo.driver !== undefined &&
-        !isWaitForDriverCompatible(info.driver, waitForInfo.driver)
+        info.lane !== undefined &&
+        leaderInfo.lane !== undefined &&
+        !isLaneCompatible(info.lane, leaderInfo.lane)
       ) {
         pushIssueOnce(issues, {
-          type: 'incompatible-driver',
+          type: 'incompatible-lane',
           animateId,
-          waitFor: info.waitFor,
-          followerDriver: info.driver,
-          leaderDriver: waitForInfo.driver,
+          after: info.after,
+          followerLane: info.lane,
+          leaderLane: leaderInfo.lane,
         });
       } else {
-        const waitForDelay = resolveDelay(info.waitFor, chain.concat(animateId));
-        const runtimeCompletionOnly =
-          info.driver === 'visibility' && waitForInfo.driver === 'scroll';
+        const waitForDelay = resolveDelay(info.after, chain.concat(animateId));
+        const runtimeCompletionOnly = info.lane === 'visibility' && leaderInfo.lane === 'scroll';
         if (!runtimeCompletionOnly && !circularFollowers.has(animateId)) {
-          totalDelay += waitForDelay + waitForInfo.duration;
+          totalDelay += waitForDelay + leaderInfo.duration;
         }
       }
     }

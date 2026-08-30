@@ -74,7 +74,7 @@ export const SceneSlate = memo(function SceneSlate(): JSX.Element {
           // Deliberately tiny (±0.6% scale, ±0.35% drift over 9s): a slate on a stand
           // breathes with the room, it does not sway. Anything larger fights the canvas
           // particles, which sit inside this same box and would smear with it.
-          infiniteAnimation={
+          loopAnimation={
             timing.reduced
               ? undefined
               : {

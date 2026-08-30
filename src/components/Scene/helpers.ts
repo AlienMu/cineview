@@ -139,7 +139,7 @@ export interface NormalizedSceneProps {
   onDraggingChange: SceneInternalProps['onDraggingChange'];
   onSharedTimelineDurationChange: SceneInternalProps['onSharedTimelineDurationChange'];
   onDragRelease: SceneInternalProps['onDragRelease'];
-  onDragCommit: SceneInternalProps['onDragCommit'];
+  onDragGestureEnd: SceneInternalProps['onDragGestureEnd'];
   onDragReset: SceneInternalProps['onDragReset'];
   onScrollProgressChange: SceneInternalProps['onScrollProgressChange'];
   onScrollDirectionChange: SceneInternalProps['onScrollDirectionChange'];
@@ -195,9 +195,9 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
       props.layout?.height ?? props.sceneHeight ?? (effectiveMode === 'scroll' ? 'auto' : '100vh'),
     resolvedSceneAnchor: props.layout?.anchor ?? props.sceneAnchor ?? 'top-left',
     resolvedSceneOverflow: props.layout?.overflow ?? props.sceneOverflow ?? 'hidden',
-    resolvedSceneZIndex: props.stack?.zIndex ?? props.sceneZIndex,
+    resolvedSceneZIndex: props.layout?.zIndex ?? props.sceneZIndex,
     effectiveSceneStackMode:
-      props.stack?.mode ??
+      props.layout?.overlap ??
       props.sceneStackMode ??
       (effectiveMode === 'scroll' ? 'cover' : 'replace'),
     resolvedSceneTransitionDuration,
@@ -219,7 +219,7 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
     onDraggingChange: props.onDraggingChange,
     onSharedTimelineDurationChange: props.onSharedTimelineDurationChange,
     onDragRelease: props.onDragRelease,
-    onDragCommit: props.onDragCommit,
+    onDragGestureEnd: props.onDragGestureEnd,
     onDragReset: props.onDragReset,
     onScrollProgressChange: props.onScrollProgressChange,
     onScrollDirectionChange: props.onScrollDirectionChange,
@@ -248,7 +248,7 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
       props.onSharedElapsedMsChange,
       props.onDraggingChange,
       props.onSharedTimelineDurationChange,
-      props.onDragCommit,
+      props.onDragGestureEnd,
       props.onDragReset,
       props.onScrollProgressChange,
       props.onScrollDirectionChange,

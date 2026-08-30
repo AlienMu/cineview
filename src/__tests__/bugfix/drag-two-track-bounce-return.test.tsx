@@ -12,7 +12,7 @@
  *  - a render-lane animate toward renderProgress 0 exists (page bounce-back);
  *  - the incoming scene's element track animate toward 0 exists IN PARALLEL
  *    (element un-enter), NOT toward terminal T;
- *  - no scene change commits (getCurrentScene stays 0).
+ *  - no scene change commits (getCurrentIndex stays 0).
  *
  * The regression this guards: a bounce that only resets render while leaving the
  * incoming element track stuck at its dragged-in elapsed (content half-entered
@@ -173,8 +173,9 @@ function renderDragApp() {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600 } }}
-      config={{ size: 750 }}
+      direction={'y'}
+      transitionDuration={600}
+      designWidth={750}
     >
       <Scene
         transition={{ enterAnimation: 'slide-up', exitAnimation: 'fade-out', exitDuration: 600 }}
@@ -220,7 +221,7 @@ describe('drag two-track bounce return (I1)', () => {
   it('returns the render track AND the incoming element track to 0 together on a sub-threshold bounce, with no scene change', async () => {
     const cineViewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
     await act(async () => {
       drainColdStart();
@@ -241,7 +242,7 @@ describe('drag two-track bounce return (I1)', () => {
     fireEvent.mouseUp(s0, { clientX: 375, clientY: 512 });
 
     // No scene change: the bounce does not cross the threshold.
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
     // Both bounce lanes are motion-value animates toward 0; they are told apart
     // by fromValue. The RENDER track bounces dragProgressMotion (a drag fraction,

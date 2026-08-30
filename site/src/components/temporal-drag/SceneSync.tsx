@@ -18,7 +18,7 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 // ── Act 03 · 剪辑台 (the cutting room) ──────────────────────────────────────
 //
 // REWRITTEN, not adjusted. What stood here was five taped-up CODE STRIPS (`STRIPS`), each
-// with three chained lanes — 15 lanes whose cascade resolved through `waitFor`, of which 6
+// with three chained lanes — 15 lanes whose cascade resolved through `after`, of which 6
 // never reached the screen at all. The strips, their geometry, their five i18n label keys
 // and the standalone 「调度」 title lane are all gone. 「调度」 survives as a word on the V2
 // subtitle track instead of as a static headline (设计档 §3.3).
@@ -35,7 +35,7 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 //                       were blurred past reading per 设计档 §3.3「模糊不可辨风格」; the blur
 //                       is gone and the words stand as words.
 //
-// ── Lane budget (every lane uses an absolute anchor; no `waitFor` anywhere) ──────────────
+// ── Lane budget (every lane uses an absolute anchor; no `after` anywhere) ──────────────
 //   preview frame     0    + 2400
 //   ruler             120  + 400
 //   V1 track base     200  + 400
@@ -53,7 +53,7 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 //
 // tSelf is 13200ms, owned by `s03-media-clock`; its progress is the only transport input.
 // Both clip strokes anchor absolutely via `clipAssemblyStartMs` (2026-08-08: the W0 contract
-// bans `waitFor` in this directory, so the clip2→clip3 edge is arithmetic, not a registry edge;
+// bans `after` in this directory, so the clip2→clip3 edge is arithmetic, not a registry edge;
 // 2026-08-20: the anchor moved one LEAD earlier so every stitch COMPLETES before the playback
 // reaches the segment it prepares, not exactly on its arrival — 见 act3MediaTimeline.ts 的
 // LEAD 推导). Each lane holds selected for 220ms, then lands 800ms before the 2s / 4s / 6s /
@@ -79,7 +79,7 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 // scale there multiplies the very offset the lane's own progress writes. It uses `y` instead,
 // and the measurement that rules out `scale` is recorded at that lane.
 //
-// `waitFor` is not used in this file at all — `temporalDragW0.contract.test.ts` bans it across
+// `after` is not used in this file at all — `temporalDragW0.contract.test.ts` bans it across
 // the whole `/drag` directory (AST-level). Note the ban is a directory-wide contract, NOT a
 // claim that a chain here would drift: the clip sequence has no stagger, so its registered
 // duration equals its authored duration and a chain WOULD have been exact. Every lane states
@@ -198,7 +198,7 @@ const RULER_MARKS = [
 // `act3MediaTimeline.ts` next to `ACT3_CLIP_ASSEMBLY_LEAD_MS`).
 //
 // What stood here was ONE clip (the middle one) sliding left and back on an
-// `infiniteAnimation`, forever. Three things about that were wrong, and they are separate:
+// `loopAnimation`, forever. Three things about that were wrong, and they are separate:
 //
 //  1. It LOOPED. A cutting-room assembly happens once — you close the gaps and they stay
 //     closed. A cycle that pushes a block into its neighbour and then pulls it back out is
@@ -213,7 +213,7 @@ const RULER_MARKS = [
 // ── NON-BLOCKING, by construction ──────────────────────────────────────────
 // Clip 3's stroke does follow clip 2's, but that edge is now plain ARITHMETIC, not a registry
 // dependency: both anchor absolutely via `clipAssemblyStartMs`, one SEGMENT apart
-// (2026-08-08 — the W0 contract bans `waitFor` here). Neither lane uses stagger, so the
+// (2026-08-08 — the W0 contract bans `after` here). Neither lane uses stagger, so the
 // effective duration is exactly the authored 2000ms, which is what makes the arithmetic exact.
 
 /**
@@ -290,10 +290,10 @@ const SEAM_EXIT_MS = 220;
 /**
  * The stage-2 lane props for one clip: ONE leftward stroke, run once, held at the end.
  *
- * ── Why this is an enter lane and not an `infiniteAnimation` ────────────────
+ * ── Why this is an enter lane and not an `loopAnimation` ────────────────
  * It used to be the latter, and that was the reported defect («不是持续动画，而是入场动画»). The
  * structural difference matters beyond the loop count: an `<Animate>` that declares
- * `infiniteAnimation` renders an EXTRA anonymous motion.div (Animate.tsx's drag branch), which
+ * `loopAnimation` renders an EXTRA anonymous motion.div (Animate.tsx's drag branch), which
  * is what forced the `.s03-clip-slot .cineview-animate > *` rule after clip 2 measured 2.0px
  * tall against its neighbours' 40.2px. With the loop gone that wrapper is gone too, so this
  * lane is one node and the block's box is its slot's box.
@@ -310,15 +310,15 @@ const SEAM_EXIT_MS = 220;
  * which would re-fade the block over its stroke and multiply against the fade lane below.
  */
 /**
- * 每个 clip 的 stroke 起点 —— **绝对延迟，不用 `waitFor`**（2026-08-08 修）。
+ * 每个 clip 的 stroke 起点 —— **绝对延迟，不用 `after`**（2026-08-08 修）。
  *
- * 换掉 `waitFor` 的理由只有一条：`temporalDragW0.contract.test.ts:94-112` 在整个
- * `/drag` 目录**以 AST 级断言禁用 `waitFor` 属性赋值**，`SceneSync` 是最后一处违例。
+ * 换掉 `after` 的理由只有一条：`temporalDragW0.contract.test.ts:94-112` 在整个
+ * `/drag` 目录**以 AST 级断言禁用 `after` 属性赋值**，`SceneSync` 是最后一处违例。
  *
  * ⚠️ 不要把「registry 会累积误差」当成这里的依据 —— 那条机制在本文件**不适用**：
  * 累积误差来自 leader 的 registered duration 被 stagger 膨胀，而这两条 lane 都不用
  * stagger（见下方 NON-BLOCKING 段），链是精确的。同幕 `SceneFlux.tsx:39` /
- * `DialTicks.tsx:135` 弃用 `waitFor` 各有自己的理由（前者链上有 stagger，后者是
+ * `DialTicks.tsx:135` 弃用 `after` 各有自己的理由（前者链上有 stagger，后者是
  * sweep 语义根本不该串行），不能直接搬到这里。
  *
  * 时间轴锚 `clipAssemblyStartMs`（2026-08-20 从 `clipSelectionStartMs` 平移 LEAD）：
@@ -344,7 +344,7 @@ function clipDemoLaneProps(
     };
   };
   duration: { enter: number };
-  // 无 `waitFor?: string`：本目录契约禁用它（W0），留着是零消费的死字段，
+  // 无 `after?: string`：本目录契约禁用它（W0），留着是零消费的死字段，
   // 且真写进去会被那条 AST 断言打红。
   timeline: { delay: number };
 } {
@@ -379,7 +379,7 @@ function clipDemoLaneProps(
  * 用户原话:「拖到重叠位置，然后在重叠交界处出现新的元素。」The overlap is now a PERMANENT end
  * state rather than a moment in a cycle, so the badge is an enter lane that lands and holds —
  * it no longer needs to know how to disappear again. That is what removes the whole
- * host-times-wrapper opacity trap this component used to carry: with no `infiniteAnimation`
+ * host-times-wrapper opacity trap this component used to carry: with no `loopAnimation`
  * there is no second node multiplying against the host, so the lane's own opacity IS the
  * badge's opacity and the CSS pre-start `opacity: 0` hack is no longer load-bearing either.
  *
@@ -419,7 +419,7 @@ function ClipSeam({ seam }: { seam: (typeof CLIP_SEAMS)[number] }): JSX.Element 
           enter: timing.duration(CLIP_SEAM_ENTER_MS),
           exit: timing.duration(SEAM_EXIT_MS),
         }}
-        /* 绝对延迟，不用 `waitFor`（2026-08-08 修，理由见 clipSequenceTimeline 注释）。
+        /* 绝对延迟，不用 `after`（2026-08-08 修，理由见 clipSequenceTimeline 注释）。
            徽章要「在方块停下之后落定」= 它对应的那条 demo lane 演完的时刻。
            demo lane 的 `duration.enter` 恰为一段 SEGMENT，故终点 = 下一个 clip 的
            assembly 起点，即 `clipAssemblyStartMs(seam.index + 1)` —— 直接用它，

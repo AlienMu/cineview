@@ -20,8 +20,8 @@ import './CapabilityScene.css';
 /**
  * 第二幕:能力展示 — 胶片带镜(v3 重做,2026-07-09)
  *
- * SHOT01 胶片带镜:标题 → 胶带从左向右铺入 → 9 预设帧格依次滚入播一次原生预设并定格,
- *        活跃帧高亮 + 联动说明/代码。链长 ≈8320ms。
+ * SHOT01 胶片带镜:标题 → 胶带一次轻入场 → 9 预设帧格依次入场播一次原生预设并定格,
+ *        活跃帧高亮 + 联动说明/代码。整条约 6s（SELECTION_MS = 5860ms）。
  *
  * 原同文件的 SHOT02「舞台抽屉镜」已于 2026-08-04 拆除,第三幕改为推镜结构,
  * 见 `Act3DollyScene.tsx` 与 task-flow 2026-08-04-home-continuous-bg-act3-dolly.md。
@@ -31,7 +31,7 @@ import './CapabilityScene.css';
  * 框架边界(已核实,勿越):
  *   - 支持属性全部由 Animate lane 拥有；流光位置、选中帧和文本只读 timeline
  *     MotionValue 做无 React render 的 DOM 投影。
- *   - REC、齿孔和光标常驻动效统一走 phase-gated infiniteAnimation。
+ *   - REC、齿孔和光标常驻动效统一走 phase-gated loopAnimation。
  */
 
 /* ── 自定义变体(仅白名单属性;scroll 驱动下 transition duration 置 0)── */
@@ -57,13 +57,14 @@ export function solidVariant(): {
   };
 }
 
-function filmPanVariant(): {
+function filmEnterVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
+  /* 2026-08-29:10s 长 pan 废除,胶带只做一次轻入场(胶带不是戏,是场)。 */
   return {
-    initial: { x: '-100%', opacity: 1 },
-    animate: { x: '0%', opacity: 1 },
+    initial: { opacity: 0, y: '14px' },
+    animate: { opacity: 1, y: '0px' },
   };
 }
 
@@ -110,7 +111,7 @@ export function renderIntroLines(text: string): JSX.Element {
 
 /* ==================================================================
    SHOT 01 · 胶片带镜(全宽纯胶片 + 分步节奏)
-   分步机制:9 帧链式 waitFor(frame-i waitFor frame-(i-1) 完成),一帧播完才轮下一帧;
+   分步机制:9 帧链式 after(frame-i after frame-(i-1) 完成),一帧播完才轮下一帧;
    胶带 x 与各帧预设均由 framework lane 跟随滚动，选中说明只在离散帧边界投影。
    齿孔条流光随总进度流动；播完释放选中，之后悬停切换。
    ================================================================== */
@@ -129,35 +130,33 @@ const FILM_FRAMES = [
 
 const N_FRAMES = FILM_FRAMES.length;
 
-// 播放顺序倒置(frame-8 先播、frame-0 最后),配合胶带从左滑入 → "正在播的帧"就是从左边缘
-// 进来的那一帧,始终可见。首帧延迟 1s 让胶带先腾出空间。每帧 1s、gapless 链 → 9s;
-// 加首 1s 延迟 = 10s,与胶带 pan(10s)严格同步(预算取 max,不翻倍)。滚动平滑擦洗,不停顿,无 loop。
-const FRAME_PLAY = 1000;
-const INTRO_DELAY = 1000; // 首帧前的延迟:胶带先滑入腾空间
-const PAN_MS = INTRO_DELAY + N_FRAMES * FRAME_PLAY; // 10000
-// hold 尾段:铺满后延长锁定区,让胶带停留一下(可 hover / loop 走片)再释放到下一幕。
-/* ⚠️ 2026-08-12 真机实测把 500 提到 2600。用户报「鼠标选中后 codeboard 没有出现」。
- * 探针 `scripts/rv-20260812-sweep.mjs` 的连续扫描（sweep.json）钉死了机制：
- *   y=11570 胶带 `--film-flow` 才到 100%（`state.done` 为真、hover 此刻起才被受理），
- *   而同一 y 上 `film-card-inout` 的 opacity 已经是 **0.746 并继续下落**，
- *   y=12040 归零，此后整个可 hover 的 hold 段卡片恒为 0。
- * 也就是说：选中逻辑一直是好的（探针实测 hover 能正确改写 activeCode/activeDesc），
- * 但卡片在「可以 hover」的那一刻恰好淡完了 —— 用户看到的就是「选中了但卡片不出现」。
- * 旧 HOLD_MS=500 只给了 500px 的驻留窗口，比一次滚轮轻推还短，根本不够 hover。 */
-const HOLD_MS = 2600;
-/* 选中切换的交叉淡入淡出窗口（C4，2026-08-10：180 → 420）。
- * 用户报「存在动画切换太快闪烁的问题」。旧值 180ms 要在一次切换里塞完
- * 「旧行淡出 + 新行淡入」，滚动快进时两者挤成一帧 ⇒ 读作「闪」。
- * 上限由相邻切换点间距定：帧间距 FRAME_PLAY=1000ms，一次切换占 2×fade，
- * 故 fade < 500ms；取 420ms，留 160ms 净空，既不重叠又明显从容。 */
-const SELECTION_FADE_MS = 420;
-const SELECTION_MS = PAN_MS + HOLD_MS;
+/* 2026-08-29「一次过片」6s 重编排（用户裁决：旧 10s pan + 1s×9 gapless 太拖）。
+ * 时间轴（SELECTION_MS ≈ 5.86s）：
+ *   0      film-title 入场（640ms，不动）
+ *   0      胶带一次入场 fade+上浮，TAPE_IN_MS（不再 10s pan）
+ *   1100   九帧正序波浪级联：220ms stagger、每帧 600ms，末帧 3460ms 定格
+ *   3460   播放完，hover 立即可用
+ *   3460+2400 = 5860  hold 驻留（旧 2600 的教训仍在：给足 hover 窗口） */
+const TAPE_IN_MS = 700;
+const FRAME_START = 1100; // 胶带到位后首帧才播
+const FRAME_STAGGER = 220;
+const FRAME_PLAY = 600;
+const PLAY_END = FRAME_START + (N_FRAMES - 1) * FRAME_STAGGER + FRAME_PLAY; // 3460
+
+/* hold 尾段:播完后延长锁定区,让胶带停留一下(可 hover / loop 走片)再释放。
+ * 保留 2026-08-12 的教训:HOLD 必须显著长于一次滚轮轻推,否则「能 hover 时
+ * 卡片已淡完」的回归会回来(详见 git 历史);2600 → 2400 只是配合 6s 总预算。 */
+const HOLD_MS = 2400;
+/* 选中切换交叉淡入淡出窗口。帧 stagger 220ms ⇒ 每次切换「淡出+淡回」必须
+ * 收进 2×fade < 220ms：fade=100ms（旧 420ms 是按 1000ms 帧间距定的）。 */
+const SELECTION_FADE_MS = 100;
+const SELECTION_MS = PLAY_END + HOLD_MS; // 5860
 
 /**
  * 胶带上方 caption（活跃帧标题 + 预设名）的切换变体。
  *
  * 每到一个切换点：`at−fade` 实心 → `at` 淡出+虚焦缩小 → `at+fade` 重新实心。
- * 切换点由帧播放节奏推出，最后一个锚在 pan 结束处。
+ * 切换点按帧入场节奏推出（FRAME_START + n×FRAME_STAGGER），与帧格入场一一对应。
  *
  * ⚠️ 2026-08-12 两处修正，都源于「锚点用被改动的时长做分母」这类错误：
  *   1. 末帧**不再淡出**。原实现在最后一次切换后收到 opacity 0 并保持到 lane 末尾；
@@ -182,16 +181,13 @@ function filmSelectionVariant(): {
   const filter: string[] = [blur];
   const scale: number[] = [0.98];
   const fade = SELECTION_FADE_MS / SELECTION_MS;
-  const switches = [
-    ...Array.from(
-      { length: N_FRAMES },
-      (_, order) => (INTRO_DELAY + FRAME_PLAY * 0.05 + order * FRAME_PLAY) / SELECTION_MS
-    ),
-    // ⚠️ 末锚提前一个 fade：这个切换点原本就是 `PAN_MS/SELECTION_MS`（胶带跑完处），
-    // 而 caption 在切换点上恰好是 opacity 0 谷底 —— 也就是 hover 刚被受理的那一瞬
-    // 标题正好不可见，随后才淡回。提前 fade 让「淡出→淡回实心」在 hover 开放前走完。
-    PAN_MS / SELECTION_MS - fade,
-  ];
+  /* 正序波浪:切换点 = 对应帧开始播放的时刻（提前 40ms，让 caption 在帧格
+   * 起跳前完成虚化）。末切换点 ≈ (5860-600-2400+40)/5860，远离 lane 尾端，
+   * 2026-08-12「末锚触底导致 caption 在 hover 开放瞬间不可见」的坑在结构上消失。 */
+  const switches = Array.from(
+    { length: N_FRAMES },
+    (_, order) => (FRAME_START - 40 + order * FRAME_STAGGER) / SELECTION_MS
+  );
 
   const pushSolid = (at: number): void => {
     times.push(at);
@@ -232,17 +228,16 @@ function filmSelectionVariant(): {
 const FILM_CAPTION_SELECTION = filmSelectionVariant();
 
 /* ── 整卡进出场（`film-card-inout`）────────────────────────────────────────
- * 挂独立短轴（`waitFor: 'film-title'`），不跟胶带 `film-pan` 同轴 —— 独立轴的
- * 进场时长可单独调，不被胶带 10s 的 pan 拖长。
+ * 挂独立短轴（`after: 'film-title'`），不跟胶带入场轴绑定 —— 独立轴的
+ * 进场时长可单独调。
  *
  * ⚠️ 2026-08-12 两处真机修正：
- *   1. 旧写法退场从 lane 的 0.94 起步 = 9870ms —— 早于胶带 pan 结束的 10000ms，
- *      退场斜坡把整个可 hover 的 hold 段吃掉，卡片在能被 hover 时已经淡完
- *      （用户报「选中后 codeboard 没出现」）。
+ *   1. 旧写法退场从 lane 的 0.94 起步 —— 早于胶带播完，退场斜坡把整个可 hover 的
+ *      hold 段吃掉，卡片在能被 hover 时已经淡完（用户报「选中后 codeboard 没出现」）。
  *   2. **不要退场动画**（用户裁决）。用户在驻留段稍一滚动就撞进那条斜坡，
  *      看到的是「半透明的代码框」—— 那不是设计，是退场播到一半。
  * 现在：入场占 lane 的前 `CARD_IN_END`，其后**恒为实心**直到整幕被切走，没有退场段。
- * lane 时长与 `film-caption-selection` 同为 `SELECTION_MS`（= PAN + HOLD），两者对齐。
+ * lane 时长与 `film-caption-selection` 同为 `SELECTION_MS`（播完 + HOLD），两者对齐。
  *
  * 位移 32 设计 px：明显是「从下方升上来」而非漂移；且远小于外层裁切余量
  * （`.capability-full` 的 `overflow-clip-margin: 120px`）⇒ 投影不会被切。 */
@@ -302,13 +297,13 @@ function FilmTimelineProjection({
   useEffect(() => {
     const project = (value: number): void => {
       const p = Math.min(Math.max(value, 0), 1);
-      const elapsed = p * PAN_MS;
-      const done = p >= 0.9995;
-      const activeElapsed = elapsed - INTRO_DELAY - FRAME_PLAY * 0.05;
+      const elapsed = p * SELECTION_MS;
+      /* done 在「播完」即真（不是 lane 走完）：hold 段全程可 hover。 */
+      const done = elapsed >= PLAY_END;
       const active =
-        done || activeElapsed < 0
+        elapsed < FRAME_START || done
           ? -1
-          : Math.max(0, N_FRAMES - 1 - Math.floor(activeElapsed / FRAME_PLAY));
+          : Math.min(N_FRAMES - 1, Math.floor((elapsed - FRAME_START) / FRAME_STAGGER));
       const state = stateRef.current;
       state.active = active;
       state.done = done;
@@ -316,7 +311,7 @@ function FilmTimelineProjection({
 
       const flow = Math.min(
         100,
-        Math.max(0, ((elapsed - INTRO_DELAY) / (N_FRAMES * FRAME_PLAY)) * 100)
+        Math.max(0, ((elapsed - FRAME_START) / (PLAY_END - FRAME_START)) * 100)
       );
       sceneRef.current?.style.setProperty('--film-flow', `${flow}%`);
       applyFilmSelection(sceneRef.current, state);
@@ -359,10 +354,13 @@ export function CapabilityFilmStripScene(): JSX.Element {
       <Animate
         animateId="film-clock"
         enterAnimation={solidVariant()}
-        duration={{ enter: PAN_MS }}
-        timeline={{ waitFor: 'film-title', delay: 0 }}
+        duration={{ enter: SELECTION_MS }}
+        timeline={{ after: 'film-title', delay: 0 }}
       >
-        <TimecodeAxis shotIndex={1} seconds={10} />
+        {/* 时间投影必须挂在 SELECTION_MS 轴上（film-clock），不能挂在 700ms 的
+            胶带入场轴上 —— elapsed = p * SELECTION_MS，轴时长错则整个投影失准。 */}
+        <FilmTimelineProjection sceneRef={sceneRef} stateRef={selectionRef} />
+        <TimecodeAxis shotIndex={1} seconds={6} />
       </Animate>
       <div className="cap-slate">{t('cap.shot1.slate')}</div>
 
@@ -387,7 +385,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
           animateId="film-caption-selection"
           enterAnimation={FILM_CAPTION_SELECTION}
           duration={{ enter: SELECTION_MS }}
-          timeline={{ waitFor: 'film-title', delay: 0 }}
+          timeline={{ after: 'film-title', delay: 0 }}
         >
           <div className="film-caption-slot">
             {FILM_FRAMES.map((frame, index) => (
@@ -404,18 +402,18 @@ export function CapabilityFilmStripScene(): JSX.Element {
         </Animate>
       </Position>
 
-      {/* 胶卷:gate 固定可视窗(100vw),单份 track。film-pan lane 负责 x(-100%→0)。
-          9 帧 gapless 倒序链。铺满后帧静止不动,齿孔条由 infinite lane 循环走片;
+      {/* 胶卷:gate 固定可视窗(100vw),单份 track。film-pan lane 只做一次轻入场。
+          9 帧按 FRAME_STAGGER 依次入场播一次预设并定格;齿孔条由 infinite lane 循环走片;
           鼠标悬停暂停走片并切换说明。
-          hold 尾段延长锁定区,铺满后停留可 hover / 看齿孔滚动。 */}
+          hold 尾段延长锁定区,悬停互动都落在 hold 段。 */}
       <Position at={{ anchor: 'center-x', y: 342 }}>
         <div className="film-gate">
           <Animate
             animateId="film-pan"
-            enterAnimation={filmPanVariant()}
-            duration={{ enter: PAN_MS }}
-            timeline={{ waitFor: 'film-title', delay: 0 }}
-            infiniteAnimation={
+            enterAnimation={filmEnterVariant()}
+            duration={{ enter: TAPE_IN_MS }}
+            timeline={{ after: 'film-title', delay: 0 }}
+            loopAnimation={
               reduced
                 ? undefined
                 : {
@@ -427,7 +425,6 @@ export function CapabilityFilmStripScene(): JSX.Element {
             }
           >
             <div className="film-track">
-              <FilmTimelineProjection sceneRef={sceneRef} stateRef={selectionRef} />
               <div className="film-track__perf film-track__perf--top" />
               <div className="film-track__frames">
                 {/* C8（2026-08-10 用户指令）:「胶带内的动画执行，只覆盖到图标及标题，
@@ -453,11 +450,10 @@ export function CapabilityFilmStripScene(): JSX.Element {
                         animateId={`film-frame-${index}`}
                         enterAnimation={frame.preset}
                         duration={{ enter: FRAME_PLAY }}
-                        timeline={
-                          index === N_FRAMES - 1
-                            ? { waitFor: 'film-title', delay: INTRO_DELAY }
-                            : { waitFor: `film-frame-${index + 1}` }
-                        }
+                        timeline={{
+                          after: 'film-title',
+                          delay: FRAME_START + index * FRAME_STAGGER,
+                        }}
                       >
                         <div className="film-frame">
                           <div className="film-frame__card">
@@ -486,7 +482,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
           animateId="film-hold"
           enterAnimation="fade-in"
           duration={{ enter: HOLD_MS }}
-          timeline={{ waitFor: 'film-frame-0', delay: 0 }}
+          timeline={{ after: `film-frame-${N_FRAMES - 1}`, delay: 0 }}
         >
           <span />
         </Animate>
@@ -501,7 +497,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
           animateId="film-card-inout"
           enterAnimation={cardInOutVariant()}
           duration={{ enter: SELECTION_MS }}
-          timeline={{ waitFor: 'film-title', delay: 0 }}
+          timeline={{ after: 'film-title', delay: 0 }}
         >
           {/* 卡内内容**无动画**（2026-08-12 用户裁决：「代码框里面的内容不要有动画，
               只有代码框在真正的切换」）。原 `film-code-selection` lane 的逐行

@@ -30,15 +30,15 @@ export function regroupCallbacks(flat: FlatCallbacks | undefined): GroupedCallba
     common: {
       onReady: flat.onReady,
       onLoadProgress: flat.onLoadProgress,
-      onSceneWillChange: flat.onSceneWillChange,
-      onSceneDidChange: flat.onSceneDidChange,
+      onSceneEnter: flat.onSceneEnter,
+      onSceneLeave: flat.onSceneLeave,
       onError: flat.onError,
     },
     drag: {
       onDragStart: flat.onDragStart,
       onDragProgress: flat.onDragProgress,
       onDragBlocked: flat.onDragBlocked,
-      onDragCommit: flat.onDragCommit,
+      onDragEnd: flat.onDragEnd,
       onDragCancel: flat.onDragCancel,
     },
     scroll: {

@@ -209,7 +209,7 @@ export interface SceneInternalProps extends SceneProps, SceneLegacyCompatProps {
     frameStore?: ScrollSceneFrameStore;
     sceneIndex?: number;
   };
-  onDragCommit?: (
+  onDragGestureEnd?: (
     direction: 'forward' | 'backward',
     progressRatio: number,
     elapsedMs: number,

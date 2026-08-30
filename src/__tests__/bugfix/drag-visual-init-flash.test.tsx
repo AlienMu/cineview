@@ -220,8 +220,9 @@ function renderDragApp() {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-      config={{ size: 750 }}
+      direction={'y'}
+      transitionDuration={800}
+      designWidth={750}
     >
       <Scene>
         <Position at={{ x: 375, y: 220 }}>
@@ -252,7 +253,7 @@ describe('drag visual init flash (D-P1-1, first-scene enter spec)', () => {
     const { cineViewRef } = renderDragApp();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     // The active scene's fade-in element renders once the async variant parse
@@ -307,7 +308,7 @@ describe('drag visual init flash (D-P1-1, first-scene enter spec)', () => {
     const { cineViewRef } = renderDragApp();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
     await waitFor(() => {
       expect(driverControllers.length).toBeGreaterThan(0);

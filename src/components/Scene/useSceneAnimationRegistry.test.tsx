@@ -1,15 +1,15 @@
 import { act, renderHook } from '@testing-library/react';
-import { useSceneAnimationRegistry, type WaitForOutcome } from './useSceneAnimationRegistry';
+import { useSceneAnimationRegistry, type AfterOutcome } from './useSceneAnimationRegistry';
 
-function lastOutcome(outcomes: WaitForOutcome[]): WaitForOutcome | undefined {
+function lastOutcome(outcomes: AfterOutcome[]): AfterOutcome | undefined {
   return outcomes[outcomes.length - 1];
 }
 
 function collectOutcomes(): {
-  outcomes: WaitForOutcome[];
-  listener: (outcome: WaitForOutcome) => void;
+  outcomes: AfterOutcome[];
+  listener: (outcome: AfterOutcome) => void;
 } {
-  const outcomes: WaitForOutcome[] = [];
+  const outcomes: AfterOutcome[] = [];
   return {
     outcomes,
     listener: (outcome) => outcomes.push(outcome),
@@ -40,10 +40,10 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       follower = result.current.registerAnimate('follower', {
         delay: 20,
         duration: 80,
-        waitFor: 'missing',
-        driver: 'visibility',
+        after: 'missing',
+        lane: 'visibility',
       });
-      follower.observeWaitFor(observed.listener);
+      follower.observeAfter(observed.listener);
     });
 
     expect(observed.outcomes[observed.outcomes.length - 1]).toMatchObject({
@@ -76,14 +76,14 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       follower = result.current.registerAnimate('late-observer', {
         delay: 0,
         duration: 100,
-        waitFor: 'missing',
-        driver: 'visibility',
+        after: 'missing',
+        lane: 'visibility',
       });
       jest.runOnlyPendingTimers();
     });
 
     act(() => {
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
     });
 
     expect(lastOutcome(outcomes.outcomes)).toEqual({
@@ -107,11 +107,11 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       follower = result.current.registerAnimate('preparing-follower', {
         delay: 0,
         duration: 100,
-        waitFor: 'preparing-leader',
-        driver: 'visibility',
+        after: 'preparing-leader',
+        lane: 'visibility',
       });
       jest.runOnlyPendingTimers();
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
     });
 
     expect(lastOutcome(outcomes.outcomes)).toEqual({
@@ -141,17 +141,17 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       const a = result.current.registerAnimate('a', {
         delay: 0,
         duration: 100,
-        waitFor: 'b',
-        driver: 'visibility',
+        after: 'b',
+        lane: 'visibility',
       });
       const b = result.current.registerAnimate('b', {
         delay: 0,
         duration: 100,
-        waitFor: 'a',
-        driver: 'visibility',
+        after: 'a',
+        lane: 'visibility',
       });
-      a.observeWaitFor(aOutcomes.listener);
-      b.observeWaitFor(bOutcomes.listener);
+      a.observeAfter(aOutcomes.listener);
+      b.observeAfter(bOutcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
@@ -180,31 +180,31 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       a = result.current.registerAnimate('a', {
         delay: 1,
         duration: 10,
-        waitFor: 'b',
-        driver: 'visibility',
+        after: 'b',
+        lane: 'visibility',
       });
       const b = result.current.registerAnimate('b', {
         delay: 2,
         duration: 20,
-        waitFor: 'c',
-        driver: 'visibility',
+        after: 'c',
+        lane: 'visibility',
       });
       const c = result.current.registerAnimate('c', {
         delay: 3,
         duration: 30,
-        waitFor: 'a',
-        driver: 'visibility',
+        after: 'a',
+        lane: 'visibility',
       });
       const downstream = result.current.registerAnimate('downstream', {
         delay: 4,
         duration: 40,
-        waitFor: 'a',
-        driver: 'visibility',
+        after: 'a',
+        lane: 'visibility',
       });
-      a.observeWaitFor(aOutcomes.listener);
-      b.observeWaitFor(bOutcomes.listener);
-      c.observeWaitFor(cOutcomes.listener);
-      downstream.observeWaitFor(downstreamOutcomes.listener);
+      a.observeAfter(aOutcomes.listener);
+      b.observeAfter(bOutcomes.listener);
+      c.observeAfter(cOutcomes.listener);
+      downstream.observeAfter(downstreamOutcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
@@ -230,7 +230,7 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
     expect(reportError).toHaveBeenCalledTimes(1);
     expect(reportError).toHaveBeenCalledWith({
       code: 'CIRCULAR_DEPENDENCY',
-      message: 'Animate waitFor chain contains a cycle in Scene 0: a -> b -> c -> a.',
+      message: 'Animate after chain contains a cycle in Scene 0: a -> b -> c -> a.',
       context: { sceneIndex: 0 },
     });
 
@@ -265,24 +265,24 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       scrollLeader = result.current.registerAnimate('scroll-a', {
         delay: 5,
         duration: 100,
-        waitFor: 'visibility-b',
-        driver: 'scroll',
+        after: 'visibility-b',
+        lane: 'scroll',
       });
       const visibilityFollower = result.current.registerAnimate('visibility-b', {
         delay: 7,
         duration: 50,
-        waitFor: 'scroll-a',
-        driver: 'visibility',
+        after: 'scroll-a',
+        lane: 'visibility',
       });
-      scrollLeader.observeWaitFor(scrollOutcomes.listener);
-      visibilityFollower.observeWaitFor(visibilityOutcomes.listener);
+      scrollLeader.observeAfter(scrollOutcomes.listener);
+      visibilityFollower.observeAfter(visibilityOutcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
     expect(lastOutcome(scrollOutcomes.outcomes)).toEqual({
       kind: 'invalid',
       leaderId: 'visibility-b',
-      reason: 'incompatible-driver',
+      reason: 'incompatible-lane',
     });
     expect(lastOutcome(visibilityOutcomes.outcomes)).toMatchObject({
       kind: 'pending',
@@ -297,11 +297,11 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
     expect(snapshot.timelineDuration).toBe(105);
     expect(snapshot.issues).toEqual([
       {
-        type: 'incompatible-driver',
+        type: 'incompatible-lane',
         animateId: 'scroll-a',
-        waitFor: 'visibility-b',
-        followerDriver: 'scroll',
-        leaderDriver: 'visibility',
+        after: 'visibility-b',
+        followerLane: 'scroll',
+        leaderLane: 'visibility',
       },
     ]);
     expect(reportError).toHaveBeenCalledTimes(1);
@@ -330,15 +330,15 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       firstLeader = result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'visibility',
+        lane: 'visibility',
       });
       const follower = result.current.registerAnimate('follower-1', {
         delay: 0,
         duration: 100,
-        waitFor: 'leader',
-        driver: 'visibility',
+        after: 'leader',
+        lane: 'visibility',
       });
-      follower.observeWaitFor(firstFollowerOutcomes.listener);
+      follower.observeAfter(firstFollowerOutcomes.listener);
       firstLeader.publishEnterCompleted();
     });
 
@@ -354,15 +354,15 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       secondLeader = result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'visibility',
+        lane: 'visibility',
       });
       const follower = result.current.registerAnimate('follower-2', {
         delay: 0,
         duration: 100,
-        waitFor: 'leader',
-        driver: 'visibility',
+        after: 'leader',
+        lane: 'visibility',
       });
-      follower.observeWaitFor(secondFollowerOutcomes.listener);
+      follower.observeAfter(secondFollowerOutcomes.listener);
     });
 
     expect(secondLeader.generation).toBeGreaterThan(firstLeader.generation);
@@ -384,20 +384,20 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       older = result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'visibility',
+        lane: 'visibility',
       });
       newer = result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'visibility',
+        lane: 'visibility',
       });
       const follower = result.current.registerAnimate('follower', {
         delay: 0,
         duration: 100,
-        waitFor: 'leader',
-        driver: 'visibility',
+        after: 'leader',
+        lane: 'visibility',
       });
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
       older.dispose();
       jest.runOnlyPendingTimers();
       newer.publishEnterCompleted();
@@ -420,15 +420,15 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       const leader = result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'visibility',
+        lane: 'visibility',
       });
       const follower = result.current.registerAnimate('follower', {
         delay: 0,
         duration: 100,
-        waitFor: 'leader',
-        driver: 'visibility',
+        after: 'leader',
+        lane: 'visibility',
       });
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
       leader.dispose();
       jest.runOnlyPendingTimers();
     });
@@ -451,22 +451,22 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'visibility',
+        lane: 'visibility',
       });
       const follower = result.current.registerAnimate('follower', {
         delay: 0,
         duration: 100,
-        waitFor: 'leader',
-        driver: 'scroll',
+        after: 'leader',
+        lane: 'scroll',
       });
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
     expect(lastOutcome(outcomes.outcomes)).toEqual({
       kind: 'invalid',
       leaderId: 'leader',
-      reason: 'incompatible-driver',
+      reason: 'incompatible-lane',
     });
     expect(reportError).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -488,15 +488,15 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       leader = result.current.registerAnimate('leader', {
         delay: 0,
         duration: 100,
-        driver: 'scroll',
+        lane: 'scroll',
       });
       const follower = result.current.registerAnimate('follower', {
         delay: 25,
         duration: 50,
-        waitFor: 'leader',
-        driver: 'visibility',
+        after: 'leader',
+        lane: 'visibility',
       });
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
@@ -565,7 +565,7 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       const registration = result.current.registerAnimate('hero', {
         delay: 25,
         duration: 175,
-        driver: 'drag',
+        lane: 'drag',
       });
       registration.setEnterVariant?.(enterVariant);
       jest.runOnlyPendingTimers();
@@ -619,7 +619,7 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       const registration = result.current.registerAnimate('hero', {
         delay: 20,
         duration: 180,
-        driver: 'drag',
+        lane: 'drag',
       });
       registration.setEnterVariant?.({
         initial: { opacity: 0 },
@@ -694,7 +694,7 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
       registration = result.current.registerAnimate('stable', {
         delay: 10,
         duration: 90,
-        driver: 'drag',
+        lane: 'drag',
       });
       registration.setEnterVariant?.(enterVariant);
       jest.runOnlyPendingTimers();
@@ -728,21 +728,21 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
     const outcomes = collectOutcomes();
 
     act(() => {
-      result.current.declareAnimateDriver('arrival-leader', 'visibility');
+      result.current.declareAnimateLane('arrival-leader', 'visibility');
       const follower = result.current.registerAnimate('drag-follower', {
         delay: 25,
         duration: 100,
-        waitFor: 'arrival-leader',
-        driver: 'drag',
+        after: 'arrival-leader',
+        lane: 'drag',
       });
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
     expect(lastOutcome(outcomes.outcomes)).toEqual({
       kind: 'invalid',
       leaderId: 'arrival-leader',
-      reason: 'incompatible-driver',
+      reason: 'incompatible-lane',
     });
     expect(reportError).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -763,23 +763,23 @@ describe('useSceneAnimationRegistry waitFor leases', () => {
     const outcomes = collectOutcomes();
 
     act(() => {
-      const older = result.current.declareAnimateDriver('leader', 'visibility');
-      result.current.declareAnimateDriver('leader', 'visibility');
+      const older = result.current.declareAnimateLane('leader', 'visibility');
+      result.current.declareAnimateLane('leader', 'visibility');
       older.dispose();
       const follower = result.current.registerAnimate('follower', {
         delay: 0,
         duration: 100,
-        waitFor: 'leader',
-        driver: 'drag',
+        after: 'leader',
+        lane: 'drag',
       });
-      follower.observeWaitFor(outcomes.listener);
+      follower.observeAfter(outcomes.listener);
       jest.runOnlyPendingTimers();
     });
 
     expect(lastOutcome(outcomes.outcomes)).toEqual({
       kind: 'invalid',
       leaderId: 'leader',
-      reason: 'incompatible-driver',
+      reason: 'incompatible-lane',
     });
   });
 });

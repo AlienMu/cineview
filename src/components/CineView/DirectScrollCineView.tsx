@@ -16,8 +16,8 @@ import { devError } from '../../utils/devLog';
 import type {
   CineViewErrorCode,
   CineViewPreloadTarget,
-  CineViewProps,
   CineViewRef,
+  CineViewScrollModeProps,
   PerformanceMetrics,
   ScrollModeConfig,
 } from '../../types';
@@ -49,12 +49,26 @@ import {
 } from '../runtime/runtimeContext';
 import { SceneScrollRuntimeContext, SceneScrollTimelineContext } from '../Scene/sceneScrollRuntime';
 
-export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
+// mode 在 DirectScrollCineView 上是冗余的（它就是 scroll 根），测试/内部调用可省略。
+type DirectScrollCineViewProps = Omit<CineViewScrollModeProps, 'mode'> & { mode?: 'scroll' };
+
+export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineViewProps>(
   function DirectScrollCineView(
-    { children, config, modes, scrollbar, callbacks, performance },
+    {
+      children,
+      designWidth,
+      direction: directionProp,
+      zoneTrigger,
+      sceneSizing,
+      enterMargin,
+      exitMargin,
+      scrollbar,
+      callbacks,
+      monitor,
+    },
     ref
   ) {
-    const { designSize } = resolveDesignDimensions(config);
+    const { designSize } = resolveDesignDimensions(designWidth);
     // Public callbacks are flat + mode-aware; regroup back into { common, drag,
     // scroll } so the read sites below stay grouped (mirrors CineView.tsx).
     const resolvedCallbacks = useMemo<GroupedCallbacks>(
@@ -63,11 +77,11 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     );
     const resolvedScrollConfig = useMemo<ScrollModeConfig>(
       () => ({
-        direction: modes?.scroll?.direction ?? 'y',
-        zoneTrigger: modes?.scroll?.zoneTrigger ?? 'center-lock',
-        sceneSizing: modes?.scroll?.sceneSizing ?? 'content',
+        direction: directionProp ?? 'y',
+        zoneTrigger: zoneTrigger ?? 'center-lock',
+        sceneSizing: sceneSizing ?? 'content',
       }),
-      [modes?.scroll]
+      [directionProp, zoneTrigger, sceneSizing]
     );
     const direction = resolvedScrollConfig.direction ?? 'y';
     const containerRef = useRef<HTMLDivElement>(null);
@@ -188,12 +202,12 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const totalScenes = scenes.length;
     useEffect(() => {
       if (totalScenes === 0) {
-        emitRecoverableError('NO_SCENES', 'CineView requires at least one Scene child.', {
+        emitRecoverableError('EMPTY_SCENES', 'CineView requires at least one Scene child.', {
           mode: 'scroll',
         });
         if (process.env.NODE_ENV !== 'production') {
           console.warn(
-            '[CineView] NO_SCENES: the scroll root has no Scene children; nothing will render.'
+            '[CineView] EMPTY_SCENES: the scroll root has no Scene children; nothing will render.'
           );
         }
       }
@@ -225,7 +239,9 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
       enabled: scenes.length > 0,
       hasFirstScene: Boolean(scenes[0]),
       priorityComplete: preloadState.priorityComplete,
-      timeoutMs: Math.max(0, modes?.drag?.firstSceneTimeout ?? 3000),
+      // firstSceneTimeout is a drag-mode-only root prop; scroll always uses the
+      // 3000ms default.
+      timeoutMs: 3000,
       emitRecoverableError,
       getPreloadCounts,
     });
@@ -353,12 +369,12 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     }, [isScrolling, runContentRemeasure]);
 
     useEffect(() => {
-      if (!performance?.monitor) {
+      if (!monitor) {
         return;
       }
 
       return acquirePerformanceMonitoring();
-    }, [performance?.monitor]);
+    }, [monitor]);
 
     useEffect(() => {
       if (process.env.NODE_ENV !== 'development' || !hasLegacyDisplayNameScene) {
@@ -417,7 +433,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
 
           await startPreload();
         },
-        getCurrentScene: () => activeSceneIndexRef.current,
+        getCurrentIndex: () => activeSceneIndexRef.current,
         getPerformanceMetrics: (): PerformanceMetrics => performanceMonitor.getMetrics(),
       }),
       [
@@ -469,8 +485,8 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
     const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
       () => ({
         mode: 'scroll',
-        scrollEnterMargin: modes?.scroll?.enterMargin,
-        scrollExitMargin: modes?.scroll?.exitMargin,
+        scrollEnterMargin: enterMargin,
+        scrollExitMargin: exitMargin,
         reportError: (detail): void => {
           resolvedCallbacks.common?.onError?.({
             ...detail,
@@ -478,7 +494,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, CineViewProps>(
           });
         },
       }),
-      [modes?.scroll?.enterMargin, modes?.scroll?.exitMargin, resolvedCallbacks.common]
+      [enterMargin, exitMargin, resolvedCallbacks.common]
     );
 
     return (

@@ -25,7 +25,7 @@ export interface AnimationParseFailure {
 export async function parseAnimationSafely(
   animation: string | CustomAnimation | ComposedAnimation | undefined,
   componentId: string,
-  animationType: 'enter' | 'exit' | 'infinite',
+  animationType: 'enter' | 'exit' | 'loop',
   onFailure?: (failure: AnimationParseFailure) => void
 ): Promise<ParsedAnimationVariant | PresetAnimation | null> {
   if (!animation) return null;

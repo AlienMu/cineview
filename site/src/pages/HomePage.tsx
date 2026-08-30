@@ -55,7 +55,7 @@ export default function HomePage(): JSX.Element {
       {/* 全站背景色带 = App 级 <BackgroundRibbon />（初版机制还原，2026-08-13），
           不再由本页挂载（见 task-flow 2026-08-13 追加轮）。 */}
       <CineView
-        config={{ size: 1440 }}
+        designWidth={1440}
         mode="scroll"
         scrollbar={{
           enabled: true,

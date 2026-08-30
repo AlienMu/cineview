@@ -8,7 +8,7 @@ import type { ResolvedAnimateTimeline, NormalizedAnimateVisibility } from './ani
 import type { SceneScrollTimelineState, SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 import type {
   SceneAnimationRegistrationLease,
-  WaitForOutcome,
+  AfterOutcome,
 } from '../Scene/useSceneAnimationRegistry';
 import {
   clamp,
@@ -96,7 +96,7 @@ export function resolveGatePhaseAction(
   phase: GatePhase,
   enterGate: boolean,
   exitGate: boolean,
-  opts: { hasExplicitExit: boolean; replayOnReenter: boolean }
+  opts: { hasExplicitExit: boolean; replay: boolean }
 ): GateAction {
   switch (phase) {
     case 'idle':
@@ -110,16 +110,16 @@ export function resolveGatePhaseAction(
       // the `entering` guard above; their asymmetry was the snap-disappear bug.
       return exitGate && !enterGate && opts.hasExplicitExit ? 'exit' : null;
     case 'exiting':
-      return enterGate && !exitGate && opts.replayOnReenter ? 'enter' : null;
+      return enterGate && !exitGate && opts.replay ? 'enter' : null;
     case 'exited':
-      return enterGate && !exitGate && opts.replayOnReenter ? 'enter' : null;
+      return enterGate && !exitGate && opts.replay ? 'enter' : null;
     default:
       return null;
   }
 }
 
 /**
- * Pure decision for whether a visibility-driven element's infiniteAnimation
+ * Pure decision for whether a visibility-driven element's loopAnimation
  * should be running.
  *
  * The infinite (e.g. pulse) loop must only run while the element is BOTH in its
@@ -203,11 +203,11 @@ export function useAnimateScroll({
   const enterDuration = duration.enter;
   const exitDuration = duration.exit;
   const delay = timeline.delay;
-  const waitFor = timeline.waitFor;
-  const isScrollDriven = timeline.driver === 'scroll';
+  const after = timeline.after;
+  const isScrollDriven = timeline.lane === 'scroll';
   const phaseStart = timeline.phase?.start;
   const phaseEnd = timeline.phase?.end;
-  const replayOnReenter = visibility.replayOnReenter;
+  const replay = visibility.replay;
   // Resolve enter/exit gate margins: per-Animate override → CineView-level
   // default → 50. Design px × scale → physical px (the gate compares against
   // getBoundingClientRect, which is in physical px). Under the px2vw single-scale
@@ -284,7 +284,7 @@ export function useAnimateScroll({
   const tweenTokenRef = useRef(0);
   const zoneEnteredPublishedRef = useRef(false);
   const enterDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const waitForUnsubRef = useRef<(() => void) | null>(null);
+  const afterUnsubRef = useRef<(() => void) | null>(null);
   const recheckCancelRef = useRef<(() => void) | null>(null);
   const runVisibilityUpdateRef = useRef<(measurement?: VisibilityRootMeasurement) => void>(
     () => {}
@@ -330,8 +330,8 @@ export function useAnimateScroll({
   // the next scroll frame; Animate.tsx reports that misuse instead of pretending
   // it works.
   //
-  // `waitFor` / `delay` double as the opt-in FALLBACK switch:
-  //   enterRef + (waitFor|delay)  → the gate may still fire on its own after the
+  // `after` / `delay` double as the opt-in FALLBACK switch:
+  //   enterRef + (after|delay)  → the gate may still fire on its own after the
   //                                 wait (fallback), and a manual call preempts it.
   //   enterRef + neither          → the element holds at its initial frame forever
   //                                 until the consumer calls enterRef.current().
@@ -339,14 +339,14 @@ export function useAnimateScroll({
   // this leaves", and there is no "auto-exit after a timeout" semantic to fall back on.
   const hasManualEnter = Boolean(enterRef) && !isScrollDriven;
   const hasManualExit = Boolean(exitRef) && !isScrollDriven;
-  const enterFallbackAuthored = Boolean(waitFor) || delay > 0;
+  const enterFallbackAuthored = Boolean(after) || delay > 0;
   const autoEnterSuppressed = hasManualEnter && !enterFallbackAuthored;
   const autoExitSuppressed = hasManualExit;
   // Manual ownership is sticky: once the consumer has driven the enter, the gate
   // never re-fires it on its own (an auto replay would fight the owner).
   const manualEnterUsedRef = useRef(false);
   // ⚠️ A manual EXIT must be sticky too. `autoExitSuppressed` only closes the exit
-  // gate; the enter gate stays open, and `replayOnReenter` defaults to true — so an
+  // gate; the enter gate stays open, and `replay` defaults to true — so an
   // element told to leave while still inside the viewport gets pulled straight back
   // in on the very next scroll tick. That is precisely the intended use ("this is
   // mine, it leaves when I say"), so exiting by hand claims the enter gate as well.
@@ -366,9 +366,9 @@ export function useAnimateScroll({
       clearTimeout(enterDelayTimerRef.current);
       enterDelayTimerRef.current = null;
     }
-    if (waitForUnsubRef.current) {
-      waitForUnsubRef.current();
-      waitForUnsubRef.current = null;
+    if (afterUnsubRef.current) {
+      afterUnsubRef.current();
+      afterUnsubRef.current = null;
     }
     if (recheckCancelRef.current) {
       recheckCancelRef.current();
@@ -427,7 +427,7 @@ export function useAnimateScroll({
       const attempt = {
         token: ++waitingTokenRef.current,
         origin,
-        dependencyReady: !waitFor,
+        dependencyReady: !after,
         delayStarted: false,
         delayReady: false,
         coldStartBypass,
@@ -436,23 +436,23 @@ export function useAnimateScroll({
       setPhase('waiting');
       setShouldRunInfiniteState(false);
 
-      const handleOutcome = (outcome: WaitForOutcome): void => {
+      const handleOutcome = (outcome: AfterOutcome): void => {
         if (waitingAttemptRef.current?.token !== attempt.token || outcome.kind === 'pending')
           return;
         attempt.dependencyReady = true;
-        waitForUnsubRef.current = null;
+        afterUnsubRef.current = null;
         scheduleCurrentGateRecheck();
       };
 
-      if (!waitFor) return;
+      if (!after) return;
       const lease = registrationLeaseRef.current;
       if (lease) {
-        waitForUnsubRef.current = lease.observeWaitFor(handleOutcome);
+        afterUnsubRef.current = lease.observeAfter(handleOutcome);
       } else {
-        handleOutcome({ kind: 'invalid', leaderId: waitFor, reason: 'missing' });
+        handleOutcome({ kind: 'invalid', leaderId: after, reason: 'missing' });
       }
     },
-    [scheduleCurrentGateRecheck, setPhase, stopTween, waitFor]
+    [scheduleCurrentGateRecheck, setPhase, stopTween, after]
   );
 
   const advanceEnterAttempt = useCallback((): void => {
@@ -686,7 +686,7 @@ export function useAnimateScroll({
         // the overlap-band hysteresis mutex can be proven deterministically in tests.
         const action = resolveGatePhaseAction(phaseRef.current, enterGate, exitGate, {
           hasExplicitExit,
-          replayOnReenter,
+          replay,
         });
         // Manual ownership wins over the gate: a suppressed lane never auto-fires,
         // and a lane the consumer has already driven never auto-replays.
@@ -706,7 +706,7 @@ export function useAnimateScroll({
       // Reconcile infinite-animation activity against on-screen visibility every
       // measure. An element with no authored exitAnimation (hasExplicitExit=false)
       // never leaves 'entered' in EITHER direction, so its phase stays 'entered'
-      // even after it scrolls fully off-screen — leaving infiniteAnimation (e.g.
+      // even after it scrolls fully off-screen — leaving loopAnimation (e.g.
       // pulse) running off-screen forever (wasted work). resolveInfiniteActive
       // pauses it whenever the element is not intersecting the viewport, and a
       // later measure that brings it back on-screen (still 'entered') resumes it.
@@ -723,7 +723,7 @@ export function useAnimateScroll({
       hasExplicitExit,
       isScrollDriven,
       publishEnterCompleted,
-      replayOnReenter,
+      replay,
       runExitTween,
       sceneContext?.firstSceneEnterGateKnown,
       sceneContext?.firstSceneEnterActive,
@@ -737,7 +737,7 @@ export function useAnimateScroll({
   runVisibilityUpdateRef.current = runVisibilityUpdate;
 
   // Manual triggers. Both preempt whatever is in flight: `runEnterTween` clears a
-  // pending waitFor/delay attempt before starting, and a fresh `animate()` on the
+  // pending after/delay attempt before starting, and a fresh `animate()` on the
   // same MotionValue supersedes a running tween (the token bump makes the stale
   // onComplete a no-op). "Interrupt" therefore means "drop the rest of this
   // timeline and play now" — never "restart the wait".
@@ -786,8 +786,8 @@ export function useAnimateScroll({
     const lease = registerAnimate(componentId, {
       delay,
       duration: hasExplicitEnter ? enterDuration : exitDuration,
-      waitFor,
-      driver: isScrollDriven ? 'scroll' : 'visibility',
+      after,
+      lane: isScrollDriven ? 'scroll' : 'visibility',
     });
     registrationLeaseRef.current = lease ?? null;
     zoneEnteredPublishedRef.current = false;
@@ -811,7 +811,7 @@ export function useAnimateScroll({
     delay,
     enterDuration,
     exitDuration,
-    waitFor,
+    after,
     hasExplicitEnter,
     hasExplicitExit,
     isScrollDriven,
@@ -853,7 +853,7 @@ export function useAnimateScroll({
       delay,
       enterDuration,
       exitDuration: hasExplicitExit ? exitDuration : 0,
-      waitFor,
+      after,
       ...(phaseStart !== undefined || phaseEnd !== undefined
         ? {
             phase: {
@@ -878,14 +878,14 @@ export function useAnimateScroll({
     phaseEnd,
     phaseStart,
     zoneId,
-    waitFor,
+    after,
     registerZoneAnimation,
     unregisterZoneAnimation,
   ]);
 
   const applyScrollZoneState = useCallback(
     (zoneState: SceneScrollTimelineState | null): void => {
-      // S-F6: an Animate with no authored enter/exit (e.g. infiniteAnimation
+      // S-F6: an Animate with no authored enter/exit (e.g. loopAnimation
       // only) never registers a zone budget, so the budget lookup below can
       // never succeed. Holding it at the initial frame (visualMotion 0) made it
       // permanently invisible inside a takeover zone (empty variants default
@@ -894,7 +894,7 @@ export function useAnimateScroll({
       // at its entered frame (localProgress = 1 semantics: empty-variant
       // defaults resolve to opacity 1 / neutral transform). Phase mirrors the
       // rest state so the render-prop bridge and the per-scene enter bus see it
-      // as entered (a follower waitFor-ing it is not deadlocked).
+      // as entered (a follower after-ing it is not deadlocked).
       if (!hasExplicitEnter && !hasExplicitExit) {
         if (visualMotion.get() !== 1) visualMotion.set(1);
         if (phaseRef.current !== 'entered') {
@@ -904,7 +904,7 @@ export function useAnimateScroll({
       }
 
       if (!zoneRuntime || !zoneId) {
-        // driver === 'scroll' now implies mode==='scroll' + sceneControlled +
+        // lane === 'scroll' now implies mode==='scroll' + driver 'scene' +
         // an inherited zoneId (see Animate.tsx resolve), so a scroll-driven
         // element without a zone is structurally impossible. Kept as a defensive
         // early-return (rest at the initial frame) rather than a warning.

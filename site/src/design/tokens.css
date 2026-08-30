@@ -60,11 +60,8 @@
 
   /* — 结构 — */
   --content-max: 1080px;
-  --radius-sm: 6px;
-  --radius: 12px;
-  --radius-lg: 20px;
 
-  /* — 阴影(柔和,浅色系)— */
+  /* — 阴影（编辑派：柔和、浅层）— */
   --shadow-sm: 0 1px 3px rgba(26, 24, 20, 0.05);
   --shadow: 0 8px 30px rgba(26, 24, 20, 0.08);
   --shadow-lg: 0 24px 60px rgba(26, 24, 20, 0.12);

@@ -1,12 +1,12 @@
 /* Scene-specific finish layer for acts 03–05.
  *
  * Split out from temporal-drag.css so the three rebuilt acts can be read as units. Every
- * continuous motion below lives on an <Animate infiniteAnimation> lane or inside a canvas
+ * continuous motion below lives on an <Animate loopAnimation> lane or inside a canvas
  * that gates its own rAF on `timeline.phase`; this file only supplies geometry and paint.
  *
  * Two rules govern most of what looks unusual here, both from the 2026-07-29 task flow:
  *
- *  §1.5 rule 4 — an <Animate> that declares `infiniteAnimation` renders an EXTRA anonymous
+ *  §1.5 rule 4 — an <Animate> that declares `loopAnimation` renders an EXTRA anonymous
  *    motion.div between `.cineview-animate` and the authored child. That wrapper is
  *    position:static with no inset, so it shrink-wraps; around absolutely-positioned content
  *    it wraps to height 0 and every percentage translate on the loop resolves to 0px — the
@@ -173,7 +173,7 @@
   margin: 0;
   padding: clamp(8px, 2.4cqw, 14px) clamp(8px, 2.4cqw, 13px) clamp(26px, 7cqw, 38px);
   border: 1px solid rgba(216, 162, 74, 0.2);
-  border-radius: 4px;
+  border-radius: 0;
   background:
     linear-gradient(90deg, rgba(216, 162, 74, 0.08) 1px, transparent 1px) 0 0 / 12.5% 100%,
     linear-gradient(180deg, rgba(18, 15, 19, 0.88), rgba(8, 7, 10, 0.96));
@@ -275,7 +275,7 @@
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(216, 162, 74, 0.26);
-  border-radius: 2px;
+  border-radius: 0;
   background: rgba(9, 8, 11, 0.7);
   box-shadow:
     0 8px 22px rgba(0, 0, 0, 0.26),
@@ -306,7 +306,7 @@
   inset: 0;
   overflow: hidden;
   border: 1px solid rgba(177, 189, 202, 0.32);
-  border-radius: 1px;
+  border-radius: 0;
   background: rgba(177, 189, 202, 0.12);
 }
 
@@ -316,7 +316,7 @@
   z-index: 2;
   display: block;
   border: 1px solid rgba(240, 198, 126, 0.92);
-  border-radius: 1px;
+  border-radius: 0;
   background: rgba(232, 183, 102, 0.2);
   box-shadow:
     0 0 0 1px rgba(240, 198, 126, 0.42),
@@ -418,7 +418,7 @@
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(216, 162, 74, 0.24);
-  border-radius: 1px;
+  border-radius: 0;
   background: rgba(216, 162, 74, 0.1);
   opacity: 0.34;
 }
@@ -578,7 +578,7 @@
 }
 
 /* The lane holder. `> *` is deliberately NOT here any more, and that is a real change rather
- * than a tidy-up: the badge lane used to declare `infiniteAnimation`, which makes <Animate>
+ * than a tidy-up: the badge lane used to declare `loopAnimation`, which makes <Animate>
  * render an extra anonymous motion.div (this file's header, §1.5 rule 4) that needed its own
  * box. The lane is now a plain enter (one stroke, held), so there is exactly one node and
  * `.s03-seam__band` is its direct child — already `inset: 0` on its own rule below. */

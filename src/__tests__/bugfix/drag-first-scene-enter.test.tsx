@@ -265,14 +265,10 @@ function renderDragFirstScene(
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{
-        drag: {
-          direction: 'y',
-          transitionDuration: options.transitionDuration ?? 800,
-          firstSceneTimeout: options.firstSceneTimeout,
-        },
-      }}
-      config={{ size: 750 }}
+      direction={'y'}
+      transitionDuration={options.transitionDuration ?? 800}
+      firstSceneTimeout={options.firstSceneTimeout}
+      designWidth={750}
       callbacks={{
         onError: options.onError,
       }}
@@ -360,8 +356,9 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       <CineView
         ref={cineViewRef}
         mode="drag"
-        modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ size: 750 }}
+        direction={'y'}
+        transitionDuration={800}
+        designWidth={750}
       >
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
@@ -428,8 +425,9 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       <CineView
         ref={cineViewRef}
         mode="drag"
-        modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ size: 750 }}
+        direction={'y'}
+        transitionDuration={800}
+        designWidth={750}
       >
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
@@ -488,11 +486,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   it('waits for the first non-empty prepared snapshot when scene 0 has no assets', async () => {
     render(
       <React.StrictMode>
-        <CineView
-          mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 680 } }}
-          config={{ size: 390 }}
-        >
+        <CineView mode="drag" direction={'y'} transitionDuration={680} designWidth={390}>
           <Scene>
             <Animate animateId="copy" enterAnimation="fade-in" duration={{ enter: 640 }}>
               <h1>Copy</h1>
@@ -501,7 +495,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
               animateId="sub"
               enterAnimation="slide-up"
               duration={{ enter: 700 }}
-              timeline={{ waitFor: 'copy', delay: 80 }}
+              timeline={{ after: 'copy', delay: 80 }}
             >
               <p>Sub</p>
             </Animate>
@@ -664,12 +658,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   it('never triggers the first-scene driver in scroll mode', async () => {
     const onError = jest.fn();
     render(
-      <CineView
-        mode="scroll"
-        modes={{ scroll: { direction: 'y' } }}
-        config={{ size: 750 }}
-        callbacks={{ onError }}
-      >
+      <CineView mode="scroll" direction={'y'} designWidth={750} callbacks={{ onError }}>
         <Scene scroll={{ zoneId: 'z0' }} assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
             <Animate animateId="s-title" enterAnimation="fade-in" duration={{ enter: 600 }}>
@@ -725,11 +714,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       await Promise.resolve();
     });
     rerender(
-      <CineView
-        mode="drag"
-        modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-        config={{ size: 750 }}
-      >
+      <CineView mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
             <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>

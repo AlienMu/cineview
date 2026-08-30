@@ -36,7 +36,7 @@ const CREDIT_EACH_MS = 420;
 const CREDIT_ENTER_MS = 1800;
 
 // `SLATE_LEAD_MS = 320` is GONE, deliberately. It was the deleted slate lane's registered
-// duration, which `waitFor: 's05-slate'` silently added to every downstream delay, and it
+// duration, which `after: 's05-slate'` silently added to every downstream delay, and it
 // survived the label's removal as the live operator behind three delays (title ×1,
 // credits ×5, THE END). All three call sites are now retimed to the absolute values in the
 // budget table, so the term has zero consumers — keeping it would be dead code, and

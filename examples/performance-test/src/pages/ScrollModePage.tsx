@@ -31,12 +31,13 @@ export default function ScrollModePage(): JSX.Element {
           ref={cineViewRef}
           callbacks={{
             onLoadProgress: (progress) => setLoadProgress(progress),
-            onSceneDidChange: (detail) => setCurrentScene(detail.toIndex),
+            onSceneLeave: (detail) => setCurrentScene(detail.toIndex),
           }}
-          config={{ size: 1440 }}
+          designWidth={1440}
           mode="scroll"
-          modes={{ scroll: { direction: 'y', sceneSizing: 'content' } }}
-          performance={{ monitor: monitorOpen }}
+          direction="y"
+          sceneSizing="content"
+          monitor={monitorOpen}
           scrollbar={{ enabled: true, width: 10, autoHide: false }}
         >
           {renderScrollScenes(PERFORMANCE_EXPERIENCE.sections)}

@@ -1,5 +1,5 @@
 /**
- * Two-track commit contract (2026-06-26, supersedes the deferred-onSceneDidChange
+ * Two-track commit contract (2026-06-26, supersedes the deferred-onSceneLeave
  * model).
  *
  * commitDragSceneChange advances the scene index AND fires onAfterChange now —

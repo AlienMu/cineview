@@ -59,7 +59,7 @@ const INTERNAL_SCENE_PROPS = new Set([
   'sceneRuntime',
   'dragRuntime',
   'scrollRuntime',
-  'onDragCommit',
+  'onDragGestureEnd',
   'onDragReset',
   'onActivationComplete',
   'onDragProgressChange',
@@ -159,7 +159,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       onDraggingChange,
       onSharedTimelineDurationChange,
       onDragRelease,
-      onDragCommit,
+      onDragGestureEnd,
       onDragReset,
       slideDuration,
       compatFields,
@@ -184,7 +184,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       props.onDragTimelineProgressChange ||
       props.onDraggingChange ||
       props.onSharedTimelineDurationChange ||
-      props.onDragCommit ||
+      props.onDragGestureEnd ||
       props.onDragReset
     );
     const [localDragProgress, setLocalDragProgress] = useState(globalDragProgress);
@@ -271,7 +271,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       timelineDuration: timelineDurationState,
       beginPreparation,
       registerAnimate,
-      declareAnimateDriver,
+      declareAnimateLane,
       unregisterAnimate,
       getCalculatedDelay,
       getTimelineDuration,
@@ -391,7 +391,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
           `[CineView Error] Scene component must be used within a CineView component.\n\n` +
             `Problem: Scene component at index ${sceneIndex} is not wrapped by CineView.\n` +
             `Fix: Wrap your Scene components inside a <CineView> component:\n\n` +
-            `  <CineView mode="drag" config={{ size: 750 }}>\n` +
+            `  <CineView mode="drag" designWidth={750}>\n` +
             `    <Scene>...</Scene>\n` +
             `  </CineView>\n`
         );
@@ -588,14 +588,14 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
         getTimelineDuration,
         beginPreparation,
         registerAnimate,
-        declareAnimateDriver,
+        declareAnimateLane,
         unregisterAnimate,
         getCalculatedDelay,
         enterDuration: slideDuration,
       };
     }, [
       beginPreparation,
-      declareAnimateDriver,
+      declareAnimateLane,
       effectiveMode,
       firstScenePlaybackReady,
       getCalculatedDelay,
@@ -675,7 +675,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
     // and the scene-0 cold-start. onSettleComplete / onColdStartComplete both wire
     // to completeDragTransition (via onActivationComplete), fired when this scene's
     // element track reaches T — which now drives state CLEANUP only (the public
-    // onSceneDidChange fires earlier, at the render commit).
+    // onSceneLeave fires earlier, at the render commit).
     const elementTrackCommands = useElementTrack({
       slideMode: effectiveMode,
       isActive,
@@ -753,9 +753,9 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       renderLaneRef: dragRuntime?.renderLane,
       completeReleaseImmediately: !hasExternalDragRuntime,
       thresholdConfig: dragRuntime?.threshold,
-      onDragCommit:
+      onDragEnd:
         dragRuntime?.onCommit ??
-        onDragCommit ??
+        onDragGestureEnd ??
         (hasExternalDragRuntime
           ? undefined
           : (direction, _progressRatio, _elapsedMs, timelineDuration): void => {

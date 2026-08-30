@@ -3,7 +3,7 @@ export interface SceneScrollAnimationRegistration {
   delay: number;
   enterDuration: number;
   exitDuration: number;
-  waitFor?: string;
+  after?: string;
   phase?: {
     start?: number;
     end?: number;
@@ -122,9 +122,9 @@ function resolveTiming(
   chain.add(animateId);
 
   let predecessorEnd = 0;
-  if (registration.waitFor) {
+  if (registration.after) {
     const predecessor = resolveTiming(
-      registration.waitFor,
+      registration.after,
       registrations,
       cache,
       chain,
@@ -138,7 +138,7 @@ function resolveTiming(
       // splits the ms/px clocks and starts the follower while the leader is
       // still mid-window (T1.8 acceptance trace; task-flow 2026-08-23-scene-
       // scroll-budget-dual-clock).
-      predecessorEnd = phaseChainEndEstimates.get(registration.waitFor) ?? predecessor.totalEndMs;
+      predecessorEnd = phaseChainEndEstimates.get(registration.after) ?? predecessor.totalEndMs;
     }
   }
   const startMs = predecessorEnd + clampToNonNegative(registration.delay);
@@ -168,7 +168,7 @@ function resolveTiming(
 
 /**
  * Chain anchor for a phase-authored element, mirroring what the px assembly
- * computes as its enter-window close (`phaseEndPx`) — the documented waitFor
+ * computes as its enter-window close (`phaseEndPx`) — the documented after
  * semantics is "wait for the leader's ENTER completion". Authored exits are
  * deliberately NOT chain anchors: the assembly pins them to the zone end, and
  * waiting for "the last thing in the zone" has no fixed point (review PROBE1:

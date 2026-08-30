@@ -1,0 +1,10 @@
+{
+  "base": "http://localhost:4003",
+  "ranAt": "2026-08-30T08:01:12.225Z",
+  "pagesChecked": 80,
+  "slugCount": 40,
+  "failedPages": 0,
+  "structuralIssues": [],
+  "consoleIssues": [],
+  "failures": []
+}

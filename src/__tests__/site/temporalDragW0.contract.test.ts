@@ -62,33 +62,28 @@ function stripCssComments(css: string): string {
 describe('/drag W0 global baseline contract', () => {
   it('uses the framework default time scale without a local override', () => {
     const file = sourceFile(path.join(DRAG_DIR, 'TemporalDragExperience.tsx'));
-    const candidates: ts.ObjectLiteralExpression[] = [];
+    const cineViews: ts.JsxOpeningLikeElement[] = [];
 
     walk(file, (node) => {
       if (
-        ts.isPropertyAssignment(node) &&
-        propertyName(node.name) === 'drag' &&
-        ts.isObjectLiteralExpression(node.initializer)
+        (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+        jsxTagName(node.tagName) === 'CineView'
       ) {
-        const names = node.initializer.properties.map((property) => propertyName(property.name));
-        if (names.includes('direction') && names.includes('transitionDuration')) {
-          candidates.push(node.initializer);
-        }
+        cineViews.push(node);
       }
     });
 
-    expect(candidates).toHaveLength(1);
-    const properties = new Map(
-      candidates[0].properties.map((property) => [propertyName(property.name), property])
+    expect(cineViews).toHaveLength(1);
+    const attributes = new Map(
+      cineViews[0].attributes.properties
+        .filter(ts.isJsxAttribute)
+        .map((attribute) => [jsxAttributeName(attribute.name), attribute])
     );
-    expect(properties.has('scale')).toBe(false);
-    const unit = properties.get('unit');
-    expect(unit && ts.isPropertyAssignment(unit) && ts.isStringLiteral(unit.initializer)).toBe(
-      true
-    );
-    if (unit && ts.isPropertyAssignment(unit) && ts.isStringLiteral(unit.initializer)) {
-      expect(unit.initializer.text).toBe('time');
-    }
+    expect(stringAttribute(cineViews[0].attributes, 'direction')).toBe('y');
+    expect(stringAttribute(cineViews[0].attributes, 'unit')).toBe('time');
+    const transitionDuration = attributes.get('transitionDuration');
+    expect(transitionDuration).toBeDefined();
+    expect(attributes.has('scale')).toBe(false);
   });
 
   it('contains no runtime waitFor property in the temporal-drag implementation', () => {

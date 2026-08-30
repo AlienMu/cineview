@@ -57,9 +57,9 @@ function renderOrdinaryDocumentInterlude(): JSX.Element {
         animateId="ordinary-document-visibility"
         enterAnimation="fade-in"
         exitAnimation="fade-out"
-        infiniteAnimation="pulse"
+        loopAnimation="pulse"
         duration={{ enter: 640, exit: 240 }}
-        timeline={{ sceneControlled: false }}
+        timeline={{ driver: 'clock' }}
       >
         <div style={{ maxWidth: 760 }}>
           <div
@@ -220,13 +220,13 @@ function DocumentHero({
 }): JSX.Element {
   return (
     <>
-      <Position at={{ x: 112, y: 96 }} layer={{ fixed: takeover }}>
+      <Position at={{ x: 112, y: 96 }} fixed={takeover}>
         <Animate
           animateId={`${section.id}-badge`}
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ enter: 280 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / ${takeover ? 'Scene.scroll takeover' : 'Document chapter'}`}</LabPill>
         </Animate>
@@ -237,7 +237,7 @@ function DocumentHero({
           enterAnimation="slide-up"
           exitAnimation="slide-up"
           duration={{ enter: 780 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <SectionCopy maxWidth={590} section={section} titleSize="hero" />
         </Animate>
@@ -247,9 +247,9 @@ function DocumentHero({
           animateId={`${section.id}-media`}
           enterAnimation="zoom-in"
           exitAnimation="zoom-out"
-          infiniteAnimation={takeover ? undefined : 'pulse'}
+          loopAnimation={takeover ? undefined : 'pulse'}
           duration={{ enter: 900 }}
-          timeline={takeover ? { phase: { start: 0.08, end: 0.68 } } : { sceneControlled: false }}
+          timeline={takeover ? { phase: { start: 0.08, end: 0.68 } } : { driver: 'clock' }}
         >
           <MediaFrame priority={index === 0} section={section} width={520} />
         </Animate>
@@ -260,7 +260,7 @@ function DocumentHero({
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ enter: 620 }}
-          timeline={takeover ? { phase: { start: 0.42, end: 1 } } : { sceneControlled: false }}
+          timeline={takeover ? { phase: { start: 0.42, end: 1 } } : { driver: 'clock' }}
         >
           <div style={{ width: 1216 }}>
             <MetricRail section={section} />
@@ -286,7 +286,7 @@ function EditorialSplit({
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ enter: 260 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Editorial flow`}</LabPill>
         </Animate>
@@ -297,7 +297,7 @@ function EditorialSplit({
           enterAnimation="slide-right"
           exitAnimation="slide-right"
           duration={{ enter: 640 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 460 }}>
             <SectionCopy maxWidth={460} section={section} titleSize="medium" />
@@ -310,7 +310,7 @@ function EditorialSplit({
           enterAnimation="slide-left"
           exitAnimation="slide-left"
           duration={{ enter: 760 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <MediaFrame section={section} width={620} />
         </Animate>
@@ -320,9 +320,9 @@ function EditorialSplit({
           animateId={`${section.id}-stats`}
           enterAnimation="fade-in"
           exitAnimation="fade-out"
-          infiniteAnimation="pulse"
+          loopAnimation="pulse"
           duration={{ enter: 520 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 1146 }}>
             <StatGrid compact={true} section={section} />
@@ -335,7 +335,7 @@ function EditorialSplit({
           enterAnimation="blur-in"
           exitAnimation="blur-out"
           duration={{ enter: 420 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 540 }}>
             <DetailList
@@ -361,7 +361,7 @@ function SpecTakeover({
 }): JSX.Element {
   return (
     <>
-      <Position at={{ x: 1080, y: 104 }} layer={{ fixed: takeover }}>
+      <Position at={{ x: 1080, y: 104 }} fixed={takeover}>
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
@@ -439,7 +439,7 @@ function ExplodedStory({
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ enter: 260 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Visibility timeline`}</LabPill>
         </Animate>
@@ -450,7 +450,7 @@ function ExplodedStory({
           enterAnimation="slide-up"
           exitAnimation="slide-up"
           duration={{ enter: 680 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 540 }}>
             <SectionCopy maxWidth={540} section={section} titleSize="medium" />
@@ -462,9 +462,9 @@ function ExplodedStory({
           animateId={`${section.id}-media`}
           enterAnimation="zoom-in"
           exitAnimation="zoom-out"
-          infiniteAnimation="wave"
+          loopAnimation="wave"
           duration={{ enter: 780 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <MediaFrame section={section} width={520} />
         </Animate>
@@ -475,7 +475,7 @@ function ExplodedStory({
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ enter: 560 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 1200 }}>
             <MetricRail section={section} />
@@ -488,7 +488,7 @@ function ExplodedStory({
           enterAnimation="slide-up"
           exitAnimation="slide-up"
           duration={{ enter: 500 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 480 }}>
             <DetailList
@@ -514,7 +514,7 @@ function ScenarioTakeover({
 }): JSX.Element {
   return (
     <>
-      <Position at={{ x: 118, y: 102 }} layer={{ fixed: takeover }}>
+      <Position at={{ x: 118, y: 102 }} fixed={takeover}>
         <Animate
           animateId={`${section.id}-pill`}
           enterAnimation="fade-in"
@@ -596,7 +596,7 @@ function DecisionAppendix({
           enterAnimation="fade-in"
           exitAnimation="fade-out"
           duration={{ enter: 240 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <LabPill>{`${String(index + 1).padStart(2, '0')} / Comparison close`}</LabPill>
         </Animate>
@@ -607,7 +607,7 @@ function DecisionAppendix({
           enterAnimation="slide-up"
           exitAnimation="slide-up"
           duration={{ enter: 660 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <SectionCopy align="center" maxWidth={820} section={section} titleSize="large" />
         </Animate>
@@ -617,9 +617,9 @@ function DecisionAppendix({
           animateId={`${section.id}-grid`}
           enterAnimation="fade-in"
           exitAnimation="fade-out"
-          infiniteAnimation="pulse"
+          loopAnimation="pulse"
           duration={{ enter: 540 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 1160 }}>
             <StatGrid section={section} />
@@ -632,7 +632,7 @@ function DecisionAppendix({
           enterAnimation="blur-in"
           exitAnimation="blur-out"
           duration={{ enter: 480 }}
-          timeline={{ sceneControlled: false }}
+          timeline={{ driver: 'clock' }}
         >
           <div style={{ width: 520 }}>
             <DetailList

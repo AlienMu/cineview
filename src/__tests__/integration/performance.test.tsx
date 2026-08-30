@@ -165,8 +165,9 @@ describe('性能测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
         >
           {scenes}
         </CineView>
@@ -184,7 +185,7 @@ describe('性能测试', () => {
       );
 
       // 验证当前场景索引
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
       // 验证首屏渲染
       expect(screen.getByText('场景 1')).toBeInTheDocument();
@@ -206,8 +207,9 @@ describe('性能测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
         >
           {scenes}
         </CineView>
@@ -235,7 +237,7 @@ describe('性能测试', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentScene()).toBe(27);
+          expect(cineViewRef.current?.getCurrentIndex()).toBe(27);
         },
         { timeout: 2000 }
       );
@@ -254,7 +256,7 @@ describe('性能测试', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentScene()).toBe(54);
+          expect(cineViewRef.current?.getCurrentIndex()).toBe(54);
         },
         { timeout: 2000 }
       );
@@ -281,8 +283,9 @@ describe('性能测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 50 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={50}
+          designWidth={750}
         >
           {scenes}
         </CineView>
@@ -308,14 +311,14 @@ describe('性能测试', () => {
 
         await waitFor(
           () => {
-            expect(cineViewRef.current?.getCurrentScene()).toBe(targetScene);
+            expect(cineViewRef.current?.getCurrentIndex()).toBe(targetScene);
           },
           { timeout: 1000 }
         );
       }
 
       // 验证最终场景
-      expect(cineViewRef.current?.getCurrentScene()).toBe(10);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(10);
 
       // Cleanup immediately
       unmount();
@@ -332,7 +335,7 @@ describe('性能测试', () => {
       );
 
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ size: 750 }}>
+        <CineView ref={cineViewRef} designWidth={750}>
           <Scene assets={{ preloadImages: images.slice(0, 12) }}>
             <h1>首屏场景</h1>
           </Scene>
@@ -401,11 +404,7 @@ describe('性能测试', () => {
       } as unknown as typeof Image;
 
       const TestApp = (): JSX.Element => (
-        <CineView
-          mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
-        >
+        <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
             <h1>首屏</h1>
           </Scene>
@@ -442,7 +441,7 @@ describe('性能测试', () => {
       const onLoadProgress = jest.fn();
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }} callbacks={{ onLoadProgress }}>
+        <CineView designWidth={750} callbacks={{ onLoadProgress }}>
           <Scene
             assets={{
               preloadImages: ['https://example.com/valid.jpg', 'https://invalid-url/image.jpg'],
@@ -505,11 +504,7 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView
-          mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
-        >
+        <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
           </Scene>
@@ -549,11 +544,7 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView
-          mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ size: 750 }}
-        >
+        <CineView mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
           </Scene>
@@ -580,7 +571,7 @@ describe('性能测试', () => {
 
     test('应该在性能模式下启用性能监控', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef} config={{ size: 750 }} performance={{ monitor: true }}>
+        <CineView ref={cineViewRef} designWidth={750} monitor>
           <Scene>
             <h1>性能监控测试</h1>
           </Scene>
@@ -625,7 +616,7 @@ describe('性能测试', () => {
       const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Animate enterAnimation="fade-in" exitAnimation="fade-out">
               <h1>拖拽性能测试</h1>
@@ -660,7 +651,7 @@ describe('性能测试', () => {
 
     test('应该正确处理动画延迟链而不阻塞主线程', async () => {
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Animate
               animateId="anim1"
@@ -674,7 +665,7 @@ describe('性能测试', () => {
               animateId="anim2"
               enterAnimation="fade-in"
               duration={{ enter: 50 }}
-              timeline={{ waitFor: 'anim1' }}
+              timeline={{ after: 'anim1' }}
             >
               <div>动画 2</div>
             </Animate>
@@ -682,7 +673,7 @@ describe('性能测试', () => {
               animateId="anim3"
               enterAnimation="fade-in"
               duration={{ enter: 50 }}
-              timeline={{ waitFor: 'anim2' }}
+              timeline={{ after: 'anim2' }}
             >
               <div>动画 3</div>
             </Animate>
@@ -724,8 +715,9 @@ describe('性能测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
         >
           <Scene>
             <h1>场景 1</h1>
@@ -756,7 +748,7 @@ describe('性能测试', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+          expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
         },
         { timeout: 1000 }
       );
@@ -768,7 +760,7 @@ describe('性能测试', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentScene()).toBe(2);
+          expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
         },
         { timeout: 1000 }
       );
@@ -786,7 +778,7 @@ describe('性能测试', () => {
 
     test('应该在组件卸载时清理所有资源', async () => {
       const TestApp = () => (
-        <CineView config={{ size: 750 }} performance={{ monitor: true }}>
+        <CineView designWidth={750} monitor>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
@@ -823,7 +815,7 @@ describe('性能测试', () => {
       ));
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>{animations}</Scene>
         </CineView>
       );
@@ -855,7 +847,7 @@ describe('性能测试', () => {
       const startTime = performance.now();
 
       const TestApp = () => (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>
               <Animate enterAnimation="fade-in">
@@ -892,9 +884,10 @@ describe('性能测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 300 } }}
-          config={{ size: 750 }}
-          performance={{ monitor: true }}
+          direction={'y'}
+          transitionDuration={300}
+          designWidth={750}
+          monitor
         >
           <Scene>
             <h1>场景 1</h1>
@@ -923,7 +916,7 @@ describe('性能测试', () => {
       // 等待动画完成
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+          expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
         },
         { timeout: 1000 }
       );

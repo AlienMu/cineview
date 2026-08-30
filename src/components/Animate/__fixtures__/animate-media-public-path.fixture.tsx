@@ -21,8 +21,8 @@ export function AnimateMediaPublicPathFixture(): JSX.Element {
       enterAnimation="fade-in"
       exitAnimation="fade-out"
       duration={{ enter: 2000, exit: 300 }}
-      timeline={{ delay: 0, waitFor: 'intro' }}
-      visibility={{ replayOnReenter: false, enterMargin: 40, exitMargin: 60 }}
+      timeline={{ delay: 0, after: 'intro' }}
+      visibility={{ replay: false, enterMargin: 40, exitMargin: 60 }}
       onPlay={() => undefined}
       onPause={() => undefined}
       onEnded={() => undefined}

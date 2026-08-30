@@ -134,12 +134,13 @@ describe('完整滑动流程集成测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
+          direction={'y'}
+          transitionDuration={500}
+          designWidth={750}
           callbacks={{
             onReady: onInit,
-            onSceneWillChange: onBeforeSceneChange,
-            onSceneDidChange: onAfterSceneChange,
+            onSceneEnter: onBeforeSceneChange,
+            onSceneLeave: onAfterSceneChange,
             onLoadProgress,
           }}
         >
@@ -159,7 +160,7 @@ describe('完整滑动流程集成测试', () => {
                 animateId="scene1-subtitle"
                 enterAnimation="fade-in"
                 duration={{ enter: 400 }}
-                timeline={{ waitFor: 'scene1-title' }}
+                timeline={{ after: 'scene1-title' }}
               >
                 <p>欢迎来到 CineView</p>
               </Animate>
@@ -198,7 +199,7 @@ describe('完整滑动流程集成测试', () => {
     expect(screen.getByText('欢迎来到 CineView')).toBeInTheDocument();
 
     // 4. 验证当前场景索引
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
     // 5. 触发场景切换（使用 API）
     await act(async () => {
@@ -224,7 +225,7 @@ describe('完整滑动流程集成测试', () => {
     expect(screen.getByText('场景 2')).toBeInTheDocument();
 
     // 9. 验证当前场景索引更新
-    expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
 
     // 10. 继续切换到场景 3
     await act(async () => {
@@ -245,7 +246,7 @@ describe('完整滑动流程集成测试', () => {
     );
 
     expect(screen.getByText('场景 3')).toBeInTheDocument();
-    expect(cineViewRef.current?.getCurrentScene()).toBe(2);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
 
     // 11. 验证事件回调调用次数
     expect(onBeforeSceneChange).toHaveBeenCalledTimes(2);
@@ -260,9 +261,10 @@ describe('完整滑动流程集成测试', () => {
         <CineView
           ref={cineViewRef}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 800 } }}
-          config={{ size: 750 }}
-          callbacks={{ onSceneDidChange: onAfterSceneChange }}
+          direction={'y'}
+          transitionDuration={800}
+          designWidth={750}
+          callbacks={{ onSceneLeave: onAfterSceneChange }}
         >
           <Scene transition={{ exitAnimation: 'fade-out' }}>
             <Animate animateId="drag-scene1" enterAnimation="fade-in" exitAnimation="slide-down">
@@ -292,7 +294,7 @@ describe('完整滑动流程集成测试', () => {
     // 验证场景切换
     await waitFor(
       () => {
-        expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+        expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
       },
       { timeout: 2000 }
     );
@@ -309,11 +311,7 @@ describe('完整滑动流程集成测试', () => {
   test('动画延迟关联机制：waitFor 链式执行', async () => {
     const TestApp = () => {
       return (
-        <CineView
-          mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 500 } }}
-          config={{ size: 750 }}
-        >
+        <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene transition={{ enterAnimation: 'fade-in' }}>
             <Animate
               animateId="anim1"
@@ -328,7 +326,7 @@ describe('完整滑动流程集成测试', () => {
               animateId="anim2"
               enterAnimation="fade-in"
               duration={{ enter: 100 }}
-              timeline={{ waitFor: 'anim1' }}
+              timeline={{ after: 'anim1' }}
             >
               <div>动画 2</div>
             </Animate>
@@ -337,7 +335,7 @@ describe('完整滑动流程集成测试', () => {
               animateId="anim3"
               enterAnimation="fade-in"
               duration={{ enter: 100 }}
-              timeline={{ waitFor: 'anim2' }}
+              timeline={{ after: 'anim2' }}
             >
               <div>动画 3</div>
             </Animate>
@@ -365,7 +363,7 @@ describe('完整滑动流程集成测试', () => {
   test('响应式尺寸换算：窗口 resize 触发重新计算', async () => {
     const TestApp = () => {
       return (
-        <CineView config={{ size: 750 }}>
+        <CineView designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="positioned-element">居中元素</div>
@@ -406,7 +404,7 @@ describe('完整滑动流程集成测试', () => {
   test('性能指标获取：getPerformanceMetrics', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} config={{ size: 750 }}>
+        <CineView ref={cineViewRef} designWidth={750}>
           <Scene>
             <h1>性能测试场景</h1>
           </Scene>
@@ -435,7 +433,7 @@ describe('完整滑动流程集成测试', () => {
   test('虚拟化渲染：仅渲染当前场景及前后各一个', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} config={{ size: 750 }}>
+        <CineView ref={cineViewRef} designWidth={750}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
@@ -468,7 +466,7 @@ describe('完整滑动流程集成测试', () => {
     });
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(2);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
     });
 
     // 应该渲染场景 1, 2, 3
@@ -484,7 +482,7 @@ describe('完整滑动流程集成测试', () => {
 
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} config={{ size: 750 }}>
+        <CineView ref={cineViewRef} designWidth={750}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
@@ -507,7 +505,7 @@ describe('完整滑动流程集成测试', () => {
     });
 
     // 验证当前场景未改变
-    expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
     // 验证警告信息
     expect(consoleWarnSpy).toHaveBeenCalled();

@@ -80,7 +80,7 @@ describe('useAnimateTimeline', () => {
 
     const timeline = timelineRef.current!;
     expect(timeline.mode).toBe('drag');
-    expect(timeline.driver).toBe('drag');
+    expect(timeline.lane).toBe('drag');
     const firstProgress = timeline.progress;
     act(() => {
       mockDragVisualState.set({
@@ -257,7 +257,7 @@ describe('useAnimateTimeline', () => {
 
     render(
       <SceneContext.Provider value={{ mode: 'scroll' } as SceneContextType}>
-        <Animate timeline={{ sceneControlled: false }}>
+        <Animate timeline={{ driver: 'clock' }}>
           <Probe />
         </Animate>
       </SceneContext.Provider>
@@ -266,7 +266,7 @@ describe('useAnimateTimeline', () => {
     const timeline = timelineRef.current! as AnimateTimeline & {
       frame: { get: () => { source: string } };
     };
-    expect(timeline.driver).toBe('visibility');
+    expect(timeline.lane).toBe('visibility');
     act(() => {
       mockScrollVisualMotion.set(0.75);
       mockScrollPhaseMotion.set('entered');

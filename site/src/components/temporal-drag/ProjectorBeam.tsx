@@ -8,7 +8,7 @@ import { useTemporalMotion } from './TemporalMotion';
 // Framework-owned motion only (AGENTS.md rule 6):
 //   - the bloom is an `<Animate>` enter/exit lane, so it scrubs with the finger and
 //     reverses on a backward drag;
-//   - the drifting dust is `infiniteAnimation`, i.e. the framework's infinite lane, gated
+//   - the drifting dust is `loopAnimation`, i.e. the framework's infinite lane, gated
 //     by `shouldRunInfinite`. It stops the moment act 5 stops being the live phase. A CSS
 //     `animation: … infinite` would keep drifting through exit and after the act is gone.
 // Nothing here imports framer-motion, opens a rAF, or holds per-frame React state — so no
@@ -85,7 +85,7 @@ export const ProjectorBeam = memo(function ProjectorBeam(): JSX.Element {
           // and the dust would vanish well before the beam did.
           duration={{ enter: timing.duration(BEAM_ENTER_MS) }}
           timeline={{ delay: timing.delay(BEAM_START_MS) }}
-          infiniteAnimation={
+          loopAnimation={
             timing.reduced
               ? undefined
               : {

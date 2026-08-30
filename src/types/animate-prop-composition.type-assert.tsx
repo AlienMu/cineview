@@ -33,7 +33,7 @@ export function InvalidStaggerSiblingArray(): JSX.Element {
 
 export function InvalidEmptyAnimate(): JSX.Element {
   return (
-    // @ts-expect-error Animate requires enterAnimation or infiniteAnimation
+    // @ts-expect-error Animate requires enterAnimation or loopAnimation
     <Animate>
       <div />
     </Animate>
@@ -51,8 +51,8 @@ export function InvalidExitOnlyAnimate(): JSX.Element {
 
 export function InvalidInfiniteStagger(): JSX.Element {
   return (
-    // @ts-expect-error stagger requires enterAnimation, not infiniteAnimation alone
-    <Animate infiniteAnimation="pulse" stagger={{ each: 80 }}>
+    // @ts-expect-error stagger requires enterAnimation, not loopAnimation alone
+    <Animate loopAnimation="pulse" stagger={{ each: 80 }}>
       <div>
         <span>A</span>
       </div>

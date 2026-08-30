@@ -24,7 +24,7 @@ interface UseAnimateDragParams {
   delay: number;
   enterDuration: number;
   exitDuration: number;
-  waitFor?: string;
+  after?: string;
   /** An enter/infinite animation was authored but its variants have not parsed
    *  yet (async preset import). Hold the initial frame instead of resolving to
    *  the rest frame, which would paint the element fully visible for a frame and
@@ -145,12 +145,12 @@ function resolveSharedTimelineDuration(sceneContext: SceneContextType): number {
 //
 //   localProgress = clamp((m - calculatedDelay) / enterDuration, 0, 1)
 //
-// waitFor / delay sequencing is correct for free: `calculatedDelay` already folds
-// in the waitFor target's full delay+duration at registration (registry.ts), so a
+// after / delay sequencing is correct for free: `calculatedDelay` already folds
+// in the after target's full delay+duration at registration (registry.ts), so a
 // chain member B gates at A's completion — B cannot start until A has played out.
 // This is the original two-track (2026-06-25) behaviour. SHORT elements settle
 // EARLY (a 200ms element reaches 1 while the shared clock is only part-way to
-// T_self) — this is ACCEPTED: the user trades early settle for correct waitFor
+// T_self) — this is ACCEPTED: the user trades early settle for correct after
 // serialisation, and decouples drag SPEED from the clock via the resolved `time`
 // mapping scale (the follow-finger write maps drag % to absolute milliseconds, not
 // to T_self), so the clock advances slowly enough that early settle is gentle.
@@ -187,7 +187,7 @@ function resolveVisualState(
   const sceneTimelineDurationMs = resolveSceneTimelineDuration(sceneContext);
   const renderProgress = Math.abs(resolveRenderProgress(sceneContext));
   // Single shared timeline: every element reads the same elapsed `m` and gates on
-  // its own calculatedDelay/enterDuration. waitFor/delay sequencing is correct via
+  // its own calculatedDelay/enterDuration. after/delay sequencing is correct via
   // calculatedDelay; short elements settle early (accepted). The drivers differ only
   // in how `m` advances (follow-finger uses the resolved mapping scale).
   const enterLocalProgress = resolveEnterLocalProgress(
@@ -402,7 +402,7 @@ export function useAnimateDrag({
   delay,
   enterDuration,
   exitDuration,
-  waitFor,
+  after,
   variantsPending = false,
 }: UseAnimateDragParams): UseAnimateDragReturn {
   const playbackSnapshot = sceneContext ? resolvePlaybackSnapshot(sceneContext) : null;
@@ -499,8 +499,8 @@ export function useAnimateDrag({
     const orchestrationChanged =
       frozenRegistration.delay !== delay ||
       frozenRegistration.duration !== enterDuration ||
-      frozenRegistration.waitFor !== waitFor ||
-      frozenRegistration.driver !== 'drag';
+      frozenRegistration.after !== after ||
+      frozenRegistration.lane !== 'drag';
     const enterVisualChanged = frozenEnterVariant !== enterVariant;
     if (orchestrationChanged || enterVisualChanged) {
       warnOnce(
@@ -520,7 +520,7 @@ export function useAnimateDrag({
     playbackSnapshot,
     sceneContext?.isActive,
     sceneContext?.sceneOffset,
-    waitFor,
+    after,
   ]);
 
   useEffect(() => {
@@ -547,8 +547,8 @@ export function useAnimateDrag({
     const lease = registerAnimate(componentId, {
       delay,
       duration: enterDuration,
-      waitFor,
-      driver: 'drag',
+      after,
+      lane: 'drag',
     });
     lease?.setEnterVariant?.(enterVariant);
 
@@ -571,7 +571,7 @@ export function useAnimateDrag({
     componentId,
     delay,
     enterDuration,
-    waitFor,
+    after,
   ]);
 
   useEffect(() => {

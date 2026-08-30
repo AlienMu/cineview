@@ -26,7 +26,7 @@ import type {
 } from '../../types';
 import type { AnimateRegistrationInfo } from '../../animations/registry';
 import type {
-  SceneAnimationDriverDeclarationLease,
+  SceneAnimationLaneDeclarationLease,
   SceneAnimationRegistrationLease,
   ScenePreparationLease,
 } from '../Scene/useSceneAnimationRegistry';
@@ -142,11 +142,11 @@ export interface SceneAnimationRegistryContext {
     id: string,
     info: AnimateRegistrationInfo
   ) => SceneAnimationRegistrationLease | void;
-  /** Declare a non-scene driver for dependency diagnostics without extending T_self. */
-  declareAnimateDriver?: (
+  /** Declare a non-scene lane for dependency diagnostics without extending T_self. */
+  declareAnimateLane?: (
     id: string,
-    driver: 'drag' | 'scroll' | 'visibility'
-  ) => SceneAnimationDriverDeclarationLease;
+    lane: 'drag' | 'scroll' | 'visibility'
+  ) => SceneAnimationLaneDeclarationLease;
   /** Compatibility cleanup for contexts that do not return a lease. */
   unregisterAnimate: (id: string) => void;
   getCalculatedDelay: (id: string) => number;
@@ -211,7 +211,7 @@ let animateIdCounter = 0;
 export const Animate: React.FC<AnimateInternalProps> = ({
   enterAnimation,
   exitAnimation,
-  infiniteAnimation,
+  loopAnimation,
   animateId,
   duration,
   timeline,
@@ -237,7 +237,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const settledParseInputsRef = useRef<{
     enterAnimation: typeof enterAnimation;
     exitAnimation: typeof exitAnimation;
-    infiniteAnimation: typeof infiniteAnimation;
+    loopAnimation: typeof loopAnimation;
   } | null>(null);
   const arrivalDiagnosticKeysRef = useRef<Set<string>>(new Set());
   const preparationLeaseRef = useRef<{
@@ -246,13 +246,12 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   } | null>(null);
   const stableEnterAnimation = useStructurallyStableValue(enterAnimation);
   const stableExitAnimation = useStructurallyStableValue(exitAnimation);
-  const stableInfiniteAnimation = useStructurallyStableValue(infiniteAnimation);
+  const stableLoopAnimation = useStructurallyStableValue(loopAnimation);
   const dragInfiniteControls = useAnimation();
   const scrollInfiniteControls = useAnimation();
   const normalizedSemantics = normalizeAnimateSemantics({ duration, timeline, visibility });
   const mode = sceneContext?.mode ?? cineViewRuntime?.mode ?? 'drag';
-  const authoredDragArrival =
-    mode === 'drag' && normalizedSemantics.timeline.sceneControlled === false;
+  const authoredDragArrival = mode === 'drag' && normalizedSemantics.timeline.driver === 'clock';
   // Driver selection is frozen for one formal Scene activation. Prop updates during
   // a pass are authoring for the next activation (or remount), never a live handoff.
   const driverSelectionRef = useRef<{ token: number; mode: ScrollMode; arrival: boolean } | null>(
@@ -274,20 +273,20 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   }
   const isDragArrival = mode === 'drag' && driverSelectionRef.current.arrival;
   const beginPreparation = sceneContext?.beginPreparation;
-  const declareAnimateDriver = sceneContext?.declareAnimateDriver;
-  // Resolve sceneControlled + mode + inherited zoneId down to a concrete driver.
-  // scroll driver only when: scroll mode, sceneControlled (default), and actually
+  const declareAnimateLane = sceneContext?.declareAnimateLane;
+  // Resolve driver + mode + inherited zoneId down to a concrete lane.
+  // scroll lane only when: scroll mode, scene driver (default), and actually
   // inside a Scene.scroll zone. Everything else (drag mode, no zone, or explicit
-  // sceneControlled:false) is the standalone visibility gate.
+  // driver:'clock') is the standalone visibility gate.
   const resolvedTimeline = useMemo<ResolvedAnimateTimeline>(() => {
-    const { sceneControlled, ...rest } = normalizedSemantics.timeline;
-    const isSceneScroll = mode === 'scroll' && sceneControlled && Boolean(inheritedZoneId);
-    return { ...rest, driver: isSceneScroll ? 'scroll' : 'visibility' };
+    const { driver, ...rest } = normalizedSemantics.timeline;
+    const isSceneScroll = mode === 'scroll' && driver === 'scene' && Boolean(inheritedZoneId);
+    return { ...rest, lane: isSceneScroll ? 'scroll' : 'visibility' };
   }, [inheritedZoneId, mode, normalizedSemantics.timeline]);
   const normalizedEnterDuration = normalizedSemantics.duration.enter;
   const normalizedExitDuration = normalizedSemantics.duration.exit;
   const normalizedDelay = resolvedTimeline.delay;
-  const normalizedWaitFor = resolvedTimeline.waitFor;
+  const normalizedAfter = resolvedTimeline.after;
   const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
   // The keyed store is intentionally kept outside React's render path. A
   // scroll frame updates the zone's progress MotionValue in useAnimateScroll;
@@ -299,7 +298,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     settledParseGeneration > 0 &&
     settledParseInputsRef.current?.enterAnimation === stableEnterAnimation &&
     settledParseInputsRef.current?.exitAnimation === stableExitAnimation &&
-    settledParseInputsRef.current?.infiniteAnimation === stableInfiniteAnimation;
+    settledParseInputsRef.current?.loopAnimation === stableLoopAnimation;
   const arrivalRenderSnapshotRef = useRef<{
     token: number;
     ready: boolean;
@@ -359,41 +358,41 @@ export const Animate: React.FC<AnimateInternalProps> = ({
 
   useEffect(() => {
     if (!isDragArrival) return;
-    const lease: SceneAnimationDriverDeclarationLease | undefined = declareAnimateDriver?.(
+    const lease: SceneAnimationLaneDeclarationLease | undefined = declareAnimateLane?.(
       id,
       'visibility'
     );
     return () => lease?.dispose();
-  }, [declareAnimateDriver, id, isDragArrival]);
+  }, [declareAnimateLane, id, isDragArrival]);
 
   useEffect(() => {
     if (!isDragArrival) return;
 
-    const reportIgnoredField = (field: 'waitFor' | 'exitAnimation', message: string): void => {
+    const reportIgnoredField = (field: 'after' | 'exitAnimation', message: string): void => {
       const key = `${id}:${field}`;
       if (arrivalDiagnosticKeysRef.current.has(key)) return;
       arrivalDiagnosticKeysRef.current.add(key);
       reportRuntimeError?.({
         code: 'INVALID_ANIMATION',
         message,
-        context: { componentId: id, field, driver: 'visibility', mode: 'drag' },
+        context: { componentId: id, field, lane: 'visibility', mode: 'drag' },
       });
       devWarn(message);
     };
 
-    if (normalizedWaitFor) {
+    if (normalizedAfter) {
       reportIgnoredField(
-        'waitFor',
-        `Animate "${id}" ignores waitFor in drag mode when timeline.sceneControlled is false.`
+        'after',
+        `Animate "${id}" ignores after in drag mode when timeline.driver is 'clock'.`
       );
     }
     if (stableExitAnimation) {
       reportIgnoredField(
         'exitAnimation',
-        `Animate "${id}" ignores exitAnimation in drag mode when timeline.sceneControlled is false.`
+        `Animate "${id}" ignores exitAnimation in drag mode when timeline.driver is 'clock'.`
       );
     }
-  }, [id, isDragArrival, normalizedWaitFor, reportRuntimeError, stableExitAnimation]);
+  }, [id, isDragArrival, normalizedAfter, reportRuntimeError, stableExitAnimation]);
 
   const isRenderProp = typeof children === 'function';
 
@@ -411,8 +410,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // visualMotion at 0, the arrival lane seeds 0 whenever an enter was authored,
   // and the drag lane is held at its initial frame via `variantsPending` below.
   // Only a genuinely animation-free Animate still early-returns bare children.
-  const authoredPlayableAnimation =
-    Boolean(stableEnterAnimation) || Boolean(stableInfiniteAnimation);
+  const authoredPlayableAnimation = Boolean(stableEnterAnimation) || Boolean(stableLoopAnimation);
   // ⚠️ 必须同时要求「解析尚未 settle」。`parseAnimationSafely` 在预设不存在 / chunk
   // 加载失败时返回 null，但解析 effect 照样推进 settledParseGeneration —— 只看
   // 「变体为空」无法区分「还在解析」与「解析失败」。漏掉这个条件会让失败态永久
@@ -431,12 +429,12 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // ── enterRef / exitRef lane support ────────────────────────────────────────
   //
   // A manual trigger only means something on a TIME-driven lane (visibility, or
-  // drag + sceneControlled:false). On a SCRUB lane the visual position is a pure
+  // drag + driver:'clock'). On a SCRUB lane the visual position is a pure
   // function of its single owner — zone progressPx for scroll takeover, the finger
   // for scene-controlled drag — so anything a manual call wrote would be recomputed
   // away on the next frame. Reporting that is the honest behaviour; silently
   // accepting the ref would look like a framework bug at the call site.
-  const isScrubLane = mode === 'drag' ? !isDragArrival : resolvedTimeline.driver === 'scroll';
+  const isScrubLane = mode === 'drag' ? !isDragArrival : resolvedTimeline.lane === 'scroll';
   /** 本次渲染下真正由 `useAnimateScroll` 的 visibility 状态机驱动 —— 只有它可认领 ref。 */
   const manualControlLane = mode === 'scroll' && !isScrubLane;
   const manualControlDiagnosticKeysRef = useRef<Set<string>>(new Set());
@@ -464,14 +462,14 @@ export const Animate: React.FC<AnimateInternalProps> = ({
         reportUnsupported(
           'enterRef',
           `Animate "${id}" ignores enterRef: this element is driven by ${lane}, whose progress has a single owner. ` +
-            `Use timeline.sceneControlled:false (drag) or move it outside the takeover zone (scroll) for manual control.`
+            `Use timeline.driver:'clock' (drag) or move it outside the takeover zone (scroll) for manual control.`
         );
       }
       if (exitRef) {
         reportUnsupported(
           'exitRef',
           `Animate "${id}" ignores exitRef: this element is driven by ${lane}, whose progress has a single owner. ` +
-            `Use timeline.sceneControlled:false (drag) or move it outside the takeover zone (scroll) for manual control.`
+            `Use timeline.driver:'clock' (drag) or move it outside the takeover zone (scroll) for manual control.`
         );
       }
       return;
@@ -480,7 +478,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     if (isDragArrival && exitRef) {
       reportUnsupported(
         'exitRef',
-        `Animate "${id}" ignores exitRef in drag mode when timeline.sceneControlled is false: this lane has no exit pass (it also ignores exitAnimation).`
+        `Animate "${id}" ignores exitRef in drag mode when timeline.driver is 'clock': this lane has no exit pass (it also ignores exitAnimation).`
       );
     }
   }, [enterRef, exitRef, id, isDragArrival, isScrubLane, mode, reportRuntimeError]);
@@ -570,10 +568,10 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     setInfiniteVariant(null);
     setSettledParseGeneration(0);
 
-    if (!stableEnterAnimation && !stableInfiniteAnimation) {
+    if (!stableEnterAnimation && !stableLoopAnimation) {
       reportRuntimeError?.({
         code: 'INVALID_ANIMATION',
-        message: `Animate "${id}" requires enterAnimation or infiniteAnimation.`,
+        message: `Animate "${id}" requires enterAnimation or loopAnimation.`,
         context: {
           componentId: id,
           hasExitAnimation: Boolean(stableExitAnimation),
@@ -590,14 +588,14 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       const [enter, exit, infinite] = await Promise.all([
         parseAnimationSafely(stableEnterAnimation, id, 'enter', reportFailure),
         parseAnimationSafely(stableExitAnimation, id, 'exit', reportFailure),
-        parseAnimationSafely(stableInfiniteAnimation, id, 'infinite', reportFailure),
+        parseAnimationSafely(stableLoopAnimation, id, 'loop', reportFailure),
       ]);
 
       if (!isCurrentGeneration()) return;
       settledParseInputsRef.current = {
         enterAnimation: stableEnterAnimation,
         exitAnimation: stableExitAnimation,
-        infiniteAnimation: stableInfiniteAnimation,
+        loopAnimation: stableLoopAnimation,
       };
       setEnterVariant((enter as ParsedAnimationVariant) ?? null);
       setExitVariant((exit as ParsedAnimationVariant) ?? null);
@@ -619,11 +617,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     beginPreparation,
     stableEnterAnimation,
     stableExitAnimation,
-    stableInfiniteAnimation,
+    stableLoopAnimation,
   ]);
 
-  // Scene-controlled drag Animates use the shared element track. Explicit
-  // sceneControlled:false Animates use the independent post-arrival clock below
+  // Scene-driven drag Animates use the shared element track. Explicit
+  // driver 'clock' Animates use the independent post-arrival clock below
   // and must never register into the Scene timeline / T_self.
   const dragResult = useAnimateDrag({
     sceneContext: mode === 'drag' && !isDragArrival ? sceneContext : null,
@@ -633,7 +631,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     delay: normalizedDelay,
     enterDuration: effectiveEnterDuration,
     exitDuration: effectiveExitDuration,
-    waitFor: normalizedWaitFor,
+    after: normalizedAfter,
     variantsPending,
   });
 
@@ -695,7 +693,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const publicFrame = useMotionValue<AnimateTimelineFrame>(IDLE_TIMELINE_FRAME);
 
   useEffect(() => {
-    const driver = mode === 'scroll' || isDragArrival ? resolvedTimeline.driver : 'drag';
+    const lane = mode === 'scroll' || isDragArrival ? resolvedTimeline.lane : 'drag';
     const publishFrame = (frame: AnimateTimelineFrame): void => {
       publicProgress.set(frame.progress);
       publicSignedProgress.set(frame.signedProgress);
@@ -712,7 +710,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
           progress: resolveScrollEnterProgress(signedProgress),
           signedProgress,
           phase: phaseSource.get(),
-          source: driver === 'scroll' ? 'scroll' : 'visibility',
+          source: lane === 'scroll' ? 'scroll' : 'visibility',
         });
       };
 
@@ -754,7 +752,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     publicPhase,
     publicProgress,
     publicSignedProgress,
-    resolvedTimeline.driver,
+    resolvedTimeline.lane,
     sceneContext,
     scrollResult.phaseMotion,
     scrollResult.visualMotion,
@@ -763,7 +761,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const publicTimeline = useMemo<AnimateTimeline>(
     () => ({
       mode,
-      driver: mode === 'scroll' || isDragArrival ? resolvedTimeline.driver : 'drag',
+      lane: mode === 'scroll' || isDragArrival ? resolvedTimeline.lane : 'drag',
       progress: publicProgress,
       signedProgress: publicSignedProgress,
       phase: publicPhase,
@@ -776,7 +774,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       publicPhase,
       publicProgress,
       publicSignedProgress,
-      resolvedTimeline.driver,
+      resolvedTimeline.lane,
     ]
   );
 
@@ -923,8 +921,13 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     if (renderInfiniteVariant) {
       return (
         <div data-cineview-animate-host={id}>
+          {/* scrollOuterStyle（不是 scrollResult.style）：stagger 生效时外层必须交出
+              视觉属性，见上方 scrollOuterStyle 处的说明。此分支曾直接绑原始 scrub
+              style，是四个返回分支里唯一漏掉该守卫的一个——stagger + infinite 同时
+              出现时外层会停在 scrub 轨初始帧 opacity 0，把已错峰到 1 的子元素整组
+              压暗。分支矩阵守卫见 animateStaggerOuterStyle.test.tsx。 */}
           <motion.div
-            style={scrollResult.style}
+            style={scrollOuterStyle}
             className="cineview-animate"
             data-cineview-animate-id={id}
           >

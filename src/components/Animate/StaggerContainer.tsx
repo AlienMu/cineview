@@ -11,7 +11,7 @@
  * 非手搓 style):`from` 决定顺序('first'/'last'/'center')。
  *
  * gate:订阅 hook 暴露的进度源。进度 >0 → 播 'animate',回 0 → 复位 'initial'
- * (支持 replayOnReenter)。时间驱动,不 scrub。scroll / drag 各一个薄订阅组件,
+ * (支持 replay)。时间驱动,不 scrub。scroll / drag 各一个薄订阅组件,
  * 各自只订阅自己的源(不建临时 MotionValue、不条件调用 hook)。
  */
 import { Children, isValidElement, useEffect, useRef, useState } from 'react';
@@ -293,7 +293,7 @@ export function ScrollStagger({
   );
 }
 
-// drag + sceneControlled=false: arrival phase owns the real-time start. A static
+// drag + driver 'clock': arrival phase owns the real-time start. A static
 // first-screen fallback reveals already-mounted children at their terminal frame.
 export function ArrivalStagger({
   container,

@@ -350,8 +350,14 @@ describe('Scene Component', () => {
       renderScene(
         <Scene
           runtimeMode="scroll"
-          layout={{ width: '80vw', height: 'auto', anchor: 'top-center', overflow: 'visible' }}
-          stack={{ zIndex: 7, mode: 'cover' }}
+          layout={{
+            width: '80vw',
+            height: 'auto',
+            anchor: 'top-center',
+            overflow: 'visible',
+            overlap: 'cover',
+            zIndex: 7,
+          }}
         >
           <div>Grouped Content</div>
         </Scene>
@@ -789,7 +795,7 @@ describe('Scene Component', () => {
         expect.stringContaining('Fix: Wrap your Scene components inside a <CineView> component')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('<CineView mode="drag" config={{ size: 750 }}>')
+        expect.stringContaining('<CineView mode="drag" designWidth={750}>')
       );
 
       consoleSpy.mockRestore();
@@ -857,7 +863,7 @@ describe('Scene Component', () => {
             context.registerAnimate('my-animate', {
               delay: 100,
               duration: 500,
-              waitFor: 'missing-component',
+              after: 'missing-component',
             });
           }
         }, [context]);
@@ -1138,7 +1144,7 @@ describe('Scene Component', () => {
             context.registerAnimate('animate2', {
               delay: 200,
               duration: 300,
-              waitFor: 'animate1',
+              after: 'animate1',
             });
           }
         }, [context]);
@@ -1182,13 +1188,13 @@ describe('Scene Component', () => {
             context.registerAnimate('animate2', {
               delay: 200,
               duration: 300,
-              waitFor: 'animate1',
+              after: 'animate1',
             });
 
             context.registerAnimate('animate3', {
               delay: 150,
               duration: 400,
-              waitFor: 'animate2',
+              after: 'animate2',
             });
           }
         }, [context]);
@@ -1230,7 +1236,7 @@ describe('Scene Component', () => {
             context.registerAnimate('animate1', {
               delay: 100,
               duration: 500,
-              waitFor: 'non-existent',
+              after: 'non-existent',
             });
 
             // Call getCalculatedDelay after registration to trigger warning
@@ -1278,7 +1284,7 @@ describe('Scene Component', () => {
             context.registerAnimate('animate1', {
               delay: 100,
               duration: 500,
-              waitFor: 'non-existent',
+              after: 'non-existent',
             });
             context.getCalculatedDelay('animate1');
           }
@@ -2338,7 +2344,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
             context.registerAnimate('my-animate', {
               delay: 100,
               duration: 500,
-              waitFor: 'missing-component',
+              after: 'missing-component',
             });
           }
         }, [context]);
@@ -2614,11 +2620,11 @@ describe('Error Handling Coverage', () => {
 
     // Create a mock scene context that simulates the warning
     const mockGetCalculatedDelay = (id: string): number => {
-      const info = { delay: 100, duration: 200, waitFor: 'nonexistent' };
-      if (info.waitFor && id === 'animate1') {
+      const info = { delay: 100, duration: 200, after: 'nonexistent' };
+      if (info.after && id === 'animate1') {
         console.warn(
           `[CineView Warning] Animation dependency error in Scene 0.\n\n` +
-            `Problem: Animate component "${id}" references non-existent component "${info.waitFor}" via waitFor.`
+            `Problem: Animate component "${id}" references non-existent component "${info.after}" via waitFor.`
         );
       }
       return 100;
@@ -2780,7 +2786,7 @@ describe('GetCalculatedDelay Coverage', () => {
             {
               delay: 100,
               duration: 200,
-              waitFor: 'nonexistent',
+              after: 'nonexistent',
             },
           ],
         ])
@@ -2792,14 +2798,14 @@ describe('GetCalculatedDelay Coverage', () => {
 
         let totalDelay = info.delay;
 
-        if (info.waitFor) {
-          const waitForInfo = registry.get(info.waitFor);
-          if (waitForInfo) {
-            totalDelay += waitForInfo.delay + waitForInfo.duration;
+        if (info.after) {
+          const leaderInfo = registry.get(info.after);
+          if (leaderInfo) {
+            totalDelay += leaderInfo.delay + leaderInfo.duration;
           } else if (process.env.NODE_ENV === 'development') {
             console.warn(
               `[CineView Warning] Animation dependency error in Scene 0.\n\n` +
-                `Problem: Animate component "${animateId}" references non-existent component "${info.waitFor}" via waitFor.`
+                `Problem: Animate component "${animateId}" references non-existent component "${info.after}" via waitFor.`
             );
           }
         }

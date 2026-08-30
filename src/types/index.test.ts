@@ -1,7 +1,7 @@
 import type {
   CineViewErrorCode,
   DragBlockedDetail,
-  DragCommitDetail,
+  DragEndDetail,
   DragStartDetail,
   DragTimelineUnit,
   SceneDragConfig,
@@ -32,7 +32,7 @@ describe('drag public types', () => {
       targetSceneIndex: 1,
       direction: 'forward',
     };
-    const commit: DragCommitDetail = {
+    const commit: DragEndDetail = {
       sceneIndex: 0,
       targetSceneIndex: 1,
       progress: 0.5,

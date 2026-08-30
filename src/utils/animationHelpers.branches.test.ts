@@ -264,7 +264,7 @@ describe('parseAnimationSafely', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation();
     mockParse.mockRejectedValueOnce(new Error('boom'));
 
-    expect(await parseAnimationSafely('explode', 'c1', 'infinite')).toBeNull();
+    expect(await parseAnimationSafely('explode', 'c1', 'loop')).toBeNull();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
   });

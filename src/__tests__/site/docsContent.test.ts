@@ -11,7 +11,14 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const DOCS_ROOT = join(__dirname, '../../../site/src/content/docs');
-const VALID_GROUPS = new Set(['start', 'concepts', 'components', 'api', 'animation', 'advanced']);
+const VALID_GROUPS = new Set([
+  'getting-started',
+  'concepts',
+  'drag',
+  'scroll',
+  'components',
+  'advanced',
+]);
 const LANGS = ['zh', 'en'] as const;
 
 function collectMarkdownFiles(dir: string, prefix = ''): string[] {
@@ -90,6 +97,52 @@ describe('docs bilingual content contract', () => {
         }
         for (const [id, count] of ids) {
           if (count > 1) problems.push(`${lang}/${file}: 标题 id "${id}" ×${count}`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('keeps every slug globally unique across groups', () => {
+    // 路由是 /docs/:slug，组不进 URL；manifest 用 `${lang}/${slug}` 作键。
+    // 两个不同组同名 slug 会互相覆盖，且**没有任何报错**——survivor 由
+    // import.meta.glob 的迭代顺序决定，另一页静默消失、还可能挂在错误的
+    // 侧栏分组下。这条守卫就是拦住那个静默覆盖。
+    const problems: string[] = [];
+    for (const lang of LANGS) {
+      const bySlug = new Map<string, string[]>();
+      for (const file of perLang.get(lang) ?? []) {
+        const [group, name] = file.split('/');
+        const slug = name.replace(/\.md$/, '');
+        bySlug.set(slug, [...(bySlug.get(slug) ?? []), group]);
+      }
+      for (const [slug, groups] of bySlug) {
+        if (groups.length > 1) {
+          problems.push(`${lang}: slug "${slug}" 出现在多个组 ${groups.join(', ')}`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('resolves every internal /docs/<slug> link to an existing page', () => {
+    // 迁移/重命名会静默产生死链：路由对未知 slug 渲染 404 态，构建与 type-check
+    // 都不会失败。N5 的「链接目标存在」若无这条断言就只是句口号。
+    const slugsByLang = new Map<string, Set<string>>(
+      LANGS.map((lang) => [
+        lang,
+        new Set((perLang.get(lang) ?? []).map((file) => file.split('/')[1].replace(/\.md$/, ''))),
+      ])
+    );
+    const problems: string[] = [];
+    for (const lang of LANGS) {
+      const known = slugsByLang.get(lang) ?? new Set<string>();
+      for (const file of perLang.get(lang) ?? []) {
+        const source = readFileSync(join(DOCS_ROOT, lang, file), 'utf8');
+        for (const match of source.matchAll(/\]\(\/docs\/([a-z0-9-]+)\)/g)) {
+          if (!known.has(match[1])) {
+            problems.push(`${lang}/${file}: 死链 /docs/${match[1]}`);
+          }
         }
       }
     }

@@ -31,12 +31,13 @@ export default function DragModePage(): JSX.Element {
           ref={cineViewRef}
           callbacks={{
             onLoadProgress: (progress) => setLoadProgress(progress),
-            onDragCommit: (detail) => setCurrentScene(detail.targetSceneIndex),
+            onDragEnd: (detail) => setCurrentScene(detail.targetSceneIndex),
           }}
-          config={{ size: 1440 }}
+          designWidth={1440}
           mode="drag"
-          modes={{ drag: { direction: 'y', transitionDuration: 920 } }}
-          performance={{ monitor: monitorOpen }}
+          direction="y"
+          transitionDuration={920}
+          monitor={monitorOpen}
         >
           {renderDragScenes(PERFORMANCE_EXPERIENCE.sections)}
         </CineView>

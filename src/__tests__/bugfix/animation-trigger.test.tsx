@@ -24,10 +24,10 @@ describe('Animation Trigger Bug Fixes', () => {
 
       const { container } = render(
         <CineView
-          config={{ size: 750 }}
+          designWidth={750}
           mode="drag"
-          modes={{ drag: { transitionDuration: 500 } }}
-          callbacks={{ onSceneDidChange: onAfterSceneChange }}
+          transitionDuration={500}
+          callbacks={{ onSceneLeave: onAfterSceneChange }}
         >
           <Scene>
             <Animate enterAnimation="fade-in" duration={{ enter: 300 }} animateId="test-animate-1">
@@ -58,7 +58,7 @@ describe('Animation Trigger Bug Fixes', () => {
 
     it('should render first scene immediately without waiting for image load', async () => {
       const { container } = render(
-        <CineView config={{ size: 750 }} mode="drag" modes={{ drag: { transitionDuration: 500 } }}>
+        <CineView designWidth={750} mode="drag" transitionDuration={500}>
           <Scene assets={{ preloadImages: ['https://example.com/image.jpg'] }}>
             <Animate enterAnimation="fade-in" duration={{ enter: 300 }}>
               <div data-testid="first-scene">First Scene</div>
@@ -86,11 +86,7 @@ describe('Animation Trigger Bug Fixes', () => {
             <button onClick={() => {}} data-testid="next-button">
               Next
             </button>
-            <CineView
-              config={{ size: 750 }}
-              mode="drag"
-              modes={{ drag: { transitionDuration: 500 } }}
-            >
+            <CineView designWidth={750} mode="drag" transitionDuration={500}>
               <Scene>
                 <Animate
                   enterAnimation="fade-in"
@@ -146,11 +142,7 @@ describe('Animation Trigger Bug Fixes', () => {
             <button onClick={() => {}} data-testid="go-to-0">
               Go to Scene 0
             </button>
-            <CineView
-              config={{ size: 750 }}
-              mode="drag"
-              modes={{ drag: { transitionDuration: 500 } }}
-            >
+            <CineView designWidth={750} mode="drag" transitionDuration={500}>
               <Scene>
                 <Animate
                   enterAnimation="fade-in"
@@ -205,7 +197,7 @@ describe('Animation Trigger Bug Fixes', () => {
   describe('Issue 3: Animation delay chain', () => {
     it('should correctly handle waitFor animation chains on scene change', async () => {
       const { container } = render(
-        <CineView config={{ size: 750 }} mode="drag" modes={{ drag: { transitionDuration: 500 } }}>
+        <CineView designWidth={750} mode="drag" transitionDuration={500}>
           <Scene>
             <Animate
               enterAnimation="fade-in"
@@ -218,7 +210,7 @@ describe('Animation Trigger Bug Fixes', () => {
             <Animate
               enterAnimation="fade-in"
               duration={{ enter: 200 }}
-              timeline={{ delay: 100, waitFor: 'first' }}
+              timeline={{ delay: 100, after: 'first' }}
               animateId="second"
             >
               <div data-testid="second">Second</div>
@@ -226,7 +218,7 @@ describe('Animation Trigger Bug Fixes', () => {
             <Animate
               enterAnimation="fade-in"
               duration={{ enter: 200 }}
-              timeline={{ delay: 100, waitFor: 'second' }}
+              timeline={{ delay: 100, after: 'second' }}
               animateId="third"
             >
               <div data-testid="third">Third</div>

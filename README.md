@@ -1,10 +1,15 @@
 # CineView
 
-CineView is a React framework for cinematic scene transitions and scroll-driven
-narrative interfaces. It has two explicit engines:
+CineView is a React framework for cinematic, full-screen narrative pages. You declare
+scenes, animations and one design-width conversion base; the framework owns scene
+switching, timelines and responsive scaling.
 
-- `mode="drag"` for scene-to-scene paging with thresholded release and rebound.
-- `mode="scroll"` for normal document flow with optional `Scene.scroll` takeover zones.
+Two engines behind one component tree:
+
+- `mode="drag"`: gesture paging. One drag flips one scene; release thresholds decide
+  commit or rebound.
+- `mode="scroll"`: real document flow. Sections that declare a `scroll` zone become
+  scrubbable timelines (center-lock); everything else scrolls natively.
 
 ## Install
 
@@ -12,19 +17,23 @@ narrative interfaces. It has two explicit engines:
 pnpm add cineview framer-motion react react-dom
 ```
 
-React and Framer Motion are peer dependencies. CineView does not bundle them.
+React and Framer Motion (>= 10) are peer dependencies, and CineView never bundles them.
 
-## Minimal Usage
+Care about bundle size and only use one mode? The package ships per-mode entries:
+`cineview/drag` and `cineview/scroll`. The default `cineview` entry carries both
+engines, and a single-file UMD build cannot code-split.
+
+## Minimal usage
 
 ```tsx
 import { CineView, Scene, Animate } from 'cineview';
 
-export function Story(): JSX.Element {
+export default function App() {
   return (
-    <CineView config={{ size: 750 }} mode="scroll">
+    <CineView designWidth={750} mode="scroll">
       <Scene sceneId="hero" scroll={{ zoneId: 'hero', trigger: 'center-lock' }}>
         <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 800 }}>
-          <h1>Reference-grade monitoring</h1>
+          <h1>Opening frame</h1>
         </Animate>
       </Scene>
     </CineView>
@@ -32,65 +41,39 @@ export function Story(): JSX.Element {
 }
 ```
 
-The root `CineView` owns the mode. `Scene` owns chapter layout and optional
-scroll takeover. `Animate` consumes the active mode's timeline; it does not
-declare a root mode.
+Drag paging is the default mode: swap in `CineViewDragProps`-style config and drop
+the `scroll` zone, and the same scenes page on gestures.
 
-The default mode is `drag` — scene-to-scene paging with thresholded release
-and rebound:
+## Three ideas worth knowing
 
-```tsx
-<CineView config={{ size: 750 }}>
-  <Scene sceneId="cover">
-    <Animate animateId="title" enterAnimation="fade-in">
-      <h1>Opening frame</h1>
-    </Animate>
-  </Scene>
-  <Scene sceneId="story">{/* … */}</Scene>
-</CineView>
-```
+**One conversion base.** `designWidth` (default `750`) is the design width. Every
+coordinate and box length scales by `scale = viewportWidth / size`, so it stays
+width-driven and never stretches. Vertical overflow belongs to the document flow.
 
-A complete runnable mirror of these snippets lives in
-[`examples/minimal`](./examples/minimal) — start it with
-`pnpm install && pnpm build && pnpm --dir examples/minimal install && pnpm --dir examples/minimal dev`.
-It is the living source of truth for the code on this page.
+**Scenes and timelines.** `Scene` is the chapter boundary, `Animate` consumes the
+active mode's timeline. In drag mode `transitionDuration` defaults to 800 ms; in a
+scroll takeover zone the budget is **1 ms = 1 px** of real scroll distance.
 
-## Public Building Blocks
+**Manual override when you need it.** `enterRef` / `exitRef` hand you the trigger,
+with `after` / `delay` as a fallback net. `useAnimateTimeline()` exposes the nearest
+timeline as read-only MotionValues; bind them to styles, no extra render passes.
 
-- `CineView`: engine entry point, responsive scale context, preload orchestration,
-  scrollbar and imperative ref methods.
-- `Scene`: chapter boundary, visibility signal and scene-scoped fixed-layer host.
-- `Animate`: preset or custom visual animation with `timeline`, `duration` and
-  `visibility` semantics.
-- `Position`: design-coordinate placement and scene-scoped fixed layers.
-- `Container`: design-coordinate box sizing.
-- `Image`: preload-aware image component.
-- `AnimateVideo`: atomic MotionValue scrubbing with explicit scrub ranges and single-writer handoff to native playback.
+## Video scrubbing
 
-## Video Scrubbing
-
-`AnimateVideo` maps scroll or drag position directly to `currentTime` and plays
-in reverse on the way back. Videos authored for scrubbing **must use dense
-keyframes**: with sparse keyframes every seek decodes a long run of frames from
-the nearest keyframe, the decode thread saturates, and scrubbing drops frames.
-Encode all-keyframe:
+`AnimateVideo` maps scroll or drag position straight to `currentTime` (reverse rewind
+included). Author scrub videos with dense keyframes. All-keyframe encoding scrubs
+predictably:
 
 ```bash
 ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
 ```
 
-The dev build measures seek latency per source and warns once when the median
-exceeds 50 ms, so a mis-encoded video identifies itself during development.
+## Documentation
 
-## Input and Accessibility
-
-Interactive descendants such as links, buttons, form controls and editable text
-are excluded from drag ownership. Scroll takeover must yield to nested scrollable
-content at its usable boundary. The custom scrollbar exposes the same reducer as
-wheel, touch and keyboard input.
-
-Applications should still test their own interactive descendants and provide
-accessible names for custom controls.
+Full docs live in this repo's site (`site/`, route `/docs`): getting started,
+core concepts, per-component reference, and a pitfalls page that fronts every trap we
+hit for real: fixed positioning inside takeover scenes, `loopAnimation` gating,
+`timeline.driver` edge cases, legacy props that no longer type-check.
 
 ## Verification
 
@@ -98,27 +81,20 @@ accessible names for custom controls.
 pnpm verify
 ```
 
-This runs type-checking, lint, root coverage, the performance example suite and
-the production build verifier. The independent browser acceptance required for
-drag and scroll behavior is documented in
-`task-flows/2026-07-19-framework-review.md` and cannot be replaced by unit tests.
+Type-check, lint, coverage, performance example suite and build verification. Browser
+acceptance for drag/scroll interaction is a separate human/agent lane; green unit
+tests are not proof the motion is right.
 
-## Support Matrix
+## Support matrix
 
-| Runtime or peer   | Supported versions                                                                        | CI coverage                                  |
-| ----------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Node.js           | 18, 20, 22                                                                                | Every verification job                       |
-| React / React DOM | 18.2+ and 19.x                                                                            | React 18 lockfile job plus React 19 peer job |
-| Framer Motion     | 10.x and 11.x-compatible releases                                                         | Peer range and root test install             |
-| Browsers          | Current Chrome, Firefox, Safari, and Edge                                                 | Release browser lane                         |
-| Rendering runtime | CSR only — the engines read `window`/layout at mount; SSR (next.js etc.) is not supported | Release browser lane                         |
+| Runtime or peer   | Supported versions                    |
+| ----------------- | ------------------------------------- |
+| Node.js           | 18, 20, 22                            |
+| React / React DOM | 18.2+ and 19.x                        |
+| Framer Motion     | 10.x and 11.x-compatible releases     |
+| Browsers          | Current Chrome, Firefox, Safari, Edge |
+| Rendering         | CSR only, no SSR                      |
 
-Node.js 18 is the minimum because it is the baseline required by the Vite 5
-toolchain. React and React DOM are peer dependencies and are never bundled.
+## License
 
-## Release Notes
-
-The architecture specification is `DESIGN.md`. Historical plans and compatibility
-fields do not override it. The package publishes ESM and UMD entry points with
-generated declarations and source maps; React and Framer Motion remain external
-peer dependencies.
+See the repository: https://github.com/AlienMu/cineview

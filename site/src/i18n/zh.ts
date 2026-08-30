@@ -13,7 +13,7 @@ export const zh = {
   // 三排:title(中)/ slogan(最大,流光)/ intro(小)
   'hero.title': 'CineView',
   'hero.slogan': '像导演一样\n控制每一帧',
-  'hero.intro': '滚动是胶片,拖拽是分镜。\n把每一次位移,都交给被编排的时间。',
+  'hero.intro': '滚动是胶片,拖拽是分镜。\n把每一次位移,都交给时间线。',
   'hero.ctaStart': '开始使用',
   'hero.ctaApi': 'API 文档',
   'hero.ctaGithub': 'GitHub',
@@ -21,16 +21,16 @@ export const zh = {
 
   // ── 第2幕 理念 ──
   'idea.eyebrow': '为什么是 CineView',
-  'idea.title': '滚动不该只是位移,\n而是被编排的时间',
+  'idea.title': '滚动不该只是位移,\n而是被排好的时间线',
   'idea.body':
-    '传统页面里,滚动只是把内容往上推。在 CineView 里,滚动是胶片推进——每一段位移都映射到场景的进退场时间轴,元素按 delay 与 waitFor 依次入场,像分镜表一样被精确编排。',
+    '传统页面里,滚动只是把内容往上推。在 CineView 里,滚动是胶片推进——每一段位移都映射到场景的进退场时间轴,元素按 delay 与 after 依次入场,像分镜表一样被精确排进时间线。',
 
   // ── 第2幕 能力展示（框架即演示 · 两镜 + 贯穿时间码胶囊）──
   // 标题用 '|' 分隔：竖线后半段渲染为 Fraunces 斜体陶土强调（语言无关）。
   // slate/code 为 API 字面量，中英一致（等宽）。
   'cap.tc.rec': 'REC',
 
-  'cap.shot1.slate': 'SCENE ORCHESTRATION',
+  'cap.shot1.slate': 'SCENE TIMELINE',
   'cap.shot1.title': '像挑镜头一样|挑一种入场',
   'cap.shot1.intro':
     '四十余种进场预设内置其中——从淡入到震颤，改一个 prop 便从容切换，不必手写一行动画曲线。',
@@ -73,9 +73,9 @@ export const zh = {
 
   // ── 第3幕 推镜(dolly in)──
   'cap.shot3.slate': 'DOLLY IN · DECLARATIVE TIMELINE',
-  'cap.shot3.card.chain.label': '链式编排',
+  'cap.shot3.card.chain.label': '链式时间线',
   'cap.shot3.card.stagger.label': '错峰级联',
-  'cap.shot3.card.position.label': '单尺子定位',
+  'cap.shot3.card.position.label': '基准定位',
   'cap.shot3.card.container.label': '尺寸换算',
   'cap.shot3.card.scrub.label': '滚动接管',
   'cap.shot3.card.image.label': '资源预加载',
@@ -105,13 +105,13 @@ export const zh = {
   'demoDrag.s1.eyebrow': '第一镜',
   'demoDrag.s1.title': 'CineView',
   'demoDrag.s1.sub': '影院级叙事,触手可及',
-  'demoDrag.s2.eyebrow': '第二镜 · 编排',
+  'demoDrag.s2.eyebrow': '第二镜 · 时间线',
   'demoDrag.s2.title': '元素依次入场',
   'demoDrag.s2.line1': '标题先到',
-  'demoDrag.s2.line2': '副标题等它(waitFor)',
+  'demoDrag.s2.line2': '副标题等它(after)',
   'demoDrag.s2.line3': '正文延迟 300ms 跟上',
   'demoDrag.s3.eyebrow': '第三镜 · 定位',
-  'demoDrag.s3.title': '单尺子坐标定位',
+  'demoDrag.s3.title': '设计稿坐标定位',
   'demoDrag.s3.badge': '固定层',
   'demoDrag.s3.sub': '元素按设计稿坐标精确落位',
   'demoDrag.s4.eyebrow': '第四镜 · 预设',
@@ -134,10 +134,10 @@ export const zh = {
   'caps.1.title': '40+ 动画预设',
   'caps.1.desc':
     'fade、slide、zoom、flip、bounce、blur、elastic 等多类预设,支持 sequential / parallel 组合。',
-  'caps.2.title': '单尺子响应式换算',
-  'caps.2.desc': '按设计稿坐标书写,横纵长度共用认宽的等比尺子,无需手写媒体查询且绝不形变。',
-  'caps.3.title': 'waitFor 时间轴编排',
-  'caps.3.desc': '元素之间用 waitFor 串成依赖链,delay 精确控制节奏,循环依赖会被静态检测。',
+  'caps.2.title': '单基准响应式换算',
+  'caps.2.desc': '按设计稿坐标书写,横纵长度共用同一个认宽的换算基准,无需手写媒体查询且绝不形变。',
+  'caps.3.title': 'after 时间线',
+  'caps.3.desc': '元素之间用 after 串成依赖链,delay 精确控制节奏,循环依赖会被静态检测。',
   'caps.4.title': '图片预加载',
   'caps.4.desc': '首屏优先资源就绪后再启动入场动画,超时可恢复,杜绝白屏闪烁。',
   'caps.5.title': 'center-lock 接管',
@@ -169,7 +169,7 @@ export const zh = {
   'demoVideo.intro':
     '从逐帧跳动，\n到光影长卷——\n所有动态，共用一种节奏；\n解锁画面，让故事自由上演。',
   'demoVideo.code':
-    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ waitFor: "intro" }}\n  />\n</Scene>',
+    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc': '滚动即时间轴：进度 0→1 映射到视频首帧→末帧，反向滚动天然倒放。',
 
   // ── 文档外壳 ──
@@ -182,11 +182,11 @@ export const zh = {
   'docs.notFound': '未找到该文档',
 
   // 文档导航分组（条目标题走各语言 md frontmatter，不再经 i18n）
-  'docs.group.start': '入门',
+  'docs.group.getting-started': '上手',
   'docs.group.concepts': '核心概念',
-  'docs.group.components': '组件指南',
-  'docs.group.api': 'API 参考',
-  'docs.group.animation': '动画',
+  'docs.group.drag': 'drag 引擎',
+  'docs.group.scroll': 'scroll 引擎',
+  'docs.group.components': '组件',
   'docs.group.advanced': '进阶',
 
   // ── 通用 ──

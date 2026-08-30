@@ -41,8 +41,8 @@ export const ACT3_CLIP_ASSEMBLY_LEAD_MS = 800;
  * 播放侧锚点用它，不各自算一遍（2026-08-08）：
  *   - V2 字幕的绝对锚点（字幕本就领先自身内容一整段出现）
  *
- * 原注释写「V1 clip sequencing is owned by Animate `waitFor`」，那已过期：
- * `temporalDragW0.contract.test.ts` 在整个 `/drag` 目录禁用 `waitFor`。别再为某一类
+ * 原注释写「V1 clip sequencing is owned by Animate `after`」，那已过期：
+ * `temporalDragW0.contract.test.ts` 在整个 `/drag` 目录禁用 `after`。别再为某一类
  * lane 另写一个等价的算术函数 —— 那会静默分叉。
  *
  * V1 装配侧（stroke / selection / seam）不再锚在这里：2026-08-20 起它们锚在

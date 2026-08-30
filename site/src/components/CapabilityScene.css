@@ -104,7 +104,7 @@
   height: calc(14 * var(--cv-u));
   background: var(--frame-line);
 }
-/* REC 红点：呼吸由 TimecodeAxis 的 phase-gated infiniteAnimation 驱动。 */
+/* REC 红点：呼吸由 TimecodeAxis 的 phase-gated loopAnimation 驱动。 */
 .tc-capsule > [data-cineview-animate-host^='tc-rec-'] {
   display: contents;
 }

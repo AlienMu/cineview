@@ -151,15 +151,16 @@ jest.mock('framer-motion', () => {
 // duration (~600/800ms), NOT inflate to the 2500ms element timeline. The release
 // timeline lane is driven by the OUTGOING (active) scene's timeline, so the big
 // delay belongs here to exercise symptom 1.
-function renderDragApp(onSceneDidChange?: jest.Mock) {
+function renderDragApp(onSceneLeave?: jest.Mock) {
   const cineViewRef = createRef<CineViewRef>();
   render(
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600 } }}
-      config={{ size: 750 }}
-      callbacks={{ onSceneDidChange }}
+      direction={'y'}
+      transitionDuration={600}
+      designWidth={750}
+      callbacks={{ onSceneLeave }}
     >
       <Scene
         transition={{ enterAnimation: 'fade-in', exitAnimation: 'fade-out', exitDuration: 600 }}
@@ -210,7 +211,7 @@ describe('drag delay / page-transition decoupling', () => {
   it('keeps the page-slide (render lane) duration independent of the element delay', async () => {
     const cineViewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -231,10 +232,10 @@ describe('drag delay / page-transition decoupling', () => {
   });
 
   it('commits the scene change on the page-slide timescale, not after the full delayed timeline', async () => {
-    const onSceneDidChange = jest.fn();
-    const cineViewRef = renderDragApp(onSceneDidChange);
+    const onSceneLeave = jest.fn();
+    const cineViewRef = renderDragApp(onSceneLeave);
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -251,7 +252,7 @@ describe('drag delay / page-transition decoupling', () => {
     });
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     });
   });
 });

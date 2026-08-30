@@ -39,7 +39,7 @@ function createZoneState(approach: SceneScrollTimelineState['approach']): SceneS
 jest.mock('./animateTimeline', () => ({
   useAnimateTimeline: () => ({
     mode: 'drag',
-    driver: 'drag',
+    lane: 'drag',
     progress: mockProgress,
     signedProgress: { get: () => 0.25, on: jest.fn(() => jest.fn()) },
     phase: { get: () => 'entering', on: jest.fn(() => jest.fn()) },

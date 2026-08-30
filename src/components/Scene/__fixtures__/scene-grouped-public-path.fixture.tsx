@@ -2,24 +2,21 @@ import { CineView, Scene, Animate, Position } from '../../../index';
 
 export function GroupedPublicPathFixture(): JSX.Element {
   return (
-    <CineView
-      config={{ size: 1440 }}
-      mode="scroll"
-      modes={{
-        scroll: {
-          direction: 'y',
-          zoneTrigger: 'center-lock',
-        },
-      }}
-    >
+    <CineView designWidth={1440} mode="scroll" direction={'y'} zoneTrigger={'center-lock'}>
       <Scene
         sceneId="intro"
-        layout={{ width: '100%', height: 'auto', anchor: 'top-center', overflow: 'visible' }}
+        layout={{
+          width: '100%',
+          height: 'auto',
+          anchor: 'top-center',
+          overflow: 'visible',
+          overlap: 'cover',
+          zIndex: 2,
+        }}
         scroll={{
           zoneId: 'hero-sequence',
           trigger: 'center-lock',
         }}
-        stack={{ mode: 'cover', zIndex: 2 }}
         transition={{ enterAnimation: 'fade-in', exitAnimation: 'fade-out' }}
         assets={{ preloadImages: ['/hero.png'] }}
         callbacks={{
@@ -28,7 +25,7 @@ export function GroupedPublicPathFixture(): JSX.Element {
           },
         }}
       >
-        <Position at={{ x: 120, y: 80 }} layer={{ fixed: true }}>
+        <Position at={{ x: 120, y: 80 }} fixed>
           <Animate
             animateId="headline"
             enterAnimation="fade-in"

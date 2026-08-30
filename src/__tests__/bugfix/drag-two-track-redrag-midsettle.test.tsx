@@ -174,8 +174,11 @@ function renderDragApp() {
     <CineView
       ref={cineViewRef}
       mode="drag"
-      modes={{ drag: { direction: 'y', transitionDuration: 600, unit: 'time', scale: 25 } }}
-      config={{ size: 750 }}
+      direction={'y'}
+      transitionDuration={600}
+      unit={'time'}
+      scale={25}
+      designWidth={750}
     >
       <Scene
         transition={{ enterAnimation: 'slide-up', exitAnimation: 'fade-out', exitDuration: 600 }}
@@ -249,7 +252,7 @@ describe('drag two-track re-drag mid-settle (RED4)', () => {
   it('stops the old incoming track in place on a new drag — does NOT jump it to terminal T', async () => {
     const cineViewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(0);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
     });
     await act(async () => {
       drainColdStart();
@@ -270,7 +273,7 @@ describe('drag two-track re-drag mid-settle (RED4)', () => {
       renderLane!.complete();
     });
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentScene()).toBe(1);
+      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // The scene-1 element continuation: in flight, toward T ≈ 2500, NOT yet done.

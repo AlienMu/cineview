@@ -7,7 +7,7 @@
    - 六块 panel 逐块接力「倒放」：从画布中心峰值（scale=peak、铺满）淡入出现，
      缩小退回各自散落位（scale=base），落位后静息常驻。缩放/位移全走 Animate lane，
      本文件不写 @keyframes、不写 animation（CLAUDE.md 规则 6 第一条：常驻动效只能走
-     infiniteAnimation；本幕无常驻动效）。
+     loopAnimation；本幕无常驻动效）。
    - transform-origin 必须 center：倒放的「退回原位」= 自身中心，偏了就会漂移。
    - panel 有实体底板，倒放起点铺满画布、会盖住其他块 —— 退回中的块必须在最上层
      （z 取 index+1，标题再高一层），这是「主体在前、其余退后」的正确观感，不是 bug。
@@ -179,7 +179,7 @@
   text-overflow: ellipsis;
 }
 
-/* ── 01 waitFor 链 ─────────────────────────────────────────────────── */
+/* ── 01 after 链 ─────────────────────────────────────────────────── */
 .a3-chain {
   width: 100%;
   display: flex;

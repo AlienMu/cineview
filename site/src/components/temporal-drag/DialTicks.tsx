@@ -134,7 +134,7 @@ export function createTicks(
 
 /**
  * 60 independent framework lanes, one per tick, each on an absolute delay — no
- * `waitFor`, no `stagger`. `waitFor` would mean "start after the previous lane
+ * `after`, no `stagger`. `after` would mean "start after the previous lane
  * finishes", which for a sweep is the wrong relation entirely (the first tick would
  * wait out the hand's whole revolution). Absolute delays let the ticks and the hand
  * share one clock and stay co-located by construction.

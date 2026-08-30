@@ -16,7 +16,7 @@ import { resolveGatePhaseAction, resolveInfiniteActive } from './useAnimateScrol
 // (the framer-motion mock jumped straight to the terminal frame, hiding the
 // transient -epsilon snap entirely).
 
-const opts = { hasExplicitExit: true, replayOnReenter: true };
+const opts = { hasExplicitExit: true, replay: true };
 
 describe('resolveGatePhaseAction — overlap-band mutex', () => {
   describe('both gates true (relTop ∈ [0, exitMargin]) holds the current phase', () => {
@@ -69,12 +69,12 @@ describe('resolveGatePhaseAction — overlap-band mutex', () => {
     });
   });
 
-  describe('replayOnReenter / hasExplicitExit guards', () => {
-    it('does not replay enter from exited when replayOnReenter is false', () => {
+  describe('replay / hasExplicitExit guards', () => {
+    it('does not replay enter from exited when replay is false', () => {
       expect(
         resolveGatePhaseAction('exited', true, false, {
           hasExplicitExit: true,
-          replayOnReenter: false,
+          replay: false,
         })
       ).toBeNull();
     });
@@ -83,7 +83,7 @@ describe('resolveGatePhaseAction — overlap-band mutex', () => {
       expect(
         resolveGatePhaseAction('entering', false, true, {
           hasExplicitExit: false,
-          replayOnReenter: true,
+          replay: true,
         })
       ).toBeNull();
     });
@@ -97,7 +97,7 @@ describe('resolveGatePhaseAction — overlap-band mutex', () => {
       expect(
         resolveGatePhaseAction('entered', false, true, {
           hasExplicitExit: false,
-          replayOnReenter: true,
+          replay: true,
         })
       ).toBeNull();
     });
@@ -118,7 +118,7 @@ describe('resolveGatePhaseAction — overlap-band mutex', () => {
 // The exit gate only fires at the TOP (relTop <= exitMargin). An element that
 // entered and then scrolled back DOWN past the viewport bottom (relTop >= vh)
 // never exits — its phase stays 'entered'. The pre-fix runtime kept
-// shouldRunInfinite tied to phase alone, so its infiniteAnimation (e.g. pulse)
+// shouldRunInfinite tied to phase alone, so its loopAnimation (e.g. pulse)
 // kept spinning off-screen forever. resolveInfiniteActive gates the loop on live
 // viewport intersection: it must be false whenever the element is off-screen,
 // in EITHER direction, regardless of phase.

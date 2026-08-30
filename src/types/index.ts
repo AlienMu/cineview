@@ -37,20 +37,6 @@ export type SceneStackMode = 'replace' | 'cover';
 // Modern Public API Types
 // ============================================================================
 
-export interface CineViewDesignConfig {
-  /**
-   * 设计稿尺寸基准（设计 px）。这是全站唯一的换算尺子：
-   * `scale = viewportWidth / size`，坐标（Position）、盒模型（Container）等设计长度
-   * 全部乘同一个 `scale`（认宽不认高，绝不形变）。scroll takeover 的时间预算仍按
-   * `1ms = 1px` 结算；场景绝对跨度回退 DOM 实测，不引入第二把高度尺子。
-   *
-   * 对齐 Figma / 设计稿的通用标准：填一个设计稿宽度（默认 750，移动端标准稿），
-   * 之后所有设计 px 数值都以此为基准换算到任意视口。不再有独立的高度基准——
-   * 纵向超出交给自然文档流 / 滚动延展。
-   */
-  size?: number;
-}
-
 export interface DragThresholdConfig {
   minVelocity?: number;
   maxVelocity?: number;
@@ -121,17 +107,17 @@ export interface SceneChangeDetail {
  * 框架运行时实际会发出的错误码联合。消费者在 `onError` 里对 `code` 做 switch
  * 时可获得自动补全与穷尽性检查（不再是裸 string）。
  *
- * - `NO_SCENES`：CineView 没有任何 Scene 子节点。
+ * - `EMPTY_SCENES`：CineView 没有任何 Scene 子节点。
  * - `IMAGE_LOAD_FAILED`：预加载图片失败。
  * - `FIRST_SCENE_TIMEOUT`：首屏优先资源等待超时（可恢复，带 preventDefault）。
- * - `INVALID_ANIMATION`：Animate 的 waitFor 指向不存在的组件。
- * - `CIRCULAR_DEPENDENCY`：Animate 的 waitFor 链存在循环。
+ * - `INVALID_ANIMATION`：Animate 的 after 指向不存在的组件。
+ * - `CIRCULAR_DEPENDENCY`：Animate 的 after 链存在循环。
  * - `INVALID_COMPONENT_HIERARCHY`：组件树内出现重复的 animateId 或 authored scroll zone identity。
  * - `INVALID_DRAG_CONFIG`：drag unit / scale / enabled 配置非法（可恢复）。
  * - `ANIMATION_ASSET_LOAD_FAILED`：动画预设资源加载失败（可重试）。
  */
 export type CineViewErrorCode =
-  | 'NO_SCENES'
+  | 'EMPTY_SCENES'
   | 'IMAGE_LOAD_FAILED'
   | 'FIRST_SCENE_TIMEOUT'
   | 'INVALID_ANIMATION'
@@ -167,7 +153,7 @@ export interface DragBlockedDetail {
   direction: 'forward' | 'backward';
 }
 
-export interface DragCommitDetail extends DragDetail {
+export interface DragEndDetail extends DragDetail {
   targetSceneIndex: number;
   elapsedMs: number;
   timelineDurationMs: number;
@@ -197,8 +183,8 @@ export interface SceneVisibilityDetail {
 export interface CineViewCommonCallbacks {
   onReady?: (api: CineViewRef) => void;
   onLoadProgress?: (progress: number) => void;
-  onSceneWillChange?: (detail: SceneChangeDetail) => void;
-  onSceneDidChange?: (detail: SceneChangeDetail) => void;
+  onSceneEnter?: (detail: SceneChangeDetail) => void;
+  onSceneLeave?: (detail: SceneChangeDetail) => void;
   onError?: (detail: CineViewErrorDetail) => void;
 }
 
@@ -207,7 +193,7 @@ export interface CineViewDragCallbacks {
   onDragStart?: (detail: DragStartDetail) => void;
   onDragProgress?: (detail: DragDetail) => void;
   onDragBlocked?: (detail: DragBlockedDetail) => void;
-  onDragCommit?: (detail: DragCommitDetail) => void;
+  onDragEnd?: (detail: DragEndDetail) => void;
   onDragCancel?: (detail: DragDetail) => void;
 }
 
@@ -225,7 +211,7 @@ export interface CineViewScrollCallbacks {
  * discrimination hole: without it, TS's excess-property check only rejects
  * wrong-mode callbacks written as an INLINE object literal. A caller who first
  * extracts callbacks into a variable that mixes a valid drag callback with a
- * scroll-only one (e.g. `{ onDragCommit, onZoneProgress }`) would slip past the
+ * scroll-only one (e.g. `{ onDragEnd, onZoneProgress }`) would slip past the
  * check, because a variable is not subject to excess-property checking and the
  * weak-type check is satisfied by the shared valid key. Marking every scroll-only
  * key as optional-`never` makes assigning a real function to it a type error on
@@ -244,10 +230,6 @@ export type ScrollModeCallbacks = CineViewCommonCallbacks &
  * type-only imports.
  */
 export type CineViewCallbacks = DragModeCallbacks | ScrollModeCallbacks;
-
-export interface CineViewPerformanceConfig {
-  monitor?: boolean;
-}
 
 // ============================================================================
 // Animation Types
@@ -349,34 +331,65 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
 // ============================================================================
 
 /**
- * Shared CineView props, independent of `mode`. The `mode`/`callbacks` pair is
- * added by the discriminated union below so the callback surface is constrained
- * by the active mode.
+ * Shared CineView props, independent of `mode`. Mode-specific fields are added
+ * by the per-mode branches below; the `mode`/`callbacks` pair closes the
+ * discriminated union so both the callback surface and the mode-specific config
+ * fields are constrained by the active mode.
  */
 export interface CineViewBaseProps {
   /**
-   * 设计稿尺寸基准配置。可缺省：缺省时等价于 `{ size: 750 }`（移动端标准稿宽），
-   * 即 `scale = viewportWidth / 750`。
+   * 设计稿尺寸基准（设计 px）。这是全站唯一的换算尺子：
+   * `scale = viewportWidth / designWidth`，坐标（Position）、盒模型（Container）等设计
+   * 长度全部乘同一个 `scale`（认宽不认高，绝不形变）。scroll takeover 的时间预算仍按
+   * `1ms = 1px` 结算；场景绝对跨度回退 DOM 实测，不引入第二把高度尺子。
+   *
+   * 对齐 Figma / 设计稿的通用标准：填一个设计稿宽度（默认 750，移动端标准稿），
+   * 之后所有设计 px 数值都以此为基准换算到任意视口。不再有独立的高度基准——
+   * 纵向超出交给自然文档流 / 滚动延展。
    */
-  config?: CineViewDesignConfig;
-  modes?: {
-    drag?: DragModeConfig;
-    scroll?: ScrollModeConfig;
-  };
+  designWidth?: number;
   scrollbar?: false | ScrollbarConfig;
-  performance?: CineViewPerformanceConfig;
+  monitor?: boolean;
   children: ReactNode;
 }
 
+/** drag 分支专属字段在 scroll 根上不可出现（反之亦然）——与 callbacks 交叉排除同理。 */
+type ScrollOnlyConfigKeys = 'zoneTrigger' | 'sceneSizing' | 'enterMargin' | 'exitMargin';
+type DragOnlyConfigKeys =
+  | 'transitionDuration'
+  | 'threshold'
+  | 'unit'
+  | 'scale'
+  | 'firstSceneTimeout';
+
+/**
+ * CineView drag 分支 Props：`mode` 缺省即 drag。模式专属字段平铺在根级
+ * （不再有 `modes.drag` 壳）；scroll 专属字段被排除为 `never`。
+ */
+export type CineViewDragModeProps = CineViewBaseProps &
+  DragModeConfig & {
+    mode?: 'drag';
+    callbacks?: DragModeCallbacks;
+  } & { [K in ScrollOnlyConfigKeys]?: never };
+
+/**
+ * CineView scroll 分支 Props：scroll 专属字段平铺在根级（不再有 `modes.scroll`
+ * 壳）；drag 专属字段被排除为 `never`。
+ */
+export type CineViewScrollModeProps = CineViewBaseProps &
+  ScrollModeConfig & {
+    mode: 'scroll';
+    callbacks?: ScrollModeCallbacks;
+  } & { [K in DragOnlyConfigKeys]?: never };
+
 /**
  * CineView 组件 Props — discriminated on `mode`. Drag mode (the default when
- * `mode` is omitted) accepts common + drag callbacks; scroll mode accepts
- * common + scroll callbacks. Passing a callback from the wrong mode is a type
- * error (TS excess-property check on the flat callbacks object).
+ * `mode` is omitted) accepts common + drag callbacks and flat drag config
+ * fields; scroll mode accepts common + scroll callbacks and flat scroll config
+ * fields. Passing a callback or config field from the wrong mode is a type
+ * error (TS excess-property check on the flat objects).
  */
-export type CineViewProps =
-  | (CineViewBaseProps & { mode?: 'drag'; callbacks?: DragModeCallbacks })
-  | (CineViewBaseProps & { mode: 'scroll'; callbacks?: ScrollModeCallbacks });
+export type CineViewProps = CineViewDragModeProps | CineViewScrollModeProps;
 
 /**
  * 性能指标
@@ -407,7 +420,7 @@ export interface CineViewRef {
   goToScene: (index: number, animated?: boolean) => void;
   refreshLayout: () => void;
   preload: (targets?: CineViewPreloadTarget[]) => Promise<void>;
-  getCurrentScene: () => number;
+  getCurrentIndex: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
   /** scroll 模式专属：跳转到指定 zone。drag 模式下不提供。 */
   goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
@@ -431,9 +444,12 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
     height?: number | string;
     anchor?: SceneAnchor;
     overflow?: 'hidden' | 'visible' | 'clip';
-  };
-  stack?: {
-    mode?: SceneStackMode;
+    /**
+     * 叠放策略（原 `stack.mode`）：本场景与相邻场景同屏时谁是背景。
+     * drag 默认 'replace'，scroll 默认 'cover'。
+     */
+    overlap?: SceneStackMode;
+    /** 叠放 z 序（原 `stack.zIndex`）。 */
     zIndex?: number;
   };
   transition?: {
@@ -460,26 +476,27 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
  */
 interface AnimateBaseProps {
   animateId?: string; // 组件唯一标识
-  exitAnimation?: AnimationType; // 离开动画类型（必须与 enter 或 infinite 共存）
+  exitAnimation?: AnimationType; // 离开动画类型（必须与 enter 或 loop 共存）
   duration?: {
     enter?: number;
     exit?: number;
   };
   timeline?: {
     /**
-     * 是否允许场景接管本元素的动画时间轴。默认 `true`（优雅推断）：
+     * 动画时间轴由谁驱动。默认 `'scene'`（优雅推断）：
      *
-     * - **`true` + 位于带 `scroll` 接管配置的 `Scene`（继承到 zoneId）内** → 由该 zone 的
+     * - **`'scene'` + 位于带 `scroll` 接管配置的 `Scene`（继承到 zoneId）内** → 由该 zone 的
      *   真实滚动预算（progressPx）驱动，可配合 `phase`（scroll 接管）。
-     * - **`true` + scroll 模式且不在 zone 内** → 优雅降级为可见性闸门，由元素进出视口触发。
-     * - **`true` + drag 模式** → 由 Scene 的共享元素时间轴驱动。
-     * - **`false` + scroll 模式** → 强制独立走可见性闸门，即使身处 zone 内也不被接管。
-     * - **`false` + drag 模式** → Scene 正式到场后按真实时间独立播放；不参与 Scene registry、
-     *   `waitFor` 或 `T_self`，并忽略 `exitAnimation`。
+     * - **`'scene'` + scroll 模式且不在 zone 内** → 优雅降级为可见性闸门，由元素进出视口触发。
+     * - **`'scene'` + drag 模式** → 由 Scene 的共享元素时间轴驱动。
+     * - **`'clock'` + scroll 模式** → 强制独立走可见性闸门，即使身处 zone 内也不被接管。
+     * - **`'clock'` + drag 模式** → Scene 正式到场后按真实时钟独立播放；不参与 Scene registry、
+     *   `after` 或 `T_self`，并忽略 `exitAnimation`。
      */
-    sceneControlled?: boolean;
+    driver?: 'scene' | 'clock';
     delay?: number;
-    waitFor?: string;
+    /** 等某个 animateId 播完再入场。 */
+    after?: string;
     zoneId?: string;
     phase?: {
       start?: number;
@@ -487,14 +504,15 @@ interface AnimateBaseProps {
     };
   };
   visibility?: {
-    replayOnReenter?: boolean;
+    /** 元素重新进入后是否重放入场（原名 `replay`，默认相当于 true）。 */
+    replay?: boolean;
     // Design-px gap from the viewport edges that gates enter/exit. Enter fires
     // when the element is fully inside the viewport AND its bottom clears the
     // bottom edge by `enterMargin`; exit fires when its top reaches within
     // `exitMargin` of the top edge. Oversized elements (taller than
     // viewport - enterMargin) fall back to a center/70% rule. Both are design
-    // px (run through the single-ruler scale) and default to the CineView-level scroll config
-    // (`modes.scroll.enterMargin` / `exitMargin`), which defaults to 50.
+    // px (run through the single-ruler scale) and default to the CineView-level
+    // scroll-branch `enterMargin` / `exitMargin`, which default to 50.
     enterMargin?: number;
     exitMargin?: number;
   };
@@ -503,9 +521,9 @@ interface AnimateBaseProps {
    * 暴露入场触发函数，用于手动控制入场时机（如异步事件成功时立即显示）。
    *
    * **行为规则：**
-   * - **调用 `enterRef.current()` 时**：立即播放入场动画，打断任何正在等待的 `waitFor`/`delay`。
-   * - **传了 `enterRef` + 传了 `timeline.waitFor/delay`**：若用户未调用 ref，框架会在 `waitFor`/`delay` 结束后**兜底触发**入场。
-   * - **传了 `enterRef`，但未传 `waitFor/delay`**：永远不会自动触发，必须手动调用 `enterRef.current()` 才会入场。
+   * - **调用 `enterRef.current()` 时**：立即播放入场动画，打断任何正在等待的 `after`/`delay`。
+   * - **传了 `enterRef` + 传了 `timeline.after/delay`**：若用户未调用 ref，框架会在 `after`/`delay` 结束后**兜底触发**入场。
+   * - **传了 `enterRef`，但未传 `after/delay`**：永远不会自动触发，必须手动调用 `enterRef.current()` 才会入场。
    *
    * **典型用途：** API 请求成功时立即显示内容，请求失败时依赖 `delay` 兜底显示空状态。
    *
@@ -567,12 +585,12 @@ export interface AnimateStaggerConfig {
 
 type EnterAnimationRequired = {
   enterAnimation: AnimationType;
-  infiniteAnimation?: AnimationType;
+  loopAnimation?: AnimationType;
 };
 
-type InfiniteOnly = {
+type LoopOnly = {
   enterAnimation?: never;
-  infiniteAnimation: AnimationType;
+  loopAnimation: AnimationType;
 };
 
 export type AnimateProps =
@@ -590,7 +608,7 @@ export type AnimateProps =
         children: ReactElement;
       })
   | (AnimateBaseProps &
-      (EnterAnimationRequired | InfiniteOnly) & {
+      (EnterAnimationRequired | LoopOnly) & {
         stagger?: never;
         children: ReactNode | ((state: AnimateRenderState) => ReactNode);
       });
@@ -605,7 +623,7 @@ export interface AnimateRenderState {
 }
 
 export type AnimatePhase = AnimateRenderState['phase'];
-export type AnimateTimelineDriver = 'drag' | 'scroll' | 'visibility';
+export type AnimateTimelineLane = 'drag' | 'scroll' | 'visibility';
 export type AnimateTimelineSource =
   | 'idle'
   | 'gesture'
@@ -627,7 +645,8 @@ export interface AnimateTimelineFrame {
  */
 export interface AnimateTimeline {
   readonly mode: ScrollMode;
-  readonly driver: AnimateTimelineDriver;
+  /** 公开侧 timeline.driver 归一化后的运行时车道（'drag' | 'scroll' | 'visibility'）。 */
+  readonly lane: AnimateTimelineLane;
   readonly progress: MotionValue<number>;
   readonly signedProgress: MotionValue<number>;
   readonly phase: MotionValue<AnimatePhase>;
@@ -671,9 +690,8 @@ export interface PositionProps extends Omit<
      */
     anchor?: 'center' | 'center-x' | 'center-y';
   };
-  layer?: {
-    fixed?: boolean;
-  };
+  /** scene-scoped fixed layer 挂载（原 `layer: { fixed: true }` 壳已删除）。 */
+  fixed?: boolean;
   children: ReactNode;
   style?: React.CSSProperties; // 额外的样式
   className?: string; // CSS 类名
