@@ -107,7 +107,8 @@ export interface SceneChangeDetail {
  * 框架运行时实际会发出的错误码联合。消费者在 `onError` 里对 `code` 做 switch
  * 时可获得自动补全与穷尽性检查（不再是裸 string）。
  *
- * - `EMPTY_SCENES`：CineView 没有任何 Scene 子节点。
+ * - `EMPTY_SCENES`：CineView 没有任何 Scene 子节点（`context.scope` 缺省），
+ *   或某个 Scene 没有任何子节点（`context.scope === 'scene'`，带 `sceneIndex`）。
  * - `IMAGE_LOAD_FAILED`：预加载图片失败。
  * - `FIRST_SCENE_TIMEOUT`：首屏优先资源等待超时（可恢复，带 preventDefault）。
  * - `INVALID_ANIMATION`：Animate 的 after 指向不存在的组件。

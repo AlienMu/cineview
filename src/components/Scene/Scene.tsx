@@ -282,6 +282,25 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       onStableSnapshot: handleStableRegistrySnapshot,
     });
 
+    // A Scene with no children renders an empty full-screen layer — the
+    // per-scene twin of the root's EMPTY_SCENES (a silently blank page).
+    // It has to travel on reportError, not console: esbuild.drop:['console']
+    // strips dev logging unconditionally, so a console-only diagnostic is
+    // invisible in exactly the builds where a blank scene gets shipped.
+    // Fires at most once per Scene instance so an authoring mistake is
+    // reported without turning a list that starts empty into an error stream.
+    const reportedEmptyChildrenRef = useRef(false);
+    useEffect(() => {
+      if (reportedEmptyChildrenRef.current) return;
+      if (React.Children.count(children) > 0) return;
+      reportedEmptyChildrenRef.current = true;
+      reportRuntimeError?.({
+        code: 'EMPTY_SCENES',
+        message: `Scene ${sceneIndex} has no children; it renders an empty full-screen layer.`,
+        context: { scope: 'scene', sceneIndex },
+      });
+    }, [children, reportRuntimeError, sceneIndex]);
+
     useEffect(() => {
       return (): void => {
         const snapshot = lastPreparedRef.current;

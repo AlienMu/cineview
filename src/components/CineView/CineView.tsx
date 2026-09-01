@@ -1030,13 +1030,23 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
         elapsedMs,
         timelineDurationMs,
       });
+      // Armed BEFORE the reducer so a consumer callback that flushes synchronously
+      // still sees the flag on the scene-change render.
       pendingRenderRebaseRef.current = true;
-      sceneActions.commitDragSceneChange(
+      const committed = sceneActions.commitDragSceneChange(
         direction,
         normalizedDragProgress,
         elapsedMs,
         timelineDurationMs
       );
+      if (!committed) {
+        // Out-of-bounds commit: the reducer early-returned without touching
+        // `currentScene`, so the rebase layout effect (deps: [currentScene]) never
+        // runs and never clears the flag. Left armed, it would discharge on the
+        // NEXT, unrelated scene change and zero renderProgressMotion /
+        // dragTimelineProgressMotion at a moment nothing asked for a rebase.
+        pendingRenderRebaseRef.current = false;
+      }
       // The transaction remains alive across the render commit. The incoming
       // element track releases it only after reaching the captured T_self.
     },

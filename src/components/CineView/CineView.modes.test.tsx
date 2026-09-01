@@ -1099,4 +1099,69 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       });
     });
   });
+
+  // N2b — regression for the renderProgress stale latch (task-flow 2026-09-01, A15).
+  //
+  // CineView arms `pendingRenderRebaseRef` before calling commitDragSceneChange and
+  // clears it in a layout effect keyed on `currentScene`. An out-of-bounds target makes
+  // the reducer early-return WITHOUT touching `currentScene`, so that effect never runs
+  // and the flag stays armed — discharging on the NEXT, unrelated scene change and
+  // zeroing renderProgressMotion / dragTimelineProgressMotion when nothing asked for it.
+  describe('拒绝提交后不得残留 render rebase 旗标（N2b / A15）', () => {
+    it('越界提交后的普通场景切换不归零 renderProgressMotion', async () => {
+      const ref = createRef<CineViewRef>();
+      render(
+        <CineView ref={ref} mode="drag" designWidth={750}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      const renderProgressMotion = captured[0].dragRuntime!.renderProgressMotion;
+
+      // Scene 0, backward -> target -1: the reducer refuses the move.
+      act(() => {
+        captured[0].dragRuntime!.onCommit('backward', 0.8, 400, 500);
+      });
+      expect(ref.current?.getCurrentIndex()).toBe(0);
+
+      // A live value on the render track at the moment of an unrelated scene jump.
+      act(() => {
+        renderProgressMotion.set(0.42);
+      });
+
+      act(() => {
+        ref.current?.goToScene(1, false);
+      });
+      expect(ref.current?.getCurrentIndex()).toBe(1);
+
+      // With the latch left armed this reads 0 — a whole-stack teleport.
+      expect(renderProgressMotion.get()).toBeCloseTo(0.42, 5);
+    });
+
+    it('已提交的场景切换仍然归零 renderProgressMotion（未过度修正）', async () => {
+      const ref = createRef<CineViewRef>();
+      render(
+        <CineView ref={ref} mode="drag" designWidth={750}>
+          <DriverScene>S1</DriverScene>
+          <DriverScene>S2</DriverScene>
+        </CineView>
+      );
+      await waitFor(() => expect(captured[0]).toBeDefined());
+
+      const renderProgressMotion = captured[0].dragRuntime!.renderProgressMotion;
+      act(() => {
+        renderProgressMotion.set(0.42);
+      });
+
+      // Scene 0, forward -> target 1: in bounds, so the rebase must still happen.
+      act(() => {
+        captured[0].dragRuntime!.onCommit('forward', 0.8, 400, 500);
+      });
+
+      await waitFor(() => expect(ref.current?.getCurrentIndex()).toBe(1));
+      expect(renderProgressMotion.get()).toBe(0);
+    });
+  });
 });

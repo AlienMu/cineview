@@ -1319,6 +1319,68 @@ describe('Scene Component', () => {
       consoleSpy.mockRestore();
       process.env.NODE_ENV = originalEnv;
     });
+
+    it('reports a childless Scene through onError in production', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      const reportError = jest.fn();
+
+      render(
+        <CineViewProvider designSize={750}>
+          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+            <Scene sceneIndex={2}>{null}</Scene>
+          </CineViewRuntimeContext.Provider>
+        </CineViewProvider>
+      );
+
+      expect(reportError).toHaveBeenCalledWith({
+        code: 'EMPTY_SCENES',
+        message: 'Scene 2 has no children; it renders an empty full-screen layer.',
+        context: { scope: 'scene', sceneIndex: 2 },
+      });
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('stays silent when the Scene has children', () => {
+      const reportError = jest.fn();
+
+      render(
+        <CineViewProvider designSize={750}>
+          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+            <Scene sceneIndex={0}>
+              <div>content</div>
+            </Scene>
+          </CineViewRuntimeContext.Provider>
+        </CineViewProvider>
+      );
+
+      expect(
+        reportError.mock.calls.filter(([detail]) => detail.code === 'EMPTY_SCENES')
+      ).toHaveLength(0);
+    });
+
+    it('reports a childless Scene at most once even when children identity churns', () => {
+      const reportError = jest.fn();
+      // A fresh empty array every render: `children` changes identity, so the
+      // effect re-runs. Only the dedupe ref keeps this from becoming a per-render
+      // error stream — a stable dep array would not.
+      const tree = (): JSX.Element => (
+        <CineViewProvider designSize={750}>
+          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+            <Scene sceneIndex={1}>{[]}</Scene>
+          </CineViewRuntimeContext.Provider>
+        </CineViewProvider>
+      );
+
+      const { rerender } = render(tree());
+      rerender(tree());
+      rerender(tree());
+
+      expect(
+        reportError.mock.calls.filter(([detail]) => detail.code === 'EMPTY_SCENES')
+      ).toHaveLength(1);
+    });
   });
 
   describe('Edge Cases', () => {

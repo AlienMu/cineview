@@ -464,6 +464,37 @@ describe('useSceneManager', () => {
   });
 
   describe('drag release state (two-track model)', () => {
+    // N2b / A15: the return value is the caller's only signal that the move was
+    // refused. CineView arms a render rebase around this call and disarms it on
+    // `false`; without the signal the flag latches onto the next unrelated scene
+    // change. Behavioural killer lives in CineView.modes.test.tsx.
+    it('reports whether the commit actually moved the scene index', () => {
+      const { result } = renderHook(() =>
+        useSceneManager({ totalScenes: 2, initialScene: 0, mode: 'drag' })
+      );
+
+      let committed: boolean | undefined;
+      act(() => {
+        committed = result.current[1].commitDragSceneChange('backward', 0.9);
+      });
+      // Target -1 is out of bounds: refused, and currentScene is untouched.
+      expect(committed).toBe(false);
+      expect(result.current[0].currentScene).toBe(0);
+
+      act(() => {
+        committed = result.current[1].commitDragSceneChange('forward', 0.9);
+      });
+      expect(committed).toBe(true);
+      expect(result.current[0].currentScene).toBe(1);
+
+      act(() => {
+        committed = result.current[1].commitDragSceneChange('forward', 0.9);
+      });
+      // Target 2 is out of bounds for 2 scenes.
+      expect(committed).toBe(false);
+      expect(result.current[0].currentScene).toBe(1);
+    });
+
     it('should commit drag scene change and fire onAfterChange AT commit (scene-switch-complete = render commit)', () => {
       const onBeforeChange = jest.fn();
       const onAfterChange = jest.fn();

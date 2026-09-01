@@ -119,12 +119,17 @@ export interface SceneManagerActions {
   /** Ends a superseded settle/bounce join without changing the current render position. */
   abortDragContinuation: () => void;
   resetScrollInteraction: () => void;
+  /**
+   * Applies a drag commit. Returns `true` when the scene index actually moved.
+   * An out-of-bounds target returns `false` WITHOUT touching `currentScene`, so
+   * callers that arm work on the scene-change render must disarm it on `false`.
+   */
   commitDragSceneChange: (
     direction: 'forward' | 'backward',
     progressRatio: number,
     elapsedMs?: number,
     timelineDuration?: number
-  ) => void;
+  ) => boolean;
   completeDragTransition: () => void;
   commitScrollSceneChange: (direction: 'forward' | 'backward', progressRatio: number) => void;
   clearScrollTransitionSnapshot: () => void;
@@ -493,7 +498,9 @@ export const useSceneManager = (
         setDirection(null);
         setIsAnimating(false);
         animatingRef.current = false;
-        return;
+        // No commit: `currentScene` is untouched, so anything the caller armed
+        // for the scene-change render will never fire. Say so.
+        return false;
       }
 
       // Two-track commit: the page-slide (render lane) reached the target. This
@@ -532,6 +539,8 @@ export const useSceneManager = (
       if (settleArrivedRef.current) {
         cleanupAfterTransition();
       }
+
+      return true;
     },
     [
       cleanupAfterTransition,
