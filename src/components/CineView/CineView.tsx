@@ -7,7 +7,6 @@ import React, {
   forwardRef,
   useRef,
   useEffect,
-  useLayoutEffect,
   useState,
   useCallback,
   useMemo,
@@ -57,6 +56,7 @@ import type {
   SceneProps,
   ScrollMode,
 } from '../../types';
+import { useIsomorphicLayoutEffect } from '../../utils/useIsomorphicLayoutEffect';
 
 type SceneAuthoringCompatProps = SceneProps & {
   mode?: ScrollMode;
@@ -426,7 +426,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
   currentSceneRef.current = currentScene;
   scenesRef.current = scenes;
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!pendingRenderRebaseRef.current) return;
     pendingRenderRebaseRef.current = false;
     renderProgressMotion.set(0);

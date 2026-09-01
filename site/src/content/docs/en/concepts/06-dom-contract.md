@@ -3,9 +3,9 @@ title: DOM and layout contract
 eyebrow: CONCEPTS / DOM
 ---
 
-This page answers one question only: why your CSS does not work. The framework renders several wrapper layers around your content, each carrying styles with semantic consequences. Without knowing the shape of that tree, `position: fixed` and `z-index` fail in ways whose cause is invisible.
+This page outlines how custom styles interact with the engine's cascading rules and layout constraints. The framework renders several wrapper layers around user content, each carrying styles with specific layout semantics. Without understanding this DOM hierarchy, `position: fixed` and `z-index` may produce unexpected layout behaviors.
 
-## The tree that actually renders
+## Rendered DOM hierarchy
 
 ```text
 div.cineview-responsive-container        ← carries --cineview-unit
@@ -15,20 +15,20 @@ div.cineview-responsive-container        ← carries --cineview-unit
   └ div[data-scene-index="N"]            ← one per scene
     │   drag: position absolute, inset 0, z-index 10 (current) / 1
     │   scroll: position relative
-    │   takeover scenes add two more layers:
+    │   locked-zone scenes add two more layers:
     │     div[data-cineview-takeover-shell]   position sticky, overflow hidden, z-index 30 while active
     │     div[data-cineview-takeover-content] always carries a transform
     └ motion.div                        ← the Scene itself
       │   contain: 'layout style' (drag) / 'layout style paint' (scroll)
       │   always carries transform: translateZ(0) in scroll
       ├ (scroll) SceneFixedLayer, three divs, z-index 20
-      └ your children
+      └ declared children
         └ Animate's wrappers
             in scroll an extra div[data-cineview-animate-host]
-            the inner motion.div[data-cineview-animate-id] binds the property lanes
+            the inner motion.div[data-cineview-animate-id] binds the property channels
 ```
 
-## --cineview-unit: sharing one conversion base
+## --cineview-unit: unified viewport scaling baseline
 
 The outermost wrapper carries a length-typed CSS variable equal to one design px at the current viewport:
 
@@ -39,7 +39,7 @@ The outermost wrapper carries a length-typed CSS variable equal to one design px
 }
 ```
 
-This is a publicly promised interface and the sanctioned way for ordinary CSS to share the framework's conversion base, instead of recomputing `viewport / size` yourself. The wrapper carries no layout styles of its own, but it is a real layer in the tree, so `>` child selectors must account for it.
+This is a publicly promised interface and the standard way for ordinary CSS to share the framework's single-axis responsive scale, avoiding redundant viewport calculations. The wrapper carries no layout styles of its own, but it is a real element in the DOM hierarchy, so `>` child selectors must account for it.
 
 ## Scene must be a direct child
 
@@ -53,28 +53,28 @@ The framework walks exactly one level of children to discover scenes:
 | `memo(Scene)` / `forwardRef` wrappers   | Yes (the type is unwrapped up to six levels) |
 | `function My() { return <Scene/> }`     | No (the framework sees `My`)                 |
 
-Discovery uses an internal static marker rather than `displayName`, so setting `displayName="Scene"` on your own component does not help (development warns about that pattern).
+Discovery uses an internal static marker rather than `displayName`, so setting `displayName="Scene"` on custom components does not take effect (development warns about this pattern).
 
-The hardest case to spot is the mixed one: a direct Scene plus a Fragment holding two more finds one, with **no error and no warning** (`EMPTY_SCENES` fires only when there are none at all). An undiscovered Scene falls back to the drag-mode defaults and renders as `position: absolute` with `pointer-events: none`: invisible and unclickable.
+When mixing direct declarations with Fragment wrappers, Scenes inside Fragments are not recognized by the top-level walker. Undetected Scenes fall back to default positioning styles (`position: absolute` and `pointer-events: none`), rendering them non-interactive and hidden. The engine raises `EMPTY_SCENES` only when no valid Scenes are detected at all.
 
-## The engine overrides your style
+## Style cascading and engine overrides
 
-Scene merges styles in the order "spread your `style`, then write the engine's keys." These keys are always the engine's:
+Scene merges styles in the order "spread custom `style`, then apply engine-managed properties." These properties are always managed by the engine:
 
 ```text
 width  height  position  overflow  willChange  contain
 transform  userSelect  touchAction  zIndex  pointerEvents  + anchor keys
 ```
 
-Everything else in `style` survives. Separately, Scene spreads any prop it does not recognize straight onto the underlying DOM node: `id`, `data-*`, `aria-*`, `role`, and `onClick` all work. Conversely a misspelled prop becomes a React unknown-attribute warning rather than being silently swallowed.
+All other custom styles remain intact. Separately, Scene forwards unrecognized props directly onto the underlying DOM node: `id`, `data-*`, `aria-*`, `role`, and `onClick` function as expected. Misspelled props trigger standard React unknown-attribute warnings rather than being silently ignored.
 
-## Why z-index does nothing
+## Stacking contexts and z-index constraints
 
-A `z-index` on a child of `Animate` or `Position` is dead code. The cause is not that the wrappers carry a transform (a settled `Animate` wrapper reads `transform: none`); it is Scene's own `contain`:
+Direct `z-index` declarations on child elements of `Animate` or `Position` cannot elevate stacking order across components. This occurs because Scene applies `contain: layout`, creating an isolated stacking context:
 
-`contain: layout` unconditionally establishes a stacking context and a containing block, in both modes, on every scene, permanently. A child's `z-index` resolves only inside that context and has no bearing on ordering between sibling scenes, or between siblings across separate `Position` wrappers.
+`contain: layout` establishes an isolated stacking context for every scene across both modes. A child's `z-index` resolves strictly within this context and does not alter ordering relative to sibling scenes or adjacent `Position` wrappers.
 
-On top of that sit four hardcoded levels:
+On top of that sit four engine-managed stacking levels:
 
 | Layer                    | z-index                   |
 | ------------------------ | ------------------------- |
@@ -83,19 +83,19 @@ On top of that sit four hardcoded levels:
 | Active locked zone shell | `30`                      |
 | Scrollbar overlay        | `80`                      |
 
-**The only effective host is `Position`'s `style.zIndex`** (`Position` spreads your style without overwriting `zIndex`, so passing it through is safe). To control paint order across sibling `Position` wrappers, set it on `Position`.
+**The only effective host is `Position`'s `style.zIndex`** (`Position` spreads custom styles without overwriting `zIndex`). To control paint order across sibling `Position` wrappers, configure it directly on `Position`.
 
-## position: fixed cannot work inside a scroll scene
+## Positioning boundaries for position: fixed in scroll mode
 
-In scroll, a Scene always carries `transform: translateZ(0)`, and **any non-`none` transform makes that element the containing block for `fixed` descendants**. A locked zone scene's content layer carries an additional unconditional transform. So `position: fixed` inside a scroll scene subtree is not relative to the viewport: it appears to "scroll away with the content" or lands in the wrong place, with no error at all.
+In scroll mode, Scene applies `transform: translateZ(0)`, which causes the transformed element to act as the containing block for any descendant styled with `position: fixed`. Consequently, direct `position: fixed` declarations inside a scroll scene subtree position relative to the scene rather than the viewport.
 
-Two correct approaches. One is `Position` with `fixed`, which portals into the scene-scoped fixed layer. The other is making the scene `100vh` and using `position: absolute; inset: 0`: the scene box then equals exactly one viewport, so absolute is viewport-equivalent. See [Scene-scoped fixed layer](/docs/04-fixed-layer).
+Two standard approaches resolve this: pass the `fixed` prop to `Position` to mount onto the scene-scoped fixed layer, or set the scene height to `100vh` combined with `position: absolute; inset: 0`. See [Scene-scoped fixed layer](/docs/04-fixed-layer).
 
-## Root backgrounds are hardcoded and differ by mode
+## Default root background colors by mode
 
-Drag uses `#0d1624`, scroll uses `#ffffff`, and neither is configurable (`CineView` accepts neither `className` nor `style`). Porting a page between modes changes this abruptly. To override, reach in from outside with the `.cineview-container` class or the `[data-cineview-container="true"]` attribute selector.
+Drag defaults to `#0d1624` and scroll defaults to `#ffffff`. Neither provides direct props (`CineView` accepts neither `className` nor `style`). When migrating between modes, note this difference. To override, apply external styles via the `.cineview-container` class or the `[data-cineview-container="true"]` attribute selector.
 
-## Stable hooks you can select
+## Stable attribute selectors
 
 These attributes work as anchors for tests and styling:
 
@@ -107,14 +107,14 @@ These attributes work as anchors for tests and styling:
 [data-cineview-takeover-content]
 [data-scene-fixed-layer]       the three fixed-layer divs, plus -role / -host
 [data-cineview-animate-host]   Animate's outer layer in scroll
-[data-cineview-animate-id]     the layer carrying Animate's property lanes
+[data-cineview-animate-id]     the layer carrying Animate's property channels
 ```
 
-Two caveats: `data-cineview-scroll-zone` also falls back to `sceneId` on scroll scenes with no locked zone, so **its presence does not imply a registered zone**; and when `animateId` is not passed explicitly it comes from a module-level counter and is unstable across renders, so using it as a hook requires passing `animateId` yourself.
+Two caveats: `data-cineview-scroll-zone` also falls back to `sceneId` on scroll scenes with no locked zone, so **its presence does not imply a registered zone**; and when `animateId` is omitted, it is generated by a module-level counter and is unstable across renders. Using it as a reliable selector requires passing `animateId` explicitly.
 
 ## Related pages
 
 - [Runtime states](/docs/07-runtime-states): when `pointer-events` is set to none
 - [Scene-scoped fixed layer](/docs/04-fixed-layer): the correct approach to fixed, and its boundaries
 - [Responsive conversion base](/docs/05-responsive): the conversion model behind `--cineview-unit`
-- [Drag layout contract](/docs/01-layout): the hardcoded styles on the drag side
+- [Drag layout contract](/docs/01-layout): layout rules in drag mode

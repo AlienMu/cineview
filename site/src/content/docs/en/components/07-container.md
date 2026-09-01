@@ -3,7 +3,7 @@ title: Container
 eyebrow: COMPONENTS / CONTAINER
 ---
 
-Container converts `width` / `height` and every numeric length value in `style` against the same design-width base. Write the numbers straight off the design file; the framework scales the box to any screen: 1px horizontal and 1px vertical are the same unit, so a square stays a square. Never distorts.
+Container converts `width`, `height`, and all numeric length values in `style` against a unified design width baseline. Dimensions from design drafts can be specified directly in code; the framework scales containers proportionally across screen sizes. Both horizontal and vertical dimensions share the same scale factor, preserving aspect ratios.
 
 ## Props
 
@@ -24,7 +24,7 @@ Container only works under `<CineView>`: conversion depends on the context. Rend
 
 `scale = viewportWidth / designWidth` (`designWidth` defaults to 750). `width={520}` renders as 260px in a 375px viewport (scale 0.5).
 
-Numeric values in `style` are converted by a key allowlist covering:
+Numeric values in `style` are converted through an explicit property allowlist, covering:
 
 - Sizing: `width` / `height` / `minWidth` / `maxWidth` / `minHeight` / `maxHeight`
 - Positioning and inset: `top` / `right` / `bottom` / `left` / `inset*` (but Container is not the coordinate owner; see "Common mistakes")
@@ -32,7 +32,7 @@ Numeric values in `style` are converted by a key allowlist covering:
 - Borders: `borderWidth*` / `borderRadius*`
 - Spacing and type: `gap` / `columnGap` / `rowGap` / `fontSize` / `letterSpacing` / `outlineWidth` / `outlineOffset`
 
-String values (`'50%'`, `'1rem'`) are not converted and pass through as-is; unitless numbers (`zIndex`, `opacity`, `fontWeight`, `lineHeight`, and similar) are not converted either: they are pure numbers, not lengths.
+String values (`'50%'`, `'1rem'`) are not converted and pass through as-is; non-length numeric properties (`zIndex`, `opacity`, `fontWeight`, `lineHeight`, etc.) are not converted: they represent scalar quantities rather than physical lengths.
 
 ```tsx
 <Container width={520} style={{ padding: 24, borderRadius: 12, fontSize: 28 }}>
@@ -43,7 +43,7 @@ String values (`'50%'`, `'1rem'`) are not converted and pass through as-is; unit
 ## Common mistakes
 
 - **Using it as the coordinate owner**: positioning always belongs to [Position](/docs/05-position); the hierarchy is `Scene → Position → Container`. Passing `top` / `left` to a Container is a category error.
-- **Writing font sizes as `'28px'` strings**: not converted. Write the number straight off the design file: `28`.
+- **Writing font sizes as `'28px'` strings**: not converted. Provide the raw design numeric value directly: `28`.
 - **Using it for Scene layout**: Scene's `layout.width` / `layout.height` have their own semantics; Container targets box models inside a Scene.
 
 ---

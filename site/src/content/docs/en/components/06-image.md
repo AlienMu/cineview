@@ -26,8 +26,8 @@ forwardRef points at the `<img>` element.
 ## Preload semantics
 
 - When `preload` is on, mounting registers `src` into the framework's shared preload cache; the same cache written by `Scene.assets.preloadImages` and the root ref's `preload()`; the same URL never loads twice.
-- The cache is background warming only and **does not declare first-screen priority**: membership in the first-screen priority queue is decided by `Scene.assets.preloadImages`, which feeds the `priorityComplete` cold-start gate. `Image`'s `preload` does not participate.
-- Loading strategy follows along: with `preload` on, `loading` defaults to `'eager'`, otherwise `'lazy'`; if you explicitly set `loading='lazy'`, `preload` is off.
+- The cache is background warming only and **does not declare first-screen priority**: membership in the first-screen priority queue is decided by `Scene.assets.preloadImages`, which feeds the cold-start gate. `Image`'s `preload` does not participate.
+- Loading strategy follows along: with `preload` on, `loading` defaults to `'eager'`, otherwise `'lazy'`; setting `loading='lazy'` explicitly disables `preload`.
 - The `<img>` renders on mount. Preloading covers network and cache hits, not visibility gating; for "show when loaded" timeline, use the visibility/timeline semantics of [Animate](/docs/03-animate).
 
 The full cold-start gate and priority queue semantics live in [Preloading](/docs/02-preload).
@@ -36,4 +36,4 @@ The full cold-start gate and priority queue semantics live in [Preloading](/docs
 
 - **Declaring first-screen priority through `preload`**: membership belongs to `Scene.assets`. A first-screen hero image needs both sides: priority declared on the Scene, cache consumed on the Image.
 - **Setting `loading='lazy'` and still expecting `preload` to work**: the former force-disables the latter.
-- **Reading numeric dimensions as rendered pixels**: `width={375}` is design px and gets converted; use a string if you don't want conversion.
+- **Reading numeric dimensions as rendered pixels**: `width={375}` is design px and gets converted; pass a string value to retain literal CSS dimensions without conversion.

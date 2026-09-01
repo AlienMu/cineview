@@ -1,0 +1,62 @@
+{
+  "base": "http://localhost:4001",
+  "verdict": "PASS",
+  "fails": [],
+  "checks": [
+    {
+      "name": "mobile-390: 侧栏非 sticky（窄屏应随流滚动）",
+      "pass": true,
+      "detail": "position=static"
+    },
+    {
+      "name": "mobile-390@顶部: 正文首段未被遮挡",
+      "pass": true,
+      "detail": "blocker="
+    },
+    {
+      "name": "edge-760: 侧栏非 sticky（窄屏应随流滚动）",
+      "pass": true,
+      "detail": "position=static"
+    },
+    {
+      "name": "edge-760@顶部: 正文首段未被遮挡",
+      "pass": true,
+      "detail": "blocker="
+    },
+    {
+      "name": "edge-761: 侧栏 sticky 且停在顶栏下沿",
+      "pass": true,
+      "detail": "pos=sticky navTop=98 shellBottom=98"
+    },
+    {
+      "name": "edge-761: max-height 已扣顶栏",
+      "pass": true,
+      "detail": "maxHeight=802px"
+    },
+    {
+      "name": "edge-761@顶部: 正文首段未被遮挡",
+      "pass": true,
+      "detail": "blocker="
+    },
+    {
+      "name": "mid-1080: 侧栏 sticky 且停在顶栏下沿",
+      "pass": true,
+      "detail": "pos=sticky navTop=98 shellBottom=98"
+    },
+    {
+      "name": "mid-1080: max-height 已扣顶栏",
+      "pass": true,
+      "detail": "maxHeight=802px"
+    },
+    {
+      "name": "mid-1080@顶部: 正文首段未被遮挡",
+      "pass": true,
+      "detail": "blocker="
+    },
+    {
+      "name": "全程 console 无 error",
+      "pass": true,
+      "detail": "[]"
+    }
+  ]
+}

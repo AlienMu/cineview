@@ -3,7 +3,7 @@ title: Preloading
 eyebrow: ADVANCED / PRELOADING
 ---
 
-Preloading has three entry points, but only two of them go through the queue. `Scene.assets.preloadImages` and `ref.preload()` enqueue, and therefore count toward `onLoadProgress`; the per-element `preload` prop on `Image` / `AnimateVideo` **does not go through the queue at all** and only registers the URL in the shared cache. Miss that line and you get a page whose progress bar reads 100 while the image is still missing.
+Preloading has three entry points, but only two of them go through the queue. `Scene.assets.preloadImages` and `ref.preload()` enqueue, and therefore count toward `onLoadProgress`; the per-element `preload` prop on `Image` / `AnimateVideo` **does not go through the queue at all** and only registers the URL in the shared cache. Missing that distinction leads to a page whose progress bar reads 100 while the image is still missing.
 
 ## What each entry point does
 
@@ -13,7 +13,7 @@ Preloading has three entry points, but only two of them go through the queue. `S
 | `ref.preload(targets)`                         | yes      | yes                        | no, the gate is already frozen (see "Imperative: ref.preload()") |
 | the `preload` prop on `Image` / `AnimateVideo` | no       | no                         | no                                                               |
 
-The first two share one queue instance (a priority batch plus a background batch). The per-element prop is a different path: `Image` creates its own `new window.Image()` to pull the URL into the shared image cache (`src/components/Image/Image.tsx:54-70`), and `AnimateVideo` calls `preloadMedia` directly to fill the video blob cache (`src/media/VideoFrameRenderer.tsx:386-388`). Neither touches the queue's `totalCount`, so neither enters the denominator of `onLoadProgress` nor affects the cold-start signal `priorityComplete`.
+The first two share one queue instance (a priority batch plus a background batch). The per-element prop is a different path: `Image` creates its own `new window.Image()` to pull the URL into the shared image cache (`src/components/Image/Image.tsx:54-70`), and `AnimateVideo` fills the video blob cache directly (`src/media/VideoFrameRenderer.tsx:386-388`). Neither touches the queue total, so neither enters the denominator of `onLoadProgress` nor affects the cold-start readiness signal.
 
 ## Declarative: assets.preloadImages
 
@@ -43,7 +43,7 @@ await ref.current!.preload([1, 'finale']);
 // - string: a Scene's sceneId; in scroll mode it can also match Scene.scroll.zoneId
 ```
 
-These URLs are always enqueued as priority (`src/components/CineView/useCineViewImperativeApi.ts:67-79`), whether or not the target is the current scene. That does not mean they can hold back the first screen: priority membership is frozen into a snapshot when a run starts (`initialPriorityUrls`, `src/hooks/useImagePreloader.ts:267-271`), and URLs added through `addUrls` after that do not participate in the `priorityComplete` decision. The gate only knows the list as it stood at run start, so `ref.preload()` cannot reopen a cold-start gate that has already released.
+These URLs are always enqueued as priority (`src/components/CineView/useCineViewImperativeApi.ts:67-79`), whether or not the target is the current scene. That does not mean they can hold back the first screen: priority membership is frozen into a snapshot when a run starts (`src/hooks/useImagePreloader.ts:267-271`), and URLs enqueued after that do not participate in the readiness decision. The gate only knows the list as it stood at run start, so `ref.preload()` cannot reopen a cold-start gate that has already released.
 
 ## Per-element: the preload prop
 
@@ -56,7 +56,7 @@ Both `Image` and `AnimateVideo` accept a `preload` prop:
 
 It does exactly one thing: register the asset in the shared cache. The shared cache deduplicates per asset, so an in-flight request returns the same Promise instead of requesting the network twice. Video preloads land as blob object URLs, consumed directly by `AnimateVideo`.
 
-The prop suits a single asset that is not in the queue but you want early anyway. It is not a replacement for the queue: anything that needs progress reporting or cold-start gating has to go through `Scene.assets.preloadImages`.
+The prop suits a single asset that is not in the queue but needed early anyway. It is not a replacement for the queue: anything that needs progress reporting or cold-start gating has to go through `Scene.assets.preloadImages`.
 
 ## Videos are detected by file extension
 
@@ -74,7 +74,7 @@ The media cache has a byte budget, 128MB by default, evicting least-recently-use
 
 ## Progress, timeouts, and errors
 
-`onLoadProgress` reports an integer from 0 to 100, not 0 to 1: the internal formula is `Math.round((loaded / total) * 100)`, and with no assets it reports `100` outright (`src/hooks/useImagePreloader.ts:216-222`). It counts resources rather than bytes, and the denominator grows as `addUrls` runs mid-run (`:280-291`), so **progress can move backwards**. Don't animate it as a monotonic value.
+`onLoadProgress` reports an integer from 0 to 100, not 0 to 1: the internal formula is `Math.round((loaded / total) * 100)`, and with no assets it reports `100` outright (`src/hooks/useImagePreloader.ts:216-222`). It counts resources rather than bytes, and the denominator grows as more URLs enqueue mid-run (`:280-291`), so **progress can move backwards**. Don't animate it as a monotonic value.
 
 ```tsx
 <CineView
@@ -84,7 +84,7 @@ The media cache has a byte budget, 128MB by default, evicting least-recently-use
     onLoadProgress: (percent) => setBarWidth(`${percent}%`), // percent is 0..100
     onError: ({ code, preventDefault }) => {
       if (code === 'FIRST_SCENE_TIMEOUT') {
-        preventDefault(); // take over and render a retry UI yourself
+        preventDefault(); // take over and render custom retry UI
       }
     },
   }}
@@ -101,9 +101,9 @@ Three timeouts, on very different scales:
 
 Both resource-level timeouts are far longer than the 3s gate (`useImagePreloader.ts:45`, `mediaPreloadCache.ts:133`). A slow asset therefore cannot hang the page: at 3s the gate releases on its own, and the timeout error arrives much later. Read the other way: receiving `FIRST_SCENE_TIMEOUT` does not mean an asset failed, it usually just means it is still in flight.
 
-A gate timeout emits the recoverable `FIRST_SCENE_TIMEOUT`. Left alone, the framework falls back to statically placing the first scene in its rest state; calling `preventDefault()` inside `onError` hands control to you, and the first scene holds at its initial frame waiting for you to take over (`src/hooks/useFirstSceneEnter.ts:120-152`).
+A gate timeout emits the recoverable `FIRST_SCENE_TIMEOUT`. Left alone, the framework falls back to statically placing the first scene in its rest state; calling `preventDefault()` inside `onError` hands control over, and the first scene holds at its initial frame waiting for external control (`src/hooks/useFirstSceneEnter.ts:120-152`).
 
-A failed asset reports `IMAGE_LOAD_FAILED`, but **only in drag mode**: only the drag root wires the preloader's `onError` into the error route (`src/components/CineView/CineView.tsx:840`), while the scroll root wires only `onProgress` (`DirectScrollCineView.tsx:154-157`). In scroll mode a failed image produces no callback, and you find it through the `<img>`'s own `onError` or by looking. See [Callbacks](/docs/03-callbacks) for the full error-code table.
+A failed asset reports `IMAGE_LOAD_FAILED`, but **only in drag mode**: only the drag root wires the preloader's `onError` into the error route (`src/components/CineView/CineView.tsx:840`), while the scroll root wires only `onProgress` (`DirectScrollCineView.tsx:154-157`). In scroll mode a failed image produces no callback, and must be caught through the `<img>`'s own `onError` or by inspection. See [Callbacks](/docs/03-callbacks) for the full error-code table.
 
 ## Related pages
 

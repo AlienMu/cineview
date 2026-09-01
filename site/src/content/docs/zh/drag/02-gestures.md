@@ -9,7 +9,7 @@ drag 的输入只有指针：没有滚轮，没有键盘。一次手势要通过
 
 框架不监听 wheel，也不监听 keydown。桌面端滚轮翻页不工作，键盘翻页也不工作；程序化导航只有 `ref.goToScene(index, animated?)` 一条路。
 
-场景上的 `touch-action` 按方向写死，交出交叉轴、占用拖拽轴：
+场景上的 `touch-action` 按方向预设，交出交叉轴、占用拖拽轴：
 
 | `direction`   | `touch-action`     |
 | ------------- | ------------------ |
@@ -38,7 +38,7 @@ a, button, input, textarea, select, option, summary,
 
 `data-cineview-ignore-drag` 是作者可用的退出机制：自定义滑块、可拖拽画布、需要同轴滚动的子区域，加这个属性即可让整个子树不触发翻页。
 
-还有第二种退出机制：作者自己的 `onPointerDown` 与框架的处理器是组合关系而非替换，在你的处理器里调 `event.preventDefault()` 会让框架整体跳过这次手势。
+此外还支持事件拦截机制：自定义的 `onPointerDown` 与引擎内置处理器为组合链路而非替换关系，在自定义处理器中调用 `event.preventDefault()` 会直接阻止默认拖拽判定。
 
 ## 方向判定：轻点与拖拽的分界
 
@@ -67,10 +67,10 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 
 慢速拖拽要过 30% 屏，1000 px/s 以上的快划只要 15%。两个边界行为要知道：速度非有限值时直接返回 `maxRatio`；**把 `minVelocity` 与 `maxVelocity` 设成相等会让阈值一直是 `maxRatio`**（分母为零，走同一条兜底）。
 
-三个写死的数值不属于 `threshold` 配置：
+三个内置固定常量不属于 `threshold` 配置：
 
 - 方向反转否决速度 600 px/s：位移够了但手指在快速回甩时，提交被否决。
-- 边界回弹 150 ms：首屏往前、末屏往后时的回弹时长，与普通回弹（位移比例 × 800，上限 300ms）不一致。
+- 边界回弹固定 150 ms：首屏往前、末屏往后时用这个值，不随拖了多远变化；普通回弹按位移比例 × 800 计算，上限 300 ms。
 - **脱离 CineView 的独立 Scene 阈值固定为 0.5**，此时 `threshold` 配置整体被忽略。
 
 进度的分母是 `window.innerHeight` / `window.innerWidth`，不是容器尺寸。嵌在 iframe、分栏或非满高父级里的 CineView，进度映射会失真：要走满进度 1 需要一整个窗口高度的位移。
@@ -84,11 +84,11 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 | `'time'`（默认） | `10`         | 每拖 1% 推进 `scale` 毫秒                 |
 | `'percent'`      | `1`          | 每拖 1% 推进元素时间轴的 `scale` 个百分点 |
 
-默认组合 `time + 10` 有一个必须知道的后果：**拖满一整屏只推进 1000 毫秒元素时间**，与该场景时间轴总长无关。一个 6.5 秒的入场时间线，拖到底也只 scrub 了约 15%，其余在松手后按真实速率补完。想要「拖一半等于时间轴一半」，必须改用 `unit: 'percent'`。
+默认配置组合 `time + 10` 的计算特征为：**拖拽完整一屏对应推进 1000 毫秒元素时间**，与场景时间轴总时长无关。若入场时间线总长为 6.5 秒，拖拽到底仅映射推进约 15%，剩余部分在释放后按实际速率播放完成。若需使手势比例与时间轴百分比直接对应，需将配置指定为 `unit: 'percent'`。
 
 场景级 `Scene.drag` 可以覆盖，但是整组覆盖：只要写了 `unit` 或 `scale` 任一个，这一组就不再继承根配置，未写的那个回落到框架默认值而不是根的值。所以根配置 `percent + 0.5` 时，场景只写 `scale: 2` 会解析成 `time + 2`。
 
-非法值的回退不对称：非法 `unit` 会把 scale 一并重置为 `time` 的默认值（即使你写的是 percent）；非法 `scale` 保留 unit 只重置 scale。两者都上报 `INVALID_DRAG_CONFIG`。
+非法值的回退不对称：非法 `unit` 会将 scale 一并重置为 `time` 的默认值（即便显式声明为 percent）；非法 `scale` 保留 unit 只重置 scale。两者都上报 `INVALID_DRAG_CONFIG`。
 
 ## drag.enabled 判的是目标场景
 
@@ -98,7 +98,7 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 
 ## 相关页面
 
-- [drag 布局契约](/docs/01-layout)：默认尺寸与写死的样式
+- [drag 布局契约](/docs/01-layout)：默认尺寸与引擎内置固定样式
 - [所有权与事务](/docs/04-ownership)：候选、所有权、re-grab
 - [drag 回调时序](/docs/05-callbacks)：手势会发出哪些回调、在什么时刻
 - [CineView 参考](/docs/01-cineview)：drag 模式全表

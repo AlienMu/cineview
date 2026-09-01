@@ -41,7 +41,7 @@ Each axis resolves in priority order, highest first:
 
 After centering, `x` / `y` on a centered axis become "offset from center" values (design px, still converted against the conversion base): `anchor: 'center', y: -100` means centered, then shifted up by 100. A centered axis ignores the `offsetX` / `offsetY` relative chain.
 
-No hand-written `translate(-50%, -50%)` needed; the framework composes it, placing the centering transform first and your `style.transform` after it:
+No hand-written `translate(-50%, -50%)` needed; the framework composes it, placing the centering transform first and custom `style.transform` after it:
 
 ```tsx
 <Position at={{ anchor: 'center' }} style={{ transform: 'rotate(8deg)' }}>
@@ -65,4 +65,4 @@ Scene-scoped is a strict boundary: the fixed layer is scoped to its Scene, and p
 
 ---
 
-For the conversion base itself (width-only, never distorts), see the [responsive model](/docs/05-responsive); for the fixed-layer pitfall and mechanics, see [Fixed Layer](/docs/04-fixed-layer).
+For the conversion base itself (width-only scaling), see the [responsive model](/docs/05-responsive); for fixed-layer mechanics and considerations, see [Fixed Layer](/docs/04-fixed-layer).

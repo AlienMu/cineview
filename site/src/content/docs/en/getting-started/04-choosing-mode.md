@@ -3,7 +3,7 @@ title: Choosing a mode
 eyebrow: GETTING STARTED / CHOOSING A MODE
 ---
 
-The conclusion first: if each screen is one narrative beat flipped by gestures, use drag. If the page is a long document flow where a few scenes lock scrolling to drive a timeline, use scroll.
+Core decision criteria: if each screen represents an independent narrative beat transitioned by gestures, select drag. If the page consists primarily of a document flow where specific scenes lock scrolling to drive timelines, select scroll.
 
 ## When to use drag
 
@@ -19,20 +19,20 @@ The conclusion first: if each screen is one narrative beat flipped by gestures, 
 
 ## Comparison
 
-|                     | drag                                                                                                  | scroll                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Interaction model   | Gesture paging, one screen per act                                                                    | Real document flow + local locked zones |
-| Timeline driver     | Gesture progress + transition                                                                         | Scroll position inside a zone (1ms=1px) |
-| Between scenes      | A scene is a whole screen                                                                             | Plain content mixes with zone scenes    |
-| Transition duration | Gestures fixed at 800ms (not configurable); `transitionDuration` governs programmatic navigation only | No transitions; budget = scrolled px    |
-| Extra callbacks     | onDragStart/Commit/Cancel, and more                                                                   | onZoneEnter/Progress/Leave, and more    |
-| Entry point         | `cineview/drag`                                                                                       | `cineview/scroll`                       |
-| Default             | The default mode                                                                                      | Enabled explicitly with `mode="scroll"` |
+|                     | drag                                                                                       | scroll                                  |
+| ------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------- |
+| Interaction model   | Gesture paging, one screen per act                                                         | Real document flow + local locked zones |
+| Timeline driver     | Gesture progress + transition                                                              | Scroll position inside a zone (1ms=1px) |
+| Between scenes      | A scene is a whole screen                                                                  | Plain content mixes with zone scenes    |
+| Transition duration | Gesture movement fixed at 800ms; `transitionDuration` governs programmatic navigation only | No transitions; budget = scrolled px    |
+| Extra callbacks     | onDragStart/Commit/Cancel, and more                                                        | onZoneEnter/Progress/Leave, and more    |
+| Entry point         | `cineview/drag`                                                                            | `cineview/scroll`                       |
+| Default             | The default mode                                                                           | Enabled explicitly with `mode="scroll"` |
 
 ## drag skeleton
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview/drag';
+import { CineView, Scene, Animate } from 'cineview';
 
 <CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
   <Scene sceneId="beat-1">
@@ -51,7 +51,7 @@ import { CineView, Scene, Animate } from 'cineview/drag';
 ## scroll skeleton
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview/scroll';
+import { CineView, Scene, Animate } from 'cineview';
 
 <CineView designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
   <Scene sceneId="intro">{/* plain scrolling content */}</Scene>
@@ -65,4 +65,4 @@ import { CineView, Scene, Animate } from 'cineview/scroll';
 
 ## Entry points and bundle size
 
-Undecided? Use the full `cineview` entry; it dispatches by `mode` at runtime. Once you settle on one mode, switch to `cineview/drag` or `cineview/scroll`. A single-file Universal Module Definition (UMD) bundle has no code splitting: staying on the full entry ships the unused engine for nothing. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).
+These examples use the primary `cineview` entry, which selects the engine from `mode`. The per-mode subpaths are CommonJS and Universal Module Definition (UMD) entry points; they do not expose an ES module (ESM) `import` condition. A single-file UMD bundle has no code splitting, so the full entry includes both engines. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).

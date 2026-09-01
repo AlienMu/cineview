@@ -3,7 +3,7 @@ title: 公共类型速查
 eyebrow: ADVANCED / TYPES
 ---
 
-组件 props 的逐字段表在各自页面（[CineView](/docs/01-cineview)、[Scene](/docs/02-scene)、[Animate](/docs/03-animate)、[AnimateVideo](/docs/04-animate-video)、[Position](/docs/05-position)）。本页收的是被多处引用的共享类型。全部从包入口导出：
+组件 props 的逐字段参考见各组件文档（[CineView](/docs/01-cineview)、[Scene](/docs/02-scene)、[Animate](/docs/03-animate)、[AnimateVideo](/docs/04-animate-video)、[Position](/docs/05-position)）。本文汇总核心公共类型定义，均从包顶层导出：
 
 ```tsx
 import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
@@ -46,7 +46,7 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 | `INVALID_DRAG_CONFIG`         | drag 的 unit / scale / enabled 配置非法。可恢复。                                                                        |
 | `ANIMATION_ASSET_LOAD_FAILED` | 动画预设资源加载失败。可重试。                                                                                           |
 
-payload 类型是 `CineViewErrorDetail = { code, message, context?, preventDefault? }`；`preventDefault` 只在可恢复错误上存在。处理模式见[回调一览](/docs/03-callbacks)。
+payload 类型是 `CineViewErrorDetail = { code, message, context?, preventDefault? }`；`preventDefault` 只在可恢复错误上存在。处理模式见[回调速查](/docs/03-callbacks)。
 
 ## Ref 与预加载目标
 

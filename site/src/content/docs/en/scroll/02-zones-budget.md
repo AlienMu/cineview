@@ -1,34 +1,34 @@
 ---
-title: Zones and scroll budget
+title: Zones and scroll budgets
 eyebrow: SCROLL / BUDGET
 ---
 
-A zone's locked travel adds up from the animation durations of its children, and no prop sets it directly. This page covers how that arithmetic works, along with the authoring choices that zero it out or rewrite it entirely.
+A locked zone's travel distance comes from the cumulative animation durations of its child elements. The sections on this page define the budget, map timeline phase ranges, and describe zero-budget behavior.
 
 ## 1ms = 1px
 
-A locked zone's time-to-distance rate is hard-wired to 1, so the px fields and the ms fields are numerically the same number. `duration={{ enter: 2000 }}` means the audience scrolls 2000 real pixels to finish that element's entry.
+The conversion rate between animation duration and physical scroll distance is fixed at 1 (1ms = 1px). For example, `duration={{ enter: 2000 }}` requires 2000 physical pixels of scroll displacement to complete an entrance animation.
 
-The zone total takes the largest timeline end across all registered elements, times the rate:
+The total zone budget matches the maximum timeline end offset across all registered elements:
 
-| Quantity        | Rule                                                                        |
-| --------------- | --------------------------------------------------------------------------- |
-| `enterDuration` | forced to a minimum of 1ms/1px. `duration: { enter: 0 }` still occupies 1px |
-| `exitDuration`  | counted as 0 without an `exitAnimation`, occupying no budget                |
-| element end     | `delay` (including accumulated `after` chain) + enter + exit                |
-| `totalBudgetPx` | the maximum element end, at least 1px when `> 0`                            |
+| Quantity        | Rule                                                            |
+| --------------- | --------------------------------------------------------------- |
+| `enterDuration` | minimum of 1ms/1px. `duration: { enter: 0 }` still occupies 1px |
+| `exitDuration`  | defaults to 0 without an `exitAnimation`, occupying no budget   |
+| element end     | `delay` (including accumulated `after` chain) + enter + exit    |
+| `totalBudgetPx` | the maximum element end, at least 1px when `> 0`                |
 
-Both `duration.enter` and `duration.exit` default to 600.
+Both `duration.enter` and `duration.exit` default to 600ms.
 
-## Zero budget means zero locking
+## Zero-budget fallback
 
-Only segments longer than 0.5px enter the center-lock clamp, and the segment length _is_ `totalBudgetPx`. A zero-budget zone therefore takes no part in locking at all: the wrapper collapses to the visual height, scrolling passes straight through, and `onZoneEnter` / `onZoneLeave` **never fire**. `onZoneProgress` fires exactly once on the first frame with `progress: 0`, then stays silent.
+Only segments longer than 0.5px (`totalBudgetPx > 0.5`) participate in center-lock boundary clamping. A zero-budget zone produces no locked travel: the wrapper collapses to the visual box height, scroll displacement flows without interruption, `onZoneEnter` and `onZoneLeave` do not trigger, and `onZoneProgress` emits a single initial frame with `progress: 0`.
 
-The usual cause is not writing a zero duration, it is that no element registered a budget: only an `Animate` with an authored `enterAnimation` or `exitAnimation` registers. A locked-zone scene whose children are all `loopAnimation` therefore degrades silently into a plain section, and the author believes a zone was declared when nothing locks.
+Only `Animate` nodes with explicit `enterAnimation` or `exitAnimation` declarations register timeline budget. If a Scene contains only `loopAnimation` elements, its total budget evaluates to 0 and the scene renders as a normal flow section.
 
 ```tsx
 {
-  /* declares a zone, but the budget is 0, so it behaves as a plain section */
+  /* Declares a zone without entrance/exit durations; budget is 0, renders as normal section */
 }
 <Scene sceneId="loop" scroll={{ zoneId: 'loop' }}>
   <Animate animateId="pulse" loopAnimation="pulse">
@@ -37,29 +37,27 @@ The usual cause is not writing a zero duration, it is that no element registered
 </Scene>;
 ```
 
-To actually lock, give at least one element an `enterAnimation` plus `duration.enter`.
+To enable scroll locking, configure at least one child element with `enterAnimation` and `duration.enter`.
 
-## phase rewrites the window
+## timeline.phase mapping rules
 
-`timeline.phase: { start, end }` pins an element's scrub range to a slice of the zone's progress. It has two consequences authors routinely misread.
+`timeline.phase: { start, end }` maps an element's animation progress to a normalized fraction of the total zone budget.
 
-**Once declared, the fractions are zone-relative, not element-relative.** Without `phase` the window is the element's own `[enterStartPx, enterEndPx]`; with `phase` the window becomes `[0, totalBudgetPx]`, so `phase: { start: 0.5 }` means "halfway through the whole zone budget," not "halfway through the element's own entry."
+When `phase` is specified, start and end fractions apply relative to the entire zone budget (`[0, totalBudgetPx]`), rather than the element's standalone duration. For example, `phase: { start: 0.5 }` begins the entrance animation when the zone reaches 50% of its cumulative budget.
 
-**An element that declares `phase` has its authored exit moved to the end of the zone.** The assembly computes `exitEndPx = totalBudgetPx` and `exitStartPx = max(phaseEndPx, totalBudgetPx - exitDurationPx)`. The exit therefore always closes out the whole zone, and `duration.exit` only means "the tail window is at least 1px wide"; it no longer expresses the exit span. To exit mid-zone, do not give that element a `phase`.
+Elements declaring `phase` align their exit animations to the trailing edge of the zone (`exitEndPx = totalBudgetPx`, `exitStartPx = max(phaseEndPx, totalBudgetPx - exitDurationPx)`). To position an exit animation within the middle of a zone, omit `phase` and use standard `delay` and `duration` sequencing instead.
 
-The window end has one more floor: `phaseEndPx` is at least `phaseStartPx + 1`, so zero-width windows do not exist.
+The computed window end is bounded such that `phaseEndPx` is always at least `phaseStartPx + 1`.
 
-## Where a after chain anchors
+## Connection references for after chains
 
-Inside a zone, `after` is folded into an accumulated delay at compile time (the scroll-driven rules; see [Timeline](/docs/04-orchestration)). The anchor is the leader's enter-window close, not its exit:
+Within scroll-driven zones, `after` dependencies collapse into cumulative delays at compile time. Sequences connect to the leader element's entrance completion point:
 
 ```text
 follower.start = leader.phaseEndPx + follower.delay
 ```
 
-Anchoring on enter rather than exit keeps the total computable. A leader with `phase` has its exit pinned to the zone end, and the zone end is itself decided by every element's end. Anchoring there means "zone total" has to solve for itself, which has no answer. Anchored at the enter close, the chain stays bounded: the follower starts before the leader's zone-end exit, the two overlap visually, and the budget stays finite.
-
-The window end feeds the zone total, and the total decides the window end, so a zone with `phase` is solved by iterating until the value settles. With `phase.end < 1` the iteration settles; `phase.end: 1` leaves it with no stable answer, and followers pile up past the zone end, stopped only by the iteration cap. For a long window write something with headroom, such as `phase.end: 0.95`, rather than a flat 1.
+Connecting to entrance completion ensures that dependency graphs resolve deterministically. When using `phase`, setting `phase.end` to values with headroom (such as `0.95`) allows subsequent chained elements to resolve within finite budget bounds.
 
 ## Zone identity
 
@@ -69,23 +67,23 @@ The window end feeds the zone total, and the total decides the window end, so a 
 | `sceneId`       | next     | used directly as the zone id when `zoneId` is absent                                     |
 | auto id         | fallback | shaped `scene-zone-<instance id>`, per-instance, stable across renders but unpredictable |
 
-With neither declared you land on the auto id: the zone works, but you cannot target it with `goToZone` and cannot reference it from `timeline.zoneId`. Programmatic navigation and cross-Scene membership both require an authored identity.
+When neither is declared, the zone receives an automatic id: it functions correctly, but cannot be targeted via `goToZone` or referenced in `timeline.zoneId`. Programmatic navigation and cross-Scene membership require an authored identity.
 
-A duplicate zoneId demotes the later declaration. The root preflights children in document order, and the first Scene declaring an id owns it. Any later Scene with the same id is `cloneElement`-stripped of its `scroll` prop and rendered as a plain flow scene.
+Duplicate `zoneId` declarations trigger automatic demotion. The root component evaluates scenes in document order; the first Scene declaring an identifier retains ownership, while subsequent scenes with identical IDs have their `scroll` properties stripped and render as standard flow scenes.
 
-That rejection reports `INVALID_COMPONENT_HIERARCHY` through `onError` (`reason: 'duplicate-scroll-zone'`, with the owner's and the rejected scene's indices in context), plus a dev console message. Visually it reads as one zone no longer locking; the `onError` payload names it.
+Demotions emit an `INVALID_COMPONENT_HIERARCHY` error via `onError` (`reason: 'duplicate-scroll-zone'`), accompanied by diagnostic console warnings in development.
 
 ## Two sets of sizing rules
 
-`sceneSizing` takes `'content'` (default) or `'screen'`, and it applies only to scenes without a locked zone: `'screen'` gives them a one-viewport minimum span, `'content'` lets the content size them. Locked-zone scenes behave identically under both values.
+`sceneSizing` accepts `'content'` (default) or `'screen'`, applying exclusively to standard flow scenes: `'screen'` enforces a one-viewport minimum height, while `'content'` derives height directly from content. Locked-zone scenes behave identically under both settings.
 
-Locked-zone span resolution has one more strict rule: **absolute px sizes are discarded**. With a single conversion base there is no separate height base, so `layout.height: 800` and `layout.height: '800px'` are both left unconverted and fall back to the measured DOM span. Only `vh` / `vw` survive (floored at 1px). To control a locked zone's visual box precisely, use viewport-relative units.
+Within locked zones, absolute pixel heights declared on `layout.height` are ignored and fall back to measured DOM dimensions. To define exact locked visual heights, use viewport-relative units (`vh` or `vw`).
 
-One more: **a locked-zone scene is clipped by the viewport, not scrollable**. The visual shell carries `maxHeight: 100vh` plus `overflow: hidden`, and the content layer applies a compensating `translateY` to recenter. Content taller than one screen is cut off at both ends around the vertical center, and no inner scrollbar appears. Long content in a locked zone has to be split into segments, or moved to a plain flow scene.
+Locked-zone visual shells enforce `maxHeight: 100vh` with `overflow: hidden`. Content exceeding viewport bounds is clipped rather than scrolled. Divide long-form content into consecutive scenes, or place it in standard flow scenes.
 
 ## Related pages
 
-- [center-lock scroll takeover](/docs/01-centerlock): segment geometry and the anti-skip clamp
+- [Center-lock scrolling](/docs/01-centerlock): segment geometry and the anti-skip mechanism
 - [Timeline](/docs/04-orchestration): the full rules for both `after` forms
 - [Animate timeline](/docs/02-timeline): what each `timeline.*` field means
 - [Scroll troubleshooting](/docs/06-scroll-pitfalls): the common failures for zero budget and phase

@@ -11,15 +11,7 @@
  * 用于 scrub 的视频应重编码为「全关键帧」(每帧皆 I 帧,如 `ffmpeg -i in.mp4 -g 1 out.mp4`),
  * 代价是文件变大,换来任意帧可直接解码。开发环境下,本组件测得 seek 延迟持续偏高时会 console.warn。
  */
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CSSProperties,
   FormEventHandler,
@@ -47,6 +39,7 @@ import {
   type VideoPlaybackOwnershipState,
 } from './videoPlaybackOwnership';
 import { devWarn } from '../utils/devLog';
+import { useIsomorphicLayoutEffect } from '../utils/useIsomorphicLayoutEffect';
 
 const SLOW_SCRUB_SEEK_MS = 50;
 const SCRUB_SAMPLE_MIN = 6;
@@ -392,7 +385,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       setMediaEpoch((epoch) => epoch + 1);
     }, [src]);
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
       const video = videoRef.current;
       if (!video) return;
       video.playbackRate = playbackRate ?? 1;
@@ -494,7 +487,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
      * warmUp control strips listeners via resetOwnership(false) while the
      * element key stays stable (no release → no node replacement → setVideoRef
      * never re-fires), so this bind is the only rebind path left. */
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
       dispatchOwnershipRef.current = dispatchOwnership;
       const committedIdentity = committedMediaIdentityRef.current;
       let identityChanged = false;

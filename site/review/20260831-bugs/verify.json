@@ -1,0 +1,68 @@
+{
+  "base": "http://localhost:4001",
+  "verdict": "PASS",
+  "failCount": 0,
+  "fails": [],
+  "checks": [
+    {
+      "name": "hero: .hero__cta 存在且三个 CTA 都渲染",
+      "pass": true,
+      "detail": "{\"found\":true,\"n\":3}"
+    },
+    {
+      "name": "hero: 间隙 [Get Started | API Reference] ≥ 20px",
+      "pass": true,
+      "detail": "实测 24px"
+    },
+    {
+      "name": "hero: 间隙 [API Reference | GitHub] ≥ 20px",
+      "pass": true,
+      "detail": "实测 24px"
+    },
+    {
+      "name": "hero: 窄屏 CTA 组高度未失控（<220px）",
+      "pass": true,
+      "detail": "{\"h\":26,\"rowGap\":\"3.25px\"}"
+    },
+    {
+      "name": "docs@0: 无导航项被顶栏遮挡",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "name": "docs@600: 无导航项被顶栏遮挡",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "name": "docs@600: 侧栏停在顶栏下沿",
+      "pass": true,
+      "detail": "navTop=69 shellBottom=69"
+    },
+    {
+      "name": "docs@1600: 无导航项被顶栏遮挡",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "name": "docs: 侧栏最后一项可滚达",
+      "pass": true,
+      "detail": "{\"lastText\":\"10 Public types\",\"lastFullyInsideNav\":true,\"navScrollable\":true}"
+    },
+    {
+      "name": "docs: 锚点跳转后标题完全在顶栏下方",
+      "pass": true,
+      "detail": "{\"id\":\"Two-modes\",\"headingTop\":85,\"shellBottom\":69,\"clearsHeader\":true,\"hitIsHeading\":true,\"hitCls\":\"\"}"
+    },
+    {
+      "name": "docs: 标题中心点命中标题自身（未被盖）",
+      "pass": true,
+      "detail": "{\"hit\":\"\"}"
+    },
+    {
+      "name": "全程 console 无 error",
+      "pass": true,
+      "detail": "[]"
+    }
+  ]
+}

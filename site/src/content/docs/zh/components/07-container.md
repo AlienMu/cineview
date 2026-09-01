@@ -3,7 +3,7 @@ title: Container
 eyebrow: COMPONENTS / CONTAINER
 ---
 
-Container 按同一个设计宽度基准折算 `width` / `height` 和 `style` 里的所有数值长度量。设计稿上的盒模型数值原样写进代码，框架负责把它缩放到任何屏幕：横向 1px 与纵向 1px 是同一个单位，正方形在任何屏幕上都不会变成矩形。
+Container 按同一个设计宽度基准折算 `width` / `height` 和 `style` 里的所有数值长度量。设计稿上的盒模型数值原样写进代码，框架负责把它缩放到任何屏幕：横纵两轴共用同一个缩放系数，宽高比保持不变。
 
 ## Props
 
@@ -22,7 +22,7 @@ Container 只能在 `<CineView>` 下使用：换算依赖上下文。脱离 Cine
 
 ## 换算行为
 
-`scale = viewportWidth / designWidth`（`designWidth` 默认 750）。`width={520}` 在 375px 视口（scale 0.5）渲染为 260px。
+`scale = viewportWidth / designWidth`（`designWidth` 默认 750）。`width={520}` 在 375px 屏幕宽度下（scale 0.5）渲染为 260px。
 
 `style` 里的数值按键名许可清单换算，覆盖：
 
@@ -32,7 +32,7 @@ Container 只能在 `<CineView>` 下使用：换算依赖上下文。脱离 Cine
 - 边框：`borderWidth*` / `borderRadius*`
 - 间距与字体：`gap` / `columnGap` / `rowGap` / `fontSize` / `letterSpacing` / `outlineWidth` / `outlineOffset`
 
-字符串值（`'50%'`、`'1rem'`）不换算、原样透传；无量纲数值（`zIndex`、`opacity`、`fontWeight`、`lineHeight` 等）也不换算：它们是纯数字，不是长度。
+字符串值（`'50%'`、`'1rem'`）不换算、原样透传；非长度类纯数值属性（`zIndex`、`opacity`、`fontWeight`、`lineHeight` 等）也不换算：它们是纯数值，不是长度。
 
 ```tsx
 <Container width={520} style={{ padding: 24, borderRadius: 12, fontSize: 28 }}>
@@ -48,4 +48,4 @@ Container 只能在 `<CineView>` 下使用：换算依赖上下文。脱离 Cine
 
 ---
 
-换算基准的完整模型（只按宽度折算、纵向交给文档流）见 [响应式模型](/docs/05-responsive)。
+关于响应式换算模型（仅按视窗宽度缩放、纵向融入文档流）的完整说明，请参阅 [响应式模型](/docs/05-responsive)。

@@ -3,7 +3,7 @@ title: Preset animations
 eyebrow: ADVANCED / PRESETS
 ---
 
-CineView ships 43 string-named preset animations in 11 families. Reference one by name, as in `enterAnimation="fade-in"`. Names are members of the `PresetAnimation` union, so a typo fails at compile time and never reaches runtime.
+CineView includes 43 preset animations categorized into 11 families. Reference animations by string name, such as `enterAnimation="fade-in"`. All names belong to the `PresetAnimation` union, allowing TypeScript to catch typos at compile time.
 
 ## The catalog
 
@@ -23,7 +23,7 @@ CineView ships 43 string-named preset animations in 11 families. Reference one b
 
 ## Naming convention
 
-The `-in` / `-out` suffix marks enter/exit direction: the conventional pairing is `-in` for enter and `-out` for exit. Suffix-free names (`fade`, `spin`, `pulse`, `shake`, …) work both ways and are the natural fit for `loopAnimation`: resident loops are gated by `shouldRunInfinite`, running only while the element is inside its own phase and in the viewport; see [Animate](/docs/03-animate).
+The `-in` / `-out` suffix marks enter/exit direction: the conventional pairing is `-in` for enter and `-out` for exit. Suffix-free names (`fade`, `spin`, `pulse`, `shake`, …) work both ways and are the natural fit for `loopAnimation`: resident loops run only while the element is inside its own phase and in the viewport; see [Animate](/docs/03-animate).
 
 ## Usage
 
@@ -46,7 +46,7 @@ For the timeline semantics behind enter/exit (delay, after, exit pairing), see t
 
 The type of `enterAnimation` and friends is `AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`:
 
-- `CustomAnimation`: your own Framer Motion variant subset `{ initial, animate, exit }`.
-- `ComposedAnimation`: `{ animations, mode: 'sequential' | 'parallel', delays }` chains presets and customs; they may mix in one array.
+- `CustomAnimation`: a custom Framer Motion variant subset `{ initial, animate, exit }`.
+- `ComposedAnimation`: `{ animations, mode: 'sequential' | 'parallel', delays }` composes presets and custom variants into sequential or parallel sequences within a single array.
 
 Composition rules are covered in [custom animations](/docs/05-custom-animation); the three-layer type is in the [type reference](/docs/10-types).

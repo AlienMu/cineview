@@ -313,7 +313,12 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 .hero__cta {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  /* 一个 52px 胶囊按钮（padding 12/24）+ 两个零横向 padding 的文字链接并排。
+     16px 是按按钮之间调的值；2026-08-29 次级动作降级为文字链接后，裸文字与
+     按钮边缘只剩 16px、两条文字之间只剩 15px（真机实测），视觉上贴在一起。
+     row-gap 保持较小，换行时不至于把 CTA 组拉散。 */
+  column-gap: var(--space-6);
+  row-gap: var(--space-3);
   margin-top: var(--space-4);
   flex-wrap: wrap;
   justify-content: center;
@@ -682,10 +687,13 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   color: var(--ink);
 }
 
-/* 锚点精度：标题落点离视口顶留稳定呼吸位（无 fixed 头，32px 恒定） */
+/* 锚点精度：标题落点离视口顶留稳定呼吸位。
+   注意 .docs-shell 是 sticky 且背景不透明（高 69px），DocsPage 又用
+   scrollIntoView({block:'start'}) 把标题对齐视口顶——所以这里必须先扣掉顶栏高度，
+   否则标题跳过去正好落在顶栏底下。旧值 32px 小于顶栏高度，标题会被压掉一半。 */
 .docs-article__markdown h2,
 .docs-article__markdown h3 {
-  scroll-margin-top: 32px;
+  scroll-margin-top: calc(var(--docs-header-h) + var(--space-4));
   color: var(--ink);
   letter-spacing: 0;
 }
@@ -1030,14 +1038,21 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 /* —— 响应式 —— */
 
 /* sticky 双栏仅桌面：移动端导航是横向块（高 ~365px），sticky 会无背景常驻视口顶、
-   让正文滚进导航文字下方（R3 复审 FAIL 项），窄屏让它随文档流正常滚动。 */
-@media (min-width: 760px) {
+   让正文滚进导航文字下方（R3 复审 FAIL 项），窄屏让它随文档流正常滚动。
+   ⚠️ 断点写 761 而非 760：`.docs-layout { display: block }` 在 `max-width: 760px`，
+   两条都用 760 时**恰好 760px 会同时命中** —— 侧栏既是 sticky 又变成全宽块，
+   正好复现上面那条注释要防的 R3 缺陷（真机实测 760px 处锚点标题被 docs-nav__group
+   盖住）。两条边界必须互斥。 */
+@media (min-width: 761px) {
   .docs-nav,
   .docs-toc {
     position: sticky;
-    top: 0;
+    /* .docs-shell 同为 sticky top:0、z-index 40、背景不透明（#fffcf7），高 69px。
+       侧栏若也停在 0，滚动后它顶部 69px 会滚进顶栏底下被完全盖住（真机实测：
+       第一个导航项 y=56、bottom=92，顶部 13px 不可见）。停在顶栏下沿即可。 */
+    top: var(--docs-header-h);
     align-self: start;
-    max-height: 100vh;
+    max-height: calc(100vh - var(--docs-header-h));
     overflow-y: auto;
     scrollbar-width: thin;
   }
@@ -1413,6 +1428,15 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     flex-wrap: wrap;
     padding: 10px 0;
     gap: 10px 16px;
+  }
+
+  /* ⚠️ 上面这次换行把顶栏从 69px 抬到 98px（真机实测：1081px=69、1080px=98，
+   * 换行点与本断点严丝合缝，因为换行正是本断点显式触发的）。
+   * sticky 侧栏的 top / max-height 与锚点 scroll-margin-top 都消费
+   * --docs-header-h，所以必须在这里同步抬高，否则 760–1080px 区间内
+   * 侧栏顶部约 29px 仍被压在顶栏底下 —— 只测 1440px 时看不见这个缺口。 */
+  :root {
+    --docs-header-h: 98px;
   }
 
   .docs-shell__nav {

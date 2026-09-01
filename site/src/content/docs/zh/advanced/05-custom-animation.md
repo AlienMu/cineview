@@ -3,11 +3,11 @@ title: 自定义动画
 eyebrow: ADVANCED / CUSTOM ANIMATION
 ---
 
-当没有合用的预设时，直接书写变体对象。自定义动画是 Framer Motion 变体的一个子集（`initial`、`animate`、`exit` 三个记录），以内联对象传到预设名所在的位置。
+当没有合用的预设时，直接声明自定义动画配置对象。自定义动画是 Framer Motion 动画结构的一个子集（`initial`、`animate`、`exit` 三个属性记录），以内联对象传给动画配置参数。
 
-## 自定义变体
+## 自定义动画配置
 
-`CustomAnimation` 的形状只允许这三个键，且至少一个为非空对象；其余形态会被解析器拒绝（`src/animations/animationParser.ts` 的 `validateCustomAnimation`）。
+`CustomAnimation` 的形状只允许这三个键，且至少一个为非空对象；其余形态会被解析器拒绝（`src/animations/animationParser.ts`）。
 
 ```tsx
 <Animate
@@ -22,11 +22,11 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 </Animate>
 ```
 
-值得记住的解析规则：
+动画解析规则：
 
-- 字符串按预设名解析，对象按自定义变体解析；`parseAnimation` 按类型分派。
+- 字符串按预设名解析，对象按自定义动画配置解析；解析器按类型分派。
 - `transformOrigin` 字符串会归一化为百分比对（`'top left'` → `'0% 0%'`、`'center'` → `'50% 50%'`）。
-- 变体内的 transition 时间参数（`transition.duration` 单位秒、`transition.delay` 单位秒）只在时间驱动的动画里生效。跟随滚动位置的动画（scroll 锁定区内、drag 场景驱动的元素）按位置插值，忽略 transition 时间参数；那里的时长来自 `duration.enter`，即跟随滚动的跨度。
+- 自定义配置内的 transition 时间参数（`transition.duration` 单位秒、`transition.delay` 单位秒）只在时间驱动的动画中生效。跟随滚动位置的动画（scroll 锁定区内、drag 场景驱动的元素）按位置插值，忽略 transition 时间参数；那里的时长来自 `duration.enter`，即跟随滚动的跨度。
 
 ## 关键帧与 times
 
@@ -67,14 +67,14 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 | 0.45     | 0.3 → 0.9 内部（两个关键帧都是 1） | 保持 `1`                                          |
 | 0.95     | 0.9 → 1                            | 从 1 向 0 插值，`(0.95 − 0.9) / 0.1 = 0.5`：`0.5` |
 
-关键帧让跟随滚动的元素在自己的跨度里拥有**形状**：在同一个 `duration.enter` 内完成入场、停留与离场，这是朴素的 from-to 变体表达不了的。需要在同一个锁定区内既到达又离开的元素，标准写法就是：一个元素、一个跨度、四个关键帧。
+关键帧让跟随滚动的元素在自己的跨度内拥有丰富的动效曲线：在同一个 `duration.enter` 内完成入场、停留与离场，这是朴素的起止两态配置无法表达的。需要在同一个锁定区内既到达又离开的元素，标准写法是：一个元素、一个跨度、四个关键帧。
 
-## 站点实战中的两个形态
+## 工程实现中的两类动画构造函数
 
-站点里有两个值得照抄的小工厂（来自 `site/src/components/CapabilityScene.tsx`）：
+工程实现中存在两类典型的动画构造函数（示例源自 `site/src/components/CapabilityScene.tsx`）：
 
 ```tsx
-/* Neutral lane: establishes the shared timeline without fading the carried
+/* Neutral variant: establishes the shared timeline without fading the carried
    content across the whole span. transition duration 0. Under scroll the
    position drives the value, so the variant only fixes the endpoints. */
 export function solidVariant() {
@@ -84,8 +84,8 @@ export function solidVariant() {
   };
 }
 
-/* Allowlist-only rise: custom variants on scrub lanes should stick to the
-   ten lane-owned properties. */
+/* Allowlist-only rise: custom variants for scroll-driven animations should stick to the
+   ten engine-owned properties. */
 export function riseVariant(amplitude: string) {
   return {
     initial: { y: amplitude, opacity: 0 },
@@ -94,9 +94,9 @@ export function riseVariant(amplitude: string) {
 }
 ```
 
-`solidVariant()` 是「元素需要挂到共享时间轴上（给 render-prop、`useAnimateTimeline` 消费者、或做 after 锚点），但不需要自己的视觉动画」时的惯用写法，`AnimateVideo` 包装层的默认变体内部用的是同一种做法。
+`solidVariant()` 用于「元素需要挂载到共享时间轴上（供给 render-prop、`useAnimateTimeline` 消费，或作为 after 依赖前驱），但自身无需视觉位移动效」的标准场景，`AnimateVideo` 包装层内部也采用相同模式。
 
-## 退场变体
+## 退场动画配置
 
 `exitAnimation` 接受同样的形态，但真正起作用的是 `exit` 记录，`initial`/`animate` 只为对称存在，通常保持静止：
 
@@ -114,9 +114,9 @@ export function riseVariant(amplitude: string) {
 </Animate>
 ```
 
-（这个形态取自站点的场记板场景：入场上浮落定，退场边放大边淡出，像放映机拉远。）
+（该形态应用于场记板场景：入场位移到位，退场伴随轻微缩放与淡出。）
 
-退场关键帧数组的规则与入场完全一致（包括 `times`），元素的终态取最后一个关键帧。反向滚动时沿同一套插值逆走，因此用关键帧写的退场会逐关键帧地解开。
+退场关键帧数组的规则与入场完全一致（包括 `times`），元素的完成态取最后一个关键帧。反向滚动时沿同一套插值逆向回放，因此用关键帧编写的退场会逐关键帧反向还原。
 
 ## 哪些属性可动画
 
@@ -124,14 +124,14 @@ enter/exit 可动画的属性一共十个：
 
 `opacity`、`x`、`y`、`scale`、`rotate`、`rotateX`、`rotateY`、`skewX`、`skewY`、`filter`。
 
-跟随滚动的自定义变体应限于这十个。两种被许可的越界方式：
+跟随滚动的自定义动画配置受限于上述十个属性。以下两类特殊场景除外：
 
 - `stagger` 属性经 Framer 原生 variant 传播逐个揭示直接子元素，接受任意 Framer 可动画属性（`clipPath`、`width`……），由时间驱动，不跟随滚动位置。
 - canvas 与自绘渲染器直接读 `useAnimateTimeline()` 的 MotionValue（canvas 豁免）。
 
 ## 组合动画
 
-`ComposedAnimation` 把多个步骤（预设名、自定义变体或两者混用）缝合成一个动画：
+`ComposedAnimation` 将多个步骤（预设名、自定义动画配置或两者混用）组合为一个完整动画：
 
 ```tsx
 <Animate
@@ -150,7 +150,7 @@ enter/exit 可动画的属性一共十个：
 
 | 字段         | 含义                                                                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
-| `animations` | 预设名和/或自定义变体构成的数组；不可为空。                                                            |
+| `animations` | 预设名或自定义动画配置构成的数组；不可为空。                                                           |
 | `mode`       | `'sequential'`：每步在前序步骤的时长加自身 delay 之后开始；`'parallel'`：所有步骤在各自 delay 处开始。 |
 | `delays`     | 每步的额外延迟（ms），按书写位置索引。                                                                 |
 

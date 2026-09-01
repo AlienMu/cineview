@@ -1,0 +1,92 @@
+# 发布专线 —— 由 `v*` tag 触发。
+#
+# 为什么浏览器验收在这里、而不在 `prepublishOnly` 里：
+# `prepublishOnly` 曾链到 `verify → verify:all → verify:framework → test:browser`，
+# 而 `examples/performance-test/acceptance-{drag,scroll}.mjs` 回落
+# `chromium.launch({ channel: 'chrome' })`，依赖是 `playwright-core`（不下载浏览器）。
+# 于是任何无 Chrome 的机器——包括所有 CI runner——都发不出这个包。
+# 现在 `prepublishOnly` 只跑无头安全的 `verify:framework:static`，
+# 真浏览器验收由本文件的 `browser-acceptance` job 在发布前门禁。
+#
+# 顺序是门禁关系：`browser-acceptance` 不过，`publish` 不跑。
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cineview-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  browser-acceptance:
+    name: Browser acceptance (release gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+      - run: pnpm test:browser
+        env:
+          CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      - run: pnpm verify:browser-failure-injection
+        env:
+          CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+
+  publish:
+    name: Publish to npm
+    needs: browser-acceptance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+
+      # tag 与 package.json 必须一致，否则发出去的版本号与 tag 不符。
+      - name: Assert tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "tag v$TAG 与 package.json $PKG 不一致" >&2
+            exit 1
+          fi
+          echo "版本一致: $PKG"
+
+      # CHANGELOG 必须已记录该版本 —— 破坏性改名曾整批漏记。
+      - name: Assert CHANGELOG has this version
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          grep -q "^## $PKG" CHANGELOG.md || {
+            echo "CHANGELOG.md 缺少 ## $PKG 段" >&2; exit 1; }
+          echo "CHANGELOG 已记录 $PKG"
+
+      # `--provenance` 让 npm 记录该产物由哪次 workflow 构建。
+      - run: pnpm publish --no-git-checks --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

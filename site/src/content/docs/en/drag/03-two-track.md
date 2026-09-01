@@ -1,9 +1,9 @@
 ---
 title: Page movement and element time
-eyebrow: DRAG / DUAL-TRACK
+eyebrow: DRAG / TIMELINES
 ---
 
-In drag mode two quantities run on their own clocks: page movement `renderProgress`, and each scene's element time `elementElapsedMotion`. The first turns pages, the second animates elements in. Once the division is clear, "why is this element still moving" and "why did the change do nothing" both have one definite answer.
+In drag mode two quantities run on distinct clocks: page movement `renderProgress`, and each scene's element time `elementElapsedMotion`. The first controls page translation, the second schedules element entrance. Once the division of responsibility is established, transition timing behaviors follow deterministic paths.
 
 ## The two quantities and who updates them
 
@@ -19,7 +19,7 @@ In drag mode two quantities run on their own clocks: page movement `renderProgre
 
 ## A scene's timeline length adds up from its children
 
-In drag mode no prop sets how long a scene's timeline is. It is the result of the children's timeline arrangement:
+In drag mode no prop sets how long a scene's timeline is. It is the cumulative result of child element timelines:
 
 ```text
 scene timeline length = max(over scene-driven Animates of (accumulated delay + enter duration))
@@ -27,7 +27,7 @@ scene timeline length = max(over scene-driven Animates of (accumulated delay + e
 
 `after` chains are folded into each element's accumulated delay at registration time, so a longer chain means a longer total. In drag this computation has no floor (the page transition duration never raises it), which means **a scene containing no `Animate` at all has a length of 0 and completes instantly on release**.
 
-The way to tune how a transition feels is to lay out the elements' timeline, not to set a duration parameter.
+Tuning how a transition feels is done by arranging child element timelines, not by configuring a single duration parameter.
 
 ## Drag distance and the timeline are two different scales
 
@@ -59,6 +59,6 @@ Adjacent scenes stay mounted while a gesture is in flight, and the division of l
 | `onDragEnd`      | `{ sceneIndex, progress, direction?, targetSceneIndex, elapsedMs, timelineDurationMs }` | switch committed: target scene, element-timeline elapsed ms, total enter-timeline length |
 | `onDragCancel`   | `{ sceneIndex, progress, direction? }`                                                  | not committed (bounced back)                                                             |
 
-Two conclusions you can rely on: once `onDragStart` fires, that gesture session ends with exactly one `onDragEnd` or `onDragCancel`; and `elapsedMs` in `onDragEnd` is the target scene's element-time elapsed at commit time; compare it with `timelineDurationMs` to know how much entrance remains.
+Two invariants hold: once `onDragStart` fires, that gesture session ends with exactly one `onDragEnd` or `onDragCancel`; and `elapsedMs` in `onDragEnd` is the target scene's element-time elapsed at commit time; compare it with `timelineDurationMs` to know how much entrance remains.
 
-Scroll mode does not split these two quantities, but it keeps the same discipline: one scroll source at a time, a `Scene.scroll` locked zone or the native document flow, never both. See [Dual-mode engines](/docs/01-modes) and [Center-lock takeover](/docs/01-centerlock).
+Scroll mode does not split these two quantities, but it keeps the same ownership rule: one scroll source at a time, either a `Scene.scroll` locked zone or the native document flow. See [Dual-mode engines](/docs/01-modes) and [Center-lock scrolling](/docs/01-centerlock).

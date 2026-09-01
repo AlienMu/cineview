@@ -3,7 +3,7 @@ title: Scrollbar theming
 eyebrow: SCROLL / SCROLLBAR
 ---
 
-Scroll mode ships a self-drawn scrollbar overlay. Enabling it hides the native gutter; the rail and thumb are plain DOM whose look is yours to theme field by field.
+Scroll mode ships a self-drawn scrollbar overlay. Enabling it hides the native gutter; the rail and thumb are plain DOM elements with full field-by-field theme customization.
 
 ## Only an object enables it
 
@@ -37,9 +37,9 @@ Every field listed here is resolved inside the overlay component, defaults appli
 | `autoHide`        | `boolean` | `true`                        | none           | fade out when idle, see "autoHide timing"                |
 | `ariaLabel`       | `string`  | `'CineView scroll position'`  | none           | accessible name of the rail                              |
 
-The `thumbHoverColor` row is a case where the field name does not match the behavior: it is not a hover color, it is the thumb's permanent ring color, present in every interaction state. A real hover change needs your own CSS on an ancestor.
+The `thumbHoverColor` row is a case where the field name does not match the behavior: it is not a hover color, it is the thumb's permanent ring color, present in every interaction state. Implementing dynamic hover effects requires external CSS on an ancestor.
 
-Three things are hard-wired: the thumb never shrinks below 40px (bounded by the rail when the rail is shorter); the overlay does not render at all when the content fits the viewport (scrollable span at or below 1px); and the rail's outer ring, drop shadow, and keyboard-focus outline are all fixed styling.
+Three invariants are fixed by the engine: the thumb never shrinks below 40px (bounded by the rail when the rail is shorter); the overlay does not render at all when the content fits the viewport (scrollable span at or below 1px); and the rail's outer ring, drop shadow, and keyboard-focus outline are all fixed styling.
 
 The overlay's `z-index` is 80, above the fixed layer (20) and the active locked-zone shell (30).
 

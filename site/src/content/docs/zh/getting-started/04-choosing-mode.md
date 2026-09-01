@@ -3,7 +3,7 @@ title: 选择模式
 eyebrow: GETTING STARTED / CHOOSING A MODE
 ---
 
-先给结论：每屏是一个叙事节拍、靠手势翻页，用 drag；页面是长文档流、只有个别场景需要锁定滚动做时间轴，用 scroll。
+核心选型依据：当每屏对应独立的叙事节拍且依靠手势滑动切换时，推荐使用 drag；当页面主体为长文档流且仅局部场景需要锁定滚动以驱动时间轴时，推荐使用 scroll。
 
 ## drag 何时用
 
@@ -19,20 +19,20 @@ eyebrow: GETTING STARTED / CHOOSING A MODE
 
 ## 对比表
 
-|            | drag                                                          | scroll                              |
-| ---------- | ------------------------------------------------------------- | ----------------------------------- |
-| 交互模型   | 手势翻页，一屏一幕                                            | 真实文档流 + 局部锁定区             |
-| 时间轴驱动 | 手势进度 + 切换转场                                           | 锁定区内滚动位置（1ms=1px）         |
-| 场景间内容 | 场景即整屏                                                    | 普通内容可与锁定区场景混排          |
-| 切换时长   | 手势固定 800ms（不可配）；`transitionDuration` 只管程序化导航 | 无转场概念；时长预算 = 已滚动像素数 |
-| 回调增量   | onDragStart/Commit/Cancel 等                                  | onZoneEnter/Progress/Leave 等       |
-| 入口       | `cineview/drag`                                               | `cineview/scroll`                   |
-| 默认性     | 默认模式                                                      | `mode="scroll"` 显式开启            |
+|            | drag                                                              | scroll                              |
+| ---------- | ----------------------------------------------------------------- | ----------------------------------- |
+| 交互模型   | 手势翻页，一屏一幕                                                | 真实文档流 + 局部锁定区             |
+| 时间轴驱动 | 手势进度 + 切换转场                                               | 锁定区内滚动位置（1ms=1px）         |
+| 场景间内容 | 场景即整屏                                                        | 普通内容可与锁定区场景混排          |
+| 切换时长   | 手势位移内置固定为 800ms；`transitionDuration` 仅作用于程序化导航 | 无转场概念；时长预算 = 已滚动像素数 |
+| 回调增量   | onDragStart/Commit/Cancel 等                                      | onZoneEnter/Progress/Leave 等       |
+| 入口       | `cineview/drag`                                                   | `cineview/scroll`                   |
+| 默认性     | 默认模式                                                          | `mode="scroll"` 显式开启            |
 
 ## drag 骨架
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview/drag';
+import { CineView, Scene, Animate } from 'cineview';
 
 <CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
   <Scene sceneId="beat-1">
@@ -51,7 +51,7 @@ import { CineView, Scene, Animate } from 'cineview/drag';
 ## scroll 骨架
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview/scroll';
+import { CineView, Scene, Animate } from 'cineview';
 
 <CineView designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
   <Scene sceneId="intro">{/* 普通滚动内容 */}</Scene>
@@ -65,4 +65,4 @@ import { CineView, Scene, Animate } from 'cineview/scroll';
 
 ## 入口与包体积
 
-拿不定主意就用全量入口 `cineview`，运行时按 `mode` 派发。定下单一模式后换成 `cineview/drag` 或 `cineview/scroll`。UMD 单文件没有代码拆分：只用一种模式却留在全量入口，等于多打一套用不到的引擎进 bundle。细节见 [安装](/docs/02-installation) 与 [性能](/docs/01-performance)。
+以上示例使用主入口 `cineview`，运行时按 `mode` 选择引擎。按模式子路径只提供 CommonJS 与 UMD 入口，没有 ESM `import` 条件。UMD 单文件不支持代码拆分，因此全量入口会同时包含两套引擎。详见 [安装](/docs/02-installation) 与 [性能](/docs/01-performance)。

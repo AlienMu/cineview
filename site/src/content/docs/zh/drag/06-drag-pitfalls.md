@@ -3,53 +3,47 @@ title: drag 排错
 eyebrow: DRAG / TROUBLESHOOTING
 ---
 
-六条 drag 专属的常见故障。每条先说你实际会看到什么、为什么，再说怎么改。跨模式共通的故障见 [排错](/docs/07-common-pitfalls)。
+以下六项问题只出现在 drag 模式。跨模式通用问题见[排错](/docs/07-common-pitfalls)。
 
-## 1. 调了 transitionDuration，手势翻页速度没变
+## 1. `transitionDuration` 不影响手势翻页速度
 
-你会看到：把 `transitionDuration` 从 800 改成 300，手势翻页还是一样慢。因为这个 prop 不控制手势翻页——手势的页面位移与回弹用的是内部固定的 800 毫秒，公共 prop 到不了那里。`transitionDuration` 唯一的读取点是程序化导航的收尾定时器，也就是它只影响 `ref.goToScene()` 之后 `onSceneLeave` 的触发时机。
+将 `transitionDuration` 从 800 改为 300 后，手势驱动的页面过渡速度不会变化。手势平移和回弹使用固定的 800 毫秒时长。`transitionDuration` 只在调用 `ref.goToScene()` 时安排 `onSceneLeave` 定时器。
 
-怎么改：手势翻页时长不可配。要调整体节奏，改元素侧的 `duration` 与 `delay`（那才是观众感知到的「快慢」），或用 `unit: 'percent'` 改变拖拽距离与时间轴的映射关系。见 [手势与阈值](/docs/02-gestures)。
+手势时长保持固定。若要调整感知节奏，修改元素的 `duration` 和 `delay`，或设置 `unit: 'percent'` 改变位移到元素时间线的映射方式。详见[手势与阈值](/docs/02-gestures)。
 
-## 2. 反向拖拽时 exitAnimation 没生效
+## 2. 反向拖拽时不执行 `exitAnimation`
 
-你会看到：给元素配了 `exitAnimation`，往前拖走时正常，往回拖走时完全是另一种效果。因为反向拖拽的退场**不使用 `exitAnimation`**，它把入场动画倒放（插值 `initial → animate` 取 `1 - 进度`）。`exitAnimation` 只在正向离场时参与。
+元素声明 `exitAnimation` 后，正向拖拽会执行该动画，反向拖拽则会逆向播放入场动画。反向过程按 `1 - progress` 对 `initial → animate` 做连续插值。未声明 `exitAnimation` 时，正向拖拽只移动场景，元素保持完成后的状态。
 
-而且未声明 `exitAnimation` 时正向离场也不播任何退场：元素保持在终态不动，只有页面在滑。
+正向和反向移动使用两套行为。若两个方向需要一致的视觉变化，将 `exitAnimation` 定义为入场动画的反向配置。若反向拖拽应当撤销刚才的动作，则保持未配置即可。
 
-怎么改：把「离场」理解成两件事：正向离场用 `exitAnimation`，反向离场是入场倒放。想让两个方向观感一致，就让 `exitAnimation` 尽量接近入场的镜像；想要「拖回去就是撤销」，什么都不写反而是对的。
+## 3. 首屏跳过入场动画
 
-## 3. 首屏没有入场动画，直接就是终态
+如果场景在首轮渲染后才加入，首屏可能直接显示完成态，而后续场景仍能正常播放入场动画。首屏入场判断在初次挂载时执行。初次挂载时场景数量为零，会让这次挂载周期不再播放首屏入场动画。
 
-你会看到：刷新页面，第一屏所有元素直接显示在最终位置，入场时间线完全没播。后续场景正常。因为首屏入场的窗口标志在首次渲染时一次性初始化，取的是「当时有没有场景」。如果场景是异步到达的（等接口、动态 import、条件渲染），首渲染时场景数为零，这个标志就此定型为假，首屏元素直接解析到终态。
+让首轮渲染就包含 `Scene` 节点。数据或动态 import 尚未完成时，先挂载占位或骨架场景，不要用 `{data && <Scene>...</Scene>}` 推迟整棵场景树。
 
-怎么改：让 `Scene` 在首次渲染时就存在。数据没到就先渲染骨架内容的 Scene，再往里填；不要用 `{data && <Scene>...</Scene>}` 这种写法把首屏场景整个延后。
+## 4. `driver: 'clock'` 元素不会退场
 
-## 4. driver: 'clock' 的元素没有退场、after 也不生效
+drag 模式下，`timeline.driver: 'clock'` 会在 Scene 到场后按真实时间独立播放。元素不参与 `after` 顺序，不执行 `exitAnimation`，自身时长也不计入场景时间线。开发构建会报告这些被忽略的配置。
 
-你会看到：给元素设了 `timeline.driver: 'clock'`，之后它既不退场，`after` 也像被忽略了。因为这个开关把元素从跟随手势的场景时间线里摘出来，场景到位后按真实时间独立播放。这种元素没有退场这个阶段，也不进场景的动画注册表，所以 `after` 与 `exitAnimation` 都被忽略并在开发环境警告。它也不计入场景时间轴总长。
+需要退场动作或有序时序时使用默认的 `driver: 'scene'`。独立时钟适合不参与叙事顺序的装饰性动效，例如静止后的呼吸光晕。详见[Animate 时间线](/docs/02-timeline)。
 
-怎么改：需要退场或时间线就用默认的 `driver: 'scene'`。独立播放适合「装饰性的、不需要被剪进叙事」的动效，比如一个到位后就开始呼吸的光点。见 [Animate 时间轴](/docs/02-timeline)。
+## 5. 远处场景的定时器和本地状态丢失
 
-## 5. 远处场景的定时器与状态莫名消失
+drag 模式只保持当前场景和相邻场景挂载。距离当前位置超过一屏的场景会卸载，返回时重新挂载实例，因此 effect 会重新执行，组件 state 会重置，时间线游标会回到零。
 
-你会看到：在场景 1 里起了一个轮询，翻到场景 4 再翻回来，轮询没了、组件里的 state 也回到初始值。因为 drag 的虚拟化窗口是「当前场景 ± 1」，窗口外的场景不挂载。翻到两屏之外就是卸载，翻回来是重新挂载：effect 重跑、state 归零、元素时间轴从 0 开始。
+需要跨场景保留的状态放到 `CineView` 外部，例如父组件 state、Context 或外部 Store。场景内部的 effect 只处理当前呈现逻辑。场景身份由数组位置决定，结构重排会改变每个位置对应的实例。
 
-怎么改：跨场景需要存活的状态放到 `CineView` 外面（父组件的 state、context、store）。场景内的 effect 只做与当前这屏视觉相关的事。另外场景是按数组下标做 key 的，条件渲染或重排场景会让实例身份跟着位置走而不是跟着元素走。
+## 6. 包裹后的 `Scene` 不显示
 
-## 6. 把 Scene 包一层之后，场景全不见了
+`CineView` 只检查直接子节点来发现 `Scene`。React 会展平数组，因此 `{list.map(...)}` 可以使用。Fragment 不会展平，在自定义组件的 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。直接子节点和 Fragment 混用时，框架只发现直接子节点中的场景，也不会发出空场景警告。
 
-你会看到：为了复用，写了 `function MySection(props) { return <Scene {...props} /> }`，或者用 `<>...</>` 把几个 Scene 包起来，结果页面空了。因为 `Scene` 必须是 `CineView` 的直接子节点。框架只遍历一层子节点来发现场景：数组会被 React 展平（所以 `{list.map(...)}` 是可以的），但 Fragment 不会展平，包在里面的 Scene 一个都收不到。
-
-自定义包装组件的情况稍好：识别沿组件类型向内解包，`memo`、`forwardRef` 这类包装可识别到六层。但如果包装组件在渲染函数里返回 `Scene`（而不是把 `Scene` 作为类型暴露出来），框架看到的就是你的组件，不是 Scene。
-
-最难查的是混合情形：一个直接的 Scene 加一个含两个 Scene 的 Fragment，框架只发现 1 个，**零报错零警告**（`EMPTY_SCENES` 只在一个都没有时才发）。
-
-怎么改：把 `Scene` 平铺为 `CineView` 的直接子节点。需要复用一组场景时，导出一个返回数组的函数并展开，而不是返回 Fragment。
+将所有 `Scene` 直接声明为 `CineView` 的子节点。需要复用一组场景时，导出返回 `Scene[]` 的函数并展开结果，不要返回 Fragment。
 
 ## 相关页面
 
-- [drag 布局契约](/docs/01-layout)：虚拟化窗口与被忽略的 prop
-- [所有权与事务](/docs/04-ownership)：为什么最初几次手势可能无效
-- [drag 回调时序](/docs/05-callbacks)：回调时刻与命名不符的几处
-- [排错](/docs/07-common-pitfalls)：跨模式共通的故障
+- [drag 布局契约](/docs/01-layout)：场景挂载范围与忽略的属性
+- [所有权与事务](/docs/04-ownership)：早期手势可能无效的原因
+- [drag 回调时序](/docs/05-callbacks)：回调时刻与命名
+- [排错](/docs/07-common-pitfalls)：跨模式通用问题

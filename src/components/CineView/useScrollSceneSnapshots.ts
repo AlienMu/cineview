@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { ScrollModeConfig, SlideDirection } from '../../types';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import {
@@ -29,6 +22,7 @@ import {
   type ScrollSceneFrameStore,
 } from '../runtime/scrollSceneFrameStore';
 import type { ScrollTimelineStore } from './useScrollZoneRegistry';
+import { useIsomorphicLayoutEffect } from '../../utils/useIsomorphicLayoutEffect';
 
 interface UseScrollSceneSnapshotsParams {
   scenes: React.ReactElement<SceneAuthoringCompatProps>[];
@@ -352,7 +346,7 @@ export function useScrollSceneSnapshots({
   );
 
   updateSceneRenderSnapshotsRef.current = updateSceneRenderSnapshots;
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const pendingFrames = pendingFullFramesRef.current;
     if (!pendingFrames) return;
     pendingFullFramesRef.current = null;

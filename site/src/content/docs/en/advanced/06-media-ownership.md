@@ -3,7 +3,7 @@ title: Media ownership
 eyebrow: ADVANCED / MEDIA
 ---
 
-The `<video>` element inside an `AnimateVideo` has two possible drivers: the framework (seeking frame by frame from the timeline position) and the browser itself (native playback). Only one of them owns it at a time, and the handoff is decided by a pure function. This page covers that ownership protocol and its three boundary cases.
+The `<video>` element inside an `AnimateVideo` has two possible drivers: the framework (seeking frame by frame from the timeline position) and the browser itself (native playback). Only one of them owns it at a time, and the handoff is decided by a pure function. This document covers that ownership protocol and its three boundary cases.
 
 ## How progress becomes currentTime
 
@@ -41,9 +41,9 @@ Ownership has six states (`videoPlaybackOwnership.ts:3-9`):
 The handoff rules:
 
 - **Only an explicit `scrubRange` whose end is before the end of the clip triggers `play()`.** A video without `scrubRange` stays framework-driven forever and rests on its last frame at progress 1.
-- **The endpoint uses hysteresis.** The autoplay band is `progress ≥ 1 - 0.001`; the band where the framework reclaims ownership is `progress < 1 - 0.02` (`:58-59`, `:140-148`). The two thresholds differ, so jitter near the endpoint cannot oscillate between play and pause. After one handoff `endpointLatched` is set, and only leaving the hysteresis band clears it.
+- **The endpoint uses hysteresis.** The autoplay band is `progress ≥ 1 - 0.001`; the band where the framework reclaims ownership is `progress < 1 - 0.02` (`:58-59`, `:140-148`). The two thresholds differ, so jitter near the endpoint cannot oscillate between play and pause. After one handoff the transfer is latched, and only leaving the hysteresis band clears it.
 - **Reclaiming is position-driven.** Frames from the `scroll` and `visibility` sources reclaim unconditionally; a `gesture` frame must have left the endpoint band (`:140-148`). Reclaiming issues `pause` first, then a `seek` to the mapped position.
-- **`exiting` / `exited` runs one outgoing pause and latches.** The first exit-phase frame issues a single `pause` if native playback is running and sets `outgoingLatched`; later exit frames return the state unchanged and issue nothing (`:176-193`). The latch clears when the next scrub-source frame arrives.
+- **`exiting` / `exited` runs one outgoing pause and latches.** The first exit-phase frame issues a single `pause` if native playback is running, then latches; later exit frames return the state unchanged and issue nothing (`:176-193`). The latch clears when the next scrub-source frame arrives.
 
 Every `play()` request carries a requestId. A play event with the wrong token (a late one, or an externally triggered one) is defensively paused so two sources never both believe they own the element (`:278-314`).
 
@@ -51,15 +51,15 @@ Every `play()` request carries a requestId. A play event with the wrong token (a
 
 Ownership is per `AnimateVideo` instance. There is no cross-instance media arbiter in the framework: put two `AnimateVideo` elements in one zone, let both reach their endpoint, and both call `play()`, so both tails play at once. No registry and no "pause the others" logic exists anywhere in the source.
 
-If you need mutual exclusion, build it in your own layer: track who is playing through `onPlay` and pause the previous one by hand. The forwarded native events (`onPlay` / `onPause` / `onEnded` / `onTimeUpdate` / `onError`) are the only hook for this.
+For mutual exclusion, handle coordination at the application level: track who is playing through `onPlay` and pause the previous one manually. The forwarded native events (`onPlay` / `onPause` / `onEnded` / `onTimeUpdate` / `onError`) are the primary mechanism for this.
 
 ## The three preconditions of releaseOnLeave
 
-`releaseOnLeave` (default `false`) drops decoded frames once the viewer has scrolled well past. A release needs three conditions to hold together (`src/components/Animate/AnimateVideo.tsx:126-151`):
+`releaseOnLeave` (default `false`) drops decoded frames once the user has scrolled past. A release needs three conditions to hold together (`src/components/Animate/AnimateVideo.tsx:126-151`):
 
 1. the prop is `true`;
 2. the current approach band is `far`;
-3. this source has actually been scrubbed at least once. An unwatched video has no residency worth freeing, so `scrubbedOnceRef` only turns true after timeline progress has moved by more than `1e-4`. Changing `src` resets that fact; a replacement source does not inherit "already watched" from the previous one.
+3. this source has actually been scrubbed at least once. An unplayed video holds no decoded frames to release, so this condition holds only after timeline progress has moved by more than `1e-4`. Changing `src` resets that fact; a replacement source does not inherit "already watched" from the previous one.
 
 The band thresholds are fixed in the framework (`src/components/Scene/sceneScrollRuntime.tsx:24-27`):
 
@@ -80,11 +80,11 @@ Encode scrubbed videos all-keyframe. H.264 P/B frames are deltas against earlier
 ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
 ```
 
-In development the framework checks this for you: it samples seek latency per src, takes the median once six samples have accumulated, and warns once with that `ffmpeg` command when the median exceeds 50ms (`src/media/VideoFrameRenderer.tsx:51-52,403-426`). One warning per src, and the code is absent from production builds.
+In development the framework checks this automatically: it samples seek latency per src, takes the median once six samples have accumulated, and warns once with that `ffmpeg` command when the median exceeds 50ms (`src/media/VideoFrameRenderer.tsx:51-52,403-426`). One warning per src, and the code is absent from production builds.
 
 The cost is a larger file (every frame self-contained); the payoff is that any frame decodes directly and seek latency flattens out.
 
-## Hardcoded element attributes
+## Built-in fixed element attributes
 
 Two attributes on the `<video>` are fixed by the framework and cannot be overridden (`src/media/VideoFrameRenderer.tsx:630-631`):
 
@@ -97,15 +97,15 @@ Two attributes on the `<video>` are fixed by the framework and cannot be overrid
 
 `AnimateVideo` forwards only six things to the inner `Animate`: `animateId`, `enterAnimation`, `exitAnimation`, `duration`, `timeline`, `visibility` (`src/components/Animate/AnimateVideo.tsx:231-239`). Everything else `Animate` offers is absent here:
 
-| Animate has            | AnimateVideo | note                                                           |
-| ---------------------- | ------------ | -------------------------------------------------------------- |
-| `loopAnimation`        | none         | a loop and frame scrubbing are two drivers, not stackable      |
-| `stagger`              | none         | a video has no direct element children to stagger              |
-| `enterRef` / `exitRef` | none         | manual takeover only means something in time-driven animations |
-| render-prop children   | none         | the children slot is reserved for the internal frame renderer  |
-| `timeline.driver`      | none         | pinned to its default `'scene'`                                |
-| `timeline.zoneId`      | none         | inherited from the enclosing Scene's locked zone               |
-| `timeline.phase`       | none         | no way to restrict the scrub window inside a zone              |
+| Animate has            | AnimateVideo | note                                                          |
+| ---------------------- | ------------ | ------------------------------------------------------------- |
+| `loopAnimation`        | none         | a loop and frame scrubbing are two drivers, not stackable     |
+| `stagger`              | none         | a video has no direct element children to stagger             |
+| `enterRef` / `exitRef` | none         | manual triggers apply only to time-driven animations          |
+| render-prop children   | none         | the children slot is reserved for the internal frame renderer |
+| `timeline.driver`      | none         | pinned to its default `'scene'`                               |
+| `timeline.zoneId`      | none         | inherited from the enclosing Scene's locked zone              |
+| `timeline.phase`       | none         | no way to restrict the scrub window inside a zone             |
 
 The type of `timeline` is exactly `{ delay?: number; after?: string }` (`:47-50`), those two keys only. Copy a `timeline={{ phase: { start: 0.5 } }}` over from an `Animate` and a TypeScript consumer gets a type error; a JS consumer gets no signal at all, the key is silently dropped, and the element follows scroll from the start of the zone as usual.
 

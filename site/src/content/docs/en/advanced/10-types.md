@@ -3,7 +3,7 @@ title: Public types
 eyebrow: ADVANCED / TYPES
 ---
 
-Per-prop field tables live on each component's own page ([CineView](/docs/01-cineview), [Scene](/docs/02-scene), [Animate](/docs/03-animate), [AnimateVideo](/docs/04-animate-video), [Position](/docs/05-position)). This page collects the shared types those pages reference. Everything here is exported from the package entry:
+Component prop references are available on their respective documentation pages ([CineView](/docs/01-cineview), [Scene](/docs/02-scene), [Animate](/docs/03-animate), [AnimateVideo](/docs/04-animate-video), [Position](/docs/05-position)). This document provides shared core type definitions exported from the package root:
 
 ```tsx
 import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
@@ -33,7 +33,7 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 
 ## Error codes
 
-`CineViewErrorCode` is an 8-value union; switching on `code` inside `onError` gets you exhaustiveness checking.
+`CineViewErrorCode` is an 8-value union; switching on `code` inside `onError` provides compile-time exhaustiveness checking.
 
 | Code                          | Triggered when                                                                                                                                                                                                |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -46,7 +46,7 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 | `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config. Recoverable.                                                                                                                                                      |
 | `ANIMATION_ASSET_LOAD_FAILED` | A preset animation asset failed to load. Retryable.                                                                                                                                                           |
 
-The payload type is `CineViewErrorDetail = { code, message, context?, preventDefault? }`; `preventDefault` exists only on recoverable errors. Handling patterns: [callbacks overview](/docs/03-callbacks).
+The payload type is `CineViewErrorDetail = { code, message, context?, preventDefault? }`; `preventDefault` exists only on recoverable errors. Handling patterns: [Callbacks](/docs/03-callbacks).
 
 ## Refs and preload targets
 

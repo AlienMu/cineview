@@ -1,9 +1,9 @@
 ---
 title: 页面位移与元素时间线
-eyebrow: DRAG / DUAL-TRACK
+eyebrow: DRAG / TIMELINES
 ---
 
-drag 模式里有两样各走各时钟的量：页面位移 `renderProgress`，和每个场景各自的元素时间线 `elementElapsedMotion`。前者管翻页，后者管元素入场。「元素为什么还在动」「改动为什么像没生效」这类问题，套进这条分工都有确定答案，不用靠猜。
+drag 模式下两个量各走各的时钟：控制页面平移的 `renderProgress`，以及维护各场景独立元素时间线的 `elementElapsedMotion`。前者负责切屏定位，后者调度元素进场。各类转场时序表现均基于此分工模型确定。
 
 ## 两个量与各自的更新者
 
@@ -19,7 +19,7 @@ drag 模式里有两样各走各时钟的量：页面位移 `renderProgress`，�
 
 ## 场景时间轴总长由子元素累加得出
 
-drag 下没有任何 prop 能设定一个场景的时间轴有多长。它是子元素时间线排布的结果：
+drag 模式下没有直接设定场景时间轴总长的属性，其时长完全由子元素时间线的调度累加决定：
 
 ```text
 场景时间轴总长 = max(每个场景驱动 Animate 的「累计延迟 + 入场时长」)
@@ -27,7 +27,7 @@ drag 下没有任何 prop 能设定一个场景的时间轴有多长。它是子
 
 `after` 链在注册期就折进各元素的累计延迟里，所以链越长、总长越大。drag 下这个计算没有下限（页面切换时长不参与抬高它），因此**一个不含任何 `Animate` 的场景总长为 0，松手后瞬间完成**。
 
-作者调节转场手感的方式是给元素排时间线，不是设一个时长参数。
+开发者调整转场节奏的方式在于规划子元素时间线，而非依赖单一的时长参数。
 
 ## 拖拽距离与时间轴是两个尺度
 
@@ -45,7 +45,7 @@ drag 下没有任何 prop 能设定一个场景的时间轴有多长。它是子
 
 手势期间相邻场景保持挂载，分工不变：
 
-- enter（进场场景）：跟手时 `elapsed = r × T`（r 是拖拽时间轴比例 0..1，T 是该场景入场时间轴总长）；松手切换则按真实速率从当前位置续跑到 T，松手不切换则回弹到 0。新场景里带 `delay` / `after` 的元素在 `elementElapsedMs` 越过门槛前停在 initial 帧。
+- enter（进场场景）：跟手时 `elapsed = r × T`（r 是拖拽时间轴比例 0..1，T 是该场景入场时间轴总长）；松手切换则按真实速率从当前位置续跑到 T，松手不切换则回弹到 0。新场景里带 `delay` / `after` 的元素在 `elementElapsedMs` 达到启动阈值前保持在 initial 初始帧。
 - outgoing（离场场景）：它的元素时间线不被进场场景接管或重置。退场视觉跟随 `renderProgress` 反向映射：手指往回拖，退场实时回卷，不是按时间单向播放。
 - commit 只切当前页，**不打断仍在补完的元素时间线**：页面已翻过去之后，进场场景的元素动画继续按 release 时的状态补完，可以跨过 commit 边界。
 
@@ -55,10 +55,10 @@ drag 下没有任何 prop 能设定一个场景的时间轴有多长。它是子
 | ---------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `onDragStart`    | `{ sceneIndex, progress, direction }`                                                   | 首个确认方向的有效手势才发；轻点不算                       |
 | `onDragProgress` | `{ sceneIndex, progress, direction? }`                                                  | 拖动进行中                                                 |
-| `onDragBlocked`  | `{ fromIndex, targetSceneIndex, direction }`                                            | 手势被准入检查拒绝（业务和内部原因都会走这里的路径）       |
+| `onDragBlocked`  | `{ fromIndex, targetSceneIndex, direction }`                                            | 手势被业务侧准入条件拒绝                                   |
 | `onDragEnd`      | `{ sceneIndex, progress, direction?, targetSceneIndex, elapsedMs, timelineDurationMs }` | 切换提交：目标场景、元素时间轴已推进毫秒数、入场时间轴总长 |
 | `onDragCancel`   | `{ sceneIndex, progress, direction? }`                                                  | 未提交（回弹）                                             |
 
-两个结论可以直接依赖：一旦 `onDragStart` 发出，这个手势会话必然以恰好一次 `onDragEnd` 或 `onDragCancel` 收口；`onDragEnd` 里的 `elapsedMs` 就是目标场景元素时间线在提交时刻的毫秒数，对照 `timelineDurationMs` 即可得出还剩多少入场要补完。
+两个结论可以直接依赖：一旦 `onDragStart` 发出，这个手势会话始终以恰好一次 `onDragEnd` 或 `onDragCancel` 收口；`onDragEnd` 里的 `elapsedMs` 就是目标场景元素时间线在提交时刻的毫秒数，对照 `timelineDurationMs` 即可得出还剩多少入场要补完。
 
-scroll 模式不拆出两个量，但遵守同一条纪律：同一时刻只有一个滚动来源，`Scene.scroll` 锁定区与原生文档流二选一、绝不并行。见[双模式引擎](/docs/01-modes)与 [center-lock 接管](/docs/01-centerlock)。
+scroll 模式不拆分两个驱动量，但同样遵循单一所有者规则：同一时刻只有一个有效滚动来源，`Scene.scroll` 锁定区与原生文档流二选一。见[双模式引擎](/docs/01-modes)与 [center-lock 滚动](/docs/01-centerlock)。

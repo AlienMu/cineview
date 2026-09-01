@@ -1,32 +1,43 @@
 # CineView
 
-CineView is a React framework for cinematic, full-screen narrative pages. You declare
-scenes, animations and one design-width conversion base; the framework owns scene
-switching, timelines and responsive scaling.
+[中文文档](./README.zh-CN.md)
 
-Two engines behind one component tree:
+CineView is a React framework for full-screen narrative interfaces. It provides two navigation modes, scene-scoped animation timelines, width-based responsive coordinates, image preloading, and fixed layers that stay inside their scene.
 
-- `mode="drag"`: gesture paging. One drag flips one scene; release thresholds decide
-  commit or rebound.
-- `mode="scroll"`: real document flow. Sections that declare a `scroll` zone become
-  scrubbable timelines (center-lock); everything else scrolls natively.
+## Package status
 
-## Install
+`cineview@1.0.0` is not published to npm yet. The repository examples use the local `dist` output. Use the [release checklist](./task-flows/2026-08-31-comprehensive-audit-remediation.md) before publishing.
+
+To run the examples from a checkout:
+
+```bash
+pnpm install
+pnpm build
+pnpm --dir examples/minimal install
+pnpm --dir examples/minimal dev
+```
+
+After the package is published, install it with:
 
 ```bash
 pnpm add cineview framer-motion react react-dom
 ```
 
-React and Framer Motion (>= 10) are peer dependencies, and CineView never bundles them.
+React, React DOM, and Framer Motion are peer dependencies. CineView does not bundle them.
 
-Care about bundle size and only use one mode? The package ships per-mode entries:
-`cineview/drag` and `cineview/scroll`. The default `cineview` entry carries both
-engines, and a single-file UMD build cannot code-split.
+## Choose a mode
 
-## Minimal usage
+Use one component tree with either navigation mode:
+
+| Mode     | Behavior                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `drag`   | One pointer gesture moves between scenes. Release thresholds decide whether the scene change commits or returns to the current scene.       |
+| `scroll` | The document scrolls normally. A `Scene` with a `scroll` zone becomes a center-lock section; other sections remain in normal document flow. |
+
+## Quick start
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Animate, CineView, Scene } from 'cineview';
 
 export default function App() {
   return (
@@ -41,60 +52,70 @@ export default function App() {
 }
 ```
 
-Drag paging is the default mode: swap in `CineViewDragProps`-style config and drop
-the `scroll` zone, and the same scenes page on gestures.
+The default mode is `drag`. Remove the `scroll` configuration to use gesture paging. The complete runnable example is in [`examples/minimal`](./examples/minimal).
 
-## Three ideas worth knowing
+## Core building blocks
 
-**One conversion base.** `designWidth` (default `750`) is the design width. Every
-coordinate and box length scales by `scale = viewportWidth / size`, so it stays
-width-driven and never stretches. Vertical overflow belongs to the document flow.
+| Component      | Use it for                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| `CineView`     | Select the mode, provide the responsive conversion base, preload assets, and expose the imperative ref. |
+| `Scene`        | Define a chapter boundary, scene layout, visibility callbacks, and an optional scroll zone.             |
+| `Animate`      | Apply a preset or custom animation with `timeline`, `duration`, and `visibility` settings.              |
+| `Position`     | Place a node in design coordinates or mount a scene-scoped fixed layer.                                 |
+| `Container`    | Convert box-model lengths from design pixels.                                                           |
+| `Image`        | Load images through the shared preload cache.                                                           |
+| `AnimateVideo` | Map scene or scroll progress to a video's `currentTime`.                                                |
 
-**Scenes and timelines.** `Scene` is the chapter boundary, `Animate` consumes the
-active mode's timeline. In drag mode `transitionDuration` defaults to 800 ms; in a
-scroll takeover zone the budget is **1 ms = 1 px** of real scroll distance.
+`designWidth` defaults to `750`. Position coordinates and box-model lengths use `viewportWidth / designWidth`; the conversion follows width and does not scale from viewport height.
 
-**Manual override when you need it.** `enterRef` / `exitRef` hand you the trigger,
-with `after` / `delay` as a fallback net. `useAnimateTimeline()` exposes the nearest
-timeline as read-only MotionValues; bind them to styles, no extra render passes.
+## Entry points
 
-## Video scrubbing
+The primary ESM entry is `cineview` and includes both engines. The `cineview/drag` and `cineview/scroll` subpaths expose `types` and CommonJS `require` conditions only. Use them with `require()` or the matching UMD file, not with an ESM `import` statement.
 
-`AnimateVideo` maps scroll or drag position straight to `currentTime` (reverse rewind
-included). Author scrub videos with dense keyframes. All-keyframe encoding scrubs
-predictably:
+```js
+const { CineView } = require('cineview/drag');
+```
+
+The package also publishes `cineview.umd.js`, `cineview-drag.umd.js`, and `cineview-scroll.umd.js` for browser script tags.
+
+## Accessibility and input
+
+The framework leaves native links, buttons, form controls, and editable fields available to the host application. Drag mode has no built-in keyboard scene navigation or framework-level reduced-motion switch. Add keyboard controls, accessible names, and a reduced-motion policy in the application. Non-active scenes are not automatically marked `aria-hidden` or `inert`.
+
+For continuous values, use `useAnimateTimeline()` and bind its MotionValues to styles. Avoid writing per-frame progress to React state. A scroll zone maps one millisecond of authored duration to one pixel of real scroll distance.
+
+## Verification status
+
+The following values are a local baseline and must be regenerated before a release:
+
+| Check               | Baseline      |
+| ------------------- | ------------- |
+| Framework tests     | 1,533 passing |
+| Line coverage       | 96.57%        |
+| Function coverage   | 95.64%        |
+| Branch coverage     | 90.57%        |
+| Type-check and lint | Passing       |
+| Build verification  | 14/14         |
+
+Run the static checks with:
 
 ```bash
-ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
+pnpm verify:framework:static
+pnpm type-check:site
+pnpm test:site-contracts
+pnpm --dir site build
 ```
+
+Unit tests do not replace browser acceptance. Validate drag and scroll input in a real browser, including reverse movement, keyboard and scrollbar input, large deltas, and concurrent animations.
 
 ## Documentation
 
-Full docs live in this repo's site (`site/`, route `/docs`): getting started,
-core concepts, per-component reference, and a pitfalls page that fronts every trap we
-hit for real: fixed positioning inside takeover scenes, `loopAnimation` gating,
-`timeline.driver` edge cases, legacy props that no longer type-check.
+The documentation site is in [`site`](./site). It contains getting-started guides, concepts, component references, mode-specific behavior, and troubleshooting pages. English and Chinese pages use the same directory and URL structure.
 
-## Verification
+## Contributing
 
-```bash
-pnpm verify
-```
-
-Type-check, lint, coverage, performance example suite and build verification. Browser
-acceptance for drag/scroll interaction is a separate human/agent lane; green unit
-tests are not proof the motion is right.
-
-## Support matrix
-
-| Runtime or peer   | Supported versions                    |
-| ----------------- | ------------------------------------- |
-| Node.js           | 18, 20, 22                            |
-| React / React DOM | 18.2+ and 19.x                        |
-| Framer Motion     | 10.x and 11.x-compatible releases     |
-| Browsers          | Current Chrome, Firefox, Safari, Edge |
-| Rendering         | CSR only, no SSR                      |
+Read [`AGENTS.md`](./AGENTS.md) before changing code or documentation. It points to the current specification, task-flow requirements, verification commands, and documentation rules. Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the pull request workflow.
 
 ## License
 
-See the repository: https://github.com/AlienMu/cineview
+MIT. See [`package.json`](./package.json).

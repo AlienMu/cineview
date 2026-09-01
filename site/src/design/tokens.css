@@ -60,6 +60,10 @@
 
   /* — 结构 — */
   --content-max: 1080px;
+  /* docs 顶栏实高：.docs-shell__inner min-height 68px + 1px 下边框。
+     它是 sticky 且背景不透明，所以 sticky 侧栏的 top、可视高度上限、
+     以及锚点 scroll-margin-top 都必须减掉这一段，否则内容滚到它下面被盖住。 */
+  --docs-header-h: 69px;
 
   /* — 阴影（编辑派：柔和、浅层）— */
   --shadow-sm: 0 1px 3px rgba(26, 24, 20, 0.05);

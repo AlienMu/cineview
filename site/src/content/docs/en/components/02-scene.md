@@ -3,7 +3,7 @@ title: Scene
 eyebrow: COMPONENTS / SCENE
 ---
 
-Scene is the chapter container: a CineView page is a stack of Scenes, each owning its layout, stacking, enter/exit transitions, and preloaded assets. In scroll mode, a Scene with `scroll` configured becomes a locked zone.
+Scene is a chapter container: a CineView page consists of multiple Scenes, each managing its own layout boundaries, stacking contexts, enter/exit transitions, and preloaded assets. In scroll mode, configuring the `scroll` property declares a locked zone.
 
 ## Props
 
@@ -80,7 +80,7 @@ Per-scene drag mapping; overrides the root's `unit` / `scale`.
 | `zoneId`  | `string`        | falls back to `sceneId`, then an auto id | Zone identity    |
 | `trigger` | `'center-lock'` | `'center-lock'`                          | The only trigger |
 
-With `scroll` configured, this Scene declares itself a locked zone: a stretch of real scroll distance owned by its animation timeline, computed at `1ms = 1px`, so the inner Animate `duration` / `delay` in milliseconds is scroll px. Scrolling back through the segment replays 100%→0% on its own. Zone semantics: [Center-lock](/docs/01-centerlock).
+With `scroll` configured, this Scene declares a locked zone: a physical scroll span allocated to its animation timeline, computed at `1ms = 1px`, so inner Animate `duration` and `delay` millisecond values correspond directly to scroll pixels. Scrolling backward through the segment automatically reverses progress from 100% to 0%. For zone semantics, see [Center-lock](/docs/01-centerlock).
 
 A zone declares timeline ownership. It says nothing about animation style or coordinates. Two Scenes with the same `zoneId` create a duplicate zone identity and report `INVALID_COMPONENT_HIERARCHY`.
 

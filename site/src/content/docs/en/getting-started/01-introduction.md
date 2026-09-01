@@ -3,7 +3,7 @@ title: Introduction
 eyebrow: GETTING STARTED / INTRODUCTION
 ---
 
-CineView is a React framework for cinematic full-screen narrative pages. You declare scenes, animations, and a design width; the framework handles transitions, timelines, and responsive scaling.
+CineView is a React animation framework for cinematic full-screen narrative experiences. Declare scenes, animation specifications, and a design width baseline; the engine manages transitions, timeline scheduling, and single-axis responsive scaling.
 
 ## Two modes
 
@@ -16,11 +16,11 @@ Both modes share the same Scene / Animate / Position components. Their timeline 
 
 ## Three core concepts
 
-**One px2vw conversion base.** The site has a single conversion base: `designWidth`, the design width, default 750. Every coordinate and box-model length converts through `scale = viewportWidth / size`. Width only, never height, so content never distorts. See [Responsive](/docs/05-responsive).
+**px2vw single-axis responsive baseline.** The system relies on a single viewport scaling baseline: `designWidth` (default 750). Coordinates and box-model dimensions scale via `scale = viewportWidth / designWidth`. Scaling derives strictly from viewport width to maintain consistent proportions across display sizes. See [Responsive](/docs/05-responsive).
 
 **Scenes and timelines.** `Scene` is the chapter boundary. `Animate` consumes the current mode's timeline semantics. In drag, switching scenes defaults to `transitionDuration: 800` ms.
 
-**1ms = 1px.** A locked zone budgets its time as real scroll distance: one millisecond of `duration` is one pixel the user scrolls. Scrolling back through the segment moves progress from 100% to 0% with no jumps. See [Center-lock](/docs/01-centerlock).
+**1ms = 1px.** A locked zone budgets duration directly as physical scroll distance: one millisecond of `duration` corresponds to one pixel of scroll travel. Scrolling back through the segment reduces progress from 100% to 0% continuously without jumps. See [Center-lock](/docs/01-centerlock).
 
 ## A 30-second example
 
@@ -45,10 +45,10 @@ export default function App() {
 }
 ```
 
-`designWidth: 750` declares the design width. `Scene` marks one chapter, and `Animate` plays a preset entrance for its content. In drag mode you swipe between the two screens.
+`designWidth: 750` declares the design width baseline. `Scene` defines a chapter boundary, and `Animate` coordinates preset entrance transitions for its content. In drag mode, swipe gestures transition between the two screens.
 
 ## Next steps
 
-- [Installation](/docs/02-installation): packages, peer dependencies, per-mode entries.
-- [Quickstart](/docs/03-quickstart): a complete minimal scene with per-prop explanation.
-- [Choosing a mode](/docs/04-choosing-mode): drag or scroll, decided by one table.
+- [Installation](/docs/02-installation): packages, peer dependencies, and per-mode entry points.
+- [Quickstart](/docs/03-quickstart): a minimal standalone scene with key property breakdowns.
+- [Choosing a mode](/docs/04-choosing-mode): architectural trade-offs and decision matrix.

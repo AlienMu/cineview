@@ -22,7 +22,10 @@
   },
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist/**/*.js",
+    "dist/**/*.mjs",
+    "dist/**/*.d.ts",
+    "dist/artifacts.json"
   ],
   "scripts": {
     "dev": "vite",
@@ -52,7 +55,7 @@
     "type-check:framework": "tsc -p tsconfig.framework.json --noEmit",
     "type-check:site": "pnpm --dir site type-check",
     "type-check:examples": "pnpm --dir examples/performance-test type-check && pnpm --dir examples/minimal type-check",
-    "prepublishOnly": "pnpm verify",
+    "prepublishOnly": "pnpm verify:framework:static",
     "prepare": "husky install",
     "analyze": "vite build && open stats.html",
     "lighthouse": "lighthouse http://localhost:3000 --view",
@@ -116,7 +119,19 @@
     "type": "git",
     "url": "https://github.com/AlienMu/cineview.git"
   },
+  "homepage": "https://github.com/AlienMu/cineview#readme",
+  "bugs": {
+    "url": "https://github.com/AlienMu/cineview/issues"
+  },
   "packageManager": "pnpm@10.22.0",
+  "browserslist": [
+    "chrome >= 85",
+    "edge >= 85",
+    "firefox >= 79",
+    "safari >= 14",
+    "ios_saf >= 14",
+    "not dead"
+  ],
   "engines": {
     "node": ">=18.0.0"
   }

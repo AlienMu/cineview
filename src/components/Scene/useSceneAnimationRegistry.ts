@@ -162,6 +162,44 @@ function registrySnapshotsEqual(
   );
 }
 
+/**
+ * 把 registry 的问题对象展开成开发者可读的 Problem/Fallback/Fix 三段文案。
+ * 只被 dev 守卫内的调用点使用，因此生产构建整体消除。
+ */
+function buildIssueDevWarning(issue: AnimationRegistryIssue, sceneIndex: number): string {
+  if (issue.type === 'missing-dependency') {
+    return (
+      `Animation dependency error in Scene ${sceneIndex}.\n\n` +
+      `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.after}" via after.\n` +
+      `Fallback: The invalid dependency is ignored so the animation can continue.\n` +
+      `Fix: Ensure the after component ID matches an existing Animate component's animateId prop.\n`
+    );
+  }
+  if (issue.type === 'circular-dependency') {
+    return (
+      `Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
+      `Problem: Animate after chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
+      `Fallback: The invalid dependency is ignored so the animations can continue.\n` +
+      `Fix: Remove the circular after reference so each Animate starts after an earlier independent animation.\n`
+    );
+  }
+  if (issue.type === 'duplicate-id') {
+    return (
+      `Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
+      `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
+      `Fallback: Dependents ignore the ambiguous dependency and continue.\n` +
+      `Fix: Give each Animate component in a Scene a unique animateId.\n`
+    );
+  }
+  return (
+    `Incompatible animation dependency in Scene ${sceneIndex}.\n\n` +
+    `Problem: ${issue.followerLane} Animate "${issue.animateId}" cannot follow ` +
+    `${issue.leaderLane} Animate "${issue.after}".\n` +
+    `Fallback: The incompatible dependency is ignored so the animation can continue.\n` +
+    `Fix: Keep both animations on one compatible lane or remove the after edge.\n`
+  );
+}
+
 export function useSceneAnimationRegistry({
   sceneIndex,
   baseDuration,
@@ -211,47 +249,32 @@ export function useSceneAnimationRegistry({
 
         let code: string;
         let message: string;
-        let devWarning: string;
 
         if (issue.type === 'missing-dependency') {
           code = 'INVALID_ANIMATION';
           message = `Animate "${issue.animateId}" references non-existent component "${issue.after}" via after in Scene ${sceneIndex}.`;
-          devWarning =
-            `Animation dependency error in Scene ${sceneIndex}.\n\n` +
-            `Problem: Animate component "${issue.animateId}" references non-existent component "${issue.after}" via after.\n` +
-            `Fallback: The invalid dependency is ignored so the animation can continue.\n` +
-            `Fix: Ensure the after component ID matches an existing Animate component's animateId prop.\n`;
         } else if (issue.type === 'circular-dependency') {
           code = 'CIRCULAR_DEPENDENCY';
           message = `Animate after chain contains a cycle in Scene ${sceneIndex}: ${issue.cycle.join(' -> ')}.`;
-          devWarning =
-            `Animation dependency cycle in Scene ${sceneIndex}.\n\n` +
-            `Problem: Animate after chain contains a cycle: ${issue.cycle.join(' -> ')}.\n` +
-            `Fallback: The invalid dependency is ignored so the animations can continue.\n` +
-            `Fix: Remove the circular after reference so each Animate starts after an earlier independent animation.\n`;
         } else if (issue.type === 'duplicate-id') {
           code = 'INVALID_COMPONENT_HIERARCHY';
           message = `More than one Animate component registered animateId "${issue.animateId}" in Scene ${sceneIndex}.`;
-          devWarning =
-            `Duplicate Animate id in Scene ${sceneIndex}.\n\n` +
-            `Problem: More than one Animate component registered animateId "${issue.animateId}".\n` +
-            `Fallback: Dependents ignore the ambiguous dependency and continue.\n` +
-            `Fix: Give each Animate component in a Scene a unique animateId.\n`;
         } else {
           code = 'INVALID_ANIMATION';
           message =
             `Animate "${issue.animateId}" uses ${issue.followerLane} after "${issue.after}" ` +
             `driven by ${issue.leaderLane} in Scene ${sceneIndex}; this dependency direction is incompatible.`;
-          devWarning =
-            `Incompatible animation dependency in Scene ${sceneIndex}.\n\n` +
-            `Problem: ${issue.followerLane} Animate "${issue.animateId}" cannot follow ` +
-            `${issue.leaderLane} Animate "${issue.after}".\n` +
-            `Fallback: The incompatible dependency is ignored so the animation can continue.\n` +
-            `Fix: Keep both animations on one compatible lane or remove the after edge.\n`;
         }
 
         reportErrorRef.current?.({ code, message, context: { sceneIndex } });
-        devWarn(devWarning);
+
+        // 诊断全文只在 dev 分支内构造：生产构建把 NODE_ENV 折叠成 'production' 后
+        // esbuild 整块消除，四段 Problem/Fallback/Fix 模板（1191 字节 raw）不再入包。
+        // 曾试过传 thunk —— 无效：thunk 赋给变量再跨模块传入 devWarn，esbuild 无法
+        // 证明其未被使用，整个闭包连同字面量一起存活（实测产物反而 +8 字节）。
+        if (process.env.NODE_ENV === 'development') {
+          devWarn(buildIssueDevWarning(issue, sceneIndex));
+        }
       });
     },
     [sceneIndex]

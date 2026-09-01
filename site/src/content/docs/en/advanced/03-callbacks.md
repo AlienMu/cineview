@@ -83,12 +83,12 @@ Correctly split per mode:
 | `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config        | Recoverable                        |
 | `ANIMATION_ASSET_LOAD_FAILED` | An animation preset asset failed to load          | Retryable                          |
 
-`preventDefault` only appears on recoverable errors that have a default framework fallback (`FIRST_SCENE_TIMEOUT` being the typical one). Calling it suppresses the default behavior and hands the event to you, for example to render a retry UI; not calling it lets the framework proceed with its fallback.
+`preventDefault` only appears on recoverable errors that have a default framework fallback (`FIRST_SCENE_TIMEOUT` being the typical one). Calling it suppresses the default behavior and hands event control over to custom handling (for example to render a retry UI); not calling it lets the framework proceed with its fallback.
 
 ```tsx
 onError: ({ code, message, preventDefault }) => {
   if (code === 'FIRST_SCENE_TIMEOUT') {
-    preventDefault(); // skip the static first-scene fallback; we handle it
+    preventDefault(); // suppress default fallback; take over error handling
     showRetry();
     return;
   }

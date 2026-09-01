@@ -3,7 +3,7 @@ title: Scene
 eyebrow: COMPONENTS / SCENE
 ---
 
-Scene 是章节容器：一页 CineView 由若干 Scene 组成，每个 Scene 管自己的布局、堆叠、进退场和预加载资源。scroll 模式下给 Scene 配了 `scroll`，它就是一段锁定区（locked zone）。
+Scene 是章节容器：CineView 页面由若干 Scene 组成，各 Scene 独立管理其布局边界、层叠关系、进退场转场及关联预加载资源。在 scroll 模式下，配置 `scroll` 属性的 Scene 将声明为一段锁定区（locked zone）。
 
 ## Props
 
@@ -44,7 +44,7 @@ Scene 是章节容器：一页 CineView 由若干 Scene 组成，每个 Scene �
 | ---------- | --------------------------------- | ------------------------------------ | ------------------------------------------------- |
 | `width`    | `number \| string`                | `'100vw'`                            | 场景宽度                                          |
 | `height`   | `number \| string`                | drag：`'100vh'`；scroll：`'auto'`    | 场景高度。scroll 下默认交给内容撑开（自然文档流） |
-| `anchor`   | `SceneAnchor`                     | `'top-left'`                         | 九宫格锚点                                        |
+| `anchor`   | `SceneAnchor`                     | `'top-left'`                         | 九宫格对齐基准                                    |
 | `overflow` | `'hidden' \| 'visible' \| 'clip'` | `'hidden'`                           | 溢出处理                                          |
 | `overlap`  | `SceneStackMode`                  | drag：`'replace'`；scroll：`'cover'` | 新场景替换旧场景，还是覆盖其上                    |
 | `zIndex`   | `number`                          | 无                                   | 叠放 z 序                                         |
@@ -80,7 +80,7 @@ Scene 是章节容器：一页 CineView 由若干 Scene 组成，每个 Scene �
 | `zoneId`  | `string`        | 回落 `sceneId`，再回落到自动 id | zone 标识      |
 | `trigger` | `'center-lock'` | `'center-lock'`                 | 唯一的 trigger |
 
-配置了 `scroll`，这个 Scene 就声明为锁定区：一段真实滚动距离归它的动画时间轴，跨度按 `1ms = 1px` 换算，内部 Animate 的 `duration` / `delay` 毫秒数就是滚动 px。反向滚回段内，进度自然 100%→0% 倒放。zone 语义见 [center-lock](/docs/01-centerlock)。
+配置 `scroll` 后，该 Scene 声明为锁定区：一段真实的滚动距离归属于其动画时间轴，跨度按 `1ms = 1px` 换算，内部 Animate 的 `duration` 与 `delay` 毫秒数值直接对应物理滚动像素。反向滚回段内时，进度以 100%→0% 连续倒放。锁定区语义详见 [center-lock](/docs/01-centerlock)。
 
 zone 声明的是时间轴的所有权，不涉及动画样式或坐标。两个 Scene 用同一个 `zoneId` 会产生重复 zone identity，上报 `INVALID_COMPONENT_HIERARCHY`。
 

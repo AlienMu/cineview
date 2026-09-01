@@ -31,32 +31,32 @@ exit when:  relTop <= exitMargin  ||  relBottom >= vh - exitMargin
 
 Entering requires the element to be fully inside the viewport, with its bottom edge still clearing the viewport bottom by `enterMargin`. The exit is symmetric, with two clauses: the top edge approaching the viewport top (leaving upward under forward scrolling), or the bottom edge approaching the viewport bottom (leaving downward under reverse scrolling).
 
-`enterMargin` and `exitMargin` are design px, converted to physical px through the conversion base's `scale` before comparison. Both default to 50, with a three-level fallback: a per-`Animate` `visibility.enterMargin` → the root's `enterMargin` → 50. Because the value passes through scale, the same number produces a different physical margin at different viewport widths.
+`enterMargin` and `exitMargin` use design px, scaled to physical pixels via `scale = viewportWidth / designWidth` before evaluation. Both default to 50, with a three-level fallback: a per-`Animate` `visibility.enterMargin` → the root's `enterMargin` → 50. Because values scale with viewport width, the same number produces different physical margins across device sizes.
 
-## The hysteresis overlap range
+## Debounce overlap range
 
-The enter condition and the top exit condition are both true across `relTop ∈ [0, exitMargin]`. Without a mutex, reverse re-entry drives the element through that overlap and triggers enter and exit back to back within one batch, which looks like "the element suddenly appears, then replays its entrance from the start."
+The enter condition and the top exit condition may both evaluate to true across `relTop ∈ [0, exitMargin]`. Without state locking, reverse re-entry through that overlap triggers enter and exit sequences within the same batch, causing visual glitches.
 
-The rule: **when both conditions are true, hold the current phase and make no transition**. Entering fires only strictly above the overlap range, exiting only strictly below it.
+The evaluation rule: **when both conditions are true, hold the current lifecycle state and make no transition**. Entering triggers only strictly above the overlap boundary, and exiting triggers only strictly below it.
 
-## Oversized elements use a different rule
+## Tall element evaluation rules
 
-When an element is taller than `vh - enterMargin`, the normal enter condition can never be satisfied (it does not fit inside that clearance). Such elements switch to a preparatory rule:
+When an element's height exceeds `vh - enterMargin`, standard entrance criteria cannot be met simultaneously. Such elements switch to height-adaptive criteria:
 
 ```text
 enter: relTop <= vh / 2        (the top edge crosses the viewport midline)
 exit:  relBottom <= vh * 0.7   (the bottom edge rises past 70% of the viewport)
 ```
 
-These two overlap across a wide range, and the semantics there are "the element is leaving," so for oversized elements the overlap gives priority to exiting (a true exit condition suppresses the enter condition). That is the opposite of the "hold the phase" rule for normal elements.
+These criteria overlap across a wider range. In this scenario, exit evaluation takes precedence to ensure smooth departure without re-triggering entrance animations.
 
-## No exitAnimation means it never exits
+## Behavior without exitAnimation
 
-**Only an element with a declared `exitAnimation` ever exits.** Without one, an element that has entered stays permanently at its `entered` resting state: scrolling past the viewport top or bottom neither hides nor resets it, and `replay` has no effect on it.
+**Only an element with a declared `exitAnimation` executes the exit sequence.** Without an exit animation, an element remains at its `entered` resting state: scrolling past viewport boundaries neither hides nor resets it, and `replay` settings have no effect.
 
-This avoids the case where an element with no exit animation is hidden the instant it crosses a boundary. That reads as an asymmetry: no transition on the way out, but a full animation when scrolling back in.
+This design prevents elements without exit transitions from abruptly disappearing when crossing viewport bounds.
 
-Two things can make an exit count as declared: a non-empty parsed exit variant together with `duration.exit > 0`, or the presence of an authored `exitAnimation` prop on its own. So omitting `exitAnimation` entirely is what makes an element never exit. Declaring `exitAnimation` with `duration.exit: 0` still counts as declared, and the tween length of 0 shows up as an instant jump rather than holding at the resting state.
+Exit declarations are recognized when non-empty exit variants exist with `duration.exit > 0`, or when `exitAnimation` is explicitly passed. Omitting `exitAnimation` keeps the element persistent. Declaring `exitAnimation` with `duration.exit: 0` performs an instantaneous state transition upon meeting exit criteria.
 
 ## Two special cases for the first screen and the first frame
 

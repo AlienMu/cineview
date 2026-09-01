@@ -3,7 +3,7 @@ title: CineView
 eyebrow: COMPONENTS / CINEVIEW
 ---
 
-CineView 是根组件：选择模式引擎（drag 分页 / scroll 文档流接管）、定下全站唯一的设计稿换算基准、调度预加载、暴露命令式 ref。一页上有几个 `Scene`，就由它管。
+CineView 是根组件：选择模式引擎（drag 分页 / scroll 文档流接管）、设定统一的设计稿宽度基准、调度资源预加载并暴露命令式 ref。页面上的 Scene 组件均由其统一调度。
 
 ## Props
 
@@ -20,9 +20,9 @@ CineView 是根组件：选择模式引擎（drag 分页 / scroll 文档流接�
 
 ### designWidth
 
-| 字段          | 类型     | 默认  | 说明                                                                                                                                                                                                         |
-| ------------- | -------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `designWidth` | `number` | `750` | 设计稿宽度基准（设计 px）。`scale = viewportWidth / designWidth`，全站唯一的换算基准：坐标与盒模型长度都乘它，只按宽度折算、不随高度变化，比例不会失真。锁定区（locked zone）的时间预算仍按 `1ms = 1px` 换算 |
+| 字段          | 类型     | 默认  | 说明                                                                                                                                                                                                                     |
+| ------------- | -------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `designWidth` | `number` | `750` | 设计稿宽度基准（设计 px）。`scale = viewportWidth / designWidth`，以此为统一计算尺度：坐标与盒模型尺寸均按此比例换算，严格依据屏幕宽度缩放，纵向保持恒定比例不形变。锁定区（locked zone）的时间预算仍按 `1ms = 1px` 映射 |
 
 `designWidth` 不是缩放开关，是设计稿基准。改它等于换一套基准，所有设计 px 的含义随之变化。详见 [响应式换算](/docs/05-responsive)。
 
@@ -128,7 +128,7 @@ ref.current?.goToZone('intro-seq', { align: 'center' });
 
 ## 错误码
 
-`onError` 收到的 `code` 是 `CineViewErrorCode` 联合类型，switch 时带穷尽性检查。可恢复的错误带 `preventDefault`：不调就走框架默认回退，调了由你接管（如渲染重试 UI）。
+`onError` 收到的 `code` 是 `CineViewErrorCode` 联合类型，switch 时带穷尽性检查。可恢复的错误带 `preventDefault` 方法：未调用时执行引擎默认回退策略，调用后交由外部逻辑接管（如渲染自定义重试界面）。
 
 | code                          | 触发                                                     | 恢复机制                                                      |
 | ----------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
@@ -143,7 +143,7 @@ ref.current?.goToZone('intro-seq', { align: 'center' });
 
 ## 入口与包体积
 
-CineView 运行时按 `mode` 派发，全量入口 `cineview` 同时装着两套引擎。只用单模式时引入 `cineview/drag` 或 `cineview/scroll` 按模式入口（分别导出 `CineViewDragProps` / `CineViewScrollProps`）。UMD 单文件无法代码拆分，单模式消费者尤其要选对入口。详见 [安装](/docs/02-installation) 与 [性能](/docs/01-performance)。
+CineView 运行时按 `mode` 派发，全量入口 `cineview` 同时包含两套引擎。单模式场景下可引入 `cineview/drag` 或 `cineview/scroll` 按模式入口（分别导出 `CineViewDragProps` / `CineViewScrollProps`）。UMD 单文件无法代码拆分，针对浏览器 `<script>` 标签环境建议按需选择对应的单模式包。详见 [安装](/docs/02-installation) 与 [性能](/docs/01-performance)。
 
 ## 相关页面
 

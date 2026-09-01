@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import type { DragModeConfig, SceneProps, ScrollMode } from '../../types';
@@ -14,6 +14,7 @@ import type {
   PreparedSceneInvalidation,
   PreparedSceneSnapshot,
 } from '../Scene/dragPreparedState';
+import { useIsomorphicLayoutEffect } from '../../utils/useIsomorphicLayoutEffect';
 
 type DragSceneAuthoringCompatProps = SceneProps & {
   slideDirection?: 'x' | 'y';
@@ -95,7 +96,7 @@ function DragSceneFrame({
 }: DragSceneFrameProps): JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const applyTransform = (renderProgress: number): void => {
       const frame = frameRef.current;
       if (!frame) return;

@@ -5,7 +5,7 @@ eyebrow: ADVANCED / CALLBACKS
 
 `CineView` 的 `callbacks` 是一个扁平对象，可用的键由 `mode` 判别：drag 模式只收公共 + drag 回调，scroll 模式只收公共 + scroll 回调。写错模式不是运行时静默忽略，而是 TypeScript 类型错误。
 
-## 回调一览
+## 回调速查
 
 公共回调（两种模式都可用）：
 
@@ -83,12 +83,12 @@ scroll 专属：
 | `INVALID_DRAG_CONFIG`         | drag 的 unit / scale / enabled 配置非法 | 可恢复                        |
 | `ANIMATION_ASSET_LOAD_FAILED` | 动画预设资源加载失败                    | 可重试                        |
 
-`preventDefault` 只在「框架有默认回退」的可恢复错误上出现（典型是 `FIRST_SCENE_TIMEOUT`）。调它 = 抑制框架默认行为，事件交给你处理（比如渲染重试 UI）；不调 = 框架按默认回退继续。
+`preventDefault` 只在「框架有默认回退」的可恢复错误上出现（典型是 `FIRST_SCENE_TIMEOUT`）。调用该方法可拦截框架默认回退行为，交由外部逻辑自行处理（例如渲染自定义重试界面）；未调用时框架按默认回退继续执行。
 
 ```tsx
 onError: ({ code, message, preventDefault }) => {
   if (code === 'FIRST_SCENE_TIMEOUT') {
-    preventDefault(); // 不再静态放置首场景，改由我们处理
+    preventDefault(); // 拦截默认放置行为，交由外部逻辑接管
     showRetry();
     return;
   }

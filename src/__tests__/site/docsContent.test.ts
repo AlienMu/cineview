@@ -42,6 +42,20 @@ function readFrontmatterTitle(source: string): string | null {
   return titleLine ? titleLine.replace(/^title:\s*/, '') : null;
 }
 
+function readFrontmatterField(source: string, field: string): string | null {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(source);
+  if (!match) return null;
+  const line = match[1].split(/\r?\n/).find((entry) => new RegExp(`^${field}:\\s*\\S`).test(entry));
+  return line ? line.replace(new RegExp(`^${field}:\\s*`), '') : null;
+}
+
+function headingShape(source: string): string[] {
+  return source
+    .split(/\r?\n/)
+    .map((line) => /^(##|###)\s+/.exec(line)?.[1])
+    .filter((level): level is string => Boolean(level));
+}
+
 describe('docs bilingual content contract', () => {
   const perLang = new Map<string, string[]>(
     LANGS.map((lang) => [lang, collectMarkdownFiles(join(DOCS_ROOT, lang))])
@@ -158,6 +172,36 @@ describe('docs bilingual content contract', () => {
         if (!title) {
           problems.push(`${lang}/${file}: frontmatter 缺非空 title`);
         }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('keeps frontmatter eyebrows aligned across languages', () => {
+    const problems: string[] = [];
+    for (const file of perLang.get('en') ?? []) {
+      const enSource = readFileSync(join(DOCS_ROOT, 'en', file), 'utf8');
+      const zhSource = readFileSync(join(DOCS_ROOT, 'zh', file), 'utf8');
+      const enEyebrow = readFrontmatterField(enSource, 'eyebrow');
+      const zhEyebrow = readFrontmatterField(zhSource, 'eyebrow');
+      if (!enEyebrow || !zhEyebrow) {
+        problems.push(`${file}: frontmatter 缺非空 eyebrow`);
+      } else if (enEyebrow !== zhEyebrow) {
+        problems.push(`${file}: zh/en eyebrow 不一致 (${zhEyebrow} / ${enEyebrow})`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('keeps heading-level structure aligned across languages', () => {
+    const problems: string[] = [];
+    for (const file of perLang.get('en') ?? []) {
+      const enShape = headingShape(readFileSync(join(DOCS_ROOT, 'en', file), 'utf8'));
+      const zhShape = headingShape(readFileSync(join(DOCS_ROOT, 'zh', file), 'utf8'));
+      if (enShape.join(',') !== zhShape.join(',')) {
+        problems.push(
+          `${file}: zh/en heading 结构不一致 (${zhShape.join(',')} / ${enShape.join(',')})`
+        );
       }
     }
     expect(problems).toEqual([]);

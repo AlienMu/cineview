@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import React, { memo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { buildSceneTimelineState } from './directScrollHelpers';
 import type {
   SceneAuthoringCompatProps,
@@ -10,6 +10,7 @@ import type { GroupedCallbacks } from './regroupCallbacks';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import type { KeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 import type { ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
+import { useIsomorphicLayoutEffect } from '../../utils/useIsomorphicLayoutEffect';
 
 export interface ScrollSceneRenderSnapshot {
   sceneLayout: SceneLayoutInfo | null;
@@ -163,7 +164,7 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   } = snapshot;
   const isTakeoverScene = Boolean(child.props.scroll);
   const takeoverShellRef = useRef<HTMLDivElement | null>(null);
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const shell = takeoverShellRef.current;
     if (!shell) return undefined;
 

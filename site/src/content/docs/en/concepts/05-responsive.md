@@ -3,9 +3,9 @@ title: Responsive conversion base
 eyebrow: CONCEPTS / RESPONSIVE
 ---
 
-CineView's whole responsive model has one conversion base: `designWidth` (design width, default 750). Every layout value converts by `scale = viewportWidth / size`, and x and y share that same ratio: layout scales by width alone and height follows, so shapes keep their proportions.
+CineView's responsive model relies on a single conversion base: `designWidth` (design width, default 750). Every layout value converts by `scale = viewportWidth / designWidth`, and both axes share this ratio: layout scales strictly by width and height follows, preserving original proportions.
 
-## The conversion rule
+## Conversion rules
 
 ```tsx
 <CineView designWidth={750}>   // design file is 750px wide
@@ -13,11 +13,11 @@ CineView's whole responsive model has one conversion base: `designWidth` (design
 
 - At a 750px viewport, scale = 1: one design px is one screen px.
 - At a 1500px viewport, scale = 2: everything doubles, aspect ratios hold.
-- The y axis uses the same width-derived scale. Elements never stretch vertically on a taller screen. A square stays a square.
+- The y-axis uses the same width-derived scale. Elements do not stretch vertically on a taller screen.
 
 ## Which values convert
 
-Two components consume the same base, with orthogonal jobs:
+Two components consume the same baseline with distinct roles:
 
 - `Position`: `at.x / at.y / at.offsetX / at.offsetY`, **where** an element sits.
 - `Container`: `width` / `height` shortcuts, plus every length inside `style` (padding/margin/gap/borderRadius/fontSize …), **how big the box is**.
@@ -34,18 +34,18 @@ Two components consume the same base, with orthogonal jobs:
 
 ## Vertical overflow goes to the document flow
 
-Converting on width alone doesn't guarantee everything fits vertically. When a scene's content runs taller than the screen, let it overflow into the document flow. Don't shrink elements to fit the height; that breaks the proportions. Pacing between beats is drag paging's job, not scaling's.
+Converting on width alone does not guarantee everything fits vertically. When scene content exceeds viewport height, let it overflow into the document flow. Avoid shrinking elements to fit the vertical space, which compromises geometric ratios. Pacing between narrative beats belongs to scene management, not responsive scaling.
 
-## Center anchors
+## Center alignment and baseline configuration
 
 `Position`'s `at.anchor` accepts `'center' | 'center-x' | 'center-y'`:
 
 ```tsx
-<Position at={{ anchor: 'center' }}>   {/* dead center */}
+<Position at={{ anchor: 'center' }}>   {/* viewport center */}
 <Position at={{ anchor: 'center-x', y: 120 }}>   {/* centered horizontally, y from top */}
 ```
 
-Once an axis is centered, its `x`/`y` becomes an offset _from center_ (still design px, still converted) and that axis's offset chain is ignored. It renders as `calc(50% + converted offset)` plus `translate(-50%)`, so you don't compensate for element size yourself.
+Once an axis is centered, its `x`/`y` becomes an offset from center (still design px, converted accordingly) and that axis's offset chain is ignored. It renders as `calc(50% + converted offset)` plus `translate(-50%)`, eliminating manual size compensation.
 
 ## Next steps
 

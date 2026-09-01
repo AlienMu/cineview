@@ -3,81 +3,63 @@ title: scroll 排错
 eyebrow: SCROLL / TROUBLESHOOTING
 ---
 
-八个 scroll 专属的故障。每条先说你会看到什么，再说为什么会这样、怎么改。两种模式都可能遇到的故障见[排错](/docs/07-common-pitfalls)。
+以下八项问题只出现在 scroll 模式。跨模式通用问题见[排错](/docs/07-common-pitfalls)。
 
-## 1. 场景整个不见了，还没有任何报错
+## 1. 场景消失且没有报错
 
-页面空白或少了几屏，控制台干净，type-check 也过。
+当 `Scene` 不是 `CineView` 的直接子节点时，页面可能空白或缺少场景，控制台和 type-check 都没有提示。React 会展平数组，但不会展平 Fragment。自定义组件在 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。
 
-`Scene` 必须是 `CineView` 的直接 JSX 子节点。框架只遍历一层子节点来找 Scene。数组会被 React 展平（`{list.map(...)}` 可以），但 **Fragment 不展平**，包在 `<>...</>` 里的 Scene 一个都找不到。自定义包装组件的情况稍好：识别能沿组件类型向内解包，`memo` / `forwardRef` 这类包装能看到六层；但包装组件在渲染函数里返回 `Scene` 时，框架看到的只是你的组件。
+未被发现的 Scene 收不到运行时注入，会回落到 drag 模式，渲染为 `pointerEvents: 'none'` 的非活动绝对定位元素，子 `Animate` 停在初始帧。只有完全找不到有效 Scene 时才会出现 `EMPTY_SCENES`，因此直接子节点和 Fragment 混用可能静默失败。
 
-没被发现的 Scene 收不到运行时注入，模式回落 `'drag'`。它被渲染成 `position: absolute` 且运行态 `inactive`，也就是 `pointerEvents: 'none'`。不可见，不可点，子 `Animate` 被当作 drag 元素处理却没有 drag 运行时，停在初始帧。
+将所有 `Scene` 直接声明为 `CineView` 的子节点。需要复用一组场景时，导出返回 `Scene[]` 的函数并展开结果，不要返回 Fragment。
 
-**而且一个警告都不发。** `EMPTY_SCENES` 只在一个场景都没找到时才报，混合情形（一个直接的 Scene 加一个含两个 Scene 的 Fragment）完全无信号。
+## 2. 锁定区内 `phase` 保持 `idle`
 
-改法：把 `Scene` 平铺为 `CineView` 的直接子节点。要复用一组场景，导出返回**数组**的函数再展开，不要返回 Fragment。
+锁定区内的元素能正常跟随滚动，但 render prop 和 `useAnimateTimeline().phase` 仍为 `'idle'`。这是预期行为。phase 来自视口可见性判定，锁定区元素读取连续滚动进度。只有单独使用 `loopAnimation` 的元素会进入 `'entered'`，其他锁定区元素在视觉上跟随滚动时仍保持 `'idle'`。
 
-## 2. 锁定区内 phase 一直是 idle
+连续读取锁定区活动状态时使用 `signedProgress`。canvas 自绘不要只因为 phase 为 `'idle'` 就停止 `requestAnimationFrame`，应读取 zone 进度，并在元素确实离开活动范围时暂停。离开锁定区，或使用 `timeline.driver: 'clock'` 后，phase 会按正常生命周期变化。详见[Animate 时间线](/docs/02-timeline)。
 
-zone 内元素正常跟随滚动，但 render-prop 的 `phase` 和 `useAnimateTimeline().phase` 永远读到 `'idle'`。
+## 3. 声明了 zone 却没有锁定效果
 
-这是预期行为，不是故障。锁定区（locked zone）的 phase 不更新，别拿它判断元素活没活。`phase` 由可见性判定写入，而跟随滚动的元素不走这套判定，所以没人写它。唯一的例外是纯 `loopAnimation` 元素，会被设成 `'entered'`。其余元素停在初始的 `'idle'`，画面本身照常跟随滚动。
+Scene 配置了 `scroll={{ zoneId }}`，滚动仍直接通过，`onZoneEnter` 和 `onZoneLeave` 也不触发。首帧发送的 `onZoneProgress` 事件若为 `progress: 0`，不能证明该 zone 已生成有效区间。
 
-这条对 canvas 自绘尤其危险。常见写法是「订阅 `timeline.phase`，在 `exited` / `idle` 时暂停 rAF（requestAnimationFrame）」。在锁定区里照做，循环一启动就暂停，而且再不恢复，一帧都不画。
+没有子元素声明带时长的 `enterAnimation` 或 `exitAnimation` 时，zone 预算为零。只有 `loopAnimation` 的 zone 没有锁定区间。长度小于 0.5 px 的区间也会被排除，wrapper 会回落为视觉高度，场景行为等同普通 section。
 
-改法：锁定区内用 `signedProgress` 判断（0 表示未开始、正值表示跟随滚动中、负值表示退场中），或者看 `frame.source`（`'scroll'` 即元素跟随滚动）。锁定区外（或 `timeline.driver: 'clock'`）的 `phase` 六态照常可用，见 [Animate 时间轴](/docs/02-timeline)。
+至少为一个子元素配置 `enterAnimation` 和 `duration.enter` 以建立区间。只有循环效果时不需要声明 zone。详见[zone 与滚动预算](/docs/02-zones-budget)。
 
-## 3. 声明了 zone 却什么都不锁
+## 4. `goToZone` 不处理 `align`
 
-Scene 写了 `scroll={{ zoneId }}`，滚动一路穿过，`onZoneEnter` / `onZoneLeave` 一次不发。注意 `onZoneProgress` 会在首帧发一次 `progress: 0`，它不能说明 zone 生效。
+调用 `goToZone(id, { align: 'center' })` 后，页面仍停在 `centerLockOffset`，也就是 zone 的起点和进度 0。公共类型接受 `align`，但实现不会读取它。
 
-原因是预算为 0。只有带 authored `enterAnimation` 或 `exitAnimation` 的 `Animate` 会注册 zone 预算；子元素全是 `loopAnimation` 的 zone 总预算为 0，而只有段长超过 0.5px 的段才参与锁定。没有段就没有锁、没有回调，wrapper 退回视觉高度，整个场景等同普通 section。
+将 `goToZone` 当作跳转到 zone 起点使用。需要停在其他位置时，将目标偏移加到 `centerLockOffset`，再调用原生 `scrollTo`。
 
-改法：至少给一个子元素写 `enterAnimation` + `duration.enter`，把预算拉起来。只想要循环动效的场景本来就不需要声明 zone。预算规则见 [zone 与滚动预算](/docs/02-zones-budget)。
+## 5. `zoneTrigger` 和 `trigger` 没有作用
 
-## 4. goToZone 的 align 不起作用
+修改根级 `zoneTrigger` 或 `Scene.scroll.trigger` 不会改变行为。两个字段会被解析，但解析结果没有参与运行。center-lock 是唯一实现的行为，也是默认值。
 
-调 `goToZone(id, { align: 'center' })`，页面停下的位置不是 zone 中点。
+判断场景是否为锁定区时，只依据有效的 `scroll` 配置，不要用这两个 trigger 字段切换模式。
 
-`align` 在公共类型里存在，实现直接丢弃。跳转总是停在 `centerLockOffset`，也就是这个 zone 的**进度 0**（sticky 刚开始钉住的位置）。这一格是公共类型与实现不一致的地方。
+## 6. render 中读到旧的每帧数值
 
-改法：把 `goToZone` 理解成「跳到 zone 开头，从头播」。要停在 zone 中段，得自己算 `centerLockOffset + 预算 / 2` 再调原生 `scrollTo`；那样会绕开框架的段内语义，不推荐。
+在 render 中读取 `sceneProgress`、`enterProgress` 或 `progressPx` 可能得到较早的值，但将同一数值绑定到 motion style 时仍然实时。连续变化的数值不参与 React 快照更新，避免每滚动一个像素就重渲染整棵 Scene 子树。
 
-## 5. zoneTrigger 和 trigger 写了没反应
+连续数值通过 MotionValue 订阅和 `useAnimateTimeline().progress`、`signedProgress`、`frame` 读取。根级使用 `onZoneProgress`。不要把每帧数值写入 React state。详见[useAnimateTimeline](/docs/09-use-animate-timeline)与[性能](/docs/01-performance)。
 
-改 `zoneTrigger` 或 `Scene.scroll.trigger`，行为完全没有变化。
+## 7. `onVisibilityChange` 每个滚动帧都会触发
 
-两个字段都会被解析，但解析结果从未被读取。`center-lock` 是唯一实现的行为，也是两者的默认值。
+scroll 模式下，`Scene.callbacks.onVisibilityChange` 每个滚动帧都会执行，不做去重，即使 `visible` 和 `progress` 没变也一样。该回调不会让 Scene 子树重渲染，但回调内部的工作仍会按帧执行。
 
-改法：当它们是占位。判断一个场景是不是锁定区，只看有没有 `scroll` 这个 prop 对象，`trigger` 写不写都一样。
+让回调只执行常量时间的工作，或在回调外做过滤，仅在 `visible` 改变或 progress 超过阈值时处理。连续视觉效果使用 MotionValue 驱动。
 
-## 6. 每帧数值在 render 里读到的是旧值
+## 8. zone 锁定期间场景进度停止
 
-在 render 里读 `sceneProgress` / `enterProgress` / `progressPx`，数字要么不动，要么落后好几帧；同一个量绑到 motion style 上却是准的。
+锁定区间内，场景时间线使用固定的 `centerLockOffset`。因此 `enterProgress`、`exitProgress` 和 `sceneProgress` 保持不变，而 zone 时间线继续推进。
 
-这是刻意的性能取舍。每帧都变的量不参与 React 快照的变更判断：`visualViewportOffset`、`sceneProgress` / `enterProgress` / `exitProgress`、zone 的 `progressPx` 都被排除在外。否则每滚一个像素，整棵 Scene 子树都要重渲染。代价就是 render 路径上这些字段是旧值。
-
-改法：每帧数值只从 MotionValue 读。子组件里用 `useAnimateTimeline()` 拿 `progress` / `signedProgress` / `frame`（不经过 React 渲染管线），根级用 `onZoneProgress` 回调。不要把连续进度存进 `useState`。见 [useAnimateTimeline](/docs/09-use-animate-timeline) 与[性能](/docs/01-performance)。
-
-## 7. onVisibilityChange 在 scroll 下每帧都触发
-
-在 `Scene.callbacks.onVisibilityChange` 里做点事，滚动时明显掉帧。
-
-scroll 下这个回调**逐滚动帧触发且不去重**：`visible` 与 `progress` 没变也照发。子树不会因此重渲染（这是设计），但回调本身每帧都跑，里面的任何 `setState`、DOM 读写、布局测量都会按帧放大。
-
-改法：回调里只做常数时间的纯计算，或者自己做阈值去重（`visible` 变化时才动作、`progress` 变化超过某个量才动作）。需要连续进度驱动视觉的，改走 MotionValue，不要用这个回调。
-
-## 8. 场景进度在锁定期间停住
-
-期待 `onVisibilityChange` 的 `progress` 在锁定期间继续推进，实际它冻在某个值上。
-
-zone active 期间，场景级时间轴的视口偏移被钉在 `centerLockOffset`（画面确实没动，这是 center-lock 的定义）。场景级 `enterProgress` / `exitProgress` / `sceneProgress` 全是这个偏移的函数，于是整条场景时间轴在锁定期间冻结。两条时间轴在这里分工明确：**场景级时间轴描述场景在文档流里的位置，zone 时间轴描述锁定段内的进度。**
-
-改法：锁定期间的进度从 zone 侧读：根级 `onZoneProgress`，或 zone 内元素的 `useAnimateTimeline().progress`。场景级回调留给「这一屏进了视口没有」这类判断。
+锁定区的进度从根级 `onZoneProgress`，或区间内部的 `useAnimateTimeline().progress` 读取。场景级回调用于文档流中的可见性，不用于读取锁定区间内的进度。
 
 ## 相关页面
 
-- [center-lock 滚动接管](/docs/01-centerlock)：段几何、纯函数进度、防跳过
-- [zone 与滚动预算](/docs/02-zones-budget)：预算如何由子元素时长累加得出，phase 如何改写窗口
-- [四条输入路径](/docs/03-inputs)：键盘劫持与嵌套滚动容器
-- [排错](/docs/07-common-pitfalls)：跨模式共通的故障
+- [center-lock 滚动](/docs/01-centerlock)：区间几何与防跳过
+- [zone 与滚动预算](/docs/02-zones-budget)：时长如何形成锁定区间
+- [四条输入路径](/docs/03-inputs)：键盘拦截与嵌套滚动容器
+- [排错](/docs/07-common-pitfalls)：跨模式通用问题

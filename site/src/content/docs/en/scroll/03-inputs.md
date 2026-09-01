@@ -3,87 +3,81 @@ title: The four input paths
 eyebrow: SCROLL / INPUT
 ---
 
-Wheel, touch, keyboard, and scrollbar drag all funnel into one function: hand the delta to the intent clamp, write `scrollTop`, resync zone state. Locking semantics are therefore identical across all four, and the paths differ only in how the delta is derived and who is allowed to intercept.
+Wheel, touch, keyboard, and scrollbar drag inputs route through a unified dispatch pipeline. Input deltas are evaluated against anti-skip boundary constraints, written to `scrollTop`, and synchronized with locked-zone state. Differences across the four paths center on delta computation and event consumption conditions.
 
 ## The shared entry point
 
 ```text
 input event → normalize to a main-axis px delta → applyNativeScrollDelta(delta)
-            → intent clamp (anti-skip / in-segment) → write scrollTop → sync zone state
+            → anti-skip boundary clamp → write scrollTop → sync zone state
 ```
 
-`applyNativeScrollDelta` returns a boolean: whether the delta was actually consumed. If the clamped landing offset is within 0.5px of the current offset it returns `false` and writes nothing at all.
+Applying a delta returns a boolean indicating whether the displacement was consumed. If the computed target offset rests within 0.5px of the current position, the function returns `false` without performing DOM writes.
 
-Scrollbar drag goes through `applyNativeScrollbarOffset`, which converts a target offset into a delta and runs the same clamp, so dragging the bar cannot skip a locked segment either.
+Scrollbar dragging takes a separate entry point: it converts target offsets into deltas, then applies identical boundary constraints.
 
-## preventDefault is conditional
+## Conditional preventDefault
 
-This is the most misread part of scroll takeover: the engine **only calls `preventDefault` when the delta was actually consumed**.
+The engine invokes `preventDefault` only when the displacement delta is actively consumed:
 
 ```text
 if (applyNativeScrollDelta(delta) && event.cancelable) event.preventDefault();
 ```
 
-At the segment end the clamp returns zero movement, so nothing is consumed, so nothing is intercepted, so the browser's native scrolling takes over and the page moves on. That is the zone's release mechanism: no timer, no `unlocked` flag, no code deciding when to let go. During the lock the events are intercepted, and once the budget runs out the exact same code stops intercepting.
+When scrolling reaches the end of a locked segment (`segmentEnd`), boundary clamping produces zero movement, leaving the event unconsumed and allowing native document flow scrolling to continue uninterrupted.
 
-The converse also holds: an event whose `defaultPrevented` is already true, or whose target sits outside this CineView container, is never examined.
+Events where `defaultPrevented` is already `true` or whose targets reside outside the CineView container are ignored.
 
 ## What differs per path
 
-| Path      | Delta source                                                             | Normalization                                                                           | Notable                                                                        |
-| --------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| wheel     | `deltaY` with `direction:'y'`, `deltaX` with `'x'`                       | `deltaMode:1` (lines) ×18; `deltaMode:2` (pages) × viewport span; `0` (pixels) verbatim | bound in the capture phase with `passive: false`                               |
-| touch     | `touchstart` sets a baseline, `touchmove` takes the main-axis difference | used directly as px                                                                     | baseline resets every frame, so the delta is always "how far this frame moved" |
-| keyboard  | keys map to fixed steps                                                  | see the keyboard step table                                                             | two handlers with different semantics                                          |
-| scrollbar | drag or track click computes a target offset                             | converted to a delta, same clamp                                                        | arrow keys with the rail focused use the same step table                       |
+| Path      | Delta source                                                             | Normalization                                                                           | Notable                                                    |
+| --------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| wheel     | `deltaY` with `direction:'y'`, `deltaX` with `'x'`                       | `deltaMode:1` (lines) ×18; `deltaMode:2` (pages) × viewport span; `0` (pixels) verbatim | bound in the capture phase with `passive: false`           |
+| touch     | `touchstart` sets a baseline, `touchmove` takes the main-axis difference | used directly as px                                                                     | baseline resets every frame to track per-frame delta       |
+| keyboard  | keys map to fixed steps                                                  | see the keyboard step table                                                             | two handlers with different semantics                      |
+| scrollbar | drag or track click computes a target offset                             | converted to a delta, same clamp                                                        | arrow keys with the rail focused share the same step table |
 
-The keyboard steps are hard-wired, not configurable:
+The keyboard steps are fixed invariants and cannot be reconfigured:
 
-| Key                     | Step                             |
-| ----------------------- | -------------------------------- |
-| `PageDown` / `PageUp`   | ± viewport span × 0.86           |
-| `Space` / `Shift+Space` | same as PageDown / PageUp        |
-| `ArrowDown` / `ArrowUp` | ± 80px                           |
-| `Home` / `End`          | ∓ Infinity (clamped to the ends) |
+| Key                     | Step                              |
+| ----------------------- | --------------------------------- |
+| `PageDown` / `PageUp`   | ± viewport span × 0.86            |
+| `Space` / `Shift+Space` | same as PageDown / PageUp         |
+| `ArrowDown` / `ArrowUp` | ± 80px                            |
+| `Home` / `End`          | ∓ Infinity (bounded to endpoints) |
 
-## The two keyboard handlers
+## Keyboard event listeners
 
-Key input is bound in two places with different semantics, and what matters to authors is what each one skips.
+Key input binds at two levels:
 
-Window level (capture phase): requires `document.activeElement` to be `body` or `documentElement`, so it applies only when nothing on the page holds focus. It does not check nested scrollables, and it does not check whether the event target is inside the container.
+Window level (capture phase): active only when `document.activeElement` is `body` or `documentElement` (no specific page element holds focus).
 
-The consequence: an unfocused scroll-mode CineView takes over arrow keys and Space for the entire document, **even after the root has scrolled out of view**. Embedding CineView inside a longer ordinary page makes this a limit you have to design around: one scroll root per page, or keep focus on an interactive element outside the container.
+Container level (`onKeyDownCapture`): active when focus resides within the container, deferring to nested scrollables where present.
 
-Container level (`onKeyDownCapture`): does not require activeElement to be body (focus legitimately lives inside the container), but does check nested scrollables and defer to them.
+Both levels share input exemptions: all keys yield to `input`, `textarea`, `select`, and `contentEditable` elements, while the Space key yields additionally to buttons, summaries, and anchor links.
 
-Both share one exemption: every key is released to `input` / `textarea` / `select` / `contentEditable` (typing), and Space is additionally released to `button` / `summary` / `a` with an `href` / `role="button"` / `role="link"` (activation). Without it, Space typed into a text field is swallowed by `preventDefault`.
+## Keys do not rotate under horizontal mode
 
-## Keys do not rotate under direction: 'x'
+Under horizontal mode:
 
-Horizontal mode has two things to state plainly:
+- Key semantics retain their main-axis forward mapping (`ArrowDown` and `PageDown` advance along positive x).
+- The wheel reads `deltaX` exclusively; vertical scrolling produces a zero delta unless shifted (`Shift + wheel`) or performed via trackpad horizontal gestures.
 
-- **Key semantics do not rotate.** `ArrowDown` still means "along positive x," and so does `PageDown`. There is no remapping where ArrowRight becomes the main-axis forward key.
-- The wheel reads `deltaX` only. A plain vertical mouse wheel produces a zero delta in horizontal mode and moves nothing. Trackpad horizontal gestures and `Shift + wheel` (which browsers report as `deltaX`) do work.
+See [Horizontal direction: 'x'](/docs/04-direction-x).
 
-When building horizontal narratives, write keyboard hints from the keys that actually work rather than from directional intuition. See [Horizontal direction: 'x'](/docs/04-direction-x).
+## Nested scrollables take precedence
 
-## Nested scrollables win
+Before applying boundary constraints, the engine traverses upward from the event target to find any ancestor container with unconsumed scroll capacity on the active axis (computed `overflow` of `auto` or `scroll` with remaining distance > 1px). When found, the engine defers event handling to the nested container.
 
-Before the delta reaches the clamp, the engine walks from the event target up to the container root looking for a scrollable ancestor with room left on the same axis: computed `overflow-x` / `overflow-y` of `auto`, `scroll`, or `overlay`, a scrollable span over 1px, and remaining room in this delta's direction. On a match it defers entirely: no clamp, no `preventDefault`, no root offset write; the input belongs to that inner container.
-
-The direct consequence for authors: **an inner scrollbar inside a locked zone consumes the wheel until it reaches its own end**. Zone progress does not advance at all during that, and the audience sees a picture that has stopped moving. For long text inside a locked zone, reveal it with the zone's own budget rather than nesting an `overflow: auto` box.
-
-Both wheel and touch run this check, as does the container-level keyboard handler; the window-level one does not.
+Wheel, touch, and container-level keyboard listeners all enforce this check.
 
 ## Programmatic scroll versus user input
 
-While a smooth scroll from `goToScene` / `goToZone` is in flight, the engine marks an in-flight programmatic target and skips the intent clamp (whose corrective `scrollTo` interrupts the smooth animation). Any real user input path immediately clears the flag, stops the smooth animation where it is with a `behavior: 'auto'` `scrollTo`, and re-anchors the delta baseline at the real offset. From there the gesture runs the normal clamped path.
-
-The reader can therefore always interrupt programmatic navigation, and the interruption lands exactly where the input arrived, with no scroll to the target and back.
+While smooth programmatic scrolling (`goToScene` / `goToZone`) is active, boundary clamping is temporarily suspended. If user input (wheel, touch, key, or scrollbar drag) arrives during transition, the engine immediately stops the programmatic transition, establishes a new gesture baseline at the current offset, and resumes normal input processing.
 
 ## Related pages
 
-- [center-lock scroll takeover](/docs/01-centerlock): the full intent-clamp rule table
+- [Center-lock scrolling](/docs/01-centerlock): boundary clamping rules and segment geometry
 - [Scrollbar theming](/docs/05-scrollbar): fields and defaults for the drawn scrollbar
 - [Horizontal direction: 'x'](/docs/04-direction-x): every difference in horizontal mode
 - [Scroll troubleshooting](/docs/06-scroll-pitfalls): the input-related common failures

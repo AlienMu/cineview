@@ -3,13 +3,13 @@ title: 媒体所有权
 eyebrow: ADVANCED / MEDIA
 ---
 
-`AnimateVideo` 里那个 `<video>` 元素有两个可能的驱动者：框架（按时间轴位置逐帧 seek）和浏览器自己（原生播放）。任何时刻只能有一个，交接规则由一个纯函数决定。这一页讲这套所有权协议，以及它的三处边界。
+`AnimateVideo` 内部的 `<video>` 元素存在两种驱动来源：引擎（依据时间轴位置逐帧 seek）与浏览器原生播放。两者在任意时刻保持互斥，状态转移由纯函数判定。本文阐述该所有权协议及其三处边界特征。
 
 ## 进度如何变成 currentTime
 
 映射是一次线性插值，没有别的：`currentTime = range[0] + progress × (range[1] - range[0])`（`src/media/videoPlaybackOwnership.ts:81-90`）。
 
-`scrubRange` 缺省时 `range` 就是 `[0, duration]`，即 progress 0 是首帧、progress 1 是末帧。显式写了 `scrubRange` 时两个端点各自被钳进 `[0, duration]`：给一个超过素材时长的秒数不会报错，会被截到真实时长（`:70-79`）。progress 本身也钳在 `[0, 1]`。
+`scrubRange` 缺省时 `range` 为 `[0, duration]`，即 progress 0 对应首帧、progress 1 对应末帧。显式传入 `scrubRange` 时，两个端点自动限制在 `[0, duration]` 有效范围内：传入超出素材时长的数值不会抛错，而是截断至真实时长（`:70-79`）。progress 本身也限制在 `[0, 1]` 区间。
 
 `duration` 是从 `<video>` 元素读到的真实时长。素材元数据还没到时 `duration` 无效，映射返回 `null`，这一帧不发 seek 指令。
 
@@ -41,9 +41,9 @@ eyebrow: ADVANCED / MEDIA
 交接规则：
 
 - **只有显式 `scrubRange` 且终点早于片尾才会 `play()`**。不写 `scrubRange` 的视频永远由框架驱动，到 progress 1 就停在末帧。
-- **端点用迟滞防抖动**。自动播放的触发带是 `progress ≥ 1 - 0.001`；框架收回所有权的带是 `progress < 1 - 0.02`（`:58-59`、`:140-148`）。两个阈值不同，所以在端点附近微抖不会反复 play/pause。交接一次后 `endpointLatched` 置真，退出迟滞带才复位。
+- **端点采用双阈值防抖**。自动播放的触发阈值为 `progress ≥ 1 - 0.001`；框架收回控制权的阈值为 `progress < 1 - 0.02`（`:58-59`、`:140-148`）。两处阈值保持差值，在端点附近轻微波动不会导致反复 play/pause。交接完成后这次交接被锁定，只有滚动离开防抖区间才会复位。
 - **框架收回是位置驱动的**。`scroll` 与 `visibility` 来源的帧无条件收回；`gesture` 来源要求已离开端点带（`:140-148`）。收回时先 `pause` 再 `seek` 到当前映射位置。
-- **`exiting` / `exited` 只执行一次离场 pause 并锁存**。第一次看到退场相位时，若正在原生播放就发一条 `pause` 并把 `outgoingLatched` 置真；后续退场帧直接返回原状态，不再发命令（`:176-193`）。锁存在下一次 scrub 来源的帧到达时解除。
+- **`exiting` / `exited` 阶段仅执行一次离场 pause 并锁定**。首次检测到退场阶段时，若视频正在原生播放则发出一次 `pause` 指令并锁定该状态；后续退场帧直接保持原状态，不再重复发送命令（`:176-193`）。该锁定在下一次接收到跟随滚动的驱动帧时解除。
 
 `play()` 请求带 requestId。带错 token 的 play 事件（迟到的、外部触发的）会被防御性地 pause 掉，避免两个来源同时认为自己拥有这个元素（`:278-314`）。
 
@@ -59,14 +59,14 @@ eyebrow: ADVANCED / MEDIA
 
 1. prop 为 `true`；
 2. 当前 approach band 是 `far`；
-3. 这个源已经被 scrub 过至少一次。没看过的视频没有可释放的解码帧，所以 `scrubbedOnceRef` 要等时间轴 progress 出现过大于 `1e-4` 的移动才置真。换 `src` 会重置这个事实，新素材不继承旧素材的「已看过」。
+3. 这个源已经被逐帧定位过至少一次。没看过的视频没有可释放的解码帧，所以这一条要等时间轴 progress 出现过大于 `1e-4` 的移动才成立。换 `src` 会重置这个事实，新素材不继承旧素材的「已看过」。
 
-波段阈值写死在框架里（`src/components/Scene/sceneScrollRuntime.tsx:24-27`）：
+波段阈值为引擎内部固定常量（`src/components/Scene/sceneScrollRuntime.tsx:24-27`）：
 
-| 阈值                            | 值  | 行为                                           |
-| ------------------------------- | --- | ---------------------------------------------- |
-| `SCENE_SCROLL_APPROACH_FAR_VH`  | 1.5 | 离开 zone 超过 1.5 个视口，band 翻 `far`，释放 |
-| `SCENE_SCROLL_APPROACH_NEAR_VH` | 1   | 回到距 zone 1 个视口内，band 翻回 `near`，回挂 |
+| 阈值                            | 值  | 行为                                                       |
+| ------------------------------- | --- | ---------------------------------------------------------- |
+| `SCENE_SCROLL_APPROACH_FAR_VH`  | 1.5 | 离开 zone 超过 1.5 倍视窗高度，band 切换为 `far`，释放资源 |
+| `SCENE_SCROLL_APPROACH_NEAR_VH` | 1   | 回到距 zone 1 倍视窗高度内，band 切换回 `near`，重新挂载   |
 
 两个阈值刻意不相等，所以在它们之间悬停不会反复 release/warmUp。
 
@@ -80,18 +80,18 @@ zone 外与 drag 模式下这套机制不工作：approach band 只在锁定区�
 ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
 ```
 
-开发期框架会替你检查这件事：每个 src 采样 seek 延迟，累计 6 个样本后算中位数，超过 50ms 就打一次警告并给出这条 ffmpeg 命令（`src/media/VideoFrameRenderer.tsx:51-52,403-426`）。每个 src 只警告一次，生产构建里这段代码不存在。
+开发环境下框架会自动检测该项指标：每个 src 采样 seek 延迟，累计 6 个样本后算中位数，超过 50ms 就打一次警告并给出这条 ffmpeg 命令（`src/media/VideoFrameRenderer.tsx:51-52,403-426`）。每个 src 只警告一次，生产构建里这段代码不存在。
 
 代价是文件变大（每帧自包含），收益是任意帧直接解码、seek 延迟变平。
 
-## 框架写死的元素属性
+## 引擎内置固定的元素属性
 
-`<video>` 上有两个属性是框架写死的，作者改不了（`src/media/VideoFrameRenderer.tsx:630-631`）：
+`<video>` 元素有两个属性固化为底层固定基准，不可由外部属性覆盖（`src/media/VideoFrameRenderer.tsx:630-631`）：
 
 - `muted`：这也是到端自动播放可行的前提。浏览器的自动播放策略只放行静音媒体，带声音的 `play()` 会被拒绝（走 `play-rejected` 分支）。
 - `playsInline`：iOS Safari 不加这个属性会把视频弹成全屏播放器，逐帧定位彻底失效。
 
-`playbackRate` 对 scrub 没有任何作用。scrub 是直接写 `currentTime`，不经过播放速率；`playbackRate` 只作用于到端交接之后的那段原生播放（`:395-399`）。
+`playbackRate` 对逐帧定位没有任何作用。逐帧定位是直接写 `currentTime`，不经过播放速率；`playbackRate` 只作用于到端交接之后的那段原生播放（`:395-399`）。
 
 ## prop 面比 Animate 窄
 
@@ -101,15 +101,15 @@ ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4
 | ---------------------- | ------------ | ------------------------------------ |
 | `loopAnimation`        | 无           | 循环动画与逐帧定位是两种驱动，不能叠 |
 | `stagger`              | 无           | 视频没有「直接子元素」可错峰         |
-| `enterRef` / `exitRef` | 无           | 手动接管只在时间驱动的动画上有意义   |
+| `enterRef` / `exitRef` | 无           | 手动触发只在时间驱动的动画上有意义   |
 | render-prop children   | 无           | children 位置固定给内部帧渲染器      |
 | `timeline.driver`      | 无           | 停在默认 `'scene'`                   |
 | `timeline.zoneId`      | 无           | 由所在 Scene 的锁定区继承            |
-| `timeline.phase`       | 无           | 无法限定 zone 内的 scrub 区间        |
+| `timeline.phase`       | 无           | 无法限定锁定区内的逐帧定位区间       |
 
 `timeline` 的类型就是 `{ delay?: number; after?: string }`（`:47-50`），只此两键。从 `Animate` 抄一段 `timeline={{ phase: { start: 0.5 } }}` 过来，TypeScript 消费者会拿到类型错误；JS 消费者不会有任何提示，那个键会被静默丢弃，元素照常从 zone 起点开始跟随滚动。
 
-默认 `enterAnimation` 是中性变体 `{ initial: { opacity: 1 }, animate: { opacity: 1 } }`（`:13-16`）。这样逐帧定位本身就是唯一可见的动画，不会再叠一层淡入盖住它。要额外的入场效果就显式传 `enterAnimation`，它会替换这个中性默认值。
+默认 `enterAnimation` 为静态透明度配置 `{ initial: { opacity: 1 }, animate: { opacity: 1 } }`（`:13-16`）。这样逐帧定位本身就是唯一可见的动画，不会额外叠加入场淡入。如需自定义入场效果，显式传入 `enterAnimation` 即可覆盖该默认值。
 
 ## 相关页面
 

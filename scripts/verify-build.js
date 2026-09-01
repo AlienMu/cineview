@@ -170,6 +170,39 @@ function checkMinifierStrategy() {
   }
 }
 
+function checkNoDevDiagnosticsShipped() {
+  log('\n12. 检查生产产物不含 dev-only 诊断文案:', 'yellow');
+  // 背景：`devWarn` 的函数体被 `esbuild.drop:['console']` 移除，但**传给它的参数
+  // 表达式照样求值**。曾有四段 Problem/Fallback/Fix 模板（1191 字节 raw）就这样
+  // 入包却永远打印不出来。修法是把文案构造整块放进 NODE_ENV 守卫内。
+  // 传 thunk 无效 —— 闭包赋给变量再跨模块传参，esbuild 无法证明其未被使用。
+  const markers = ['Problem: ', 'Fallback: ', 'Fix: '];
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(DIST_DIR, 'artifacts.json'), 'utf8'));
+    const offenders = [];
+    for (const artifact of manifest.artifacts) {
+      const filePath = path.join(DIST_DIR, artifact.file);
+      if (!fs.existsSync(filePath)) continue;
+      const content = fs.readFileSync(filePath, 'utf8');
+      for (const marker of markers) {
+        const hits = content.split(marker).length - 1;
+        if (hits > 0) offenders.push(`${artifact.file} 含 ${hits} 处 "${marker.trim()}"`);
+      }
+    }
+    if (offenders.length > 0) {
+      throw new Error(
+        `dev 诊断文案泄漏到生产产物: ${offenders.join('; ')}。` +
+          "把文案构造移进 if (process.env.NODE_ENV === 'development') 块内"
+      );
+    }
+    log('  ✓ 四个产物均无 dev-only 诊断文案', 'green');
+    return true;
+  } catch (error) {
+    log(`  ✗ 诊断文案检查失败: ${error.message}`, 'red');
+    return false;
+  }
+}
+
 function checkPackageExports() {
   log('\n7. 检查 package exports:', 'yellow');
   try {
@@ -502,13 +535,15 @@ async function main() {
   const peerAndSourceMapsPassed = checkPeerExternalizationAndSourceMaps();
   const packedTarballPassed = checkPackedTarballConsumer();
   const minifierStrategyPassed = checkMinifierStrategy();
+  const noDevDiagnosticsPassed = checkNoDevDiagnosticsShipped();
   hasErrors =
     hasErrors ||
     !packageExportsPassed ||
     !consumerSmokePassed ||
     !peerAndSourceMapsPassed ||
     !packedTarballPassed ||
-    !minifierStrategyPassed;
+    !minifierStrategyPassed ||
+    !noDevDiagnosticsPassed;
 
   // 总结
   log('\n=== 验证总结 ===\n', 'blue');
@@ -527,6 +562,9 @@ async function main() {
     { name: 'Consumer smoke', passed: consumerSmokePassed },
     { name: 'Peer/source maps', passed: peerAndSourceMapsPassed },
     { name: 'Packed tarball consumer', passed: packedTarballPassed },
+    // 这两道门原先只喂 hasErrors、不进 checks —— 能让构建失败却不出现在计数里。
+    { name: '入口压缩策略', passed: minifierStrategyPassed },
+    { name: '生产产物无 dev 诊断文案', passed: noDevDiagnosticsPassed },
   ];
 
   const passedChecks = checks.filter((c) => c.passed).length;

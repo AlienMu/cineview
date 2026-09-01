@@ -7,7 +7,7 @@ When no preset fits, author a variant object directly. A custom animation is a F
 
 ## Custom variants
 
-The `CustomAnimation` shape allows exactly three keys, and at least one of them must be a non-empty object; anything else is rejected by the parser (`validateCustomAnimation` in `src/animations/animationParser.ts`).
+The `CustomAnimation` shape allows exactly three keys, and at least one of them must be a non-empty object; anything else is rejected by the parser (`src/animations/animationParser.ts`).
 
 ```tsx
 <Animate
@@ -22,9 +22,9 @@ The `CustomAnimation` shape allows exactly three keys, and at least one of them 
 </Animate>
 ```
 
-Parsing rules worth knowing:
+Variant parsing rules:
 
-- A string is parsed as a preset name; an object is parsed as a custom variant; `parseAnimation` dispatches on the type.
+- A string is parsed as a preset name; an object is parsed as a custom variant; the parser dispatches on the type.
 - `transformOrigin` strings are normalized to percentage pairs (`'top left'` → `'0% 0%'`, `'center'` → `'50% 50%'`).
 - Transition timing inside a variant (`transition.duration` in seconds, `transition.delay` in seconds) applies to time-driven animations. Animations that follow scroll position (inside a locked zone, or scene-driven elements in drag) interpolate by position and ignore transition timing; their duration comes from `duration.enter`, the scrolled span.
 
@@ -69,12 +69,12 @@ Walk one property through the resolver. With `opacity: [0, 1, 1, 0]` and `times:
 
 Keyframes give a scroll-driven element a _shape across its span_ (enter, hold, and leave inside one `duration.enter`) which a plain from-to variant cannot express. This is the standard idiom for elements that must both arrive and depart within a single locked zone: one element, one span, four keyframes.
 
-## Two shapes from real site code
+## Two variant constructors from site implementation
 
-The site uses two small factories worth copying (from `site/src/components/CapabilityScene.tsx`):
+The codebase includes two typical variant constructors (sourced from `site/src/components/CapabilityScene.tsx`):
 
 ```tsx
-/* Neutral lane: establishes the shared timeline without fading the carried
+/* Neutral variant: establishes the shared timeline without fading the carried
    content across the whole span. transition duration 0. Under scroll the
    position drives the value, so the variant only fixes the endpoints. */
 export function solidVariant() {
@@ -84,8 +84,8 @@ export function solidVariant() {
   };
 }
 
-/* Allowlist-only rise: custom variants on scrub lanes must stay within the
-   ten lane-owned properties. */
+/* Allowlist-only rise: custom variants for scroll-driven animations should stick to the
+   ten engine-owned properties. */
 export function riseVariant(amplitude: string) {
   return {
     initial: { y: amplitude, opacity: 0 },
@@ -94,7 +94,7 @@ export function riseVariant(amplitude: string) {
 }
 ```
 
-`solidVariant()` is the idiom for an element that sits on the shared timeline (for render-props, `useAnimateTimeline` consumers, or as a after anchor) but has no visual animation of its own. The default `AnimateVideo` wrapper uses the same approach internally.
+`solidVariant()` is the standard pattern for an element that sits on the shared timeline (for render-props, `useAnimateTimeline` consumers, or as an after anchor) but requires no visual animation of its own. The default `AnimateVideo` wrapper uses the same approach internally.
 
 ## Exit variants
 
@@ -114,7 +114,7 @@ export function riseVariant(amplitude: string) {
 </Animate>
 ```
 
-(This shape is lifted from the site's slate scene: enter rises and settles, exit scales _up_ while fading, a projector pulling back.)
+(This pattern is used in the slate scene: enter translates and settles, while exit scales and fades out smoothly.)
 
 Exit keyframe arrays work exactly like enter ones (`times` included), and the element's terminal state is the last keyframe. Scrolling back walks the same interpolation in reverse, so an exit authored as keyframes unwinds keyframe by keyframe.
 
@@ -124,7 +124,7 @@ Enter and exit animations can animate exactly ten properties:
 
 `opacity`, `x`, `y`, `scale`, `rotate`, `rotateX`, `rotateY`, `skewX`, `skewY`, `filter`.
 
-Custom variants that follow scroll must stay within these. Two sanctioned ways past the allowlist:
+Custom variants driven by scroll must stay within these ten properties. Two exceptions apply:
 
 - The `stagger` prop reveals each direct child through Framer's native variant propagation, which accepts any Framer-animatable property (`clipPath`, `width`, …); it runs on time, never on scroll position.
 - Canvas and custom renderers read `useAnimateTimeline()` MotionValues directly (the canvas exemption).
@@ -158,4 +158,4 @@ Composition rules (from `src/animations/composer.ts`):
 - `parallel`: every step keeps its own delay; `initial` and `exit` merge all steps (same-name properties last-wins).
 - Merged `animate` uses Framer's per-value transition form (`transition: { opacity: {...}, y: {...} }`), so each property carries its own step's delay/duration. Note this shape serves time-driven playback; elements that follow scroll interpolate by value and ignore transition.
 
-For sequencing _elements_ rather than steps inside one element, use `after` chains, covered in [Timeline](/docs/04-orchestration).
+For sequencing elements rather than steps inside a single element, use `after` chains, covered in [Timeline](/docs/04-orchestration).

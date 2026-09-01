@@ -3,11 +3,11 @@ title: Timeline
 eyebrow: CONCEPTS / SEQUENCING
 ---
 
-Sequencing several elements comes down to two tools: `after` makes elements queue behind each other, and `stagger` reveals a container's children one by one. Both compile to fixed delays before the first frame is drawn.
+Sequencing multiple elements relies on two mechanisms: `after` forms sequential dependencies between elements, while `stagger` reveals child nodes inside a container in order. Both compile to fixed timing offsets prior to rendering the first frame.
 
 ## after chains
 
-`timeline.after` points at another element's `animateId`. The waiter doesn't start until the waited element finishes entering.
+`timeline.after` points to another element's `animateId`. The waiting element begins once the referenced element finishes entering.
 
 ```tsx
 <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }} />
@@ -19,7 +19,7 @@ Sequencing several elements comes down to two tools: `after` makes elements queu
 
 ## after has two mechanisms, decided by what drives the element
 
-The same line of `after` runs through two unrelated implementations for scrubbed elements versus visibility-driven elements. Work out what drives your element before laying out the timeline.
+The same `after` configuration executes via two distinct mechanisms depending on whether an element scrubs with scrolling or runs on visibility conditions. Confirm element drivers before configuring timelines.
 
 ### Scrubbed elements: computed once at registration
 
@@ -29,7 +29,7 @@ Scene-driven elements in drag, and elements inside a scroll locked zone, take th
 accumulatedDelay(follower) = follower.delay + accumulatedDelay(leader) + leader enter duration
 ```
 
-In the "after chains" example, `cta` starts at title's enter duration + sub.delay (100) + sub's enter duration + cta.delay, computed once.
+In the preceding example, `cta` starts at title's enter duration + sub.delay (100) + sub's enter duration + cta.delay, computed once during initialization.
 
 Here there is no runtime waiting and no subscription at all: progress comes straight from the drag displacement or the zone's scroll progress, and `after` merely shifts where each element starts on that one clock.
 
@@ -45,7 +45,7 @@ That completion flag is set once and never retracted: the leader exiting, revers
 
 Why the accumulated delay cannot be reused here: for visibility-driven elements every element starts when it enters the viewport, with no shared origin. Re-adding the leader's delay plus duration makes the follower wait out an entire extra span for nothing.
 
-### Only one cross-driver direction is legal
+### Cross-driver dependency rules
 
 | follower           | leader             | Allowed                                                  |
 | ------------------ | ------------------ | -------------------------------------------------------- |
@@ -57,7 +57,7 @@ Why the accumulated delay cannot be reused here: for visibility-driven elements 
 
 Rejected directions report `INVALID_ANIMATION` (internal reason `incompatible-driver`) and **skip that dependency**; the follower still runs on its own visibility condition and delay.
 
-The reason is that the two clocks do not line up: a zone's budget is a deterministic `1ms = 1px`, while a visibility completion happens whenever the user scrolls the element into view, and no scroll coordinate corresponds to it. The reverse works because "a scroll leader crossed its enter end" is itself an observable runtime fact.
+The reason is that the two clocks do not line up: a zone's budget is a deterministic `1ms = 1px`, while a visibility completion happens whenever an element scrolls into view, and no scroll coordinate corresponds to it. The reverse works because "a scroll leader crossed its enter end" is itself an observable runtime fact.
 
 Separately, an element with `driver: 'clock'` in drag can be neither leader nor follower: it does not register into the scene's timeline.
 
@@ -74,7 +74,7 @@ The registry reports two error codes through `onError`:
 
 ## stagger
 
-With `stagger` set, `children` must be a single ReactElement; each direct child inside it is revealed one by one through framer's native `staggerChildren`, using the `enterAnimation` variant.
+With `stagger` set, `children` must be a single ReactElement; each direct child inside it is revealed one by one through framer's native `staggerChildren`, using the `enterAnimation` configuration.
 
 ```tsx
 <Animate animateId="list" enterAnimation="fade-in" stagger={{ each: 40, from: 'first' }}>
@@ -93,11 +93,11 @@ With `stagger` set, `children` must be a single ReactElement; each direct child 
 
 ## An enter chain needs an exit plan
 
-The rule is unconditional: **if the entrance uses a after cascade, the exit needs a matching reverse timeline**.
+The rule is unconditional: **if the entrance uses an `after` cascade, the exit needs a matching reverse timeline**.
 
 `after` and `delay` only govern entering, and there is no exit chain. Configure the enter side alone, and when the exit signal arrives every element's `exitAnimation` triggers in the same frame, so the whole screen exits at once, nothing like the one-beat-at-a-time entrance.
 
-You have to arrange exits yourself:
+Exits require explicit sequence configuration:
 
 ```tsx
 <Animate animateId="title" enterAnimation="fade-in" exitAnimation="fade-out"
@@ -106,9 +106,9 @@ You have to arrange exits yourself:
   duration={{ exit: 300 }} timeline={{ after: 'title' }} />
 ```
 
-- Give every element `exitAnimation` + `duration.exit`; don't configure only the entrance.
-- When you need exact control over exit order, trigger exits manually with `exitRef`. Passing `exitRef` disables all automatic exit, and exit has no delay fallback. It works only for visibility-driven elements; scrubbed elements ignore it and report an error.
-- Scrubbed elements inside a scroll locked zone naturally play back through their entrance when you reverse, so this does not apply to them.
+- Provide both `exitAnimation` and `duration.exit` rather than configuring entrances alone.
+- For precise control over exit order, trigger exits manually with `exitRef`. Passing `exitRef` takes over the automatic exit, and exit has no `delay` fallback. It applies only to visibility-driven elements: a scrubbed element ignores the ref and reports `INVALID_ANIMATION`.
+- Scrubbed elements inside a scroll locked zone naturally play back through their entrance during reverse scrolling, so this does not apply to them.
 
 ## In drag, `exiting` means two different things
 

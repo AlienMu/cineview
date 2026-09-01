@@ -1,6 +1,6 @@
 {
-  "base": "http://localhost:4003",
-  "ranAt": "2026-08-30T08:01:12.225Z",
+  "base": "http://localhost:4001",
+  "ranAt": "2026-09-01T08:10:17.109Z",
   "pagesChecked": 80,
   "slugCount": 40,
   "failedPages": 0,

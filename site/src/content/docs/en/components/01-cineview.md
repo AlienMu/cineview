@@ -20,9 +20,9 @@ CineView is the root component: it picks the mode engine (drag paging / scroll d
 
 ### designWidth
 
-| field         | type     | default | notes                                                                                                                                                                                                                                                               |
-| ------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `designWidth` | `number` | `750`   | Design width base (design px). `scale = viewportWidth / designWidth`, the single conversion base for the whole page: coordinates and box-model lengths all multiply by it, width-only, never distorted. Locked zones still settle their time budgets at `1ms = 1px` |
+| field         | type     | default | notes                                                                                                                                                                                                                                                                           |
+| ------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `designWidth` | `number` | `750`   | Design width base (design px). `scale = viewportWidth / designWidth`, the single conversion base for the whole page: coordinates and box-model lengths all multiply by it, width-only, preserving the aspect ratio. Locked zones still settle their time budgets at `1ms = 1px` |
 
 `designWidth` is not a zoom knob; it is the design base. Changing it changes every design px with it. See [Responsive scaling](/docs/05-responsive).
 
@@ -128,7 +128,7 @@ ref.current?.goToZone('intro-seq', { align: 'center' });
 
 ## Error codes
 
-The `code` passed to `onError` is the `CineViewErrorCode` union, so a switch gets exhaustiveness checking. Recoverable errors carry `preventDefault`: skip it and the framework applies its default fallback; call it to take over, for example to render a retry UI.
+The `code` passed to `onError` is the `CineViewErrorCode` union, so a switch gets exhaustiveness checking. Recoverable errors carry `preventDefault`: if uncalled, the engine executes its default fallback strategy; calling it yields control to custom application logic (such as rendering a retry interface).
 
 | code                          | fired when                                                                   | recovery                                                                                                 |
 | ----------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -136,14 +136,14 @@ The `code` passed to `onError` is the `CineViewErrorCode` union, so a switch get
 | `IMAGE_LOAD_FAILED`           | A preloaded image failed                                                     | none                                                                                                     |
 | `FIRST_SCENE_TIMEOUT`         | First-screen priority assets timed out (`firstSceneTimeout`, default 3000ms) | Recoverable, with `preventDefault`; default fallback statically places the first scene in its rest state |
 | `INVALID_ANIMATION`           | An Animate `after` points at a component that does not exist                 | none                                                                                                     |
-| `CIRCULAR_DEPENDENCY`         | A `after` chain forms a cycle                                                | none                                                                                                     |
+| `CIRCULAR_DEPENDENCY`         | An `after` chain forms a cycle                                               | none                                                                                                     |
 | `INVALID_COMPONENT_HIERARCHY` | Duplicate `animateId`, or duplicate scroll zone identity                     | none                                                                                                     |
 | `INVALID_DRAG_CONFIG`         | Illegal drag `unit` / `scale` / `enabled` config                             | Recoverable                                                                                              |
 | `ANIMATION_ASSET_LOAD_FAILED` | An animation preset asset failed to load                                     | Retryable                                                                                                |
 
 ## Entries and bundle size
 
-At runtime CineView dispatches on `mode`, and the full `cineview` entry ships both engines. If you only use one mode, import the per-mode entry `cineview/drag` or `cineview/scroll` (exporting `CineViewDragProps` / `CineViewScrollProps` respectively). A single-file Universal Module Definition (UMD) build cannot code-split, so single-mode UMD consumers especially must pick the right entry. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).
+At runtime CineView dispatches on `mode`, and the full `cineview` entry ships both engines. When using only a single mode, import the per-mode entry `cineview/drag` or `cineview/scroll` (exporting `CineViewDragProps` / `CineViewScrollProps` respectively). A single-file Universal Module Definition (UMD) build cannot code-split, so single-mode UMD consumers especially must pick the right entry. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).
 
 ## Related pages
 

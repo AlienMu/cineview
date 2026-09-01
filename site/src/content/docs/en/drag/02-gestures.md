@@ -36,9 +36,9 @@ a, button, input, textarea, select, option, summary,
 [contenteditable="true"], [data-cineview-ignore-drag]
 ```
 
-`data-cineview-ignore-drag` is the opt-out you write yourself: add it to a custom slider, a draggable canvas, or a sub-region that needs same-axis scrolling, and the whole subtree stops triggering page turns.
+`data-cineview-ignore-drag` provides a declarative opt-out: applying it to custom sliders, draggable canvases, or nested scroll regions prevents that subtree from triggering scene navigation.
 
-There is a second way to opt out: your own `onPointerDown` is composed with the framework handler rather than replaced, so calling `event.preventDefault()` in yours makes the framework skip the gesture entirely.
+There is a second way to opt out: a custom `onPointerDown` is composed with the framework handler rather than replaced, so calling `event.preventDefault()` inside it causes the framework to skip gesture processing entirely.
 
 ## The direction check: tap versus drag
 
@@ -67,13 +67,13 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 
 A slow drag needs 30% of the screen; a flick above 1000 px/s needs only 15%. Two edge behaviors matter: a non-finite velocity returns `maxRatio` outright, and **setting `minVelocity` equal to `maxVelocity` pins the threshold at `maxRatio`** (the span is zero, so the same fallback applies).
 
-Three hardcoded numbers are not part of `threshold`:
+Three engine constants are not part of `threshold`:
 
 - Direction-reversal veto at 600 px/s: if the displacement qualifies but the finger is flicking back quickly, the commit is vetoed.
-- Boundary bounce of 150 ms: the rebound at the first screen going back or the last screen going forward, inconsistent with the ordinary bounce (displacement ratio × 800, capped at 300 ms).
+- Boundary bounce is a fixed 150 ms: that value applies at the first screen going back or the last screen going forward, whatever the drag distance. The ordinary bounce instead scales with displacement (ratio × 800, capped at 300 ms).
 - **A standalone Scene outside CineView uses a fixed threshold of 0.5**, and `threshold` config is ignored entirely in that case.
 
-Progress is divided by `window.innerHeight` / `window.innerWidth`, not by the container. A CineView embedded in an iframe, a split pane, or any non-full-height parent gets a distorted mapping: reaching progress 1 requires a full window's worth of movement.
+Progress is divided by `window.innerHeight` / `window.innerWidth`, not by the container. A CineView embedded in an iframe, a split pane, or any non-full-height parent receives an inaccurate progress mapping: reaching progress 1 requires a full window's worth of movement.
 
 ## How drag distance becomes element time
 
@@ -84,21 +84,21 @@ Progress is divided by `window.innerHeight` / `window.innerWidth`, not by the co
 | `'time'` (default) | `10`            | Each 1% dragged advances `scale` milliseconds                    |
 | `'percent'`        | `1`             | Each 1% dragged advances `scale` percent of the element timeline |
 
-The default `time + 10` pairing has a consequence you need to know: **dragging a full screen advances only 1000 ms of element time**, regardless of how long that scene's timeline is. A 6.5-second entrance is only about 15% scrubbed at full drag; the rest completes at real-time rate after release. For "half a drag equals half the timeline," switch to `unit: 'percent'`.
+With the default `time + 10` configuration, a full-screen drag interaction advances exactly 1000 ms of element timeline, regardless of that scene's total timeline duration. A 6.5-second entrance is only about 15% scrubbed at full drag; the remainder completes at real-time speed after release. To achieve proportional scrubbing across the entire timeline, set `unit: 'percent'`.
 
 `Scene.drag` can override this, but as a whole group: providing either `unit` or `scale` stops the group inheriting from the root, and the omitted field falls back to the framework default rather than the root's value. So with a root of `percent + 0.5`, a scene that writes only `scale: 2` resolves to `time + 2`.
 
-Fallbacks for values that are not valid are asymmetric: an incorrect `unit` also resets scale to the `time` default (even if you wrote percent), while an incorrect `scale` keeps the unit and resets only the scale. Both report `INVALID_DRAG_CONFIG`.
+Fallbacks for rejected configuration values are asymmetric: a rejected `unit` also resets scale to the `time` default (even if percent was specified), while a rejected `scale` retains the unit and resets only the scale. Both report `INVALID_DRAG_CONFIG`.
 
 ## drag.enabled applies to the target scene
 
 `Scene.drag.enabled` defaults to `true`. It is read from the target scene at ownership time, not from the scene under the finger.
 
-So setting `enabled: false` on scene 3 does not mean "you cannot drag away from scene 3"; it means scene 3 is unreachable from both scene 2 and scene 4. When blocked, `onDragBlocked` is reported at most once per direction per press. Programmatic navigation is unaffected.
+Setting `enabled: false` on Scene 3 does not prevent navigating away from Scene 3; rather, it renders Scene 3 unreachable from adjacent scenes (Scene 2 and Scene 4). When blocked, `onDragBlocked` is reported at most once per direction per press. Programmatic navigation is unaffected.
 
 ## Related pages
 
-- [Drag layout contract](/docs/01-layout): size defaults and hardcoded styles
+- [Drag layout contract](/docs/01-layout): size defaults and engine-level fixed styles
 - [Ownership and transactions](/docs/04-ownership): candidates, ownership, re-grab
 - [Drag callback timing](/docs/05-callbacks): which callbacks fire, and when
 - [CineView](/docs/01-cineview): the full drag-mode props table

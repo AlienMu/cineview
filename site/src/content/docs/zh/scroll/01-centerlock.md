@@ -1,13 +1,13 @@
 ---
-title: center-lock 滚动接管
+title: center-lock 滚动
 eyebrow: SCROLL / CENTER-LOCK
 ---
 
-给 `Scene` 配 `scroll={{ zoneId, trigger: 'center-lock' }}`，这个场景就成为锁定区（locked zone）：滚到它时视觉盒钉在视口中央，之后滚过的每一像素都变成 zone 的动画进度，预算走完页面才继续往下。`center-lock` 是唯一的 trigger。
+当为 `Scene` 配置 `scroll={{ zoneId, trigger: 'center-lock' }}` 时，该场景声明为锁定区（locked zone）：当滚动到达对应位置时，视觉容器固定于视窗中央，后续滚动位移直接转换为动画时间轴进度，预算消耗完毕后页面恢复常规文档流滚动。`center-lock` 是唯一的触发模式。
 
-## center-lock 就是 sticky 居中
+## center-lock 的定位机制
 
-这套机制不模拟滚动。锁定区场景渲染成三层：外层 wrapper 参与文档流并撑出高度，中间一层 `position: sticky` 的视觉壳，壳内是内容层。壳开始钉住的 `scrollTop` 是算出来的：在这个位置，视觉盒的中心正好对上视口中心。
+锁定区场景在 DOM 中分为三层：外层 wrapper 参与文档流并撑开滚动高度，中间层为 `position: sticky` 的视觉壳，内层承载内容。当滚动到达计算出的 `scrollTop` 时，视觉盒中心与视窗中心重合并保持静止。
 
 | 量                 | 公式                                                     | 含义                          |
 | ------------------ | -------------------------------------------------------- | ----------------------------- |
@@ -16,7 +16,7 @@ eyebrow: SCROLL / CENTER-LOCK
 | `segmentStart`     | `centerLockOffset`                                       | 锁定段起点                    |
 | `segmentEnd`       | `centerLockOffset + totalBudgetPx`                       | 锁定段终点                    |
 
-超屏场景（视觉盒高于视口）靠 wrapper 的 `paddingTop` 把壳压到那个位置，不足屏场景靠壳自身的 `top` inset，两种情形算出同一个 `centerLockOffset`。JS 里的 segment 只是对这段 sticky 行程的**描述**，不是驱动它的东西：把脚本全停掉，壳照样钉在那儿。
+超屏场景（视觉盒高度大于视窗高度）通过 wrapper 的 `paddingTop` 调整视觉壳位置；不足屏场景则通过视觉壳自身的 `top` inset 对齐。两种情形均计算出相同的 `centerLockOffset`。
 
 ## 滚动距离从哪来
 
@@ -38,7 +38,7 @@ flowSpan = max(visualSpan, viewportSpan) + timelineDistancePx
 </CineView>
 ```
 
-这段 JSX 的 zone 预算是 800px：观众要真实滚过 800px，标题才从 0 走到 1。
+这段 JSX 的 zone 预算是 800px：需滚动 800px 物理距离，标题动画才完整执行（0 至 1）。
 
 ## 进度是纯函数
 
@@ -48,24 +48,24 @@ zone 进度没有累加器，也没有所有权记忆：
 progressPx = clamp(nativeOffset - segmentStart, 0, totalBudgetPx)
 ```
 
-一个 `clamp` 就是全部，它直接带来两个结果。反向滚回段内时 `nativeOffset` 从 `segmentEnd` 递减，进度自然 `100% → 0%`，动画停在对应那一帧，没有反向特判，也没有要配置的东西。刷新、跳转、resize 之后也不存在状态跑偏：进度永远只由当前 `scrollTop` 决定。
+反向滚回段内时 `nativeOffset` 从 `segmentEnd` 递减，进度线性由 `100%` 变为 `0%`，画面回退至对应时间节点。页面刷新、容器 resize 或跳转后，进度始终仅由当前 `scrollTop` 计算确定。
 
 段的两端各有 0.01px 的吸附：进度落在端点附近时直接取 0 或满值，避免浮点残差让最后一帧永远差一点。
 
-## 防跳过
+## 防跳过拦截机制
 
-一次大 flick 或长按键会产生远大于段长的滚动增量。引擎在写入 `scrollTop` 之前先过一道防跳过钳制，规则按方向镜像：
+快速甩动（flick）或长按键盘可能产生远大于锁定段长度的滚动增量。引擎在更新 `scrollTop` 之前执行防跳过边界拦截，规则按方向对称处理：
 
 | 情形                       | 最终位置                            |
 | -------------------------- | ----------------------------------- |
 | 正向从段外一跃跨过整段     | `min(segmentStart + 1, segmentEnd)` |
-| 正向已在段内、目标越过段尾 | 精确钳到 `segmentEnd`               |
+| 正向已在段内、目标越过段尾 | 精确对齐到 `segmentEnd`             |
 | 反向从段外一跃跨过整段     | `max(segmentEnd - 1, segmentStart)` |
-| 反向已在段内、目标越过段首 | 精确钳到 `segmentStart`             |
+| 反向已在段内、目标越过段首 | 精确对齐到 `segmentStart`           |
 
-第一行是这条规则最要紧的一种情况：**再大的 flick 也被压成「段内一像素」**，观众必然看到锁定段的第一帧，而不是瞬移过去。段外的普通滚动完全不受影响。
+当快速正向划过整个区间时，目标位置被约束为 `segmentStart + 1`，确保画面展示锁定段初始帧而非直接跳过。锁定段外部的普通滚动不受此约束影响。
 
-只有段长超过 0.5px 的段参与这道钳制。程序化滚动（`goToScene` / `goToZone`）刻意不经过这道钳制，原因在「程序化跳转」一节。
+仅段长超过 0.5px 的区间参与该项边界约束。程序化滚动（`goToScene` / `goToZone`）不执行防跳过拦截，具体原因见程序化跳转章节。
 
 ## 程序化跳转
 
@@ -86,11 +86,11 @@ ref.current!.goToZone('hero-seq', { animated: true });
 | `animated` | `boolean`  | `true` | `true` 用 `behavior: 'smooth'`，`false` 立即到位 |
 | `align`    | `'center'` | 无     | 公共类型里有，实现丢弃，写不写都一样             |
 
-跳转后总是停在 `centerLockOffset`，也就是这个 zone 的**进度 0**，不是 zone 的中点。`align: 'center'` 那一格是公共类型与实现不一致的地方，别按它的字面意思规划跳转。
+跳转目标位置始终为 `centerLockOffset`，即该锁定区的进度起始点（进度 0）。
 
-平滑滚动在途期间引擎不做防跳过钳制：那道钳的纠正性 `scrollTo` 会按 CSSOM 规范中断平滑动画，滚动停在中途、到不了目标。程序化滚动的每一帧本来就是连续的，跨过的每个段都会自然产生段内帧，不需要钳制。任何真实用户输入（滚轮、触摸、按键、拖滚动条）会当场收回控制权，把在途目标作废。
+平滑滚动执行期间跳过防跳过拦截，避免纠正性 `scrollTo` 按 CSSOM 规范中断平滑过渡动画。真实用户输入（滚轮、触控、按键、滚动条拖拽）进入时会立即终止平滑动画并收回控制权。
 
-## 观测 zone
+## 观测锁定区状态
 
 三个 scroll 专属回调覆盖 zone 生命周期：
 
@@ -102,13 +102,13 @@ ref.current!.goToZone('hero-seq', { animated: true });
 
 `progress` 是 0 到 1 的归一化值（`progressPx / totalBudgetPx`）。0.5px 的阈值比的是上次上报值而不是上一帧，否则慢速滚动会每帧重置基线、永远不上报。0 与满值两个端点强制透出，即使最后一帧只动了不到 0.5px。
 
-active 的判据比「进度非零」更严：`nativeOffset` 必须严格落在段内 0.5px 以外，且进度也在两端 0.5px 以外。零预算的 zone 永远不 active，这三个回调一次都不会发，见 [zone 与滚动预算](/docs/02-zones-budget)。
+锁定区处于 active 状态的判定条件：`nativeOffset` 位于段内且与两端保持 0.5px 以上间距，同时进度亦处于两端 0.5px 范围之外。预算为 0 的锁定区不进入 active 状态，上述回调均不触发，详见 [zone 与滚动预算](/docs/02-zones-budget)。
 
 完整 callback 表见[回调](/docs/03-callbacks)。
 
 ## 相关页面
 
-- [zone 与滚动预算](/docs/02-zones-budget)：预算怎么算出来，phase 怎么改写窗口
-- [四条输入路径](/docs/03-inputs)：防跳过钳制上游的四种输入与释放机制
-- [Scene 作用域固定层](/docs/04-fixed-layer)：锁定区里怎么钉住元素
-- [scroll 排错](/docs/06-scroll-pitfalls)：本页机制对应的常见故障
+- [zone 与滚动预算](/docs/02-zones-budget)：预算计算与时间轴窗口映射
+- [四条输入路径](/docs/03-inputs)：输入归一化与释放机制
+- [Scene 作用域固定层](/docs/04-fixed-layer)：锁定区内的元素固定机制
+- [scroll 排错](/docs/06-scroll-pitfalls)：常见故障排查

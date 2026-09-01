@@ -3,9 +3,9 @@ title: Runtime states
 eyebrow: CONCEPTS / STATES
 ---
 
-The framework maintains a runtime state reading for every scene, consumed by `Animate` and by pointer events. It decides whether a scene animates and whether it can be clicked, and it is one of the mechanisms that keeps continuous animation from spinning off-screen.
+The framework maintains a runtime state for every scene, consumed by `Animate` and event handling pipelines. It coordinates motion activation and interactivity, preventing off-screen elements from consuming redundant rendering resources.
 
-## The six values
+## Six possible states
 
 | Runtime state | Meaning                                                  | Interactive |
 | ------------- | -------------------------------------------------------- | ----------- |
@@ -26,9 +26,9 @@ This is one of the key differences between `loopAnimation` and CSS `animation: â
 
 So the inconsistent behavior of "every other element has exited but this one is still moving" usually comes from a hand-rolled CSS loop used instead of `loopAnimation`. See [Troubleshooting](/docs/07-common-pitfalls).
 
-## In scroll, the state is derived from the phase
+## Deriving state from timeline phase in scroll mode
 
-In scroll mode the runtime state derives from the scene timeline's phase rather than from index distance:
+In scroll mode, runtime states derive from the scene timeline's lifecycle phase rather than index distance:
 
 | Scene phase | Derived runtime state                                   |
 | ----------- | ------------------------------------------------------- |
@@ -39,7 +39,7 @@ In scroll mode the runtime state derives from the scene timeline's phase rather 
 
 Whether an exit animation exists changes the outcome: a scene with no exit never passes through `exiting` or `parked` and counts as `covered` directly. Separately, when a scene above stacks in cover mode, the one underneath is also judged `covered`.
 
-## How this differs from sceneState
+## Differences from sceneState
 
 The framework also keeps an internal `sceneState` (`initial` / `entering` / `active` / `exiting`). The two are often confused:
 
@@ -50,11 +50,11 @@ The framework also keeps an internal `sceneState` (`initial` / `entering` / `act
 | Purpose | Drives the scene's own visuals and transitions | Handed to `Animate`, decides `pointer-events` |
 | Values  | Four                                           | Six (adds `covered` / `parked`)               |
 
-Neither value is directly readable through the public API. What you can observe from outside is `Scene.callbacks.onVisibilityChange` (visibility and progress) plus the element-side phase, see [The Animate timeline](/docs/02-timeline).
+Neither value is directly exposed through the public API. Observable properties from the outside include `Scene.callbacks.onVisibilityChange` (visibility and progress) and element-side phases, see [Animate timeline](/docs/02-timeline).
 
 ## Related pages
 
-- [The Animate timeline](/docs/02-timeline): how element-level phases relate to runtime state
+- [Animate timeline](/docs/02-timeline): how element-level phases relate to runtime state
 - [Visibility conditions](/docs/03-visibility-conditions): enter and exit criteria for non-zone elements
 - [DOM and layout contract](/docs/06-dom-contract): where `pointer-events` and stacking actually land
 - [Troubleshooting](/docs/07-common-pitfalls): why CSS infinite animations are unbound

@@ -1,0 +1,62 @@
+# 依赖更新。为什么需要它：本仓库曾同时落后 vite 3 个大版本、eslint 2 个、
+# typescript 2 个、@typescript-eslint 2 个、@testing-library/react 2 个
+# （后者是 React 19 专线假绿的直接原因：^14 不支持 React 19，需 ≥16）。
+#
+# 分组策略：把同一生态的包合成一个 PR，避免 7 个独立 PR 各自触发全套 CI。
+# 大版本单独开 PR —— 它们需要人读 migration guide，不该混在补丁堆里。
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      typescript-eslint:
+        patterns:
+          - '@typescript-eslint/*'
+          - eslint
+          - eslint-*
+        update-types: [minor, patch]
+      jest:
+        patterns:
+          - jest
+          - jest-*
+          - '@types/jest'
+          - ts-jest
+          - babel-jest
+        update-types: [minor, patch]
+      testing-library:
+        patterns:
+          - '@testing-library/*'
+        update-types: [minor, patch]
+      build-toolchain:
+        patterns:
+          - vite
+          - '@vitejs/*'
+          - terser
+          - rollup
+          - rollup-*
+        update-types: [minor, patch]
+      types:
+        patterns:
+          - '@types/*'
+        update-types: [minor, patch]
+    ignore:
+      # peer 范围故意宽（^18 || ^19），由 CI 的 react-19 专线覆盖，
+      # 不需要 dependabot 去顶 devDependency 的 React 版本。
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

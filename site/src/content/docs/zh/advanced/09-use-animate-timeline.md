@@ -3,7 +3,7 @@ title: useAnimateTimeline
 eyebrow: ADVANCED / USEANIMATETIMELINE
 ---
 
-`useAnimateTimeline()` 返回最近的 `Animate` 时间轴的只读视图：`progress` / `signedProgress` / `phase` / `frame` 全部是 MotionValue，更新不经过 React 渲染管线。做连续值 style 绑定或 canvas 自绘时用它；想在 React 渲染里直接拿数字，用 render-prop children 的 `enterProgress` 即可，见 [Animate](/docs/03-animate)。
+`useAnimateTimeline()` 返回最近的 `Animate` 时间轴的只读视图：`progress` / `signedProgress` / `phase` / `frame` 全部是 MotionValue，更新不经过 React 渲染管线。适用于连续值 style 样式映射或 canvas 自绘场景；若仅需在 React 渲染逻辑中消费数值标量，直接使用 render-prop children 暴露的 `enterProgress` 即可，见 [Animate](/docs/03-animate)。
 
 ## 调用约束
 
@@ -13,7 +13,7 @@ eyebrow: ADVANCED / USEANIMATETIMELINE
 useAnimateTimeline must be used inside an <Animate> child.
 ```
 
-时间轴由框架独家写入；返回对象全部 `readonly`，没有任何写入方法。
+时间轴数据由引擎内部统一维护与驱动；返回对象字段均为 `readonly`，不暴露任何外部写入接口。
 
 ## 返回字段
 
@@ -23,7 +23,7 @@ useAnimateTimeline must be used inside an <Animate> child.
 | `driver`         | `AnimateTimelineLane`               | 该元素实际的驱动方式：`'drag' \| 'scroll' \| 'visibility'`。scroll 模式下不在锁定区内的元素按 `visibility` 算。                                                               |
 | `progress`       | `MotionValue<number>`               | 入场进度 0..1。                                                                                                                                                               |
 | `signedProgress` | `MotionValue<number>`               | 带符号进度，退场时向负方向推进，用来区分「进入中」和「退出中」。                                                                                                              |
-| `phase`          | `MotionValue<AnimatePhase>`         | 六态相位：`'idle' \| 'waiting' \| 'entering' \| 'entered' \| 'exiting' \| 'exited'`。                                                                                         |
+| `phase`          | `MotionValue<AnimatePhase>`         | 动画六态阶段：`'idle' \| 'waiting' \| 'entering' \| 'entered' \| 'exiting' \| 'exited'`。                                                                                     |
 | `frame`          | `MotionValue<AnimateTimelineFrame>` | 一次更新里的完整快照 `{ progress, signedProgress, phase, source }`：四个值总是一起更新。分开订阅 progress 和 phase 可能读到新旧混搭（新 progress 配旧 phase），`frame` 不会。 |
 
 `frame.source` 的类型是 `AnimateTimelineSource`，六个取值：`'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility'`。
@@ -48,13 +48,11 @@ function ParallaxLayer() {
 
 ## scroll 锁定区内 phase 不更新
 
-这条必须先讲，否则「canvas 自绘」一节的写法会被套用到错误的地方。
-
-**元素在 scroll 锁定区（locked zone）内时，`phase` 不会更新，停在 `'idle'`。** phase 描述的是按可见性进出的动画；锁定区内的动画完全由滚动位置驱动，不经过 phase，所以没有任何东西会把它推进到 `entering` / `entered` / `exiting`。**注意这只发生在 scroll 锁定区内**：drag 模式下相位照常推进（`hidden→idle`、`enter→entering/entered`、`rest→entered`、`outgoing→exiting`），drag 下按 phase 判断是正确做法。此时 `progress` 与 `signedProgress` 照常跟随滚动，只有 `phase` 停在 `idle`。
+**元素在 scroll 锁定区（locked zone）内时，`phase` 不会更新，保持在 `'idle'`。** phase 描述基于视窗可见性进出时的动画状态；锁定区内的动画由滚动位置精确驱动，不经过可见性阶段状态机推进，因此不会切换至 `entering` / `entered` / `exiting`。**该行为仅适用于 scroll 锁定区**：drag 模式下阶段状态正常推进（`hidden→idle`、`enter→entering/entered`、`rest→entered`、`outgoing→exiting`），在 drag 模式下依据 phase 执行状态判断符合设计预期。此时 `progress` 与 `signedProgress` 仍跟随滚动实时变化，仅 `phase` 维持在 `idle`。
 
 render-prop children 拿到的 `state.phase` 同源，同样停在 `idle`。
 
-直接后果：**「订阅 `phase`，在 `exited` / `idle` 时停 rAF」这条规则在锁定区内会让循环立刻停住，而且不再启动**。区内要判断「还该不该画」，用这两个信号之一：
+在锁定区内如果仅依赖 `phase !== 'idle'` 控制 rAF 循环的暂停与唤醒，会导致渲染循环过早终止且无法重新启动。锁定区内如需判断绘制周期，可选用以下两种判定方案之一：
 
 - `signedProgress`：`0` 是初始帧，`1` 是完全进入，负值表示退场方向。
 - `frame.source`：`frame` 快照里带着驱动来源，可用来区分 `scroll` 与 `visibility`。
@@ -92,6 +90,6 @@ function Meter() {
 
 不订阅 `phase` 就停不住：元素已退场、canvas 还在全速重绘。
 
-## 不要自己另起 useSpring
+## 避免引入外部弹簧驱动
 
-连续值一律从本 hook 返回的 MotionValue 派生，不要自建 `useSpring` 或独立的动画循环。spring 按自己的节奏收尾，不跟随滚动：退场进度由手势决定走多远，弹簧按自己的参数停下，两个叠在一起就是视觉上的过冲或「永远差一点到位」。
+连续值一律从本 hook 返回的 MotionValue 派生，避免自建 `useSpring` 或独立的动画循环。弹簧物理模拟具备独立的阻尼与衰减节奏，无法与手势驱动的滚动位移严格同步，两者的叠加会导致视觉过冲或定位偏差。

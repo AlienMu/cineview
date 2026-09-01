@@ -3,7 +3,7 @@ title: The Animate timeline
 eyebrow: CONCEPTS / TIMELINE
 ---
 
-Every `Animate` element runs on a timeline: `phase` tells you which segment it is in, `timeline.*` decides what drives it and when it starts, and `enterRef` / `exitRef` are the manual override.
+Every `Animate` element runs on a dedicated timeline: `phase` indicates its current lifecycle state, `timeline.*` configures its driver and scheduling, and `enterRef` / `exitRef` provide manual control.
 
 ## phase: the six states
 
@@ -20,9 +20,9 @@ Two ways to read it: render-prop children receive `{ enterProgress, phase }`; in
 
 **`phase` does not advance inside a locked zone.** For an element inside a locked zone it stays at `idle`, while `progress` scrubs with scrolling as usual. So any "keep drawing while phase says so" logic stops immediately inside a zone; use `signedProgress` or `frame.source` there instead. Drag mode is unaffected and runs the full set of phases. See [useAnimateTimeline](/docs/09-use-animate-timeline).
 
-## driver: who drives the progress
+## driver: timeline drivers
 
-`timeline.driver` decides who drives the progress, either `'scene'` (default) or `'clock'`. All five cases:
+`timeline.driver` configures the source that drives progress, accepting either `'scene'` (default) or `'clock'`. The driving rules across modes and configurations are as follows:
 
 | driver    | context                                       | driven by                                                                      |
 | --------- | --------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -32,7 +32,7 @@ Two ways to read it: render-prop children receive `{ enterProgress, phase }`; in
 | `'clock'` | scroll                                        | forced to the visibility conditions on its own (even inside a zone)            |
 | `'clock'` | drag                                          | plays independently in real time once the scene arrives                        |
 
-The last row needs care: with `driver: 'clock'` + drag the element **does not join the registry / `after` / T_self, and ignores `exitAnimation`**: the exit animation never plays. Do not count on it.
+The last row needs care: with `driver: 'clock'` + drag the element **does not join the registry / `after` / T_self, and ignores `exitAnimation`**: the exit animation does not play.
 
 ## delay, after, and phase ranges
 
@@ -43,7 +43,7 @@ The last row needs care: with `driver: 'clock'` + drag the element **does not jo
 
 Full timeline rules (chain resolution, stagger, mirrored exits) live in [Timeline](/docs/04-orchestration). One rule up front: **if the entrance cascades with `after`, the exit needs a mirrored reverse timeline**, or every element exits in the same frame.
 
-## enterRef / exitRef: manual takeover
+## enterRef / exitRef: manual triggers
 
 Both refs are manual triggers on the element's timeline. The type is `MutableRefObject<(() => void) | null>`, so call `ref.current?.()` to trigger.
 
@@ -55,7 +55,7 @@ Both refs are manual triggers on the element's timeline. The type is `MutableRef
 
 **`exitRef`** is stricter:
 
-- Setting it disables _all_ automatic exits: leaving a scroll zone or switching away in drag mode does not exit the element; you must call it manually.
-- **No delay fallback exists.** Set `exitRef` and forget to call it at the right moment, and the element stays on screen forever. If you want the automatic fallback, do not pass `exitRef`.
+- Setting it disables _all_ automatic exits: leaving a scroll zone or switching away in drag mode does not exit the element; exit must be triggered manually via the ref.
+- **No delay fallback exists.** If `exitRef` is assigned without being invoked, the element remains mounted indefinitely. Omitting `exitRef` preserves the automatic exit fallback.
 
 The full props table: [Animate reference](/docs/03-animate).

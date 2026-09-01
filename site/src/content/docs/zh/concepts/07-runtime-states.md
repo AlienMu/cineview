@@ -3,7 +3,7 @@ title: 运行态
 eyebrow: CONCEPTS / STATES
 ---
 
-框架给每个场景维护一个运行态读数，供 `Animate` 与指针事件消费。它决定了「这个场景现在该不该动、能不能点」，也是持续动画不会在离屏后台空转的机制之一。
+框架为每个场景维护运行时状态，供 `Animate` 与交互事件调度消费。该状态控制场景的动效激活与事件响应，避免离屏元素产生无谓的后台渲染开销。
 
 ## 六个取值
 
@@ -22,15 +22,15 @@ eyebrow: CONCEPTS / STATES
 
 **运行态处于 `covered` / `inactive` / `parked` / `exiting` 时，默认停止持续动画。**
 
-这是 `loopAnimation` 与 CSS `animation: … infinite` 的关键差别之一：CSS 无限动画不受任何运行态约束，元素退场后照样每帧重绘；而 `loopAnimation` 由框架按运行态与视口相交共同裁决，退出自己的相位或滚出视口即停。
+这是 `loopAnimation` 与 CSS `animation: … infinite` 的关键差别之一：CSS 无限动画不受任何运行态约束，元素退场后照样每帧重绘；而 `loopAnimation` 由框架按运行态与可视区域相交共同裁决，退出当前生命周期阶段或移出可视区域时立即停止。
 
 所以「其他元素都退场了，这一个还在动」这类不一致行为，通常是没用 `loopAnimation`、自写了 CSS 无限动画造成的。见 [排错](/docs/07-common-pitfalls)。
 
-## scroll 下按相位推导
+## scroll 下按阶段推导
 
-scroll 模式的运行态由场景时间轴的相位推导，而不是由索引距离推导：
+scroll 模式的运行态由场景时间轴的执行阶段推导，而非依据索引距离计算：
 
-| 场景相位 | 推导出的运行态                         |
+| 场景阶段 | 对应运行时状态                         |
 | -------- | -------------------------------------- |
 | `enter`  | `entering`                             |
 | `exit`   | 有退场动画 → `exiting`；否则 `covered` |
@@ -50,11 +50,11 @@ scroll 模式的运行态由场景时间轴的相位推导，而不是由索引�
 | 用途 | 驱动场景自身的视觉与进退场 | 下发给 `Animate`、决定 `pointer-events` |
 | 取值 | 四个                       | 六个（多 `covered` / `parked`）         |
 
-公共 API 上你不会直接读到这两个值中的任何一个。从外部能观察到的是 `Scene.callbacks.onVisibilityChange`（可见性与进度）以及元素侧的相位，见 [Animate 时间轴](/docs/02-timeline)。
+公共 API 不会直接暴露这两个值。外部可观察的是 `Scene.callbacks.onVisibilityChange`（可见性与进度）以及元素侧的生命周期阶段，见 [Animate 时间线](/docs/02-timeline)。
 
 ## 相关页面
 
-- [Animate 时间轴](/docs/02-timeline)：元素级相位与运行态的关系
-- [可见性条件](/docs/03-visibility-conditions)：非 zone 元素的进退场判据
+- [Animate 时间线](/docs/02-timeline)：元素级生命周期阶段与运行态的关系
+- [可见性条件](/docs/03-visibility-conditions)：非 zone 元素的进退场判定规则
 - [DOM 与布局契约](/docs/06-dom-contract)：`pointer-events` 与层叠实际在哪里生效
 - [排错](/docs/07-common-pitfalls)：CSS 无限动画为什么不受约束
