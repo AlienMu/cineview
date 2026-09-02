@@ -35,6 +35,10 @@ jobs:
       - run: pnpm type-check
       - run: pnpm type-check:site
       - run: pnpm test:site-contracts
+      # Source-level docs style gate (frontmatter eyebrows, fenced-code languages,
+      # banned vocabulary, abbreviation expansion). Needs no browser, so it belongs
+      # here rather than in the acceptance job.
+      - run: pnpm docs:style:static
       - run: pnpm --dir site build
       - run: pnpm --dir examples/performance-test build
 
