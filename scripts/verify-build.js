@@ -356,8 +356,14 @@ function checkPackedTarballConsumer() {
         env: { ...process.env, HUSKY: '0' },
       }
     );
-    const jsonStart = packOutput.lastIndexOf('\n[');
-    const packResult = JSON.parse(packOutput.slice(jsonStart >= 0 ? jsonStart + 1 : 0));
+    // npm mixes lifecycle-script stdout into its --json output. The previous
+    // heuristic looked for a newline before the opening bracket, which husky 9
+    // broke: it prints "HUSKY=0 skip install" with NO trailing newline, so the
+    // banner arrives glued to the bracket and the slice started mid-banner
+    // ("Unexpected token 'H'"). Parse from the first bracket instead — the
+    // banners npm and husky emit contain neither `[` nor `{`.
+    const jsonStart = packOutput.search(/[[{]/);
+    const packResult = JSON.parse(packOutput.slice(jsonStart >= 0 ? jsonStart : 0));
     const tarballPath = path.join(tempRoot, packResult[0].filename);
     const fixtureRoot = path.join(tempRoot, 'fixture');
     const fixtureModules = path.join(fixtureRoot, 'node_modules');
