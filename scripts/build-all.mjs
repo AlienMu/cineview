@@ -107,7 +107,7 @@ for (const [index, pass] of passes.entries()) {
       CINEVIEW_ENTRY: pass.entry,
       CINEVIEW_OUT_BASE: pass.outBase,
       CINEVIEW_FORMATS: pass.formats,
-      // 只有第一趟清空 dist（见 vite.config.ts 的 CLEAN_OUT_DIR）。
+      // 只有第一趟清空 dist（见 vite.config.mts 的 CLEAN_OUT_DIR）。
       CINEVIEW_CLEAN: index === 0 ? '1' : '0',
     },
   });

@@ -311,7 +311,7 @@ function checkPeerExternalizationAndSourceMaps() {
   log('\n9. 检查 peer externalization/source maps:', 'yellow');
   try {
     const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
-    const viteConfig = fs.readFileSync(path.join(__dirname, '../vite.config.ts'), 'utf8');
+    const viteConfig = fs.readFileSync(path.join(__dirname, '../vite.config.mts'), 'utf8');
     const peerDependencies = Object.keys(pkg.peerDependencies || {});
     const externalizedPeers = peerDependencies.every(
       (dependency) =>
