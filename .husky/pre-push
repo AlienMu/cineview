@@ -1,6 +1,3 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
 # Runs the SAME command CI runs. The previous pair (type-check + test:coverage)
 # skipped lint, format:check, build:verify, quality:duplicates and both
 # failure-injection gates — so a push could be green here and red in CI on five
