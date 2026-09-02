@@ -22,6 +22,39 @@ const animationControlsRegistry: Array<{
   stop: jest.Mock;
 }> = [];
 
+// Live per-element style lanes recorded by the motion.div stub. Reading through
+// this map (rather than a render-time snapshot) means an assertion always sees
+// the CURRENT value of the lane, exactly like a real framer-motion style binding.
+const motionStyleLanes = new WeakMap<HTMLElement, Record<string, MotionValue<unknown>>>();
+
+function isMotionValueLike(value: unknown): value is MotionValue<unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { get?: unknown }).get === 'function' &&
+    typeof (value as { on?: unknown }).on === 'function'
+  );
+}
+
+/**
+ * Resolved style of an Animate's outer motion.div — the derived values the
+ * component actually drives, not the props it was handed. `id` selects the
+ * `data-cineview-animate-id` host when a test renders more than one Animate.
+ */
+function resolvedStyle(id?: string): Record<string, unknown> {
+  const selector = id ? `[data-cineview-animate-id="${id}"]` : '.cineview-animate';
+  const element = document.querySelector(selector) as HTMLElement | null;
+  if (!element) throw new Error(`resolvedStyle: no element for selector ${selector}`);
+  const lanes = motionStyleLanes.get(element);
+  if (!lanes) throw new Error('resolvedStyle: element carries no motion style lanes');
+  return Object.fromEntries(Object.entries(lanes).map(([key, lane]) => [key, lane.get()]));
+}
+
+/** Convenience for the single most-asserted lane. */
+function resolvedOpacity(id?: string): number {
+  return resolvedStyle(id).opacity as number;
+}
+
 // Mock framer-motion
 jest.mock('framer-motion', () => {
   const React = jest.requireActual('react');
@@ -62,12 +95,24 @@ jest.mock('framer-motion', () => {
         void animate;
         void variants;
         void custom;
+        // Split MotionValue lanes out of `style`: React cannot render them, and
+        // keeping a live handle is what lets a test read the DERIVED value.
+        const staticStyle: Record<string, unknown> = {};
+        const lanes: Record<string, unknown> = {};
+        Object.entries(style ?? {}).forEach(([key, value]) => {
+          if (isMotionValueLike(value)) lanes[key] = value;
+          else staticStyle[key] = value;
+        });
+        const register = (node: HTMLElement | null): void => {
+          if (node) motionStyleLanes.set(node, lanes as Record<string, MotionValue<unknown>>);
+        };
         return (
           <div
+            ref={register}
             data-testid="motion-div"
             data-initial={JSON.stringify(initial)}
             {...props}
-            style={style}
+            style={staticStyle as React.CSSProperties}
           >
             {children}
           </div>
@@ -96,8 +141,34 @@ jest.mock('framer-motion', () => {
 
       return controlsRef.current;
     },
-    useMotionValue: (initial: number) => createMotionValueStub(initial),
-    useTransform: () => createMotionValueStub(0),
+    // Stable across renders, like the real hook. The previous stub minted a new
+    // MotionValue every render, so nothing downstream could ever observe a change.
+    useMotionValue: (initial: number) => {
+      const ref = React.useRef(null);
+      if (ref.current === null) ref.current = createMotionValueStub(initial);
+      return ref.current;
+    },
+    // Faithful: subscribe to the source, run the mapping function, republish.
+    // The old stub ignored BOTH arguments and returned a constant 0, which is why
+    // every derived lane in this file used to read 0 no matter what drove it.
+    useTransform: (
+      source: { get: () => unknown; on: (e: string, l: (v: unknown) => void) => () => void },
+      transform: (input: unknown) => unknown
+    ) => {
+      const ref = React.useRef(null);
+      if (ref.current === null) {
+        ref.current = createMotionValueStub(transform(source.get()) as number);
+      }
+      const derived = ref.current;
+      React.useEffect(
+        () => source.on('change', (value: unknown) => derived.set(transform(value))),
+        [source, transform, derived]
+      );
+      // Renders are not frames: re-run the mapping on every render so a variant
+      // swap is visible without waiting for the source to move.
+      derived.set(transform(source.get()));
+      return derived;
+    },
     useMotionValueEvent: (
       motionValue: { on: (event: string, listener: (value: number) => void) => () => void },
       event: string,
@@ -288,6 +359,191 @@ describe('Animate Component', () => {
 
     return render(<ScrollInfiniteProbe />);
   };
+
+  // N4 — derived visual lanes.
+  //
+  // Before this block the file had 118 `expect`s and ZERO of them read a value the
+  // component computes: 63 were `toBeInTheDocument`, the rest checked props and call
+  // logs. A mutation that made a lane ignore its own input left all 110 tests green.
+  // These assertions read the resolved style off the outer motion.div, so a lane that
+  // stops following its driver turns this file red.
+  describe('derived visual lanes', () => {
+    it('drives the opacity lane from the element track across a cold-start enter', async () => {
+      const context = createMockSceneContext({
+        firstSceneEnterActive: true,
+        sharedTimelineDurationMs: 600,
+      });
+
+      render(
+        <SceneContext.Provider value={context}>
+          <Animate animateId="enter-lane" enterAnimation="fade-in" duration={{ enter: 600 }}>
+            <div>Test Content</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+      await waitFor(() => expect(resolvedOpacity('enter-lane')).toBe(0));
+
+      const track = context.sharedElapsedMotion as MotionValue<number>;
+      const samples: number[] = [];
+      for (const elapsedMs of [0, 150, 300, 450, 600]) {
+        await act(async () => {
+          track.set(elapsedMs);
+        });
+        samples.push(resolvedOpacity('enter-lane'));
+      }
+
+      // fade-in over a 600ms enter: the lane is the track, linearly mapped.
+      expect(samples).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    });
+
+    it('scrubs the exit opacity lane from renderProgress while the active scene slides away', async () => {
+      const contextAt = (renderProgress: number): SceneContextType =>
+        createMockSceneContext({
+          isDragging: true,
+          sceneState: 'exiting',
+          renderProgress,
+          sceneTransitionDuration: 800,
+        });
+      const tree = (context: SceneContextType): JSX.Element => (
+        <SceneContext.Provider value={context}>
+          <Animate animateId="exit-lane" enterAnimation="fade-in" exitAnimation="fade-out">
+            <div>Test Content</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+
+      const { rerender } = render(tree(contextAt(0)));
+      await waitFor(() => expect(resolvedOpacity('exit-lane')).toBe(1));
+
+      const samples: number[] = [];
+      for (const renderProgress of [0, 0.25, 0.5, 0.75, 1]) {
+        await act(async () => {
+          rerender(tree(contextAt(renderProgress)));
+        });
+        samples.push(resolvedOpacity('exit-lane'));
+      }
+
+      // 800ms of render travel against a 600ms exit: the fade completes at 0.75
+      // and then holds, it does not keep going negative or snap back.
+      expect(samples[0]).toBe(1);
+      expect(samples[1]).toBeCloseTo(2 / 3, 6);
+      expect(samples[2]).toBeCloseTo(1 / 3, 6);
+      expect(samples[3]).toBe(0);
+      expect(samples[4]).toBe(0);
+      // Strictly decreasing until it bottoms out — a lane stuck on its input reads flat.
+      expect(samples[1]).toBeLessThan(samples[0]);
+      expect(samples[2]).toBeLessThan(samples[1]);
+    });
+
+    it('holds every non-animated lane at its own default while opacity moves', async () => {
+      const context = createMockSceneContext({
+        firstSceneEnterActive: true,
+        sharedTimelineDurationMs: 600,
+      });
+
+      render(
+        <SceneContext.Provider value={context}>
+          <Animate animateId="defaults-lane" enterAnimation="fade-in" duration={{ enter: 600 }}>
+            <div>Test Content</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+      await waitFor(() => expect(resolvedOpacity('defaults-lane')).toBe(0));
+
+      await act(async () => {
+        (context.sharedElapsedMotion as MotionValue<number>).set(600);
+      });
+
+      // A fade touches opacity only. Every other lane must sit at its property
+      // default — a lane wired to the wrong source shows up here as a moved value.
+      expect(resolvedStyle('defaults-lane')).toEqual({
+        opacity: 1,
+        x: 0,
+        y: 0,
+        scale: 1,
+        rotate: 0,
+        rotateX: 0,
+        rotateY: 0,
+        skewX: 0,
+        skewY: 0,
+        filter: 'none',
+      });
+    });
+
+    it('resolves a custom variant into the x and scale lanes, not just opacity', async () => {
+      const context = createMockSceneContext({
+        firstSceneEnterActive: true,
+        sharedTimelineDurationMs: 600,
+      });
+
+      render(
+        <SceneContext.Provider value={context}>
+          <Animate
+            animateId="custom-lane"
+            enterAnimation={{
+              initial: { opacity: 0, x: 100, scale: 0.5 },
+              animate: { opacity: 1, x: 0, scale: 1 },
+            }}
+            duration={{ enter: 600 }}
+          >
+            <div>Test Content</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+      await waitFor(() => expect(resolvedStyle('custom-lane').x).toBe(100));
+
+      const track = context.sharedElapsedMotion as MotionValue<number>;
+      await act(async () => {
+        track.set(300);
+      });
+      const half = resolvedStyle('custom-lane');
+      expect(half.opacity).toBe(0.5);
+      expect(half.x).toBe(50);
+      expect(half.scale).toBe(0.75);
+
+      await act(async () => {
+        track.set(600);
+      });
+      const done = resolvedStyle('custom-lane');
+      expect(done.opacity).toBe(1);
+      expect(done.x).toBe(0);
+      expect(done.scale).toBe(1);
+    });
+
+    it('gates each element on its own delay so the lanes do not move together', async () => {
+      const context = createMockSceneContext({
+        firstSceneEnterActive: true,
+        sharedTimelineDurationMs: 900,
+        getCalculatedDelay: jest.fn((id: string) => (id === 'late' ? 300 : 0)),
+      });
+
+      render(
+        <SceneContext.Provider value={context}>
+          <Animate animateId="early" enterAnimation="fade-in" duration={{ enter: 300 }}>
+            <div>early</div>
+          </Animate>
+          <Animate animateId="late" enterAnimation="fade-in" duration={{ enter: 300 }}>
+            <div>late</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+      await waitFor(() => expect(resolvedOpacity('late')).toBe(0));
+
+      const track = context.sharedElapsedMotion as MotionValue<number>;
+      await act(async () => {
+        track.set(300);
+      });
+      // Same shared elapsed, different calculatedDelay: `early` is done, `late`
+      // has not started. A lane ignoring its delay reads the same on both.
+      expect(resolvedOpacity('early')).toBe(1);
+      expect(resolvedOpacity('late')).toBe(0);
+
+      await act(async () => {
+        track.set(600);
+      });
+      expect(resolvedOpacity('late')).toBe(1);
+    });
+  });
 
   describe('8.1 Core Functionality', () => {
     it('should register with parent Scene on mount', async () => {

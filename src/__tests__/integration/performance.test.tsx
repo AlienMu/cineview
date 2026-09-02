@@ -427,10 +427,9 @@ describe('性能测试', () => {
       // 恢复原始 Image
       window.Image = OriginalImage;
 
-      // 验证首屏图片先加载
-      if (loadOrder.length > 0) {
-        expect(loadOrder[0]).toContain('priority');
-      }
+      // 验证首屏图片先加载。先断言非空——空数组会让下面那条断言恒真通过。
+      expect(loadOrder.length).toBeGreaterThan(0);
+      expect(loadOrder[0]).toContain('priority');
 
       // Cleanup immediately
       unmount();
@@ -591,21 +590,20 @@ describe('性能测试', () => {
       // 获取性能指标
       const metrics = cineViewRef.current?.getPerformanceMetrics();
 
-      // 验证性能指标存在
+      // 无条件断言：包在存在性判断里会让「指标根本没返回」这一失败模式静默通过。
       expect(metrics).toBeDefined();
-      if (metrics) {
-        expect(typeof metrics.fps).toBe('number');
-        expect(typeof metrics.avgFrameTime).toBe('number');
-        expect(typeof metrics.bundleSize).toBe('number');
+      const resolvedMetrics = metrics!;
+      expect(typeof resolvedMetrics.fps).toBe('number');
+      expect(typeof resolvedMetrics.avgFrameTime).toBe('number');
+      expect(typeof resolvedMetrics.bundleSize).toBe('number');
 
-        // 验证 FPS 在合理范围内（0-60）
-        expect(metrics.fps).toBeGreaterThanOrEqual(0);
-        expect(metrics.fps).toBeLessThanOrEqual(60);
+      // 验证 FPS 在合理范围内（0-60）
+      expect(resolvedMetrics.fps).toBeGreaterThanOrEqual(0);
+      expect(resolvedMetrics.fps).toBeLessThanOrEqual(60);
 
-        // 验证平均帧时间在合理范围内（0-100ms）
-        expect(metrics.avgFrameTime).toBeGreaterThanOrEqual(0);
-        expect(metrics.avgFrameTime).toBeLessThanOrEqual(100);
-      }
+      // 验证平均帧时间在合理范围内（0-100ms）
+      expect(resolvedMetrics.avgFrameTime).toBeGreaterThanOrEqual(0);
+      expect(resolvedMetrics.avgFrameTime).toBeLessThanOrEqual(100);
 
       // Cleanup immediately
       unmount();
@@ -831,8 +829,10 @@ describe('性能测试', () => {
         { timeout: 3000 }
       );
 
-      // 注意：实际的警告逻辑需要在 Scene 组件中实现
-      // 这里只是验证大量动画组件不会导致崩溃
+      // 50 个 Animate 全部渲染出来，且注册过程不产生任何告警——spy 装了就要断言，
+      // 否则它只是一个昂贵的 no-op。
+      expect(screen.getByText(`元素 ${largeAnimationCount}`)).toBeInTheDocument();
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
 
       consoleWarnSpy.mockRestore();
 
@@ -924,14 +924,14 @@ describe('性能测试', () => {
       // 获取性能指标
       const metrics = cineViewRef.current?.getPerformanceMetrics();
 
-      if (metrics) {
-        // 验证 FPS 接近 60（允许一定误差）
-        expect(metrics.fps).toBeGreaterThanOrEqual(50);
-        expect(metrics.fps).toBeLessThanOrEqual(60);
+      expect(metrics).toBeDefined();
+      const resolvedMetrics = metrics!;
+      // 验证 FPS 接近 60（允许一定误差）
+      expect(resolvedMetrics.fps).toBeGreaterThanOrEqual(50);
+      expect(resolvedMetrics.fps).toBeLessThanOrEqual(60);
 
-        // 验证平均帧时间小于 16.67ms（60fps 的帧时间）
-        expect(metrics.avgFrameTime).toBeLessThanOrEqual(20);
-      }
+      // 验证平均帧时间小于 16.67ms（60fps 的帧时间）
+      expect(resolvedMetrics.avgFrameTime).toBeLessThanOrEqual(20);
 
       // Cleanup immediately
       unmount();

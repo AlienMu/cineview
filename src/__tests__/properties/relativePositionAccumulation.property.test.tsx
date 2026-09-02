@@ -93,15 +93,17 @@ describe('Property: 相对定位累加性', () => {
       );
 
       // 验证每个元素的实际位置
+      // forEach over an empty array asserts nothing; pin the count first.
+      expect(pos.length).toBeGreaterThan(0);
       pos.forEach((_, index) => {
         const element = container.querySelector(`[data-testid="element-${index}"]`)?.parentElement;
-        if (element) {
-          const style = window.getComputedStyle(element);
-          const actualLeft = parseFloat(style.left || '0');
+        // 必须先断言非空：`if (element)` 会让「包装层根本没渲染」的那 100 次运行全部空过。
+        expect(element).not.toBeNull();
+        const style = window.getComputedStyle(element!);
+        const actualLeft = parseFloat(style.left || '0');
 
-          // 允许浮点数误差（百分比转换可能有精度损失）
-          expect(Math.abs(actualLeft - expectedPositions[index])).toBeLessThanOrEqual(1);
-        }
+        // 允许浮点数误差（百分比转换可能有精度损失）
+        expect(Math.abs(actualLeft - expectedPositions[index])).toBeLessThanOrEqual(1);
       });
     }
   );
@@ -167,14 +169,16 @@ describe('Property: 相对定位累加性', () => {
       );
 
       // 验证位置
+      // forEach over an empty array asserts nothing; pin the count first.
+      expect(expectedPositions.length).toBeGreaterThan(0);
       expectedPositions.forEach((expectedX, index) => {
         const element = container.querySelector(`[data-testid="element-${index}"]`)?.parentElement;
-        if (element) {
-          const style = window.getComputedStyle(element);
-          const actualLeft = parseFloat(style.left || '0');
-          // 允许浮点数误差（百分比转换可能有精度损失）
-          expect(Math.abs(actualLeft - expectedX)).toBeLessThanOrEqual(1);
-        }
+        // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+        expect(element).not.toBeNull();
+        const style = window.getComputedStyle(element!);
+        const actualLeft = parseFloat(style.left || '0');
+        // 允许浮点数误差（百分比转换可能有精度损失）
+        expect(Math.abs(actualLeft - expectedX)).toBeLessThanOrEqual(1);
       });
     }
   );
@@ -222,14 +226,16 @@ describe('Property: 相对定位累加性', () => {
       );
 
       // 验证累加性
+      // forEach over an empty array asserts nothing; pin the count first.
+      expect(expectedPositions.length).toBeGreaterThan(0);
       expectedPositions.forEach((expectedX, index) => {
         const element = container.querySelector(`[data-testid="element-${index}"]`)?.parentElement;
-        if (element) {
-          const style = window.getComputedStyle(element);
-          const actualLeft = parseFloat(style.left || '0');
-          // 允许浮点数误差（百分比转换可能有精度损失）
-          expect(Math.abs(actualLeft - expectedX)).toBeLessThanOrEqual(1);
-        }
+        // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+        expect(element).not.toBeNull();
+        const style = window.getComputedStyle(element!);
+        const actualLeft = parseFloat(style.left || '0');
+        // 允许浮点数误差（百分比转换可能有精度损失）
+        expect(Math.abs(actualLeft - expectedX)).toBeLessThanOrEqual(1);
       });
     }
   );
@@ -258,14 +264,14 @@ describe('Property: 相对定位累加性', () => {
       );
 
       const element = container.querySelector('[data-testid="element-0"]')?.parentElement;
-      if (element) {
-        const style = window.getComputedStyle(element);
-        const actualLeft = parseFloat(style.left || '0');
-        // 百分比系统：(设计稿坐标 / 设计稿尺寸) * 视口宽度
-        const expectedLeft = (xPos / ds) * vw;
-        // 允许浮点数误差（百分比转换可能有精度损失）
-        expect(Math.abs(actualLeft - expectedLeft)).toBeLessThanOrEqual(1);
-      }
+      // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+      expect(element).not.toBeNull();
+      const style = window.getComputedStyle(element!);
+      const actualLeft = parseFloat(style.left || '0');
+      // 百分比系统：(设计稿坐标 / 设计稿尺寸) * 视口宽度
+      const expectedLeft = (xPos / ds) * vw;
+      // 允许浮点数误差（百分比转换可能有精度损失）
+      expect(Math.abs(actualLeft - expectedLeft)).toBeLessThanOrEqual(1);
     }
   );
 
@@ -295,14 +301,14 @@ describe('Property: 相对定位累加性', () => {
       );
 
       const element = container.querySelector('[data-testid="element-0"]')?.parentElement;
-      if (element) {
-        const style = window.getComputedStyle(element);
-        const actualLeft = parseFloat(style.left || '0');
-        // 应该使用绝对定位 x，而不是 offsetX
-        const expectedLeft = (xPos / ds) * vw;
-        // 允许浮点数误差（百分比转换可能有精度损失）
-        expect(Math.abs(actualLeft - expectedLeft)).toBeLessThanOrEqual(1);
-      }
+      // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+      expect(element).not.toBeNull();
+      const style = window.getComputedStyle(element!);
+      const actualLeft = parseFloat(style.left || '0');
+      // 应该使用绝对定位 x，而不是 offsetX
+      const expectedLeft = (xPos / ds) * vw;
+      // 允许浮点数误差（百分比转换可能有精度损失）
+      expect(Math.abs(actualLeft - expectedLeft)).toBeLessThanOrEqual(1);
     }
   );
 });

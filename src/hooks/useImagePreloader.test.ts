@@ -704,9 +704,15 @@ describe('useImagePreloader', () => {
       expect(state.isLoading).toBe(false);
     });
 
-    it('should cleanup on unmount', () => {
+    it('should cleanup on unmount', async () => {
+      // 真正要防的回归：卸载后那张仍在飞行中的图片 onload 触发时，hook 不得再 setState。
+      // React 会把卸载后的 setState 记成 console.error；本用例原先只有一条恒真断言，
+      // 那条断言抓不到任何东西。
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const onProgress = jest.fn();
       const options: UseImagePreloaderOptions = {
         priorityUrls: ['image1.jpg'],
+        onProgress,
       };
 
       const { result, unmount } = renderHook(() => useImagePreloader(options));
@@ -715,12 +721,18 @@ describe('useImagePreloader', () => {
         const [, actions] = result.current;
         actions.startPreload();
       });
+      expect(result.current[0].isLoading).toBe(true);
 
-      // 卸载组件
+      // 卸载组件（此时 MockImage 的 10ms 定时器还没到期）
       unmount();
 
-      // 验证没有错误抛出
-      expect(true).toBe(true);
+      // 让飞行中的加载完成，然后确认既没抛错、也没有卸载后的状态写入。
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      });
+
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
   });
 

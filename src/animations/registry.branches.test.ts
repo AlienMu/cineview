@@ -136,7 +136,10 @@ describe('animation registry branch coverage', () => {
       ])
     );
     expect(first.timelineDuration).toBe(55);
-    expect([...first.calculatedDelays.values()].every(Number.isFinite)).toBe(true);
+    const delayValues = [...first.calculatedDelays.values()];
+    // `.every()` on an empty collection is vacuously true — pin the count first.
+    expect(delayValues.length).toBeGreaterThan(0);
+    expect(delayValues.every(Number.isFinite)).toBe(true);
     expect(first.issues).toEqual([
       { type: 'circular-dependency', animateId: 'a', cycle: ['a', 'b', 'c', 'a'] },
     ]);
@@ -207,7 +210,10 @@ describe('animation registry branch coverage', () => {
       ])
     );
     expect(first.timelineDuration).toBe(105);
-    expect([...first.calculatedDelays.values()].every(Number.isFinite)).toBe(true);
+    const delayValues = [...first.calculatedDelays.values()];
+    // `.every()` on an empty collection is vacuously true — pin the count first.
+    expect(delayValues.length).toBeGreaterThan(0);
+    expect(delayValues.every(Number.isFinite)).toBe(true);
     expect(first.issues).toEqual([
       {
         type: 'incompatible-lane',

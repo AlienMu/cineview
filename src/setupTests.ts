@@ -1,5 +1,11 @@
 import '@testing-library/jest-dom';
-import { act } from '@testing-library/react';
+import { act, configure } from '@testing-library/react';
+
+// RTL's 1000ms default is a wall-clock budget, so a loaded machine can expire it
+// while the condition is still on its way to true — the suite then reports a
+// different "failure" per run with no code change behind it. The retry interval is
+// unchanged, so a genuinely wrong value still fails; it just fails a bit later.
+configure({ asyncUtilTimeout: 5000 });
 
 // React 18 uses this flag to distinguish intentional test updates from runtime
 // updates and avoid reporting false-positive act-environment warnings.

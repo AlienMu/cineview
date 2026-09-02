@@ -2886,7 +2886,20 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
         const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
         const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
         try {
-          act(() => animationFrames.flush());
+          // Settle the three followers into `waiting` before asserting. The delay
+          // timer is registered by the first flush, so the spies have to be in place
+          // already — which rules out waitFor (it mistakes the setTimeout spy for
+          // fake timers). Drive frames and macrotasks until the phase settles,
+          // bounded. Asserting straight after one flush read the pre-resolution
+          // `idle` whenever the machine was loaded: a mounted host is not a resolved
+          // variant.
+          for (let attempt = 0; attempt < 50; attempt += 1) {
+            act(() => animationFrames.flush());
+            if (screen.getByTestId('timer-waiting-phase').textContent === 'waiting') break;
+            await act(async () => {
+              await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+          }
           expect(screen.getByTestId('subscriber-waiting-phase')).toHaveTextContent('waiting');
           expect(screen.getByTestId('recheck-waiting-phase')).toHaveTextContent('waiting');
           expect(screen.getByTestId('timer-waiting-phase')).toHaveTextContent('waiting');

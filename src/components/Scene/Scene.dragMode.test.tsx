@@ -8,6 +8,7 @@ import { SceneInternal as Scene } from './Scene';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { animate, useMotionValue } from 'framer-motion';
 import { resolveDragTouchAction } from './helpers';
+import { calculateThreshold } from './useDragSceneEngine';
 
 // Mock Framer Motion
 jest.mock('framer-motion', () => {
@@ -233,18 +234,27 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   });
 
   describe('Task 20.4: Smart Threshold Algorithm (Linear Interpolation)', () => {
+    // Default band: 0.3 at rest, interpolating down to 0.15 at maxVelocity 1000.
     it('should use 15% threshold for fast swipe (>800 px/s)', () => {
-      // This is tested through the calculateThreshold function
-      // The function is internal, but we can verify behavior through integration
-      expect(true).toBe(true);
+      expect(calculateThreshold(1000)).toBeCloseTo(0.15, 5);
+      // Past maxVelocity the ratio clamps rather than continuing to fall.
+      expect(calculateThreshold(2400)).toBeCloseTo(0.15, 5);
+      expect(calculateThreshold(900)).toBeLessThan(calculateThreshold(400));
     });
 
     it('should use 20% threshold for medium swipe (400-800 px/s)', () => {
-      expect(true).toBe(true);
+      // Linear: 0.3 - (v/1000) * 0.15.
+      expect(calculateThreshold(400)).toBeCloseTo(0.24, 5);
+      expect(calculateThreshold(800)).toBeCloseTo(0.18, 5);
+      // Monotonically decreasing across the band.
+      expect(calculateThreshold(800)).toBeLessThan(calculateThreshold(400));
     });
 
     it('should use 30% threshold for slow swipe (<400 px/s)', () => {
-      expect(true).toBe(true);
+      expect(calculateThreshold(0)).toBeCloseTo(0.3, 5);
+      expect(calculateThreshold(200)).toBeCloseTo(0.27, 5);
+      // A velocity the engine cannot read falls back to the strictest ratio.
+      expect(calculateThreshold(Number.NaN)).toBeCloseTo(0.3, 5);
     });
   });
 
