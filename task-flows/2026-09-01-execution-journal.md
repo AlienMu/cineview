@@ -680,6 +680,69 @@ UMD 余量                      765 字节（门 56KB）——但比动工前低
 
 ---
 
+## N8 · 收尾（2026-09-02，两项完成 + 三项待裁决）
+
+### N8a：pre-push ≡ CI（已完成）
+
+pre-push 原先只跑 `type-check` + `test:coverage`，**跳过** lint、format:check、
+build:verify、quality:duplicates 与两个 failure-injection 门 —— 本地绿、CI 在五个
+它根本没跑过的检查上红。改为直接调 `verify:framework:static`，与 CI 同一条命令。
+
+顺带补上 N5 留下的缺口：`docs:style:static` 当时只接进了 `verify:all`，
+而 CI 跑的是逐条 `run`，等于**那道门没人跑**。已加进 `ci.yml` 的静态 job。
+
+### N8b：husky 8 → 9.1.7（已完成，按 A7 单独一个提交）
+
+husky 9 移除了 `_/husky.sh` shim 与 `husky install` 子命令 ⇒ 两个 hook 去掉 shim 头、
+`prepare` 改成 `husky`、重装 `_/`。**已实测钩子还在跑**（一次真实提交触发了
+lint-staged 完整任务链），不是只看文件内容。
+
+> 过程中的一次自伤：为了验证钩子，我用 `git reset --hard HEAD~1` 撤销那个临时提交，
+> 而工作树里还躺着未暂存的 husky 迁移 —— 一并被抹掉，只能重做一遍。
+> 教训：`reset --hard` 在有未暂存改动时是破坏性的，验证性提交要用 `git revert`
+> 或先 stash。
+
+### 待裁决三项（都不是我该独断的）
+
+#### 1. 依赖大版本（门：`npx npm-check-updates` 零大版本落后）
+
+实测 28 个包落后，其中**同大版本的那些已经装到范围内最新**（prettier 3.8.1、
+ts-jest 29.4.9、eslint-plugin-react 7.37.5 …），改 package.json 只是收紧声明、
+不装任何新东西。真正的工作是 7 个大版本，风险分三档：
+
+| 档   | 包                                                                                                                                          | 说明                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 高   | `framer-motion` 11 → 13                                                                                                                     | **两个大版本**，而它持有本框架每一帧的值 |
+| 高   | `typescript` 5 → 7                                                                                                                          | 整编译器大版本                           |
+| 中高 | `eslint` 8 → 10 + `@typescript-eslint` 6 → 8                                                                                                | 扁平配置迁移                             |
+| 中   | `vite` 5 → 8（三个大版本）、`jest` 29 → 30、`react` 18 → 19（dev 侧）                                                                       |
+| 低   | `@types/node` 25→26、`eslint-config-prettier` 9→10、`jscpd` 4→5、`lint-staged` 15→17、`rollup-plugin-visualizer` 5→7、`vite-plugin-dts` 3→5 |
+
+`terser` 固定在 5.46.1 是**故意**的（A13：`minify-library-entries.mjs` 承重），不动。
+`pnpm` 的 `packageManager` 字段与 CI 对齐，也不单独动。
+
+在一个刚打 v1.0.0 的动画库上，自主把动画引擎连跳两个大版本不是常规判断，已交裁决。
+
+#### 2. 仓库体积：`site/review` 38MB + `site/public/*.mp4` 14MB（`.git` 已 60MB）
+
+移 LFS 还是工件存储，会改变每个 clone 的人的工作方式，属于仓库基础设施决定。
+
+#### 3. 语言策略（计划自己标注的「用户决策点」）
+
+实测口径：
+
+```
+README.md          中文行 1 / CONTRIBUTING.md 中文行 0     ← 门面纯英文
+DESIGN.md          中文行 1334 / 共 2763                   ← 内核约一半中文
+src 非测试源码      100 个文件里 42 个含中文注释
+```
+
+而 `CONTRIBUTING.md:5` 要求英文贡献者**先读 DESIGN.md**。
+这就是计划说的「门面英文、内核中文」——三条路（全中文 / 全英文 / 双语分工）
+成本与受众都不同，不是执行项。
+
+---
+
 ## 本轮附带发现（N4 的输入）
 
 `useAnimateScroll.phase.test.tsx` 是**负载敏感的假红**，不是回归。
@@ -708,4 +771,4 @@ UMD 余量                      765 字节（门 56KB）——但比动工前低
 - ~~N5~~ 完成（本轮）
 - ~~N7~~ 完成（本轮）
 - ~~N6~~ 完成（本轮，一条字节门未达标）
-- **N8** 收尾 ← 下一个
+- **N8** 收尾 —— N8a/N8b 完成；依赖大版本、仓库体积、语言策略三项待裁决
