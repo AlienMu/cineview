@@ -294,7 +294,7 @@ export function useAnimateArrival({
   }, [enterVariant, parseReady, startToken]);
 
   useEffect(
-    () => () => {
+    () => (): void => {
       stopPlayback();
       // React StrictMode replays effects without discarding refs. Release the
       // token claim so the replacement effect generation can re-arm the pass.
@@ -326,7 +326,7 @@ export function useAnimateArrival({
   useEffect(() => {
     if (!enterRef || !enabled) return;
     enterRef.current = triggerManualEnter;
-    return () => {
+    return (): void => {
       if (enterRef.current === triggerManualEnter) enterRef.current = null;
     };
   }, [enabled, enterRef, triggerManualEnter]);

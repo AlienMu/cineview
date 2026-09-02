@@ -109,7 +109,6 @@ describe('CineView Component', () => {
     });
 
     it('应该初始化图片预加载系统', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
@@ -124,7 +123,6 @@ describe('CineView Component', () => {
     });
 
     it('不应该因为 onLoadProgress 回调身份变化而重新启动预加载', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
 
@@ -160,7 +158,6 @@ describe('CineView Component', () => {
     });
 
     it('应该兼容 grouped assets.preloadImages', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
@@ -176,7 +173,6 @@ describe('CineView Component', () => {
     });
 
     it('应该在首屏优先图片未完成时仍然展示场景视口', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       useImagePreloader.mockImplementation(() => [
@@ -519,7 +515,7 @@ describe('CineView Component', () => {
 
     it('应该实现 refreshLayout 和 preload 方法', async () => {
       const ref = createRef<CineViewRef>();
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
 
@@ -565,7 +561,7 @@ describe('CineView Component', () => {
       const ref = createRef<CineViewRef>();
       const startPreload = jest.fn().mockResolvedValue(undefined);
       const addUrls = jest.fn();
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       useImagePreloader.mockImplementation(() => [
@@ -898,7 +894,6 @@ describe('CineView Component', () => {
 
   describe('图片预加载流程', () => {
     it('应该只等待当前场景图片并将其余场景放入后台队列', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
@@ -915,7 +910,6 @@ describe('CineView Component', () => {
     });
 
     it('应该在翻页后提升当前场景并继续后台预热其余场景图片', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
       const addUrls = jest.fn();

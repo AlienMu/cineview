@@ -149,7 +149,7 @@ function useStaggerSettled(
     }
 
     const timer = window.setTimeout(() => setSettledRevision(phaseRevision), duration);
-    return () => window.clearTimeout(timer);
+    return (): void => window.clearTimeout(timer);
   }, [phase, phaseRevision]);
 
   return phase === 'animate' && settledRevision === phaseRevision;
@@ -179,7 +179,7 @@ export function renderStaggerTree(
     (variant.animate as { transition?: Record<string, unknown> }).transition ?? {};
   const childVariants = {
     initial: variant.initial,
-    animate: (i: number) => ({
+    animate: (i: number): Record<string, unknown> => ({
       ...variant.animate,
       transition: instant
         ? { ...authoredTransition, duration: 0, delay: 0 }

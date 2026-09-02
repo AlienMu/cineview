@@ -839,7 +839,6 @@ describe('DirectScrollCineView', () => {
   });
 
   it('prioritizes the first scene and preloads later scene assets in the background', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
     render(
@@ -866,7 +865,6 @@ describe('DirectScrollCineView', () => {
     const startPreload = jest.fn().mockResolvedValue(undefined);
     const addUrls = jest.fn();
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useImagePreloader } = require('../../hooks/useImagePreloader');
     useImagePreloader.mockImplementation(() => [
       {
@@ -918,7 +916,6 @@ describe('DirectScrollCineView', () => {
   // scene 0's visibility elements stayed permanently at their initial frame
   // (opacity 0 hero), since useAnimateScroll holds on firstSceneEnterReady===false.
   it('lights firstSceneEnterReady on scene 0 once first-screen priority assets settle', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useImagePreloader } = require('../../hooks/useImagePreloader');
     useImagePreloader.mockImplementation(() => [
       {
@@ -951,7 +948,6 @@ describe('DirectScrollCineView', () => {
   });
 
   it('holds firstSceneEnterReady false on scene 0 while priority assets are pending', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useImagePreloader } = require('../../hooks/useImagePreloader');
     useImagePreloader.mockImplementation(() => [
       {
@@ -990,7 +986,6 @@ describe('DirectScrollCineView', () => {
   // preloader's own zero-image branch resolves priorityComplete immediately, so
   // the fix is simply to always invoke it.
   it('calls startPreload even when no scene declares preloadImages (scroll cold-start)', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useImagePreloader } = require('../../hooks/useImagePreloader');
     const startPreload = jest.fn().mockResolvedValue(undefined);
     useImagePreloader.mockImplementation(() => [

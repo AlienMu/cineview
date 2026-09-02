@@ -14,7 +14,7 @@ jest.doMock('react-router-dom', () => ({ useLocation: () => ({ pathname: '/demo'
 // Load after the site-local React package has been aliased to the renderer's
 // singleton; otherwise pnpm's isolated site dependency creates two React
 // dispatchers in Jest.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const { BackgroundRibbon } =
   require('../../../site/src/components/BackgroundRibbon') as typeof import('../../../site/src/components/BackgroundRibbon');
 

@@ -6,8 +6,6 @@
  * 形式化：Ci.finalX = Σ(Cj.x + Cj.offsetX) for j ∈ [1, i]
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { test } from '@fast-check/jest';
 import * as fc from 'fast-check';
 import React from 'react';

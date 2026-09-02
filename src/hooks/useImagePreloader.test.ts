@@ -27,7 +27,7 @@ class MockImage {
 }
 
 // 替换全局 Image
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 (global as any).Image = MockImage;
 
 describe('useImagePreloader', () => {
@@ -149,7 +149,7 @@ describe('useImagePreloader', () => {
   describe('优先级加载', () => {
     it('should load priority images before background images', async () => {
       const loadOrder: string[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const originalImage = (global as any).Image;
 
       // 自定义 Mock 来追踪加载顺序
@@ -166,7 +166,6 @@ describe('useImagePreloader', () => {
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = TrackingMockImage;
 
       const options: UseImagePreloaderOptions = {
@@ -194,14 +193,14 @@ describe('useImagePreloader', () => {
       expect(loadOrder[1]).toBe('priority2.jpg');
 
       // 恢复原始 Mock
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (global as any).Image = originalImage;
     });
 
     it('should complete priority images before starting background images', async () => {
       const priorityComplete: number[] = [];
       const backgroundStart: number[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const originalImage = (global as any).Image;
 
       class TimingMockImage {
@@ -221,7 +220,6 @@ describe('useImagePreloader', () => {
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = TimingMockImage;
 
       const options: UseImagePreloaderOptions = {
@@ -248,7 +246,6 @@ describe('useImagePreloader', () => {
       expect(priorityComplete.length).toBeGreaterThan(0);
       expect(backgroundStart.length).toBeGreaterThan(0);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = originalImage;
     });
   });
@@ -349,7 +346,7 @@ describe('useImagePreloader', () => {
 
     it('should continue the active preload run when URLs are added mid-flight', async () => {
       const progressUpdates: number[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const originalImage = (global as any).Image;
 
       class DelayedMockImage {
@@ -370,7 +367,6 @@ describe('useImagePreloader', () => {
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = DelayedMockImage;
 
       const options: UseImagePreloaderOptions = {
@@ -414,13 +410,12 @@ describe('useImagePreloader', () => {
         'late-background-image.jpg',
       ]);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = originalImage;
     });
 
     it('should ignore stale progress updates after reset starts a new preload run', async () => {
       const progressUpdates: number[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const originalImage = (global as any).Image;
 
       class SlowMockImage {
@@ -440,7 +435,6 @@ describe('useImagePreloader', () => {
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = SlowMockImage;
 
       const options: UseImagePreloaderOptions = {
@@ -479,7 +473,6 @@ describe('useImagePreloader', () => {
       expect(state.progress).toBe(100);
       expect(state.loadedCount).toBe(2);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).Image = originalImage;
     });
   });

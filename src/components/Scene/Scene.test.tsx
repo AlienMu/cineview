@@ -14,7 +14,6 @@ import type { DragRenderLane } from './types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
   const createMotionValueStub = (initial: number) => {
     let current = initial;
@@ -898,7 +897,7 @@ describe('Scene Component', () => {
 
       // Mock parseAnimationWithComposition to throw error
       const mockError = new Error('Invalid animation format');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const mockParse = jest.spyOn(composerModule, 'parseAnimationWithComposition');
       // First call (enterAnimation) fails, second call (exitAnimation) succeeds
@@ -938,7 +937,7 @@ describe('Scene Component', () => {
 
       // Mock parseAnimationWithComposition to throw error on exitAnimation
       const mockError = new Error('Invalid animation format');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const mockParse = jest.spyOn(composerModule, 'parseAnimationWithComposition');
       // First call (enterAnimation) succeeds, second call (exitAnimation) fails
@@ -990,7 +989,7 @@ describe('Scene Component', () => {
 
       // Mock parseAnimationWithComposition to throw error
       const mockError = new Error('Invalid animation format');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const mockParse = jest.spyOn(composerModule, 'parseAnimationWithComposition');
       mockParse.mockRejectedValueOnce(mockError);
@@ -1041,7 +1040,7 @@ describe('Scene Component', () => {
       process.env.NODE_ENV = 'development';
 
       // Mock parseAnimationWithComposition to throw error
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const mockParse = jest.spyOn(composerModule, 'parseAnimationWithComposition');
       mockParse.mockRejectedValueOnce(new Error('Parse error'));
@@ -1591,7 +1590,7 @@ describe('Scene Component', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
       const warningSpy = jest.spyOn(console, 'warn').mockImplementation();
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const parseSpy = jest.spyOn(composerModule, 'parseAnimationWithComposition');
 
@@ -2350,7 +2349,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
   describe('Animation parsing edge cases', () => {
     it('should handle enterAnimation parsing that returns null', async () => {
       // Mock parseAnimationWithComposition to return null
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const mockParse = jest.spyOn(composerModule, 'parseAnimationWithComposition');
       mockParse.mockResolvedValueOnce(null);
@@ -2370,7 +2369,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
     it('should handle exitAnimation parsing that returns null', async () => {
       // Mock parseAnimationWithComposition to return null
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const composerModule = require('../../animations/composer');
       const mockParse = jest.spyOn(composerModule, 'parseAnimationWithComposition');
       mockParse.mockResolvedValueOnce(null);

@@ -84,7 +84,7 @@ export const CineViewProvider: React.FC<CineViewProviderProps> = ({ designSize, 
 
     window.addEventListener('resize', handleResize);
 
-    return () => {
+    return (): void => {
       window.removeEventListener('resize', handleResize);
       cancel();
     };

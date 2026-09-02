@@ -6,8 +6,6 @@
  * 形式化：∀ time t1, t2: t1 < t2 ⟹ progress(t1) ≤ progress(t2)
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { test } from '@fast-check/jest';
 import * as fc from 'fast-check';
 import { act, renderHook, waitFor } from '@testing-library/react';

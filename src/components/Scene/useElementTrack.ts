@@ -655,7 +655,6 @@ export function useElementTrack({
         onColdStartCompleteRef.current?.();
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     slideMode,
     sceneIndex,
@@ -668,7 +667,7 @@ export function useElementTrack({
   // Cleanup on unmount: stop whatever is in flight and synchronously remove this
   // Scene from the root's resumable-continuation directory.
   useEffect(() => {
-    return () => {
+    return (): void => {
       controlsRef.current?.stop();
       controlsRef.current = null;
       setElementContinuationActive(false);

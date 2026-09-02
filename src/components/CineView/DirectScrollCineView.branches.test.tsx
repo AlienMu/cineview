@@ -1126,7 +1126,6 @@ describe('DirectScrollCineView — branch coverage', () => {
 
   describe('preload via ref', () => {
     it('adds resolved target images and starts preloading', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn().mockResolvedValue(undefined);
       const addUrls = jest.fn();
@@ -1162,7 +1161,6 @@ describe('DirectScrollCineView — branch coverage', () => {
 
   describe('performance monitoring', () => {
     it('starts and stops the performance monitor when enabled', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { performanceMonitor } = require('../../utils/performanceMonitor');
 
       const { unmount } = render(

@@ -6,8 +6,6 @@
  * 形式化：∀ operation op, currentIndex i, totalScenes n: 0 ≤ i < n
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { test } from '@fast-check/jest';
 import * as fc from 'fast-check';
 import { act } from 'react';

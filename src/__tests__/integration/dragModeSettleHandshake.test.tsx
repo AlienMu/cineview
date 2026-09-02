@@ -40,7 +40,6 @@ async function flushPendingNumberAnimations(): Promise<void> {
 }
 
 jest.mock('framer-motion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
 
   const createMotionValueStub = (initial: number) => {

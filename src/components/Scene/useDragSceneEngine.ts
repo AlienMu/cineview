@@ -246,7 +246,7 @@ export function useDragSceneEngine({
   // shared, and an unrelated engine's in-flight lane must survive this
   // scene's unmount (window pruning at offset ±2).
   useEffect(() => {
-    return () => {
+    return (): void => {
       releaseTokenRef.current += 1;
       const lane = laneRef.current;
       if (lane && lane.ownerSceneIndex === sceneIndex) {

@@ -64,7 +64,7 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
     };
     loader.addEventListener('load', handleLoad);
     loader.src = src;
-    return () => {
+    return (): void => {
       loader.removeEventListener('load', handleLoad);
     };
   }, [shouldPreload, src]);

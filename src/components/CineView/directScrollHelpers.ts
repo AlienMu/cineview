@@ -491,7 +491,10 @@ export function buildSceneTimelineState(
   const holdStart = layout.sceneStart + layout.enterLength;
   const exitStart = layout.sceneEnd - Math.max(layout.exitLength, 0);
 
-  let phase: ScrollTimelineState['phase'] = 'before';
+  // No initialiser: the chain below ends in `else`, so every path assigns. Seeding
+  // it with 'before' made the declaration look like it carried a default when it
+  // never survived one statement.
+  let phase: ScrollTimelineState['phase'];
   let enterProgress = 0;
   let exitProgress = 0;
 

@@ -31,19 +31,18 @@ class TimerMockImage {
 }
 
 describe('useImagePreloader — stalled requests & priority concurrency', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const originalImage = (global as any).Image;
 
   beforeEach(() => {
     jest.useFakeTimers();
     resetPreloadedImageCache();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (global as any).Image = TimerMockImage;
   });
 
   afterEach(() => {
     jest.useRealTimers();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (global as any).Image = originalImage;
   });
 

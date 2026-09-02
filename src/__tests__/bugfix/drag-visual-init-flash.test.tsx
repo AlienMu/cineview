@@ -72,7 +72,6 @@ function resolveMotionLike(value: unknown): unknown {
 }
 
 jest.mock('framer-motion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const ReactLib = require('react');
 
   const createMotionValueStub = (initial: number) => {

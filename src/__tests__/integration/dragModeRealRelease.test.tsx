@@ -6,7 +6,6 @@ import { SceneContext } from '../../components/Animate/Animate';
 import type { CineViewRef } from '../../types';
 
 jest.mock('framer-motion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
 
   const createMotionValueStub = (initial: number) => {

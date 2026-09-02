@@ -40,7 +40,7 @@ export function useSceneScrollTakeover({
       trigger,
     });
 
-    return () => {
+    return (): void => {
       unregisterZone(zoneId, sceneIndex);
     };
   }, [mode, hasScrollTakeover, registerZone, unregisterZone, zoneId, sceneIndex, trigger]);
@@ -52,7 +52,7 @@ export function useSceneScrollTakeover({
 
     setZoneElement(zoneId, sceneIndex, elementRef.current);
 
-    return () => {
+    return (): void => {
       setZoneElement(zoneId, sceneIndex, null);
     };
   }, [elementRef, mode, hasScrollTakeover, sceneIndex, setZoneElement, zoneId]);

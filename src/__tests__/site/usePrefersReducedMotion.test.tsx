@@ -2,7 +2,6 @@ import { act, renderHook } from '@testing-library/react';
 
 jest.doMock(require.resolve('../../../site/node_modules/react'), () => jest.requireActual('react'));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { usePrefersReducedMotion } =
   require('../../../site/src/hooks/usePrefersReducedMotion') as typeof import('../../../site/src/hooks/usePrefersReducedMotion');
 

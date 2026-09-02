@@ -237,7 +237,7 @@ export function useAnimateDrag({
       calculatedDelayRef.current = lease?.getCalculatedDelay?.() ?? getCalculatedDelay(componentId);
     }
 
-    return () => {
+    return (): void => {
       if (lease?.dispose) {
         lease.dispose();
       } else {
@@ -376,7 +376,7 @@ export function useAnimateDrag({
       sceneContext.sharedElapsedMotion?.on('change', updateVisualMotion),
       sceneContext.renderProgressMotion?.on('change', updateVisualMotion),
     ].filter((unsubscribe): unsubscribe is () => void => typeof unsubscribe === 'function');
-    return () => {
+    return (): void => {
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }, [
@@ -432,7 +432,7 @@ export function useAnimateDrag({
       sceneContext.sharedElapsedMotion?.on('change', update),
       sceneContext.renderProgressMotion?.on('change', update),
     ].filter((unsubscribe): unsubscribe is () => void => typeof unsubscribe === 'function');
-    return () => {
+    return (): void => {
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }, [

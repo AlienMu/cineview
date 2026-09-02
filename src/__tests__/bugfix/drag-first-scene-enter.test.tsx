@@ -106,7 +106,6 @@ function resolveMotionLike(value: unknown): unknown {
 }
 
 jest.mock('framer-motion', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const ReactLib = require('react');
 
   const createMotionValueStub = (initial: number) => {
@@ -127,7 +126,6 @@ jest.mock('framer-motion', () => {
   };
 
   const MotionDiv = ReactLib.forwardRef(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ({ children, style, onPanStart, onPan, onPanEnd, ...props }: any, ref: any) => {
       const animateId = props['data-cineview-animate-id'];
       const resolvedStyle: Record<string, unknown> = {};
@@ -241,12 +239,11 @@ beforeEach(() => {
   driverControllers = [];
   for (const key of Object.keys(latestOpacityById)) delete latestOpacityById[key];
   resetPreloadedImageCache();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   (global as any).Image = ControllableImage;
 });
 
 afterEach(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).Image = RealImage;
 });
 
@@ -476,7 +473,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
     act(() => {
       active!.onUpdate?.(1380);
     });
-    // eslint-disable-next-line no-console
+
     await waitFor(() => {
       expect(latestOpacityById.copy).toBeGreaterThan(0.2);
     });

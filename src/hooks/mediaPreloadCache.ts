@@ -154,7 +154,16 @@ async function runVideoPreload(src: string): Promise<void> {
     notify(src);
   } catch (error) {
     if (controller?.signal.aborted) {
-      throw new Error(`Media preload timed out after ${VIDEO_FETCH_TIMEOUT_MS}ms: ${src}`);
+      // Keep the abort/network error attached: the timeout message alone says the
+      // deadline passed, not what the fetch was actually doing when it did.
+      // Assigned rather than passed to the constructor — the two-argument `Error`
+      // form needs lib ES2022, while this package targets ES2020 and declares
+      // support down to Safari 14. As a property it is inert where unsupported.
+      const timeoutError = new Error(
+        `Media preload timed out after ${VIDEO_FETCH_TIMEOUT_MS}ms: ${src}`
+      );
+      (timeoutError as Error & { cause?: unknown }).cause = error;
+      throw timeoutError;
     }
     throw error;
   } finally {

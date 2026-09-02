@@ -117,7 +117,7 @@ export function useAnimatePublicTimeline({
       publishCurrentFrame();
       const unsubscribeVisual = visualSource.on('change', publishCurrentFrame);
       const unsubscribePhase = phaseSource.on('change', publishCurrentFrame);
-      return () => {
+      return (): void => {
         unsubscribeVisual();
         unsubscribePhase();
       };

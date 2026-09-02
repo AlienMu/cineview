@@ -213,7 +213,7 @@ export function useScenePointerInput({
     [axis, clearFramerCandidate, nativePointerDrag.isActiveRef, onPanEnd]
   );
 
-  useEffect(() => () => clearFramerCandidate(true), [clearFramerCandidate]);
+  useEffect(() => (): void => clearFramerCandidate(true), [clearFramerCandidate]);
 
   return {
     onPointerDown,

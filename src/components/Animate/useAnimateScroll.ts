@@ -771,7 +771,7 @@ export function useAnimateScroll({
   useEffect(() => {
     if (!enterRef || isScrollDriven) return;
     enterRef.current = triggerManualEnter;
-    return () => {
+    return (): void => {
       if (enterRef.current === triggerManualEnter) enterRef.current = null;
     };
   }, [enterRef, isScrollDriven, triggerManualEnter]);
@@ -779,7 +779,7 @@ export function useAnimateScroll({
   useEffect(() => {
     if (!exitRef || isScrollDriven) return;
     exitRef.current = triggerManualExit;
-    return () => {
+    return (): void => {
       if (exitRef.current === triggerManualExit) exitRef.current = null;
     };
   }, [exitRef, isScrollDriven, triggerManualExit]);
@@ -802,7 +802,7 @@ export function useAnimateScroll({
     registrationLeaseRef.current = lease ?? null;
     zoneEnteredPublishedRef.current = false;
 
-    return () => {
+    return (): void => {
       clearPendingEnter();
       if (registrationLeaseRef.current === lease) {
         registrationLeaseRef.current = null;
@@ -874,7 +874,7 @@ export function useAnimateScroll({
         : {}),
     });
 
-    return () => {
+    return (): void => {
       unregisterZoneAnimation(zoneId, componentId, registrationOwner);
     };
   }, [

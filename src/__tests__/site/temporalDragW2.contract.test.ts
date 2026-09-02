@@ -47,12 +47,12 @@ const LIGHT_FILE = path.join(ROOT, 'site/src/components/temporal-drag/SlateLight
 // `react` here resolves a DIFFERENT copy from the one ClapperboardCanvas closes over, and
 // rendering it through a foreign renderer throws "Invalid hook call" before a single frame is
 // drawn. Required by path so the component and the root share one instance.
-/* eslint-disable @typescript-eslint/no-var-requires */
+
 const siteReact = require(path.join(ROOT, 'site/node_modules/react')) as typeof import('react');
 const siteReactDom = require(
   path.join(ROOT, 'site/node_modules/react-dom/client')
 ) as typeof import('react-dom/client');
-/* eslint-enable @typescript-eslint/no-var-requires */
+
 const { createElement } = siteReact;
 const { createRoot } = siteReactDom;
 const reactAct = (

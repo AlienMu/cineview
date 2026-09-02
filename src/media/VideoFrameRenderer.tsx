@@ -317,7 +317,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
         },
       };
       if (controlRef) controlRef.current = control;
-      return () => {
+      return (): void => {
         if (controlRef) controlRef.current = null;
       };
     }, [controlRef, resetOwnership]);
@@ -368,7 +368,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
         });
       }
 
-      return () => {
+      return (): void => {
         active = false;
         unsubscribe();
         if (leased) releaseVideoObjectUrl(src);
@@ -505,7 +505,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
     }, [bindNativeMediaListeners, dispatchOwnership, mediaEpoch, objectUrl, resetOwnership, src]);
 
     useEffect(
-      () => () => bindNativeMediaListeners(null, activationIdRef.current),
+      () => (): void => bindNativeMediaListeners(null, activationIdRef.current),
       [bindNativeMediaListeners]
     );
 
@@ -545,7 +545,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       if (video.readyState >= 1) publishLatest();
       else video.addEventListener('loadedmetadata', publishLatest, { once: true });
 
-      return () => {
+      return (): void => {
         unsubscribe();
         video.removeEventListener('loadedmetadata', publishLatest);
       };
@@ -574,7 +574,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       const unsubscribe = progressMotion?.on('change', seekProgress);
       if (video.readyState >= 1) seekCurrent();
       else video.addEventListener('loadedmetadata', seekCurrent, { once: true });
-      return () => {
+      return (): void => {
         unsubscribe?.();
         video.removeEventListener('loadedmetadata', seekCurrent);
       };

@@ -309,7 +309,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       id,
       'visibility'
     );
-    return () => lease?.dispose();
+    return (): void => lease?.dispose();
   }, [declareAnimateLane, id, isDragArrival]);
 
   useEffect(() => {
@@ -525,7 +525,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
         },
       });
       completePreparation();
-      return () => {
+      return (): void => {
         completePreparation();
         if (isCurrentGeneration()) parseGenerationRef.current += 1;
       };
@@ -552,7 +552,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
 
     void parseAnimations();
 
-    return () => {
+    return (): void => {
       cancelPreparation();
       if (isCurrentGeneration()) parseGenerationRef.current += 1;
     };
