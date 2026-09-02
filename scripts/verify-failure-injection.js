@@ -23,7 +23,12 @@ function expectFailure(label, result, expectedOutput) {
   if (result.status === 0) {
     throw new Error(`${label} did not fail under deliberate fault injection`);
   }
-  if (expectedOutput && !output.includes(expectedOutput)) {
+  const matched =
+    !expectedOutput ||
+    (expectedOutput instanceof RegExp
+      ? expectedOutput.test(output)
+      : output.includes(expectedOutput));
+  if (!matched) {
     throw new Error(`${label} failed for the wrong reason:\n${output.slice(-2000)}`);
   }
   process.stdout.write(`✓ ${label} rejects the injected failure\n`);
@@ -91,7 +96,13 @@ try {
       '--coverage',
       '--runInBand',
     ]),
-    'coverage threshold for branches'
+    // Jest reworded this between 29 and 30:
+    //   29: '"global" coverage threshold for branches (100%) not met: 50%'
+    //   30: 'Coverage for branches (50%) does not meet "global" threshold (100%)'
+    // Match on the two words that carry the meaning so the gate survives the next
+    // rewording — it is asserting "rejected FOR the branch threshold", not a
+    // particular sentence.
+    /branches[\s\S]*threshold|threshold[\s\S]*branches/
   );
 
   expectFailure(

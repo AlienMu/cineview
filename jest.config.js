@@ -11,6 +11,12 @@ module.exports = {
     '!src/**/index.ts',
     '!src/**/*.type-assert.tsx',
   ],
+  // Above setupTests.ts's RTL asyncUtilTimeout (5000ms). If the two are equal — and
+  // jest's default per-test timeout IS 5000 — a retrying waitFor consumes the whole
+  // test budget and jest reports an opaque "Exceeded timeout" instead of the
+  // assertion that never became true. The headroom is what makes a slow-but-correct
+  // wait report properly rather than looking like a hang.
+  testTimeout: 15000,
   coverageThreshold: {
     global: {
       statements: 90,

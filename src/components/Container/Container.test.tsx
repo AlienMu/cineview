@@ -55,10 +55,13 @@ describe('Container', () => {
       );
 
       const containerDiv = container.querySelector('.test-container') as HTMLElement;
-      expect(containerDiv).toHaveStyle({
-        backgroundColor: 'red',
-        padding: '10px',
-      });
+      // Assert the inline style the component actually wrote, not the computed
+      // value. `toHaveStyle({ backgroundColor: 'red' })` used to pass because the
+      // old jsdom echoed the keyword back; the newer one resolves it to
+      // `rgb(255, 0, 0)` and jest-dom no longer normalises the keyword, so that
+      // form fails for a reason that has nothing to do with style merging.
+      expect(containerDiv.style.backgroundColor).toBe('red');
+      expect(containerDiv.style.padding).toBe('10px');
     });
   });
 
