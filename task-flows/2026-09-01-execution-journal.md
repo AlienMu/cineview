@@ -586,6 +586,100 @@ pnpm a11y:probe                12/12  VERDICT: PASS（真 Chrome）
 
 ---
 
+## N6 · 结构与性能余量（2026-09-02 完成，含一条未达标项）
+
+### 批 A：`dragVisualState.ts`（计划标为「真零风险」，已核实）
+
+动手前按计划的判据实测：抽离范围内 `getBoundingClientRect` / `closest` /
+`clientHeight` / `window.` / `document.` / `use[A-Z]` 命中 **0**（两条命中都在注释里）。
+`SceneContextType` 确实是**参数**而非闭包捕获 —— 零风险的说法成立。
+
+抽出 12 个纯函数 + `DragVisualState` 接口 + `EPSILON`：
+`useAnimateDrag.ts` **785 → 466 行**，新文件 347 行。
+`resolveEnterLocalProgress` 与 `DragVisualState` 从 hook 模块 re-export ——
+这是内部文件边界，不是公共 API 变更，现有 consumer（`Animate.tsx`、`StaggerContainer.tsx`
+及四个测试文件）一行不用改。
+
+### 批 B：`useAnimatePublicTimeline.ts`
+
+把 `Animate.tsx` 的公共时间轴面（4 个 MotionValue + 那条把它们喂饱的订阅
+
+- `IDLE_TIMELINE_FRAME` + `resolveDragTimelineSource`）整体搬走，
+  驱动源改为显式参数而不是闭包读 `arrivalResult` / `scrollResult` / `dragResult`。
+  `Animate.tsx` **981 → 848 行**，新文件 180 行。
+
+### 批 C 与 `createRenderLane` 合并：按计划不做
+
+计划自己把批 C（`resolveVisibilityGates`，含 3 处 DOM 读 + 1 个裸 `return` 退出外层函数）
+标为「可选高风险，须先改控制流」，把 `createRenderLane` 的 bounce/settle 合并标为
+「高风险独立子任务，不与 handlePanEnd 行数收益捆绑」（三处行为分叉：补间对象、
+写入守卫、suspend 语义；第三条直接决定 `getCurrent()`，而那是 re-grab 的播种值）。
+两项均未做，理由即计划所述。
+
+### ⚠️ 未达标：字节余量比动工前低 89 字节
+
+N6 的门写的是「UMD gzip 余量**不低于**动工前实测值」。实测：
+
+```
+动工前  cineview.umd.js.gz  56490
+动工后  cineview.umd.js.gz  56579   (+89)
+```
+
+模块边界挡掉了一部分内联，抽离必然要付这个钱。**这条门没过。**
+
+我的处置是保留抽离并把事实写在这里，理由有二：① 该门是余量只剩 253 字节时写的，
+而用户在 N7 已裁决把门抬到 56KB，当前余量 **765 字节**；② 89 字节换的是路线图 G4
+（代码维护性）的实质进展。**但这属于「按门判为不达标」，要不要为 89 字节回滚批 A/B
+是你的决定，不是我的。**
+
+### 性能：当前构建有数据了
+
+计划指出 `dist` 是 8/31、`stress-fps.json` 是 8/15，「已达标但没有当前构建的数据」。
+用计划背书的方法论（`stress-fps.mjs` 的**单条自续 rAF 链**，不是按注册计数的那个探针）
+在当前构建上重跑三次，共 **4513 个采样**：
+
+|                              | 采样 |   max | >32ms |
+| ---------------------------- | ---: | ----: | ----: |
+| run1（同进程树里还在跑构建） | 1496 | 233ms |     1 |
+| run2（跳过构建）             | 1507 |  17ms |     0 |
+| run3（跳过构建）             | 1510 |  17ms |     0 |
+
+drag / scroll 全部相位 p50 = p90 = p95 = **17ms**。唯一的 233ms 出现在**同时在构建**
+的那一次，另外两次同一棵树零超标 ⇒ 判为机器负载伪影，不是框架停顿。
+
+### 133ms 的结论（计划要求「修掉或书面归因」）
+
+**归因于产出它的那个探针，不是框架停顿。** 依据三条：
+
+1. 8/15 的 `stress-fps.json` 基线里 scroll 各相位 **max 全是 18ms**——
+   133ms 从来没出现在这个探针里。
+2. 当前构建三轮 4513 采样，scroll max **17ms**、超 32ms 帧 **0**。
+3. 133ms 那组数据（p50 16.7 / p95 17.5 / p99 17.7 / max 133.4、`longtasks: []`）来自
+   N6 那个 **monkey-patch rAF** 的探针，而计划自己已经指出它**按注册计数而非按呈现帧采样**
+   （drag 那边 `p50=0.0`、n=1601/~9.6s 就是指纹），分布被同帧重复注册稀释。
+
+保留的不确定性：合成/光栅层面的停顿两个探针都测不到，需要 compositing-aware trace 才能排除。
+这里能说的是——**在计划背书的方法论下、当前构建上，它不复现**。
+
+### 验收
+
+```
+pnpm verify:framework:static  115 套 1557 例全绿
+                              覆盖率 95.19 / 90.52 / 95.59 / 96.57
+                              build:verify 16/16
+pnpm --dir site build         ✓
+pnpm test:site-contracts      63 例
+stress-fps（当前构建）        drag/scroll p95 全 17ms，4513 采样 0 超标（排除构建负载那次）
+UMD 余量                      765 字节（门 56KB）——但比动工前低 89，见上方 ⚠️
+```
+
+> 600 行的文件从 12 个降到 11 个（`Animate.tsx` 出表）。路线图 G4 的「无文件 > 600 行」
+> 仍未达成，那要靠批 C 与 `createRenderLane`，两者都被计划判为需要单独节点。
+
+**N6 完成（一条门未达标，已如实标注）。**
+
+---
+
 ## 本轮附带发现（N4 的输入）
 
 `useAnimateScroll.phase.test.tsx` 是**负载敏感的假红**，不是回归。
@@ -613,5 +707,5 @@ pnpm a11y:probe                12/12  VERDICT: PASS（真 Chrome）
 - ~~N4~~ 完成（本轮）
 - ~~N5~~ 完成（本轮）
 - ~~N7~~ 完成（本轮）
-- **N6** 结构与性能余量 ← 下一个
-- **N8** 收尾
+- ~~N6~~ 完成（本轮，一条字节门未达标）
+- **N8** 收尾 ← 下一个

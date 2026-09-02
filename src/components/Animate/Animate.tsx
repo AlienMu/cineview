@@ -14,16 +14,8 @@ import React, {
   isValidElement,
 } from 'react';
 import type { ReactElement } from 'react';
-import { motion, MotionValue, useAnimation, useMotionValue } from 'framer-motion';
-import type {
-  AnimatePhase,
-  AnimateTimeline,
-  AnimateTimelineFrame,
-  AnimateTimelineSource,
-  ParsedAnimationVariant,
-  ScrollMode,
-  ScrollTimelineState,
-} from '../../types';
+import { motion, MotionValue, useAnimation } from 'framer-motion';
+import type { ParsedAnimationVariant, ScrollMode, ScrollTimelineState } from '../../types';
 import type { AnimateRegistrationInfo } from '../../animations/registry';
 import type {
   SceneAnimationLaneDeclarationLease,
@@ -33,7 +25,7 @@ import type {
 import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
 import { parseAnimationSafely, type AnimationParseFailure } from '../../utils/animationHelpers';
 import { devWarn } from '../../utils/devLog';
-import { useAnimateDrag, type DragVisualState } from './useAnimateDrag';
+import { useAnimateDrag } from './useAnimateDrag';
 import { useAnimateScroll } from './useAnimateScroll';
 import { useAnimateArrival } from './useAnimateArrival';
 import {
@@ -50,12 +42,9 @@ import {
   countStaggerItems,
   resolveStaggerTiming,
 } from './StaggerContainer';
-import {
-  IDLE_RENDER_STATE,
-  normalizeDragPhase,
-  resolveScrollEnterProgress,
-} from './animateRenderState';
+import { IDLE_RENDER_STATE } from './animateRenderState';
 import { AnimateTimelineProvider } from './animateTimeline';
+import { useAnimatePublicTimeline } from './useAnimatePublicTimeline';
 import type { AnimateRenderState } from '../../types';
 import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
 import {
@@ -158,49 +147,6 @@ export type SceneContextType = SceneBaseRuntimeContext &
   SceneAnimationRegistryContext;
 
 export const SceneContext = createContext<SceneContextType | null>(null);
-
-const IDLE_TIMELINE_FRAME: AnimateTimelineFrame = Object.freeze({
-  progress: 0,
-  signedProgress: 0,
-  phase: 'idle',
-  source: 'idle',
-});
-
-function resolveDragTimelineSource(
-  sceneContext: SceneContextType | null,
-  state: DragVisualState | null
-): AnimateTimelineSource {
-  if (!state) {
-    return 'idle';
-  }
-
-  // A formal transaction remains the authoritative clock owner through its
-  // terminal visual frame. In particular, a bounce reaches hidden/0 before the
-  // transaction is released; publishing that final frame as idle would make
-  // imperative consumers miss the last continuation write back to zero.
-  switch (sceneContext?.dragTransaction?.phase) {
-    case 'driving':
-      return 'gesture';
-    case 'settling':
-    case 'bouncing':
-      return 'continuation';
-    case 'programmatic':
-      return 'programmatic';
-    default:
-      break;
-  }
-
-  if (
-    sceneContext?.dragRelease?.mode === 'settle' ||
-    sceneContext?.dragRelease?.mode === 'bounce'
-  ) {
-    return 'continuation';
-  }
-  if (sceneContext?.dragRelease?.mode === 'enter' || sceneContext?.firstSceneEnterActive) {
-    return 'programmatic';
-  }
-  return 'idle';
-}
 
 /** stagger 容器的中性外层样式：见下方 scrollOuterStyle 处的所有权说明。
  *  必须是模块级常量（稳定引用），否则每次渲染换新对象会让 framer 重建绑定。 */
@@ -688,96 +634,17 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     preparationLeaseRef.current = null;
   }, [mode, settledParseGeneration]);
 
-  const publicProgress = useMotionValue(0);
-  const publicSignedProgress = useMotionValue(0);
-  const publicPhase = useMotionValue<AnimatePhase>('idle');
-  const publicFrame = useMotionValue<AnimateTimelineFrame>(IDLE_TIMELINE_FRAME);
-
-  useEffect(() => {
-    const lane = mode === 'scroll' || isDragArrival ? resolvedTimeline.lane : 'drag';
-    const publishFrame = (frame: AnimateTimelineFrame): void => {
-      publicProgress.set(frame.progress);
-      publicSignedProgress.set(frame.signedProgress);
-      publicPhase.set(frame.phase);
-      publicFrame.set(frame);
-    };
-
-    if (mode === 'scroll' || isDragArrival) {
-      const visualSource = isDragArrival ? arrivalResult.visualMotion : scrollResult.visualMotion;
-      const phaseSource = isDragArrival ? arrivalResult.phaseMotion : scrollResult.phaseMotion;
-      const publishCurrentFrame = (): void => {
-        const signedProgress = visualSource.get();
-        publishFrame({
-          progress: resolveScrollEnterProgress(signedProgress),
-          signedProgress,
-          phase: phaseSource.get(),
-          source: lane === 'scroll' ? 'scroll' : 'visibility',
-        });
-      };
-
-      publishCurrentFrame();
-      const unsubscribeVisual = visualSource.on('change', publishCurrentFrame);
-      const unsubscribePhase = phaseSource.on('change', publishCurrentFrame);
-      return () => {
-        unsubscribeVisual();
-        unsubscribePhase();
-      };
-    }
-
-    const updateDrag = (state: DragVisualState | null): void => {
-      if (!state) {
-        publishFrame(IDLE_TIMELINE_FRAME);
-        return;
-      }
-
-      const progress = Math.max(0, Math.min(1, state.localProgress));
-      const signedProgress =
-        state.mode === 'outgoing' ? (state.direction === 'forward' ? 1 : -1) * progress : progress;
-      publishFrame({
-        progress,
-        signedProgress,
-        phase: normalizeDragPhase(state.mode, progress),
-        source: resolveDragTimelineSource(sceneContext, state),
-      });
-    };
-
-    updateDrag(dragResult.visualState.get());
-    return dragResult.visualState.on('change', updateDrag);
-  }, [
-    arrivalResult.phaseMotion,
-    arrivalResult.visualMotion,
-    dragResult.visualState,
-    isDragArrival,
+  const publicTimeline = useAnimatePublicTimeline({
     mode,
-    publicFrame,
-    publicPhase,
-    publicProgress,
-    publicSignedProgress,
-    resolvedTimeline.lane,
+    isDragArrival,
+    timelineLane: mode === 'scroll' || isDragArrival ? resolvedTimeline.lane : 'drag',
     sceneContext,
-    scrollResult.phaseMotion,
-    scrollResult.visualMotion,
-  ]);
-
-  const publicTimeline = useMemo<AnimateTimeline>(
-    () => ({
-      mode,
-      lane: mode === 'scroll' || isDragArrival ? resolvedTimeline.lane : 'drag',
-      progress: publicProgress,
-      signedProgress: publicSignedProgress,
-      phase: publicPhase,
-      frame: publicFrame,
-    }),
-    [
-      isDragArrival,
-      mode,
-      publicFrame,
-      publicPhase,
-      publicProgress,
-      publicSignedProgress,
-      resolvedTimeline.lane,
-    ]
-  );
+    arrivalVisualMotion: arrivalResult.visualMotion,
+    arrivalPhaseMotion: arrivalResult.phaseMotion,
+    scrollVisualMotion: scrollResult.visualMotion,
+    scrollPhaseMotion: scrollResult.phaseMotion,
+    dragVisualState: dragResult.visualState,
+  });
 
   useEffect(() => {
     const activeInfiniteVariant = isDragArrival ? renderInfiniteVariant : infiniteVariant;
