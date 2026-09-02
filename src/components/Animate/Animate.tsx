@@ -226,6 +226,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const sceneContext = useContext(SceneContext);
   const cineViewRuntime = useCineViewRuntimeContext();
   const reportRuntimeError = cineViewRuntime?.reportError;
+  const prefersReducedMotion = cineViewRuntime?.prefersReducedMotion === true;
   const zoneRuntime = useContext(SceneScrollRuntimeContext);
   const inheritedZoneId = useContext(SceneScrollTakeoverContext);
 
@@ -782,9 +783,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     const activeInfiniteVariant = isDragArrival ? renderInfiniteVariant : infiniteVariant;
     if (mode !== 'drag' || !activeInfiniteVariant) return;
 
-    const shouldRunInfinite = isDragArrival
-      ? arrivalResult.shouldRunInfinite
-      : dragResult.shouldRunInfinite;
+    const shouldRunInfinite =
+      !prefersReducedMotion &&
+      (isDragArrival ? arrivalResult.shouldRunInfinite : dragResult.shouldRunInfinite);
     if (!shouldRunInfinite) {
       dragInfiniteControls.stop();
       return;
@@ -807,13 +808,17 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     infiniteVariant,
     isDragArrival,
     mode,
+    prefersReducedMotion,
     renderInfiniteVariant,
   ]);
 
   useEffect(() => {
     if (mode !== 'scroll' || !infiniteVariant) return;
 
-    if (!scrollResult.shouldRunInfinite) {
+    // A persistent loop is motion the page decided to play, so it is exactly what
+    // "reduce motion" asks us not to start (WCAG 2.3.3). Scrub is untouched: that is
+    // the reader's own scroll being reflected back.
+    if (prefersReducedMotion || !scrollResult.shouldRunInfinite) {
       scrollInfiniteControls.stop();
       return;
     }
@@ -828,7 +833,13 @@ export const Animate: React.FC<AnimateInternalProps> = ({
         repeat: Infinity,
       },
     } as never);
-  }, [mode, infiniteVariant, scrollResult.shouldRunInfinite, scrollInfiniteControls]);
+  }, [
+    mode,
+    infiniteVariant,
+    prefersReducedMotion,
+    scrollResult.shouldRunInfinite,
+    scrollInfiniteControls,
+  ]);
 
   // render-prop 桥接:children 为函数时,按当前 mode 挂对应 bridge 订阅进度/相位源;
   // 否则原样透传。非函数 children 零额外成本(不挂 bridge、不订阅)。

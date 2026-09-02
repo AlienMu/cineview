@@ -46,6 +46,7 @@ export type {
   DragModeConfig,
   ScrollModeConfig,
   ScrollbarConfig,
+  A11yConfig,
   SceneChangeDetail,
   CineViewErrorCode,
   CineViewErrorDetail,

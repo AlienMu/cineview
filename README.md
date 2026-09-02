@@ -80,7 +80,16 @@ The package also publishes `cineview.umd.js`, `cineview-drag.umd.js`, and `cinev
 
 ## Accessibility and input
 
-The framework leaves native links, buttons, form controls, and editable fields available to the host application. Drag mode has no built-in keyboard scene navigation or framework-level reduced-motion switch. Add keyboard controls, accessible names, and a reduced-motion policy in the application. Non-active scenes are not automatically marked `aria-hidden` or `inert`.
+The framework leaves native links, buttons, form controls, and editable fields available to the host application, and provides four behaviours of its own:
+
+- **Keyboard paging in drag mode.** The root is a focusable `region` (`aria-roledescription="carousel"`). `PageDown` / `PageUp`, `Home` / `End`, and the arrow keys for the configured axis page between scenes; keys that originate inside a scene are left to whatever authored control received them. Scroll mode is a real scroll container and keeps the browser's own key handling.
+- **Scene position is announced.** An off-screen `role="status"` `aria-live="polite"` region publishes the current position on every change.
+- **Inactive scenes are removed from the accessibility tree.** A covered, parked, or inactive scene carries `inert` and `aria-hidden`, so it is neither read out nor reachable with Tab.
+- **`prefers-reduced-motion` is honoured.** With the OS preference set, persistent `loopAnimation` never starts and visibility-driven enter/exit tweens land on their end state immediately. Scrub is deliberately unchanged: it reflects the reader's own pointer or scroll, rather than motion the page decided to play.
+
+Name the region with `a11y={{ label: 'Product tour' }}` when a page has more than one CineView; it defaults to `Scenes`.
+
+**This is not a claim of WCAG conformance.** Automated tooling covers roughly half of the WCAG success criteria, and the checks here (`src/__tests__/a11y/`, plus a real-browser probe at `site/tools/a11y-probe.mjs` that drives actual key presses and verifies `inert` by attempting to focus through it) are automated ones. Conformance for a shipped page still needs manual testing with real assistive technology, and the authored content inside your scenes is yours to make accessible.
 
 For continuous values, use `useAnimateTimeline()` and bind its MotionValues to styles. Avoid writing per-frame progress to React state. A scroll zone maps one millisecond of authored duration to one pixel of real scroll distance.
 

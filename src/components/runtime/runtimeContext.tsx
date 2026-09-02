@@ -18,6 +18,12 @@ export interface CineViewRuntimeContextValue {
   // px via the single-ruler scale inside useAnimateScroll.
   scrollEnterMargin?: number;
   scrollExitMargin?: number;
+  // OS "reduce motion" preference, read once at the root (one matchMedia
+  // subscription per CineView, not one per Animate). When true, animations that the
+  // framework starts on its own resolve to their end state and loops do not run.
+  // Scrub is deliberately NOT suppressed: it is the user's own pointer or scroll
+  // input being reflected, not motion the page decided to play (WCAG 2.3.3).
+  prefersReducedMotion?: boolean;
 }
 
 export const CineViewRuntimeContext = createContext<CineViewRuntimeContextValue | null>(null);

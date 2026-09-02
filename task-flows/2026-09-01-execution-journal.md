@@ -487,6 +487,105 @@ pnpm docs:style:static        structural issues: 0 / VERDICT: PASS
 
 ---
 
+## N7 · 无障碍（2026-09-02 完成）
+
+计划列的四条缺口，动手前逐条实测确认全部为**字面意义的零**：
+`prefers-reduced-motion` 非测试源码 0 处、JSX 里 `inert=` 0 处、全仓 `aria-live` 0 处、
+drag 路径 keydown 0 处（5 处命中全在 scroll 文件）。
+
+### 四条实现
+
+1. **drag 根 = 可聚焦的具名 region + 键盘翻页。**
+   `role="region"` + `aria-roledescription="carousel"` + `aria-label` + `tabIndex={0}`，
+   `onKeyDown` 走 `PageDown`/`PageUp`、`Home`/`End`、按所配置轴向的方向键，
+   全部调已经存在的 `sceneActions.goToScene` —— 键盘与指针共用同一条提交路径。
+   `event.target !== event.currentTarget` 时直接放行：场景内部授权的控件保留自己的按键。
+   scroll 模式不动，它本身是真实滚动容器，浏览器的按键处理就是对的。
+2. **换场播报。** 屏幕外的 `role="status"` + `aria-live="polite"` 发布 `N / M`。
+   用 clip 而不是 `display:none`/`visibility:hidden` —— 后两者会把节点**踢出无障碍树**，
+   正好与 live region 的目的相反。
+3. **非活动场景移出无障碍树。** 沿用已有的 pointer 门（covered / parked / inactive）
+   同时打 `inert` 与 `aria-hidden`。`inert` 走 spread 而不是字面 prop：
+   React 18 的 JSX 类型里没有它（React 19 才加），而 framer-motion 的 prop 类型派生自那里；
+   spread 让两个 React 大版本运行时都能吐出该属性。
+4. **`prefers-reduced-motion`。** hook 进框架（`src/hooks/usePrefersReducedMotion.ts`，
+   `useSyncExternalStore`，因为它是会在挂载期间翻转的外部输入），**在根节点读一次**
+   放进 runtime context —— 一个 CineView 一个 matchMedia 订阅，不是一个 Animate 一个。
+   开启后：常驻 loop 不启动；可见性补间的 duration 归零（落终态但**保留**
+   idle→entering→entered 的相位序列，`phase` 消费者读到的东西不变）。
+   **scrub 刻意不受影响**——那是读者自己的指针/滚动被反映出来，不是页面自行决定播放的动效
+   （WCAG 2.3.3 的边界就在这里）。
+
+新增公共类型 `A11yConfig`（只有 `label` 一个字段）。其余三条不是偏好而是「缺了就不合规」
+的能力，没有可配的余地；reduced-motion 读系统设置，同样不接受组件级覆盖。
+
+### 预算：撞墙 → 用户裁决抬门
+
+四条能力实测共 **580 字节**（55876 → 56456），把 55KB 顶穿 **136 字节**。
+这是路线图 G1 预言的那堵墙。已把事实交给用户裁决，裁决结果：
+**把全量 UMD 的门从 55 抬到 56 KB**，单模式入口的 50KB 门不动。
+
+理由（写进 `build-all.mjs` 注释）：该产物是「运行时按 mode 派发」的便利包，
+一个人同时装了两个引擎；按尺寸选包的消费者用的是单模式入口，它们仍分别余
+6052 / 1121 字节。落地后 **55.17 / 56 KB**。
+
+### 测试（10 例）+ 变异验证（7 个变异全部被杀）
+
+| 变异                                | 转红 |
+| ----------------------------------- | ---- |
+| A1 删 `onKeyDown`                   | 2    |
+| A2 去掉 `aria-live`                 | 1    |
+| A3 去掉 `tabIndex`                  | 1    |
+| A4 只留 `aria-hidden`、不给 `inert` | 1    |
+| A5 drag loop 无视 reduce-motion     | 1    |
+| A6 忽略 `a11y.label`                | 1    |
+| A7 连场景内部控件的按键一起抢       | 1    |
+
+**A5 第一版存活**：初版用例断言的是内层元素的 `style.transform` 为空——
+jsdom 根本不绘制补间，开不开 reduce-motion 都是空，等于什么也没测。
+改成单独一个文件、打桩 `useAnimation()` 记录 `start({transition:{repeat:Infinity}})` 调用，
+并**配一条对照臂**（不开偏好时必须真的记录到调用）才杀掉。
+——没有对照臂的「零调用」断言与「这条路径根本不存在」无法区分。
+
+### 真机探针（计划要求「非静态审查」）
+
+`site/tools/a11y-probe.mjs`，12 条断言，跑真 Chrome：真键盘 `PageDown`/`PageUp`、
+读计算样式判 live region 是否还在无障碍树里、用 `focus()` 判 `inert` 是否**真的**挡住焦点、
+`reducedMotion: 'reduce'` 的 context 下静置 1.2s 采样两次 transform/opacity 看有无自行运动。
+
+**第一轮 FAIL（10/12），是探针写错了不是框架错。** 我断言「所有 `aria-hidden` 节点都必须带
+`inert`」，而页面上有十来个站点自己的纯装饰元素（`bg-ribbon`、`tp-ambient`、`s01-dial__ticks` …）
+正当地只用 `aria-hidden`。那条断言把作者的正确用法判成框架的错。
+改为断言框架侧真正该证的两件事：① 容器内确有 `inert` 节点且都同时带 `aria-hidden`；
+② `inert` 真的生效（后代 `focus()` 拿不到焦点）；并补一条「当前场景未被隐藏」。
+
+**探针自身的有效性已反证**：把 `tabIndex` 从源码删掉、**重新构建**（站点经 `link:../`
+消费 dist，不改 dist 等于没测）后探针 **9/12 FAIL**；还原并重建后回到 **12/12 PASS**。
+
+### 文档
+
+README 双语的「无障碍」段原文是「drag 模式没有键盘切换、没有 reduced-motion 开关、
+非活动场景不会自动加 aria-hidden/inert」——四条全部反转，已重写。
+按路线图的要求**明确不声称 WCAG 合规**：自动化工具约覆盖一半成功准则，
+真正上线仍需真实辅助技术手测，场景内授权的内容由使用者负责。
+
+### 验收
+
+```
+pnpm verify:framework:static   115 套 1557 例全绿
+                               覆盖率 95.17 / 90.51 / 95.59 / 96.56（四项门均 90）
+                               build:verify 16/16，全量 UMD 55.17 / 56 KB
+pnpm format:check:site         ✓
+pnpm type-check:site           ✓
+pnpm test:site-contracts       11 套 63 例
+pnpm docs:style:static         VERDICT: PASS
+pnpm a11y:probe                12/12  VERDICT: PASS（真 Chrome）
+```
+
+**N7 完成。**
+
+---
+
 ## 本轮附带发现（N4 的输入）
 
 `useAnimateScroll.phase.test.tsx` 是**负载敏感的假红**，不是回归。
@@ -513,6 +612,6 @@ pnpm docs:style:static        structural issues: 0 / VERDICT: PASS
 - ~~N2b~~ 完成（本轮）
 - ~~N4~~ 完成（本轮）
 - ~~N5~~ 完成（本轮）
+- ~~N7~~ 完成（本轮）
 - **N6** 结构与性能余量 ← 下一个
-- **N7** 无障碍
 - **N8** 收尾

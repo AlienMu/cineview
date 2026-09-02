@@ -63,6 +63,7 @@
     "verify:framework": "pnpm verify:framework:static && pnpm test:browser && pnpm verify:browser-failure-injection",
     "docs:style:static": "pnpm --dir site exec node tools/docs-style-probe.mjs --static",
     "docs:style": "pnpm --dir site exec node tools/docs-style-probe.mjs",
+    "a11y:probe": "pnpm --dir site exec node tools/a11y-probe.mjs",
     "verify:all": "pnpm verify:framework && pnpm format:check:site && pnpm type-check && pnpm type-check:site && pnpm test:site-contracts && pnpm docs:style:static",
     "verify": "pnpm verify:all"
   },

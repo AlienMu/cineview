@@ -80,7 +80,16 @@ const { CineView } = require('cineview/drag');
 
 ## 无障碍和输入
 
-框架会保留宿主应用中的原生链接、按钮、表单控件和可编辑字段。drag 模式目前没有内置的键盘切换场景功能，也没有框架级 reduced-motion 开关。应用仍需提供键盘操作、可访问名称和 reduced-motion 策略。非活动场景不会自动添加 `aria-hidden` 或 `inert`。
+框架会保留宿主应用中的原生链接、按钮、表单控件和可编辑字段，并自带以下四项能力：
+
+- **drag 模式键盘翻页。** 根容器是可聚焦的 `region`（`aria-roledescription="carousel"`）。`PageDown` / `PageUp`、`Home` / `End`，以及所配置轴向的方向键可以翻页；从场景内部发出的按键交给接住它的组件，框架不抢。scroll 模式本身就是真实滚动容器，保留浏览器自己的按键处理。
+- **换场播报。** 一个屏幕外的 `role="status"` + `aria-live="polite"` 区域在每次切换时发布当前位置。
+- **非活动场景移出无障碍树。** 被覆盖、停放或非活动的场景带 `inert` 与 `aria-hidden`，既不会被读出，也不能用 Tab 到达。
+- **遵循 `prefers-reduced-motion`。** 系统开启该偏好后，常驻 `loopAnimation` 不启动，可见性驱动的入场/退场补间直接落到终态。scrub 刻意不受影响——它反映的是读者自己的指针或滚动，不是页面自行决定播放的动效。
+
+一页有多个 CineView 时，用 `a11y={{ label: '产品导览' }}` 给区域命名；默认是 `Scenes`。
+
+**这不等于声称符合 WCAG。** 自动化工具大约只能覆盖一半的 WCAG 成功准则，而这里的检查（`src/__tests__/a11y/`，以及 `site/tools/a11y-probe.mjs` 这个真实浏览器探针——它按真键盘、并用 focus() 验证 `inert` 是否真的挡住焦点）都是自动化检查。真正上线页面的合规性仍需用真实辅助技术手工测试，而场景里你自己授权的内容也需要你自己负责。
 
 连续数值通过 `useAnimateTimeline()` 读取，并将返回的 MotionValue 绑定到样式。不要把每帧 progress 写入 React state。scroll zone 中，声明时长的 1 毫秒对应真实滚动距离的 1 像素。
 

@@ -85,6 +85,21 @@ export interface ScrollModeConfig {
   exitMargin?: number;
 }
 
+/**
+ * 无障碍配置。
+ *
+ * 只有一个字段是因为其余三条无障碍行为没有「可配」的空间：非活动场景对辅助技术
+ * 隐藏、换场经 `aria-live` 播报、drag 键盘翻页，都是缺了就不合规的能力，不是偏好。
+ * 「减少动态效果」读的是系统设置，同样不接受组件级覆盖。
+ */
+export interface A11yConfig {
+  /**
+   * drag 根容器的可访问名称（`aria-label`）。默认 `'Scenes'`。
+   * 一页多个 CineView 时必须各给一个，否则屏幕阅读器的地标列表里无法区分。
+   */
+  label?: string;
+}
+
 export interface ScrollbarConfig {
   enabled?: boolean;
   ariaLabel?: string;
@@ -351,6 +366,7 @@ export interface CineViewBaseProps {
   designWidth?: number;
   scrollbar?: false | ScrollbarConfig;
   monitor?: boolean;
+  a11y?: A11yConfig;
   children: ReactNode;
 }
 

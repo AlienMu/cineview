@@ -10,6 +10,7 @@ import React, {
 import { CineViewProvider } from '../../context/CineViewContext';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import { acquirePerformanceMonitoring, performanceMonitor } from '../../utils/performanceMonitor';
 import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
 import { devError } from '../../utils/devLog';
@@ -199,6 +200,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
     );
     // Mirrors the drag root (CineView.tsx): an empty scroll root is a
     // recoverable authoring error, not a silent blank page.
+    const prefersReducedMotion = usePrefersReducedMotion();
     const totalScenes = scenes.length;
     useEffect(() => {
       if (totalScenes === 0) {
@@ -487,6 +489,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
         mode: 'scroll',
         scrollEnterMargin: enterMargin,
         scrollExitMargin: exitMargin,
+        prefersReducedMotion,
         reportError: (detail): void => {
           resolvedCallbacks.common?.onError?.({
             ...detail,
@@ -494,7 +497,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
           });
         },
       }),
-      [enterMargin, exitMargin, resolvedCallbacks.common]
+      [enterMargin, exitMargin, resolvedCallbacks.common, prefersReducedMotion]
     );
 
     return (

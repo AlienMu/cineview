@@ -20,6 +20,7 @@ import {
   type VariantRecord,
 } from './animateInterpolation';
 import { useAnimatedPropertyLanes } from './useAnimatedPropertyLanes';
+import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
 import {
   scheduleVisibilityRecheck,
   subscribeVisibilityMeasurement,
@@ -202,6 +203,15 @@ export function useAnimateScroll({
 }: UseAnimateScrollParams): UseAnimateScrollReturn {
   const enterDuration = duration.enter;
   const exitDuration = duration.exit;
+  // Reduce motion applies to the visibility TWEEN only — the enter/exit the
+  // framework starts by itself when an element crosses the gate. The scrub lane is
+  // deliberately untouched: that is the reader's own scroll being reflected, not
+  // motion the page decided to play (WCAG 2.3.3). Zeroing the duration lands the
+  // tween on its end state on the first frame while keeping the phase sequence
+  // (idle → entering → entered) intact, so `phase` consumers see no difference.
+  const reducedMotion = useCineViewRuntimeContext()?.prefersReducedMotion === true;
+  const tweenEnterDuration = reducedMotion ? 0 : enterDuration;
+  const tweenExitDuration = reducedMotion ? 0 : exitDuration;
   const delay = timeline.delay;
   const after = timeline.after;
   const isScrollDriven = timeline.lane === 'scroll';
@@ -405,7 +415,7 @@ export function useAnimateScroll({
     const completionLease = registrationLeaseRef.current;
     const tweenToken = ++tweenTokenRef.current;
     const controls = animate(visualMotion, 1, {
-      duration: Math.max(enterDuration, 0) / 1000,
+      duration: Math.max(tweenEnterDuration, 0) / 1000,
       ease: 'easeInOut',
       onComplete: () => {
         if (tweenTokenRef.current !== tweenToken) return;
@@ -416,7 +426,7 @@ export function useAnimateScroll({
       },
     });
     tweenControlsRef.current = controls;
-  }, [clearPendingEnter, enterDuration, publishEnterCompleted, setPhase, visualMotion]);
+  }, [clearPendingEnter, tweenEnterDuration, publishEnterCompleted, setPhase, visualMotion]);
 
   const beginEnterAttempt = useCallback(
     (coldStartBypass = false): void => {
@@ -489,7 +499,7 @@ export function useAnimateScroll({
     }
     const tweenToken = ++tweenTokenRef.current;
     const controls = animate(visualMotion, -1, {
-      duration: Math.max(exitDuration, 0) / 1000,
+      duration: Math.max(tweenExitDuration, 0) / 1000,
       ease: 'easeInOut',
       onComplete: () => {
         if (tweenTokenRef.current !== tweenToken) return;
@@ -498,7 +508,7 @@ export function useAnimateScroll({
       },
     });
     tweenControlsRef.current = controls;
-  }, [exitDuration, stopTween, setPhase, visualMotion]);
+  }, [tweenExitDuration, stopTween, setPhase, visualMotion]);
 
   const runVisibilityUpdate = useCallback(
     (rootMeasurement?: VisibilityRootMeasurement) => {

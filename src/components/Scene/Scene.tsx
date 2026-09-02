@@ -879,6 +879,22 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       globalViewportHeight,
     ]);
 
+    // A scene that is covered, parked or inactive is invisible to sighted users but
+    // was still read out by screen readers and still held Tab stops: the existing
+    // gate only turned off pointer events. `inert` covers focus AND the a11y tree in
+    // one attribute; `aria-hidden` is the fallback for engines without it (React
+    // renders the boolean attribute either way, so both are set together).
+    const isHiddenFromAssistiveTech =
+      !dragPointerEnabled &&
+      (runtimeState === 'covered' || runtimeState === 'parked' || runtimeState === 'inactive');
+    // `inert` is absent from React 18's JSX typings (React 19 added it) and
+    // framer-motion derives its prop type from those, so it is spread rather than
+    // written as a literal prop — the attribute is emitted on both React majors.
+    // Engines without `inert` support still get `aria-hidden`.
+    const assistiveTechHiddenProps = isHiddenFromAssistiveTech
+      ? ({ inert: '', 'aria-hidden': true } as Record<string, unknown>)
+      : undefined;
+
     const sceneStyle = useMemo(
       () => ({
         width: resolvedSceneWidth,
@@ -940,6 +956,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
                 )}
                 className={className}
                 style={{ ...style, ...sceneStyle } as never}
+                {...assistiveTechHiddenProps}
                 // D-F1: pointer/pan handlers stay bound for ALL drag scenes (not
                 // only the active one). A scene can deactivate mid-gesture (its
                 // own release commits), while the pointer capture keeps the

@@ -44,6 +44,7 @@ import {
   type CineViewRuntimeContextValue,
 } from '../runtime/runtimeContext';
 import { useCineViewImperativeApi } from './useCineViewImperativeApi';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import { DEFAULT_SLIDE_DURATION } from '../../types';
 import { devWarn } from '../../utils/devLog';
 import type {
@@ -170,6 +171,22 @@ export function resolveRootSceneStackMode(
 /**
  * CineView 组件实现
  */
+// Off-screen but still announced. `display:none` / `visibility:hidden` would drop the
+// node from the accessibility tree, which is the opposite of what a live region needs;
+// clipping keeps it readable without occupying layout.
+const VISUALLY_HIDDEN_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
+
 const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((props, ref) => {
   const {
     designWidth,
@@ -422,6 +439,8 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
   } = sceneState;
   const renderProgressMotion = useMotionValue(0);
   const dragTimelineProgressMotion = useMotionValue(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const a11yLabel = props.a11y?.label ?? 'Scenes';
 
   currentSceneRef.current = currentScene;
   scenesRef.current = scenes;
@@ -1073,6 +1092,42 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     }
   }, [hasLegacyDisplayNameScene, totalScenes]);
 
+  // Keyboard paging. Drag mode had zero keydown handling: a scene could only be
+  // reached with a pointer, which fails WCAG 2.1.1 outright. This drives the same
+  // `goToScene` the imperative ref already exposes, so keyboard and pointer commit
+  // through one path. Scroll mode is untouched — it is a real scroll container and
+  // already answers the browser's own key handling.
+  const handleContainerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>): void => {
+      if (resolvedRootMode !== 'drag') return;
+      // Let an authored control inside a scene keep its own keys.
+      if (event.target !== event.currentTarget) return;
+
+      const lastIndex = Math.max(0, scenesRef.current.length - 1);
+      const forwardKey = dragDirection === 'x' ? 'ArrowRight' : 'ArrowDown';
+      const backwardKey = dragDirection === 'x' ? 'ArrowLeft' : 'ArrowUp';
+
+      let target: number | null = null;
+      if (event.key === 'PageDown' || event.key === forwardKey)
+        target = currentSceneRef.current + 1;
+      else if (event.key === 'PageUp' || event.key === backwardKey)
+        target = currentSceneRef.current - 1;
+      else if (event.key === 'Home') target = 0;
+      else if (event.key === 'End') target = lastIndex;
+      if (target === null) return;
+
+      event.preventDefault();
+      const clamped = Math.max(0, Math.min(target, lastIndex));
+      if (clamped !== currentSceneRef.current) sceneActions.goToScene(clamped, true);
+    },
+    [dragDirection, resolvedRootMode, sceneActions]
+  );
+
+  // Screen readers get no scene-change event from a transform-driven stack, so the
+  // position is published in a polite live region. `role="status"` keeps it announced
+  // by engines that ignore a bare aria-live on a non-landmark element.
+  const sceneAnnouncement = totalScenes > 0 ? `${currentScene + 1} / ${totalScenes}` : '';
+
   // 容器样式
   const containerStyle: React.CSSProperties = {
     position: 'relative',
@@ -1094,11 +1149,12 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
       mode: resolvedRootMode,
       scrollEnterMargin: undefined,
       scrollExitMargin: undefined,
+      prefersReducedMotion,
       reportError: (detail): void => {
         emitError(detail.code as CineViewErrorCode, detail.message, detail.context);
       },
     }),
-    [resolvedRootMode, emitError]
+    [resolvedRootMode, emitError, prefersReducedMotion]
   );
 
   return (
@@ -1109,6 +1165,11 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
           style={containerStyle}
           className="cineview-container"
           data-cineview-container="true"
+          role={resolvedRootMode === 'drag' ? 'region' : undefined}
+          aria-roledescription={resolvedRootMode === 'drag' ? 'carousel' : undefined}
+          aria-label={resolvedRootMode === 'drag' ? a11yLabel : undefined}
+          tabIndex={resolvedRootMode === 'drag' ? 0 : undefined}
+          onKeyDown={resolvedRootMode === 'drag' ? handleContainerKeyDown : undefined}
         >
           <div style={sceneViewportStyle}>
             <DragSceneStack
@@ -1157,6 +1218,15 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
               onFirstSceneEnterComplete={handleFirstSceneEnterComplete}
             />
           </div>
+          {/* Placed after the scene viewport, not before it: a screen reader's virtual
+              cursor walks the DOM in order, so a leading status node would be the first
+              thing read on entering the region. Live-region announcements are pushed to
+              the user regardless of where the node sits. */}
+          {resolvedRootMode === 'drag' ? (
+            <div role="status" aria-live="polite" style={VISUALLY_HIDDEN_STYLE}>
+              {sceneAnnouncement}
+            </div>
+          ) : null}
         </div>
       </CineViewRuntimeContext.Provider>
     </CineViewProvider>
