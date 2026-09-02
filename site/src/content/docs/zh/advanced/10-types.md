@@ -71,6 +71,26 @@ payload 类型是 `CineViewErrorDetail = { code, message, context?, preventDefau
 | `SceneVisibilityDetail` | onSceneVisibilityChange / `Scene.callbacks.onVisibilityChange` | `sceneIndex?`、`visible`、`progress`                                    |
 | `CineViewErrorDetail`   | onError                                                        | 见「错误码」小节                                                        |
 
+## 组件 Props 类型
+
+每个组件的 props 都从包根导出，包一层的时候可以直接引用，不必重新声明形状。
+下面三个没有单独页面；其余都在各自的组件页里。
+
+| 类型                | 继承自                                                      | 自有字段                                                                                                                                                                                     |
+| ------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimateVideoProps` | 原生 video 事件（`onPlay`、`onSeeked` 等）                  | `src`、`poster`、`width`、`height`、`style`、`preload`、`playbackRate`、`scrubRange`、`animateId`、`duration`、`enterAnimation`、`exitAnimation`、`timeline`、`visibility`、`releaseOnLeave` |
+| `ImageProps`        | `img` 属性去掉 `src` / `alt` / `width` / `height` / `style` | `src`（必填）、`alt`（必填）、`width`、`height`、`style`、`preload`                                                                                                                          |
+| `ContainerProps`    | `div` 属性去掉 `children` / `style` / `className`           | `width`、`height`、`children`（必填）、`style`、`className`                                                                                                                                  |
+
+三者的 `width` / `height` / `style` 传数值时都按设计 px 处理，走与别处相同的
+`designWidth` 换算。`AnimateVideoProps.scrubRange` 是只读的 `[起始秒, 结束秒]`，
+允许倒序，见 [AnimateVideo](/docs/04-animate-video)。`releaseOnLeave` 仅对
+scroll 接管区生效，drag 模式下忽略。
+
+```tsx
+import type { AnimateVideoProps, ImageProps, ContainerProps } from 'cineview';
+```
+
 ## Animate 专用类型
 
 | 类型                   | 定义                                                                                                                                                                         |

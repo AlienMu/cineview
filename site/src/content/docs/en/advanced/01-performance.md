@@ -34,7 +34,7 @@ There is nothing else to configure; monitoring is a single boolean. It is observ
 
 Three consequences worth remembering:
 
-**The 60 ceiling on `fps` is a fixed upper bound.** The formula is `Math.min(Math.max(1000 / avgFrameTime, 0), 60)` (`src/utils/performanceMonitor.ts:101-106`). On a high-refresh display a real 90fps and a real 60fps read identically, so `fps === 60` only proves "at least 60," never "matching the display refresh rate."
+**The 60 ceiling on `fps` is a fixed upper bound.** The formula is `Math.min(Math.max(1000 / avgFrameTime, 0), 60)` (`src/utils/performanceMonitor.ts:103-105`). On a high-refresh display a real 90fps and a real 60fps read identically, so `fps === 60` only proves "at least 60," never "matching the display refresh rate."
 
 **`avgFrameTime` cannot detect jank.** It is the arithmetic mean of the last 60 frame intervals at most (`:44-46`, `:118-123`). One 200ms long task mixed into 59 frames of 16ms lifts the mean to roughly 19ms, which looks perfectly healthy. Jank diagnostics require percentiles and long-task records from browser developer tools or a `PerformanceObserver`; framework-level readings cannot provide that level of granularity.
 

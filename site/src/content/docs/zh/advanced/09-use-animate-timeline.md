@@ -48,7 +48,7 @@ function ParallaxLayer() {
 
 ## scroll 锁定区内 phase 不更新
 
-**元素在 scroll 锁定区（locked zone）内时，`phase` 不会更新，保持在 `'idle'`。** phase 描述基于视窗可见性进出时的动画状态；锁定区内的动画由滚动位置精确驱动，不经过可见性阶段状态机推进，因此不会切换至 `entering` / `entered` / `exiting`。**该行为仅适用于 scroll 锁定区**：drag 模式下阶段状态正常推进（`hidden→idle`、`enter→entering/entered`、`rest→entered`、`outgoing→exiting`），在 drag 模式下依据 phase 执行状态判断符合设计预期。此时 `progress` 与 `signedProgress` 仍跟随滚动实时变化，仅 `phase` 维持在 `idle`。
+**元素在 scroll 锁定区（locked zone）内时，`phase` 不会更新，保持在 `'idle'`。** phase 描述基于视窗可见性进出时的动画状态；锁定区内的动画由滚动位置精确驱动，不按可见性进出推进阶段，因此不会切换至 `entering` / `entered` / `exiting`。**该行为仅适用于 scroll 锁定区**：drag 模式下阶段状态正常推进（`hidden→idle`、`enter→entering/entered`、`rest→entered`、`outgoing→exiting`），在 drag 模式下依据 phase 执行状态判断符合设计预期。此时 `progress` 与 `signedProgress` 仍跟随滚动实时变化，仅 `phase` 维持在 `idle`。
 
 render-prop children 拿到的 `state.phase` 同源，同样停在 `idle`。
 

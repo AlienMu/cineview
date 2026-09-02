@@ -21,4 +21,8 @@ cap-visual.mjs
 
 # Ad-hoc probe scripts (DOM/geometry/motion inspection during development).
 # Everything under site/scripts is throwaway; nothing here is wired into npm scripts.
+#
+# This ignores the DIRECTORY, and git does not descend into an ignored directory —
+# so a negation like `!scripts/keep-me.mjs` does NOT work here. A probe that has to
+# survive (be tracked, be a CI gate) belongs in site/tools/, which is tracked.
 scripts

@@ -61,7 +61,9 @@
     "lighthouse": "lighthouse http://localhost:3000 --view",
     "verify:framework:static": "pnpm format:check:framework && pnpm type-check:framework && pnpm type-check:examples && pnpm lint && pnpm test:coverage:framework && pnpm test:examples && pnpm quality:duplicates && pnpm build:verify && pnpm verify:failure-injection",
     "verify:framework": "pnpm verify:framework:static && pnpm test:browser && pnpm verify:browser-failure-injection",
-    "verify:all": "pnpm verify:framework && pnpm format:check:site && pnpm type-check && pnpm type-check:site && pnpm test:site-contracts",
+    "docs:style:static": "pnpm --dir site exec node tools/docs-style-probe.mjs --static",
+    "docs:style": "pnpm --dir site exec node tools/docs-style-probe.mjs",
+    "verify:all": "pnpm verify:framework && pnpm format:check:site && pnpm type-check && pnpm type-check:site && pnpm test:site-contracts && pnpm docs:style:static",
     "verify": "pnpm verify:all"
   },
   "peerDependencies": {

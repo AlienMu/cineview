@@ -34,7 +34,7 @@ const metrics = ref.current!.getPerformanceMetrics();
 
 三条推论值得记住：
 
-**`fps` 的 60 上限是固化的内置基准。** 算式是 `Math.min(Math.max(1000 / avgFrameTime, 0), 60)`（`src/utils/performanceMonitor.ts:101-106`）。高刷屏上真实 90fps 与真实 60fps 读数完全一样，所以 `fps === 60` 只能证明「没掉到 60 以下」，不能证明「跑满刷新率」。
+**`fps` 的 60 上限是固化的内置基准。** 算式是 `Math.min(Math.max(1000 / avgFrameTime, 0), 60)`（`src/utils/performanceMonitor.ts:103-105`）。高刷屏上真实 90fps 与真实 60fps 读数完全一样，所以 `fps === 60` 只能证明「没掉到 60 以下」，不能证明「跑满刷新率」。
 
 **`avgFrameTime` 不能用于卡顿检测。** 它是最近至多 60 个帧间隔的算术平均（`:44-46`、`:118-123`）。一个 200ms 的长任务混进 59 个 16ms 的帧里，均值只抬到 19ms 左右，看着完全健康。卡顿要看分位数与 long task，那得用浏览器的 Performance 面板或 `PerformanceObserver`，框架的读数给不了。
 

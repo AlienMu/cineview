@@ -71,6 +71,28 @@ The payload type is `CineViewErrorDetail = { code, message, context?, preventDef
 | `SceneVisibilityDetail` | onSceneVisibilityChange / `Scene.callbacks.onVisibilityChange`    | `sceneIndex?`, `visible`, `progress`                                               |
 | `CineViewErrorDetail`   | onError                                                           | See "Error codes"                                                                  |
 
+## Component prop types
+
+Every component's props are exported from the package root, so a wrapper can name them
+without re-declaring the shape. The three below have no page of their own; the rest are
+documented on their component pages.
+
+| Type                | Extends                                                             | Own fields                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimateVideoProps` | Native video events (`onPlay`, `onSeeked`, …)                       | `src`, `poster`, `width`, `height`, `style`, `preload`, `playbackRate`, `scrubRange`, `animateId`, `duration`, `enterAnimation`, `exitAnimation`, `timeline`, `visibility`, `releaseOnLeave` |
+| `ImageProps`        | `img` attributes minus `src` / `alt` / `width` / `height` / `style` | `src` (required), `alt` (required), `width`, `height`, `style`, `preload`                                                                                                                    |
+| `ContainerProps`    | `div` attributes minus `children` / `style` / `className`           | `width`, `height`, `children` (required), `style`, `className`                                                                                                                               |
+
+`width` / `height` / `style` accept design pixels as numbers on all three, converted
+through the same `designWidth` ruler as everywhere else. `AnimateVideoProps.scrubRange`
+is a readonly `[fromSeconds, toSeconds]` pair and may run backwards; see
+[AnimateVideo](/docs/04-animate-video). `releaseOnLeave` applies to scroll takeover
+zones only and is ignored in drag mode.
+
+```tsx
+import type { AnimateVideoProps, ImageProps, ContainerProps } from 'cineview';
+```
+
 ## Animate-specific types
 
 | Type                   | Definition                                                                                                                                                                                 |

@@ -419,6 +419,74 @@ pnpm verify:framework:static
 
 ---
 
+## N5 · 文档修正（2026-09-01 完成）
+
+计划说「动手前先 `git stash`」——**已过期**：那 94 个未提交文件在 N1/N2 就落地了，
+本节点开工时工作树是干净的。逐条按**当前**工作树复核，结果与计划有出入：
+
+| 计划项                                            | 复核结果                                                                                                                                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `never` 语义误导（en/zh `03-animate.md:28`）      | zh 两处、en `:28` **已经是对的**（都写「键必须缺席」）；只有 **en `:80`** 还写着 "the type forces `enterAnimation: never`" —— 读起来像「要写 never」，正是 `07-common-pitfalls` 列的陷阱。已改。 |
+| 改名残留 `en:27` "coexist with enter or infinite" | **已修**（现为 `enterAnimation` or `loopAnimation`）。`:78` 的 `infinite` 是在讲 CSS `animation: … infinite`，正当，不动。                                                                       |
+| `10-types.md` 缺三个 Props 类型                   | **确实缺**，en/zh 各 0 处。已补一节「组件 Props 类型」。                                                                                                                                         |
+| `01-performance.md:37` 引用 `:101-106`            | 前一条日志记为「zh 已修」——**记错了**，en/zh **都还是** `:101-106`。实测算式在 `:103-105`（`:101` 是注释、`:106` 是空行）。两侧都已改。同段的 `:217-241`（引用计数）复核**正确**，不动。         |
+| `zh/09-use-animate-timeline.md:51` 禁词「状态机」 | 前一条日志记为已删——**也记错了**，仍在（「不经过可见性阶段状态机推进」）。已改为「不按可见性进出推进阶段」。全文档树该词现为 **0**（WRITING.md 里定义禁词的 3 处属规则表自身，正当）。           |
+| COVERAGE_REPORT 的「89.15% 不得称为可发布」       | **已删**。但数字过期（112 套/1533 例），已更新为 113 套/1547 例 + 当前 lcov 值。                                                                                                                 |
+
+### A2：文风探针必须搬家（不能靠否定式）
+
+`site/.gitignore:24` 忽略的是**目录** `scripts`，git 对被忽略目录不下降 ⇒
+`!scripts/docs-style-probe.mjs` 这类否定式无效。实测 `git check-ignore -v` 命中该行，
+且该文件此前**根本未被版本库跟踪**（`git mv` 报 "not under version control"）——
+一个进不了版本库的探针当不了 CI 门。
+
+动作：
+
+1. 移到 `site/tools/docs-style-probe.mjs`（已跟踪）。
+2. 拆两段。该探针本来就是 A（源文件级结构检查，不需要浏览器）+ B（渲染后正文，
+   需要跑着的站点）。加 `--static` / `DOCS_STYLE_STATIC=1` 在 A 段末尾收口。
+3. 新增 `docs:style:static` 与 `docs:style` 两个 script，把**静态那半**接进 `verify:all`。
+   B 段仍属真机通道，与 `test:browser` 同类，不进静态门。
+4. static 模式**刻意不写证据文件**。它跑在 `verify:all` 里，每跑一次落一个 JSON
+   会把工作树弄脏——而脏树正是让 `pnpm publish --dry-run` 在 `ERR_PNPM_GIT_UNCLEAN`
+   上提前失败的原因（A9）。退出码就是门；完整浏览器那遍照旧写 `review/`。
+5. `site/.gitignore` 补注释，写清「忽略目录 ⇒ 否定式无效 ⇒ 承重探针放 tools/」。
+
+**探针有效性自证**（探针 PASS 只证明它查的那些）：往 `10-types.md` 注入一个无语言的
+code fence，静态门 `structural issues: 1 / VERDICT: FAIL`、退出码 1；撤回后复绿。
+经 npm script（跨目录 `pnpm --dir site exec`）跑同一注入也命中——**没有踩到
+「子目录 exec 落包根、探针测错对象」那个坑**。
+
+计划里 `drag-scrub-probe.mjs` 那条：该文件在 `site/scripts/` 下已不存在，无可处置。
+
+### DESIGN.md 目录
+
+2763 行、118 个二/三级标题、零导航，而 `CONTRIBUTING.md:5` 让英文贡献者先读它。
+已生成手写目录（二级 + 三级两层缩进）。锚点按 GitHub 规则生成——**不折叠连续短横**
+（GitHub 把 `a + b` 变成 `a--b`，第一版折叠了，会产生死链）。
+自检：118 条链接，悬空 **0**。
+
+### 计划里「不做」的四条，复核后仍然不做
+
+`exitRef` 那条矛盾不存在、zh 的 `## 相关页面` 不缺、terser 陈述无需修、
+AGENTS.md 陈旧分叉已自愈——四条均按 A13 维持原判，未改。
+
+### 验收
+
+```
+双语结构扫描：en 40 页 / zh 40 页，仅一侧存在 0，二/三级标题数漂移 0 文件
+pnpm format:check:site        ✓
+pnpm type-check:site          ✓
+pnpm test:site-contracts      11 套 63 例全绿
+pnpm --dir site build         ✓
+pnpm docs:style:static        structural issues: 0 / VERDICT: PASS
+全文档树「状态机」            0（WRITING.md 规则表自身除外）
+```
+
+**N5 完成。**
+
+---
+
 ## 本轮附带发现（N4 的输入）
 
 `useAnimateScroll.phase.test.tsx` 是**负载敏感的假红**，不是回归。
@@ -444,7 +512,7 @@ pnpm verify:framework:static
 - ~~N3~~ 完成（本轮）
 - ~~N2b~~ 完成（本轮）
 - ~~N4~~ 完成（本轮）
-- **N5** 文档修正 ← 下一个
-- **N6** 结构与性能余量
+- ~~N5~~ 完成（本轮）
+- **N6** 结构与性能余量 ← 下一个
 - **N7** 无障碍
 - **N8** 收尾
