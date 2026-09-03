@@ -228,6 +228,36 @@ $ pnpm verify:framework:static
   EXIT=0
 ```
 
+#### Vite 8 产物体积回归（+700~900 字节，2026-09-03 修复）
+
+升级 Vite 5 → 8 后，全产物退化（esbuild → Rolldown）：
+- UMD 退 700B → **预算超 356B**（budget 56KB, 实测 56.988KB）
+- scroll-UMD 退 900B → **预算超 389B**（budget 51KB, 实测 51.389KB）
+- ES、drag-UMD 擦线但仍在预算内
+
+派出 5-agent 诊断 workflow，返回四项配置优化（~2750B 理论回收）：
+1. `esbuild.legalComments: 'none'`（transform 阶段）
+2. `build.minifyOptions.esbuild: {legalComments:'none', treeShaking:true}`（minify 阶段）
+3. `build.rollupOptions.treeshake: {moduleSideEffects:'no-external', propertyReadSideEffects:false, preset:'recommended'}`
+4. ~~`codeSplitting` API 迁移~~ ← **执行时发现不工作**（Rolldown 未实现/语法错），回退 `manualChunks`
+
+应用前三项后实测：
+
+```
+cineview.es.mjs        47320  headroom 3880
+cineview.umd.js        55876  headroom  444
+cineview-drag.umd.js   43889  headroom 1207
+cineview-scroll.umd.js 50419  headroom  685
+```
+
+**1785B 实际回收**（UMD 改善最明显，ES 几乎持平），四产物全部回到预算内，余量 ≥400B。
+
+提交 `d8f6312 "build(vite8): legal-comments + treeshake recovery (1785B)"`。
+
+**N3 完成（2026-09-03）。Scene 空子元素成本 116B（预期），Vite 8 回归修复额外回收 1785B。**
+
+---
+
 ### 变异验证（自攻，三个变异全部被杀）
 
 | 变异 | 改动                                       | 转红的用例                                                  |
