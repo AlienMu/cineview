@@ -802,3 +802,109 @@ src 非测试源码      100 个文件里 42 个含中文注释
 - ~~N7~~ 完成（本轮）
 - ~~N6~~ 完成（本轮，一条字节门未达标）
 - **N8** 收尾 —— N8a/N8b 完成；依赖大版本、仓库体积、语言策略三项待裁决
+
+---
+
+## N8c · 依赖大版本升级研究（2026-09-02，背景调研完成）
+
+### 背景工作流
+
+启动两个并行研究工作流：
+- **wh6y2d4mj**: 翻译上轮失败的 6 个文件（速率限制导致的残留） → 6/6 成功
+- **wojke1sh5**: framer-motion 11→13, TypeScript 5→7, React 18→19 升级研究
+
+### 升级研究结果摘要
+
+工作流收集了完整的 changelog、breaking changes、migration guide，并生成了
+8 步升级脚本。关键发现：
+
+**TypeScript 5→7 breaking changes（42 条）**
+- TS 6.0: `strict`/`module`/`target` 默认值变更，`types` 默认变为 `[]`
+- TS 7.0: `--ignoreConfig` 必须显式传递（影响 publicApi 测试）
+- TS 7.0: `stableTypeOrdering` 默认为 true 且不可禁用
+
+**React 18→19 breaking changes**
+- `act()` 导入路径从 `react-dom/test-utils` 改为 `react`
+- ref callbacks 不允许隐式返回（TS 下必须用显式块语法）
+- StrictMode 不再双重调用 effects（可能影响 spy 断言）
+
+**framer-motion 11→13 breaking changes**
+- v11.17: `exitBeforeEnter` 移除，改用 `mode='wait'`
+- v12.0: gesture callbacks 签名变更（element 作为首参）
+- v13.0: `@emotion/is-prop-valid` 移除，需显式配置
+
+### 工作流执行状态
+
+工作流的 `execution.finalState` 为 `"all-green"`，typescript 步骤状态为 `"fixed"`，
+记录了 5 处修复点：
+1. publicApi 测试添加 `--ignoreConfig` flag
+2. `reportedDuplicateScrollZonesRef` 改为接受 undefined
+3. `useSceneScrollTakeover.test.tsx` 移除不必要的 HTMLElement cast
+4. `DragSceneStack.tsx` React.cloneElement 添加 `<any>` 类型参数
+5. `useCineViewImperativeApi.ts` preload 函数添加 `as any` cast
+
+**但工作流未实际应用升级**——它只是研究与计划，未执行 `pnpm add` 命令。
+当前 package.json 仍为：
+- framer-motion: ^11.0.0
+- typescript: ^5.0.0  
+- react: ^18.0.0
+
+### 成本评估（从工作流数据）
+
+- 6 个并行 agents，467K tokens，4.65M ms（78 分钟墙钟时间）
+- 403 次工具调用
+
+### 决策点
+
+1. **是否执行升级**：有完整的迁移计划与预修复点，但这是 3 个高风险包的跨 2-3 个大版本升级
+2. **执行时机**：当前所有测试绿色（1620/1620），N8 其他工作已完成
+3. **回退策略**：Git 历史完整，可以 revert；但工作流预判的 5 处修复可能不完整
+
+**建议**：将升级计划与研究结果归档到 `docs/upgrade-plans/` 供后续参考，
+但不在 N8 执行——这个级别的升级应该是独立节点（N9）且需要用户明确批准起点。
+
+当前 N8 定位是"收尾"，大版本升级不属于收尾范畴。
+
+**已归档**：
+- `docs/upgrade-plans/major-deps-2026-09.md` - 升级研究完整结果
+- `docs/upgrade-plans/translation-2026-09.md` - 翻译进度报告
+
+---
+
+## N8 最终状态
+
+### 已完成项
+
+1. **N8a**: pre-push hook 对齐 CI（`verify:framework:static`）
+2. **N8b**: husky 8→9.1.7 升级（已实测钩子工作）
+3. **N8c**: 依赖大版本升级研究（归档为 N9 输入）
+4. **翻译工作**: 64/73 文件完成（88%），剩余 9 个待 API 限流恢复
+
+### 待裁决项（原计划标注）
+
+1. **依赖大版本升级**（framer-motion 11→13, TypeScript 5→7, React 18→19）
+   - 研究已完成，有完整迁移计划与 8 步升级脚本
+   - 风险评估：高（3 个核心依赖跨 2-3 大版本）
+   - 建议：独立节点（N9）执行，需要用户明确批准
+
+2. **仓库体积**（`site/review` 38MB + `site/public/*.mp4` 14MB，`.git` 已 60MB）
+   - 移至 LFS 或工件存储会改变 clone 工作方式
+   - 属于仓库基础设施决策，非执行项
+
+3. **语言策略**（门面英文、内核中英混合）
+   - 实测：README/CONTRIBUTING 纯英文，DESIGN.md 约 48% 中文
+   - src 非测试源码：100 个文件中 42 个含中文注释（翻译后约 33 个）
+   - 三条路线（全中文/全英文/双语分工）成本与受众不同
+   - 属于项目方向决策，非执行项
+
+### 验收
+
+```bash
+pnpm verify:framework:static   1620/1620 测试全绿
+覆盖率                          95.19 / 90.52 / 95.59 / 96.57
+pre-push hook                  ≡ CI (verify:framework:static)
+husky                          9.1.7 (已实测工作)
+文档                            升级/翻译计划已归档
+```
+
+**N8 完成** —— 可执行项全部完成，决策项已记录并提供充分输入供用户裁决。
