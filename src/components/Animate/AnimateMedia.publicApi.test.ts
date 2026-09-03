@@ -18,11 +18,6 @@ describe('AnimateVideo public API typing', () => {
       process.execPath,
       [
         tscBin,
-        // TypeScript 6 raises TS5112 when files are passed on the command line
-        // while a tsconfig.json exists. These fixtures deliberately compile under
-        // flags spelled out below, not under the repo config, so skipping it is
-        // the intent — the flag just makes that explicit.
-        '--ignoreConfig',
         '--noEmit',
         '--pretty',
         'false',
@@ -40,12 +35,6 @@ describe('AnimateVideo public API typing', () => {
         '--esModuleInterop',
         '--allowSyntheticDefaultImports',
         '--skipLibCheck',
-        // Spelled out because --ignoreConfig also drops tsconfig's `types`, and
-        // TypeScript 6 no longer pulls every node_modules/@types entry in
-        // implicitly — without this the framework's own `process` references fail
-        // to resolve and the fixture reports errors that are not about its props.
-        '--types',
-        'node',
         fixturePath,
       ],
       { cwd: repoRoot, encoding: 'utf8' }

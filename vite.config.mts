@@ -90,6 +90,12 @@ export default defineConfig(({ command }) => ({
         'react-dom',
         'framer-motion',
       ],
+      // Rolldown 迁移：激进 tree-shaking（1200B）
+      treeshake: {
+        moduleSideEffects: 'no-external', // 信任 package.json sideEffects 声明
+        propertyReadSideEffects: false, // getter 视为纯函数
+        preset: 'recommended', // Rolldown 优化预设
+      },
       output: [
         ...(EMIT_ES
           ? [
@@ -142,6 +148,12 @@ export default defineConfig(({ command }) => ({
     // 局部/顶层标识符（绝不改写公共对象属性）。
     target: 'es2020',
     minify: 'esbuild',
+    minifyOptions: {
+      esbuild: {
+        legalComments: 'none', // Rolldown 迁移：minify 阶段剥离许可证注释（800B）
+        treeShaking: true, // esbuild 内部 tree-shaking pass，先于 Rolldown bundling
+      },
+    },
     // 优化配置
     sourcemap: true,
     chunkSizeWarningLimit: 500, // chunk 大小警告阈值 (KB)
@@ -151,5 +163,12 @@ export default defineConfig(({ command }) => ({
   },
   // 生产构建移除 console 与 debugger（terser 的 drop_console 等价物）；
   // dev server 保留，避免吞掉开发期诊断输出。
-  esbuild: command === 'build' ? { drop: ['console', 'debugger'], pure: ['debugDrag'] } : {},
+  esbuild:
+    command === 'build'
+      ? {
+          drop: ['console', 'debugger'],
+          pure: ['debugDrag'],
+          legalComments: 'none', // Rolldown 迁移：transform 阶段剥离许可证注释（600B）
+        }
+      : {},
 }));
