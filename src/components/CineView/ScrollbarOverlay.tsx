@@ -42,7 +42,7 @@ export function ScrollbarOverlay({
   isScrolling,
   config,
   onScrollToOffset,
-}: ScrollbarOverlayProps): JSX.Element | null {
+}: ScrollbarOverlayProps): React.JSX.Element | null {
   const scrollbarAutoHide = config.autoHide ?? true;
   const scrollbarAriaLabel = config.ariaLabel ?? 'CineView scroll position';
   const scrollbarThickness = Math.max(config.width ?? 6, 4);

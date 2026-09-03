@@ -1,6 +1,6 @@
 import { CineView, Scene, Animate, Position } from '../../../index';
 
-export function GroupedPublicPathFixture(): JSX.Element {
+export function GroupedPublicPathFixture(): React.JSX.Element {
   return (
     <CineView designWidth={1440} mode="scroll" direction={'y'} zoneTrigger={'center-lock'}>
       <Scene

@@ -31,6 +31,8 @@ describe('AnimateVideo public API typing', () => {
         'bundler',
         '--lib',
         'ES2020,DOM,DOM.Iterable',
+        '--types',
+        'node,react,react-dom',
         '--strict',
         '--esModuleInterop',
         '--allowSyntheticDefaultImports',

@@ -28,7 +28,7 @@ jest.mock('framer-motion', () => {
     ...props
   }: React.HTMLAttributes<HTMLDivElement> & {
     style?: Record<string, unknown>;
-  }): JSX.Element => {
+  }): React.JSX.Element => {
     const [, forceRender] = React.useState(0);
 
     React.useEffect(() => {

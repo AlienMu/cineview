@@ -50,7 +50,7 @@ function expectRootLut(progress: number): void {
   });
 }
 
-function SiteFixture(): JSX.Element {
+function SiteFixture(): React.JSX.Element {
   const [generation, setGeneration] = useState(0);
   const [route, setRoute] = useState<'/demo' | '/docs'>('/demo');
 

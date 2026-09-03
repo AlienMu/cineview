@@ -13,7 +13,7 @@ jest.mock('framer-motion', () => {
         ...props
       }: React.HTMLAttributes<HTMLDivElement> & {
         style?: React.CSSProperties;
-      }): JSX.Element => (
+      }): React.JSX.Element => (
         <div data-testid="motion-div" {...props} style={style}>
           {children}
         </div>

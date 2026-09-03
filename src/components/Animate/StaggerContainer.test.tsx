@@ -188,7 +188,7 @@ describe('renderStaggerTree', () => {
   });
 
   it('非字符串 type 的 container / 子元素回退到 motion.div', () => {
-    const Custom = (props: { children?: React.ReactNode }): JSX.Element => (
+    const Custom = (props: { children?: React.ReactNode }): React.JSX.Element => (
       <div>{props.children}</div>
     );
     const custom = (
@@ -352,7 +352,7 @@ describe('mounted stagger phase stability', () => {
 
   it('keeps ScrollStagger authored timing across ordinary rerenders until the group completes', () => {
     const signedVisual = motionValue(1);
-    const Host = ({ tick }: { tick: number }): JSX.Element => (
+    const Host = ({ tick }: { tick: number }): React.JSX.Element => (
       <div data-tick={tick}>
         <ScrollStagger
           container={mountedContainer}
@@ -382,7 +382,7 @@ describe('mounted stagger phase stability', () => {
 
   it('resets the completion clock after ScrollStagger leaves and re-enters animate', () => {
     const signedVisual = motionValue(1);
-    const Host = (): JSX.Element => (
+    const Host = (): React.JSX.Element => (
       <ScrollStagger
         container={mountedContainer}
         variant={mountedVariant}
@@ -415,7 +415,7 @@ describe('mounted stagger phase stability', () => {
       localProgress: 0.5,
       sceneOffset: 0,
     });
-    const Host = ({ tick }: { tick: number }): JSX.Element => (
+    const Host = ({ tick }: { tick: number }): React.JSX.Element => (
       <div data-tick={tick}>
         <DragStagger
           container={mountedContainer}
@@ -435,7 +435,7 @@ describe('mounted stagger phase stability', () => {
 
   it('re-arms the settled clock when exit and re-entry are batched in one MotionValue burst', () => {
     const signedVisual = motionValue(1);
-    const Host = (): JSX.Element => (
+    const Host = (): React.JSX.Element => (
       <ScrollStagger
         container={mountedContainer}
         variant={mountedVariant}
@@ -470,7 +470,7 @@ describe('mounted stagger phase stability', () => {
 
   it('does not commit instant timing on the first render of a batched re-entry revision', () => {
     const signedVisual = motionValue(1);
-    const Host = (): JSX.Element => (
+    const Host = (): React.JSX.Element => (
       <ScrollStagger
         container={mountedContainer}
         variant={mountedVariant}

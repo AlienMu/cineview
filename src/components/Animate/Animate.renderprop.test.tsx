@@ -47,7 +47,7 @@ jest.mock('framer-motion', () => {
       custom: _c,
       style,
       ...props
-    }: Record<string, unknown>): JSX.Element =>
+    }: Record<string, unknown>): React.JSX.Element =>
       React.createElement(
         Tag,
         { 'data-testid': `motion-${Tag}`, style, ...props },

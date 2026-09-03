@@ -173,7 +173,7 @@ const AnimateVideoContent = forwardRef<HTMLVideoElement, AnimateVideoContentProp
       onError,
     },
     ref
-  ): JSX.Element {
+  ): React.JSX.Element {
     const timeline = useAnimateTimeline();
     const controlRef = useVideoResidencyControl(releaseOnLeave, src);
 
@@ -227,7 +227,7 @@ export const AnimateVideo = forwardRef<HTMLVideoElement, AnimateVideoProps>(func
     onError,
   },
   ref
-): JSX.Element {
+): React.JSX.Element {
   return (
     <Animate
       animateId={animateId}

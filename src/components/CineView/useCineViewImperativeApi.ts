@@ -66,9 +66,19 @@ export function useCineViewImperativeApi({
 
   const preload = useCallback(
     async (targets?: CineViewPreloadTarget[]): Promise<void> => {
-      const targetImages = resolveScenePreloadTargetImages(scenesRef.current, targets, {
-        includeZoneIds: true,
-      });
+      const targetImages = resolveScenePreloadTargetImages(
+        scenesRef.current as Array<{
+          props: {
+            sceneId?: string;
+            scroll?: { zoneId?: string };
+            assets?: { preloadImages?: string[] };
+          };
+        }>,
+        targets,
+        {
+          includeZoneIds: true,
+        }
+      );
       if (targetImages.length > 0) {
         preloadActionsRef.current.addUrls(targetImages, true);
       }

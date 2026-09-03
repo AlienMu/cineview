@@ -81,7 +81,7 @@ describe('CineViewContext', () => {
         value: 750,
       });
 
-      const TestComponent = (): JSX.Element => {
+      const TestComponent = (): React.JSX.Element => {
         const context = useCineViewContext();
         return <div data-testid="scale">{context?.scale}</div>;
       };
@@ -97,7 +97,7 @@ describe('CineViewContext', () => {
     });
 
     it('should scale down when viewport is narrower than design size', (): void => {
-      const TestComponent = (): JSX.Element => {
+      const TestComponent = (): React.JSX.Element => {
         const context = useCineViewContext();
         return <div data-testid="scale">{context?.scale}</div>;
       };
@@ -146,7 +146,7 @@ describe('CineViewContext', () => {
         value: 750,
       });
 
-      const TestComponent = (): JSX.Element => {
+      const TestComponent = (): React.JSX.Element => {
         const context = useCineViewContext();
         return <div data-testid="scale">{context?.scale}</div>;
       };
@@ -189,7 +189,7 @@ describe('CineViewContext', () => {
         value: 750,
       });
 
-      const TestComponent = (): JSX.Element => {
+      const TestComponent = (): React.JSX.Element => {
         const context = useCineViewContext();
         const converted = context?.convert(100);
         return <div data-testid="converted">{converted}</div>;
@@ -213,7 +213,7 @@ describe('CineViewContext', () => {
     });
 
     it('should return context value when used inside CineViewProvider', (): void => {
-      const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
+      const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
         <CineViewProvider designSize={750}>{children}</CineViewProvider>
       );
 
@@ -229,7 +229,7 @@ describe('CineViewContext', () => {
 
 describe('SSR Support', () => {
   it('should not crash when window is present (SSR-safe guard)', (): void => {
-    const TestComponent = (): JSX.Element => {
+    const TestComponent = (): React.JSX.Element => {
       const context = useCineViewContext();
       return <div data-testid="scale">{context?.scale}</div>;
     };

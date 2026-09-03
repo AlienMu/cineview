@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, type RefObject } from 'react';
 import type { SlideDirection } from '../../types';
 
 interface UseScrollViewportParams {
-  rootRef: RefObject<HTMLDivElement>;
+  rootRef: RefObject<HTMLDivElement | null>;
   direction: SlideDirection;
 }
 

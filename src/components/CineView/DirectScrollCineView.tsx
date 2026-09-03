@@ -85,7 +85,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
       [directionProp, zoneTrigger, sceneSizing]
     );
     const direction = resolvedScrollConfig.direction ?? 'y';
-    const containerRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const scrollOffsetRef = useRef(0);
     const scrollOffsetStoreRef = useRef(createScrollExternalStore(0));
     const measureSceneLayoutsRef = useRef<(() => void) | null>(null);
@@ -214,7 +214,9 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
         }
       }
     }, [emitRecoverableError, totalScenes]);
-    const reportedDuplicateScrollZonesRef = useRef<typeof duplicateScrollZones>();
+    const reportedDuplicateScrollZonesRef = useRef<
+      readonly (readonly [zoneId: string, ownerSceneIndex: number])[] | undefined
+    >(undefined);
     useEffect(() => {
       if (reportedDuplicateScrollZonesRef.current === duplicateScrollZones) return;
       reportedDuplicateScrollZonesRef.current = duplicateScrollZones;

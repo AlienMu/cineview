@@ -91,7 +91,7 @@ jest.mock('framer-motion', () => {
         variants?: unknown;
         custom?: unknown;
         style?: React.CSSProperties;
-      }): JSX.Element => {
+      }): React.JSX.Element => {
         void animate;
         void variants;
         void custom;
@@ -338,7 +338,7 @@ describe('Animate Component', () => {
       animate: { opacity: 1 },
       exit: { opacity: 0 },
     };
-    const ScrollInfiniteProbe = (): JSX.Element => {
+    const ScrollInfiniteProbe = (): React.JSX.Element => {
       const result = useAnimateScroll({
         sceneContext: scrollSceneContext,
         zoneRuntime: scrollRuntime,
@@ -404,7 +404,7 @@ describe('Animate Component', () => {
           renderProgress,
           sceneTransitionDuration: 800,
         });
-      const tree = (context: SceneContextType): JSX.Element => (
+      const tree = (context: SceneContextType): React.JSX.Element => (
         <SceneContext.Provider value={context}>
           <Animate animateId="exit-lane" enterAnimation="fade-in" exitAnimation="fade-out">
             <div>Test Content</div>

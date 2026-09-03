@@ -116,7 +116,7 @@ function getSceneSettleDuration(
 }
 
 function collectScenePreloadPlan(
-  scenes: JSX.Element[],
+  scenes: React.JSX.Element[],
   activeSceneIndex: number,
   mode: ScrollMode
 ): { priorityImages: string[]; backgroundImages: string[] } {

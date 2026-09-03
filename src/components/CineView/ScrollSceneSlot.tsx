@@ -131,7 +131,7 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   sceneIndex,
   setWrapperRef,
   scrollCallbacks,
-}: ScrollSceneSlotProps): JSX.Element {
+}: ScrollSceneSlotProps): React.JSX.Element {
   const subscribe = useCallback(
     (listener: () => void) => store.subscribeKey(sceneIndex, listener),
     [sceneIndex, store]

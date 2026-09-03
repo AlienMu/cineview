@@ -280,7 +280,7 @@ function ScrollBudgetProbe({
 }: {
   animateId: string;
   enterDuration?: number;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
   const runtime = useContext(SceneScrollRuntimeContext);
   const zoneId = useContext(SceneScrollTakeoverContext);
 
@@ -304,30 +304,30 @@ function ScrollBudgetProbe({
   return null;
 }
 
-function ZoneProgressProbe({ zoneId }: { zoneId: string }): JSX.Element {
+function ZoneProgressProbe({ zoneId }: { zoneId: string }): React.JSX.Element {
   const progress = useSceneScrollZoneTimeline(zoneId)?.progressPx ?? 0;
 
   return <output data-testid={`${zoneId}-progress`}>{progress}</output>;
 }
 
-function ZoneTotalBudgetProbe({ zoneId }: { zoneId: string }): JSX.Element {
+function ZoneTotalBudgetProbe({ zoneId }: { zoneId: string }): React.JSX.Element {
   const total = useSceneScrollZoneTimeline(zoneId)?.totalBudgetPx ?? -1;
   return <output data-testid={`${zoneId}-total`}>{total}</output>;
 }
 
-function ZoneActiveProbe({ zoneId }: { zoneId: string }): JSX.Element {
+function ZoneActiveProbe({ zoneId }: { zoneId: string }): React.JSX.Element {
   const active = useSceneScrollZoneTimeline(zoneId)?.active ?? false;
 
   return <output data-testid={`${zoneId}-active`}>{String(active)}</output>;
 }
 
-function ZoneBudgetKeysProbe({ zoneId }: { zoneId: string }): JSX.Element {
+function ZoneBudgetKeysProbe({ zoneId }: { zoneId: string }): React.JSX.Element {
   const keys = Object.keys(useSceneScrollZoneTimeline(zoneId)?.sequence.budgets ?? {}).sort();
 
   return <output data-testid={`${zoneId}-budget-keys`}>{keys.join(',')}</output>;
 }
 
-function SceneRuntimeProbe({ sceneId }: { sceneId: string }): JSX.Element {
+function SceneRuntimeProbe({ sceneId }: { sceneId: string }): React.JSX.Element {
   const sceneContext = useContext(SceneContext);
   return (
     <output data-testid={`${sceneId}-runtime`}>{sceneContext?.runtimeState ?? 'missing'}</output>
@@ -6348,7 +6348,7 @@ describe('DirectScrollCineView', () => {
     // (segment 1000..1400, flow 1400), scene-2 takeover zone-target budget 100
     // (top 2400, segment 2400..2500). scrollHeight 3500, max offset 2500.
     async function renderSmoothScrollPage(): Promise<{
-      ref: React.RefObject<CineViewRef>;
+      ref: React.RefObject<CineViewRef | null>;
       container: HTMLElement;
       root: HTMLDivElement;
       midSegment: { start: number; end: number; distance: number };

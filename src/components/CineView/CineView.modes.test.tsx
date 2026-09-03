@@ -1,22 +1,22 @@
 /**
- * CineView 容器组件 —— 模式分支 / runtime 回调 / ref 命令方法补充单测
+ * CineView container component — mode branches / runtime callbacks / ref command method supplementary tests
  *
- * 说明（架构事实，影响断言策略）：
- * 导出的 `CineView`（CineView.tsx 末尾）在 `mode==='scroll'` 时会路由到独立组件
- * `DirectScrollCineView.tsx`；而 `DragCineViewComponent` 内部第 466 行将
- * `isRootScrollMode` 硬编码为字面量 `false`。因此 CineView.tsx 中所有被
- * `isRootScrollMode` 守卫的 scroll 分支都是「经公共 API 不可达」的死代码，真正的
- * scroll 引擎在 DirectScrollCineView.tsx（不在本文件覆盖目标内）。
+ * Context (architectural fact, affects assertion strategy):
+ * The exported `CineView` (end of CineView.tsx) routes to a separate component
+ * `DirectScrollCineView.tsx` when `mode==='scroll'`; and `DragCineViewComponent` internally at line 466 has
+ * `isRootScrollMode` hardcoded to the literal `false`. Therefore all scroll branches
+ * guarded by `isRootScrollMode` in CineView.tsx are "unreachable via public API" dead code, the real
+ * scroll engine is in DirectScrollCineView.tsx (not within this file's coverage target).
  *
- * 本文件只针对 **drag 路径真实可达** 的未覆盖面补测：
- * - 注入到子 Scene 的 dragRuntime/scrollRuntime/callbacks 运行时回调
- * - 程序化提交（handleSceneChange forward/backward）
- * - 预加载 onError/onProgress 归一化
- * - 视口测量（ResizeObserver 路径）
- * - renderProgress clamp 边界
- * - ref 命令方法（goToZone no-op、preload 变体、refreshLayout、metrics）
- * - 首屏冷启动超时（FIRST_SCENE_TIMEOUT recoverable error）
- * - scrollSceneLayout memo 中 resolveScrollSceneDeclaredSpan 的各类尺寸解析
+ * This file only supplements tests for **drag path actually reachable** uncovered areas:
+ * - dragRuntime/scrollRuntime/callbacks runtime callbacks injected into child Scene
+ * - Programmatic commits (handleSceneChange forward/backward)
+ * - Preload onError/onProgress normalization
+ * - Viewport measurement (ResizeObserver path)
+ * - renderProgress clamp boundaries
+ * - ref command methods (goToZone no-op, preload variants, refreshLayout, metrics)
+ * - First screen cold start timeout (FIRST_SCENE_TIMEOUT recoverable error)
+ * - Various size resolution in scrollSceneLayout memo's resolveScrollSceneDeclaredSpan
  */
 
 import { createRef, useState } from 'react';
@@ -204,12 +204,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     (globalThis as { ResizeObserver?: unknown }).ResizeObserver = originalRO;
   });
 
-  describe('drag 手势 runtime 回调归一化', () => {
-    it('父组件随 drag 重渲染时 callbacks.onReady 仍只触发一次', async () => {
+  describe('drag gesture runtime callback normalization', () => {
+    it('callbacks.onReady fires only once even when parent re-renders with drag', async () => {
       const onReady = jest.fn();
       const callbackRef = jest.fn<void, [CineViewRef | null]>();
 
-      const Harness = (): JSX.Element => {
+      const Harness = (): React.JSX.Element => {
         const [, setRevision] = useState(0);
         return (
           <CineView
@@ -242,7 +242,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(callbackRef.mock.calls.filter(([api]) => api !== null).length).toBeGreaterThan(1);
     });
 
-    it('同一 React 批次内逐个发布 drag progress 样本', async () => {
+    it('publishes drag progress samples one-by-one within same React batch', async () => {
       const onDragProgress = jest.fn();
 
       render(
@@ -268,7 +268,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       ]);
     });
 
-    it('发布等幅 drag progress 的方向反转', async () => {
+    it('publishes direction reversal of equal-magnitude drag progress', async () => {
       const onDragProgress = jest.fn();
 
       render(
@@ -292,7 +292,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       ]);
     });
 
-    it('注入的 dragRuntime 驱动 onDragStart / onDragProgress / onDragCancel 一轮', async () => {
+    it('injected dragRuntime drives onDragStart / onDragProgress / onDragCancel one round', async () => {
       const onDragStart = jest.fn();
       const onDragProgress = jest.fn();
       const onDragCancel = jest.fn();
@@ -310,7 +310,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
       await waitFor(() => expect(captured[0]).toBeDefined());
 
-      // 开始拖拽 + 进度变化
+      // Start dragging + progress change
       act(() => {
         expect(acquireInjectedForwardDrag()).toBe(true);
         captured[0].dragRuntime!.onProgressChange(0.5);
@@ -323,7 +323,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         expect.objectContaining({ sceneIndex: 0, progress: 0.5, direction: 'forward' })
       );
 
-      // 反向进度（backward 分支）
+      // Reverse progress (backward branch)
       act(() => {
         captured[0].dragRuntime!.onProgressChange(-0.25);
       });
@@ -331,7 +331,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         expect.objectContaining({ progress: 0.25, direction: 'backward' })
       );
 
-      // 松手未提交 → reset 结局发布 cancel
+      // Release without commit → reset outcome publishes cancel
       act(() => {
         captured[0].dragRuntime!.onRelease({
           mode: 'bounce',
@@ -346,7 +346,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       );
     });
 
-    it('成功提交不同时误报 onDragCancel', async () => {
+    it('successful commit does not falsely report onDragCancel', async () => {
       const onDragCancel = jest.fn();
       const onDragEnd = jest.fn();
 
@@ -376,7 +376,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(onDragCancel).not.toHaveBeenCalled();
     });
 
-    it('bounce 结束时只发布一次 release 点的 onDragCancel', async () => {
+    it('bounce end publishes onDragCancel only once at release point', async () => {
       const onDragCancel = jest.fn();
 
       render(
@@ -409,7 +409,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       });
     });
 
-    it('同一按压 forward 被拒后可反向获权，且 onDragStart 只反映最终方向', async () => {
+    it('same press: forward rejected then reverse acquired, onDragStart reflects only final direction', async () => {
       const onDragStart = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -438,7 +438,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       );
     });
 
-    it('仅 element continuation 活跃时也能同步建立可逆 Candidate hold', async () => {
+    it('can establish reversible Candidate hold even when only element continuation is active', async () => {
       render(
         <CineView mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
@@ -464,7 +464,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(suspended).toBe(false);
     });
 
-    it('onDragBlocked 在一次按压内按方向去重，并在下一次按压重新开放', async () => {
+    it('onDragBlocked dedupes per direction within one press, reopens on next press', async () => {
       const onDragBlocked = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -500,7 +500,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(onDragBlocked).toHaveBeenCalledTimes(3);
     });
 
-    it('物理边界只建立 render ownership，不创建越界 element transaction', async () => {
+    it('physical boundary only establishes render ownership, does not create out-of-bounds element transaction', async () => {
       const onDragStart = jest.fn();
       render(
         <CineView mode="drag" designWidth={750} callbacks={{ onDragStart }}>
@@ -521,7 +521,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(captured[0].dragRuntime?.transaction ?? null).toBeNull();
     });
 
-    it('post-commit settle 反向 retarget 会清旧 join，旧 completion 不得释放新事务', async () => {
+    it('post-commit settle reverse retarget clears old join, old completion must not release new transaction', async () => {
       const onDragEnd = jest.fn();
       render(
         <CineView mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
@@ -569,7 +569,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(onDragEnd).toHaveBeenCalledTimes(1);
     });
 
-    it('dragRuntime.onCommit 在 forward / backward 都补发 onDragEnd 并携带 elapsedMs', async () => {
+    it('dragRuntime.onCommit supplements onDragEnd in both forward / backward with elapsedMs', async () => {
       const onDragEnd = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -583,7 +583,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
       await waitFor(() => expect(captured[0]).toBeDefined());
 
-      // forward commit（携带 progressRatio / elapsedMs / timelineDuration）
+      // forward commit (carries progressRatio / elapsedMs / timelineDuration)
       act(() => {
         captured[0].dragRuntime!.onCommit('forward', 0.8, 120, 240);
       });
@@ -598,7 +598,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         })
       );
 
-      // 推进到场景 1，再触发 backward commit
+      // Advance to scene 1, then trigger backward commit
       act(() => {
         ref.current?.goToScene(1, false);
       });
@@ -618,7 +618,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       );
     });
 
-    it('renderProgress < 0 在首屏被钳为 0（不产生负向位移越界）', async () => {
+    it('renderProgress < 0 clamped to 0 on first screen (no negative displacement overflow)', async () => {
       const { container } = render(
         <CineView mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
@@ -632,12 +632,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         captured[0].dragRuntime!.renderProgressMotion.set(-0.5);
       });
 
-      // 场景 0 在 renderProgress<0 时 clampProgress=0 → translate 仍为 0%
+      // Scene 0 at renderProgress<0 has clampProgress=0 → translate remains 0%
       const scene0 = container.querySelector('[data-scene-index="0"]') as HTMLDivElement;
       expect(scene0.style.transform).toBe('translate3d(0, 0%, 0)');
     });
 
-    it('renderProgress > 0 在末屏被钳为 0', async () => {
+    it('renderProgress > 0 clamped to 0 on last screen', async () => {
       const ref = createRef<CineViewRef>();
       const { container } = render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -661,7 +661,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(scene1.style.transform).toBe('translate3d(0, 0%, 0)');
     });
 
-    it('slideDirection=x 时位移走横轴 transform', async () => {
+    it('slideDirection=x uses horizontal axis transform for displacement', async () => {
       const { container } = render(
         <CineView mode="drag" designWidth={750} direction={'x'}>
           <DriverScene>S1</DriverScene>
@@ -675,7 +675,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(scene0.style.transform).toBe('translate3d(0%, 0, 0)');
     });
 
-    it('将根映射与 Scene 整组覆盖解析后注入真实 dragRuntime', async () => {
+    it('injects root mapping and Scene group override resolution into real dragRuntime', async () => {
       render(
         <CineView mode="drag" designWidth={750} unit={'percent'} scale={0.5}>
           <DriverScene>S-root</DriverScene>
@@ -691,7 +691,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(captured[1].dragRuntime?.dragMappingConfig).toEqual({ unit: 'time', scale: 2 });
     });
 
-    it('非法 drag 配置按 Scene 与字段去重上报 INVALID_DRAG_CONFIG', async () => {
+    it('invalid drag config reports INVALID_DRAG_CONFIG deduped by Scene and field', async () => {
       const onError = jest.fn();
       const invalidRootProps = { unit: 'frames', scale: 3 } as unknown as Pick<
         React.ComponentProps<typeof CineView>,
@@ -730,7 +730,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       ).toHaveLength(3);
     });
 
-    it('onActivationComplete 在非首屏场景走 completeDragTransition（不抛错）', async () => {
+    it('onActivationComplete in non-first-screen scene goes through completeDragTransition (no error)', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -753,8 +753,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('预加载回调归一化', () => {
-    it('useImagePreloader.onProgress 透传到 callbacks.onLoadProgress', async () => {
+  describe('preload callback normalization', () => {
+    it('useImagePreloader.onProgress passes through to callbacks.onLoadProgress', async () => {
       const onLoadProgress = jest.fn();
       render(
         <CineView mode="drag" designWidth={750} callbacks={{ onLoadProgress }}>
@@ -769,7 +769,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(onLoadProgress).toHaveBeenCalledWith(42);
     });
 
-    it('useImagePreloader.onError 归一化为 IMAGE_LOAD_FAILED 错误', async () => {
+    it('useImagePreloader.onError normalizes to IMAGE_LOAD_FAILED error', async () => {
       const onError = jest.fn();
       render(
         <CineView mode="drag" designWidth={750} callbacks={{ onError }}>
@@ -790,7 +790,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       );
     });
 
-    it('没有任何 Scene 时发出 EMPTY_SCENES 错误', () => {
+    it('emits EMPTY_SCENES error when there are no Scenes', () => {
       const onError = jest.fn();
       render(
         <CineView mode="drag" designWidth={750} callbacks={{ onError }}>
@@ -802,8 +802,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('视口测量（ResizeObserver 路径）', () => {
-    it('容器有正向尺寸时测量并在 RO 回调里复测视口', async () => {
+  describe('viewport measurement (ResizeObserver path)', () => {
+    it('measures container when it has positive dimensions and re-measures in RO callback', async () => {
       const rectSpy = jest.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
         width: 750,
         height: 1334,
@@ -824,11 +824,11 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         );
 
         await waitFor(() => expect(captured[0]).toBeDefined());
-        // 视口宽高被注入到 sceneRuntime
+        // Viewport width/height injected into sceneRuntime
         expect(captured[0].sceneRuntime!.viewportWidth).toBe(750);
         expect(captured[0].sceneRuntime!.viewportHeight).toBe(1334);
 
-        // 触发 ResizeObserver 回调（覆盖 RO 重新测量分支），不应抛错
+        // Trigger ResizeObserver callback (covers RO re-measure branch), should not throw
         expect(() => {
           act(() => {
             MockResizeObserver.instances.forEach((i) => i.trigger());
@@ -840,10 +840,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('scrollSceneLayout 声明尺寸解析（drag 下仍计算）', () => {
-    // resolveScrollSceneDeclaredSpan 在 scrollSceneLayout memo 中无条件执行，
-    // 即便 drag 模式也会对每个 Scene 的 layout.width/height 求值。
-    it('解析 number / px / vh / vw / auto / 非法 各类尺寸不抛错', async () => {
+  describe('scrollSceneLayout declared size resolution (still calculated in drag mode)', () => {
+    // resolveScrollSceneDeclaredSpan executes unconditionally in scrollSceneLayout memo,
+    // even in drag mode it evaluates each Scene's layout.width/height.
+    it('resolves number / px / vh / vw / auto / invalid size types without error', async () => {
       const { container } = render(
         <CineView mode="drag" designWidth={750} direction={'y'}>
           <DriverScene {...({ layout: { height: 500 } } as object)}>S-number</DriverScene>
@@ -859,11 +859,11 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
-      // 各场景包装器存在即说明 layout memo 正常完成
+      // Each scene wrapper exists, indicating layout memo completed normally
       expect(container.querySelector('[data-scene-index="0"]')).toBeInTheDocument();
     });
 
-    it('direction=x 时按 width 解析声明尺寸（number / vw / 空串）', async () => {
+    it('direction=x resolves declared size by width (number / vw / empty string)', async () => {
       const { container } = render(
         <CineView mode="drag" designWidth={750} direction={'x'}>
           <DriverScene {...({ layout: { width: 400 } } as object)}>S1</DriverScene>
@@ -876,8 +876,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('ref 命令方法（drag 路径）', () => {
-    it('goToZone 在 drag 模式是 no-op（不抛错、不改变当前场景）', async () => {
+  describe('ref command methods (drag path)', () => {
+    it('goToZone is no-op in drag mode (no error, does not change current scene)', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -895,7 +895,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(ref.current?.getCurrentIndex()).toBe(0);
     });
 
-    it('preload() 无参时直接 startPreload；带场景索引/sceneId 时追加优先图片', async () => {
+    it('preload() without args calls startPreload directly; with scene index/sceneId appends priority images', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -923,7 +923,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(preloaderActions.startPreload).toHaveBeenCalled();
     });
 
-    it('refreshLayout 重新测量且不抛错', async () => {
+    it('refreshLayout re-measures without error', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -938,7 +938,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       }).not.toThrow();
     });
 
-    it('getPerformanceMetrics 透传 performanceMonitor 指标', async () => {
+    it('getPerformanceMetrics passes through performanceMonitor metrics', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -951,8 +951,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('动画 settle 计时器在卸载时清理', () => {
-    it('animated goToScene 起一个 settle timer，卸载时被清理', async () => {
+  describe('animation settle timer cleanup on unmount', () => {
+    it('animated goToScene starts settle timer, cleaned up on unmount', async () => {
       jest.useFakeTimers();
       try {
         const ref = createRef<CineViewRef>();
@@ -963,14 +963,14 @@ describe('CineView drag-path modes / runtime callbacks', () => {
           </CineView>
         );
 
-        // ref 已就绪（同步 imperative handle）
+        // ref ready immediately (synchronous imperative handle)
         expect(ref.current).not.toBeNull();
 
         act(() => {
-          ref.current?.goToScene(1, true); // animated → isAnimating → 起 settle timer
+          ref.current?.goToScene(1, true); // animated → isAnimating → starts settle timer
         });
 
-        // 卸载时清理 timer 不应抛错
+        // Unmount should clean up timer without error
         expect(() => unmount()).not.toThrow();
       } finally {
         jest.clearAllTimers();
@@ -979,8 +979,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('首屏冷启动超时', () => {
-    it('优先资源未完成且超时 → 发出 FIRST_SCENE_TIMEOUT recoverable error', async () => {
+  describe('first screen cold start timeout', () => {
+    it('priority resources not complete and timeout → emits FIRST_SCENE_TIMEOUT recoverable error', async () => {
       jest.useFakeTimers();
       try {
         preloaderState = {
@@ -1007,7 +1007,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         expect(onError).toHaveBeenCalledWith(
           expect.objectContaining({ code: 'FIRST_SCENE_TIMEOUT' })
         );
-        // recoverable：detail 携带 preventDefault
+        // recoverable: detail carries preventDefault
         const detail = onError.mock.calls.find((c) => c[0].code === 'FIRST_SCENE_TIMEOUT')?.[0];
         expect(typeof detail.preventDefault).toBe('function');
       } finally {
@@ -1017,8 +1017,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('性能监控开关', () => {
-    it('performance.monitor 开启时启动监控，卸载时停止', () => {
+  describe('performance monitoring toggle', () => {
+    it('performance.monitor enabled starts monitoring, stops on unmount', () => {
       const { unmount } = render(
         <CineView mode="drag" designWidth={750} monitor>
           <DriverScene>S1</DriverScene>
@@ -1030,8 +1030,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('animated goToScene settle 关闭（A10 / D-F6）', () => {
-    it('settle 兜底为 DEFAULT_SLIDE_DURATION(800)，onSceneLeave 携带真实 fromIndex', () => {
+  describe('animated goToScene settle closure (A10 / D-F6)', () => {
+    it('settle defaults to DEFAULT_SLIDE_DURATION(800), onSceneLeave carries real fromIndex', () => {
       jest.useFakeTimers();
       try {
         const onSceneLeave = jest.fn();
@@ -1047,8 +1047,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
           ref.current?.goToScene(1, true);
         });
 
-        // A10: 旧兜底 500ms 会在这里提前触发 settle（与 DEFAULT_SLIDE_DURATION
-        // 800 的滑动本体脱节）；统一后 799ms 时 settle 尚未关闭。
+        // A10: old fallback 500ms would trigger settle prematurely here (disconnected
+        // from DEFAULT_SLIDE_DURATION 800 slide body); after unification, at 799ms
+        // settle has not yet closed.
         act(() => {
           jest.advanceTimersByTime(799);
         });
@@ -1057,8 +1058,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         act(() => {
           jest.advanceTimersByTime(1);
         });
-        // D-F6: settle 关闭时必须报告真实 fromIndex（旧实现回退到已更新的
-        // currentSceneRef，产出 fromIndex === toIndex === 1、direction null）。
+        // D-F6: settle closure must report real fromIndex (old implementation fell back
+        // to already-updated currentSceneRef, producing fromIndex === toIndex === 1, direction null).
         expect(onSceneLeave).toHaveBeenCalledTimes(1);
         expect(onSceneLeave).toHaveBeenCalledWith(
           expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
@@ -1070,8 +1071,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
   });
 
-  describe('动态 children 收缩（B2）', () => {
-    it('渲染中移除 active scene 时索引被重钳，视口不悬空', async () => {
+  describe('dynamic children shrinkage (B2)', () => {
+    it('removing active scene during render re-clamps index, viewport does not hang', async () => {
       const ref = createRef<CineViewRef>();
       const { rerender } = render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -1086,7 +1087,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       });
       expect(ref.current?.getCurrentIndex()).toBe(2);
 
-      // 条件渲染移除了当前 active 的第三个 scene。
+      // Conditional rendering removed the currently active third scene.
       rerender(
         <CineView ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
@@ -1107,8 +1108,8 @@ describe('CineView drag-path modes / runtime callbacks', () => {
   // the reducer early-return WITHOUT touching `currentScene`, so that effect never runs
   // and the flag stays armed — discharging on the NEXT, unrelated scene change and
   // zeroing renderProgressMotion / dragTimelineProgressMotion when nothing asked for it.
-  describe('拒绝提交后不得残留 render rebase 旗标（N2b / A15）', () => {
-    it('越界提交后的普通场景切换不归零 renderProgressMotion', async () => {
+  describe('rejected commit must not leave render rebase flag armed (N2b / A15)', () => {
+    it('out-of-bounds commit followed by normal scene change does not zero renderProgressMotion', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>
@@ -1140,7 +1141,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       expect(renderProgressMotion.get()).toBeCloseTo(0.42, 5);
     });
 
-    it('已提交的场景切换仍然归零 renderProgressMotion（未过度修正）', async () => {
+    it('committed scene change still zeroes renderProgressMotion (not over-corrected)', async () => {
       const ref = createRef<CineViewRef>();
       render(
         <CineView ref={ref} mode="drag" designWidth={750}>

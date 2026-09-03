@@ -60,7 +60,7 @@ describe('useConvertSize fallback (outside provider)', () => {
       value: 375,
     });
 
-    const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
       <CineViewProvider designSize={750}>{children}</CineViewProvider>
     );
 
@@ -104,7 +104,7 @@ describe('CineViewProvider designSize guard', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     setInnerWidth(375);
 
-    const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
       <CineViewProvider designSize={0}>{children}</CineViewProvider>
     );
     const { result } = renderHook(() => useConvertSize(), { wrapper });
@@ -115,7 +115,7 @@ describe('CineViewProvider designSize guard', () => {
     expect(errorSpy.mock.calls[0].join(' ')).toContain('[CineView] Invalid designSize');
 
     // 一次性旗标：再次挂载另一个非法值不再重复报错。
-    const wrapperNegative = ({ children }: { children: React.ReactNode }): JSX.Element => (
+    const wrapperNegative = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
       <CineViewProvider designSize={-5}>{children}</CineViewProvider>
     );
     const second = renderHook(() => useConvertSize(), { wrapper: wrapperNegative });
@@ -128,7 +128,7 @@ describe('CineViewProvider designSize guard', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     setInnerWidth(375);
 
-    const wrapper = ({ children }: { children: React.ReactNode }): JSX.Element => (
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
       <CineViewProvider designSize={Number.NaN}>{children}</CineViewProvider>
     );
     const { result } = renderHook(() => useConvertSize(), { wrapper });

@@ -29,7 +29,7 @@ interface HarnessOptions {
 function makeHarness({ renderProgress, loopAnimation }: HarnessOptions) {
   let motion: MotionValue<number> | null = null;
 
-  const TestComponent = (): JSX.Element => {
+  const TestComponent = (): React.JSX.Element => {
     const dragProgressMotion = useMotionValue(0);
     motion = dragProgressMotion;
     const mockContext: SceneContextType = {

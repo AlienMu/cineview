@@ -19,7 +19,7 @@ export function ScrollSceneStack({
   frameStore,
   setWrapperRef,
   scrollCallbacks,
-}: ScrollSceneStackProps): JSX.Element {
+}: ScrollSceneStackProps): React.JSX.Element {
   let sceneIndex = 0;
 
   return (

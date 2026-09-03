@@ -18,7 +18,7 @@ function Harness({
   onCandidateEnd?: () => void;
   captureActiveRef?: (ref: { current: boolean }) => void;
   axis?: 'x' | 'y';
-}): JSX.Element {
+}): React.JSX.Element {
   const handlers = useNativePointerDrag({
     enabled: true,
     axis,

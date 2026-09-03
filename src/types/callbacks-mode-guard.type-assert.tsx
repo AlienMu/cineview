@@ -79,7 +79,7 @@ const scrollWithDragConfig: CineViewProps = {
 };
 
 // --- Negative: same guard at the JSX boundary -------------------------------
-export function DragModeScrollCallbackJsx(): JSX.Element {
+export function DragModeScrollCallbackJsx(): React.JSX.Element {
   return (
     // @ts-expect-error onZoneProgress is not valid in drag mode
     <CineView designWidth={750} mode="drag" callbacks={{ onZoneProgress: () => {} }}>
@@ -88,7 +88,7 @@ export function DragModeScrollCallbackJsx(): JSX.Element {
   );
 }
 
-export function ScrollModeDragCallbackJsx(): JSX.Element {
+export function ScrollModeDragCallbackJsx(): React.JSX.Element {
   return (
     // @ts-expect-error onDragEnd is not valid in scroll mode
     <CineView designWidth={750} mode="scroll" callbacks={{ onDragEnd: () => {} }}>

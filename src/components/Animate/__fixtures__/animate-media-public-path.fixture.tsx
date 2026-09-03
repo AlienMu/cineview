@@ -3,7 +3,7 @@ import { AnimateVideo } from '../../../index';
 
 // Valid explicit public surface. Native media capabilities stay intentionally
 // enumerated instead of widening AnimateVideo to every VideoHTMLAttribute.
-export function AnimateMediaPublicPathFixture(): JSX.Element {
+export function AnimateMediaPublicPathFixture(): React.JSX.Element {
   const videoRef = createRef<HTMLVideoElement>();
 
   return (

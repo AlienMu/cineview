@@ -11,7 +11,7 @@ interface SceneScrollTakeoverConfig {
     zoneId?: string;
     trigger?: 'center-lock';
   };
-  elementRef: RefObject<HTMLElement>;
+  elementRef: RefObject<HTMLElement | null>;
 }
 
 export function useSceneScrollTakeover({

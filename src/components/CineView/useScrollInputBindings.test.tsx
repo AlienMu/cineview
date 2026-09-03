@@ -9,7 +9,11 @@ function defineTouches(event: Event, touches: Array<{ clientX: number; clientY: 
   });
 }
 
-function InputHarness({ applyDelta }: { applyDelta: (delta: number) => boolean }): JSX.Element {
+function InputHarness({
+  applyDelta,
+}: {
+  applyDelta: (delta: number) => boolean;
+}): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
   useScrollInputBindings({
     rootRef,

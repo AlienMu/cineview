@@ -26,7 +26,7 @@ export function ScrollRenderBridge({
   signedVisual,
   phaseMotion,
   render,
-}: ScrollBridgeProps): JSX.Element {
+}: ScrollBridgeProps): React.JSX.Element {
   const [state, setState] = useState<AnimateRenderState>(() =>
     resolveScrollRenderState(phaseMotion.get(), signedVisual.get())
   );
@@ -46,7 +46,7 @@ interface DragBridgeProps {
   render: (state: AnimateRenderState) => React.ReactNode;
 }
 
-export function DragRenderBridge({ visualState, render }: DragBridgeProps): JSX.Element {
+export function DragRenderBridge({ visualState, render }: DragBridgeProps): React.JSX.Element {
   const [state, setState] = useState<AnimateRenderState>(() => {
     const vs = visualState.get();
     return vs ? resolveDragRenderState(vs.mode, vs.localProgress) : IDLE_RENDER_STATE;

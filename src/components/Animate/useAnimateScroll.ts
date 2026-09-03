@@ -753,7 +753,7 @@ export function useAnimateScroll({
   // timeline and play now" — never "restart the wait".
   const triggerManualEnter = useCallback((): void => {
     manualEnterUsedRef.current = true;
-    // 消费者重新要求它出现 ⇒ 解除上一次手动退场的所有权，否则再也回不来。
+    // Consumer requests re-entry ⇒ release the previous manual exit ownership, otherwise it can never return.
     manualExitUsedRef.current = false;
     // Both flags are initialization bookkeeping: taking manual ownership counts as
     // having initialized, so a later measurement cannot re-run the first-measure

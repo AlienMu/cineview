@@ -403,7 +403,7 @@ describe('性能测试', () => {
         }
       } as unknown as typeof Image;
 
-      const TestApp = (): JSX.Element => (
+      const TestApp = (): React.JSX.Element => (
         <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
             <h1>首屏</h1>

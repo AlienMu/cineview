@@ -130,7 +130,7 @@ jest.mock('framer-motion', () => ({
   animate: () => ({ stop: jest.fn() }),
 }));
 
-function RuntimeProbe(): JSX.Element {
+function RuntimeProbe(): React.JSX.Element {
   const sceneContext = useContext(SceneContext) as SceneContextType;
   return <div data-testid="runtime-state">{sceneContext.runtimeState}</div>;
 }

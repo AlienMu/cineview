@@ -49,7 +49,7 @@ function TimelineProbe({
   onRead,
 }: {
   onRead: (timeline: ReturnType<typeof useAnimateTimeline>) => void;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
   onRead(useAnimateTimeline());
   return null;
 }
@@ -60,7 +60,7 @@ describe('useAnimateTimeline', () => {
     const timelineRef: { current: AnimateTimeline | null } = { current: null };
     const observedProgress: number[] = [];
 
-    function Probe(): JSX.Element {
+    function Probe(): React.JSX.Element {
       renderCount += 1;
       return (
         <TimelineProbe
@@ -250,7 +250,7 @@ describe('useAnimateTimeline', () => {
     const timelineRef: { current: AnimateTimeline | null } = { current: null };
     let renders = 0;
 
-    function Probe(): JSX.Element {
+    function Probe(): React.JSX.Element {
       renders += 1;
       return <TimelineProbe onRead={(value) => (timelineRef.current = value)} />;
     }
@@ -285,7 +285,7 @@ describe('useAnimateTimeline', () => {
   });
 
   it('throws when used outside Animate so the ownership boundary is explicit', () => {
-    function InvalidConsumer(): JSX.Element | null {
+    function InvalidConsumer(): React.JSX.Element | null {
       useAnimateTimeline();
       return null;
     }

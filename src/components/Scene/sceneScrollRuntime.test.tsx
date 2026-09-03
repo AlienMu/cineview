@@ -44,7 +44,13 @@ describe('scene scroll zone timeline subscription', () => {
     >({ 'zone-a': zoneA, 'zone-b': zoneB }, (snapshot, zoneId) => snapshot[zoneId]);
     const renderCounts = { a: 0, b: 0 };
 
-    function ZoneProbe({ zoneId, counter }: { zoneId: string; counter: 'a' | 'b' }): JSX.Element {
+    function ZoneProbe({
+      zoneId,
+      counter,
+    }: {
+      zoneId: string;
+      counter: 'a' | 'b';
+    }): React.JSX.Element {
       const state = useSceneScrollZoneTimeline(zoneId);
       renderCounts[counter] += 1;
       return <output data-testid={zoneId}>{state?.progressPx ?? -1}</output>;
@@ -77,7 +83,7 @@ describe('scene scroll zone timeline subscription', () => {
     >({ 'zone-a': createZoneState('zone-a', 0) }, (snapshot, zoneId) => snapshot[zoneId]);
     let renders = 0;
 
-    function ApproachProbe(): JSX.Element {
+    function ApproachProbe(): React.JSX.Element {
       const approach = useSceneScrollZoneApproach('zone-a');
       renders += 1;
       return <output data-testid="approach">{approach ?? 'none'}</output>;

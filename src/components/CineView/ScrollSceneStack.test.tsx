@@ -72,7 +72,7 @@ describe('ScrollSceneStack subscriptions', () => {
   it('does not rerender an active Scene for a continuous scroll frame', () => {
     let sceneRenders = 0;
     const CountingScene = Object.assign(
-      function CountingScene({ children }: React.PropsWithChildren): JSX.Element {
+      function CountingScene({ children }: React.PropsWithChildren): React.JSX.Element {
         sceneRenders += 1;
         return <section>{children}</section>;
       },
@@ -146,7 +146,7 @@ describe('ScrollSceneStack subscriptions', () => {
     const CountingScene = Object.assign(
       function CountingScene({
         children,
-      }: React.PropsWithChildren<SceneAuthoringCompatProps>): JSX.Element {
+      }: React.PropsWithChildren<SceneAuthoringCompatProps>): React.JSX.Element {
         sceneRenders += 1;
         return <section>{children}</section>;
       },
@@ -285,7 +285,7 @@ describe('ScrollSceneStack subscriptions', () => {
     const CountingScene = Object.assign(
       function CountingScene({
         children,
-      }: React.PropsWithChildren<SceneAuthoringCompatProps>): JSX.Element {
+      }: React.PropsWithChildren<SceneAuthoringCompatProps>): React.JSX.Element {
         return <section>{children}</section>;
       },
       { cineViewScene: true as const }

@@ -1,6 +1,6 @@
 import { Scene } from '../../../index';
 
-export function LegacyScenePublicPropsFixture(): JSX.Element {
+export function LegacyScenePublicPropsFixture(): React.JSX.Element {
   return (
     <Scene
       mode="scroll"

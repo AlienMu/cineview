@@ -17,7 +17,7 @@ function Probe({
     zoneId?: string;
     trigger?: 'center-lock';
   };
-}): JSX.Element {
+}): React.JSX.Element {
   const ref = React.useRef<HTMLDivElement>(null);
   const zoneId = useSceneScrollTakeover({
     sceneId,

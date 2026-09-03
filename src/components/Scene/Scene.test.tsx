@@ -305,7 +305,7 @@ describe('Scene Component', () => {
     it('should provide SceneContext to children', () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -511,7 +511,7 @@ describe('Scene Component', () => {
     it('should default to drag mode', () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -529,7 +529,7 @@ describe('Scene Component', () => {
     it('forwards scroll first-scene readiness without a drag prepared snapshot', () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         contextValue = useContext(SceneContext);
         return <div>Scroll first scene</div>;
       };
@@ -552,7 +552,7 @@ describe('Scene Component', () => {
     it('should support drag mode', () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -570,7 +570,7 @@ describe('Scene Component', () => {
     it('should calculate drag progress in drag mode', async () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -618,7 +618,7 @@ describe('Scene Component', () => {
       let contextValue: SceneContextType | null = null;
       const progressValues: number[] = [];
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
 
@@ -700,7 +700,7 @@ describe('Scene Component', () => {
     it('should reset when drag progress < 50%', async () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -737,7 +737,7 @@ describe('Scene Component', () => {
     it('should support horizontal drag', async () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -853,7 +853,7 @@ describe('Scene Component', () => {
 
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -1064,7 +1064,7 @@ describe('Scene Component', () => {
     it('should register Animate components', () => {
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -1093,7 +1093,7 @@ describe('Scene Component', () => {
     it('should unregister Animate components', () => {
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -1128,7 +1128,7 @@ describe('Scene Component', () => {
     it('should calculate delay for Animate components', () => {
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -1173,7 +1173,7 @@ describe('Scene Component', () => {
     it('should handle waitFor chain correctly', () => {
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -1227,7 +1227,7 @@ describe('Scene Component', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
 
         useEffect(() => {
@@ -1275,7 +1275,7 @@ describe('Scene Component', () => {
       process.env.NODE_ENV = 'production';
       const reportError = jest.fn();
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
 
         useEffect(() => {
@@ -1364,7 +1364,7 @@ describe('Scene Component', () => {
       // A fresh empty array every render: `children` changes identity, so the
       // effect re-runs. Only the dedupe ref keeps this from becoming a per-render
       // error stream — a stable dep array would not.
-      const tree = (): JSX.Element => (
+      const tree = (): React.JSX.Element => (
         <CineViewProvider designSize={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={1}>{[]}</Scene>
@@ -1395,7 +1395,7 @@ describe('Scene Component', () => {
     it('should handle multiple touch points (use first touch)', () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -1434,7 +1434,7 @@ describe('Scene Component', () => {
     it('should clamp drag progress to 0-1 range', async () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -1482,7 +1482,7 @@ describe('Scene Component', () => {
     it('should support mouse drag in drag mode', async () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -1550,7 +1550,7 @@ describe('Scene Component', () => {
     it('should clear animate registry when scene becomes inactive', () => {
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -1655,7 +1655,7 @@ describe('Scene Component', () => {
     it('should handle horizontal mouse drag', async () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -1686,7 +1686,7 @@ describe('Scene Component', () => {
     it('should not trigger drag when not active', () => {
       let contextValue: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         contextValue = context;
         return <div>Test</div>;
@@ -2396,7 +2396,7 @@ describe('Additional Scene Branch Coverage Tests', () => {
 
       let sceneContext: SceneContextType | null = null;
 
-      const TestChild = (): JSX.Element => {
+      const TestChild = (): React.JSX.Element => {
         const context = useContext(SceneContext);
         sceneContext = context;
 
@@ -2839,7 +2839,7 @@ describe('GetCalculatedDelay Coverage', () => {
 
     const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const TestComponent = (): JSX.Element => {
+    const TestComponent = (): React.JSX.Element => {
       const [registry] = useState(
         new Map([
           [

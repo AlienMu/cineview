@@ -58,7 +58,7 @@ describe('useAnimateScroll progress hot path', () => {
     let renderCount = 0;
     const resultRef = { current: null as ReturnType<typeof useAnimateScroll> | null };
 
-    function Probe(): JSX.Element {
+    function Probe(): React.JSX.Element {
       renderCount += 1;
       resultRef.current = useAnimateScroll({
         sceneContext: null,
@@ -119,7 +119,7 @@ describe('useAnimateScroll progress hot path', () => {
     };
     const resultRef = { current: null as ReturnType<typeof useAnimateScroll> | null };
 
-    function Probe(): JSX.Element {
+    function Probe(): React.JSX.Element {
       resultRef.current = useAnimateScroll({
         sceneContext: null,
         zoneRuntime: runtime,

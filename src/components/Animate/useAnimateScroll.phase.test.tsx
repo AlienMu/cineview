@@ -33,7 +33,7 @@ jest.mock('framer-motion', () => {
     ...props
   }: React.HTMLAttributes<HTMLDivElement> & {
     style?: Record<string, unknown>;
-  }): JSX.Element => {
+  }): React.JSX.Element => {
     const [, forceRender] = React.useState(0);
 
     React.useEffect(() => {
@@ -165,7 +165,7 @@ function ProductionRegistrySceneProvider({
 }: {
   children: ReactNode;
   reportError?: jest.Mock;
-}): JSX.Element {
+}): React.JSX.Element {
   const registry = useSceneAnimationRegistry({ sceneIndex: 0, baseDuration: 800, reportError });
   return (
     <SceneContext.Provider value={{ ...createScrollSceneContext(), ...registry }}>
@@ -282,7 +282,7 @@ function ProductionZoneOwnerHarness({
 }: {
   showLeader: boolean;
   onReady: (controller: ZoneOwnerLifecycleController) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const scrollOffsetRef = useRef(0);
   const measureSceneLayoutsRef = useRef<(() => void) | null>(null);
   const updateSceneRenderSnapshotsRef = useRef<(nativeOffset: number) => void>(() => undefined);
@@ -613,7 +613,7 @@ function ScrollZoneProviders({
 }: {
   runtime: SceneScrollZoneRuntime;
   children: ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <SceneScrollRuntimeContext.Provider value={runtime}>
       <SceneScrollTimelineContext.Provider
@@ -703,7 +703,7 @@ function renderReplayPhaseProbe(
     progressPx: number,
     version: number,
     sceneOverrides: Partial<SceneContextType> = {}
-  ): JSX.Element => {
+  ): React.JSX.Element => {
     return (
       <SceneContext.Provider value={{ ...sceneContext, ...sceneOverrides }}>
         <ScrollZoneProviders runtime={createReplayZoneRuntime(progressPx, version)}>
@@ -1118,7 +1118,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       firstSceneEnterGateKnown: true,
     };
 
-    const renderProbe = (context: SceneContextType): JSX.Element => (
+    const renderProbe = (context: SceneContextType): React.JSX.Element => (
       <SceneContext.Provider value={context}>
         <Animate
           animateId="unknown-first-screen-gate"
@@ -1165,7 +1165,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       ...pendingContext,
       firstSceneEnterActive: false,
     };
-    const renderProbe = (context: SceneContextType): JSX.Element => (
+    const renderProbe = (context: SceneContextType): React.JSX.Element => (
       <SceneContext.Provider value={context}>
         <Animate
           animateId="timeout-rearm-probe"
@@ -1218,7 +1218,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       ...pendingContext,
       firstSceneEnterActive: false,
     };
-    const renderProbe = (context: SceneContextType): JSX.Element => (
+    const renderProbe = (context: SceneContextType): React.JSX.Element => (
       <SceneContext.Provider value={context}>
         <Animate
           animateId="timeout-fallback-frame-probe"
@@ -1559,7 +1559,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-    const renderAt = (rerender: (ui: JSX.Element) => void, progress: number): void => {
+    const renderAt = (rerender: (ui: React.JSX.Element) => void, progress: number): void => {
       rerender(
         <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
           <Animate
@@ -1632,7 +1632,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-    const renderAt = (rerender: (ui: JSX.Element) => void, progress: number): void => {
+    const renderAt = (rerender: (ui: React.JSX.Element) => void, progress: number): void => {
       rerender(
         <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
           <Animate
@@ -1708,7 +1708,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
     });
 
     const renderAt = async (
-      rerender: (ui: JSX.Element) => void,
+      rerender: (ui: React.JSX.Element) => void,
       progress: number
     ): Promise<void> => {
       rerender(
@@ -1907,7 +1907,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-    const renderAt = (rerender: (ui: JSX.Element) => void, progress: number): void => {
+    const renderAt = (rerender: (ui: React.JSX.Element) => void, progress: number): void => {
       rerender(
         <SceneContext.Provider value={{ ...sceneContext, scrollProgress: progress }}>
           <Animate
@@ -2505,7 +2505,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
     // frame with the loop gated by the scene runtime state.
     const sceneContext = createScrollSceneContext();
 
-    const renderTree = (overrides: Partial<SceneContextType> = {}): JSX.Element => (
+    const renderTree = (overrides: Partial<SceneContextType> = {}): React.JSX.Element => (
       <SceneContext.Provider value={{ ...sceneContext, ...overrides }}>
         <ScrollZoneProviders runtime={createZoneRuntime(0, 1)}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
@@ -2656,7 +2656,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-    const renderTree = (progressPx: number, version: number): JSX.Element => (
+    const renderTree = (progressPx: number, version: number): React.JSX.Element => (
       <SceneContext.Provider value={sceneContext}>
         <ScrollZoneProviders runtime={createZoneRuntime(progressPx, version)}>
           <SceneScrollTakeoverContext.Provider value="zone-1">
@@ -3042,7 +3042,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
 
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-      const renderTree = (leaderDelay: number, showFollower: boolean): JSX.Element => (
+      const renderTree = (leaderDelay: number, showFollower: boolean): React.JSX.Element => (
         <ProductionRegistrySceneProvider>
           <Animate
             animateId="reregistered-leader"
@@ -3116,7 +3116,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
 
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-      const renderTree = (leaderDelay: number, showFollower: boolean): JSX.Element => (
+      const renderTree = (leaderDelay: number, showFollower: boolean): React.JSX.Element => (
         <ProductionRegistrySceneProvider>
           <Animate
             animateId="exited-reregistered-leader"
@@ -3204,7 +3204,7 @@ describe('useAnimateScroll zone semantics (S-F6 infinite-only rest state / S-F8 
 
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
 
-      const renderTree = (leaderDelay: number): JSX.Element => (
+      const renderTree = (leaderDelay: number): React.JSX.Element => (
         <SceneContext.Provider value={sceneContext}>
           <Animate
             animateId="stale-tween-leader"

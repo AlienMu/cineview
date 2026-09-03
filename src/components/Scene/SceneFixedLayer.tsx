@@ -21,7 +21,7 @@ export function SceneFixedLayer({
   direction = 'y',
   viewportWidth = 0,
   viewportHeight = 0,
-}: SceneFixedLayerProps): JSX.Element {
+}: SceneFixedLayerProps): React.JSX.Element {
   const clipRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
 

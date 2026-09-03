@@ -1,5 +1,5 @@
 /**
- * Position 组件单元测试
+ * Position component unit tests
  */
 
 import React from 'react';
@@ -9,7 +9,7 @@ import { CineViewProvider } from '../../context/CineViewContext';
 import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import { SceneFixedLayerContext } from './Position';
 
-// 测试辅助函数：创建带 Context 的包装器
+// Test helper function: create wrapper with Context
 const renderWithContext = (
   ui: React.ReactElement,
   options: {
@@ -21,7 +21,7 @@ const renderWithContext = (
 };
 
 describe('Position Component', () => {
-  // 在每个测试前设置 window.innerWidth 为 750，使 scale = 1
+  // Set window.innerWidth to 750 before each test, making scale = 1
   beforeEach(() => {
     Object.defineProperty(window, 'innerWidth', {
       writable: true,
@@ -35,8 +35,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('绝对定位计算', () => {
-    it('应该正确计算绝对 X 坐标', () => {
+  describe('Absolute positioning calculation', () => {
+    it('should correctly calculate absolute X coordinate', () => {
       renderWithContext(
         <Position x={100}>
           <div data-testid="child">Content</div>
@@ -54,7 +54,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确计算绝对 Y 坐标', () => {
+    it('should correctly calculate absolute Y coordinate', () => {
       renderWithContext(
         <Position y={200}>
           <div data-testid="child">Content</div>
@@ -72,7 +72,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确计算绝对 X 和 Y 坐标', () => {
+    it('should correctly calculate absolute X and Y coordinates', () => {
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
@@ -90,9 +90,9 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该用 px2vw 单尺子换算 Y 坐标，与 viewportHeight 无关', () => {
-      // x 和 y 都乘同一个 scale = viewportWidth / designSize。
-      // 这里 viewportWidth=375、designSize=750 → scale=0.5；viewportHeight 不参与换算。
+    it('should use px2vw single ruler conversion for Y coordinate, independent of viewportHeight', () => {
+      // Both x and y are multiplied by the same scale = viewportWidth / designSize.
+      // Here viewportWidth=375, designSize=750 → scale=0.5; viewportHeight does not participate in conversion.
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -114,16 +114,16 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 横纵长度共用 scale=0.5：100→50px、200→100px。
+      // Both horizontal and vertical dimensions share scale=0.5: 100→50px, 200→100px.
       expect(parent).toHaveStyle({
         left: '50px',
         top: '100px',
       });
     });
 
-    it('Y 坐标换算对 viewportHeight 不敏感（单尺子证明）', () => {
-      // 同样 viewportWidth=375、designSize=750 → scale=0.5。改变 viewportHeight 后，
-      // 单尺子下 top 仍为 200*0.5=100px。
+    it('Y coordinate conversion is insensitive to viewportHeight (single ruler proof)', () => {
+      // Same viewportWidth=375, designSize=750 → scale=0.5. After changing viewportHeight,
+      // under single ruler, top remains 200*0.5=100px.
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -146,7 +146,7 @@ describe('Position Component', () => {
       expect(parent).toHaveStyle({ top: '100px' });
     });
 
-    it('应该在没有任何坐标时使用默认值 (0, 0)', () => {
+    it('should use default values (0, 0) when no coordinates are provided', () => {
       renderWithContext(
         <Position>
           <div data-testid="child">Content</div>
@@ -164,8 +164,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('相对定位累加', () => {
-    it('应该正确计算相对 X 偏移', () => {
+  describe('Relative positioning accumulation', () => {
+    it('should correctly calculate relative X offset', () => {
       renderWithContext(
         <Position offsetX={50}>
           <div data-testid="child">Content</div>
@@ -183,7 +183,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确计算相对 Y 偏移', () => {
+    it('should correctly calculate relative Y offset', () => {
       renderWithContext(
         <Position offsetY={100}>
           <div data-testid="child">Content</div>
@@ -201,7 +201,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确累加嵌套的相对定位', () => {
+    it('should correctly accumulate nested relative positioning', () => {
       renderWithContext(
         <Position offsetX={50} offsetY={100}>
           <Position offsetX={30} offsetY={40}>
@@ -214,7 +214,7 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 第二层应该累加第一层的偏移：(50 + 30, 100 + 40)
+      // Second layer should accumulate first layer's offset: (50 + 30, 100 + 40)
       expect(parent).toHaveStyle({
         position: 'absolute',
         left: '80px',
@@ -222,7 +222,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确累加多层嵌套的相对定位', () => {
+    it('should correctly accumulate multi-level nested relative positioning', () => {
       renderWithContext(
         <Position offsetX={10} offsetY={20}>
           <Position offsetX={30} offsetY={40}>
@@ -237,7 +237,7 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 累加所有层级：(10 + 30 + 50, 20 + 40 + 60)
+      // Accumulate all levels: (10 + 30 + 50, 20 + 40 + 60)
       expect(parent).toHaveStyle({
         position: 'absolute',
         left: '90px',
@@ -246,8 +246,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('优先级处理', () => {
-    it('结构定位 props 应该覆盖冲突的 style 定位，同时保留可组合 transform', () => {
+  describe('Priority handling', () => {
+    it('structural positioning props should override conflicting style positioning, while preserving composable transform', () => {
       renderWithContext(
         <Position
           at={{ x: 100, y: 200 }}
@@ -266,7 +266,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('绝对定位应该优先于相对定位（同时存在 x 和 offsetX）', () => {
+    it('absolute positioning should take priority over relative positioning (when both x and offsetX exist)', () => {
       renderWithContext(
         <Position x={100} offsetX={50}>
           <div data-testid="child">Content</div>
@@ -277,14 +277,14 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 应该使用绝对定位 x=100，忽略 offsetX=50
+      // Should use absolute positioning x=100, ignoring offsetX=50
       expect(parent).toHaveStyle({
         position: 'absolute',
         left: '100px',
       });
     });
 
-    it('绝对定位应该优先于相对定位（同时存在 y 和 offsetY）', () => {
+    it('absolute positioning should take priority over relative positioning (when both y and offsetY exist)', () => {
       renderWithContext(
         <Position y={200} offsetY={100}>
           <div data-testid="child">Content</div>
@@ -295,14 +295,14 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 应该使用绝对定位 y=200，忽略 offsetY=100
+      // Should use absolute positioning y=200, ignoring offsetY=100
       expect(parent).toHaveStyle({
         position: 'absolute',
         top: '200px',
       });
     });
 
-    it('绝对定位应该优先于相对定位（所有参数都存在）', () => {
+    it('absolute positioning should take priority over relative positioning (when all parameters exist)', () => {
       renderWithContext(
         <Position x={100} y={200} offsetX={50} offsetY={100}>
           <div data-testid="child">Content</div>
@@ -313,7 +313,7 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 应该使用绝对定位，忽略相对定位
+      // Should use absolute positioning, ignoring relative positioning
       expect(parent).toHaveStyle({
         position: 'absolute',
         left: '100px',
@@ -321,7 +321,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('嵌套时，子组件的绝对定位应该忽略父组件的位置', () => {
+    it('when nested, child component absolute positioning should ignore parent component position', () => {
       renderWithContext(
         <Position offsetX={50} offsetY={100}>
           <Position x={200} y={300}>
@@ -334,7 +334,7 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 子组件使用绝对定位，不受父组件影响
+      // Child component uses absolute positioning, not affected by parent component
       expect(parent).toHaveStyle({
         position: 'absolute',
         left: '200px',
@@ -343,9 +343,9 @@ describe('Position Component', () => {
     });
   });
 
-  describe('响应式换算', () => {
-    it('应该根据设计稿尺寸正确换算（px 单位）', () => {
-      // 设计稿 750px，视口 750px，比例 1:1
+  describe('Responsive conversion', () => {
+    it('should correctly convert based on design size (px unit)', () => {
+      // Design size 750px, viewport 750px, ratio 1:1
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
@@ -362,8 +362,8 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该根据设计稿尺寸正确换算（不同设计稿尺寸）', () => {
-      // 设计稿 375px，视口 750px，scale = 750/375 = 2
+    it('should correctly convert based on design size (different design size)', () => {
+      // Design size 375px, viewport 750px, scale = 750/375 = 2
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
@@ -381,7 +381,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确处理小数值', () => {
+    it('should correctly handle decimal values', () => {
       renderWithContext(
         <Position x={100.5} y={200.75}>
           <div data-testid="child">Content</div>
@@ -399,8 +399,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('边界值处理', () => {
-    it('应该正确处理零值', () => {
+  describe('Boundary value handling', () => {
+    it('should correctly handle zero values', () => {
       renderWithContext(
         <Position x={0} y={0}>
           <div data-testid="child">Content</div>
@@ -417,7 +417,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确处理负值', () => {
+    it('should correctly handle negative values', () => {
       renderWithContext(
         <Position x={-50} y={-100}>
           <div data-testid="child">Content</div>
@@ -434,7 +434,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确处理大数值', () => {
+    it('should correctly handle large numeric values', () => {
       renderWithContext(
         <Position x={10000} y={20000}>
           <div data-testid="child">Content</div>
@@ -451,7 +451,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该正确处理相对定位的负值累加', () => {
+    it('should correctly handle negative value accumulation in relative positioning', () => {
       renderWithContext(
         <Position offsetX={100} offsetY={200}>
           <Position offsetX={-50} offsetY={-100}>
@@ -464,7 +464,7 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 累加：(100 - 50, 200 - 100)
+      // Accumulate: (100 - 50, 200 - 100)
       expect(parent).toHaveStyle({
         left: '50px',
         top: '100px',
@@ -472,10 +472,10 @@ describe('Position Component', () => {
     });
   });
 
-  describe('窗口 resize 响应', () => {
-    it('应该在窗口 resize 后重新计算位置', async () => {
-      // 注意：由于 resize 事件使用了 debounce，实际测试中需要等待
-      // 这里我们主要测试组件是否正确使用了 Context 中的 convertSize
+  describe('Window resize response', () => {
+    it('should recalculate position after window resize', async () => {
+      // Note: Since resize event uses debounce, actual testing requires waiting
+      // Here we mainly test whether the component correctly uses convertSize from Context
       const { rerender } = renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
@@ -491,7 +491,7 @@ describe('Position Component', () => {
         top: '200px',
       });
 
-      // 重新渲染以模拟 Context 更新
+      // Re-render to simulate Context update
       rerender(
         <CineViewProvider designSize={750}>
           <Position x={100} y={200}>
@@ -500,7 +500,7 @@ describe('Position Component', () => {
         </CineViewProvider>
       );
 
-      // 位置应该保持一致（因为设计稿尺寸没变）
+      // Position should remain consistent (because design size hasn't changed)
       expect(parent).toHaveStyle({
         left: '100px',
         top: '200px',
@@ -508,8 +508,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('居中定位 (anchor)', () => {
-    it('anchor=center 时水平垂直都居中（left/top=50% + translate(-50%)）', () => {
+  describe('Centering positioning (anchor)', () => {
+    it('anchor=center centers both horizontally and vertically (left/top=50% + translate(-50%))', () => {
       renderWithContext(
         <Position at={{ anchor: 'center' }}>
           <div data-testid="child">Content</div>
@@ -526,7 +526,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('anchor=center-x 只水平居中，y 仍为绝对坐标', () => {
+    it('anchor=center-x only centers horizontally, y remains absolute coordinate', () => {
       renderWithContext(
         <Position at={{ anchor: 'center-x', y: 200 }}>
           <div data-testid="child">Content</div>
@@ -542,7 +542,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('anchor=center-y 只垂直居中，x 仍为绝对坐标', () => {
+    it('anchor=center-y only centers vertically, x remains absolute coordinate', () => {
       renderWithContext(
         <Position at={{ anchor: 'center-y', x: 100 }}>
           <div data-testid="child">Content</div>
@@ -558,7 +558,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('居中后仍可用 x/y 设置相对中心的偏移（calc(50% + offset)）', () => {
+    it('after centering, x/y can still set offset relative to center (calc(50% + offset))', () => {
       renderWithContext(
         <Position at={{ anchor: 'center', x: 40, y: -30 }}>
           <div data-testid="child">Content</div>
@@ -574,7 +574,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('居中 transform 与用户自定义 transform 叠加（居中在前）', () => {
+    it('centering transform combines with user-defined transform (centering comes first)', () => {
       renderWithContext(
         <Position at={{ anchor: 'center' }} style={{ transform: 'rotate(10deg)' }}>
           <div data-testid="child">Content</div>
@@ -589,8 +589,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('子元素渲染', () => {
-    it('应该正确渲染子元素', () => {
+  describe('Child element rendering', () => {
+    it('should correctly render child elements', () => {
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Test Content</div>
@@ -601,7 +601,7 @@ describe('Position Component', () => {
       expect(screen.getByText('Test Content')).toBeInTheDocument();
     });
 
-    it('应该正确渲染多个子元素', () => {
+    it('should correctly render multiple child elements', () => {
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child1">Content 1</div>
@@ -613,7 +613,7 @@ describe('Position Component', () => {
       expect(screen.getByTestId('child2')).toBeInTheDocument();
     });
 
-    it('应该正确渲染嵌套的 Position 组件', () => {
+    it('should correctly render nested Position components', () => {
       renderWithContext(
         <Position x={100} y={200}>
           <Position offsetX={50} offsetY={100}>
@@ -626,8 +626,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('Context 传递', () => {
-    it('应该正确传递位置上下文给子 Position 组件', () => {
+  describe('Context propagation', () => {
+    it('should correctly propagate position context to child Position components', () => {
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="parent-child">Parent</div>
@@ -643,14 +643,14 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const childContainer = child.parentElement;
 
-      // 父组件使用绝对定位
+      // Parent component uses absolute positioning
       expect(parentContainer).toHaveStyle({
         left: '100px',
         top: '200px',
       });
 
-      // 子组件应该基于父组件的绝对位置进行相对定位
-      // 但由于父组件使用了绝对定位，子组件的相对定位会从 (100, 200) 开始
+      // Child component should perform relative positioning based on parent component's absolute position
+      // But since parent component uses absolute positioning, child component's relative positioning starts from (100, 200)
       expect(childContainer).toHaveStyle({
         left: '150px', // 100 + 50
         top: '300px', // 200 + 100
@@ -658,8 +658,8 @@ describe('Position Component', () => {
     });
   });
 
-  describe('错误处理', () => {
-    it('应该在 scroll 模式下优先把 scene 内 fixed 图层 portal 到 scene host', () => {
+  describe('Error handling', () => {
+    it('in scroll mode, should prioritize portaling fixed layers inside scene to scene host', () => {
       const fixedHost = document.createElement('div');
       document.body.appendChild(fixedHost);
       const { container } = renderWithContext(
@@ -686,7 +686,7 @@ describe('Position Component', () => {
       fixedHost.remove();
     });
 
-    it('应该在 scroll 模式下把没有 scene host 的 fixed 图层保留为 sticky', () => {
+    it('in scroll mode, should keep fixed layers without scene host as sticky', () => {
       renderWithContext(
         <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <section data-testid="ordinary-region">
@@ -709,7 +709,7 @@ describe('Position Component', () => {
       expect(region).toContainElement(child);
     });
 
-    it('应该在没有 scene host 时保留 fixed 内容，而不是直接消失', () => {
+    it('should retain fixed content when there is no scene host, rather than disappearing directly', () => {
       renderWithContext(
         <Position x={100} y={200} fixed>
           <div data-testid="inline-fixed-child">Content</div>
@@ -726,8 +726,8 @@ describe('Position Component', () => {
       });
     });
 
-    it('应该在没有 CineViewProvider 时正常渲染（静默失败）', () => {
-      // Position 组件应该在没有 context 时静默失败，使用默认的 convertSize
+    it('should render normally without CineViewProvider (silent failure)', () => {
+      // Position component should fail silently when there is no context, using default convertSize
       const { container } = render(
         <Position x={100} y={200}>
           <div>Content</div>
@@ -736,14 +736,14 @@ describe('Position Component', () => {
 
       const positionDiv = container.firstChild as HTMLElement;
       expect(positionDiv).toBeInTheDocument();
-      // 没有 context 时，convertSize 使用默认实现（直接返回原值）
+      // Without context, convertSize uses default implementation (directly returns original value)
       expect(positionDiv.style.left).toBe('100px');
       expect(positionDiv.style.top).toBe('200px');
     });
   });
 
-  describe('性能优化', () => {
-    it('应该使用 useMemo 缓存位置计算', () => {
+  describe('Performance optimization', () => {
+    it('should use useMemo to cache position calculation', () => {
       const { rerender } = renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
@@ -754,7 +754,7 @@ describe('Position Component', () => {
       const parent = child.parentElement;
       const initialStyle = parent?.style;
 
-      // 重新渲染但 props 不变
+      // Re-render but props unchanged
       rerender(
         <CineViewProvider designSize={750}>
           <Position x={100} y={200}>
@@ -763,7 +763,7 @@ describe('Position Component', () => {
         </CineViewProvider>
       );
 
-      // 样式对象应该保持一致（由于 useMemo）
+      // Style object should remain consistent (due to useMemo)
       expect(parent?.style).toBe(initialStyle);
     });
   });

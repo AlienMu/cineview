@@ -937,12 +937,12 @@ describe('VideoFrameRenderer', () => {
     const suspended = new Promise<never>(() => undefined);
     let showSourceB = (): void => undefined;
 
-    function SuspendSourceB({ source }: { source: string }): JSX.Element | null {
+    function SuspendSourceB({ source }: { source: string }): React.JSX.Element | null {
       if (source === '/source-b.mp4') throw suspended;
       return null;
     }
 
-    function Harness(): JSX.Element {
+    function Harness(): React.JSX.Element {
       const [source, setSource] = useState('/source-a.mp4');
       showSourceB = (): void => setSource('/source-b.mp4');
       return (

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Animate } from '../index';
 
-export function ValidStaggerComposition(): JSX.Element {
+export function ValidStaggerComposition(): React.JSX.Element {
   return (
     <Animate enterAnimation="fade-in" stagger={{ each: 80 }}>
       <div>
@@ -12,7 +12,7 @@ export function ValidStaggerComposition(): JSX.Element {
   );
 }
 
-export function InvalidStaggerRenderProp(): JSX.Element {
+export function InvalidStaggerRenderProp(): React.JSX.Element {
   return (
     // @ts-expect-error stagger requires one concrete container element, not render-prop children
     <Animate enterAnimation="fade-in" stagger={{ each: 80 }}>
@@ -21,7 +21,7 @@ export function InvalidStaggerRenderProp(): JSX.Element {
   );
 }
 
-export function InvalidStaggerSiblingArray(): JSX.Element {
+export function InvalidStaggerSiblingArray(): React.JSX.Element {
   return (
     // @ts-expect-error stagger requires one container whose direct children are staggered
     <Animate enterAnimation="fade-in" stagger={{ each: 80 }}>
@@ -31,7 +31,7 @@ export function InvalidStaggerSiblingArray(): JSX.Element {
   );
 }
 
-export function InvalidEmptyAnimate(): JSX.Element {
+export function InvalidEmptyAnimate(): React.JSX.Element {
   return (
     // @ts-expect-error Animate requires enterAnimation or loopAnimation
     <Animate>
@@ -40,7 +40,7 @@ export function InvalidEmptyAnimate(): JSX.Element {
   );
 }
 
-export function InvalidExitOnlyAnimate(): JSX.Element {
+export function InvalidExitOnlyAnimate(): React.JSX.Element {
   return (
     // @ts-expect-error exitAnimation cannot be the only effective animation
     <Animate exitAnimation="fade-out">
@@ -49,7 +49,7 @@ export function InvalidExitOnlyAnimate(): JSX.Element {
   );
 }
 
-export function InvalidInfiniteStagger(): JSX.Element {
+export function InvalidInfiniteStagger(): React.JSX.Element {
   return (
     // @ts-expect-error stagger requires enterAnimation, not loopAnimation alone
     <Animate loopAnimation="pulse" stagger={{ each: 80 }}>

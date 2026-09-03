@@ -23,7 +23,8 @@
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "types": ["node", "jest", "@testing-library/jest-dom"]
   },
   "include": ["src"],
   "exclude": [

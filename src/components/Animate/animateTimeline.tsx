@@ -12,7 +12,7 @@ interface AnimateTimelineProviderProps {
 export function AnimateTimelineProvider({
   value,
   children,
-}: AnimateTimelineProviderProps): JSX.Element {
+}: AnimateTimelineProviderProps): React.JSX.Element {
   return (
     <AnimateTimelineContext.Provider value={value}>{children}</AnimateTimelineContext.Provider>
   );

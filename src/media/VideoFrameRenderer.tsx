@@ -129,7 +129,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       controlRef,
     },
     forwardedRef
-  ): JSX.Element {
+  ): React.JSX.Element {
     const context = useCineViewContext();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [objectUrlState, setObjectUrlState] = useState<{ src: string; url: string | null }>(

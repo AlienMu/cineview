@@ -21,7 +21,7 @@ export interface ImageProps extends NativeImageProps {
 export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
   { src, alt, width, height, style, loading, preload, ...imgProps },
   ref
-): JSX.Element {
+): React.JSX.Element {
   const cineViewContext = useCineViewContext();
 
   const resolvedWidth = useMemo(() => {

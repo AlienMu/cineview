@@ -212,7 +212,7 @@ describe('drag mode live-release regression', () => {
 
   it('does not rerender Scene subtrees for each owned pointer-move frame', async () => {
     const renderCounts = [0, 0];
-    const RenderProbe = ({ sceneIndex }: { sceneIndex: number }): JSX.Element => {
+    const RenderProbe = ({ sceneIndex }: { sceneIndex: number }): React.JSX.Element => {
       const sceneContext = useContext(SceneContext);
       void sceneContext?.renderProgress;
       renderCounts[sceneIndex] += 1;

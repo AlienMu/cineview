@@ -34,7 +34,7 @@ jest.mock('framer-motion', () => {
     ...props
   }: React.HTMLAttributes<HTMLDivElement> & {
     style?: Record<string, unknown>;
-  }): JSX.Element => {
+  }): React.JSX.Element => {
     const [, forceRender] = React.useState(0);
 
     React.useEffect(() => {
@@ -198,7 +198,7 @@ function ManualProbe({
   exitRefOut?: (ref: MutableRefObject<(() => void) | null>) => void;
   delay?: number;
   children: ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
   const enterRef = useRef<(() => void) | null>(null);
   const exitRef = useRef<(() => void) | null>(null);
   enterRefOut?.(enterRef);
@@ -395,7 +395,7 @@ describe('Animate manual control (enterRef / exitRef)', () => {
       unregisterZoneAnimation: jest.fn(),
     };
 
-    function ScrubProbe(): JSX.Element {
+    function ScrubProbe(): React.JSX.Element {
       const enterRef = useRef<(() => void) | null>(null);
       return (
         <Animate

@@ -282,7 +282,7 @@ async function flushAsync(): Promise<void> {
   });
 }
 
-async function renderHarness(): Promise<React.RefObject<CineViewRef>> {
+async function renderHarness(): Promise<React.RefObject<CineViewRef | null>> {
   const cineViewRef = createRef<CineViewRef>();
   render(
     <CineView

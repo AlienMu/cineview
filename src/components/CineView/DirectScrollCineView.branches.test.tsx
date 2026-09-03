@@ -132,7 +132,7 @@ function ScrollBudgetProbe({
   animateId: string;
   enterDuration?: number;
   exitDuration?: number;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
   const runtime = useContext(SceneScrollRuntimeContext);
   const zoneId = useContext(SceneScrollTakeoverContext);
 
@@ -156,13 +156,13 @@ function ScrollBudgetProbe({
   return null;
 }
 
-function ZoneProgressProbe({ zoneId }: { zoneId: string }): JSX.Element {
+function ZoneProgressProbe({ zoneId }: { zoneId: string }): React.JSX.Element {
   const progress = useSceneScrollZoneTimeline(zoneId)?.progressPx ?? 0;
 
   return <output data-testid={`${zoneId}-progress`}>{progress}</output>;
 }
 
-function ReportErrorProbe(): JSX.Element {
+function ReportErrorProbe(): React.JSX.Element {
   const runtime = useContext(CineViewRuntimeContext);
   useEffect(() => {
     runtime?.reportError?.({ code: 'TEST', message: 'probe error' });

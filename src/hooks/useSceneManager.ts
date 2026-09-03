@@ -1,6 +1,6 @@
 /**
  * useSceneManager Hook
- * 管理场景索引和切换逻辑
+ * Manages scene index and transition logic
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -86,12 +86,12 @@ export interface SceneManagerState {
   currentScene: number;
   isAnimating: boolean;
   direction: 'forward' | 'backward' | null;
-  dragProgress: number; // 新增：拖拽进度
+  dragProgress: number; // Added: drag progress
   dragTimelineProgress: number;
   scrollProgress: number;
   scrollDirection: 'forward' | 'backward' | null;
   renderProgress: number;
-  isDragging: boolean; // 新增：是否正在拖拽
+  isDragging: boolean; // Added: is currently dragging
   isScrolling: boolean;
   sharedTimelineDurationMs: number;
   dragRelease: DragRelease | null;
@@ -105,13 +105,13 @@ export interface SceneManagerActions {
   setAnimating: (animating: boolean) => void;
   canGoNext: () => boolean;
   canGoPrev: () => boolean;
-  setDragProgress: (progress: number) => void; // 新增：设置拖拽进度
+  setDragProgress: (progress: number) => void; // Added: set drag progress
   setDragTimelineProgress: (progress: number) => void;
   setScrollProgress: (progress: number) => void;
   setScrollDirection: (direction: 'forward' | 'backward' | null) => void;
   setScrollTransitionSnapshot: (snapshot: ScrollTransitionSnapshot | null) => void;
   setRenderProgress: (progress: number) => void;
-  setIsDragging: (dragging: boolean) => void; // 新增：设置拖拽状态
+  setIsDragging: (dragging: boolean) => void; // Added: set dragging state
   setIsScrolling: (scrolling: boolean) => void;
   setSharedTimelineDurationMs: (duration: number) => void;
   setDragRelease: (release: DragReleaseInput | null) => void;
@@ -264,17 +264,17 @@ export const useSceneManager = (
     setDragRelease({ ...release, token: dragReleaseTokenRef.current });
   }, []);
 
-  // 检查是否可以前进
+  // Check if can move forward
   const canGoNext = useCallback((): boolean => {
     return currentScene < totalScenes - 1;
   }, [currentScene, totalScenes]);
 
-  // 检查是否可以后退
+  // Check if can move backward
   const canGoPrev = useCallback((): boolean => {
     return currentScene > 0;
   }, [currentScene]);
 
-  // 跳转到指定场景
+  // Navigate to specified scene
   const goToScene = useCallback(
     (index: number, animated: boolean = true) => {
       debugSceneManager('goToScene requested', {
@@ -283,13 +283,13 @@ export const useSceneManager = (
         animated,
       });
 
-      // 验证索引有效性
+      // Validate index
       if (index < 0 || index >= totalScenes) {
         warnSceneManager(`Invalid scene index: ${index}. Must be between 0 and ${totalScenes - 1}`);
         return;
       }
 
-      // 如果已经在目标场景，不执行切换
+      // Skip if already at target scene
       if (index === currentScene) {
         debugSceneManager('goToScene skipped because scene is already active', {
           scene: index,
@@ -297,14 +297,14 @@ export const useSceneManager = (
         return;
       }
 
-      // 触发 onBeforeChange 回调
+      // Trigger onBeforeChange callback
       onBeforeChange?.(currentScene, index);
 
-      // 设置方向
+      // Set direction
       const newDirection = index > currentScene ? 'forward' : 'backward';
       setDirection(newDirection);
 
-      // 更新场景索引
+      // Update scene index
       debugSceneManager('Applying scene change', {
         toScene: index,
         direction: newDirection,
@@ -312,7 +312,7 @@ export const useSceneManager = (
       setCurrentScene(index);
       onCommit?.(index, currentScene, 'programmatic');
 
-      // 如果需要动画
+      // If animation is needed
       if (animated) {
         setIsAnimating(true);
         animatingRef.current = true;
@@ -338,14 +338,14 @@ export const useSceneManager = (
           });
         }
       } else {
-        // 立即触发 onAfterChange（携带真实 from-index）
+        // Immediately trigger onAfterChange (with real from-index)
         onAfterChange?.(index, currentScene);
       }
     },
     [currentScene, totalScenes, mode, onBeforeChange, onCommit, onAfterChange]
   );
 
-  // 下一个场景
+  // Next scene
   const nextScene = useCallback(() => {
     const canAdvance = canGoNext();
     debugSceneManager('nextScene requested', {
@@ -361,7 +361,7 @@ export const useSceneManager = (
     }
   }, [currentScene, canGoNext, goToScene]);
 
-  // 上一个场景
+  // Previous scene
   const prevScene = useCallback(() => {
     const canRetreat = canGoPrev();
     debugSceneManager('prevScene requested', {
@@ -377,14 +377,15 @@ export const useSceneManager = (
     }
   }, [currentScene, canGoPrev, goToScene]);
 
-  // 设置动画状态
+  // Set animation state
   const setAnimating = useCallback(
     (animating: boolean) => {
       setIsAnimating(animating);
       animatingRef.current = animating;
 
-      // 动画结束时触发 onAfterChange（D-F6: 携带 goToScene 记录的真实 from-index，
-      // 否则 CineView 回退到已更新的 currentSceneRef，产出 from === to）
+      // Trigger onAfterChange when animation ends (D-F6: carry the real from-index
+      // recorded by goToScene, otherwise CineView falls back to the already updated
+      // currentSceneRef, producing from === to)
       if (!animating) {
         const programmaticNav = programmaticNavRef.current;
         programmaticNavRef.current = null;
