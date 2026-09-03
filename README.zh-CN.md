@@ -4,9 +4,15 @@
 
 CineView 是一个用于全屏叙事型界面的 React 框架。它提供两种导航模式、按场景划分的动画时间线、认宽的响应式坐标换算、图片预加载，以及限定在所属场景内的 fixed layer。
 
-## 包状态
+## 安装
 
-`cineview@1.0.0` 尚未发布到 npm。仓库中的示例使用本地 `dist` 产物。发布前请完成[发布清单](./task-flows/2026-08-31-comprehensive-audit-remediation.md)。
+```bash
+npm install cineview
+# 或
+pnpm add cineview
+# 或
+yarn add cineview
+```
 
 从仓库运行示例：
 

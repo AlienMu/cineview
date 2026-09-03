@@ -4,9 +4,15 @@
 
 CineView is a React framework for full-screen narrative interfaces. It provides two navigation modes, scene-scoped animation timelines, width-based responsive coordinates, image preloading, and fixed layers that stay inside their scene.
 
-## Package status
+## Installation
 
-`cineview@1.0.0` is not published to npm yet. The repository examples use the local `dist` output. Use the [release checklist](./task-flows/2026-08-31-comprehensive-audit-remediation.md) before publishing.
+```bash
+npm install cineview
+# or
+pnpm add cineview
+# or
+yarn add cineview
+```
 
 To run the examples from a checkout:
 
