@@ -23,7 +23,14 @@
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+
+    /* Ambient type packages, declared explicitly. TypeScript 7 no longer picks
+       every node_modules/@types entry up implicitly under bundler resolution, so
+       `process` (node) and the test globals stopped resolving. Naming them is
+       also the reproducible form: the set no longer depends on what happens to be
+       installed. */
+    "types": ["node", "jest", "@testing-library/jest-dom"]
   },
   "include": ["src"],
   "exclude": [
