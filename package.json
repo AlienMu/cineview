@@ -114,7 +114,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "rollup-plugin-visualizer": "^7.1.1",
-    "terser": "5.46.1",
+    "terser": "5.51.2",
     "ts-jest": "^29.4.12",
     "ts-prune": "^0.10.3",
     "typescript": "^5.9.3",
