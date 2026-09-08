@@ -22,6 +22,8 @@ pnpm --dir site install --frozen-lockfile
 pnpm --dir examples/minimal install --frozen-lockfile
 pnpm --dir examples/performance-test install --frozen-lockfile
 pnpm verify:framework:static
+pnpm docs:links
+pnpm audit:all
 pnpm --dir site build
 pnpm --dir examples/performance-test build
 ```
@@ -64,6 +66,8 @@ If authentication is missing, run `npx wrangler@4.95.0 login` first. The deploy 
 The site uses [Cloudflare Pages' default SPA handling](https://developers.cloudflare.com/pages/configuration/serving-pages/). Keep the build free of a top-level `404.html` so direct visits to React Router paths receive the application entry page.
 
 Before deploying, run the site type check and documentation contracts. After deployment, verify the homepage, `/drag`, direct documentation links, and media requests on the public domain. Keep credentials in Wrangler's local login storage or the execution environment.
+
+See [Releasing](./RELEASING.md) for published artifact records and production browser profiling.
 
 ## Pull Requests
 

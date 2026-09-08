@@ -73,7 +73,9 @@
     "docs:style": "pnpm --dir site exec node tools/docs-style-probe.mjs",
     "a11y:probe": "pnpm --dir site exec node tools/a11y-probe.mjs",
     "verify:all": "pnpm verify:framework && pnpm format:check:site && pnpm type-check && pnpm type-check:site && pnpm test:site-contracts && pnpm docs:style:static",
-    "verify": "pnpm verify:all"
+    "verify": "pnpm verify:all",
+    "docs:links": "node scripts/verify-documentation.mjs",
+    "audit:all": "node scripts/audit-all.mjs"
   },
   "peerDependencies": {
     "framer-motion": "^13.0.0",

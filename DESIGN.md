@@ -1,130 +1,278 @@
-# Design Document: CineView React UI Framework
+# CineView architecture
 
-## Table of Contents
+This document describes the current implementation of CineView 1.0.0 for contributors.
+Use the [public types](./src/types/index.ts) for exact property names and unions,
+and the [documentation](./site/src/content/docs/en/getting-started/01-introduction.md) for application examples.
+Historical reviews record earlier states; they do not override the current source.
 
-<!-- Manual table of contents, includes level-2 and level-3 headings. Please update together when modifying headings:
-     CONTRIBUTING.md requires contributors to read this document first, and 2700+ lines without navigation
-     itself becomes a reading barrier. -->
+## Contents
 
-- [Overview](#overview)
-- [Current Architecture Decisions](#current-architecture-decisions)
-- [Drag Mode](#drag-mode)
-  - [Public Configuration and Inheritance](#public-configuration-and-inheritance)
-  - [Dual Tracks, Pure Element Duration, and Unique Mapping](#dual-tracks-pure-element-duration-and-unique-mapping)
-  - [Prepared Snapshot and Transaction Ownership](#prepared-snapshot-and-transaction-ownership)
-  - [Candidate, Re-grab Suspension, and Callbacks](#candidate-re-grab-suspension-and-callbacks)
-  - [`driver='clock'` Post-arrival Drive](#driverclock-post-arrival-drive)
-  - [Preset Central Control and Errors](#preset-central-control-and-errors)
-  - [Authored Variants: authored-but-unparsed Must Stop at Initial Frame](#authored-variants-authored-but-unparsed-must-stop-at-initial-frame)
-  - [Manual Control + Fallback Trigger (`enterRef` / `exitRef`)](#manual-control--fallback-trigger-enterref--exitref)
-- [Scroll Mode](#scroll-mode)
-  - [Design Goals](#design-goals)
-  - [Public Semantics](#public-semantics)
-  - [Root Node Mode Design](#root-node-mode-design)
-  - [Scene Rules](#scene-rules)
-  - [Scene Scroll Rules](#scene-scroll-rules)
-  - [Animate Rules](#animate-rules)
-  - [Timeline and Real Scroll Distance Rules](#timeline-and-real-scroll-distance-rules)
-  - [Long Animation Rules](#long-animation-rules)
-  - [Scene-Scoped Fixed Layer Rules](#scene-scoped-fixed-layer-rules)
-  - [Scene Height Measurement Rules](#scene-height-measurement-rules)
-  - [Root Scroll Operation Rules](#root-scroll-operation-rules)
-  - [First Screen and Preload Rules](#first-screen-and-preload-rules)
-  - [Scrollbar Rules](#scrollbar-rules)
-  - [Product Experience Decisions](#product-experience-decisions)
-  - [Affected Implementation Points](#affected-implementation-points)
-- [New Mode Parameter Principles](#new-mode-parameter-principles)
-- [Development Principles](#development-principles)
-  - [1. Don't Fix Problems by Guessing](#1-dont-fix-problems-by-guessing)
-  - [2. Critical State Must Have Unique Owner (Dual Track Model, Since 2026-06-25)](#2-critical-state-must-have-unique-owner-dual-track-model-since-2026-06-25)
-  - [3. Critical Logs Must Cover Ownership Handoff](#3-critical-logs-must-cover-ownership-handoff)
-  - [4. Restore Behavior Baseline First, Then Do Architecture Migration](#4-restore-behavior-baseline-first-then-do-architecture-migration)
-- [Architecture](#architecture)
-  - [System Architecture Diagram](#system-architecture-diagram)
-  - [Component Hierarchy](#component-hierarchy)
-  - [Data Flow Diagram](#data-flow-diagram)
-- [Components and Interfaces](#components-and-interfaces)
-  - [Component 1: CineView (Top-level Container Component)](#component-1-cineview-top-level-container-component)
-  - [Component 2: Scene (Scene Component)](#component-2-scene-scene-component)
-  - [Component 2.5: Scene.scroll (Local Scroll Takeover Declaration)](#component-25-scenescroll-local-scroll-takeover-declaration)
-  - [Mode Description](#mode-description)
-  - [Component 3: Animate (Animation Component)](#component-3-animate-animation-component)
-  - [Component 3.5: AnimateVideo (Atomic Timeline and Media Ownership, 2026-07-29)](#component-35-animatevideo-atomic-timeline-and-media-ownership-2026-07-29)
-  - [Component 4: Position (Positioning Component)](#component-4-position-positioning-component)
-- [Data Models](#data-models)
-  - [Model 1: CineViewContext](#model-1-cineviewcontext)
-  - [Model 2: SceneState](#model-2-scenestate)
-  - [Model 3: AnimationRegistry](#model-3-animationregistry)
-  - [Model 4: PreloadState](#model-4-preloadstate)
-- [Error Handling](#error-handling)
-  - [Error Scenario 1: Component Hierarchy Error](#error-scenario-1-component-hierarchy-error)
-  - [Error Scenario 2: Circular Dependency Detection](#error-scenario-2-circular-dependency-detection)
-  - [Error Scenario 3: Image Load Failure](#error-scenario-3-image-load-failure)
-  - [Error Scenario 4: Invalid Scene Index](#error-scenario-4-invalid-scene-index)
-- [Testing Strategy](#testing-strategy)
-  - [Unit Testing Approach](#unit-testing-approach)
-  - [Property Testing Approach](#property-testing-approach)
-  - [Integration Testing Approach](#integration-testing-approach)
-- [Performance Considerations](#performance-considerations)
-  - [Virtualized Rendering](#virtualized-rendering)
-  - [Image Loading Strategy](#image-loading-strategy)
-  - [Animation Performance Optimization](#animation-performance-optimization)
-  - [Throttling and Debouncing](#throttling-and-debouncing)
-  - [Code Splitting and Lazy Loading](#code-splitting-and-lazy-loading)
-  - [Memory Management](#memory-management)
-  - [Bundle Size Optimization](#bundle-size-optimization)
-  - [First Contentful Paint (FCP) Optimization](#first-contentful-paint-fcp-optimization)
-  - [Cumulative Layout Shift (CLS) Optimization](#cumulative-layout-shift-cls-optimization)
-  - [Interaction to Next Paint (INP) Optimization](#interaction-to-next-paint-inp-optimization)
-  - [Performance Monitoring](#performance-monitoring)
-- [Security Considerations](#security-considerations)
-  - [XSS Protection](#xss-protection)
-  - [Dependency Security](#dependency-security)
-  - [Content Security Policy](#content-security-policy)
-- [Code Quality and Standards](#code-quality-and-standards)
-  - [Code Clarity Principles](#code-clarity-principles)
-  - [Logic Reuse Strategy](#logic-reuse-strategy)
-  - [Code Organization Principles](#code-organization-principles)
-  - [Type Safety](#type-safety)
-  - [Comment Standards](#comment-standards)
-  - [Error Handling Standards](#error-handling-standards)
-  - [Performance Optimization Standards](#performance-optimization-standards)
-- [Dependencies](#dependencies)
-  - [Core Dependencies](#core-dependencies)
-  - [Animation Library Recommendations](#animation-library-recommendations)
-  - [Development Dependencies](#development-dependencies)
-  - [Tool Dependencies](#tool-dependencies)
-- [Project Structure](#project-structure)
-- [Release Configuration](#release-configuration)
-  - [package.json Configuration](#packagejson-configuration)
-  - [pnpm link Testing Process](#pnpm-link-testing-process)
-  - [Vite Configuration Key Points](#vite-configuration-key-points)
-  - [ESLint Configuration](#eslint-configuration)
-  - [Prettier Configuration](#prettier-configuration)
-  - [lint-staged Configuration](#lint-staged-configuration)
-  - [Husky Git Hooks](#husky-git-hooks)
-- [Correctness Properties](#correctness-properties)
-  - [Property 1: Size Conversion Consistency](#property-1-size-conversion-consistency)
-  - [Property 2: Scene Index Boundary Safety](#property-2-scene-index-boundary-safety)
-  - [Property 3: Animation Delay Transitivity](#property-3-animation-delay-transitivity)
-  - [Property 4: Image Load Progress Monotonicity](#property-4-image-load-progress-monotonicity)
-  - [Property 5: Relative Positioning Additivity](#property-5-relative-positioning-additivity)
-  - [Property 6: Drag Release Continuity (Transaction Same-origin Seed, Dual Track Parallel)](#property-6-drag-release-continuity-transaction-same-origin-seed-dual-track-parallel)
-  - [Property 7: Drag Ownership and Re-grab Reversibility](#property-7-drag-ownership-and-re-grab-reversibility)
-  - [Property 8: Circular Dependency Unreachability](#property-8-circular-dependency-unreachability)
-  - [Property 9: Drag Progress and Animation Progress Consistency](#property-9-drag-progress-and-animation-progress-consistency)
-  - [Property 10: Drag Non-scene-driven Animations Only Start After Official Arrival](#property-10-drag-non-scene-driven-animations-only-start-after-official-arrival)
-  - [Property 11: Animation Frame Rate Stability](#property-11-animation-frame-rate-stability)
-  - [Property 12: Bundle Size Limit](#property-12-bundle-size-limit)
-  - [Property 13: Test Coverage Requirements](#property-13-test-coverage-requirements)
-  - [Property 14: Drag Mapping and Delay Gating Correctness (`unit + scale`)](#property-14-drag-mapping-and-delay-gating-correctness-unit--scale)
-  - [Property 15: Drag Mode Smart Threshold Monotonicity](#property-15-drag-mode-smart-threshold-monotonicity)
-  - [Property 16: Drag Bounce Mapping Symmetry](#property-16-drag-bounce-mapping-symmetry)
-  - [Property 17: Drag Mode Scene State Machine Correctness](#property-17-drag-mode-scene-state-machine-correctness)
-  - [Property 18: Drag Mode Boundary Bounce Limit](#property-18-drag-mode-boundary-bounce-limit)
-  - [Property 19: Drag Bidirectional Target Ruler and Callback Terminal State Consistency](#property-19-drag-bidirectional-target-ruler-and-callback-terminal-state-consistency)
-  - [Property 20: useTransform Mapping Continuity](#property-20-usetransform-mapping-continuity)
+- [Component structure](#component-structure)
+- [State ownership](#state-ownership)
+- [Drag mode](#drag-mode)
+- [Scroll mode](#scroll-mode)
+- [Animation timing](#animation-timing)
+- [Layout and responsive sizing](#layout-and-responsive-sizing)
+- [Assets and readiness](#assets-and-readiness)
+- [Accessibility](#accessibility)
+- [Errors and cleanup](#errors-and-cleanup)
+- [Package boundaries](#package-boundaries)
+- [Verification](#verification)
+- [Changing the architecture](#changing-the-architecture)
 
-## Overview
+## Component structure
 
-CineView is a UI framework developed for React, designed to create cinema-style page transitions. It supports scroll-based and drag-based interaction modes, enabling developers to create engaging, interactive storytelling experiences.
+A `CineView` contains `Scene` elements. A Scene owns its layout, animation registry,
+asset lifecycle, and fixed elements. `Animate` controls an element's animation;
+`AnimateVideo` connects video playback or seeking to an animation timeline.
+`Position` places content, `Container` defines box dimensions and spacing, and
+`Image` integrates image loading with scene readiness.
+
+[CineViewDispatch](./src/components/CineView/CineViewDispatch.tsx) selects the drag or
+scroll implementation from the `mode` discriminant. Mode-specific public types
+reject configuration that belongs to the other mode. The default mode is `drag`.
+Application callbacks are grouped under `callbacks`; scene layout and behavior
+are grouped under `layout`, `transition`, `assets`, `drag`, `scroll`, and `callbacks`.
+
+The implementations share conversion and scene contexts but retain separate input
+controllers. Do not combine their progress state just because both modes animate
+the same properties.
+
+| Responsibility                     | Implementation                                                                                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drag entry and scene stack         | [CineView](./src/components/CineView/CineView.tsx), [DragSceneStack](./src/components/CineView/DragSceneStack.tsx)                                              |
+| Scroll entry and native offset     | [DirectScrollCineView](./src/components/CineView/DirectScrollCineView.tsx), [useNativeScrollController](./src/components/CineView/useNativeScrollController.ts) |
+| Scene lifecycle and mode selection | [Scene](./src/components/Scene/Scene.tsx)                                                                                                                       |
+| Animation semantics                | [animateSemantics](./src/components/Animate/animateSemantics.ts), [animateTimeline](./src/components/Animate/animateTimeline.tsx)                               |
+| Width-based conversion             | [CineViewContext](./src/context/CineViewContext.tsx)                                                                                                            |
+
+## State ownership
+
+Each frequently updated value has one writer. Consumers subscribe to MotionValues
+or the existing external stores instead of duplicating the value in React state.
+
+| Value                    | Owner and rule                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Drag render progress     | The render path writes `renderProgress`. Input handlers submit intent; they must not add another writer.                                  |
+| Element elapsed time     | Each Scene owns its `elementElapsedMotion`. Never share a mutable elapsed value between Scenes.                                           |
+| Drag release             | The active drag transaction owns its release directive and terminal result.                                                               |
+| Scroll offset            | The native scroll controller coordinates the root's real scroll position and programmatic movement.                                       |
+| Zone progress            | A valid `Scene.scroll` declaration owns its local progress and duration budget.                                                           |
+| Fixed element visibility | The containing Scene owns clipping and visibility.                                                                                        |
+| Asset lifetime           | The loading/cache owner controls acquisition, completion, and release. Stale asynchronous completions must not revive released resources. |
+
+Per-frame code must not trigger React renders, rebuild configuration objects, or
+alternate layout reads and writes. Subscribe once to stable inputs, write visual
+properties through the existing animation driver, and dispose of subscriptions.
+Read geometry during the existing measurement phase, then publish the resulting
+snapshot for consumers.
+
+## Drag mode
+
+Users move between scenes with pointer gestures, supported keyboard input, or
+`goToScene`. Scene transition progress and element animation elapsed time are
+related but distinct. A scene can have no element animation and still transition;
+an element's authored duration must not become the scene transition duration.
+
+The drag engine prepares the source and candidate scenes before committing a
+transition. Its snapshot defines the geometry, mapping, and animation bounds used
+throughout that transaction. A new gesture can interrupt a settling transition;
+resumption must start from the displayed frame rather than an outdated target.
+
+[useDragSceneEngine](./src/components/Scene/useDragSceneEngine.ts) coordinates the
+transaction. [dragPreparedState](./src/components/Scene/dragPreparedState.ts) records
+prepared values, and [useElementTrack](./src/components/Scene/useElementTrack.ts)
+maintains the Scene's element timing. Preserve this separation when modifying
+thresholds, release animation, or reverse input.
+
+`dragConfig` defines direction, threshold, transition duration, and the `unit` /
+`scale` mapping. Scene-level drag configuration can specialize the behavior.
+Check normalization in the implementation rather than inferring a unit from a
+number. Callback ordering follows official scene arrival and departure; a
+candidate preview must not be reported as a committed scene change.
+
+Only the active scene should expose interactive content to assistive technology.
+Neighboring scenes may remain mounted for smooth movement and preloading. Their
+presence in the DOM does not make them active.
+
+## Scroll mode
+
+Ordinary scenes remain in document flow. The root provides a real scroll range,
+so wheel, keyboard, touch, scrollbar, and imperative navigation must produce
+consistent scene and zone state. Scroll mode does not reuse drag thresholds or
+drag release state.
+
+A Scene with a valid `scroll={{ zoneId, trigger: 'center-lock' }}` declaration
+adds a local animation interval. Its authored scene-driven duration determines
+the additional real scroll distance: one millisecond equals one CSS pixel.
+Viewport height and `designWidth` do not rescale that duration budget.
+
+[sceneScrollBudget](./src/components/Scene/sceneScrollBudget.ts) derives the budget
+from registered animations. [useScrollZoneRegistry](./src/components/CineView/useScrollZoneRegistry.ts)
+collects zones, while [useScrollSceneLayout](./src/components/CineView/useScrollSceneLayout.ts)
+and [useScrollSceneSnapshots](./src/components/CineView/useScrollSceneSnapshots.ts)
+provide measured layout and scene state. Animations consume this published state.
+They must not each independently measure or write the root's scroll offset.
+
+Input at a zone boundary must retain the correct order of approach, animation,
+and departure in both directions. Large deltas and reverse movement need browser
+acceptance; a unit test of interpolation alone cannot prove those transitions.
+
+Scene height can come from authored layout or measured content. Refresh layout
+when application content changes dimensions. The scroll ref adds `goToZone` to
+the shared navigation API; use an existing registered zone identifier.
+
+A `Position fixed` element belongs to its Scene and is clipped to that Scene's
+visible area. Place cross-scene navigation and persistent application controls
+outside `CineView`.
+
+## Animation timing
+
+`timeline.driver` is `scene` or `clock`. The scene driver derives animation time
+from the owning Scene's progress. The clock driver advances with elapsed time
+when the scene's activation conditions allow it. Switching drivers must not
+create two writers for one property.
+
+Animation duration and delay contribute to the scene-driven timing bounds.
+Dependency references are resolved through the Scene animation registry. Cycles
+are invalid. Preserve initial frames while authored variants are still pending;
+an unresolved declaration is not an instruction to display the final frame.
+
+Manual animation controls and automatic triggers share the existing control
+logic. Do not start a second animation while a manual operation owns the same
+property. Stagger timing applies to the supported child structure; additional
+wrappers can change which children receive timing offsets.
+
+The scroll and drag drivers consume the same authored animation semantics but
+translate progress independently. Clock-driven effects must not extend a scroll
+zone merely because they run for a long time.
+
+`AnimateVideo` owns its timeline and media operations through its existing media
+controller. Scene exit and unmount release resources according to the component's
+configuration. Reentry reacquires media; asynchronous loading must respect the
+current resource generation. Video seeking is a browser/media operation and
+requires a real browser test with a real asset.
+
+## Layout and responsive sizing
+
+`designWidth` is the only numeric conversion base. Conversion follows viewport
+width, including for vertical design coordinates. It does not switch to viewport
+height for portrait screens.
+
+`Position` owns placement; `Container` owns dimensions and internal spacing.
+Their numeric convenience properties use the design conversion. Use ordinary
+CSS through supported style and class properties for viewport-relative layout
+or constraints; do not widen public numeric types to accept arbitrary strings.
+Scene layout properties have their own public types.
+
+A design canvas is useful for a fixed composition, but scaling all text from a
+large desktop width makes mobile text unreadable. Website content can use media
+queries to set readable font sizes, wrap text, and reorganize controls while
+retaining the framework's numeric coordinate system.
+
+Do not add an independent conversion factor inside a component. Read conversion
+values from `CineViewContext`. Preserve consistent conversion between initial,
+animated, and restored styles.
+
+## Assets and readiness
+
+Scene assets participate in preload and first-screen readiness. The first screen
+can render its loading or error state while assets resolve. The first-screen
+timeout prevents an indefinitely pending startup; it is not a performance
+promise for every network or device.
+
+The ref API exposes navigation, current scene index, layout refresh, preload, and
+performance metrics. `onReady` provides the usable ref after the runtime reaches
+its readiness condition. Verify readiness by observing content and using the API,
+not by comparing jsdom execution time with a browser paint budget.
+
+Preloading neighboring scenes must respect the cache's existing ownership and
+release rules. Network completion after navigation must not alter an obsolete
+scene transaction. Tests should cover cancellation, failure, exit, and reentry.
+
+## Accessibility
+
+Drag mode provides a labelled region, keyboard navigation, and a live scene
+announcement. Inactive scene content uses `inert` and `aria-hidden` so off-screen
+controls do not remain in the tab order or accessibility tree.
+
+A browser assertion must identify the announced current scene and inspect that
+scene and its ancestors for hidden state. Testing whether an inactive descendant
+contains `document.body` cannot detect a hidden active scene. The assertion must
+fail when the scene is missing, inert, or inside an `aria-hidden="true"` ancestor.
+
+Reduced-motion handling follows the existing animation scheduling rules; it does
+not imply that every directly controlled scrub animation becomes static.
+Applications still need meaningful text, labels, focus order, and sufficient
+contrast. Chrome viewport emulation does not establish compatibility with every
+mobile browser or assistive technology.
+
+## Errors and cleanup
+
+Public error codes are defined in the types. They cover empty scenes, invalid
+component structure or animation configuration, circular dependencies, image or
+animation asset failures, and first-screen timeout.
+
+Report errors through the existing callback and fallback behavior. Only suppress
+a fallback where the error contract supports recovery; do not silently continue
+with inconsistent state. Avoid duplicating reports from both controller and
+renderer for the same failure.
+
+Unmounting must cancel pending animation work, remove browser listeners, release
+resource references, and dispose of MotionValue subscriptions. Keep generation
+or transaction checks around asynchronous completions. Cancellation tests must
+verify the resulting state as well as whether cleanup functions were called.
+
+## Package boundaries
+
+[package.json](./package.json) defines the published surface. The root entry
+supports ESM and CommonJS. The `cineview/drag` and `cineview/scroll` subpaths expose
+CommonJS entries in 1.0.0. `cineview/dev` exposes an ESM development panel, with
+its stylesheet imported separately from `cineview/dev/style.css`.
+
+React, React DOM, and Framer Motion are peer dependencies. The library build
+keeps them external. Build verification checks declared entries, types, assets,
+and package contents. Tests and acceptance evidence remain in the repository and
+are excluded from the npm package by the files allowlist.
+
+The root, site, minimal example, and performance example have separate lockfiles.
+Install and audit all four. A clean root audit says nothing about vulnerabilities
+in another project's lockfile. See [Contributing](./CONTRIBUTING.md) for development
+versions and deployment commands, and [release records](./RELEASING.md) for artifact
+correspondence.
+
+## Verification
+
+Run the framework static gate before publishing or integrating runtime changes:
+
+```bash
+pnpm verify:framework:static
+pnpm docs:links
+pnpm audit:all
+```
+
+For website changes, also run formatting, site types, documentation contracts,
+static documentation style checks, and a production site build. Keep the English
+and Chinese page trees, section counts, slugs, and frontmatter eyebrows aligned.
+
+Browser acceptance uses the built library and production fixtures. Cover forward
+and reverse movement, large deltas, keyboard and scrollbar input, fixed elements,
+concurrent animations, cancellation, and media exit/reentry where affected.
+Inject deliberate failures to establish that a gate exits unsuccessfully when
+its contract is violated.
+
+Use the production browser profiler for actual paint, readiness, frame intervals,
+and long tasks. Record browser, machine, viewport, workload, and raw results.
+Frame rate is diagnostic data, not a universal release guarantee. jsdom tests
+verify behavior and metric shape; they do not measure browser rendering speed.
+
+## Changing the architecture
+
+Create or update a task-flow before a multi-file change. Describe observable
+behavior, the state owner, and acceptance criteria. Update this document alongside
+any ownership or public behavior change, and keep its links valid.
+
+Use focused tests to reproduce a defect, then run the relevant static and browser
+gates. [AGENT_SELF_REVIEW.md](./AGENT_SELF_REVIEW.md) requires independent browser
+review for visual, interaction, accessibility, and runtime performance work.
+Record limitations explicitly. Preserve previous evidence and user-owned files.

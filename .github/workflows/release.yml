@@ -46,6 +46,8 @@ jobs:
       - run: pnpm --dir site install --frozen-lockfile
       - run: pnpm --dir examples/minimal install --frozen-lockfile
       - run: pnpm --dir examples/performance-test install --frozen-lockfile
+      - run: pnpm docs:links
+      - run: pnpm audit:all
       - id: chrome
         uses: browser-actions/setup-chrome@v1
         with:
@@ -54,6 +56,9 @@ jobs:
         env:
           CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       - run: pnpm verify:browser-failure-injection
+        env:
+          CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      - run: pnpm --dir examples/performance-test profile:browser
         env:
           CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
 

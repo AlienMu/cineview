@@ -326,7 +326,7 @@ export function DemoVideoScene(): import('react').JSX.Element {
             demo-title      — 640ms fast entry axis (other lanes hang after via 'after', cannot change)
             demo-title-out  — 4000ms convergence axis (same axis as video/subtitle), only handles reverse exit.
           Title is screen frame, so fades out **after** four subtitle lines (0.95), forming inside-out convergence. */}
-      <Position at={{ anchor: 'center-x', y: 200 }}>
+      <Position at={{ anchor: 'center-x', y: 200 }} className="demo-video__title-position">
         <Animate
           animateId="demo-title"
           enterAnimation={{

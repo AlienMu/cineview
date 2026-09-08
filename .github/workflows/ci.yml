@@ -47,6 +47,8 @@ jobs:
       # Source-level docs style gate (frontmatter eyebrows, fenced-code languages,
       # banned vocabulary, abbreviation expansion). Needs no browser, so it belongs
       # here rather than in the acceptance job.
+      - run: pnpm docs:links
+      - run: pnpm audit:all
       - run: pnpm docs:style:static
       - run: pnpm --dir site build
       - run: pnpm --dir examples/performance-test build
@@ -81,5 +83,8 @@ jobs:
         env:
           CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       - run: pnpm verify:browser-failure-injection
+        env:
+          CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      - run: pnpm --dir examples/performance-test profile:browser
         env:
           CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}

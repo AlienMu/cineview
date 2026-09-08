@@ -9,7 +9,7 @@ import { I18nProvider } from './i18n';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <I18nProvider>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrowserRouter>
         <App />
       </BrowserRouter>
     </I18nProvider>

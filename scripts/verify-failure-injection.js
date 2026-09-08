@@ -35,6 +35,13 @@ function expectFailure(label, result, expectedOutput) {
 }
 
 try {
+  const brokenDoc = path.join(tempRoot, 'broken.md');
+  fs.writeFileSync(brokenDoc, '# Existing\n\n[Missing](#missing)\n');
+  expectFailure(
+    'documentation anchor gate',
+    run(process.execPath, [path.join(root, 'scripts/verify-documentation.mjs'), brokenDoc]),
+    'missing anchor'
+  );
   const warningTest = path.join(tempRoot, 'unexpected-console.test.ts');
   fs.writeFileSync(
     warningTest,

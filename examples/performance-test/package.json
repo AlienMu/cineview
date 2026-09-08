@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:acceptance": "vite build --config vite.acceptance.config.ts",
-    "profile:browser": "node profile-browser.mjs",
+    "profile:browser": "node profile-production.mjs",
     "acceptance:drag": "node acceptance-drag.mjs",
     "acceptance:scroll": "node acceptance-scroll.mjs",
     "acceptance:browser": "pnpm acceptance:drag && pnpm acceptance:scroll",
@@ -20,20 +20,23 @@
     "lighthouse": "pnpm run build && pnpm run preview & sleep 3 && lighthouse http://localhost:4173 --view --output html --output-path ./lighthouse-report.html"
   },
   "dependencies": {
-    "cineview": "link:../../",
-    "framer-motion": "^13.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "cineview": "link:../..",
+    "framer-motion": "^13.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^26.1.0",
-    "playwright-core": "1.54.2",
-    "terser": "^5.46.1",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0",
-    "vitest": "^3.2.4"
+    "playwright-core": "^1.63.0",
+    "terser": "^5.51.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  },
+  "engines": {
+    "node": "^22.22.1 || >=24.0.0"
   }
 }

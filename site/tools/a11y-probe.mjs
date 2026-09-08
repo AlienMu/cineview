@@ -7,6 +7,7 @@
 // 用法：先 `pnpm build` 再起 dev server（站点经 link:../ 消费 dist，不是 src），
 // 然后 `node site/tools/a11y-probe.mjs`。BASE 可覆盖。
 import { chromium } from 'playwright';
+import { inspectCurrentSceneAccessibility } from './scene-accessibility.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:4000';
 const ROUTE = process.env.ROUTE ?? '/drag';
@@ -37,7 +38,11 @@ try {
       tabIndex: el.tabIndex,
     };
   });
-  check('容器是 region 且有可访问名称', Boolean(region?.role === 'region' && region?.label), JSON.stringify(region));
+  check(
+    '容器是 region 且有可访问名称',
+    Boolean(region?.role === 'region' && region?.label),
+    JSON.stringify(region)
+  );
   check('容器在 Tab 序内', region?.tabIndex === 0, `tabIndex=${region?.tabIndex}`);
 
   // ── 2. live region 真的在无障碍树里 ─────────────────────────────────
@@ -102,16 +107,17 @@ try {
         target.focus();
         return document.activeElement === target;
       }),
-      // 当前场景不能被隐藏 —— 否则读屏用户什么都读不到。
-      currentSceneHidden: Boolean(
-        root && Array.from(root.querySelectorAll('[inert]')).some((n) => n.contains(document.body))
-      ),
     };
   });
   check('存在被隐藏的非活动场景', hidden.inertCount > 0, `inert 节点 ${hidden.inertCount} 个`);
   check('每个 inert 节点同时带 aria-hidden', hidden.allAlsoAriaHidden);
   check('inert 真的挡住了焦点（后代 focus() 无效）', !hidden.focusEscapes);
-  check('当前场景未被隐藏', !hidden.currentSceneHidden);
+  const currentScene = await page.evaluate(inspectCurrentSceneAccessibility);
+  check(
+    '当前场景存在且未被隐藏',
+    currentScene.currentSceneFound && !currentScene.currentSceneHidden,
+    JSON.stringify(currentScene)
+  );
 
   // ── 5. reduced-motion 下不启动循环动画 ──────────────────────────────
   const reduced = await browser.newContext({

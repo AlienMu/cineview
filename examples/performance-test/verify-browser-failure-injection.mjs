@@ -48,6 +48,18 @@ expectFailure(
   'browser acceptance assertion failed'
 );
 expectFailure(
+  'active scene inert gate',
+  'acceptance-drag.mjs',
+  { CINEVIEW_ACC_INJECT: 'active-scene-hidden' },
+  'current scene is missing or hidden from assistive technology'
+);
+expectFailure(
+  'active scene aria-hidden gate',
+  'acceptance-drag.mjs',
+  { CINEVIEW_ACC_INJECT: 'active-scene-aria-hidden' },
+  'current scene is missing or hidden from assistive technology'
+);
+expectFailure(
   'drag browser route wiring gate',
   'acceptance-drag.mjs',
   { CINEVIEW_ACC_ROUTE: '/#/does-not-exist' },
@@ -94,4 +106,11 @@ expectFailure(
     CINEVIEW_SCROLL_ACC_STARTUP_TIMEOUT_MS: '500',
   },
   'scroll preview server did not become ready'
+);
+
+expectFailure(
+  'production profile long-task gate',
+  'profile-production.mjs',
+  { CINEVIEW_PROFILE_INJECT: 'long-task', CINEVIEW_PROFILE_RUNS: '1' },
+  'production profile budget or workload check failed'
 );

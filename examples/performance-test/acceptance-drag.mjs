@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { chromium } from 'playwright-core';
+import { inspectCurrentSceneAccessibility } from '../../site/tools/scene-accessibility.mjs';
 
 const host = '127.0.0.1';
 const port = Number(process.env.ACC_PORT || 4317);
@@ -235,6 +236,29 @@ async function run() {
         !initial.videoError,
       'fixture did not initialize',
       initial
+    );
+
+    if (process.env.CINEVIEW_ACC_INJECT === 'active-scene-hidden') {
+      await page
+        .locator('[data-scene-index="0"]')
+        .first()
+        .evaluate((wrapper) => {
+          wrapper.firstElementChild?.setAttribute('inert', '');
+        });
+    }
+    if (process.env.CINEVIEW_ACC_INJECT === 'active-scene-aria-hidden') {
+      await page
+        .locator('[data-scene-index="0"]')
+        .first()
+        .evaluate((wrapper) => {
+          wrapper.firstElementChild?.setAttribute('aria-hidden', 'true');
+        });
+    }
+    const accessibility = await page.evaluate(inspectCurrentSceneAccessibility);
+    assert(
+      accessibility.currentSceneFound && !accessibility.currentSceneHidden,
+      'current scene is missing or hidden from assistive technology',
+      accessibility
     );
 
     await driver.down(195, 620);

@@ -1,0 +1,14 @@
+{
+  "package": "cineview",
+  "version": "1.0.0",
+  "registry": "https://registry.npmjs.org/cineview/1.0.0",
+  "tarball": "https://registry.npmjs.org/cineview/-/cineview-1.0.0.tgz",
+  "integrity": "sha512-KcM0We7He7lilVaNJu7D4HvP3muMJk5xrK9hrPGydsz4gRMtmTcDGqO+hhZx7ZQ+Bm782MUMFAJByv5NGfp2Pw==",
+  "sha256": "4dc8a2d1682c27339c71b61aaff42964685b53b7f99431228f25c61db1fc4915",
+  "verifiedSourceCommit": "ba0adf440c8a52be97db827b02f43089019b1750",
+  "correspondenceTag": "npm/v1.0.0",
+  "verificationDate": "2026-09-08",
+  "distFileCount": 124,
+  "registryGitHead": null,
+  "verification": "All 124 dist files byte-match the rebuilt runtime; package.json, LICENSE and both README files byte-match this source commit. Runtime source, build configuration and root lockfile match the rebuilt main baseline 30ae87f4a49b3047a2282bfacae21779fc8a92f1. This is reconstructed correspondence, not npm provenance."
+}
