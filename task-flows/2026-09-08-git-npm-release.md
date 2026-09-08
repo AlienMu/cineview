@@ -12,7 +12,7 @@ The initial worktree contains 287 modified, 137 deleted, and 71 untracked status
 - [x] Complete framework static gate and independent browser release acceptance.
 - [x] Complete site types, contracts, documentation style, and production build.
 - [x] Inspect packed package; stage and review current changes before committing.
-- [ ] Commit the reviewed release changes.
+- [x] Commit the reviewed release changes.
 - [ ] Publish to npm and verify registry metadata.
 
 ## Evidence
@@ -35,3 +35,10 @@ The initial worktree contains 287 modified, 137 deleted, and 71 untracked status
 - Final packed payload: 128 files, 273,249 bytes compressed and 950,252 bytes unpacked. Contents are runtime/type/CSS artifacts, package metadata, LICENSE, and both READMEs; no source, credential, backup, or probe files are included. Archive: `/tmp/cineview-release-payload/cineview-1.0.0.tgz`.
 
 - The pre-commit hook also checks staged site source. It found three unused initial zero assignments in `DemoVideoScene.warmAt`; each variable is assigned on every branch before use. Removing only those initializers preserves output. File lint and site types passed after correction. The failed hook restored its temporary changes before this fix.
+
+## Git result and remaining publication step
+
+- Release commit: `ba0adf4` (`feat: prepare CineView 1.0.0 for npm release`). The commit contains 475 reviewed changed/new/deleted files. The successful pre-commit hook left the staged tree identical to its pre-hook snapshot.
+- The tracked working tree was clean after committing. The 29 excluded local files remain on disk (some share directory-level status entries).
+- Pushing `codex/drag-release-dual-gate` to origin runs the repository's required framework static hook. The first attempt selected the shell's older Node 21 and failed before upload; the next attempt explicitly selects Node 22.22.1.
+- npm publication remains pending user authentication. `npm whoami --registry=https://registry.npmjs.org` still returns `ENEEDAUTH`. A browser login was requested; the user can also run `npm login --registry=https://registry.npmjs.org` locally, then resume publication. No npm publish success is claimed.
