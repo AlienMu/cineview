@@ -15,7 +15,7 @@ import { scatterOrigin } from './particleField';
 // Six discrete steps, not a continuous function of x: the word is six letters, so the
 // gradient should be readable as "each letter is brighter than the last".
 //
-// All six stops sit on one hue family (the act's 暗金 decree — nothing on the cool side of
+// All six stops sit on one hue family (the act's dark gold decree — nothing on the cool side of
 // the wheel is allowed here). What moves along the ramp is lightness and saturation: the A
 // is a dark bronze that barely separates from the plate, the N is a warm white. That is a
 // ~2.5x luminance span, which is what makes the gradient survive the 0.11-alpha plate and
@@ -121,14 +121,14 @@ const WALK_DRIVE = 0.2;
 // 1/ringSpeed seconds (10.5-20s). Two separate reasons it had to go, and only the first is the
 // one that was reported:
 //   * it reads as machinery — a field of dots on rails, all winding the same way in two
-//     interleaved groups, which is the 绕圆 the user is objecting to;
+//     interleaved groups, which is the circling motion the user is objecting to;
 //   * the winding is UNBOUNDED in angle, so a particle's pre-assembly position has no
 //     relationship to where it will end up. A dot could be diametrically opposite its letter
 //     at the instant the gather starts, and then cross the whole frame at gather speed.
 //
 // The replacement has NO angular term at all. Each particle owns a fixed anchor in the frame's
 // outer band (`hoverAnchor`) and performs a bounded aperiodic drift about it. The swarm still
-// surrounds the board (the original 「预先环绕在四周」 intent) and is still alive on every frame,
+// surrounds the board (the original "pre-assembly encirclement" intent) and is still alive on every frame,
 // but nothing revolves, and each dot's gather is now a short local move from a stable station.
 //
 // Bound is in units of the canvas's SHORTER AXIS, not board units, and that is deliberate: the
@@ -148,7 +148,7 @@ export const HOVER_MAX = 0.035;
 //                   indistinguishable from zero (|r| < 0.01) from 6s out to 30s
 //   winding ....... net rotation about the frame centre over 60s: 0.002 turns
 // The orbit this replaces, measured the same way: autocorrelation 0.998 at one period and 4.45
-// turns of net winding over the same 60s. Those two numbers ARE the 绕圆 complaint quantified —
+// turns of net winding over the same 60s. Those two numbers ARE the circling complaint quantified —
 // a signal that repeats at r=0.998 and accumulates angle without bound is, to the eye, a dot on
 // rails. 0.002 turns is drift with no preferred direction.
 //

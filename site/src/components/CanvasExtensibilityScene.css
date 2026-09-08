@@ -1,0 +1,75 @@
+.canvas-extensibility {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  background: transparent;
+}
+
+.canvas-extensibility__stage,
+.canvas-extensibility__field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-extensibility > [data-cineview-animate-host='s04-canvas-extensibility'],
+.canvas-extensibility
+  > [data-cineview-animate-host='s04-canvas-extensibility']
+  > .cineview-animate {
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-extensibility__field {
+  background: transparent;
+}
+
+.canvas-extensibility__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--ink);
+}
+
+.canvas-extensibility__fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  padding: 2rem;
+  font: 500 4rem/1.12 var(--font-display);
+  text-align: center;
+  pointer-events: none;
+}
+
+.canvas-extensibility__fallback span:last-child {
+  color: var(--burnt-terracotta);
+}
+@media (max-width: 600px) {
+  .canvas-extensibility__fallback {
+    font-size: 2.5rem;
+  }
+}
+
+.canvas-extensibility__canvas[data-canvas-ready='true'] + .canvas-extensibility__fallback {
+  display: none;
+}
+
+.canvas-extensibility__sr-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

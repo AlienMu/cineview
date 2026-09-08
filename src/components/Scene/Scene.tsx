@@ -1,6 +1,6 @@
 /**
  * Scene Component
- * 表示一个全屏场景，管理场景内的动画和滑动行为
+ * Represents a full-screen scene, managing animations and scroll behavior within the scene
  */
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
@@ -887,13 +887,20 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
     const isHiddenFromAssistiveTech =
       !dragPointerEnabled &&
       (runtimeState === 'covered' || runtimeState === 'parked' || runtimeState === 'inactive');
-    // `inert` is absent from React 18's JSX typings (React 19 added it) and
-    // framer-motion derives its prop type from those, so it is spread rather than
-    // written as a literal prop — the attribute is emitted on both React majors.
-    // Engines without `inert` support still get `aria-hidden`.
+
     const assistiveTechHiddenProps = isHiddenFromAssistiveTech
-      ? ({ inert: '', 'aria-hidden': true } as Record<string, unknown>)
+      ? ({ 'aria-hidden': true } as Record<string, unknown>)
       : undefined;
+    const resolvedInert = isHiddenFromAssistiveTech || props.inert === true;
+
+    // Motion forwards the inert attribute, but React 18 and jsdom do not expose
+    // the corresponding HTMLElement property. Mirror the resolved value for
+    // those environments without clearing an author-owned inert scene.
+    useEffect(() => {
+      const element = containerRef.current;
+      if (!element) return;
+      element.inert = resolvedInert;
+    }, [resolvedInert]);
 
     const sceneStyle = useMemo(
       () => ({
@@ -957,6 +964,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
                 className={className}
                 style={{ ...style, ...sceneStyle } as never}
                 {...assistiveTechHiddenProps}
+                inert={resolvedInert}
                 // D-F1: pointer/pan handlers stay bound for ALL drag scenes (not
                 // only the active one). A scene can deactivate mid-gesture (its
                 // own release commits), while the pointer capture keeps the

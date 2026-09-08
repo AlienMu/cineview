@@ -1,14 +1,14 @@
 /**
- * Container 组件 — px2vw 盒模型换算容器。
+ * Container component — px-to-vw box-model conversion wrapper.
  *
- * 职责边界（与 Position 正交）：
- * - Position 管「元素放在哪」（坐标点 x/y，经 `convert` 换算）。
- * - Container 管「盒子多大 + 内部怎么呼吸」：width/height 便捷属性，以及整个 `style`
- *   里的所有长度量（padding/margin/gap/borderRadius/fontSize/...）都按设计 px 经
- *   px2vw 单尺子 `convert` 自动换算。作者用设计稿的一个单位书写整块盒模型，
- *   Container 忠实缩放到任何屏幕——正方形永远是正方形（单尺子不形变）。
+ * Responsibility boundary (orthogonal to Position):
+ * - Position handles "where the element is placed" (x/y coordinates, converted via `convert`).
+ * - Container handles "box dimensions + internal spacing": width/height convenience props, and all
+ *   length values in `style` (padding/margin/gap/borderRadius/fontSize/...) are automatically
+ *   converted from design px via the single-ruler `convert`. Authors write the entire box model
+ *   in design-spec units; Container faithfully scales to any screen — squares stay square.
  *
- * 只能在 CineView 下使用（需要换算上下文）。
+ * Must be used within CineView (requires conversion context).
  */
 
 import { forwardRef, useMemo } from 'react';
@@ -22,7 +22,7 @@ export const Container = forwardRef<HTMLDivElement, ContainerProps>(function Con
 ) {
   const context = useCineViewContext();
 
-  // 开发环境检查：必须在 CineView 下使用
+  // Development check: must be used within CineView
   if (process.env.NODE_ENV === 'development' && !context) {
     throw new Error(
       '[CineView] Container must be used within a CineView component. ' +
@@ -30,8 +30,8 @@ export const Container = forwardRef<HTMLDivElement, ContainerProps>(function Con
     );
   }
 
-  // px2vw 盒模型换算：width/height 便捷属性走 `convert`；整个 style 的长度量交给
-  // convertStyle 逐键换算（padding/margin/gap/borderRadius/fontSize/... 一并缩放）。
+  // px-to-vw box-model conversion: width/height convenience props via `convert`;
+  // all length values in style via convertStyle (padding/margin/gap/borderRadius/fontSize/... all scaled).
   const containerStyle = useMemo(() => {
     if (!context) return style;
 

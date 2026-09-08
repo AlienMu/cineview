@@ -1,9 +1,9 @@
 /**
- * 防抖函数
- * 在指定时间内没有再次调用时才执行函数
- * @param fn - 要防抖的函数
- * @param delay - 延迟时间（毫秒）
- * @returns 防抖后的函数
+ * Debounce function
+ * Executes the function only after no further calls within the specified time
+ * @param fn - Function to debounce
+ * @param delay - Delay time in milliseconds
+ * @returns Debounced function
  */
 export function debounce<T extends (...args: never[]) => unknown>(
   fn: T,
@@ -24,10 +24,10 @@ export function debounce<T extends (...args: never[]) => unknown>(
 }
 
 /**
- * 可取消的防抖函数
- * @param fn - 要防抖的函数
- * @param delay - 延迟时间（毫秒）
- * @returns 包含防抖函数和取消函数的对象
+ * Cancelable debounce function
+ * @param fn - Function to debounce
+ * @param delay - Delay time in milliseconds
+ * @returns Object containing the debounced function and cancel function
  */
 export function debounceCancelable<T extends (...args: never[]) => unknown>(
   fn: T,

@@ -23,7 +23,9 @@ const FRAMES_PER_SECOND = 25;
  * component only derives selection, subtitle, playhead and timecode output from the
  * enclosing scene clock.
  */
-export const Act3Media = memo(function Act3Media({ frame }: Act3MediaProps): JSX.Element {
+export const Act3Media = memo(function Act3Media({
+  frame,
+}: Act3MediaProps): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const anchorRef = useRef<HTMLSpanElement>(null);
 

@@ -197,6 +197,10 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   const sceneNeedsViewportSpan = sceneSizing === 'screen' && !isTakeoverScene;
   const flowSpan = sceneLayout?.flowSpan;
   const visualSpan = sceneLayout?.visualSpan ?? takeoverSceneSpan ?? viewportSpan;
+  // The stream has the viewport's width, so percentages resolve once at the
+  // slot. Keep intrinsic widths in CSS instead of feeding measured pixels back
+  // into sizing; otherwise content and viewport changes retain the old width.
+  const authoredHorizontalWidth = child.props.layout?.width ?? child.props.sceneWidth ?? '100vw';
   const takeoverOverflowInset = isTakeoverScene ? Math.max((visualSpan - viewportSpan) / 2, 0) : 0;
   const takeoverStickyInset = isTakeoverScene ? Math.max((viewportSpan - visualSpan) / 2, 0) : 0;
   const handleWrapperRef = useCallback(
@@ -212,7 +216,12 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
               ...child.props.layout,
               ...(direction === 'x' ? { width: takeoverSceneSpan } : { height: takeoverSceneSpan }),
             }
-          : child.props.layout,
+          : direction === 'x' && !isTakeoverScene
+            ? {
+                ...child.props.layout,
+                width: authoredHorizontalWidth === 'auto' ? 'auto' : '100%',
+              }
+            : child.props.layout,
       callbacks: {
         ...child.props.callbacks,
         onVisibilityChange: (detail: {
@@ -269,7 +278,14 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
       style={{
         position: 'relative',
         width:
-          isTakeoverScene && typeof flowSpan === 'number' && direction === 'x' ? flowSpan : '100%',
+          direction === 'x'
+            ? isTakeoverScene && typeof flowSpan === 'number'
+              ? flowSpan
+              : isTakeoverScene
+                ? '100vw'
+                : authoredHorizontalWidth
+            : '100%',
+        flex: direction === 'x' ? '0 0 auto' : undefined,
         minHeight: direction === 'y' && sceneNeedsViewportSpan ? '100vh' : undefined,
         minWidth: direction === 'x' && sceneNeedsViewportSpan ? '100vw' : undefined,
         ...(isTakeoverScene && typeof flowSpan === 'number'

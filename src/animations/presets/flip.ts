@@ -1,6 +1,6 @@
 /**
- * Flip 系列动画
- * 翻转效果
+ * Flip animation presets
+ * Rotation effects on X and Y axes
  */
 
 import type { Variant } from 'framer-motion';

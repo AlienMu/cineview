@@ -8,7 +8,7 @@
  * geometry stays testable as pure functions.
  *
  * ── There is NO audio ────────────────────────────────────────────────────────
- * The act's audio was cut (设计档 §3.3): no Web Audio, no `<audio>`, no decoding. This
+ * The act's audio was cut (design spec §3.3): no Web Audio, no `<audio>`, no decoding. This
  * module produces a purely visual envelope. The "filter" the A1 track expresses is drawn,
  * not heard: `openness` crossfades between a heavily smoothed envelope (reads as
  * low-passed — round, detail-free) and the detailed one (reads as open — every syllable
@@ -136,7 +136,7 @@ function buildSmoothed(source: readonly number[], radius: number): readonly numb
 /**
  * Where the flow has scrolled to at `elapsedSeconds`, wrapped to 0..1.
  * Wall-clock driven, which is what keeps the track alive after every lane in the act has
- * finished (设计档 §1.4: no frame may be motionless while the scene is parked).
+ * finished (design spec §1.4: no frame may be motionless while the scene is parked).
  */
 export function waveformFlowPosition(elapsedSeconds: number): number {
   const raw = elapsedSeconds * WAVEFORM_FLOW_PER_SECOND;

@@ -1,12 +1,12 @@
 /**
- * Position 组件
- * 提供绝对定位和相对定位功能，完全基于百分比系统实现响应式布局
+ * Position component
+ * Provides absolute and relative positioning using a percentage-based responsive layout system.
  *
- * 设计理念：
- * - 所有位置和尺寸都基于设计稿尺寸转换为百分比
- * - 绝对定位：直接将设计稿坐标转换为百分比
- * - 相对定位：基于父组件位置累加，最终也转换为百分比
- * - 这样可以完美适配任何屏幕尺寸
+ * Design principles:
+ * - All positions and sizes are converted from design-canvas coordinates to percentages
+ * - Absolute positioning: design coordinates map directly to percentages
+ * - Relative positioning: accumulated from parent positions, then converted to percentages
+ * - Ensures consistent layout across any screen size
  */
 
 import React, { useMemo, useContext, createContext, forwardRef } from 'react';
@@ -26,8 +26,8 @@ interface PositionLegacyCompatProps {
 export type PositionInternalProps = PositionProps & PositionLegacyCompatProps;
 
 interface PositionContextValue {
-  lastX: number; // 记录的是设计稿坐标（非百分比）
-  lastY: number; // 记录的是设计稿坐标（非百分比）
+  lastX: number; // Design-canvas coordinates (not percentages)
+  lastY: number; // Design-canvas coordinates (not percentages)
 }
 
 const PositionContext = createContext<PositionContextValue>({ lastX: 0, lastY: 0 });
@@ -51,13 +51,13 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
   const centerY = anchor === 'center' || anchor === 'center-y';
   const shouldUseStickyLayer = resolvedFixed && cineViewRuntime?.mode === 'scroll' && !fixedLayer;
 
-  // 计算最终位置 - px2vw 单尺子换算到实际像素坐标（x/y 共用 `convert`，认宽不认高）。
-  // 居中轴改用 `calc(50% + offset)` + translate(-50%)（见 positionStyle），
-  // 故此处对居中轴产出的 finalLeft/finalTop 仅作非居中回退，居中时被覆盖。
+  // Calculate final position - px2vw converts design coordinates to actual pixel coordinates using a single ruler (both x/y use `convert`, based on width).
+  // Centered axes use `calc(50% + offset)` + translate(-50%) (see positionStyle),
+  // so finalLeft/finalTop here only serve as non-centered fallback and are overridden when centering is active.
   const { finalLeft, finalTop, finalX, finalY } = useMemo(() => {
     const convert = context?.convert ?? ((size: number): number => size);
 
-    // 绝对定位优先
+    // Absolute positioning takes priority
     if (resolvedX !== undefined || resolvedY !== undefined) {
       const xValue = resolvedX !== undefined ? resolvedX : 0;
       const yValue = resolvedY !== undefined ? resolvedY : 0;
@@ -70,7 +70,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
       };
     }
 
-    // 相对定位（基于上一个组件的位置）
+    // Relative positioning (based on previous component position)
     if (resolvedOffsetX !== undefined || resolvedOffsetY !== undefined) {
       const calcX = parentPosition.lastX + (resolvedOffsetX !== undefined ? resolvedOffsetX : 0);
       const calcY = parentPosition.lastY + (resolvedOffsetY !== undefined ? resolvedOffsetY : 0);
@@ -83,7 +83,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
       };
     }
 
-    // 默认位置
+    // Default position
     return {
       finalLeft: 0,
       finalTop: 0,
@@ -92,7 +92,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
     };
   }, [context, parentPosition, resolvedOffsetX, resolvedOffsetY, resolvedX, resolvedY]);
 
-  // 居中轴的 left/top + transform。居中时 x/y 作为「相对中心的偏移」(设计 px)。
+  // left/top + transform for centered axes. When centering, x/y acts as "offset from center" (design px).
   const { leftStyle, topStyle, centerTransform } = useMemo(() => {
     const convert = context?.convert ?? ((size: number): number => size);
     const transforms: string[] = [];
@@ -118,7 +118,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
     };
   }, [context, centerX, centerY, resolvedX, resolvedY, finalLeft, finalTop]);
 
-  // 更新上下文（传递给子组件）
+  // Update context (passed to child components)
   const contextValue = useMemo<PositionContextValue>(
     () => ({
       lastX: finalX,
@@ -127,9 +127,9 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
     [finalX, finalY]
   );
 
-  // 构建样式
+  // Build style
   const positionStyle = useMemo(() => {
-    // 合并居中 transform 与用户传入的 transform（居中在前，用户的叠加在后）。
+    // Merge center transform with user-provided transform (center first, user's appended after).
     const mergedTransform =
       [centerTransform, style?.transform].filter(Boolean).join(' ') || undefined;
     return {

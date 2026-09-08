@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
-import type { AnimationControls } from 'framer-motion';
+import { useAnimation } from 'framer-motion';
 import type { ScrollMode, ScrollTimelineState } from '../../types';
 import type { PresetAnimation } from '../../animations/presets';
 import { interpolateVariant } from '../../utils/animationHelpers';
@@ -8,12 +8,14 @@ import type { ScrollTransitionSnapshot } from '../../hooks/useSceneManager';
 import type { SceneState } from './types';
 import type { ScrollSceneFrame, ScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 
+type LegacyAnimationControls = ReturnType<typeof useAnimation>;
+
 interface UseScrollSceneEngineParams {
   slideMode: ScrollMode;
   isActive: boolean;
   sceneOffset: number;
   sceneStackMode: 'replace' | 'cover';
-  controls: AnimationControls;
+  controls: LegacyAnimationControls;
   enterVariant: PresetAnimation | null;
   exitVariant: PresetAnimation | null;
   globalIsScrolling: boolean;
@@ -73,7 +75,7 @@ export function useScrollSceneEngine({
     isActive: boolean;
     sceneOffset: number;
     sceneStackMode: 'replace' | 'cover';
-    controls: AnimationControls;
+    controls: LegacyAnimationControls;
     enterVariant: PresetAnimation | null;
     exitVariant: PresetAnimation | null;
     globalIsScrolling: boolean;
@@ -108,7 +110,7 @@ export function useScrollSceneEngine({
     progress: number;
     enterVariant: PresetAnimation | null;
     exitVariant: PresetAnimation | null;
-    controls: AnimationControls;
+    controls: LegacyAnimationControls;
   } | null>(null);
 
   // Continuous scroll frames are consumed here, outside React. The callback

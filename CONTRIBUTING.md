@@ -9,11 +9,19 @@ native scroll offset.
 
 ## Local Checks
 
-Use pnpm 10 and Node.js 18 or newer:
+Use pnpm 10.22.0 and Node.js `^22.22.1 || >=24.0.0` for repository development.
+The published library declares Node.js `>=18.0.0` support; the build and lint
+tools require the development versions above.
+
+Each project has its own lockfile. Install dependencies in all four directories
+before running the checks:
 
 ```bash
-pnpm install
-pnpm verify
+pnpm install --frozen-lockfile
+pnpm --dir site install --frozen-lockfile
+pnpm --dir examples/minimal install --frozen-lockfile
+pnpm --dir examples/performance-test install --frozen-lockfile
+pnpm verify:framework:static
 pnpm --dir site build
 pnpm --dir examples/performance-test build
 ```

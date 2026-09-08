@@ -3,31 +3,33 @@ import { useLocation } from 'react-router-dom';
 import { lutAt } from '../design/lut';
 
 /**
- * 全站背景色带层 + 当前镜头强调色驱动（初版机制还原，2026-08-13）。
+ * Site-wide background ribbon layer + current scene accent color driver (original mechanism restored, 2026-08-13).
  *
- * 源自 task-flow 2026-06-30-official-site-docs.md 的锁定方案「全站总进度驱动 +
- * 上下双端 linear-gradient 插值 + 停靠点数组可配」（f164470 快照同名组件即其实现），
- * 用户裁决 2026-08-13「只还原这个」。C1 的 600vh 色带 + 明度纱（HomeBackdrop）
- * 因灰粉交替闪烁、30MB 提层、无 accent 流动等报障整组退役。
+ * Originated from the locked-in design in task-flow 2026-06-30-official-site-docs.md: "site-wide total progress drives
+ * top/bottom dual-endpoint linear-gradient interpolation + configurable anchor array" (snapshot f164470 of the
+ * same-named component is the implementation). User decision 2026-08-13: "restore only this one."
+ * The C1 approach (600vh ribbon + luminance scrim in HomeBackdrop) was retired wholesale due to reported issues:
+ * gray-pink alternating flicker, 30MB layer promotion, no accent flow, etc.
  *
- * 消费 CineView 内部滚动容器的 scrollTop（A1/A2 决策：scroll 模式滚动源是内部
- * 容器，不是 window/document），按 LUT 在停靠点间插值出上下双端渐变色 + 当前镜头
- * 强调色，写入 :root 的 CSS 变量：
- *   --bg-grad-top / --bg-grad-bot —— 固定全屏渐变层的两端色
- *   --accent / --accent-ink       —— 随滚动流动的「当前镜头色」（滚动条/按钮/选区）
+ * Consumes the scrollTop of the CineView internal scroll container (A1/A2 decision: scroll-mode scroll source is the
+ * internal container, not window/document), interpolates top/bottom gradient endpoints + current scene accent color
+ * between LUT anchors, writes them into :root CSS variables:
+ *   --bg-grad-top / --bg-grad-bot — fixed fullscreen gradient layer endpoints
+ *   --accent / --accent-ink       — scroll-driven "current scene color" (scrollbar/button/selection)
  *
- * ⚠️ 与初版实现的差异（当前结构适配）：
- *   - 初版经 React state 每帧 setProgress 重渲染——违反现行 CLAUDE.md 规则 2
- *     （每帧 setState 禁）。现改为滚动事件上的量化 CSS 变量投影，零 React render、
- *     零自建 DOM 动画帧循环；LUT key 去重把同一停靠点内的事件变成 no-op。
- *   - `.bg-ribbon` 的 `transition: background 0.18s linear` 保留（初版结构一致）；
- *     ⚠️ 验收实测 Chromium 对渐变 transition 是惰性 CSS（不插值）——真正的防闪
- *     因子是 LUT 浅斜率（全页 33700px 仅 ~26 lum 摆幅，滚轮 -120/-400 档实测
- *     单帧 ≤1.67 lum）；瞬时大跳变（End 键/程序化）单帧可达 ~21 lum，属已知
- *     残余，交给真实浏览器验收确认，不在此处另建动画帧循环。
- *   - 量化去重：四个色值不变时不写变量（LUT 相邻停靠间约每 60-100px 才变一次）。
+ * ⚠️ Differences from original implementation (current structure adaptation):
+ *   - Original implementation used React state with per-frame setProgress re-renders — violates current CLAUDE.md rule 2
+ *     (per-frame setState prohibited). Now changed to quantized CSS variable projection on scroll event, zero React renders,
+ *     zero custom DOM animation frame loop; LUT key deduplication makes events within the same anchor point no-ops.
+ *   - `.bg-ribbon`'s `transition: background 0.18s linear` is preserved (consistent with original structure);
+ *     ⚠️ Acceptance testing revealed Chromium treats gradient transition as inert CSS (no interpolation) — the real
+ *     anti-flicker factor is the LUT's shallow slope (entire page 33700px span has only ~26 lum swing, wheel events
+ *     at -120/-400 deltas measured at ≤1.67 lum per frame); instantaneous large jumps (End key/programmatic) can
+ *     reach ~21 lum per frame, a known residual, deferred to real browser acceptance confirmation, no separate
+ *     animation frame loop added here.
+ *   - Quantization deduplication: variables not written when all four color values unchanged (adjacent LUT anchors change only once per ~60-100px).
  */
-export function BackgroundRibbon(): JSX.Element {
+export function BackgroundRibbon(): import('react').JSX.Element {
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export function BackgroundRibbon(): JSX.Element {
       // layout work in the same handler.
       const maxScroll = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
       const progress = maxScroll > 0 ? Math.min(1, Math.max(0, scroller.scrollTop / maxScroll)) : 0;
-      const { top, bot, accent, accentInk } = lutAt(progress);
+      const { top, bot, accent, accentInk } = lutAt(progress, pathname === '/');
       const key = `${top}|${bot}|${accent}|${accentInk}`;
       if (key === lastKey) return;
       lastKey = key;

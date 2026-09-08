@@ -7,7 +7,7 @@ import { renderDragScenes } from '../components/PagedScenes';
 import { PERFORMANCE_EXPERIENCE } from '../content/performanceExperience';
 import { usePerformanceMetrics } from '../hooks/usePerformanceMetrics';
 
-export default function DragModePage(): JSX.Element {
+export default function DragModePage(): import('react').JSX.Element {
   const cineViewRef = useRef<CineViewRef>(null);
   const [currentScene, setCurrentScene] = useState(0);
   const [loadProgress, setLoadProgress] = useState(0);

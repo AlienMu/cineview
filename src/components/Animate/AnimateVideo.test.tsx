@@ -1,6 +1,6 @@
 /**
- * AnimateVideo facade 单测:渲染 VideoFrameRenderer、透传 src、animateId 生效、
- * 触发 video 预加载。scrub 机制由下层单测覆盖。
+ * AnimateVideo facade unit tests: renders VideoFrameRenderer, forwards src,
+ * applies animateId, triggers video preload. Scrub mechanism covered by lower-layer tests.
  */
 import { render, waitFor } from '@testing-library/react';
 import { AnimateVideo } from './AnimateVideo';

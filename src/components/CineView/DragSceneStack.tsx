@@ -93,7 +93,7 @@ function DragSceneFrame({
   style,
   sceneWrapperRefs,
   children,
-}: DragSceneFrameProps): JSX.Element {
+}: DragSceneFrameProps): React.ReactElement {
   const frameRef = useRef<HTMLDivElement | null>(null);
 
   useIsomorphicLayoutEffect(() => {
@@ -170,7 +170,7 @@ export function DragSceneStack({
   onDragReset,
   onTransactionComplete,
   onFirstSceneEnterComplete,
-}: DragSceneStackProps): JSX.Element {
+}: DragSceneStackProps): React.ReactElement {
   return (
     <>
       {scenes.map((scene, index) => {
@@ -239,7 +239,8 @@ export function DragSceneStack({
           }
         };
 
-        const clonedScene = React.cloneElement(scene, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const clonedScene = React.cloneElement<any>(scene, {
           sceneRuntime: {
             mode,
             direction: slideDirection,

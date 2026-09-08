@@ -1,6 +1,6 @@
 /**
- * Bounce 系列动画
- * 弹跳效果
+ * Bounce animation presets
+ * Spring-based bounce effects
  */
 
 import type { Variant } from 'framer-motion';

@@ -47,7 +47,7 @@ function buildMotes(count: number): Mote[] {
 
 const MOTES = buildMotes(DUST_COUNT);
 
-export const ProjectorBeam = memo(function ProjectorBeam(): JSX.Element {
+export const ProjectorBeam = memo(function ProjectorBeam(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

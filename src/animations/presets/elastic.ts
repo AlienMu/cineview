@@ -1,6 +1,6 @@
 /**
- * Elastic 系列动画
- * 弹性、橡皮筋、摇摆效果
+ * Elastic animation presets
+ * Spring, rubber-band, and swing effects
  */
 
 import type { Variant } from 'framer-motion';

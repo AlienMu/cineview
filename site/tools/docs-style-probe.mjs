@@ -398,9 +398,9 @@ page.on('pageerror', (e) =>
 await page.goto(`${BASE}/docs`, { waitUntil: 'load' });
 await page.waitForSelector('.docs-nav__link');
 
-const slugs = await page.$$eval('.docs-nav__link', (as) =>
-  as.map((a) => a.getAttribute('href').replace(/^#?\/docs\//, ''))
-);
+const slugs = await page.$$eval('.docs-nav__link', (as) => [
+  ...new Set(as.map((a) => a.getAttribute('href').replace(/^#?\/docs\//, ''))),
+]);
 
 for (const lang of ['zh', 'en']) {
   // 语言直接写 localStorage（i18n 的真源，见 site/src/i18n/index.tsx:15,37），
@@ -434,7 +434,7 @@ for (const lang of ['zh', 'en']) {
         prose: clone.innerText.replace(/\s+/g, ' ').trim(),
         proseLen: clone.innerText.trim().length,
         headings,
-        is404: /^404 \//.test(art.querySelector('.docs-article__meta')?.textContent ?? ''),
+        is404: art.querySelector('.docs-article__notfound') !== null,
       };
     });
 
@@ -471,6 +471,7 @@ for (const lang of ['zh', 'en']) {
       const ALLOW_CAPS = new Set([
         'CineView',
         'Scene',
+        "Scene's",
         'Animate',
         'AnimateVideo',
         'Position',
@@ -480,6 +481,11 @@ for (const lang of ['zh', 'en']) {
         'React',
         'TypeScript',
         'JavaScript',
+        'CommonJS',
+        'MotionValue',
+        'MotionValues',
+        'URL',
+        'URLs',
         'DOM',
         'API',
         'APIs',

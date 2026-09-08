@@ -22,7 +22,7 @@ const INITIAL_DRAG_COUNTERS: DragCounters = {
   commits: 0,
 };
 
-export default function VideoDragAcceptancePage(): JSX.Element {
+export default function VideoDragAcceptancePage(): import('react').JSX.Element {
   const [currentScene, setCurrentScene] = useState(0);
   const [dragCounters, setDragCounters] = useState(INITIAL_DRAG_COUNTERS);
   const handleSceneDidChange = useCallback(({ toIndex }: SceneChangeDetail): void => {

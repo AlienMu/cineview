@@ -3,21 +3,21 @@ title: Image
 eyebrow: COMPONENTS / IMAGE
 ---
 
-Image is an `<img>` wired into the framework preload cache: `src` / `alt` are required, and numeric width/height are design px converted against the single conversion base. It never blocks the visibility of ordinary content.
+Image renders an `<img>` and records loaded images in the framework cache. `src` and `alt` are required. Numeric dimensions use design pixels; loading does not delay the mounting of ordinary content.
 
 ## Props
 
-| prop               | Type                                                  | Default | Notes                                                                                                        |
-| ------------------ | ----------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `src`              | string                                                | none    | Required                                                                                                     |
-| `alt`              | string                                                | none    | Required                                                                                                     |
-| `width` / `height` | `number \| string`                                    | none    | Number = design px, converted against the conversion base; strings pass through untouched                    |
-| `style`            | CSSProperties                                         | none    | Numeric length values (padding/margin/borderRadius/fontSize…) are converted against the same conversion base |
-| `preload`          | boolean                                               | true    | Registers the URL into the shared preload cache on mount                                                     |
-| `loading`          | `'eager' \| 'lazy'`                                   | none    | Explicit `'lazy'` force-disables `preload`                                                                   |
-| rest               | ImgHTMLAttributes (except src/alt/width/height/style) | none    | Passed through to the `<img>`                                                                                |
+| prop               | Type                                                  | Default                            | Notes                                                                                                        |
+| ------------------ | ----------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `src`              | string                                                | none                               | Required                                                                                                     |
+| `alt`              | string                                                | none                               | Required                                                                                                     |
+| `width` / `height` | `number \| string`                                    | none                               | Number = design px, converted against the conversion base; strings pass through untouched                    |
+| `style`            | CSSProperties                                         | none                               | Numeric length values (padding/margin/borderRadius/fontSize…) are converted against the same conversion base |
+| `preload`          | boolean                                               | true                               | Registers the URL into the shared preload cache on mount                                                     |
+| `loading`          | `'eager' \| 'lazy'`                                   | Eager with preload, otherwise lazy | Explicit `'lazy'` disables preload                                                                           |
+| rest               | ImgHTMLAttributes (except src/alt/width/height/style) | none                               | Passed through to the `<img>`                                                                                |
 
-forwardRef points at the `<img>` element.
+The forwarded `ref` points to the `<img>` element.
 
 ## Conversion behavior
 
@@ -25,15 +25,15 @@ forwardRef points at the `<img>` element.
 
 ## Preload semantics
 
-- When `preload` is on, mounting registers `src` into the framework's shared preload cache; the same cache written by `Scene.assets.preloadImages` and the root ref's `preload()`; the same URL never loads twice.
-- The cache is background warming only and **does not declare first-screen priority**: membership in the first-screen priority queue is decided by `Scene.assets.preloadImages`, which feeds the cold-start gate. `Image`'s `preload` does not participate.
-- Loading strategy follows along: with `preload` on, `loading` defaults to `'eager'`, otherwise `'lazy'`; setting `loading='lazy'` explicitly disables `preload`.
-- The `<img>` renders on mount. Preloading covers network and cache hits, not visibility gating; for "show when loaded" timeline, use the visibility/timeline semantics of [Animate](/docs/03-animate).
+- With `preload`, the component loads the image and records completion in the shared cache. Later preload requests can reuse that completed result; concurrent mounts can create separate image loaders.
+- Image's `preload` does not declare first-screen priority. Use `Scene.assets.preloadImages` for resources that the initial entrance must wait for.
+- Loading defaults to `'eager'` with preload and `'lazy'` without it. An explicit `loading='lazy'` disables preload.
+- The `<img>` mounts immediately. Use its native `onLoad` and `onError` events for resource-specific feedback.
 
 The full cold-start gate and priority queue semantics live in [Preloading](/docs/02-preload).
 
 ## Common mistakes
 
-- **Declaring first-screen priority through `preload`**: membership belongs to `Scene.assets`. A first-screen hero image needs both sides: priority declared on the Scene, cache consumed on the Image.
-- **Setting `loading='lazy'` and still expecting `preload` to work**: the former force-disables the latter.
-- **Reading numeric dimensions as rendered pixels**: `width={375}` is design px and gets converted; pass a string value to retain literal CSS dimensions without conversion.
+- Add first-screen priority resources to `Scene.assets.preloadImages`.
+- Use `loading='lazy'` when the image does not need eager preloading.
+- Numeric dimensions are design pixels; CSS strings are passed through.

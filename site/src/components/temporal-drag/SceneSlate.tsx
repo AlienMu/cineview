@@ -5,12 +5,12 @@ import { ACT2_BOARD_GATE_MS, SlateLightRig } from './SlateLightRig';
 import { useTemporalMotion } from './TemporalMotion';
 import { useI18n } from '../../i18n';
 
-// Scene 02 — 场记板 (Slate / ACTION 高潮). The clapperboard is a canvas particle
+// Scene 02 — Slate (Slate / ACTION climax). The clapperboard is a canvas particle
 // field that converges as the drag scrubs the enter progress and scatters on
 // reverse/bounce. Per v3 §0 the framework does NOT wrap the canvas: a plain child
 // reads useAnimateTimeline().progress (a MotionValue) and the canvas drives its own
 // rAF from it — zero per-frame setState.
-function ClapperStage(): JSX.Element {
+function ClapperStage(): import('react').JSX.Element {
   const timeline = useAnimateTimeline();
   return <ClapperboardCanvas progress={timeline.progress} phase={timeline.phase} />;
 }
@@ -24,14 +24,14 @@ function ClapperStage(): JSX.Element {
 //
 // It used to be a local `const BOARD_ENTER_MS = 2400` while ClapperboardCanvas expressed every
 // beat as a FRACTION of it, which put the authored duration of each beat in one file and its
-// denominator in another. That is the mechanism behind 倒计时太快: cutting this number 8000 -> 2400
+// denominator in another. That is the mechanism behind "countdown too fast": cutting this number 8000 -> 2400
 // for the `scale: 10` clock silently re-priced the countdown from 720ms/numeral to 216ms without
 // touching, or contradicting, anything in the canvas. Now the canvas authors its segments in ms
 // and exports the total they sum to, and this lane consumes it — so the arithmetic can only be
 // stated in one place.
 const BOARD_EXIT_MS = 900;
 
-export const SceneSlate = memo(function SceneSlate(): JSX.Element {
+export const SceneSlate = memo(function SceneSlate(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const { t } = useI18n();
 
@@ -40,7 +40,7 @@ export const SceneSlate = memo(function SceneSlate(): JSX.Element {
       {/* The light rig lives at SCENE level, not inside <main>, so the beam can wash the
           whole frame instead of being clipped at the stage's top edge — a hard horizontal
           cut-off there made the frame read as two stacked layers (user report:
-          内容明显分层). That was the original "聚光要打进黑场" requirement. */}
+          content clearly layered). That was the original "spotlight must reach into the black field" requirement. */}
       <SlateLightRig />
 
       <main className="s02-stage">
@@ -67,7 +67,7 @@ export const SceneSlate = memo(function SceneSlate(): JSX.Element {
           timeline={{ delay: timing.delay(ACT2_BOARD_GATE_MS) }}
           // Continuous life for the board, on the FRAMEWORK's infinite lane rather than a
           // CSS `animation: … infinite` (which would keep running through exit and past
-          // unmount, the thing the project bans). Reported as 持续动画没按框架要求开发: the
+          // unmount, the thing the project bans). Reported as "continuous animation not developed per framework requirements": the
           // board only ever had enter+exit, so once the sequence landed the slate was a
           // dead plate — every moving pixel belonged to the light rig or the canvas.
           //

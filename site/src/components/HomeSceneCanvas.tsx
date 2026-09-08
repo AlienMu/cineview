@@ -2,17 +2,17 @@ import type { ReactNode } from 'react';
 import { Container } from 'cineview';
 
 /**
- * 首页统一设计画布。
+ * Unified design canvas for the home page.
  *
- * CineView 的 `config.size=1440` 是唯一换算尺子；这里用 Container 声明 1440×900
- * 设计盒模型，供 Capability / DemoVideo 这类 `width/height:100%` 的相对布局根消费。
- * Container 不建立新的 positioned containing block：Position 继续唯一拥有坐标，Hero
- * 的 viewport-center 语义也保持不变。Scene 仍是实际 viewport 高度，不改变 takeover 测量。
+ * CineView's `config.size=1440` is the sole conversion ruler; here we use Container to declare a 1440×900
+ * design box model, for relative layout roots like Capability / DemoVideo that consume `width/height:100%`.
+ * Container does not establish a new positioned containing block: Position continues to uniquely own coordinates, and Hero's
+ * viewport-center semantics remain unchanged. Scene is still actual viewport height, does not alter takeover measurement.
  *
- * `height` 可选（默认 900）：手机上第三幕需要「画布 = 一个视口高」才能让六块用满竖屏
- * （见 `useDesignCanvasHeight` 与 task-flow `2026-08-04-act3-phone-layout.md`）。
- * 走 Container 自己的 `height` 便捷属性（框架原生换算），不覆盖行内样式。
- * 不传该属性的调用点行为逐字节不变。
+ * `height` is optional (defaults to 900): on mobile, act three requires "canvas = one viewport height" to fill vertical screen with six blocks
+ * (see `useDesignCanvasHeight` and task-flow `2026-08-04-act3-phone-layout.md`).
+ * Uses Container's own `height` convenience prop (framework-native conversion), does not override inline styles.
+ * Call sites that don't pass this prop remain byte-for-byte unchanged.
  */
 export function HomeSceneCanvas({
   children,
@@ -20,7 +20,7 @@ export function HomeSceneCanvas({
 }: {
   children: ReactNode;
   height?: number;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <Container width={1440} height={height} className="home-scene-canvas">
       {children}

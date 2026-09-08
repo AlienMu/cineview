@@ -1,588 +1,236 @@
-/* ===================================================================
-   Act 3 · 时间轴倒放（v4） — 2026-08-15
-   规格：用户拍板「标题开局显影常驻，panel 运动倒放」
-
-   设计契约：
-   - 标题开局显影（0→900ms）后常驻整幕、永不退场，z 序在所有 panel 之上。
-   - 六块 panel 逐块接力「倒放」：从画布中心峰值（scale=peak、铺满）淡入出现，
-     缩小退回各自散落位（scale=base），落位后静息常驻。缩放/位移全走 Animate lane，
-     本文件不写 @keyframes、不写 animation（CLAUDE.md 规则 6 第一条：常驻动效只能走
-     loopAnimation；本幕无常驻动效）。
-   - transform-origin 必须 center：倒放的「退回原位」= 自身中心，偏了就会漂移。
-   - panel 有实体底板，倒放起点铺满画布、会盖住其他块 —— 退回中的块必须在最上层
-     （z 取 index+1，标题再高一层），这是「主体在前、其余退后」的正确观感，不是 bug。
-   - 内容用 em 跟随 panel 字号：panel 整体 scale 时细节等比变清楚。
-   =================================================================== */
-
-.act3-dolly {
-  /* panel 基准字号：--cv-u 单尺子为主 + px 下限（纯 vw 在手机上不可读）。
-   *
-   * ⚠️ px 下限必须**再被等比值的倍数上限夹住**。panel 盒子的 width/height 走
-   * `--cv-u` 等比缩，字号一旦被 px 下限钉死就不再跟着缩 —— 窄屏下字比盒子大，
-   * 内容撑破 panel（panel 有 overflow:hidden，表现为文字互相压叠、被裁掉半行）。
-   * 实测（scripts/act3-overflow-check.mjs，纵溢=内容高−body 高）：
-   *   1024/900/768/600/540 宽 全部 ✓ ——  下限/等比 ≤1.51
-   *   480 宽 ratio 1.70 → chain +7  scrub +2   ✗
-   *   430 宽 ratio 1.89 → chain +36 scrub +12  ✗
-   *   390 宽 ratio 2.09 → chain +46 container +4 scrub +18 ✗
-   * 故上限取 1.35（留出余量，540 的 1.51 已只剩 4px 余量）。
-   *
-   * clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX))：
-   *   宽屏 等比 15px  → min(10, 20.25)=10 → max(15,10)=15   走等比 ✓
-   *   中屏 等比 8px   → min(10, 10.8)=10  → max(8,10)=10    走 px 下限 ✓
-   *   窄屏 等比 4.1px → min(10, 5.5)=5.5  → max(4.1,5.5)=5.5 走倍数上限 ✓
-   * 这样也不再需要窄屏 media query 单独调下限。 */
-  --a3-fs-fluid: calc(15 * var(--cv-u));
-  --a3-fs: clamp(var(--a3-fs-fluid), 10px, calc(var(--a3-fs-fluid) * 1.35));
-  --a3-line: rgba(26, 24, 20, 0.14);
-  --a3-line-soft: rgba(26, 24, 20, 0.08);
-
-  /* ── panel 底板色（C9，2026-08-10 重定）───────────────────────────────
-   * 两条硬约束，缺一不可：
-   *
-   * 1. **不透明**（用户 2026-08-10 指令：「act3 的 panel 也需要背景，而不是透明的」）。
-   *    原来是 `rgba(…, 0.82)` + `backdrop-filter: blur` 的半透磨砂卡；现改**实底**。
-   *    附带收益：不再需要 backdrop-filter —— 那是每块一个全屏模糊读背景的合成开销，
-   *    六块同时在场时最贵，且它只在半透时才有意义。
-   *
-   * 2. **与本幕色带底色同色温**（T1 闪烁修复，机制不变）：本幕每块都会放大到铺满
-   *    整个画布，所以底板色就是「铺满时的整屏色」。底板与底色色温不一致 ⇒ 每块铺满时
-   *    整屏色温翻转、淡出时翻回 ⇒ 六块 = 六个暖/冷循环 = 用户历史报过的「一会儿暖
-   *    一会儿冷、频率极高」。消融实测（scripts/t1-ablate.mjs）：底板色温是主因，
-   *    不是模糊或阴影。
-   *
-   * ⚠️ 2026-08-13 LUT 停靠点重定后（`design/lut.ts` 的 0.6/0.8 停靠
-   * #f4dfd0/#f1dbca，R−B ≈ +36/+39），旧底板（自身 R−B 仅 +11，合成后约 +16）
-   * 与露底差了约 23 个 R−B 单位 —— 独立验收与对抗复审都实测到第三幕整屏 R−B 在
-   * 20.84 ↔ 31.09 摆动（摆幅 10.25，波形与 `.a3-panel` 屏占比严格反相 = 六块六周期，
-   * 入场阶跃 12.3 单位）。也就是说 C2 一度把 T1 症状类重新引入。
-   *
-   * 现底板取 **#f5e0d1**（R−B = +36），与谷段 33% 锚点 #f4dfd0（+36）逐位对齐；
-   * 因为已是不透明实底，合成色 = 自身色，不再被 alpha 稀释（旧的 0.82 会把 +36 拉回
-   * 0.82×36+0.18×38 ≈ +36.4，本也接近，但实底让「底板色 = 屏色」这条推理不再依赖背景）。
-   * 亮度取 233（谷段露底约 222–231），略高于底色 ⇒ 卡片仍读作「浮在底上」而非融进去。
-   *
-   * ⚠️ 残留（对抗复审指出，非本节点可解）：600vh 带高下**单屏内**色带仍横跨约 12.31
-   * 个 R−B 单位（屏顶被明度纱冲淡）。单一平色底板无法同时匹配屏顶与屏底，
-   * 故按「本幕一个台阶色」做完仍会残留约 8 单位摆动。要彻底消除需让底板自身带
-   * 与色带同斜率的纵向渐变 —— 那是独立议题，不在 C9。
-   *
-   * 调色带谷段时**必须**同步改这三个值（同色温是硬约束）。 */
-  /* 2026-08-14 渐变派生（用户裁决「面板配色是根据渐变来的」）：面板色 = 当前
-   * 渐变上端色 --bg-grad-top（BackgroundRibbon 随滚动写入）的高白混合——
-   * 面板读作「浮在渐变上的暖白片」，色相永远与背景同族（C9 结构性满足）、
-   * 滚动时随渐变自然流动，无手挑台阶色、无粉调（白混 ≥66% 后 G−B ≤ 14）。
-   * 白混比例（对齐 codecard 的 0.94 半透白观感）：底板 74% / 顶栏 82% / 代码脚 66%。 */
-  --a3-plate: color-mix(in srgb, var(--bg-grad-top, #faf0df), white 74%);
-  --a3-plate-bar: color-mix(in srgb, var(--bg-grad-top, #faf0df), white 82%);
-  --a3-plate-foot: color-mix(in srgb, var(--bg-grad-top, #faf0df), white 66%);
-}
-
-/* ── panel 底板 ────────────────────────────────────────────────────── */
-/* `--a3-tilt` 由 TSX 逐块给（±0.9°–2.4°），打破「所有边互相平行」的机械感。
- * 放在 .a3-panel 而非 Animate 包装层：包装层的 transform 归 lane 所有，
- * 写这里会被每帧覆盖。本层的 rotate 与 lane 的 scale/translate 各在自己的元素上，
- * 互不干扰。静态值，不进每帧路径。
- * 注意：rotate 会让本元素成为层叠上下文，但 z-index 宿主已上移到 Position 包装层
- * （见 Act3DollyScene.tsx 文件头 z 序说明），两者不冲突。 */
-.a3-panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transform-origin: center center;
-  transform: rotate(var(--a3-tilt, 0deg));
-  font-size: var(--a3-fs);
-  background: var(--a3-plate);
-  border: 1px solid var(--a3-line);
-  border-radius: 0.85em;
-  /* 2026-08-14(审计 act3-1):第二层投影 alpha 0.07→0.10、扩散 2.6em→3.2em——
-   * 静息小块(base 0.58-0.68)在奶白桃→琥珀行程上读作「贴底的纸」而非「悬浮的卡」。
-   * 仍是中性墨,符合 2026-08-06 起的中性墨投影裁决;T1/C9 只约束底板色不约束投影。 */
-  box-shadow:
-    0 0.15em 0.5em rgba(26, 24, 20, 0.05),
-    0 1.1em 3.2em rgba(26, 24, 20, 0.1);
-  /* 2026-08-10 C9：删掉 `backdrop-filter: blur(0.6em) saturate(104%)`。
-   * 底板改不透明实底后它已无视觉作用（背后什么都透不上来），却仍要每块做一次
-   * 全屏读背景 + 模糊的合成工作 —— 六块同时在场、又都在 scrub 放大时最贵。
-   * 历史上 saturate 从 118% 降到 104% 是为了压 T1 的色温放大，现在整条路径都不需要了。 */
-  /* 2026-08-15 掉帧/闪烁修复（用户报障，消融实锤 7→0 长帧）：删掉
-   * `will-change: transform, opacity, filter`。六块永久提升层在 v4 倒放的
-   * 4.3× 峰值光栅分辨率下逐帧重光栅 + 真机显存压力（层驱逐/重建 = 闪烁）；
-   * v3 正放时峰值在淡出（半透明层可跳过光栅）故曾无害。transform/opacity 的
-   * 逐帧 inline style 写入不经 will-change 仍走合成器，无需该提示。 */
-}
-
-/* 顶栏：图标 + 能力名 + 序号。刻意不做 mac 三圆点窗口栏（典型 AI 素材特征）。 */
-.a3-panel__bar {
+.sequence-demo {
   display: flex;
   align-items: center;
-  gap: 0.6em;
-  padding: 0.78em 1em;
-  border-bottom: 1px solid var(--a3-line-soft);
-  background: var(--a3-plate-bar);
-}
-
-.a3-panel__icon {
-  display: flex;
-  width: 1.15em;
-  height: 1.15em;
-  color: var(--accent-ink);
-}
-
-.a3-panel__icon svg {
   width: 100%;
-  height: 100%;
-}
-
-.a3-panel__label {
-  flex: 1;
-  font-family: var(--font-body);
-  font-size: 0.92em;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  min-height: 100svh;
+  padding: 4rem 1.5rem;
   color: var(--ink);
 }
 
-.a3-panel__no {
-  font-family: var(--font-mono);
-  font-size: 0.7em;
-  letter-spacing: 0.1em;
-  color: var(--ink-mute);
+.sequence-demo__inner {
+  width: min(100%, 54rem);
+  margin-inline: auto;
 }
 
-/* 主体：填充示意图，占据 panel 大部分高度（用户要求「加大 panel 高度 + 填充细节」） */
-.a3-panel__body {
-  flex: 1;
-  min-height: 0;
-  padding: 1.05em 1.1em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.sequence-demo__header {
+  text-align: center;
 }
 
-/* 代码脚：左侧 accent 竖线，等宽字 */
-.a3-panel__code {
-  display: block;
-  padding: 0.7em 1em;
-  border-top: 1px solid var(--a3-line-soft);
-  /* 2026-08-14(审计 act3-2):竖线 0.2em→0.14em + 70% 透明——静息最小块的代码脚
-   * 渲染高约 24px,0.2em 实心 accent 比顶栏图标还跳;细化后回归「注释感」,
-   * accent 仍随 LUT 流动(语汇与第五幕副标题左线同源,只改粗细透明度不改色相)。 */
-  border-left: 0.14em solid color-mix(in srgb, var(--accent) 70%, transparent);
-  background: var(--a3-plate-foot);
+.sequence-demo__slate,
+.sequence-demo__part-label,
+.sequence-demo__config-label,
+.sequence-demo__preview-credit {
   font-family: var(--font-mono);
-  font-size: 0.74em;
-  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.sequence-demo__slate {
+  margin-bottom: 1.25rem;
   color: var(--ink-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.6875rem;
 }
 
-/* ── 01 after 链 ─────────────────────────────────────────────────── */
-.a3-chain {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.95em;
-}
-
-.a3-chain__row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-}
-
-.a3-chain__dot {
-  width: 0.62em;
-  height: 0.62em;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  background: transparent;
-}
-
-.a3-chain__dot.is-on {
-  background: var(--accent);
-  /* 2026-08-14(审计 act3-5):glow 改 accent 派生,消除「起点流动、终点写死」。 */
-  box-shadow: 0 0 0.5em color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.a3-chain__name {
-  font-family: var(--font-mono);
-  font-size: 0.8em;
-  color: var(--ink);
-}
-
-.a3-chain__wait {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 0.68em;
-  color: var(--ink-mute);
-}
-
-/* 竖向连线：从本行圆点向下接到下一行 */
-.a3-chain__wire {
-  position: absolute;
-  left: 0.3em;
-  top: 1.1em;
-  width: 1px;
-  height: 0.95em;
-  background: var(--a3-line);
-}
-
-/* ── 02 stagger 错峰 ───────────────────────────────────────────────── */
-.a3-stagger {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.45em;
-}
-
-.a3-stagger__cell {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.4em;
-}
-
-.a3-stagger__bar {
-  width: 100%;
-  border-radius: 0.16em 0.16em 0 0;
-  /* 2026-08-14(审计 act3-4):渐变尾端改 accent 35% 派生——同一 accent 同一
-   * 不透明度,消除「起点流动、终点写死」的半跟随状态。 */
-  background: linear-gradient(
-    180deg,
-    var(--accent),
-    color-mix(in srgb, var(--accent) 35%, transparent)
-  );
-}
-
-.a3-stagger__tick {
-  font-family: var(--font-mono);
-  font-size: 0.6em;
-  color: var(--ink-mute);
-}
-
-/* ── 03 Position 坐标 ──────────────────────────────────────────────── */
-.a3-coord {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.a3-coord__axis {
-  position: absolute;
-  background: var(--a3-line);
-}
-
-.a3-coord__axis--x {
-  left: 0;
-  top: 58%;
-  width: 100%;
-  height: 1px;
-}
-
-.a3-coord__axis--y {
-  left: 33%;
-  top: 0;
-  width: 1px;
-  height: 100%;
-}
-
-.a3-coord__pin {
-  position: absolute;
-  left: 33%;
-  top: 58%;
-  width: 0.7em;
-  height: 0.7em;
-  margin: -0.35em 0 0 -0.35em;
-  border-radius: 50%;
-  background: var(--accent-ink);
-  box-shadow: 0 0 0 0.28em rgba(201, 138, 106, 0.18);
-}
-
-.a3-coord__label {
-  position: absolute;
-  left: calc(33% + 0.9em);
-  top: calc(58% - 1.5em);
-  font-family: var(--font-mono);
-  font-size: 0.74em;
-  color: var(--ink);
-}
-
-.a3-coord__unit {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  font-family: var(--font-mono);
-  font-size: 0.62em;
-  color: var(--ink-mute);
-}
-
-/* ── 04 Container 盒模型 ───────────────────────────────────────────── */
-.a3-box {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.a3-box__outer {
-  position: relative;
-  width: 72%;
-  height: 68%;
-  border: 1px dashed var(--accent);
-  border-radius: 0.3em;
-}
-
-.a3-box__inner {
-  position: absolute;
-  inset: 18%;
-  border-radius: 0.2em;
-  background: rgba(201, 138, 106, 0.16);
-}
-
-.a3-box__w,
-.a3-box__h {
-  position: absolute;
-  font-family: var(--font-mono);
-  font-size: 0.66em;
-  color: var(--ink-mute);
-}
-
-.a3-box__w {
-  left: 50%;
-  bottom: -1.5em;
-  transform: translateX(-50%);
-}
-
-.a3-box__h {
-  left: -0.4em;
-  top: 50%;
-  transform: translate(-100%, -50%);
-}
-
-.a3-box__note {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  font-family: var(--font-body);
-  font-size: 0.66em;
-  color: var(--ink-mute);
-}
-
-/* ── 05 Image 预加载 ──────────────────────────────────────────────── */
-.a3-assets {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 0.5em;
-  padding-bottom: 1.4em;
-}
-
-.a3-assets__cell {
-  border-radius: 0.22em;
-  border: 1px solid var(--a3-line-soft);
-}
-
-.a3-assets__cell.is-done {
-  background: rgba(201, 138, 106, 0.3);
-  border-color: var(--accent);
-}
-
-.a3-assets__cell.is-load {
-  background: linear-gradient(
-    100deg,
-    rgba(201, 138, 106, 0.28) 0%,
-    rgba(201, 138, 106, 0.08) 55%,
-    rgba(201, 138, 106, 0.28) 100%
-  );
-}
-
-.a3-assets__cell.is-idle {
-  background: rgba(26, 24, 20, 0.045);
-}
-
-.a3-assets__note {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  font-family: var(--font-mono);
-  font-size: 0.62em;
-  color: var(--ink-mute);
-}
-
-/* ── 06 scrub 接管 ────────────────────────────────────────────────── */
-.a3-scrub {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.7em;
-}
-
-.a3-scrub__track {
-  position: relative;
-  width: 100%;
-  height: 0.85em;
-  border-radius: 0.42em;
-  background: rgba(26, 24, 20, 0.06);
-  overflow: hidden;
-}
-
-.a3-scrub__lock {
-  position: absolute;
-  left: 26%;
-  top: 0;
-  width: 48%;
-  height: 100%;
-  background: rgba(201, 138, 106, 0.32);
-}
-
-.a3-scrub__head {
-  position: absolute;
-  left: 58%;
-  top: -0.16em;
-  width: 0.16em;
-  height: calc(100% + 0.32em);
-  background: var(--accent-ink);
-}
-
-.a3-scrub__legend {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 0.64em;
-  color: var(--ink-mute);
-}
-
-.a3-scrub__legend .is-lock {
-  color: var(--accent-ink);
-}
-
-.a3-scrub__note {
-  font-family: var(--font-mono);
-  font-size: 0.62em;
-  color: var(--ink-mute);
-}
-
-/* 标题块（v4：只剩标题，常驻居中）。保留 wrapper + 类名：手机断点用它限定
- * `.cap-title` 的字号覆盖（`.cap-title` 与第二幕共享，不能全局改）。 */
-.act3-titleblock {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* ── act3 专属 chrome 精简（2026-08-16 用户指令：去掉 REC/时间/slate 文字，
- * 腾出空间放大标题）。⚠️ TimecodeAxis 组件本身不能删——它是 shot3-clock
- * 预算 lane 的载荷（Animate duration 定义 zone 预算），只在其 act3 作用域
- * 内隐藏可视输出；act2 的时间码胶囊不受影响。 ── */
-.act3-dolly .tc-capsule,
-.act3-dolly .cap-slate {
-  display: none;
-}
-
-/* 2026-08-15 用户裁决「文字有重叠就缩小文字」：标题降 --text-2xl（44→32px）+
- * max-width 34ch + balance 强制两行——32px 单行反而比 44px 两行更宽（实测
- * 717px），必须两行才装进中心空档（静息六块围出的中央空档 ≈533×112 设计 px，
- * 两行 ~400px 级 + 行高 1.12 共 72px 恰好容纳，与 chain/scrub 底顶缘零相交）。
- * 标题 z 同时不再最上（panel 从前面过）。仅第三幕，不影响第二幕。
- * 2026-08-16 二次调整（chrome 精简后，用户指令「腾出空间放大标题」）：
- * 回升 clamp 26-36px。40px 实测带宽 640px 超出中心空档（613px，overlap=2），
- * 36px ≈576px 回到零相交；比原 32px 仍大 12.5%。 */
-.act3-titleblock .cap-title {
-  font-size: clamp(26px, 2.5vw, 36px);
-  /* 24ch ≈ 513px：实测 34ch(728px) 时 en 单行 717px 刚好塞下不折行，压到 24ch
-   * 强制两行（每行 ~430px），行盒 x505-935 / y370-442 落在静息六块围出的中央
-   * 空档内，与 chain(右缘 440)/container(左缘 1053)/stagger(底缘 312) 零相交。 */
-  max-width: 24ch;
+.sequence-demo__header h2 {
+  font-size: clamp(2.5rem, 4.5vw, 4.25rem);
+  font-weight: 500;
   text-wrap: balance;
 }
 
-/* zh 错位换行（2026-08-16，用户指令「参照首页」）：\n 分行 + 行内 ±44u 静态
- * 横移（HeroScene persist 同款）。行块居中排（父级 flex column 居中），
- * 每行自身再横移——两行视觉中心错开，构成首页 slogan 的同款非对称。 */
-.act3-title-stagger {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(6 * var(--cv-u));
-  max-width: none;
+.sequence-demo__header h2 em {
+  color: var(--accent-ink);
+  font-weight: inherit;
 }
 
-.act3-title-stagger__line {
-  display: block;
+.sequence-demo__header > p:last-child {
+  margin-top: 1rem;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  text-wrap: pretty;
+}
+
+.sequence-demo__controls {
+  justify-content: center;
+  margin-top: 1.75rem;
+}
+
+.sequence-demo__mode {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sequence-demo__replay {
+  gap: 0.5rem;
+}
+
+.sequence-demo__preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding: 2rem 1.5rem;
+}
+
+.sequence-demo__preview::before,
+.sequence-demo__preview::after {
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  content: '';
+  pointer-events: none;
+  border-color: var(--accent-ink);
+  border-style: solid;
+}
+
+.sequence-demo__preview::before {
+  top: 0;
+  left: 0;
+  border-width: 1px 0 0 1px;
+}
+
+.sequence-demo__preview::after {
+  right: 0;
+  bottom: 0;
+  border-width: 0 1px 1px 0;
+}
+
+.sequence-demo__part {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr) 6rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.sequence-demo__part-label {
+  color: var(--ink-soft);
+  font-size: 0.625rem;
   white-space: nowrap;
 }
 
-/* ── 手机版（≤600 宽）───────────────────────────────────────────────
- * 断点必须与 `useDesignCanvasHeight.ts` 的 PHONE_MAX_WIDTH 一致：JS 侧在同一断点把
- * 六块换成 2 列 ×3 行、把画布高提到一个视口高，两边不同步会出现「大盒配小字」。
- *
- * 字号必须放大：手机不可读的真因不是「窄视口」而是**设计 px 太小** —— 15 设计 px 在
- * 390 宽只有 4px。
- *
- * 为什么是 `1.8vh` 而不是 `calc(N * var(--cv-u))`：盒高由 JS 侧取 `0.26 × designH`
- * （随机型宽高比变），字号若写成固定设计 px，两者的比例就会随机型漂移。约束是
- * （以 chain —— 三行 + 行距、内容最高的一块 —— 反解，实测系数非估算）：
- *   内容高 ≈ 7.5F、bar ≈ 3.75F、code ≈ 1.8F  ⇒  需 boxH ≥ 13.05F
- * 代入 boxH = 0.26 × designH ⇒ F ≤ 0.0199 × designH。
- * 实测踩到：取固定 56 设计 px 时 390×844（designH 3116，上限 62）过，
- * 而 **375×667（designH 2561，上限 51）chain 纵溢 +24px**。
- * 而 designH = 1440·vh/vw，故 F_screen = F_design × u = 0.018 × designH × u = 0.018·vh
- * —— 上限**恰好退化成纯视口高的函数**，写作 `1.8vh` 即对所有机型宽高比恒满足
- *   boxH/F = 0.26vh / 0.018vh = 14.4 ≥ 13.05 ✓（留 10% 余量）。
- * 实测值：390×844 → 15.2px、375×667 → 12.0px、360×800 → 14.4px、428×926 → 16.7px。
- * 再乘 panel 静息 base (0.62–0.86) 渲染 7.4–14.3px；推进放大后远超可读。
- *
- * 注：不能靠加高盒子来解 —— 行距 0.24H 只比最大渲染高 0.224H 多一点，加高会让三排叠上。
- * 桌面区间（>600）的 clamp 规则保持不动。 */
-@media (max-width: 600px) {
-  .act3-dolly {
-    --a3-fs: 1.62vh;
+.sequence-demo__content {
+  min-width: 0;
+  text-align: center;
+}
+
+.sequence-demo__preview-title {
+  color: var(--accent-ink);
+  font-size: clamp(3.5rem, 5vw, 4.5rem);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.sequence-demo__preview-copy {
+  max-width: 34ch;
+  margin-inline: auto;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.sequence-demo__preview-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.sequence-demo__configuration {
+  width: min(100%, 34rem);
+  margin: 1.75rem auto 0;
+}
+
+.sequence-demo__config-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+
+.sequence-demo__configuration pre {
+  margin-top: 0.75rem;
+  font: 0.75rem/1.9 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sequence-demo__note {
+  min-height: 1.6em;
+  margin-top: 1rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  text-align: center;
+  text-wrap: pretty;
+}
+
+@media (max-width: 700px) {
+  .sequence-demo {
+    padding-block: 3.5rem;
   }
 
-  /* container 块：__w（尺寸标注）与 __note（说明）在手机上会**叠在一起**。
-   * 原因不是字号，是 body 变矮：panel 顶栏的能力名在窄 panel 里折成两行，bar 从
-   * 38→60px，body 从 187→99px。而 __w 用 `bottom:-1.5em`（=22.75px）挂在虚线框
-   * 下方、__note 贴 body 底 —— 99px 的 body 里，框下只剩 25px 要塞两个 14px 标签。
-   * 实测：__w y 13246–13260 与 __note 13245–13259 几乎完全重合。
-   * 修法 = 改成纵向流式堆叠（框 → 尺寸标注留在 gap 里 → 说明另起一行），不删内容。 */
-  .a3-box {
-    flex-direction: column;
-    justify-content: center;
-    gap: 1.6em;
+  .sequence-demo__header h2 {
+    font-size: 2.5rem;
   }
 
-  .a3-box__outer {
-    width: 62%;
-    height: 44%;
+  .sequence-demo__header > p:last-child {
+    max-width: 28ch;
+    margin-inline: auto;
+    font-size: 0.9375rem;
   }
 
-  .a3-box__w {
-    bottom: -1.3em;
+  .sequence-demo__controls {
+    gap: 0.5rem;
   }
 
-  .a3-box__note {
-    position: static;
+  .sequence-demo__controls .home-demo-button {
+    padding-inline: 0.875rem;
+    font-size: 0.6875rem;
   }
 
-  /* 标题块要放大设计 px：六块已到 15px，标题 11.9px 就成了全幕最不可读的部分。
-   * 只覆盖第三幕自己的 `.cap-title` —— 它是与第二幕共享的类，故用
-   * `.act3-titleblock` 后代选择器限定，不影响第二幕。 */
-  .act3-titleblock .cap-title {
-    font-size: calc(58 * var(--cv-u));
+  .sequence-demo__preview {
+    gap: 1.25rem;
+    margin-top: 1.75rem;
+    padding: 1.5rem 0.75rem;
+  }
+
+  .sequence-demo__part {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .sequence-demo__part-label {
+    font-size: 0.5625rem;
+  }
+
+  .sequence-demo__preview-title {
+    font-size: 3.5rem;
+  }
+
+  .sequence-demo__preview-copy {
+    font-size: 1rem;
+  }
+
+  .sequence-demo__preview-credit {
+    font-size: 0.6875rem;
+  }
+
+  .sequence-demo__configuration {
+    margin-top: 1.5rem;
+  }
+
+  .sequence-demo__configuration pre {
+    font-size: 0.6875rem;
+  }
+
+  .sequence-demo__config-label {
+    font-size: 0.625rem;
+  }
+
+  .sequence-demo__note {
+    min-height: 3.2em;
+    font-size: 0.75rem;
   }
 }

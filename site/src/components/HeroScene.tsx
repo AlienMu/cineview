@@ -5,7 +5,7 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 const GITHUB_URL = 'https://github.com/AlienMu/cineview';
 
-function IconArrow(): JSX.Element {
+function IconArrow(): import('react').JSX.Element {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
@@ -19,7 +19,7 @@ function IconArrow(): JSX.Element {
   );
 }
 
-function IconBook(): JSX.Element {
+function IconBook(): import('react').JSX.Element {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
@@ -33,7 +33,7 @@ function IconBook(): JSX.Element {
   );
 }
 
-function IconGithub(): JSX.Element {
+function IconGithub(): import('react').JSX.Element {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
@@ -41,17 +41,17 @@ function IconGithub(): JSX.Element {
   );
 }
 
-// 入场时序常量(ms)。与 Animate 的 after 折叠公式对齐:
-//   title(链头)→ slogan(after title)→ intro 打字(stagger 逐字,自身 duration 占时长)
-//   → buttons(after intro)→ hint(after btn-2)。
+// Enter timing constants (ms). Aligned with Animate's after collapse formula:
+//   title (chain head) → slogan (after title) → intro typewriter (stagger per-char, duration occupies time span)
+//   → buttons (after intro) → hint (after btn-2).
 const TITLE_DELAY = 160;
 const TITLE_DUR = 720;
 const SLOGAN_DUR = 880;
-// slogan 两排交叠衔接:row1 不等 row0 完全落定,而是在 row0 播到约 60% 时起身,
-// 形成连贯接力而非"完成→停顿→再起"的卡顿。负 overlap = 交叠量(ms)。
+// slogan two rows overlap handoff: row1 doesn't wait for row0 to fully settle, but starts when row0 plays to ~60%,
+// forming a continuous relay instead of "complete → pause → start again" stuttering. Negative overlap = overlap amount (ms).
 const SLOGAN_OVERLAP = 580;
-const CHAR_INTERVAL = 32; // 每字符错峰间隔,喂 stagger.each
-const CHAR_DUR = 460; // 单字符 reveal 时长(变体 transition.duration)
+const CHAR_INTERVAL = 32; // Per-character stagger interval, fed to stagger.each
+const CHAR_DUR = 460; // Single character reveal duration (variant transition.duration)
 const BTN_DUR = 560;
 const HINT_DUR = 640;
 const BEAM_TIMES = [0, 0.14, 0.25, 0.39, 0.5, 0.65, 0.75, 0.9, 1];
@@ -63,11 +63,11 @@ function heldVariant(): {
   return { initial: { opacity: 1 }, animate: { opacity: 1 } };
 }
 
-// intro 逐字变体(淡入 + 微上移)。预设无 fade-up,直接传 CustomAnimation:
-// stagger 保留 transition.duration(单字符 reveal 时长)并叠加 per-index delay。
-// reduced-motion 下 reveal 时长归零(瞬间到位)——框架不碰 matchMedia,由使用方接管。
-// 2026-08-14(审计 act1-2):zh 的 CJK 标点居中占位,15% 振幅在 reveal 瞬间基线跳动
-// 比拉丁明显;zh 压到 10%,en 保持(拉丁标点沉基线,15% 恰是精致)。
+// intro per-char variant (fade-in + slight upward shift). Preset has no fade-up, pass CustomAnimation directly:
+// stagger preserves transition.duration (single char reveal duration) and adds per-index delay.
+// reduced-motion: reveal duration zeroed (instant arrival) — framework doesn't touch matchMedia, delegated to consumer.
+// 2026-08-14 (audit act1-2): zh CJK punctuation center-occupies space, 15% amplitude causes baseline jump during reveal instant
+// more noticeable than Latin; zh compressed to 10%, en kept (Latin punctuation sinks to baseline, 15% is precisely refined).
 function introCharVariant(
   reduced: boolean,
   lang: string
@@ -81,7 +81,7 @@ function introCharVariant(
   };
 }
 
-// slogan 自定义小位移 slide 动画（自身宽度的 4%，预设 100% 太大）
+// slogan custom small-offset slide animation (4% of own width, preset 100% too large)
 function sloganSlideVariant(direction: 'left' | 'right'): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
@@ -93,7 +93,7 @@ function sloganSlideVariant(direction: 'left' | 'right'): {
   };
 }
 
-// button 组合入场动画：slide-up + fade-in
+// button combined enter animation: slide-up + fade-in
 function buttonEnterVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
@@ -104,10 +104,10 @@ function buttonEnterVariant(): {
   };
 }
 
-// intro 逐字 span + 换行处一个全宽 break span(靠 .hero__intro 的 flex-wrap 强制折行)。
-// 每个 span 是 stagger 的直接子元素,由框架原生 variant 传播错峰揭示(方案B)。
-function buildIntroItems(intro: string): JSX.Element[] {
-  const items: JSX.Element[] = [];
+// intro per-char span + one full-width break span at line break (forced line break by .hero__intro's flex-wrap).
+// Each span is a direct child of stagger, staggered reveal propagated by framework's native variant (solution B).
+function buildIntroItems(intro: string): import('react').JSX.Element[] {
+  const items: import('react').JSX.Element[] = [];
   let key = 0;
   const lines = intro.split('\n');
   lines.forEach((line, lineIdx) => {
@@ -126,19 +126,19 @@ function buildIntroItems(intro: string): JSX.Element[] {
 }
 
 /**
- * 第一幕 Hero。布局与入场时序全部由框架能力驱动:
- *   - 布局:单个 <Position anchor:'center'> 锚整块,内部 flex column(框架定位系统)。
- *   - 时序:<Animate> 的 enterAnimation + duration + timeline.after 声明式串联,
- *     title → slogan(两行 slide-right/left 视差)→ intro(Tier 2 stagger 逐字揭示)
- *     → buttons(slide-up 错峰,after='hero-intro')→ hint。
+ * Act 1 Hero. Framework positioning and animation timing:
+ *   - Layout: Position centers the main flex column; the scroll hint uses the Scene bottom to avoid width-based vertical overlap.
+ *   - Timing: <Animate> enterAnimation + duration + timeline.after declaratively chains,
+ *     title → slogan (two-row slide-right/left parallax) → intro (Tier 2 stagger per-char reveal)
+ *     → buttons (slide-up stagger, after='hero-intro') → hint.
  *
- * intro 打字使用框架 Tier 2 stagger。slogan 光束与滚动提示使用 loopAnimation，
- * 由框架 phase 门控；光束通过继承 CSS 变量投影到 background-position。
+ * intro typewriter uses framework Tier 2 stagger. slogan beam and scroll hint use loopAnimation,
+ * gated by framework phase; beam projects to background-position via inherited CSS variables.
  *
- * reduced-motion:所有 Animate duration/delay 归零(瞬间到位),stagger each=0 一次铺开;
- *   loopAnimation 不注册，保留静态终态。
+ * reduced-motion: all Animate duration/delay zeroed (instant arrival), stagger each=0 unfolds at once;
+ *   loopAnimation not registered, preserves static end state.
  */
-export function HeroScene(): JSX.Element {
+export function HeroScene(): import('react').JSX.Element {
   const { t, lang } = useI18n();
   const reduced = usePrefersReducedMotion();
   const dur = (ms: number): number => (reduced ? 0 : ms);
@@ -148,8 +148,8 @@ export function HeroScene(): JSX.Element {
   const introItems = buildIntroItems(intro);
   return (
     <>
-      {/* 四排整块用单个 Position 锚到屏幕中心,排间距交给 flex column 的 gap 自动堆叠,
-          不再手算各排 y(slogan 高度随字号/语言变,手算必重叠)。区块内部用普通 CSS。 */}
+      {/* Four-row whole block anchored to screen center by single Position, row spacing delegated to flex column's gap auto-stack,
+          no longer hand-calculating each row's y (slogan height varies with font-size/language, hand-calc would overlap). Block internals use ordinary CSS. */}
       <Position at={{ anchor: 'center' }}>
         <div className="hero__stack">
           <Animate
@@ -186,6 +186,7 @@ export function HeroScene(): JSX.Element {
                         '100%',
                         '100%',
                         '56%',
+                        '0%',
                         '0%',
                         '0%',
                         '60%',
@@ -234,8 +235,8 @@ export function HeroScene(): JSX.Element {
             </h1>
           </Animate>
 
-          {/* intro 逐字揭示使用框架 stagger；有效组时长由直接子项数量、each 与子项
-              transition.duration 自动结算，buttons 的 after 会等最后一个字符完成。 */}
+          {/* intro per-char reveal uses framework stagger; effective group duration auto-calculated from direct child count, each, and child
+              transition.duration, buttons' after will wait for last character to complete. */}
           <Animate
             animateId="hero-intro"
             enterAnimation={introCharVariant(reduced, lang)}
@@ -268,8 +269,8 @@ export function HeroScene(): JSX.Element {
                 delay: 150,
               }}
             >
-              {/* 次级动作降级为文本链接（2026-08-29 方案 a）：一个首屏只留一个按钮，
-                  API/GitHub 是出口，不分享按钮层级。 */}
+              {/* Secondary action demoted to text link (2026-08-29 solution a): only one button remains on first screen,
+                  API/GitHub are exits, don't share button hierarchy. */}
               <Link className="hero__link" to="/docs/01-cineview">
                 <IconBook />
                 {t('hero.ctaApi')}
@@ -293,7 +294,7 @@ export function HeroScene(): JSX.Element {
         </div>
       </Position>
 
-      <Position at={{ anchor: 'center', y: 360 }}>
+      <div className="hero__hint-position">
         <Animate
           animateId="hero-hint"
           enterAnimation="fade-in"
@@ -305,22 +306,22 @@ export function HeroScene(): JSX.Element {
               : {
                   animate: {
                     y: [0, 6, 0],
-                    /* 2026-08-14(审计 act1-3):谷底 0.5→0.65——奶白桃首屏底上
-                     * 0.5 对比度 ~2.1:1,谷底瞬间接近不可读;hint 是功能指示
-                     * 不是氛围件。位移 6px 保持。 */
+                    /* 2026-08-14 (audit act1-3): valley 0.5→0.65 — milky peach first screen bottom
+                     * 0.5 contrast ~2.1:1, valley instant approaches unreadable; hint is functional indicator
+                     * not atmospheric piece. 6px displacement kept. */
                     opacity: [0.65, 1, 0.65],
                     transition: { duration: 2, ease: 'easeInOut', repeat: Infinity },
                   },
                 }
           }
         >
-          {/* data-lang 供 global.css 的 zh 字距覆写（审计 act1-3：0.16em 对 CJK 全角
-              字是灾难边缘，zh 压 0.10em；复审 R2-1 曾因 span 无标记成死码）。 */}
+          {/* data-lang for global.css's zh letter-spacing override (audit act1-3: 0.16em is catastrophic edge for CJK full-width
+              chars, zh compressed to 0.10em; review R2-1 once became dead code due to missing span marker). */}
           <span className="hero__scroll-hint mono" data-lang={lang} aria-hidden="true">
             {t('hero.scrollHint')}
           </span>
         </Animate>
-      </Position>
+      </div>
     </>
   );
 }

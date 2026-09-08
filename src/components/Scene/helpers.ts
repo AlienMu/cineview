@@ -113,9 +113,7 @@ export interface NormalizedSceneProps {
   resolvedSceneHeight: NonNullable<SceneInternalProps['layout']>['height'] | number | string;
   resolvedSceneAnchor: SceneAnchor;
   resolvedSceneOverflow:
-    | NonNullable<SceneInternalProps['layout']>['overflow']
-    | 'hidden'
-    | 'visible';
+    NonNullable<SceneInternalProps['layout']>['overflow'] | 'hidden' | 'visible';
   resolvedSceneZIndex: number | undefined;
   effectiveSceneStackMode: 'replace' | 'cover';
   resolvedSceneTransitionDuration: number;

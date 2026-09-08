@@ -1,60 +1,50 @@
 ---
-title: 运行态
+title: Scene 可见性与输入
 eyebrow: CONCEPTS / STATES
 ---
 
-框架为每个场景维护运行时状态，供 `Animate` 与交互事件调度消费。该状态控制场景的动效激活与事件响应，避免离屏元素产生无谓的后台渲染开销。
+场景是否可见、处于哪个转场阶段，会影响内容能否响应输入，以及 Animate 的循环动画是否运行。
 
-## 六个取值
+## 场景活动与输入
 
-| 运行态     | 含义                           | 可交互 |
-| ---------- | ------------------------------ | ------ |
-| `inactive` | 当前位置的场景，但尚未进入活跃 | 否     |
-| `entering` | 正在进场                       | 是     |
-| `active`   | 已到场、稳定                   | 是     |
-| `exiting`  | 正在退场（有退场动画时）       | 是     |
-| `covered`  | 被上层场景覆盖                 | 否     |
-| `parked`   | 已滚过或已让位，停在边界状态   | 否     |
+| 场景情况          | 指针输入 |
+| ----------------- | -------- |
+| 尚未进入活动状态  | 关闭     |
+| 正在入场          | 开启     |
+| 可见且已稳定      | 开启     |
+| 正在执行退场动画  | 开启     |
+| 被其他 Scene 覆盖 | 关闭     |
+| 已超出滚动范围    | 关闭     |
 
-`covered` 与 `parked` 都意味着该场景不再接收指针事件（框架把 `pointer-events` 置为 `none`），区别在语义：`covered` 是「被别的场景盖住」，`parked` 是「自己已经退到边界之外」。
+非活动内容也受框架的无障碍规则约束。场景恢复可交互状态后，重新接收指针输入。
 
-## 持续动画在这些态下自动停
+## 持续动画何时停止
 
-**运行态处于 `covered` / `inactive` / `parked` / `exiting` 时，默认停止持续动画。**
+`loopAnimation` 仅在元素可见且处于可播放阶段时运行。场景进入非活动状态、被覆盖、超出范围或开始退场时，循环会暂停。
 
-这是 `loopAnimation` 与 CSS `animation: … infinite` 的关键差别之一：CSS 无限动画不受任何运行态约束，元素退场后照样每帧重绘；而 `loopAnimation` 由框架按运行态与可视区域相交共同裁决，退出当前生命周期阶段或移出可视区域时立即停止。
+CSS 动画不会自动跟随这些条件。需要动效随场景停止时，使用 `loopAnimation`，详见 [Animate](/docs/03-animate)。
 
-所以「其他元素都退场了，这一个还在动」这类不一致行为，通常是没用 `loopAnimation`、自写了 CSS 无限动画造成的。见 [排错](/docs/07-common-pitfalls)。
+## scroll 场景的转场
 
-## scroll 下按阶段推导
+| 滚动阶段             | 场景行为                                   |
+| -------------------- | ------------------------------------------ |
+| 入场                 | Scene 进入                                 |
+| 已声明退场动画的离场 | Scene 执行退场                             |
+| 未声明退场动画的离场 | Scene 进入被覆盖状态                       |
+| 主要可见区间         | 当前 Scene 接收输入，被覆盖的 Scene 不接收 |
+| 超出区间             | Scene 不再响应交互                         |
 
-scroll 模式的运行态由场景时间轴的执行阶段推导，而非依据索引距离计算：
+没有退场动画的 Scene 直接进入被覆盖状态。上层 Scene 也可能在其滚动范围结束前覆盖它。
 
-| 场景阶段 | 对应运行时状态                         |
-| -------- | -------------------------------------- |
-| `enter`  | `entering`                             |
-| `exit`   | 有退场动画 → `exiting`；否则 `covered` |
-| `hold`   | 是活跃场景 → `active`；否则 `covered`  |
-| `after`  | 有退场动画 → `parked`；否则 `covered`  |
+## 观察可见性
 
-「有没有退场动画」会改变结果：没写退场的场景不经过 `exiting` / `parked`，直接算 `covered`。另外当上层场景以覆盖方式堆叠时，被覆盖的那一个也会被判为 `covered`。
+通过 `Scene.callbacks.onVisibilityChange` 读取 `visible` 和 `progress`。根级的 `onSceneVisibilityChange` 提供同类信息。
 
-## 与 sceneState 的区别
-
-框架内部还有一个 `sceneState`（`initial` / `entering` / `active` / `exiting`），两者容易混：
-
-|      | `sceneState`               | 运行态                                  |
-| ---- | -------------------------- | --------------------------------------- |
-| 性质 | 内部 React state           | **派生读数**                            |
-| 写者 | 每模式各有唯一写者         | 无写者，由输入推导                      |
-| 用途 | 驱动场景自身的视觉与进退场 | 下发给 `Animate`、决定 `pointer-events` |
-| 取值 | 四个                       | 六个（多 `covered` / `parked`）         |
-
-公共 API 不会直接暴露这两个值。外部可观察的是 `Scene.callbacks.onVisibilityChange`（可见性与进度）以及元素侧的生命周期阶段，见 [Animate 时间线](/docs/02-timeline)。
+这些回调描述场景可见性，不表示所有子元素动画都已完成。单个 Animate 的进度和阶段通过 [useAnimateTimeline](/docs/09-use-animate-timeline) 读取，锁定区的滚动进度使用 `onZoneProgress`。
 
 ## 相关页面
 
-- [Animate 时间线](/docs/02-timeline)：元素级生命周期阶段与运行态的关系
-- [可见性条件](/docs/03-visibility-conditions)：非 zone 元素的进退场判定规则
-- [DOM 与布局契约](/docs/06-dom-contract)：`pointer-events` 与层叠实际在哪里生效
-- [排错](/docs/07-common-pitfalls)：CSS 无限动画为什么不受约束
+- [Animate 时间线](/docs/02-timeline)：元素阶段与驱动方式
+- [可见性条件](/docs/03-visibility-conditions)：按时间入退场的触发条件
+- [DOM 与布局](/docs/06-dom-contract)：指针事件与层叠
+- [排错](/docs/07-common-pitfalls)：循环动画持续运行的问题

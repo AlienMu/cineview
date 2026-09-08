@@ -1,6 +1,6 @@
 /**
- * Blur/Focus 系列动画
- * 模糊、聚焦效果
+ * Blur/Focus animation presets
+ * Blur and focus effects
  */
 
 import type { Variant } from 'framer-motion';

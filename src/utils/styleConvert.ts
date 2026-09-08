@@ -1,28 +1,29 @@
 /**
- * 样式换算（从 Image.tsx 抽出的公共逻辑）。px2vw 单尺子模型：所有数值型 CSS 长度
- * 都乘同一个 `scale`（设计 px → 物理 px），不再按轴向区分——横向 1px 与纵向 1px 是
- * 同一个单位，正方形永远是正方形。Image / VideoFrameRenderer 共用。
+ * Style conversion utilities extracted from Image.tsx. Single-ruler model: all numeric CSS lengths
+ * are multiplied by the same `scale` factor (design px → physical px), with no axis-specific
+ * distinction—1px horizontal equals 1px vertical, preserving aspect ratios. Shared by Image and
+ * VideoFrameRenderer.
  *
- * 白名单仍保留：用于排除无量纲数值属性（`zIndex`/`opacity`/`flexGrow`/`fontWeight`/
- * `lineHeight` 等），它们是纯数字、不该被当作长度换算。
+ * Whitelist retained to exclude unitless numeric properties (`zIndex`/`opacity`/`flexGrow`/
+ * `fontWeight`/`lineHeight`, etc.) that should not be treated as length values.
  */
 import type { CSSProperties } from 'react';
 
-/** 单尺子换算器（避免 util 反向依赖 context）。 */
+/** Single-ruler converter interface (avoids circular dependency on context). */
 export interface ScaleConverter {
   convert: (value: number) => number;
 }
 
-// px2vw 下所有长度键共用一个 scale，故合并为单一集合（原水平/垂直/标量三套）。
+// All length keys share a single scale under px2vw, so merged into one set (formerly separate horizontal/vertical/scalar sets).
 const lengthStyleKeys = new Set([
-  // 尺寸
+  // Dimensions
   'width',
   'minWidth',
   'maxWidth',
   'height',
   'minHeight',
   'maxHeight',
-  // 定位
+  // Positioning
   'top',
   'bottom',
   'left',
@@ -34,7 +35,7 @@ const lengthStyleKeys = new Set([
   'insetBlock',
   'insetBlockStart',
   'insetBlockEnd',
-  // 外边距
+  // Margin
   'margin',
   'marginTop',
   'marginBottom',
@@ -46,7 +47,7 @@ const lengthStyleKeys = new Set([
   'marginBlock',
   'marginBlockStart',
   'marginBlockEnd',
-  // 内边距
+  // Padding
   'padding',
   'paddingTop',
   'paddingBottom',
@@ -58,7 +59,7 @@ const lengthStyleKeys = new Set([
   'paddingBlock',
   'paddingBlockStart',
   'paddingBlockEnd',
-  // 边框
+  // Border
   'borderWidth',
   'borderTopWidth',
   'borderBottomWidth',
@@ -69,7 +70,7 @@ const lengthStyleKeys = new Set([
   'borderTopRightRadius',
   'borderBottomRightRadius',
   'borderBottomLeftRadius',
-  // 间距 / 描边 / 字体
+  // Spacing / Outline / Typography
   'gap',
   'columnGap',
   'rowGap',

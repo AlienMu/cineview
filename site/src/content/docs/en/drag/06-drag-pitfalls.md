@@ -7,9 +7,9 @@ These six issues are specific to drag mode. For issues shared by both modes, see
 
 ## 1. `transitionDuration` does not affect gesture paging speed
 
-Changing `transitionDuration` from 800 to 300 does not change the speed of a gesture-driven page transition. Gesture translation and rebound use a fixed 800 ms timing value. `transitionDuration` only schedules the `onSceneLeave` timer for `ref.goToScene()`.
+`transitionDuration` configures programmatic navigation. Gesture movement uses a separate timing base, and the rebound duration depends on displacement with a 300ms cap.
 
-Keep the gesture timing fixed. To change the perceived pacing, adjust the element `duration` and `delay`, or set `unit: 'percent'` to change how displacement maps to the element timeline. See [Gestures and thresholds](/docs/02-gestures).
+To change element pacing, adjust `duration`, `timeline.delay`, or the drag mapping through `unit` and `scale`. See [Gestures](/docs/02-gestures).
 
 ## 2. `exitAnimation` does not execute during backward dragging
 
@@ -21,13 +21,13 @@ Treat forward and backward movement as separate behaviors. Define `exitAnimation
 
 If scenes are added after the first render, the initial scene can appear at its final state while later scenes animate normally. The first-screen entrance decision is made during the initial mount. An initial scene count of zero disables that entrance animation for the rest of the mount.
 
-Render the `Scene` nodes in the first pass. Mount a placeholder or skeleton scene while data or dynamic imports are pending instead of guarding the whole tree with `{data && <Scene>...</Scene>}`.
+Include Scene nodes in the first render. While data or dynamic imports are pending, render a placeholder Scene instead of delaying all Scene declarations.
 
 ## 4. A `driver: 'clock'` element never exits
 
 In drag mode, `timeline.driver: 'clock'` starts the element on wall-clock time after its Scene arrives. The element does not join the `after` sequence, does not run `exitAnimation`, and does not contribute its duration to the scene timeline. Development builds report these ignored settings.
 
-Use the default `driver: 'scene'` when the element needs exit motion or ordered timing. Use the clock driver for independent decorative motion, such as an idle breathing highlight. See [The Animate timeline](/docs/02-timeline).
+Use `driver: 'scene'` when the element needs gesture-driven exit motion or `after` dependencies. Use the clock driver for an independent effect that starts after arrival.
 
 ## 5. A distant scene loses timers and local state
 
@@ -39,11 +39,11 @@ Store state that must survive scene changes outside `CineView`, such as in paren
 
 `Scene` discovery checks direct children of `CineView`. React arrays are flattened, so `{list.map(...)}` works. Fragments are not flattened, and a custom component that returns `Scene` from its render body hides the nested node. `memo` and `forwardRef` wrappers are unwrapped up to six levels. Mixed direct and Fragment-wrapped children therefore discover only the direct scenes, without an empty-scene warning.
 
-Declare every `Scene` as a direct child of `CineView`. For reusable groups, export a function that returns a `Scene[]` and spread the result instead of returning a Fragment.
+Declare Scene nodes directly under CineView. A reusable factory can return an array of Scene elements; call it in CineView's children rather than wrapping the Scenes in another component.
 
 ## Related pages
 
 - [Drag layout contract](/docs/01-layout): the virtualization window and ignored props
-- [Ownership and transactions](/docs/04-ownership): why early gestures can do nothing
+- [Starting and resuming a drag](/docs/04-ownership): why early gestures can do nothing
 - [Drag callback timing](/docs/05-callbacks): callback timing and names
 - [Troubleshooting](/docs/07-common-pitfalls): issues shared across both modes

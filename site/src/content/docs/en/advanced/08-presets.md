@@ -3,7 +3,7 @@ title: Preset animations
 eyebrow: ADVANCED / PRESETS
 ---
 
-CineView includes 43 preset animations categorized into 11 families. Reference animations by string name, such as `enterAnimation="fade-in"`. All names belong to the `PresetAnimation` union, allowing TypeScript to catch typos at compile time.
+CineView provides 43 presets in 11 groups. Pass a name such as `enterAnimation="fade-in"`; the `PresetAnimation` type checks the spelling.
 
 ## The catalog
 
@@ -23,11 +23,11 @@ CineView includes 43 preset animations categorized into 11 families. Reference a
 
 ## Naming convention
 
-The `-in` / `-out` suffix marks enter/exit direction: the conventional pairing is `-in` for enter and `-out` for exit. Suffix-free names (`fade`, `spin`, `pulse`, `shake`, …) work both ways and are the natural fit for `loopAnimation`: resident loops run only while the element is inside its own phase and in the viewport; see [Animate](/docs/03-animate).
+Names ending in `-in` and `-out` conventionally pair an entrance with an exit. Names such as `spin`, `pulse`, and `shake` can also be used for loops. Loop playback follows the element's visibility and animation stage; see [Animate](/docs/03-animate).
 
 ## Usage
 
-Pass the name to `enterAnimation` / `exitAnimation` on `Animate`, or to `Scene.transition`:
+Pass a preset to Animate's animation props, or use it in Scene transitions in scroll mode.
 
 ```tsx
 <Animate

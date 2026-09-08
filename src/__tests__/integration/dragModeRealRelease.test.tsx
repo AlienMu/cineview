@@ -1,4 +1,5 @@
-import React, { act, createRef, useContext } from 'react';
+import React, { createRef, useContext } from 'react';
+import { act } from '@testing-library/react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CineView, Scene } from '../../index';

@@ -3,11 +3,11 @@ title: center-lock scrolling
 eyebrow: SCROLL / CENTER-LOCK
 ---
 
-Configuring a Scene with `scroll={{ zoneId, trigger: 'center-lock' }}` declares a locked zone. When scrolling reaches the target position, the visual container locks to the viewport center, subsequent scroll displacement advances zone animation progress, and the page resumes standard document flow scrolling once the budget is exhausted. `center-lock` is the sole supported trigger.
+A Scene with `scroll` declares a locked zone. With a non-zero animation budget, it stays centered while scrolling advances its animations. Once that range ends, the Scene continues moving with the content. The supported trigger is `center-lock`.
 
 ## Positioning mechanism
 
-Locked-zone scenes render in three layers: an outer wrapper that occupies document flow and provides scroll height, a middle `position: sticky` visual shell, and the inner content container. The visual shell locks into place when `scrollTop` aligns the visual box center with the viewport center.
+A locked zone has a wrapper that reserves scroll space, a sticky visual container, and its content. The vertical formulas use `scrollTop`; horizontal scrolling uses the corresponding width and `scrollLeft` values.
 
 | Quantity           | Formula                                                  | Meaning                                     |
 | ------------------ | -------------------------------------------------------- | ------------------------------------------- |
@@ -16,17 +16,17 @@ Locked-zone scenes render in three layers: an outer wrapper that occupies docume
 | `segmentStart`     | `centerLockOffset`                                       | start of the locked segment                 |
 | `segmentEnd`       | `centerLockOffset + totalBudgetPx`                       | end of the locked segment                   |
 
-Tall scenes (where visual height exceeds viewport height) align through the wrapper's `paddingTop`, while compact scenes align through the visual shell's `top` inset. Both configurations resolve to the same `centerLockOffset`.
+Tall scenes (where visual height exceeds viewport height) align through the wrapper's `paddingTop`, while compact scenes align through the visual container's `top` inset. Both configurations resolve to the same `centerLockOffset`.
 
 ## Where the scroll distance comes from
 
-The wrapper is not as tall as the visuals:
+The wrapper reserves space for the visible content and the animation travel:
 
 ```text
 flowSpan = max(visualSpan, viewportSpan) + timelineDistancePx
 ```
 
-`timelineDistancePx` is the zone's animation budget (1ms = 1px; see [Zones and scroll budget](/docs/02-zones-budget)). The wrapper stands a full budget taller than its visual height, and that additional height is the physical scroll distance consumed while the scene remains pinned in place. With a zero budget the wrapper collapses back to the visual height and the locked travel disappears.
+`timelineDistancePx` is the animation budget at `1ms = 1px`. With a zero budget, there is no animation travel, but the wrapper still occupies the larger of the visual span and the viewport span. See [Zones and scroll budgets](/docs/02-zones-budget).
 
 ```tsx
 <CineView designWidth={750} mode="scroll" direction="y">
@@ -40,15 +40,15 @@ flowSpan = max(visualSpan, viewportSpan) + timelineDistancePx
 
 That JSX has an 800px zone budget: scrolling 800 physical pixels advances the title entrance from 0 to 1.
 
-## Progress is a pure function
+## Progress from scroll position
 
-Zone progress has no accumulator and no ownership memory:
+`nativeOffset` is `scrollTop` for vertical scrolling and `scrollLeft` for horizontal scrolling:
 
 ```text
 progressPx = clamp(nativeOffset - segmentStart, 0, totalBudgetPx)
 ```
 
-Scrolling backward into the segment decreases `nativeOffset` from `segmentEnd`, running progress from `100%` to `0%` and synchronizing the animation frame linearly. Across page reloads, container resizes, or layout shifts, progress is derived strictly from the current `scrollTop`.
+Reverse scrolling decreases progress through the same interval. Resize or layout changes recalculate the segment geometry, and progress follows the resulting position.
 
 Both ends of the segment snap within 0.01px: progress near an endpoint reads exactly 0 or the full budget, so floating-point residue cannot leave the last frame permanently short.
 
@@ -78,17 +78,17 @@ const ref = useRef<CineViewScrollRef>(null);
   {/* ... */}
 </CineView>;
 
-ref.current!.goToZone('hero-seq', { animated: true });
+ref.current?.goToZone('hero-seq', { animated: true });
 ```
 
-| Option     | Type       | Default | Notes                                                       |
-| ---------- | ---------- | ------- | ----------------------------------------------------------- |
-| `animated` | `boolean`  | `true`  | `true` uses `behavior: 'smooth'`, `false` lands instantly   |
-| `align`    | `'center'` | none    | present in the public type, discarded by the implementation |
+| Option     | Type       | Default | Notes                                                                 |
+| ---------- | ---------- | ------- | --------------------------------------------------------------------- |
+| `animated` | `boolean`  | `true`  | Requests smooth scrolling when true, immediate positioning when false |
+| `align`    | `'center'` | none    | The only accepted value; the destination is always the zone start     |
 
 The destination offset always lands on `centerLockOffset`, corresponding to the zone's start position (progress 0).
 
-While a smooth scroll is in flight the engine skips the anti-skip clamp: that clamp's corrective `scrollTo` stops a smooth animation per the CSSOM spec, leaving the scroll part-way to its target. Programmatic frames are continuous by construction, so every crossed segment already produces in-segment frames and needs no clamping. Any real user input (wheel, touch, key, scrollbar drag) reclaims control immediately and voids the in-flight target.
+Programmatic navigation skips the anti-skip limit so it can reach the requested destination. A new accepted wheel, touch, key, or scrollbar input interrupts the smooth scroll and resumes user control.
 
 ## Observing zone states
 
@@ -100,9 +100,9 @@ Three scroll-only callbacks cover the zone lifecycle:
 | `onZoneProgress` | `{ zoneId, sceneIndex, progress }` | movement exceeds 0.5px against the **last reported** value |
 | `onZoneLeave`    | `{ zoneId, sceneIndex }`           | the zone goes from active to inactive                      |
 
-`progress` is normalized 0 to 1 (`progressPx / totalBudgetPx`). The 0.5px threshold compares against the last reported value rather than the previous frame; otherwise slow scrolling resets the baseline every frame and starves the callback forever. The 0 and full endpoints are forced through even when the final frame moved less than 0.5px.
+`progress` is `progressPx / totalBudgetPx`, from 0 to 1. Movement is measured against the last reported value. The zero and full endpoints are reported even when the final change is less than 0.5px.
 
-A zone is considered active when `nativeOffset` rests at least 0.5px inside the segment bounds and progress is at least 0.5px away from both extremities. Zero-budget zones never enter the active state; see [Zones and scroll budget](/docs/02-zones-budget).
+A zone is active only when the scroll offset and its progress are more than 0.5px from both ends. Zero-budget zones never become active: they report an initial zero progress, without enter or leave events.
 
 The full callback table is in [Callbacks](/docs/03-callbacks).
 

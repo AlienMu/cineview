@@ -315,10 +315,10 @@ describe('/drag W1 calibration dial contract', () => {
 
     const app = stripComments(fs.readFileSync(APP_FILE, 'utf8'));
     expect(app).toContain("const isDrag = pathname === '/drag'");
-    // 本契约要守的是「/drag 不挂全局 LangToggle」（act1 自己在 Scene 内挂一个）。
-    // 断言从整行字面量收窄为「isDrag 参与了排除判断」——否则每次给排除列表新增
-    // 路由（2026-08-27 加了 /docs，其切换器由 DocsShell 挂在应用栏内）都会误红，
-    // 而那与本契约无关。
+    // Contract scope: /drag must not mount the global LangToggle (act1 mounts its own inside the Scene).
+    // Assertion narrowed from full-line literal to "isDrag participates in exclusion logic" — otherwise
+    // adding any new route to the exclusion list (e.g. /docs added 2026-08-27, whose toggle lives in DocsShell)
+    // would falsely fail, even though that change is unrelated to this contract.
     expect(app).toMatch(/\{isDrag \|\|[^}]*\? null : <LangToggle \/>\}/);
   });
 

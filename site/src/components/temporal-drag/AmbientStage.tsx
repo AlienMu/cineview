@@ -19,7 +19,13 @@ type AmbientLoopProps = {
   children?: ReactNode;
 };
 
-function AmbientLoop({ id, className, animate, seconds, children }: AmbientLoopProps): JSX.Element {
+function AmbientLoop({
+  id,
+  className,
+  animate,
+  seconds,
+  children,
+}: AmbientLoopProps): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   if (timing.reduced) return <div className={className}>{children}</div>;
@@ -43,7 +49,7 @@ function AmbientLoop({ id, className, animate, seconds, children }: AmbientLoopP
   );
 }
 
-function AmbientDust(): JSX.Element {
+function AmbientDust(): import('react').JSX.Element {
   const { phase } = useAnimateTimeline();
   const { reduced } = useTemporalMotion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -150,7 +156,7 @@ function AmbientDust(): JSX.Element {
 }
 
 /** Act 1's scene-owned ambient light. Every temporal property runs on CineView's lanes. */
-export const AmbientStage = memo(function AmbientStage(): JSX.Element {
+export const AmbientStage = memo(function AmbientStage(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

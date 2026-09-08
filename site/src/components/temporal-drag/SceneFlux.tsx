@@ -13,14 +13,14 @@ const TIMECODE_VISUAL_ENTER_MS = 1200;
 const TIMECODE_VISUAL_SETTLE = TIMECODE_VISUAL_ENTER_MS / ACT4_TIMELINE_DURATION_MS;
 
 /**
- * Act 04 — 日全食 (total eclipse).
+ * Act 04 — Total eclipse.
  *
  * The act is one gesture-driven event: the finger pushes the moon's shadow across the
  * disc, and at totality the corona breaks out. Progress is expressed by the RING ONLY —
  * the 20-tick ruler that used to sit at the bottom (`TickBar`) is gone, because a ruler
  * plus a ring is the same information twice.
  *
- * ── Lane budget (设计档 §4, all ABSOLUTE delays) ──────────────────────────────
+ * ── Lane budget (Design spec §4, all ABSOLUTE delays) ──────────────────────────────
  *   ring                0 + 1200      (ProgressRing.tsx)
  *   timecode clock      0 + 2200      (visual settle completes at 1200)
  *   streams (rise)      100 + 1400    (TimeStreams.tsx)
@@ -32,7 +32,7 @@ const TIMECODE_VISUAL_SETTLE = TIMECODE_VISUAL_ENTER_MS / ACT4_TIMELINE_DURATION
  * 0-300ms response band, so the first pixel of finger travel already moves the frame.
  *
  * The 1300 + 2400 row was the CORONA's. That effect fired 72 filaments outward from the
- * ring, read as a starburst on real hardware and was cut; the iris (方案 C) takes over the
+ * ring, read as a starburst on real hardware and was cut; the iris (Solution C) takes over the
  * identical slot but a shorter budget. Everything the iris draws moves INWARD, which is the
  * reading the corona failed to get.
  *
@@ -44,10 +44,10 @@ const TIMECODE_VISUAL_SETTLE = TIMECODE_VISUAL_ENTER_MS / ACT4_TIMELINE_DURATION
  *
  * After 2200ms the iris's nine lit edges keep catching a travelling specular (its canvas runs
  * that highlight on wall-clock elapsed, not on progress — the geometry itself is frozen once
- * the lane lands). That is this act's 防空等 coverage, inherited from the corona's wall-clock
+ * the lane lands). That is this act's idle coverage, inherited from the corona's wall-clock
  * drift: there is no frame where every lane has finished and nothing is moving.
  */
-export const SceneFlux = memo(function SceneFlux(): JSX.Element {
+export const SceneFlux = memo(function SceneFlux(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

@@ -1,14 +1,14 @@
 /**
- * useAnimateDrag 分支补充测试
+ * useAnimateDrag branch coverage tests
  *
- * 覆盖以下未覆盖分支（通过 hook 驱动内部纯函数，内部函数未导出）：
- * - lerpStringValue 的 function-form 字符串插值分支（lines 101-105）
- * - parseNumericValue 的字符串解析分支（lines 113-117）
- * - debugDrag + isVerboseDragDebug 的 development + __CINEVIEW_DRAG_DEBUG__ 路径
- *   （lines 145-166, mode handoff 540, delay gate 570, verbose snapshot 590-593）
- * - resolveEnterLocalProgress 的 enterDuration <= 0 分支（line 212）
+ * Covers the following uncovered branches (driven through the hook, internal functions not exported):
+ * - lerpStringValue function-form string interpolation branch (lines 101-105)
+ * - parseNumericValue string parsing branch (lines 113-117)
+ * - debugDrag + isVerboseDragDebug development + __CINEVIEW_DRAG_DEBUG__ path
+ *   (lines 145-166, mode handoff 540, delay gate 570, verbose snapshot 590-593)
+ * - resolveEnterLocalProgress enterDuration <= 0 branch (line 212)
  *
- * 复用与 useAnimateDrag.test.ts 相同的 framer-motion mock。
+ * Reuses the same framer-motion mock as useAnimateDrag.test.ts.
  */
 
 import { renderHook } from '@testing-library/react';
@@ -211,7 +211,6 @@ describe('useAnimateDrag branch coverage', () => {
       })
     );
 
-    // elapsed 100; (100-0)/200 = 0.5 -> opacity lerp(0, 1, 0.5) = 0.5.
     expect(result.current.opacity.get()).toBeCloseTo(0.5);
   });
 

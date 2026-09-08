@@ -3,7 +3,7 @@ title: DOM 与布局契约
 eyebrow: CONCEPTS / DOM
 ---
 
-本页说明自定义样式在引擎层叠规则下的生效边界与排错方案。引擎在用户内容外层渲染了多层包装结构，各层均具备特定的布局语义与样式约束。若不了解 DOM 渲染层级，`position: fixed` 与 `z-index` 可能会产生非预期的布局表现。
+排查定位、裁切和层叠问题时，可检查框架渲染的包装元素。Scene 样式控制场景布局，Position 负责按设计坐标放置内容。
 
 ## 实际渲染出的层级
 
@@ -21,11 +21,11 @@ div.cineview-responsive-container        ← 挂 --cineview-unit
     └ motion.div                        ← Scene 本体
       │   contain: 'layout style'（drag）/ 'layout style paint'（scroll）
       │   scroll 下恒带 transform: translateZ(0)
-      ├ (scroll) SceneFixedLayer 三层 div，z-index 20
+      ├ (scroll) 固定元素容器，三层 div，z-index 20
       └ 声明的子节点（children）
         └ Animate 的包装层
             scroll 下多一层 div[data-cineview-animate-host]
-            内层 motion.div[data-cineview-animate-id] 绑定属性通道
+            内层 motion.div[data-cineview-animate-id] 应用动画样式
 ```
 
 ## --cineview-unit：统一视窗缩放基准
@@ -39,7 +39,7 @@ div.cineview-responsive-container        ← 挂 --cineview-unit
 }
 ```
 
-这是规范定义的公共接口，也是外部 CSS 与框架共享单轴响应式尺度的标准方式，无需重复计算 `viewport / size`。外层包装 div 本身不包含多余布局样式，但在 DOM 结构中真实存在，编写 `>` 直接子代选择器时须计入该层。
+普通 CSS 可通过 `--cineview-unit` 使用 CineView 的响应式比例。包装层是真实的 DOM 元素，编写直接子代选择器时需要包含这一层。
 
 ## Scene 必须是直接子节点
 
@@ -53,9 +53,7 @@ div.cineview-responsive-container        ← 挂 --cineview-unit
 | `memo(Scene)` / `forwardRef` 包装       | 可以（沿类型解包至六层）    |
 | `function My() { return <Scene/> }`     | 不行（框架看到的是 `My`）   |
 
-识别靠内部静态标记，不是 `displayName`，所以给自己的组件设 `displayName="Scene"` 不起作用（开发环境会警告这种写法）。
-
-当混用直接声明与 Fragment 包裹时，Fragment 内部的 Scene 无法被顶层直接识别。未识别的场景会回退至默认样式（如 `position: absolute` 且 `pointer-events: none`），导致内容不可见且无法响应交互事件。仅当完全未检测到有效 Scene 时，框架才会抛出 `EMPTY_SCENES` 错误。
+将 Scene 直接声明在 CineView 下。把包装组件的 `displayName` 设为 `Scene` 不会让它被识别。直接 Scene 与不可识别的嵌套 Scene 混用时，可能缺少部分内容而不报空场景错误；只有找不到任何有效 Scene 时才报告 `EMPTY_SCENES`。
 
 ## 样式层叠与引擎覆盖规则
 
@@ -66,13 +64,11 @@ width  height  position  overflow  willChange  contain
 transform  userSelect  touchAction  zIndex  pointerEvents  + anchor 键
 ```
 
-其余自定义 style 正常保留。此外，Scene 会将未识别的 HTML 属性透传至底层 DOM 节点：`id`、`data-*`、`aria-*`、`role`、`onClick` 均可正常生效；拼写错误的 prop 则由 React 抛出未知属性警告。
+其他自定义样式保留。`id`、`data-*`、`aria-*`、`role` 和 `onClick` 等标准 HTML 属性会传给场景节点。
 
 ## 层叠上下文与 z-index 规则
 
-在 `Animate` 或 `Position` 的子元素上直接声明 `z-index` 无法跨组件提升层级。原因在于 Scene 内部启用了 `contain: layout`，建立了独立的层叠上下文与局部定位边界：
-
-`contain: layout` 在两种模式下为每个场景建立独立的层叠上下文。子元素的 `z-index` 仅在该上下文内部解析，对兄弟场景或跨 `Position` 组件不产生层级提升效果。
+每个 Scene 通过 `contain: layout` 建立层叠上下文，子元素的 z-index 不会改变该 Scene 相对兄弟场景的顺序。场景内部的 transform 或显式 z-index 还可能建立其他层叠上下文。
 
 叠加引擎内部预设的层级：
 
@@ -80,10 +76,10 @@ transform  userSelect  touchAction  zIndex  pointerEvents  + anchor 键
 | ------------------------------- | -------------------- |
 | drag 场景帧                     | 当前 `10` / 其余 `1` |
 | scene fixed layer 的 clip       | `20`                 |
-| 活跃锁定区（locked zone）的壳层 | `30`                 |
+| 活跃锁定区（locked zone）的容器 | `30`                 |
 | scrollbar 覆盖层                | `80`                 |
 
-**唯一有效的宿主是 `Position` 的 `style.zIndex`**（`Position` 展开自定义 style 时不覆写 `zIndex`）。若需控制同级 `Position` 之间的绘制层序，须直接配置于 `Position` 之上。
+控制同级 Position 的顺序时，可设置 `style.zIndex`。数值增大后没有效果时，检查其祖先元素的层叠上下文。
 
 ## scroll 模式下 position: fixed 的定位边界
 
@@ -93,7 +89,7 @@ transform  userSelect  touchAction  zIndex  pointerEvents  + anchor 键
 
 ## 根容器背景色基准差异
 
-drag 默认背景为 `#0d1624`，scroll 默认背景为 `#ffffff`，二者未暴露直接配置项（`CineView` 未提供 `className` 属性或 `style` 属性）。在跨模式迁移时需注意此项差异。若需自定义背景色，可通过 `.cineview-container` 类名或 `[data-cineview-container="true"]` 属性选择器进行外部层叠覆盖。
+drag 默认背景为 `#0d1624`，scroll 为 `#ffffff`。CineView 没有 `className` 或 `style` 属性。外部 `.cineview-container` 样式可用 `!important` 覆盖内联背景，规则应限定到目标实例。
 
 ## 可靠的测试与样式选择器
 
@@ -107,10 +103,10 @@ drag 默认背景为 `#0d1624`，scroll 默认背景为 `#ffffff`，二者未暴
 [data-cineview-takeover-content]
 [data-scene-fixed-layer]       fixed layer 三层，另有 -role / -host
 [data-cineview-animate-host]   scroll 下 Animate 的外层
-[data-cineview-animate-id]     Animate 属性通道所在层
+[data-cineview-animate-id]     应用 Animate 样式的元素
 ```
 
-两项注意事项：`data-cineview-scroll-zone` 在未配置锁定区的 scroll 场景上亦会回退至 `sceneId`，**其存在并不意味着注册了锁定区**；`animateId` 若未显式传入，则由模块级自增计数器生成，跨渲染周期不具备稳定性。若需以此作为可靠定位选择器，须显式声明 `animateId`。
+普通 Scene 的 `sceneId` 也可能出现在 `data-cineview-scroll-zone` 中，因此该属性不代表锁定区已生效。自动生成的 `animateId` 在实例挂载期间保持稳定；重新挂载后仍需使用同一选择器时，应显式声明 `animateId`。
 
 ## 相关页面
 

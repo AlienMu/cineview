@@ -1,6 +1,7 @@
 /**
- * animateInterpolation 纯函数直测。补齐 parseNumericValue 的 fallback 分支
- * 与 lerpTransformValue 的各匹配/回退分支（此前仅经 hook 间接覆盖，有空洞）。
+ * Direct unit tests for animateInterpolation pure functions. Covers parseNumericValue
+ * fallback branches and lerpTransformValue match/fallback branches (previously only
+ * indirectly covered through hooks, leaving gaps).
  */
 import {
   clamp,
@@ -14,13 +15,13 @@ import {
 } from './animateInterpolation';
 
 describe('clamp / lerp', () => {
-  it('clamp 夹在 [min,max]', () => {
+  it('clamp constrains to [min,max]', () => {
     expect(clamp(5, 0, 10)).toBe(5);
     expect(clamp(-1, 0, 10)).toBe(0);
     expect(clamp(11, 0, 10)).toBe(10);
   });
 
-  it('lerp 线性插值', () => {
+  it('lerp performs linear interpolation', () => {
     expect(lerp(0, 100, 0)).toBe(0);
     expect(lerp(0, 100, 0.5)).toBe(50);
     expect(lerp(0, 100, 1)).toBe(100);
@@ -28,60 +29,60 @@ describe('clamp / lerp', () => {
 });
 
 describe('lerpTransformValue', () => {
-  it('number × number → 数值插值', () => {
+  it('number × number → numeric interpolation', () => {
     expect(lerpTransformValue(0, 10, 0.5)).toBe(5);
   });
 
-  it('单位后缀字符串（100% / 12px / 45deg）→ 带单位插值', () => {
+  it('unit-suffixed strings (100% / 12px / 45deg) → interpolate with unit', () => {
     expect(lerpTransformValue('0%', '100%', 0.5)).toBe('50%');
     expect(lerpTransformValue('0px', '12px', 0.5)).toBe('6px');
     expect(lerpTransformValue('0deg', '90deg', 1 / 3)).toBe('30deg');
   });
 
-  it('无单位数字字符串 → 返回裸数值（unit 空分支）', () => {
+  it('unitless numeric strings → return bare number (empty unit branch)', () => {
     expect(lerpTransformValue('0', '10', 0.5)).toBe(5);
   });
 
-  it('transform 函数（同名单参）→ 函数内插值', () => {
+  it('transform functions (same name, single param) → interpolate inside function', () => {
     expect(lerpTransformValue('translateY(0%)', 'translateY(100%)', 0.5)).toBe('translateY(50%)');
   });
 
-  it('transform 函数无单位 → 保留函数壳', () => {
+  it('transform functions without unit → preserve function wrapper', () => {
     expect(lerpTransformValue('scale(0)', 'scale(2)', 0.5)).toBe('scale(1)');
   });
 
-  it('函数名不同 → 落到 progress 阈值回退分支', () => {
+  it('mismatched function names → fall back to progress threshold branch', () => {
     expect(lerpTransformValue('translateX(0px)', 'translateY(10px)', 0.4)).toBe('translateX(0px)');
     expect(lerpTransformValue('translateX(0px)', 'translateY(10px)', 1)).toBe('translateY(10px)');
   });
 
-  it('完全不可解析的字符串 → progress 阈值回退', () => {
+  it('completely unparseable strings → progress threshold fallback', () => {
     expect(lerpTransformValue('none', 'blur(4px)', 0.2)).toBe('none');
     expect(lerpTransformValue('none', 'blur(4px)', 1)).toBe('blur(4px)');
   });
 });
 
 describe('parseNumericValue', () => {
-  it('有限数直接返回', () => {
+  it('finite number returned directly', () => {
     expect(parseNumericValue(42, 0)).toBe(42);
   });
 
-  it('可解析数字字符串 → parseFloat', () => {
+  it('parseable numeric string → parseFloat', () => {
     expect(parseNumericValue('0.7', 0)).toBe(0.7);
     expect(parseNumericValue('12px', 0)).toBe(12);
   });
 
-  it('非有限数（NaN/Infinity）→ fallback', () => {
+  it('non-finite (NaN/Infinity) → fallback', () => {
     expect(parseNumericValue(NaN, -1)).toBe(-1);
     expect(parseNumericValue(Infinity, -1)).toBe(-1);
   });
 
-  it('不可解析字符串 → fallback（line 82）', () => {
+  it('unparseable string → fallback (line 82)', () => {
     expect(parseNumericValue('abc', 7)).toBe(7);
     expect(parseNumericValue('', 7)).toBe(7);
   });
 
-  it('非数字非字符串（undefined/null/object）→ fallback（line 82）', () => {
+  it('non-number non-string (undefined/null/object) → fallback (line 82)', () => {
     expect(parseNumericValue(undefined, 3)).toBe(3);
     expect(parseNumericValue(null, 3)).toBe(3);
     expect(parseNumericValue({}, 3)).toBe(3);
@@ -89,13 +90,13 @@ describe('parseNumericValue', () => {
 });
 
 describe('getDefaultValue', () => {
-  it('opacity：initial/exit → 0，animate → 1', () => {
+  it('opacity: initial/exit → 0, animate → 1', () => {
     expect(getDefaultValue('opacity', 'initial')).toBe(0);
     expect(getDefaultValue('opacity', 'exit')).toBe(0);
     expect(getDefaultValue('opacity', 'animate')).toBe(1);
   });
 
-  it('scale → 1，filter → none，其它 → 0', () => {
+  it('scale → 1, filter → none, others → 0', () => {
     expect(getDefaultValue('scale', 'initial')).toBe(1);
     expect(getDefaultValue('filter', 'initial')).toBe('none');
     expect(getDefaultValue('x', 'initial')).toBe(0);
@@ -104,7 +105,7 @@ describe('getDefaultValue', () => {
 });
 
 describe('getVariantValue', () => {
-  it('存在键 → 返回值；缺失 → fallback', () => {
+  it('key exists → return value; missing → fallback', () => {
     expect(getVariantValue({ opacity: 0.5 }, 'opacity', 1)).toBe(0.5);
     expect(getVariantValue({}, 'opacity', 1)).toBe(1);
     expect(getVariantValue({ x: '10px' }, 'x', '0px')).toBe('10px');

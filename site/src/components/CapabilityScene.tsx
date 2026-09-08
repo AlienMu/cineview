@@ -21,7 +21,7 @@ import './CapabilityScene.css';
  * 第二幕:能力展示 — 胶片带镜(v3 重做,2026-07-09)
  *
  * SHOT01 胶片带镜:标题 → 胶带一次轻入场 → 9 预设帧格依次入场播一次原生预设并定格,
- *        活跃帧高亮 + 联动说明/代码。整条约 6s（SELECTION_MS = 5860ms）。
+ *        活跃帧高亮 + 联动说明/代码。九帧序列 9.4s，每帧间隔 800ms；连同标题总长 10.04s。
  *
  * 原同文件的 SHOT02「舞台抽屉镜」已于 2026-08-04 拆除,第三幕改为推镜结构,
  * 见 `Act3DollyScene.tsx` 与 task-flow 2026-08-04-home-continuous-bg-act3-dolly.md。
@@ -74,7 +74,7 @@ export function SplitTitle({
 }: {
   text: string;
   kind?: 'main' | 'header' | 'side';
-}): JSX.Element {
+}): import('react').JSX.Element {
   const [head, tail] = text.split('|');
   const cls =
     kind === 'header'
@@ -96,7 +96,7 @@ export function SplitTitle({
 }
 
 /** 副标题在首个逗号(中文，/ 英文 ,)处换行,两行更均衡。 */
-export function renderIntroLines(text: string): JSX.Element {
+export function renderIntroLines(text: string): import('react').JSX.Element {
   const m = text.match(/[，,]/);
   if (!m || m.index == null) return <>{text}</>;
   const cut = m.index + 1;
@@ -130,27 +130,16 @@ const FILM_FRAMES = [
 
 const N_FRAMES = FILM_FRAMES.length;
 
-/* 2026-08-29「一次过片」6s 重编排（用户裁决：旧 10s pan + 1s×9 gapless 太拖）。
- * 时间轴（SELECTION_MS ≈ 5.86s）：
- *   0      film-title 入场（640ms，不动）
- *   0      胶带一次入场 fade+上浮，TAPE_IN_MS（不再 10s pan）
- *   1100   九帧正序波浪级联：220ms stagger、每帧 600ms，末帧 3460ms 定格
- *   3460   播放完，hover 立即可用
- *   3460+2400 = 5860  hold 驻留（旧 2600 的教训仍在：给足 hover 窗口） */
+// Nine readable intervals occupy the zone; the settled hover window stays short.
+const TITLE_ENTER_MS = 640;
 const TAPE_IN_MS = 700;
-const FRAME_START = 1100; // 胶带到位后首帧才播
-const FRAME_STAGGER = 220;
-const FRAME_PLAY = 600;
-const PLAY_END = FRAME_START + (N_FRAMES - 1) * FRAME_STAGGER + FRAME_PLAY; // 3460
-
-/* hold 尾段:播完后延长锁定区,让胶带停留一下(可 hover / loop 走片)再释放。
- * 保留 2026-08-12 的教训:HOLD 必须显著长于一次滚轮轻推,否则「能 hover 时
- * 卡片已淡完」的回归会回来(详见 git 历史);2600 → 2400 只是配合 6s 总预算。 */
-const HOLD_MS = 2400;
-/* 选中切换交叉淡入淡出窗口。帧 stagger 220ms ⇒ 每次切换「淡出+淡回」必须
- * 收进 2×fade < 220ms：fade=100ms（旧 420ms 是按 1000ms 帧间距定的）。 */
-const SELECTION_FADE_MS = 100;
-const SELECTION_MS = PLAY_END + HOLD_MS; // 5860
+const FRAME_START = 1100;
+const FRAME_STAGGER = 800;
+const FRAME_PLAY = 1000;
+const PLAY_END = FRAME_START + (N_FRAMES - 1) * FRAME_STAGGER + FRAME_PLAY;
+const HOLD_MS = 900;
+const SELECTION_FADE_MS = 180;
+const SELECTION_MS = PLAY_END + HOLD_MS; // 9400 ms = 9400 real scroll pixels
 
 /**
  * 胶带上方 caption（活跃帧标题 + 预设名）的切换变体。
@@ -275,6 +264,10 @@ function applyFilmSelection(scene: HTMLDivElement | null, state: FilmSelectionSt
   const display = state.hovered ?? state.active;
   if (display === state.display) return;
   state.display = display;
+  scene.style.setProperty(
+    '--film-frame-offset',
+    `${(-Math.min(6, Math.max(0, display - 1)) * 100) / N_FRAMES}%`
+  );
   scene.querySelectorAll<HTMLElement>('[data-film-index]').forEach((element) => {
     element.classList.toggle('is-active', Number(element.dataset.filmIndex) === display);
   });
@@ -283,7 +276,7 @@ function applyFilmSelection(scene: HTMLDivElement | null, state: FilmSelectionSt
 /**
  * Film selection, flow and hover eligibility are unsupported visual projections.
  * They consume the framework MotionValue directly and only touch DOM when a discrete
- * frame boundary changes; x/opacity/scale stay owned by Animate.
+ * frame boundary changes. The mobile strip follows selection; preset transforms remain owned by Animate.
  */
 function FilmTimelineProjection({
   sceneRef,
@@ -324,7 +317,7 @@ function FilmTimelineProjection({
   return null;
 }
 
-export function CapabilityFilmStripScene(): JSX.Element {
+export function CapabilityFilmStripScene(): import('react').JSX.Element {
   const reduced = usePrefersReducedMotion();
   const { t, lang } = useI18n();
   const sceneRef = useRef<HTMLDivElement>(null);
@@ -360,16 +353,16 @@ export function CapabilityFilmStripScene(): JSX.Element {
         {/* 时间投影必须挂在 SELECTION_MS 轴上（film-clock），不能挂在 700ms 的
             胶带入场轴上 —— elapsed = p * SELECTION_MS，轴时长错则整个投影失准。 */}
         <FilmTimelineProjection sceneRef={sceneRef} stateRef={selectionRef} />
-        <TimecodeAxis shotIndex={1} seconds={6} />
+        <TimecodeAxis shotIndex={1} seconds={(TITLE_ENTER_MS + SELECTION_MS) / 1000} />
       </Animate>
       <div className="cap-slate">{t('cap.shot1.slate')}</div>
 
       {/* 标题块(hero 风格):evocative slogan + 引介副标题 */}
-      <Position at={{ anchor: 'center-x', y: 66 }}>
+      <Position at={{ anchor: 'center-x', y: 66 }} className="film-layout-title">
         <Animate
           animateId="film-title"
           enterAnimation={riseVariant('25%')}
-          duration={{ enter: 640 }}
+          duration={{ enter: TITLE_ENTER_MS }}
           timeline={{ delay: 0 }}
         >
           <div className="film-titleblock">
@@ -380,7 +373,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
       </Position>
 
       {/* 胶带上方:活跃帧描述性标题 + 预设名标签(悬停可切换) */}
-      <Position at={{ anchor: 'center-x', y: 238 }}>
+      <Position at={{ anchor: 'center-x', y: 238 }} className="film-layout-caption">
         <Animate
           animateId="film-caption-selection"
           enterAnimation={FILM_CAPTION_SELECTION}
@@ -406,7 +399,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
           9 帧按 FRAME_STAGGER 依次入场播一次预设并定格;齿孔条由 infinite lane 循环走片;
           鼠标悬停暂停走片并切换说明。
           hold 尾段延长锁定区,悬停互动都落在 hold 段。 */}
-      <Position at={{ anchor: 'center-x', y: 342 }}>
+      <Position at={{ anchor: 'center-x', y: 342 }} className="film-layout-strip">
         <div className="film-gate">
           <Animate
             animateId="film-pan"
@@ -489,7 +482,7 @@ export function CapabilityFilmStripScene(): JSX.Element {
       </div>
 
       {/* 胶带下方:代码卡片 —— code 行 + 一句话描述,随展示帧联动(与胶带拉开间距) */}
-      <Position at={{ anchor: 'center-x', y: 636 }}>
+      <Position at={{ anchor: 'center-x', y: 636 }} className="film-layout-code">
         {/* 只剩一条 lane：`film-card-inout` 管整卡入场（上移淡入，无退场）。
               卡内 code/desc 行的切换已改为无动画的内容替换（用户裁决），
               原 `film-code-selection` 位移轨整条移除。 */}

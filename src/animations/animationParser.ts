@@ -1,6 +1,6 @@
 /**
  * Animation Parser
- * 解析预设动画、自定义动画，并转换为 Framer Motion 格式
+ * Parses preset and custom animations, converting them to Framer Motion format
  */
 
 import { getPresetAnimation } from './presets';
@@ -154,7 +154,7 @@ export const normalizeCustomAnimationVariant = (
 export const convertWebAnimationToVariant = normalizeCustomAnimationVariant;
 
 /**
- * 解析预设动画名称
+ * Parse preset animation by name
  */
 export const parsePresetAnimation = async (name: string): Promise<ParsedAnimationVariant> => {
   const presetAnim = await getPresetAnimation(name);
@@ -162,7 +162,7 @@ export const parsePresetAnimation = async (name: string): Promise<ParsedAnimatio
 };
 
 /**
- * 解析自定义动画
+ * Parse custom animation
  */
 export const parseCustomAnimation = (animation: CustomAnimation): ParsedAnimationVariant | null => {
   if (!validateCustomAnimation(animation)) {
@@ -179,17 +179,17 @@ export const parseCustomAnimation = (animation: CustomAnimation): ParsedAnimatio
 };
 
 /**
- * 解析动画（支持预设和自定义）
+ * Parse animation (supports both preset and custom)
  */
 export const parseAnimation = async (
   animation: string | CustomAnimation
 ): Promise<ParsedAnimationVariant | null> => {
-  // 如果是字符串，解析为预设动画
+  // If string, parse as preset animation
   if (typeof animation === 'string') {
     return await parsePresetAnimation(animation);
   }
 
-  // 如果是对象，解析为自定义动画
+  // If object, parse as custom animation
   if (typeof animation === 'object') {
     return parseCustomAnimation(animation);
   }
@@ -199,7 +199,7 @@ export const parseAnimation = async (
 };
 
 /**
- * 创建默认动画（当解析失败时使用）
+ * Create default animation (fallback when parsing fails)
  */
 export const createDefaultAnimation = (): ParsedAnimationVariant => {
   return {

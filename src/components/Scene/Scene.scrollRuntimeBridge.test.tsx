@@ -30,8 +30,8 @@ jest.mock('framer-motion', () => ({
         ) => {
           const resolveStyleState = (value: unknown): React.CSSProperties =>
             isStyleRecord(value) ? (value as React.CSSProperties) : {};
-          const [animatedStyle, setAnimatedStyle] = React.useState(
-            (): React.CSSProperties => resolveStyleState(initial)
+          const [animatedStyle, setAnimatedStyle] = React.useState((): React.CSSProperties =>
+            resolveStyleState(initial)
           );
 
           React.useEffect(() => {

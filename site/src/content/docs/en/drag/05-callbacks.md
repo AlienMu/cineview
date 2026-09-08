@@ -3,9 +3,9 @@ title: Drag callback timing
 eyebrow: DRAG / CALLBACKS
 ---
 
-Drag callbacks differ from standard lifecycle hooks in their timing and invocation frequency. This document details invocation conditions and sequences. For parameter structures, see [Callbacks](/docs/03-callbacks).
+Use drag callbacks to observe accepted gestures and committed scene changes. The timing differs between pointer gestures and ref navigation; parameter definitions are in [Callbacks](/docs/03-callbacks).
 
-## Scene-change callbacks fire at the end of the transition, not the start
+## Scene-change callbacks on gesture commit
 
 ```text
 onSceneEnter ──┐
@@ -13,9 +13,9 @@ onSceneEnter ──┐
 onSceneLeave ───┘
 ```
 
-Page movement reaching its target _is_ the switch, so both callbacks fire back to back in the same synchronous batch. On the gesture path there is no advance notice: no preparation phase precedes the switch.
+On the gesture path, `onSceneEnter` and `onSceneLeave` run in the same synchronous batch when page movement commits the switch. They do not provide advance notice of a gesture-driven change.
 
-A further constraint: **when `onSceneLeave` fires, elements in the incoming scene are still animating in**. After release, page movement and element time advance in parallel on two different clocks: the page on the page timescale, elements on their own timeline length. Either can finish first. So this callback is not an "everything is ready" signal. To wait for the element timeline, compute from the `elapsedMs` and `timelineDurationMs` provided by `onDragEnd`.
+The incoming Scene's elements may still be entering. Page movement and element animation can finish in either order. `onDragEnd` reports the target's `elapsedMs` and `timelineDurationMs` at commit; it is not a continuously updated completion signal.
 
 ## onDragProgress fires during a bounce but not after a commit
 
@@ -30,41 +30,41 @@ So a canceled drag leaves a trail of decreasing progress events while a successf
 
 Pressing and dragging again while a transition is in flight (taking the movement over in place) does not fire `onDragStart`: the drag session stays active until commit or reset, and `onDragStart` only fires when no session was already active.
 
-From the user's point of view this is a distinct new gesture, and the consumer is never told. Analytics that count gestures through `onDragStart` miss every re-grab.
+`onDragStart` counts drag sessions. Resuming movement within an existing session does not create another start event.
 
 ## pointercancel never commits
 
 `pointercancel` (for example, an incoming call, a browser gesture interruption, or the notification shade) forces a bounce regardless of displacement and velocity, and settles as `onDragCancel`.
 
-The cost: **the public callbacks cannot distinguish a user cancel from a system interrupt**. Both arrive as `onDragCancel`.
+Both a user cancellation and a browser interruption report `onDragCancel`; the payload has no separate interruption reason.
 
 ## Programmatic navigation fires onDragEnd
 
 `ref.goToScene(index)` emits an `onDragEnd` before the actual switch, with `progress: 1`, `elapsedMs: 0`, and `timelineDurationMs: 0`.
 
-This is specified behavior (every drag commit goes through this callback, gestures and ref alike), but the consequence matters: **evaluating gesture counts via `onDragEnd` also captures programmatic invocations**. To distinguish them, verify whether `elapsedMs` is 0 or maintain an application-level flag.
+Record ref calls in application code if analytics need to distinguish programmatic navigation from gestures. A zero `elapsedMs` is not a reliable origin test because a gesture can target a Scene with no element duration.
 
-Separately, `goToScene(index, false)` (`animated: false`) **skips the entire entrance timeline**: no continuation directive is published, the destination lands at its resting state, and per-element delay sequencing never plays. For a full entrance, use the default `animated: true`.
+`goToScene(index, false)` displays the destination at its entered state without playing its entrance sequence. Use the default `animated: true` to play the entrance.
 
 ## Exactly one terminal callback per session
 
-This invariant is safe to rely on:
+An accepted drag session reports one terminal outcome: `onDragEnd` for a committed switch or `onDragCancel` for a return.
 
 ```text
-onDragStart → onDragProgress* → exactly one onDragEnd or onDragCancel
+onDragStart → onDragProgress* → onDragEnd or onDragCancel
 ```
 
-Once `onDragStart` fires, that pointer session ends with exactly one commit or one cancel. Never both, never neither. A boundary rebound (forward on the first screen, backward on the last) reports progress 0 and, if uncommitted, still settles through the same `onDragCancel` fallback.
+Dragging backward at the first Scene or forward at the last produces a boundary return. Its reported progress is zero.
 
-`onDragBlocked` is not terminal: it fires when an admission condition in application logic rejects the drag, at most once per direction per press, and that press still settles as a cancel. Rejections caused by insufficient internal readiness produce a development-only diagnostic and no public callback.
+An initially blocked press has not started a drag session. It can report `onDragBlocked` without a later cancel event. Insufficient animation readiness produces a development diagnostic and no public drag callback.
 
-## onReady is unrelated to assets
+## onReady exposes the API
 
-`onReady` is a mount-time API handoff and waits for no assets. Using it to dismiss a loading overlay dismisses it too early. To wait for assets, watch `onLoadProgress` reach 100 (note it is an integer 0 to 100, not 0 to 1).
+`onReady` provides the ref API after mount and does not wait for assets. Use `onLoadProgress` for queued request completion (integer 0–100), and handle resource failures separately. That percentage includes failed requests and is not a drag-readiness signal.
 
 ## Related pages
 
 - [Callbacks](/docs/03-callbacks): parameter shapes and error codes for every callback
-- [Ownership and transactions](/docs/04-ownership): the full candidate / ownership / re-grab semantics
+- [Starting and resuming a drag](/docs/04-ownership): starting and resuming a gesture
 - [Page movement and element time](/docs/03-two-track): why commit and element completion are separate events
 - [Performance](/docs/01-performance): discipline for consuming per-frame callbacks

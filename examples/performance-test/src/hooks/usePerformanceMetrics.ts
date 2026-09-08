@@ -3,7 +3,7 @@ import type { RefObject } from 'react';
 import type { CineViewRef, PerformanceMetrics } from 'cineview';
 
 export function usePerformanceMetrics(
-  ref: RefObject<CineViewRef>,
+  ref: RefObject<CineViewRef | null>,
   enabled: boolean
 ): PerformanceMetrics | null {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);

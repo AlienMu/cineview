@@ -1,6 +1,6 @@
 /**
- * StaggerContainer 测试 — 覆盖 renderStaggerTree 纯渲染 + ScrollStagger/DragStagger
- * 两个订阅组件的全部相位分支（motionTag / orderFor / derive）。
+ * StaggerContainer tests — covering renderStaggerTree pure rendering + ScrollStagger/DragStagger
+ * subscription components across all phase branches (motionTag / orderFor / derive).
  */
 
 import { render } from '@testing-library/react';
@@ -85,7 +85,7 @@ const variant: ParsedAnimationVariant = {
   exit: { opacity: 0 },
 };
 
-// animate variant 无 transition 的分支（?? {} 兜底）
+// animate variant without transition (falls back to ?? {})
 const variantNoTransition: ParsedAnimationVariant = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
@@ -153,41 +153,41 @@ describe('renderStaggerTree', () => {
     ).toBe(1);
   });
 
-  it('克隆 container 与直接子元素为 motion 元素，play=true 时父挂 animate 标签', () => {
+  it('clones container and direct children as motion elements; parent gets animate label when play=true', () => {
     const tree = renderStaggerTree(container, variant, 40, 'first', true);
     const { container: root } = render(tree);
     const parent = root.querySelector('.stagger-parent');
     expect(parent).toBeInTheDocument();
-    // 三个子元素文本都在
+    // all three child texts are present
     expect(root.textContent).toBe('abc');
   });
 
-  it('play=false 时正常渲染（父挂 initial 标签）', () => {
+  it('renders normally when play=false (parent gets initial label)', () => {
     const tree = renderStaggerTree(container, variant, 40, 'first', false);
     const { container: root } = render(tree);
     expect(root.querySelector('.stagger-parent')).toBeInTheDocument();
   });
 
-  it('from=last / from=center 顺序分支均可渲染', () => {
+  it('renders both from=last and from=center ordering branches', () => {
     const last = render(renderStaggerTree(container, variant, 40, 'last', true));
     expect(last.container.textContent).toBe('abc');
     const center = render(renderStaggerTree(container, variant, 40, 'center', true));
     expect(center.container.textContent).toBe('abc');
   });
 
-  it('each<0 被 clamp 到 0（Math.max 分支）', () => {
+  it('clamps negative each to 0 (Math.max branch)', () => {
     const { container: root } = render(renderStaggerTree(container, variant, -100, 'first', true));
     expect(root.querySelector('.stagger-parent')).toBeInTheDocument();
   });
 
-  it('animate 无 transition 时走 ?? {} 兜底', () => {
+  it('falls back to ?? {} when animate has no transition', () => {
     const { container: root } = render(
       renderStaggerTree(container, variantNoTransition, 40, 'first', true)
     );
     expect(root.textContent).toBe('abc');
   });
 
-  it('非字符串 type 的 container / 子元素回退到 motion.div', () => {
+  it('falls back to motion.div for container / children with non-string type', () => {
     const Custom = (props: { children?: React.ReactNode }): React.JSX.Element => (
       <div>{props.children}</div>
     );
@@ -200,15 +200,15 @@ describe('renderStaggerTree', () => {
     expect(root.textContent).toBe('x');
   });
 
-  it('过滤非法子元素（纯文本节点被 isValidElement 过滤）', () => {
+  it('filters invalid children (plain text nodes are filtered by isValidElement)', () => {
     const withText = (
       <p className="stagger-parent">
-        文本
+        text
         <span>a</span>
       </p>
     );
     const { container: root } = render(renderStaggerTree(withText, variant, 40, 'first', true));
-    expect(root.textContent).toBe('文本a');
+    expect(root.textContent).toBe('texta');
     expect(root.querySelector('.stagger-parent')).toBeInTheDocument();
   });
 
@@ -222,7 +222,7 @@ describe('renderStaggerTree', () => {
 });
 
 describe('ScrollStagger', () => {
-  it('signedVisual>0 初始即 play', () => {
+  it('plays immediately when signedVisual>0', () => {
     const signed = motionValue(1);
     const { container: root } = render(
       <ScrollStagger
@@ -236,7 +236,7 @@ describe('ScrollStagger', () => {
     expect(root.querySelector('.stagger-parent')).toBeInTheDocument();
   });
 
-  it('signedVisual<=0 初始不 play，change 到 >0 后 play', () => {
+  it('does not play initially when signedVisual<=0, plays after changing to >0', () => {
     const signed = motionValue(0);
     const { container: root } = render(
       <ScrollStagger
@@ -252,7 +252,7 @@ describe('ScrollStagger', () => {
       signed.set(1);
     });
     expect(root.textContent).toBe('abc');
-    // 回退到 0（退出）
+    // revert to 0 (exit)
     act(() => {
       signed.set(-1);
     });
@@ -261,7 +261,7 @@ describe('ScrollStagger', () => {
 });
 
 describe('DragStagger', () => {
-  it('mode=enter 且 localProgress>0 → play', () => {
+  it('plays when mode=enter and localProgress>0', () => {
     const vs = motionValue<DragVisualState | null>(
       makeDragState({ mode: 'enter', localProgress: 0.5 })
     );
@@ -277,7 +277,7 @@ describe('DragStagger', () => {
     expect(root.querySelector('.stagger-parent')).toBeInTheDocument();
   });
 
-  it('mode=rest → play', () => {
+  it('plays when mode=rest', () => {
     const vs = motionValue<DragVisualState | null>(makeDragState({ mode: 'rest' }));
     const { container: root } = render(
       <DragStagger
@@ -291,7 +291,7 @@ describe('DragStagger', () => {
     expect(root.textContent).toBe('abc');
   });
 
-  it('null / mode=hidden / mode=enter&localProgress=0 → 不 play，change 后更新', () => {
+  it('does not play when null / mode=hidden / mode=enter&localProgress=0, updates after change', () => {
     const vs = motionValue<DragVisualState | null>(null);
     const { container: root } = render(
       <DragStagger

@@ -43,7 +43,7 @@ describe('renderScrollScenes', () => {
     expect(fixtures).toBeDefined();
     expect(typeof fixtures?.type).toBe('function');
 
-    const renderFixtures = fixtures?.type as (() => JSX.Element) | undefined;
+    const renderFixtures = fixtures?.type as (() => import('react').JSX.Element) | undefined;
     const renderedFixtures = renderFixtures?.();
 
     expect(
@@ -312,10 +312,10 @@ const VISIBILITY_LOOP_EXPECTATIONS = [
 ] as const;
 
 function renderAuthoredTakeoverScene(
-  scenes: JSX.Element[],
+  scenes: import('react').JSX.Element[],
   sectionId: string,
   componentName: string
-): JSX.Element {
+): import('react').JSX.Element {
   const sectionIndex = PERFORMANCE_EXPERIENCE.sections.findIndex(
     (section) => section.id === sectionId
   );
@@ -326,12 +326,11 @@ function renderAuthoredTakeoverScene(
   expect(typeof authoredScene?.type).toBe('function');
 
   const render = authoredScene?.type as
-    | ((props: Record<string, unknown>) => JSX.Element)
-    | undefined;
+    ((props: Record<string, unknown>) => import('react').JSX.Element) | undefined;
 
   expect(render).toBeDefined();
 
-  return render?.(authoredScene?.props as Record<string, unknown>) as JSX.Element;
+  return render?.(authoredScene?.props as Record<string, unknown>) as import('react').JSX.Element;
 }
 
 function findAnimateById(node: unknown, animateId: string) {
@@ -354,9 +353,9 @@ function findElementByTestId(node: unknown, testId: string) {
 
 function collectElements(
   node: unknown,
-  predicate: (element: JSX.Element) => boolean,
+  predicate: (element: import('react').JSX.Element) => boolean,
   visited = new Set<object>()
-): JSX.Element[] {
+): import('react').JSX.Element[] {
   if (Array.isArray(node)) {
     return node.flatMap((child) => collectElements(child, predicate, visited));
   }
@@ -379,7 +378,7 @@ function collectElements(
   return Object.values(node).flatMap((value) => collectElements(value, predicate, visited));
 }
 
-function getElementTypeName(node: JSX.Element): string | null {
+function getElementTypeName(node: import('react').JSX.Element): string | null {
   if (typeof node.type === 'string') {
     return node.type;
   }

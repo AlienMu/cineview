@@ -195,7 +195,7 @@ function checkNoDevDiagnosticsShipped() {
           "把文案构造移进 if (process.env.NODE_ENV === 'development') 块内"
       );
     }
-    log('  ✓ 四个产物均无 dev-only 诊断文案', 'green');
+    log('  ✓ 所有入口均无 dev-only 诊断文案', 'green');
     return true;
   } catch (error) {
     log(`  ✗ 诊断文案检查失败: ${error.message}`, 'red');
@@ -203,10 +203,28 @@ function checkNoDevDiagnosticsShipped() {
   }
 }
 
+function exportTargets(value) {
+  if (typeof value === 'string') return [value];
+  if (!value || typeof value !== 'object') return [];
+  return Object.values(value).flatMap(exportTargets);
+}
+
+function assertExportTargets(pkg, packageRoot) {
+  for (const target of exportTargets(pkg.exports)) {
+    if (!target.startsWith('./dist/') || target.split('/').includes('..')) {
+      throw new Error(`Export target must be a published dist file: ${target}`);
+    }
+    if (!fs.statSync(path.join(packageRoot, target)).isFile()) {
+      throw new Error(`Export target is not a file: ${target}`);
+    }
+  }
+}
+
 function checkPackageExports() {
   log('\n7. 检查 package exports:', 'yellow');
   try {
     const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
+    assertExportTargets(pkg, path.dirname(PACKAGE_JSON));
     const rootExport = pkg.exports && pkg.exports['.'];
     const expected = {
       types: './dist/index.d.ts',
@@ -238,7 +256,12 @@ function checkPackageExports() {
       rootExport?.types === expected.types &&
       rootExport?.import === expected.import &&
       rootExport?.require === expected.require &&
-      subpathsOk;
+      subpathsOk &&
+      pkg.exports['./dev']?.types === './dist/dev/index.d.ts' &&
+      pkg.exports['./dev']?.import === './dist/cineview-dev.es.mjs' &&
+      pkg.exports['./dev/style.css'] === './dist/cineview-dev.css' &&
+      Array.isArray(pkg.sideEffects) &&
+      pkg.sideEffects.includes('**/*.css');
 
     if (passed) {
       log('  ✓ package exports/main/module/types 与 dist 产物一致', 'green');
@@ -378,17 +401,100 @@ function checkPackedTarballConsumer() {
       fs.symlinkSync(source, destination, 'junction');
     }
 
+    const packedRoot = path.join(fixtureModules, 'cineview');
+    const packedPackage = JSON.parse(
+      fs.readFileSync(path.join(packedRoot, 'package.json'), 'utf8')
+    );
+    assertExportTargets(packedPackage, packedRoot);
+    if (fs.existsSync(path.join(packedRoot, 'src'))) {
+      throw new Error('Packed consumer must resolve published declarations without repository src');
+    }
+    for (const dependency of ['@types/react', '@types/react-dom']) {
+      const destination = path.join(fixtureModules, dependency);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.symlinkSync(
+        path.join(__dirname, '..', 'node_modules', dependency),
+        destination,
+        'junction'
+      );
+    }
+
     const consumerScript = [
       "const assert = require('node:assert');",
       "const cjs = require('cineview');",
       "for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(cjs[name], name);",
-      "import('cineview').then((esm) => { for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(esm[name], name); }).catch((error) => { console.error(error); process.exit(1); });",
+      "for (const mode of ['drag', 'scroll']) assert.ok(require('cineview/' + mode).CineView, mode);",
+      "const React = require('react');",
+      "const { renderToStaticMarkup } = require('react-dom/server');",
+      "Promise.all([import('cineview'), import('cineview/dev')]).then(([esm, dev]) => {",
+      "  for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(esm[name], name);",
+      "  assert.equal(typeof dev.PerfPanel, 'function');",
+      "  assert.equal(typeof dev.usePerfMonitor, 'function');",
+      '  assert.match(renderToStaticMarkup(React.createElement(dev.PerfPanel)), /CineView Performance/);',
+      '}).catch((error) => { console.error(error); process.exit(1); });',
     ].join('\n');
     execFileSync(process.execPath, ['-e', consumerScript], {
       cwd: fixtureRoot,
       stdio: 'pipe',
     });
-    log('  ✓ packed tarball 在隔离 consumer 中 require/import 均可消费', 'green');
+    const typeConsumer = path.join(fixtureRoot, 'consumer.tsx');
+    fs.writeFileSync(
+      typeConsumer,
+      [
+        "import { PerfPanel, usePerfMonitor, type PerfPanelProps, type PerformanceSource } from 'cineview/dev';",
+        "import type { CineViewRef } from 'cineview';",
+        'declare const source: CineViewRef;',
+        'const monitor: PerformanceSource = source;',
+        'const props: PerfPanelProps = { source: monitor, enabled: true };',
+        'export const panel = <PerfPanel {...props} />;',
+        'export function Probe() { return usePerfMonitor(monitor)?.current.fps ?? null; }',
+        '// @ts-expect-error Invalid positions must remain rejected by the published declarations.',
+        'export const invalid = <PerfPanel position="center" />;',
+      ].join('\n')
+    );
+    execFileSync(
+      process.execPath,
+      [
+        require.resolve('typescript/bin/tsc'),
+        '--noEmit',
+        '--strict',
+        '--target',
+        'ES2020',
+        '--module',
+        'ESNext',
+        '--moduleResolution',
+        'bundler',
+        '--jsx',
+        'react-jsx',
+        '--types',
+        'react',
+        typeConsumer,
+      ],
+      { cwd: fixtureRoot, stdio: 'pipe' }
+    );
+
+    const browserConsumer = path.join(fixtureRoot, 'browser.mjs');
+    fs.writeFileSync(
+      browserConsumer,
+      [
+        "import { PerfPanel } from 'cineview/dev';",
+        "import 'cineview/dev/style.css';",
+        'export { PerfPanel };',
+      ].join('\n')
+    );
+    const bundled = require('esbuild').buildSync({
+      entryPoints: [browserConsumer],
+      bundle: true,
+      format: 'esm',
+      write: false,
+      outdir: path.join(fixtureRoot, 'build'),
+      external: ['react', 'react/*', 'react-dom', 'framer-motion'],
+    });
+    const cssOutput = bundled.outputFiles.find((file) => file.path.endsWith('.css'));
+    if (!cssOutput?.text.includes('.cineview-perf-panel')) {
+      throw new Error('Packed browser consumer lost the exported performance panel CSS');
+    }
+    log('  ✓ packed tarball 的主/模式/dev 入口、SSR、类型及 CSS 均可消费', 'green');
     return true;
   } catch (error) {
     log(`  ✗ packed tarball consumer 失败: ${error.message}`, 'red');
@@ -426,6 +532,24 @@ async function main() {
     log(`  ✗ 错误: ES 模块 gzip 大小 (${esModuleGz.size} KB) 超过预算 (${esBudgetKB} KB)`, 'red');
     hasErrors = true;
   }
+
+  const extraEsChecks = artifacts
+    .filter((artifact) => artifact.module && artifact.file !== 'cineview.es.mjs')
+    .map((artifact) => {
+      const js = checkFile(artifact.file, artifact.label);
+      const gz = checkFile(`${artifact.file}.gz`, `${artifact.label} (gzipped)`);
+      const budgetKB = BUDGET_OVERRIDE_KB ?? artifact.budgetKB;
+      if (gz.exists && gz.size > budgetKB) {
+        log(
+          `  ✗ 错误: ${artifact.label} gzip 大小 (${gz.size} KB) 超过预算 (${budgetKB} KB)`,
+          'red'
+        );
+      }
+      return {
+        name: `${artifact.label} (≤ ${budgetKB} KB gzip)`,
+        passed: js.exists && gz.exists && gz.size <= budgetKB,
+      };
+    });
 
   // 2. 检查 UMD 模块（按模式分包）
   //
@@ -490,11 +614,9 @@ async function main() {
   const files = fs.readdirSync(DIST_DIR);
   // 三个 ES **入口产物**都要排除，否则按模式的入口会被当成代码分割 chunk 计数
   // （数量虚高，且可能误判某个 preset「有 chunk」）。
-  const esEntryArtifacts = new Set([
-    'cineview.es.mjs',
-    'cineview-drag.es.mjs',
-    'cineview-scroll.es.mjs',
-  ]);
+  const esEntryArtifacts = new Set(
+    artifacts.filter((artifact) => artifact.module).map((artifact) => artifact.file)
+  );
   const chunkFiles = files.filter((file) => file.endsWith('.mjs') && !esEntryArtifacts.has(file));
 
   log(`  找到 ${chunkFiles.length} 个代码分割 chunk:`);
@@ -557,6 +679,7 @@ async function main() {
   const checks = [
     { name: 'ES 模块', passed: esModule.exists },
     { name: 'ES 模块 (gzipped)', passed: esModuleGz.exists },
+    ...extraEsChecks,
     // 逐个 UMD 产物各占一行（含各自 gzip 尺寸），避免「只报第一个」掩盖另一个的问题。
     ...umdSummaryRows,
     { name: 'TypeScript 类型定义', passed: typesDef.exists },

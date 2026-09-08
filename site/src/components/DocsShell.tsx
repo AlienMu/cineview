@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useI18n } from '../i18n';
+import { version } from '../../../package.json';
+import { useI18n, type DictKey } from '../i18n';
 import { LangToggle } from './LangToggle';
 import {
   DOC_GROUP_ORDER,
@@ -11,45 +12,23 @@ import {
   type DocsLang,
 } from '../content/docs/manifest';
 
-/**
- * 文档站顶部应用栏：产品标识 + 版本 + 分组导航 + ⌘K 搜索 + 语言切换。
- *
- * 版本号：`site/` 与框架根是两个 package，`import ../../package.json` 需要
- * `resolveJsonModule` 且会把整个 json 打进 bundle。这里写常量并在此注明同步来源，
- * 代价是发版时要手改一处 —— 比引入构建配置更小。
- * 来源：框架根 package.json 的 "version"。
- */
-const FRAMEWORK_VERSION = 'v1.0';
-
 interface SearchHit {
   slug: string;
   title: string;
   group: DocsGroupId;
-  /** 命中的是页标题还是页内小节标题；后者带锚点。 */
   heading?: string;
   anchor?: string;
 }
 
-/**
- * 纯前端搜索：只索引页标题 + 页内 h2/h3 文本。
- * 40×2 页的标题集足够小，不值得引入全文索引依赖；子串匹配已能覆盖
- * 「我记得有个叫 xxx 的小节」这类真实用法。
- */
 function useDocsSearch(lang: DocsLang): (query: string) => SearchHit[] {
   const index = useMemo(() => {
     const hits: SearchHit[] = [];
     for (const entry of getDocsIndex(lang)) {
-      hits.push({ slug: entry.slug, title: entry.title, group: entry.group });
+      hits.push(entry);
       const page = getDocsPage(entry.slug, lang);
       if (!page) continue;
       for (const heading of getDocHeadings(page.markdown)) {
-        hits.push({
-          slug: entry.slug,
-          title: entry.title,
-          group: entry.group,
-          heading: heading.text,
-          anchor: heading.id,
-        });
+        hits.push({ ...entry, heading: heading.text, anchor: heading.id });
       }
     }
     return hits;
@@ -59,213 +38,322 @@ function useDocsSearch(lang: DocsLang): (query: string) => SearchHit[] {
     (query: string): SearchHit[] => {
       const needle = query.trim().toLowerCase();
       if (!needle) return [];
-      const scored = index
+      return index
         .map((hit) => {
-          const haystack = `${hit.title} ${hit.heading ?? ''}`.toLowerCase();
-          const at = haystack.indexOf(needle);
-          if (at < 0) return null;
-          // 页标题命中优于小节命中；靠前命中优于靠后。
-          return { hit, score: at + (hit.heading ? 40 : 0) };
+          const at = (hit.title + ' ' + (hit.heading ?? '')).toLowerCase().indexOf(needle);
+          return at < 0 ? null : { hit, score: at + (hit.heading ? 40 : 0) };
         })
         .filter((row): row is { hit: SearchHit; score: number } => row !== null)
-        .sort((a, b) => a.score - b.score);
-      return scored.slice(0, 12).map((row) => row.hit);
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 12)
+        .map((row) => row.hit);
     },
     [index]
   );
 }
 
-export function DocsShell({ activeSlug }: { activeSlug: string }): JSX.Element {
-  const { lang, t } = useI18n();
-  const docsLang: DocsLang = lang === 'zh' ? 'zh' : 'en';
-  const navigate = useNavigate();
-  const search = useDocsSearch(docsLang);
+/** Scroll the index without changing the browser's sequential focus starting point. */
+export function revealCurrentDoc(navigation: HTMLElement | null): void {
+  const current = navigation?.querySelector<HTMLElement>('[aria-current="page"]');
+  const scroller = navigation?.closest<HTMLElement>('.docs-nav') ?? navigation;
+  if (!current || !scroller || !scroller.clientHeight) return;
+  const item = current.getBoundingClientRect();
+  const bounds = scroller.getBoundingClientRect();
+  if (item.top < bounds.top) scroller.scrollTop += item.top - bounds.top;
+  else if (item.bottom > bounds.bottom) scroller.scrollTop += item.bottom - bounds.bottom;
+}
 
-  const [open, setOpen] = useState(false);
+export function DocsNavigation({
+  activeSlug,
+  onNavigate,
+}: {
+  activeSlug: string;
+  onNavigate?: () => void;
+}): React.JSX.Element {
+  const { lang, t } = useI18n();
+  const index = getDocsIndex(lang);
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+    const update = (): void => revealCurrentDoc(navigation);
+    update();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(navigation);
+    const scroller = navigation.closest<HTMLElement>('.docs-nav');
+    if (scroller) observer?.observe(scroller);
+    window.addEventListener('resize', update);
+    return (): void => {
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [activeSlug, lang]);
+  return (
+    <nav
+      ref={navigationRef}
+      className="docs-navigation"
+      aria-label={lang === 'zh' ? '文档导航' : 'Documentation navigation'}
+    >
+      {DOC_GROUP_ORDER.map((group) => (
+        <section key={group} className="docs-nav__group">
+          <h2>{t(('docs.group.' + group) as DictKey)}</h2>
+          <ul>
+            {index
+              .filter((entry) => entry.group === group)
+              .map((entry) => (
+                <li key={entry.slug}>
+                  <Link
+                    to={'/docs/' + entry.slug}
+                    className={'docs-nav__link' + (entry.slug === activeSlug ? ' is-active' : '')}
+                    aria-current={entry.slug === activeSlug ? 'page' : undefined}
+                    onClick={onNavigate}
+                  >
+                    {entry.title}
+                  </Link>
+                </li>
+              ))}
+          </ul>
+        </section>
+      ))}
+    </nav>
+  );
+}
+
+export function DocsShell({
+  onOpenNavigation,
+}: {
+  onOpenNavigation: () => void;
+}): React.JSX.Element {
+  const { lang, t } = useI18n();
+  const navigate = useNavigate();
+  const search = useDocsSearch(lang);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const results = useMemo(() => search(query), [query, search]);
+  const zh = lang === 'zh';
 
-  const results = useMemo(() => (open ? search(query) : []), [open, query, search]);
+  useEffect(() => {
+    if (!dialogRef.current?.open) return;
+    dialogRef.current
+      .querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [cursor, results]);
 
-  // ⌘K / Ctrl+K 唤起，Esc 关闭。绑在 window 上，捕获阶段之外即可 —— 文档页没有
-  // 其他 ⌘K 消费者。
+  const openSearch = useCallback(() => {
+    setQuery('');
+    setCursor(0);
+    dialogRef.current?.showModal();
+    inputRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        setOpen((prev) => !prev);
-        return;
+        if (dialogRef.current?.open) dialogRef.current.close();
+        else openSearch();
       }
-      if (event.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+    return (): void => window.removeEventListener('keydown', onKey);
+  }, [openSearch]);
 
-  useEffect(() => {
-    if (open) {
-      setQuery('');
-      setCursor(0);
-      // 面板刚挂载，focus 要等一帧。
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [open]);
-
-  const go = useCallback(
-    (hit: SearchHit): void => {
-      setOpen(false);
-      navigate(`/docs/${hit.slug}${hit.anchor ? `#${hit.anchor}` : ''}`);
-      if (hit.anchor) {
-        // 路由切换后 DOM 才存在，下一帧再对齐锚点。
-        requestAnimationFrame(() => {
-          document.getElementById(hit.anchor as string)?.scrollIntoView({ block: 'start' });
-        });
-      }
-    },
-    [navigate]
-  );
-
-  const onInputKey = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setCursor((c) => Math.min(c + 1, Math.max(results.length - 1, 0)));
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setCursor((c) => Math.max(c - 1, 0));
-    } else if (event.key === 'Enter' && results[cursor]) {
-      event.preventDefault();
-      go(results[cursor]);
-    }
+  const go = (hit: SearchHit): void => {
+    dialogRef.current?.close();
+    navigate('/docs/' + hit.slug + (hit.anchor ? '#' + encodeURIComponent(hit.anchor) : ''));
   };
-
-  const index = getDocsIndex(docsLang);
-  const activeGroup = index.find((entry) => entry.slug === activeSlug)?.group;
 
   return (
     <>
+      <a className="docs-skip" href="#docs-content">
+        {zh ? '跳到正文' : 'Skip to content'}
+      </a>
       <header className="docs-shell">
         <div className="docs-shell__inner">
-          <Link to="/" className="docs-shell__brand">
+          <button
+            className="docs-icon-button docs-menu-button"
+            type="button"
+            onClick={onOpenNavigation}
+            aria-label={zh ? '打开文档目录' : 'Open documentation menu'}
+          >
             <svg
-              className="docs-shell__mark"
-              viewBox="0 0 64 64"
-              width="26"
-              height="26"
-              shapeRendering="crispEdges"
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
               aria-hidden="true"
             >
-              <rect width="64" height="64" fill="#1f1d1a" />
-              <path d="M18 17h28v8H26v14h20v8H18z" fill="#f8f5f0" />
-              <path d="M26 25h20v8H26z" fill="#b86443" />
+              <path d="M4 6h16M4 12h12M4 18h16" />
             </svg>
-            CineView
-            <span className="docs-shell__version mono">{FRAMEWORK_VERSION}</span>
+          </button>
+          <Link
+            to="/"
+            className="docs-shell__brand"
+            aria-label={zh ? 'CineView 首页' : 'CineView home'}
+          >
+            <span className="docs-shell__mark" aria-hidden="true">
+              C
+            </span>
+            <span>CineView</span>
           </Link>
-
-          <nav className="docs-shell__nav" aria-label={t('docs.title')}>
-            {DOC_GROUP_ORDER.map((group) => {
-              const first = index.find((entry) => entry.group === group);
-              if (!first) return null;
-              return (
-                <Link
-                  key={group}
-                  to={`/docs/${first.slug}`}
-                  className={`docs-shell__navlink${group === activeGroup ? ' is-active' : ''}`}
-                >
-                  {t(`docs.group.${group}` as never)}
-                </Link>
-              );
-            })}
-          </nav>
-
+          <Link className="docs-shell__section" to="/docs">
+            {t('docs.title')}
+          </Link>
+          <span className="docs-shell__version">v{version}</span>
           <div className="docs-shell__actions">
             <button
               type="button"
               className="docs-shell__search"
-              onClick={() => setOpen(true)}
-              aria-label={t('docs.search')}
+              onClick={openSearch}
+              aria-label={zh ? '搜索文档' : 'Search documentation'}
             >
-              <span>{t('docs.search')}</span>
-              <kbd className="mono">⌘K</kbd>
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                aria-hidden="true"
+              >
+                <circle cx="10.5" cy="10.5" r="6.5" />
+                <path d="m16 16 4.5 4.5" />
+              </svg>
+              <span>{zh ? '搜索文档' : 'Search documentation'}</span>
+              <kbd>⌘ K</kbd>
             </button>
+            <Link className="docs-shell__demo" to="/drag">
+              {zh ? '体验演示' : 'View demo'}
+              <span aria-hidden="true">↗</span>
+            </Link>
             <LangToggle variant="shell" />
           </div>
         </div>
       </header>
 
-      {open && (
-        <div
-          className="docs-search"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('docs.search')}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
-          <div className="docs-search__panel">
-            <input
-              ref={inputRef}
-              className="docs-search__input"
-              value={query}
-              placeholder={t('docs.search')}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setCursor(0);
-              }}
-              onKeyDown={onInputKey}
-            />
-            {results.length > 0 && (
-              <ul className="docs-search__results">
-                {results.map((hit, i) => (
-                  <li key={`${hit.slug}-${hit.anchor ?? 'page'}-${i}`}>
-                    <button
-                      type="button"
-                      className={`docs-search__hit${i === cursor ? ' is-active' : ''}`}
-                      onMouseEnter={() => setCursor(i)}
-                      onClick={() => go(hit)}
-                    >
-                      <span className="docs-search__hit-title">{hit.heading ?? hit.title}</span>
-                      <span className="docs-search__hit-path mono">
-                        {hit.heading ? hit.title : t(`docs.group.${hit.group}` as never)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+      <dialog
+        ref={dialogRef}
+        className="docs-dialog docs-search"
+        aria-labelledby="docs-search-title"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) dialogRef.current?.close();
+        }}
+      >
+        <div className="docs-search__panel">
+          <div className="docs-dialog__header">
+            <h2 id="docs-search-title">{zh ? '搜索文档' : 'Search documentation'}</h2>
+            <button
+              type="button"
+              className="docs-icon-button"
+              onClick={() => dialogRef.current?.close()}
+              aria-label={zh ? '关闭搜索' : 'Close search'}
+            >
+              ×
+            </button>
+          </div>
+          <input
+            ref={inputRef}
+            className="docs-search__input"
+            role="combobox"
+            aria-label={zh ? '搜索关键词' : 'Search terms'}
+            aria-autocomplete="list"
+            aria-expanded={results.length > 0}
+            aria-controls="docs-search-results"
+            aria-activedescendant={results[cursor] ? 'docs-search-hit-' + cursor : undefined}
+            autoComplete="off"
+            placeholder={zh ? '组件、概念或设置…' : 'A component, concept, or setting…'}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setCursor(0);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                setCursor((value) =>
+                  Math.max(
+                    0,
+                    Math.min(results.length - 1, value + (event.key === 'ArrowDown' ? 1 : -1))
+                  )
+                );
+              } else if (event.key === 'Enter' && results[cursor]) {
+                event.preventDefault();
+                go(results[cursor]);
+              }
+            }}
+          />
+          <ul
+            id="docs-search-results"
+            className="docs-search__results"
+            role="listbox"
+            aria-label={zh ? '搜索结果' : 'Search results'}
+          >
+            {results.map((hit, index) => (
+              <li
+                key={hit.slug + '#' + (hit.anchor ?? '')}
+                id={'docs-search-hit-' + index}
+                role="option"
+                aria-selected={cursor === index}
+                className={'docs-search__hit' + (cursor === index ? ' is-active' : '')}
+                onPointerMove={() => setCursor(index)}
+                onClick={() => go(hit)}
+              >
+                <span className="docs-search__hit-title">{hit.heading ?? hit.title}</span>
+                <span className="docs-search__hit-path">
+                  {hit.heading ? hit.title : t(('docs.group.' + hit.group) as DictKey)}
+                </span>
+                <span className="docs-search__hit-arrow" aria-hidden="true">
+                  ↗
+                </span>
+              </li>
+            ))}
+          </ul>
+          {results.length === 0 && (
+            <p className="docs-search__empty" role="status">
+              {query.trim()
+                ? zh
+                  ? '没有找到匹配项，试试组件名或更短的关键词。'
+                  : 'No matches. Try a component name or a shorter search.'
+                : zh
+                  ? '搜索页面标题和章节标题。'
+                  : 'Search page titles and section headings.'}
+            </p>
+          )}
+          <div className="docs-search__help">
+            <span>↑ ↓ {zh ? '选择' : 'Move'}</span>
+            <span>↵ {zh ? '打开' : 'Open'}</span>
+            <span>Esc {zh ? '关闭' : 'Close'}</span>
           </div>
         </div>
-      )}
+      </dialog>
     </>
   );
 }
 
-/** 文章底部翻页器。顺序取侧栏扁平序（组序 × 组内 slug 序）。 */
-export function DocsPager({ activeSlug }: { activeSlug: string }): JSX.Element | null {
+export function DocsPager({ activeSlug }: { activeSlug: string }): React.JSX.Element | null {
   const { lang, t } = useI18n();
-  const docsLang: DocsLang = lang === 'zh' ? 'zh' : 'en';
-  const index = getDocsIndex(docsLang);
+  const index = getDocsIndex(lang);
   const at = index.findIndex((entry) => entry.slug === activeSlug);
   if (at < 0) return null;
-  const prev = at > 0 ? index[at - 1] : null;
-  const next = at < index.length - 1 ? index[at + 1] : null;
-  if (!prev && !next) return null;
-
+  const prev = index[at - 1];
+  const next = index[at + 1];
   return (
-    <nav className="docs-pager" aria-label={`${t('docs.prev')} / ${t('docs.next')}`}>
+    <nav className="docs-pager" aria-label={lang === 'zh' ? '相邻文档' : 'Adjacent pages'}>
       {prev ? (
-        <Link to={`/docs/${prev.slug}`} className="docs-pager__link docs-pager__link--prev">
-          <span className="docs-pager__label mono">← {t('docs.prev')}</span>
+        <Link to={'/docs/' + prev.slug} className="docs-pager__link">
+          <span className="docs-pager__label">← {t('docs.prev')}</span>
           <span className="docs-pager__title">{prev.title}</span>
         </Link>
       ) : (
         <span />
       )}
       {next && (
-        <Link to={`/docs/${next.slug}`} className="docs-pager__link docs-pager__link--next">
-          <span className="docs-pager__label mono">{t('docs.next')} →</span>
+        <Link to={'/docs/' + next.slug} className="docs-pager__link docs-pager__link--next">
+          <span className="docs-pager__label">{t('docs.next')} →</span>
           <span className="docs-pager__title">{next.title}</span>
         </Link>
       )}

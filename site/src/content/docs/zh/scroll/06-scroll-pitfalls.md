@@ -11,55 +11,55 @@ eyebrow: SCROLL / TROUBLESHOOTING
 
 未被发现的 Scene 收不到运行时注入，会回落到 drag 模式，渲染为 `pointerEvents: 'none'` 的非活动绝对定位元素，子 `Animate` 停在初始帧。只有完全找不到有效 Scene 时才会出现 `EMPTY_SCENES`，因此直接子节点和 Fragment 混用可能静默失败。
 
-将所有 `Scene` 直接声明为 `CineView` 的子节点。需要复用一组场景时，导出返回 `Scene[]` 的函数并展开结果，不要返回 Fragment。
+将 Scene 直接声明在 CineView 下。复用一组场景时，让函数返回 Scene 元素数组，并在 CineView 的 children 中调用。
 
 ## 2. 锁定区内 `phase` 保持 `idle`
 
-锁定区内的元素能正常跟随滚动，但 render prop 和 `useAnimateTimeline().phase` 仍为 `'idle'`。这是预期行为。phase 来自视口可见性判定，锁定区元素读取连续滚动进度。只有单独使用 `loopAnimation` 的元素会进入 `'entered'`，其他锁定区元素在视觉上跟随滚动时仍保持 `'idle'`。
+锁定区内跟随场景进度的入退场动画保持 `phase: 'idle'`，进度仍随滚动变化。独立计时元素使用可见性阶段，仅有循环动画的元素处于 `entered`。
 
-连续读取锁定区活动状态时使用 `signedProgress`。canvas 自绘不要只因为 phase 为 `'idle'` 就停止 `requestAnimationFrame`，应读取 zone 进度，并在元素确实离开活动范围时暂停。离开锁定区，或使用 `timeline.driver: 'clock'` 后，phase 会按正常生命周期变化。详见[Animate 时间线](/docs/02-timeline)。
+随位置变化的视觉效果读取时间轴进度。画布仅取决于进度时，绘制一次后订阅进度变化即可。phase 和驱动来源本身不能表示元素是否位于视窗中，详见 [useAnimateTimeline](/docs/09-use-animate-timeline)。
 
-## 3. 声明了 zone 却没有锁定效果
+## 3. 声明锁定区后，场景仍未停留
 
-Scene 配置了 `scroll={{ zoneId }}`，滚动仍直接通过，`onZoneEnter` 和 `onZoneLeave` 也不触发。首帧发送的 `onZoneProgress` 事件若为 `progress: 0`，不能证明该 zone 已生成有效区间。
+Scene 配置了 `scroll={{ zoneId }}`，滚动仍直接通过，`onZoneEnter` 和 `onZoneLeave` 也不触发。首帧发送的 `onZoneProgress` 事件若为 `progress: 0`，不能证明该锁定区已生成有效区间。
 
-没有子元素声明带时长的 `enterAnimation` 或 `exitAnimation` 时，zone 预算为零。只有 `loopAnimation` 的 zone 没有锁定区间。长度小于 0.5 px 的区间也会被排除，wrapper 会回落为视觉高度，场景行为等同普通 section。
+没有跟随场景的入场或退场动画时，锁定区预算为零，不增加动画行程。外层仍占据视觉跨度与一个视窗中的较大值，不超过 0.5px 的区间不参与防跳过限制。
 
-至少为一个子元素配置 `enterAnimation` 和 `duration.enter` 以建立区间。只有循环效果时不需要声明 zone。详见[zone 与滚动预算](/docs/02-zones-budget)。
+至少为一个子元素配置 `enterAnimation` 和 `duration.enter` 以建立区间。只有循环效果时不需要声明锁定区。详见[锁定区与时长预算](/docs/02-zones-budget)。
 
 ## 4. `goToZone` 不处理 `align`
 
-调用 `goToZone(id, { align: 'center' })` 后，页面仍停在 `centerLockOffset`，也就是 zone 的起点和进度 0。公共类型接受 `align`，但实现不会读取它。
+`goToZone(id, { align: 'center' })` 始终前往锁定区起点，唯一支持的对齐值是 center。
 
-将 `goToZone` 当作跳转到 zone 起点使用。需要停在其他位置时，将目标偏移加到 `centerLockOffset`，再调用原生 `scrollTo`。
+使用 `goToZone` 导航到起点，它不提供按进度偏移的选项。
 
 ## 5. `zoneTrigger` 和 `trigger` 没有作用
 
-修改根级 `zoneTrigger` 或 `Scene.scroll.trigger` 不会改变行为。两个字段会被解析，但解析结果没有参与运行。center-lock 是唯一实现的行为，也是默认值。
+center-lock 是唯一支持的触发方式，根属性和 Scene 属性都不会选择其他锁定行为。
 
-判断场景是否为锁定区时，只依据有效的 `scroll` 配置，不要用这两个 trigger 字段切换模式。
+通过 `Scene.scroll` 声明锁定区，再配置跟随场景的动画时长，使其产生滚动行程。
 
 ## 6. render 中读到旧的每帧数值
 
-在 render 中读取 `sceneProgress`、`enterProgress` 或 `progressPx` 可能得到较早的值，但将同一数值绑定到 motion style 时仍然实时。连续变化的数值不参与 React 快照更新，避免每滚动一个像素就重渲染整棵 Scene 子树。
+在 render 中调用一次 `.get()` 不会让 React 订阅后续进度变化，按这种方式读取的数值可能保持不变。
 
-连续数值通过 MotionValue 订阅和 `useAnimateTimeline().progress`、`signedProgress`、`frame` 读取。根级使用 `onZoneProgress`。不要把每帧数值写入 React state。详见[useAnimateTimeline](/docs/09-use-animate-timeline)与[性能](/docs/01-performance)。
+将 MotionValue 绑定到 motion 样式，订阅 `useAnimateTimeline()` 返回的值，或在 JSX 需要更新数值时使用 render-prop children。render-prop 更新会经过 React 渲染。根级可以使用 `onZoneProgress`。
 
 ## 7. `onVisibilityChange` 每个滚动帧都会触发
 
-scroll 模式下，`Scene.callbacks.onVisibilityChange` 每个滚动帧都会执行，不做去重，即使 `visible` 和 `progress` 没变也一样。该回调不会让 Scene 子树重渲染，但回调内部的工作仍会按帧执行。
+scroll 模式下，`Scene.callbacks.onVisibilityChange` 每个滚动帧都会执行，不做去重，即使 `visible` 和 `progress` 没变也一样。该回调不会让 Scene 内容重渲染，但回调内部的工作仍会按帧执行。
 
 让回调只执行常量时间的工作，或在回调外做过滤，仅在 `visible` 改变或 progress 超过阈值时处理。连续视觉效果使用 MotionValue 驱动。
 
-## 8. zone 锁定期间场景进度停止
+## 8. 锁定期间场景进度停止
 
-锁定区间内，场景时间线使用固定的 `centerLockOffset`。因此 `enterProgress`、`exitProgress` 和 `sceneProgress` 保持不变，而 zone 时间线继续推进。
+锁定区动画推进时，Scene 的可见性进度可能保持不变，两者描述不同的区间。
 
-锁定区的进度从根级 `onZoneProgress`，或区间内部的 `useAnimateTimeline().progress` 读取。场景级回调用于文档流中的可见性，不用于读取锁定区间内的进度。
+锁定区进度使用 `onZoneProgress`，单个元素进度使用 `useAnimateTimeline()`。Scene 可见性回调描述场景在文档中的位置。
 
 ## 相关页面
 
 - [center-lock 滚动](/docs/01-centerlock)：区间几何与防跳过
-- [zone 与滚动预算](/docs/02-zones-budget)：时长如何形成锁定区间
+- [锁定区与时长预算](/docs/02-zones-budget)：时长如何形成锁定区间
 - [四条输入路径](/docs/03-inputs)：键盘拦截与嵌套滚动容器
 - [排错](/docs/07-common-pitfalls)：跨模式通用问题

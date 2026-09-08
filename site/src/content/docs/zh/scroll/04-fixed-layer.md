@@ -3,11 +3,11 @@ title: Scene 作用域固定层
 eyebrow: SCROLL / FIXED LAYER
 ---
 
-在 scroll 模式下若需固定特定元素（如操作栏、滚动指示器或水印），推荐为 `Position` 配置 `fixed` 属性。节点将通过 React Portal 挂载至当前 Scene 专属的作用域固定层。
+操作栏、指示器等元素需要在 Scene 可见期间保持相对于屏幕的位置时，使用 `Position fixed`。
 
 ## 原生 fixed 的层叠上下文限制
 
-根据 CSS 规范，当祖先元素包含非 `none` 的 `transform` 属性时，`position: fixed` 的定位参照上下文将重置为该祖先元素而非视窗。在 scroll 模式下，每个 Scene 容器均带有合成层提升样式 `transform: translateZ(0)`，导致直接书写的原生 `position: fixed` 局限于 Scene 边界内部。
+scroll 模式下，Scene 的 transform 使其成为原生 `position: fixed` 后代的定位包含块。需要跟随视窗对齐时，使用框架提供的固定层。
 
 ## 固定层渲染架构
 
@@ -21,10 +21,7 @@ eyebrow: SCROLL / FIXED LAYER
 
 frame 的偏移量计算公式为 `clamp(视窗滚动偏移 - sceneStart, 0, 场景跨度 - frame 跨度)`。frame 采用 `position: absolute` 并根据该偏移跟随滚动同步位移，在视觉上呈现贴合视窗的效果，同时规避了 transform 对 fixed 定位参照上下文的影响。
 
-该机制具备以下特征：
-
-- **场景作用域隔离**：clip 区域尺寸与当前场景的滚动跨度完全对齐，场景移出视窗范围后整体置为 `visibility: hidden`。
-- **跨场景常驻需外部定义**：固定层宿主挂载于单场景内部；若需跨场景常驻全局浮层（如全局导航栏），应将其置于 `CineView` 组件外部声明。
+固定层仅在所属 Scene 的滚动范围内可见。导航等需要跨场景持续显示的 UI 放在 CineView 外部。
 
 ## 指针事件处理
 
@@ -34,7 +31,7 @@ frame 的偏移量计算公式为 `clamp(视窗滚动偏移 - sceneStart, 0, 场
 
 ```tsx
 <Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
-  {/* 普通内容，照常随文档流滚动 */}
+  {/* 属于这个 Scene 的内容 */}
   <Position at={{ x: 40, y: 200 }}>
     <h1>标题</h1>
   </Position>

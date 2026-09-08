@@ -24,6 +24,7 @@ import {
   shouldIgnoreGlobalScrollKey,
   isSceneElement,
   isLegacyDisplayNameSceneElement,
+  isScrollDebugEnabled,
   type CenterLockSegment,
   type SceneAuthoringCompatProps,
   type SceneLayoutInfo,
@@ -35,6 +36,18 @@ describe('clamp', () => {
     expect(clamp(5, 0, 10)).toBe(5);
     expect(clamp(-1, 0, 10)).toBe(0);
     expect(clamp(11, 0, 10)).toBe(10);
+  });
+});
+
+describe('isScrollDebugEnabled', () => {
+  it('lets the CineView entry switch explicitly override the global probe', () => {
+    const previous = (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean })
+      .__CINEVIEW_SCROLL_DEBUG__;
+    (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__ = true;
+    expect(isScrollDebugEnabled(false)).toBe(false);
+    expect(isScrollDebugEnabled(true)).toBe(true);
+    (window as Window & { __CINEVIEW_SCROLL_DEBUG__?: boolean }).__CINEVIEW_SCROLL_DEBUG__ =
+      previous;
   });
 });
 
@@ -153,6 +166,29 @@ describe('resolveScrollIntentOffset', () => {
       segments,
     });
     expect(result).toBeCloseTo(150.3, 5);
+  });
+
+  it('does not repeat the entry frame when native scrolling rounds a fractional boundary', () => {
+    const segments: CenterLockSegment[] = [{ segmentStart: 100.5, segmentEnd: 300.5 }];
+    // Native scrollLeft rounds 299.5 to 300. That is an interior frame, not a
+    // fresh crossing, so the next reverse input must continue to the start.
+    expect(
+      resolveScrollIntentOffset({
+        currentOffset: 300,
+        deltaPx: -1000,
+        maxNativeOffset: 1000,
+        segments,
+      })
+    ).toBe(100.5);
+    // The corresponding half-pixel interior frame must also advance forward.
+    expect(
+      resolveScrollIntentOffset({
+        currentOffset: 101,
+        deltaPx: 1000,
+        maxNativeOffset: 1000,
+        segments,
+      })
+    ).toBe(300.5);
   });
 });
 

@@ -9,7 +9,7 @@ function updateCounter(root: HTMLElement | null, key: string): void {
   root.dataset[key] = String(Number(root.dataset[key] ?? 0) + 1);
 }
 
-function renderAcceptanceTakeoverScene(zoneId: string, label: string): JSX.Element {
+function renderAcceptanceTakeoverScene(zoneId: string, label: string): import('react').JSX.Element {
   return (
     <Scene layout={{ height: '100vh' }} scroll={{ zoneId, trigger: 'center-lock' }}>
       <div
@@ -68,7 +68,7 @@ function renderAcceptanceTakeoverScene(zoneId: string, label: string): JSX.Eleme
   );
 }
 
-export default function AcceptanceScrollPage(): JSX.Element {
+export default function AcceptanceScrollPage(): import('react').JSX.Element {
   const rootRef = useRef<HTMLElement>(null);
   const cineViewRef = useRef<CineViewScrollRef>(null);
   const progressHistoryRef = useRef<Array<{ zoneId: string; progress: number; scrollTop: number }>>(

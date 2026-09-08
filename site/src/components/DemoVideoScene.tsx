@@ -4,53 +4,53 @@ import { useI18n } from '../i18n';
 import './DemoVideoScene.css';
 
 /**
- * Demo · 滚动驱动视频(时光副标题版,2026-07-14)
+ * Demo · Scroll-driven video (Time subtitle version, 2026-07-14)
  *
- * center-lock 接管镜。标题快速入场后,视频与副标题并行、同刻收束:
- *   - 视频(demo-video):随滚动逐帧擦洗
- *   - 副标题(demo-subtitle):电影衬线,逐行由 Animate blur→清晰,逐字暖色只读
- *     同一条 timeline MotionValue 做不受框架支持的 background-image 投影
+ * center-lock takeover shot. After title fast entry, video and subtitle run in parallel, converging at same moment:
+ *   - Video (demo-video): frame-by-frame scrub following scroll
+ *   - Subtitle (demo-subtitle): cinematic serif, line-by-line Animate blur→sharp, per-character warm gradient
+ *     Same timeline MotionValue projects unsupported background-image
  */
 
-/** 主标题在 `|` 处分成两段,主句 + 强调追问(斜体点题)。 */
-function VideoTitle({ text }: { text: string }): JSX.Element {
+/** Main title splits at `|` into two parts: main phrase + emphasized question (italic, highlights theme). */
+function VideoTitle({ text }: { text: string }): import('react').JSX.Element {
   const [head, tail] = text.split('|');
-  // 英文 head 以字母/数字结尾需补空格(Perhaps it…);中文 head 以「，」结尾则不加。
+  // English head ending with letter/digit needs space (Perhaps it…); Chinese head ending with「，」does not.
   const needSpace = /[A-Za-z0-9]$/.test(head ?? '');
   return (
     <h2 className="demo-video__title">
       <span className="demo-video__title-head">{head}</span>
-      {/* ⚠️ em 的 children 必须是**单个字符串**（条件空格并入 tail），不能用
-          `{needSpace ? ' ' : ''}` + `{tail}` 两个并列文本表达式——并列文本在
-          中英切换（''↔' '）时参与 fiber reconcile，曾触发 React 18 的
-          insertBefore NotFoundError（2026-08-19 用户真机报障，首屏运行时切语言
-          崩 VideoTitle <Text> placement）。单字符串恒 1 个 text fiber，
-          语言切换只剩文本更新，无 placement/delete。 */}
+      {/* ⚠️ em's children must be **single string** (conditional space merged into tail), cannot use
+          `{needSpace ? ' ' : ''}` + `{tail}` two adjacent text expressions — adjacent text participates
+          in fiber reconcile when switching zh/en (''↔' '), which once triggered React 18's
+          insertBefore NotFoundError (2026-08-19 user device report, first-screen runtime language switch
+          crashed VideoTitle <Text> placement). Single string stays 1 text fiber,
+          language switch only updates text, no placement/delete. */}
       {tail ? <em className="demo-video__title-tail">{(needSpace ? ' ' : '') + tail}</em> : null}
     </h2>
   );
 }
 
 /**
- * 沿整句位置 t(0→1)取暖色 [r,g,b]。色带:琥珀金 → 暖橘 → 玫瑰陶土(hue 40→14),
- * 中等饱和 → 相邻位置平滑衔接,连成流过整句的一条暖色带。
+ * Get warm color [r,g,b] along sentence position t(0→1). Gradient: amber gold → warm orange → rose terracotta (hue 40→14),
+ * medium saturation → adjacent positions smoothly connect, forming warm gradient flowing through entire sentence.
  */
 function warmAt(t: number): [number, number, number] {
   const tc = Math.min(1, Math.max(0, t));
-  /* 2026-08-14(审计 act4-1):起点 hue 40→36(金→偏杏)——首屏 LUT[0] 回奶白桃
-   * (#fcede4,hue≈24)后,40 起点在色带 0.55-0.7 段(陶土橙,hue≈28 底)上偏「黄金」;
-   * 36 让逐字渐变起点与本幕底色 hue 差收窄,中段仍到 14 玫瑰陶土(不变)。 */
-  const hue = 36 - tc * 22; // 36(杏) → 14(陶土)
-  const sat = 46 + Math.sin(tc * Math.PI) * 10; // 中段略饱和
+  /* 2026-08-14(audit act4-1): start hue 40→36(gold→apricot) — after first-screen LUT[0] changed to milky peach
+   * (#fcede4, hue≈24), hue 40 start was too "golden" on gradient 0.55-0.7 segment (terracotta orange, hue≈28 base);
+   * 36 narrows hue difference between per-character gradient start and this act's background color, mid-range still reaches 14 rose terracotta (unchanged). */
+  const hue = 36 - tc * 22; // 36(apricot) → 14(terracotta)
+  const sat = 46 + Math.sin(tc * Math.PI) * 10; // Mid-range slightly more saturated
   const light = 50 - tc * 5;
   const s = sat / 100;
   const l = light / 100;
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const hp = hue / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));
-  let r = 0;
-  let g2 = 0;
-  let b = 0;
+  let r: number;
+  let g2: number;
+  let b: number;
   if (hp < 1) [r, g2, b] = [c, x, 0];
   else if (hp < 2) [r, g2, b] = [x, c, 0];
   else [r, g2, b] = [0, c, x];
@@ -58,11 +58,11 @@ function warmAt(t: number): [number, number, number] {
   return [Math.round((r + m) * 255), Math.round((g2 + m) * 255), Math.round((b + m) * 255)];
 }
 
-/** 每个字的固定参数(渲染一次时算好,之后每帧只读不算)。 */
+/** Fixed parameters per character (computed once on render, read-only per frame thereafter). */
 interface CharMeta {
-  start: number; // 错峰起点(progress 轴)
-  w1: [number, number, number]; // 渐变左端定形暖色
-  w2: [number, number, number]; // 渐变右端定形暖色
+  start: number; // Stagger starting point (progress axis)
+  w1: [number, number, number]; // Fixed warm color at gradient left edge
+  w2: [number, number, number]; // Fixed warm color at gradient right edge
 }
 
 interface LineMeta {
@@ -71,54 +71,54 @@ interface LineMeta {
   revealEnd: number;
 }
 
-const INK: [number, number, number] = [26, 23, 19]; // 墨色起点(非纯黑)
+const INK: [number, number, number] = [26, 23, 19]; // Ink color starting point (not pure black)
 const SUBTITLE_DURATION_MS = 4000;
 const SUBTITLE_BLUR = 'blur(0.555556vw)'; // 8 design px at the 1440px site canvas.
-/* 2026-08-14(审计 act4-2):退场尾帧 0.5556vw→0.42vw——退场是「失焦远去」不是
- * 「对焦失败」,6px@1440 让离场更快读作「暗下去」而非「又糊一遍」;入场 blur
- * 保持 0.5556vw 不动(对焦浮现是入场主角)。窗口边界 0.72/0.80/0.94/1.00
- * (2026-08-04 D2 裁决)不碰,只动尾帧深度。 */
+/* 2026-08-14(audit act4-2): exit final frame 0.5556vw→0.42vw — exit is "defocus and recede" not
+ * "focus failure", 6px@1440 makes exit read faster as "dim down" rather than "blur again"; entry blur
+ * stays 0.5556vw unchanged (focus emergence is entry protagonist). Window boundaries 0.72/0.80/0.94/1.00
+ * (2026-08-04 D2 ruling) untouched, only adjust final frame depth. */
 const SUBTITLE_BLUR_EXIT = 'blur(0.42vw)';
 
-/* ── 收束窗口(D2,2026-08-04)────────────────────────────────────────────
- * 视频、标题、副标题共用同一条 4000ms 轴(= AnimateVideo 的帧擦洗跨度)。
- * blur 不能自己占一段时间——它必须用 `times` 压在这条轴上,否则会挤掉擦洗跨度。
- *   入场:轴前 12%   虚焦 + 淡入 + scale 1.04→1(对焦浮现)
- *   收尾:轴后 12%   重新失焦 + 压到 0.85(交给第五幕黑幕吞掉,不做成硬切) */
+/* ── Convergence window (D2, 2026-08-04) ────────────────────────────────
+ * Video, title, subtitle share same 4000ms axis (= AnimateVideo's frame scrub span).
+ * blur cannot occupy its own time segment — it must use `times` compressed onto this axis, otherwise squeezes out scrub span.
+ *   Entry: axis front 12%   defocus + fade-in + scale 1.04→1 (focus emergence)
+ *   Tail: axis back 12%     refocus loss + compress to 0.85 (handed to act 5 blackout to swallow, not hard cut) */
 const VIDEO_ENTER_END = 0.12;
 const VIDEO_BLUR_IN = 'blur(0.9vw)';
 const VIDEO_BLUR_TAIL = 'blur(0.5vw)';
 
-/* ── 退场次序：由内向外，背景**最后**走（用户反馈：文字消失了背景还在）───────
- * 原实现让视频/scrim 收在 `opacity: 0.85`（注释写「交给第五幕黑幕吞掉」），而标题与
- * 副标题都收到 0 ⇒ 轴末画面上只剩一张没有任何文字的半亮视频，读作「背景没消失」。
- * 靠下一幕的黑幕去盖，等于把本幕的退场责任外包：两幕之间只要有一帧空隙，
- * 这张滞留的底就会露出来。
+/* ── Exit order: inside-out, background leaves **last** (user feedback: text disappeared but background remains) ───
+ * Original implementation had video/scrim converge at `opacity: 0.85` (comment wrote "hand to act 5 blackout to swallow"), while title and
+ * subtitle both converge to 0 ⇒ final axis frame shows only half-bright video with no text, reads as "background didn't disappear".
+ * Relying on next act's blackout to cover means outsourcing this act's exit responsibility: any single frame gap between acts
+ * and this lingering backdrop shows through.
  *
- * 入场次序是 视频/scrim → 标题 → 副标题逐行；按 CLAUDE.md 规则 6 第四条，
- * 退场必须是它的**反向**：副标题逐行 → 标题 → 视频/scrim。故三档收尾窗口错开：
- *   副标题  0.86 → 0.94（末行先走，见 lineFadeStart）
- *   标题    0.90 → 0.96
- *   视频/scrim 0.94 → 1.00  ← 最后，且必须真正到 0
- * 三段有意重叠，避免读成三次独立的「啪」；但**结束点严格递增**，
- * 保证任何一帧都不会出现「字已走光、底还亮着」。 */
-/* ⚠️ 这三个值同样是实测定的。标题 lane 嵌在 `demo-title` 内层，其 4000ms 轴的实际
- * 落点与副标题不重合（见 lineFadeStart 注释的实测数据）：原本 0.90→0.96 的写法
- * 实际在 f≈0.820 就归零，比副标题（f≈0.850）更早。把终点推到 1.0，
- * 标题才真正成为「最后离场的文字」，与背景同刻收束。 */
+ * Entry order is video/scrim → title → subtitle line-by-line; per CLAUDE.md rule 6 item 4,
+ * exit must be its **reverse**: subtitle line-by-line → title → video/scrim. Thus three-tier tail windows staggered:
+ *   Subtitle  0.86 → 0.94 (last line leaves first, see lineFadeStart)
+ *   Title     0.90 → 0.96
+ *   Video/scrim 0.94 → 1.00  ← last, and must truly reach 0
+ * Three segments intentionally overlap to avoid reading as three separate "snaps"; but **end points strictly increase**,
+ * guaranteeing no frame shows "text all gone, backdrop still bright". */
+/* ⚠️ These three values are likewise empirically determined. Title lane nested inside `demo-title`, its 4000ms axis actual
+ * landing point doesn't coincide with subtitle (see lineFadeStart comment's measured data): original 0.90→0.96 writing
+ * actually reaches zero at f≈0.820, earlier than subtitle (f≈0.850). Pushing endpoint to 1.0
+ * makes title truly "last departing text", converging with background at same moment. */
 const TITLE_OUT_START = 0.94;
 const TITLE_OUT_END = 1;
 const BG_OUT_START = 0.94;
 
-/** 逐行反向淡出:末行先走。返回该行开始淡出的轴位置。
- *  修 CLAUDE.md 规则 6 第四条——入场用 after/times 做了级联,退场就必须有反向编排,
- *  否则入场逐行有序、退场四行同时消失(「打包回滚」),时序不对称。
+/** Line-by-line reverse fade-out: last line leaves first. Returns axis position where this line starts fading.
+ *  Fixes CLAUDE.md rule 6 item 4 — entry uses after/times for cascade, exit must have reverse choreography,
+ *  otherwise entry line-by-line ordered, exit four lines disappear simultaneously ("bundled rollback"), timing asymmetric.
  *
- *  ⚠️ 窗口值是**实测定的，不是按常量推的**。四条 lane 虽同为 4000ms 且同 after，
- *  但实测（scripts/_tail.mjs 沿幕尾 0.70→1.00 密采）标题的 `demo-title-out` 在
- *  f≈0.820 就已归零，而副标题四行要到 f≈0.850 —— 标题反而先走完，次序是错的。
- *  所以副标题必须整体前移，给标题留出「最后一个文字元素」的位置。
- *  取 0.72–0.80：末行 0.72 起、首行 0.80 起，全部早于标题的实测归零点。 */
+ *  ⚠️ Window values are **empirically determined, not derived from constants**. Though four lanes share 4000ms and same after,
+ *  measurements (scripts/_tail.mjs dense sampling along act tail 0.70→1.00) show title's `demo-title-out` already
+ *  reaches zero at f≈0.820, while subtitle four lines reach f≈0.850 — title finishes first, order is wrong.
+ *  So subtitle must move forward overall, leaving "last text element" position for title.
+ *  Take 0.72–0.80: last line starts 0.72, first line starts 0.80, all earlier than title's measured zero point. */
 const SUBTITLE_OUT_FIRST = 0.8;
 const SUBTITLE_OUT_SPREAD = 0.08;
 
@@ -163,7 +163,7 @@ const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
  * Blur/opacity are supported properties and therefore belong to the four line-level
  * Animate lanes. Only the per-character gradient remains an imperative projection.
  */
-function TimeSubtitle({ text }: { text: string }): JSX.Element {
+function TimeSubtitle({ text }: { text: string }): import('react').JSX.Element {
   const { progress } = useAnimateTimeline();
   const model = useMemo(() => buildSubtitleModel(text), [text]);
   const charRefs = useRef<Array<HTMLSpanElement | null>>([]);
@@ -194,8 +194,8 @@ function TimeSubtitle({ text }: { text: string }): JSX.Element {
   return (
     <div className="demo-video__subtitle" role="group" aria-label={text.replace(/\n/g, ' ')}>
       {model.lines.map((line, lineIndex) => {
-        // 反向退场:末行最早开始淡出,首行最后。fadeStart 一定 > revealEnd,
-        // times 保持单调递增。
+        // Reverse exit: last line starts fading earliest, first line last. fadeStart must be > revealEnd,
+        // times stay monotonically increasing.
         const fadeStart = Math.max(
           line.revealEnd + 0.01,
           lineFadeStart(lineIndex, model.lines.length)
@@ -228,7 +228,9 @@ function TimeSubtitle({ text }: { text: string }): JSX.Element {
               {line.chars.map(({ char, index }) => (
                 <span
                   key={index}
-                  ref={(element) => (charRefs.current[index] = element)}
+                  ref={(element) => {
+                    charRefs.current[index] = element;
+                  }}
                   className="demo-video__subtitle-char"
                 >
                   {char === ' ' ? ' ' : char}
@@ -242,7 +244,7 @@ function TimeSubtitle({ text }: { text: string }): JSX.Element {
   );
 }
 
-/** 从墨色按 t(0→1)混到暖色,返回 rgb() 串。 */
+/** Mix from ink color to warm color by t(0→1), return rgb() string. */
 function mix(from: [number, number, number], to: [number, number, number], t: number): string {
   const r = Math.round(from[0] + (to[0] - from[0]) * t);
   const g = Math.round(from[1] + (to[1] - from[1]) * t);
@@ -250,23 +252,23 @@ function mix(from: [number, number, number], to: [number, number, number], t: nu
   return `rgb(${r},${g},${b})`;
 }
 
-export function DemoVideoScene(): JSX.Element {
+export function DemoVideoScene(): import('react').JSX.Element {
   const { t, lang } = useI18n();
 
   return (
     <div className="demo-video" data-lang={lang}>
-      {/* 铺底:全屏视频 + 4 光圈层。视频 after 标题 → 标题入场后擦洗。 */}
+      {/* Base layer: fullscreen video + 4 vignette layers. Video after title → title enters then scrubs. */}
       <div className="demo-video__stage">
-        {/* enterAnimation 只作用于 AnimateVideo 的包装层视觉态;帧擦洗仍由内部
-            enterProgress 驱动,两者共用同一条 duration.enter 轴,互不挤占。 */}
+        {/* enterAnimation only affects AnimateVideo's wrapper visual state; frame scrubbing still driven by internal
+            enterProgress, both share the same duration.enter axis without encroaching on each other. */}
         <AnimateVideo
           src="/video.mp4"
           preload={false}
           aria-label={t('demoVideo.slate')}
           animateId="demo-video"
           enterAnimation={{
-            /* 收尾必须真正到 opacity 0（原为 0.85），且起点晚于标题的退场终点
-               ⇒ 背景是最后离场的那一层。见 BG_OUT_START 处的次序说明。 */
+            /* Exit must truly reach opacity 0 (was 0.85), and start point later than title's exit endpoint
+               ⇒ background is the last layer to leave. See exit order explanation at BG_OUT_START. */
             initial: { opacity: 0, filter: VIDEO_BLUR_IN, scale: 1.04 },
             animate: {
               opacity: [0, 1, 1, 0],
@@ -281,20 +283,20 @@ export function DemoVideoScene(): JSX.Element {
           }}
           duration={{ enter: 4000 }}
           timeline={{ after: 'demo-title', delay: 0 }}
-          /* 2026-08-14 掉帧修复（task-flow N2，方案 A「远离释放、靠近预热」）：
-           * 播完保留的解码帧在倒回第三幕时实测掉帧（_rv-video-residency.mjs：
-           * 保留 10 长帧 / 卸载 0 长帧）。releaseOnLeave 让驻留随 zone approach
-           * band 释放/预热——离开超 1.5 视口释放，回程 1 视口内预热（blob 内存零网络）。 */
+          /* 2026-08-14 frame drop fix (task-flow N2, solution A "away from release, toward preload"):
+           * Decoded frames retained after playback empirically drop frames when scrubbing back to act three (_rv-video-residency.mjs:
+           * retains 10 long frames / unloads 0 long frames). releaseOnLeave makes residency follow zone approach
+           * band for release/preload — releases beyond 1.5 viewport when leaving, preloads within 1 viewport on return (blob memory, zero network). */
           releaseOnLeave
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
-        {/* scrim 与视频同刻淡入/收尾:它不是 video 的后代,拿不到 video lane 的
-            opacity,必须自己有一条 lane,否则视频未出时就把上下两端压成暖白接缝。 */}
+        {/* Scrim fades in/exits at same moment as video: it's not a video descendant, cannot access video lane's
+            opacity, must have its own lane, otherwise warm white seams appear at top/bottom before video enters. */}
         <Animate
           animateId="demo-scrim"
           enterAnimation={{
-            /* 与视频同轴同刻收到 0：scrim 是压在视频上下两端的暖白纱，
-               若它留在 0.85 而视频已到 0，就会单独剩一条纱挂在空场上。 */
+            /* Reaches 0 at same axis moment as video: scrim is warm white gauze overlaying video's top/bottom edges,
+               if it stays at 0.85 while video reaches 0, it would remain alone as a hanging gauze on empty stage. */
             initial: { opacity: 0 },
             animate: {
               opacity: [0, 1, 1, 0],
@@ -307,23 +309,23 @@ export function DemoVideoScene(): JSX.Element {
           <div className="demo-video__scrim" />
         </Animate>
 
-        {/* ⚠️ 这里**不放**收尾黑场层（2026-08-08 试过并撤销，留档避免再试）。
-            幕末有约 900px 奶白空屏（ISSUE-B，实测整屏亮度 235 从 f=0.84 到 f=1.00），
-            但**任何放在本 Scene 内的层都填不了它** —— 那 900px 正是本幕 sticky 壳
-            向上滚出视口的行程，层跟着壳一起走：实测该层矩形从 `0..900` 移到 `-900..0`，
-            f=1.0 时整个在视口之上，即使 opacity=1 也盖不住屏幕。
-            （附带踩到第二个坑：给内层 div 写 CSS `opacity: 0` 会与 lane 写在**包装元素**
-            上的 opacity 相乘 ⇒ 恒为 0、永不显形。`.demo-video__scrim` 也带着同样的
-            `opacity: 0`，值得单独核一遍它是否真的可见。）
-            正确的桥接位置在**页面级**（色带尾段调暗），见 `design/global.css` 的
-            ISSUE-B 注释。 */}
+        {/* ⚠️ Do NOT place exit blackout layer here (tried and reverted 2026-08-08, documented to avoid retrying).
+            Act tail has ~900px milky white blank screen (ISSUE-B, measured whole-screen brightness 235 from f=0.84 to f=1.00),
+            but **any layer placed inside this Scene cannot fill it** — that 900px is precisely this act's sticky shell
+            scrolling up out of viewport, layers move with shell: measured layer rect moves from `0..900` to `-900..0`,
+            at f=1.0 entirely above viewport, even opacity=1 cannot cover screen.
+            (Bonus second trap: giving inner div CSS `opacity: 0` multiplies with lane's opacity written on **wrapper element**
+            ⇒ always 0, never appears. `.demo-video__scrim` also carries the same
+            `opacity: 0`, worth separately verifying it actually appears.)
+            Correct bridging location is at **page level** (darken ribbon tail segment), see `design/global.css`
+            ISSUE-B comment. */}
       </div>
 
-      {/* 顶部:主标题快速入场(开头即就位),收尾时最后淡出。
-          两条 lane 分工:
-            demo-title      —— 640ms 快速入场轴(其他 lane 靠 after 挂在它后面,不可改)
-            demo-title-out  —— 4000ms 收束轴(与视频/副标题同轴),只负责反向退场。
-          标题是画面框架,故排在四行副标题**之后**淡出(0.95),形成由内向外的收束。 */}
+      {/* Top: main title fast entry (positioned at start), fades out last on exit.
+          Two lanes division:
+            demo-title      — 640ms fast entry axis (other lanes hang after via 'after', cannot change)
+            demo-title-out  — 4000ms convergence axis (same axis as video/subtitle), only handles reverse exit.
+          Title is screen frame, so fades out **after** four subtitle lines (0.95), forming inside-out convergence. */}
       <Position at={{ anchor: 'center-x', y: 200 }}>
         <Animate
           animateId="demo-title"
@@ -337,8 +339,8 @@ export function DemoVideoScene(): JSX.Element {
           <Animate
             animateId="demo-title-out"
             enterAnimation={{
-              /* 标题在 0.90→0.96 走完，早于背景（0.94→1.00）⇒ 收束由内向外。
-                 原为 0.95→1.00，与背景同刻结束，读作「字和底一起硬切」。 */
+              /* Title exits 0.90→0.96, earlier than background (0.94→1.00) ⇒ convergence from inside out.
+                 Was 0.95→1.00, ending at same moment as background, read as "text and backdrop hard cut together". */
               initial: { opacity: 1 },
               animate: {
                 opacity: [1, 1, 0],
@@ -359,7 +361,7 @@ export function DemoVideoScene(): JSX.Element {
         </Animate>
       </Position>
 
-      {/* 画面正中:时光副标题(新主角),after 标题 → 与视频并行、逐行显影 + 逐字暖色 */}
+      {/* Screen center: time subtitle (new protagonist), after title → runs parallel with video, line-by-line reveal + per-character warm gradient */}
       <Position at={{ anchor: 'center' }}>
         <Animate
           animateId="demo-subtitle"

@@ -1444,8 +1444,8 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   });
 
   it('rejects duplicate authored zone ids and keeps only the first takeover shell', () => {
-    // duplicate-zone 的 console.error 镜像走 devError（仅 development 发声）；
-    // 本用例验证的就是该 dev 镜像，须显式置 development。
+    // The duplicate-zone console.error is mirrored via devError (development only).
+    // This test verifies that dev mirror, so NODE_ENV must be explicitly set to development.
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'development';
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);

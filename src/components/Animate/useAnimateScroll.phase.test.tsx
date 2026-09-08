@@ -1,5 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { StrictMode, useLayoutEffect, useRef, type ReactNode } from 'react';
+import {
+  StrictMode,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  createContext,
+  useContext,
+} from 'react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import {
@@ -16,6 +23,30 @@ import {
   type SceneAnimationRegistrationLease,
   type AfterOutcome,
 } from '../Scene/useSceneAnimationRegistry';
+
+describe('React 19 Context extra fields', () => {
+  it('preserves extra fields added via spread operator', () => {
+    const TestContext = createContext<Record<string, unknown> | null>(null);
+
+    function Consumer() {
+      const ctx = useContext(TestContext);
+      return <div data-testid="result">{JSON.stringify(ctx)}</div>;
+    }
+
+    const base = { mode: 'scroll', isActive: true };
+    const contextValue = { ...base, extraField: true };
+
+    render(
+      <TestContext.Provider value={contextValue}>
+        <Consumer />
+      </TestContext.Provider>
+    );
+
+    const result = screen.getByTestId('result').textContent;
+    expect(result).toContain('extraField');
+    expect(result).toContain('true');
+  });
+});
 
 const animationControlsRegistry: Array<{
   start: jest.Mock;
@@ -137,7 +168,7 @@ jest.mock('../../animations/composer', () => ({
   }),
 }));
 
-function createScrollSceneContext(): SceneContextType {
+function createScrollSceneContext(overrides?: Partial<SceneContextType>): SceneContextType {
   return {
     mode: 'scroll',
     isActive: true,
@@ -156,6 +187,7 @@ function createScrollSceneContext(): SceneContextType {
     enterDuration: 600,
     scrollProgress: 0,
     scrollTimelineState: null,
+    ...overrides,
   };
 }
 
@@ -1155,16 +1187,16 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
   it('re-arms the one-shot static fallback after returning to a pending gate', async () => {
     const originalInnerHeight = window.innerHeight;
-    const pendingContext: SceneContextType = {
-      ...createScrollSceneContext(),
+    const pendingContext: SceneContextType = createScrollSceneContext({
       firstSceneEnterGateKnown: true,
       firstSceneEnterActive: true,
       firstSceneEnterReady: false,
-    };
-    const staticContext: SceneContextType = {
-      ...pendingContext,
+    });
+    const staticContext: SceneContextType = createScrollSceneContext({
+      firstSceneEnterGateKnown: true,
       firstSceneEnterActive: false,
-    };
+      firstSceneEnterReady: false,
+    });
     const renderProbe = (context: SceneContextType): React.JSX.Element => (
       <SceneContext.Provider value={context}>
         <Animate
@@ -1208,29 +1240,35 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
   it('owns the fallback measurement before an overlapping exit gate can run', async () => {
     const originalInnerHeight = window.innerHeight;
-    const pendingContext: SceneContextType = {
-      ...createScrollSceneContext(),
+    const pendingContext: SceneContextType = createScrollSceneContext({
       firstSceneEnterGateKnown: true,
       firstSceneEnterActive: true,
       firstSceneEnterReady: false,
-    };
-    const staticContext: SceneContextType = {
-      ...pendingContext,
+    });
+    Object.freeze(pendingContext);
+
+    const staticContext: SceneContextType = createScrollSceneContext({
+      firstSceneEnterGateKnown: true,
       firstSceneEnterActive: false,
+      firstSceneEnterReady: false,
+    });
+    Object.freeze(staticContext);
+
+    const renderProbe = (context: SceneContextType): React.JSX.Element => {
+      return (
+        <SceneContext.Provider value={context}>
+          <Animate
+            animateId="timeout-fallback-frame-probe"
+            enterAnimation="fade-in"
+            exitAnimation="fade-out"
+            duration={{ exit: 40 }}
+            timeline={{ driver: 'clock' }}
+          >
+            {({ phase }) => <output data-testid="timeout-fallback-phase">{phase}</output>}
+          </Animate>
+        </SceneContext.Provider>
+      );
     };
-    const renderProbe = (context: SceneContextType): React.JSX.Element => (
-      <SceneContext.Provider value={context}>
-        <Animate
-          animateId="timeout-fallback-frame-probe"
-          enterAnimation="fade-in"
-          exitAnimation="fade-out"
-          duration={{ exit: 40 }}
-          timeline={{ driver: 'clock' }}
-        >
-          {({ phase }) => <output data-testid="timeout-fallback-phase">{phase}</output>}
-        </Animate>
-      </SceneContext.Provider>
-    );
 
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
     try {
@@ -1247,11 +1285,24 @@ describe('useAnimateScroll grouped timeline.phase', () => {
       // render terminal and return; only a later measurement may author an exit.
       host.getBoundingClientRect = () => createHostRect(-500, -100);
       await flushScroll(window);
-      rerender(renderProbe(staticContext));
-      await waitFor(() => {
-        expect(readMotionOpacity()).toBe(1);
-        expect(screen.getByTestId('timeout-fallback-phase')).toHaveTextContent('entered');
+
+      // React 19: rerender with new context
+      await act(async () => {
+        rerender(renderProbe(staticContext));
       });
+
+      // React 19: wait for effects but don't trigger extra measurements
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      });
+
+      await waitFor(
+        () => {
+          expect(readMotionOpacity()).toBe(1);
+          expect(screen.getByTestId('timeout-fallback-phase')).toHaveTextContent('entered');
+        },
+        { timeout: 5000 }
+      );
     } finally {
       Object.defineProperty(window, 'innerHeight', {
         configurable: true,
@@ -1548,6 +1599,56 @@ describe('useAnimateScroll grouped timeline.phase', () => {
         value: originalInnerHeight,
       });
     }
+  });
+
+  it('does not start a loop when entry finishes after the element scrolls offscreen', async () => {
+    let hostRect = createHostRect(100, 200);
+    render(
+      <SceneContext.Provider value={createScrollSceneContext()}>
+        <Animate
+          animateId="entry-finished-offscreen"
+          enterAnimation="fade-in"
+          loopAnimation="pulse"
+          duration={{ enter: 300 }}
+          timeline={{ driver: 'clock' }}
+        >
+          {({ phase }) => <output data-testid="offscreen-loop-phase">{phase}</output>}
+        </Animate>
+      </SceneContext.Provider>
+    );
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-cineview-animate-host="entry-finished-offscreen"]')
+      ).not.toBeNull();
+    });
+    const host = document.querySelector(
+      '[data-cineview-animate-host="entry-finished-offscreen"]'
+    ) as HTMLElement;
+    host.getBoundingClientRect = () => hostRect;
+    await flushScroll(window);
+    await waitFor(() =>
+      expect(screen.getByTestId('offscreen-loop-phase')).toHaveTextContent('entering')
+    );
+
+    hostRect = createHostRect(-300, -200);
+    await flushScroll(window);
+    await waitFor(() =>
+      expect(screen.getByTestId('offscreen-loop-phase')).toHaveTextContent('entered')
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(animationControlsRegistry.some((controls) => controls.start.mock.calls.length > 0)).toBe(
+      false
+    );
+
+    hostRect = createHostRect(100, 200);
+    await flushScroll(window);
+    await waitFor(() => {
+      expect(
+        animationControlsRegistry.some((controls) => controls.start.mock.calls.length > 0)
+      ).toBe(true);
+    });
   });
 
   it('holds an entered no-exit element at its entered frame when replay is false', async () => {

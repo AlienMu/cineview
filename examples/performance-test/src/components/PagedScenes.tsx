@@ -21,7 +21,7 @@ const dragTransitions: Array<{ enter: PresetAnimation; exit: PresetAnimation }> 
   { enter: 'blur-in', exit: 'fade-out' },
 ];
 
-export function renderDragScenes(sections: ExperienceSection[]): JSX.Element[] {
+export function renderDragScenes(sections: ExperienceSection[]): import('react').JSX.Element[] {
   return sections.map((section, index) => {
     const transition = dragTransitions[index % dragTransitions.length];
 
@@ -42,7 +42,7 @@ export function renderDragScenes(sections: ExperienceSection[]): JSX.Element[] {
   });
 }
 
-function renderDragLayout(section: ExperienceSection, index: number): JSX.Element {
+function renderDragLayout(section: ExperienceSection, index: number): import('react').JSX.Element {
   const flavor = index % 3;
 
   if (flavor === 0) {
@@ -204,6 +204,12 @@ function renderDragLayout(section: ExperienceSection, index: number): JSX.Elemen
   );
 }
 
-function StagePill({ index, section }: { index: number; section: ExperienceSection }): JSX.Element {
+function StagePill({
+  index,
+  section,
+}: {
+  index: number;
+  section: ExperienceSection;
+}): import('react').JSX.Element {
   return <LabPill>{`${String(index + 1).padStart(2, '0')} / ${section.eyebrow}`}</LabPill>;
 }

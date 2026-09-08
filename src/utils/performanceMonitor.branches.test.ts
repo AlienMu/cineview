@@ -1,9 +1,9 @@
 /**
- * performanceMonitor 分支补充测试
- * 覆盖未命中分支：
- *  - line 147: memorySamples 超过 maxMemorySamples(8) 时 shift()
- *  - line 163: getBundleSizeKb 命中已缓存(>0)分支
- *  - line 177: estimateBundleSizeKb 在 resource entries 为空时 return 0
+ * performanceMonitor branch coverage tests
+ * Covers previously untested branches:
+ *  - line 147: memorySamples shift() when exceeding maxMemorySamples(8)
+ *  - line 163: getBundleSizeKb cached (>0) branch
+ *  - line 177: estimateBundleSizeKb returns 0 when resource entries are empty
  *  - line 227: createPerformanceMonitor()
  *  - line 270: getGlobalPerformanceMonitor()
  */

@@ -44,9 +44,10 @@ export type ScrollInputDirection = 'forward' | 'backward';
 export const TAKEOVER_PROGRESS_SNAP_EPSILON_PX = 0.01;
 export const CENTER_LOCK_BOUNDARY_EPSILON_PX = 0.5;
 
-export function isScrollDebugEnabled(): boolean {
-  // 纯运行时判定：NODE_ENV === 'production' 条件会被 esbuild 构建期常量折叠，
-  // dist 产物里旗标就成了不可达死开关（N6 验收实证，探针被迫改用几何测位）。
+export function isScrollDebugEnabled(explicit?: boolean): boolean {
+  if (explicit !== undefined) return explicit;
+  // Runtime-only check: NODE_ENV === 'production' would be constant-folded by esbuild at build time,
+  // leaving the flag unreachable in dist output (N6 acceptance proof forced probe to use geometric positioning).
   if (typeof window === 'undefined') {
     return false;
   }
@@ -179,10 +180,12 @@ export function resolveScrollIntentOffset({
     return target;
   }
 
+  // A rounded native offset may sit exactly half a pixel inside the zone.
+  // Count it as interior so repeated input advances beyond the entry frame.
   if (target > current) {
     const crossedSegment = segments.find(
       (segment) =>
-        current <= segment.segmentStart + CENTER_LOCK_BOUNDARY_EPSILON_PX &&
+        current < segment.segmentStart + CENTER_LOCK_BOUNDARY_EPSILON_PX &&
         target > segment.segmentEnd + CENTER_LOCK_BOUNDARY_EPSILON_PX
     );
     if (crossedSegment) {
@@ -205,7 +208,7 @@ export function resolveScrollIntentOffset({
     .reverse()
     .find(
       (segment) =>
-        current >= segment.segmentEnd - CENTER_LOCK_BOUNDARY_EPSILON_PX &&
+        current > segment.segmentEnd - CENTER_LOCK_BOUNDARY_EPSILON_PX &&
         target < segment.segmentStart - CENTER_LOCK_BOUNDARY_EPSILON_PX
     );
   if (crossedSegment) {
@@ -330,8 +333,6 @@ export function isLegacyDisplayNameSceneElement(node: React.ReactNode): boolean 
   return false;
 }
 
-// Dev-only dedupe so an invalid designWidth warns once per value instead of
-// once per render (resolveDesignDimensions runs on every root render).
 const warnedInvalidDesignSizes = new Set<unknown>();
 
 export function resolveDesignDimensions(
@@ -342,10 +343,6 @@ export function resolveDesignDimensions(
     return { designSize: rawSize };
   }
 
-  // designWidth itself is optional (defaults to the 750 mobile design ruler).
-  // Only an explicitly provided but invalid value (0 / negative / NaN /
-  // Infinity / non-number) deserves a dev diagnostic — `0 ?? 750` used to let
-  // designWidth 0 through and produce an Infinity scale downstream.
   if (rawSize !== undefined && process.env.NODE_ENV !== 'production') {
     if (!warnedInvalidDesignSizes.has(rawSize)) {
       warnedInvalidDesignSizes.add(rawSize);
@@ -383,17 +380,19 @@ export function resolveRootSceneStackMode(
 }
 
 /**
- * 把一个 scene span 原始值（number | 'NNNpx' | 'NNNvh' | 'NNNvw' | 'auto'）解析为
- * 像素跨度。两种消费模式由 `mode` 区分：
+ * Resolves a scene span value (number | 'NNNpx' | 'NNNvh' | 'NNNvw' | 'auto') to pixels.
+ * Two modes distinguished by `mode`:
  *
- * - `'declared'`（普通 declared scene）：number 与 `px` 原样返回（字面像素）；
- *   `vh`/`vw` 按视口换算；结果不向下取整到 1。
- * - `'takeover'`（带 scroll 接管的 scene）：**单尺子模型下不再有独立的高度尺子**，
- *   故绝对设计值（number / `px`）不在此换算，一律返回 null——调用方回退到 DOM 实测跨度
- *   （takeover 视觉盒本就 sticky 撑满视口，实测即所需）。只有视口相对的 `vh`/`vw`
- *   保留（它们无需任何设计尺子），并 floor 到 ≥ 1。
+ * - `'declared'` (normal declared scene): number and `px` return as literal pixels;
+ *   `vh`/`vw` are converted per viewport; result is not floored to 1.
+ * - `'takeover'` (scene with scroll takeover): under the single-ruler model there is no
+ *   independent height ruler, so absolute design values (number / `px`) are not converted
+ *   here and return null — caller falls back to measured DOM span (takeover visual box is
+ *   sticky and fills viewport, so measurement gives the needed value). Only viewport-relative
+ *   `vh`/`vw` are preserved (they need no design ruler) and floored to ≥ 1.
  *
- * 非正数、非法字符串、`auto`、以及 takeover 下的绝对值一律返回 null（交由调用方回退）。
+ * Non-positive, invalid strings, `auto`, and absolute values under takeover all return null
+ * (caller handles fallback).
  */
 function resolveSpanValue(
   rawSize: number | string | undefined,
@@ -402,11 +401,8 @@ function resolveSpanValue(
   mode: 'declared' | 'takeover'
 ): number | null {
   const isTakeover = mode === 'takeover';
-  // takeover 对 vh/vw 结果 floor 到 1；declared 不 floor。
   const floor = (value: number): number => (isTakeover ? Math.max(value, 1) : value);
 
-  // 绝对设计值（number / 'NNNpx'）：declared 原样返回字面像素；takeover 返回 null，
-  // 交调用方回退到 DOM 实测（方案 A：单尺子零例外，不再有 design 高度换算）。
   if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
     return isTakeover ? null : rawSize;
   }
@@ -491,9 +487,6 @@ export function buildSceneTimelineState(
   const holdStart = layout.sceneStart + layout.enterLength;
   const exitStart = layout.sceneEnd - Math.max(layout.exitLength, 0);
 
-  // No initialiser: the chain below ends in `else`, so every path assigns. Seeding
-  // it with 'before' made the declaration look like it carried a default when it
-  // never survived one statement.
   let phase: ScrollTimelineState['phase'];
   let enterProgress = 0;
   let exitProgress = 0;

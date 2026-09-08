@@ -3,21 +3,21 @@ title: Scene
 eyebrow: COMPONENTS / SCENE
 ---
 
-Scene is a chapter container: a CineView page consists of multiple Scenes, each managing its own layout boundaries, stacking contexts, enter/exit transitions, and preloaded assets. In scroll mode, configuring the `scroll` property declares a locked zone.
+Scene groups content that shares layout, transitions, and preloaded assets. Declare Scenes directly inside CineView. In scroll mode, `scroll` adds a locked-zone declaration; a non-zero animation budget gives it locked travel.
 
 ## Props
 
-| prop            | type                                                               | default  | notes                                                                                |
-| --------------- | ------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------ |
-| `sceneId`       | `string`                                                           | none     | Scene identity, referenced by `preload`, callback details, and the `zoneId` fallback |
-| `layout`        | object, see the layout section                                     | none     | Layout boundary and stacking                                                         |
-| `transition`    | object, see the transition section                                 | none     | Scene-level enter/exit                                                               |
-| `assets`        | `{ preloadImages?: string[] }`                                     | none     | Images preloaded with the scene                                                      |
-| `drag`          | `SceneDragConfig`                                                  | none     | Per-scene drag mapping, see the drag section                                         |
-| `scroll`        | `{ zoneId?: string; trigger?: 'center-lock' }`                     | none     | Scroll-mode only; **configuring `scroll` declares a locked zone**                    |
-| `callbacks`     | `{ onVisibilityChange?: (detail: SceneVisibilityDetail) => void }` | none     | `detail = { sceneIndex?, visible, progress }`                                        |
-| everything else | `HTMLAttributes<HTMLDivElement>` (except `children`)               | none     | Passed through to the scene root element                                             |
-| `children`      | `ReactNode`                                                        | required | Scene content                                                                        |
+| prop            | type                                                               | default  | notes                                                             |
+| --------------- | ------------------------------------------------------------------ | -------- | ----------------------------------------------------------------- |
+| `sceneId`       | `string`                                                           | none     | Target for `preload`; fallback identifier for `scroll.zoneId`     |
+| `layout`        | object, see the layout section                                     | none     | Layout boundary and stacking                                      |
+| `transition`    | object, see the transition section                                 | none     | Scene-level enter/exit                                            |
+| `assets`        | `{ preloadImages?: string[] }`                                     | none     | Images preloaded with the scene                                   |
+| `drag`          | `SceneDragConfig`                                                  | none     | Per-scene drag mapping, see the drag section                      |
+| `scroll`        | `{ zoneId?: string; trigger?: 'center-lock' }`                     | none     | Scroll-mode only; **configuring `scroll` declares a locked zone** |
+| `callbacks`     | `{ onVisibilityChange?: (detail: SceneVisibilityDetail) => void }` | none     | `detail = { sceneIndex?, visible, progress }`                     |
+| everything else | `HTMLAttributes<HTMLDivElement>` (except `children`)               | none     | Passed through to the scene root element                          |
+| `children`      | `ReactNode`                                                        | required | Scene content                                                     |
 
 ```tsx
 <Scene
@@ -55,13 +55,13 @@ Nine-grid values: `top-left / top-center / top-right / center-left / center / ce
 
 ### transition
 
-| field            | type            | notes                                             |
-| ---------------- | --------------- | ------------------------------------------------- |
-| `enterAnimation` | `AnimationType` | Enter animation (preset name / Custom / Composed) |
-| `exitAnimation`  | `AnimationType` | Exit animation                                    |
-| `exitDuration`   | `number`        | Exit duration (ms)                                |
+| field            | type            | notes                                                                           |
+| ---------------- | --------------- | ------------------------------------------------------------------------------- |
+| `enterAnimation` | `AnimationType` | Whole-scene entrance in scroll mode                                             |
+| `exitAnimation`  | `AnimationType` | Whole-scene exit in scroll mode                                                 |
+| `exitDuration`   | `number`        | Scene exit timing in ms; see [Drag layout](/docs/01-layout) for its drag effect |
 
-The scene-level `transition` is whole-scene enter/exit only; per-element timelines (delay / after / stagger) belong to [Animate](/docs/03-animate).
+Scene transitions affect the whole scene. In drag mode, configure element entrance and exit on [Animate](/docs/03-animate); Scene entrance and exit variants are ignored.
 
 ### drag
 
@@ -80,9 +80,9 @@ Per-scene drag mapping; overrides the root's `unit` / `scale`.
 | `zoneId`  | `string`        | falls back to `sceneId`, then an auto id | Zone identity    |
 | `trigger` | `'center-lock'` | `'center-lock'`                          | The only trigger |
 
-With `scroll` configured, this Scene declares a locked zone: a physical scroll span allocated to its animation timeline, computed at `1ms = 1px`, so inner Animate `duration` and `delay` millisecond values correspond directly to scroll pixels. Scrolling backward through the segment automatically reverses progress from 100% to 0%. For zone semantics, see [Center-lock](/docs/01-centerlock).
+Scene-driven child animations determine the locked zone's duration budget at `1ms = 1px`. Reverse scrolling reverses their progress. A loop-only scene has no animation travel; see [Zones and scroll budgets](/docs/02-zones-budget).
 
-A zone declares timeline ownership. It says nothing about animation style or coordinates. Two Scenes with the same `zoneId` create a duplicate zone identity and report `INVALID_COMPONENT_HIERARCHY`.
+Use a unique `zoneId` for each zone. A duplicate reports `INVALID_COMPONENT_HIERARCHY`, and the later scene becomes ordinary scrolling content.
 
 ## Related pages
 

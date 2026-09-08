@@ -15,13 +15,13 @@ import {
 } from './act3MediaTimeline';
 import { WaveformCanvas } from './waveform/WaveformCanvas';
 
-// ── Act 03 · 剪辑台 (the cutting room) ──────────────────────────────────────
+// ── Act 03 · The Cutting Room ──────────────────────────────────────
 //
 // REWRITTEN, not adjusted. What stood here was five taped-up CODE STRIPS (`STRIPS`), each
 // with three chained lanes — 15 lanes whose cascade resolved through `after`, of which 6
 // never reached the screen at all. The strips, their geometry, their five i18n label keys
-// and the standalone 「调度」 title lane are all gone. 「调度」 survives as a word on the V2
-// subtitle track instead of as a static headline (设计档 §3.3).
+// and the standalone "Scheduling" title lane are all gone. "Scheduling" survives as a word on the V2
+// subtitle track instead of as a static headline (design doc §3.3).
 //
 // The act is now one object: an edit bay. A preview monitor at the top, a timeline bed
 // under it, three tracks in the bed, one playhead across them.
@@ -29,10 +29,10 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 //   V1  video track   — clip blocks with frames from the shared preview media
 //   A1  audio track   — a drawn waveform. PURELY VISUAL: the act's audio was cut, so there
 //                       is no Web Audio, no <audio>, no analyser anywhere in this subtree.
-//                       The 「拖拽控制滤波」 requirement is expressed as a drawn filter
+//                       The "drag-controlled filtering" requirement is expressed as a drawn filter
 //                       opening (WaveformCanvas / waveformField).
-//   V2  subtitle track — 剪辑 / 调度 / 控制, rendered LEGIBLY (返工:「v2 把模糊去掉」). They
-//                       were blurred past reading per 设计档 §3.3「模糊不可辨风格」; the blur
+//   V2  subtitle track — Edit / Schedule / Control, rendered LEGIBLY (rework: "remove blur from v2"). They
+//                       were blurred past reading per design doc §3.3 "blurred unreadable style"; the blur
 //                       is gone and the words stand as words.
 //
 // ── Lane budget (every lane uses an absolute anchor; no `after` anywhere) ──────────────
@@ -55,8 +55,8 @@ import { WaveformCanvas } from './waveform/WaveformCanvas';
 // Both clip strokes anchor absolutely via `clipAssemblyStartMs` (2026-08-08: the W0 contract
 // bans `after` in this directory, so the clip2→clip3 edge is arithmetic, not a registry edge;
 // 2026-08-20: the anchor moved one LEAD earlier so every stitch COMPLETES before the playback
-// reaches the segment it prepares, not exactly on its arrival — 见 act3MediaTimeline.ts 的
-// LEAD 推导). Each lane holds selected for 220ms, then lands 800ms before the 2s / 4s / 6s /
+// reaches the segment it prepares, not exactly on its arrival — see act3MediaTimeline.ts for
+// the LEAD derivation). Each lane holds selected for 220ms, then lands 800ms before the 2s / 4s / 6s /
 // 8s edit it prepares.
 // Every exit budget below is <= the act's 720ms transitionDuration (TemporalDragExperience
 // .tsx: `modes.drag.transitionDuration`), so no lane is still leaving when the slide ends.
@@ -109,7 +109,7 @@ const PLAYHEAD_ENTER_MS = 300;
 // An enter cascade built from delays gets no exit-side counterpart for free. The outgoing
 // lane ignores per-lane delay entirely — exit localProgress is
 // clamp(renderProgress * transitionDuration / exitDuration) — so if every lane shared one
-// exit budget the whole bay would vanish on a single frame («打包回滚») after having
+// exit budget the whole bay would vanish on a single frame ("packed rollback") after having
 // assembled in sequence. Budget LENGTH is the only ordering handle: shorter leaves sooner.
 //
 // Enter order is preview → ruler → V1 → clips → A1 → wave → V2 → subtitles → playhead →
@@ -149,12 +149,12 @@ export interface S03ClipSpec {
   readonly poster: string;
 }
 
-// Five clips, equal widths, evenly spaced (2026-08-18: 10s 源 → 5 × 2s)。
-// 等宽 0.18 + 间距 0.01，5 块占 0→0.92，末尾 0.08 留给 playhead 落位。
-// 2026-08-19 修「v1 帧太窄」：0.15→0.18（等距 0.02→0.01 收窄间距），单帧在
-// 390px 窄轨上约 70px → 82px，poster 缩略图不再被挤成细条。
-// 2026-08-20 修「v1帧为什么都长一样？」：poster 不再五块共用 ACT3_POSTER_SRC，
-// 每块用自己那一段的中点抽帧（ACT3_CLIP_POSTERS 按段数派生）。
+// Five clips, equal widths, evenly spaced (2026-08-18: 10s source → 5 × 2s).
+// Equal width 0.18 + spacing 0.01, 5 blocks occupy 0→0.92, final 0.08 reserved for playhead landing.
+// 2026-08-19 fixed "v1 frames too narrow": 0.15→0.18 (spacing 0.02→0.01 narrowed gaps), single frame on
+// 390px narrow track approximately 70px → 82px, poster thumbnails no longer squeezed into thin strips.
+// 2026-08-20 fixed "why do all v1 frames look the same?": poster no longer shares ACT3_POSTER_SRC across five blocks,
+// each block uses midpoint frame from its own segment (ACT3_CLIP_POSTERS derived per segment).
 const V1_CLIPS: readonly S03ClipSpec[] = [
   { id: 's03-v1-clip-1', left: 0.0, width: 0.18 },
   { id: 's03-v1-clip-2', left: 0.19, width: 0.18 },
@@ -164,21 +164,16 @@ const V1_CLIPS: readonly S03ClipSpec[] = [
 ].map((spec, index) => ({ ...spec, poster: ACT3_CLIP_POSTERS[index] }));
 
 // V2 subtitle blocks, aligned under the V1 cuts they belong to (a subtitle belongs to a
-// shot). Slightly inset from each clip so the two rows do not read as one grid。
-// 2026-08-19：随 V1 加宽，字幕宽度 0.12→0.15，仍内缩 0.015 留视觉缝。
-// sub4/sub5 文案为占位，待补（复用 sub1-3 既有，4/5 新增占位 key）。
-const V2_SUBTITLES: readonly {
-  readonly id: string;
-  readonly left: number;
-  readonly width: number;
-  readonly key: 'sub1' | 'sub2' | 'sub3' | 'sub4' | 'sub5';
-}[] = [
+// shot). Slightly inset from each clip so the two rows do not read as one grid.
+// 2026-08-19: following V1 widening, subtitle width 0.12→0.15, still inset 0.015 leaving visual gap.
+// sub4/sub5 text is placeholder, pending completion (reusing existing sub1-3, 4/5 new placeholder keys).
+const V2_SUBTITLES = [
   { id: 's03-v2-sub-1', left: 0.015, width: 0.15, key: 'sub1' },
   { id: 's03-v2-sub-2', left: 0.205, width: 0.15, key: 'sub2' },
   { id: 's03-v2-sub-3', left: 0.395, width: 0.15, key: 'sub3' },
   { id: 's03-v2-sub-4', left: 0.585, width: 0.15, key: 'sub4' },
   { id: 's03-v2-sub-5', left: 0.775, width: 0.15, key: 'sub5' },
-];
+] as const;
 
 const RULER_MARKS = [
   '00:00:00:00',
@@ -193,8 +188,8 @@ const RULER_MARKS = [
 // Latest sequence: all five clips enter first; clip 1 is already parked at the far-left edge.
 // The stitches then begin (first stroke at 2400, the frame the preview's reveal completes)
 // and each clip is dragged into its seam BEFORE the playback reaches the cut it prepares —
-// the stitch for segment k lands 800ms ahead of the playhead's arrival (2026-08-20 返工:
-// 「先拼接好，也就是先执行完毕动画」; the derivation of the 800 is in
+// the stitch for segment k lands 800ms ahead of the playhead's arrival (2026-08-20 rework:
+// "stitch first, i.e. complete the animation first"; the derivation of the 800 is in
 // `act3MediaTimeline.ts` next to `ACT3_CLIP_ASSEMBLY_LEAD_MS`).
 //
 // What stood here was ONE clip (the middle one) sliding left and back on an
@@ -243,8 +238,7 @@ const CLIP_ASSEMBLY_LEFT = 0;
 const CLIP_ASSEMBLED_LEFT: readonly number[] = V1_CLIPS.reduce<number[]>((acc, _spec, index) => {
   if (index === 0) return [CLIP_ASSEMBLY_LEFT];
   const previous = V1_CLIPS[index - 1];
-  acc.push(acc[index - 1] + previous.width - CLIP_OVERLAP_FRACTION);
-  return acc;
+  return [...acc, acc[index - 1] + previous.width - CLIP_OVERLAP_FRACTION];
 }, []);
 
 /**
@@ -274,7 +268,9 @@ const CLIP_SEAMS: readonly {
 function clipPushPercent(index: number): number {
   const spec = V1_CLIPS[index];
   const distance = spec.left - CLIP_ASSEMBLED_LEFT[index];
-  return -(distance / spec.width) * 100;
+  // Guard against zero-width: spec.width is a track fraction (0–1), so guard must be << 1.
+  // Math.max(width, 1) would clamp ALL normal widths (0.18, etc.) to 1, breaking the formula.
+  return -(distance / Math.max(spec.width, 0.001)) * 100;
 }
 
 /** A seam badge's own fade-in. Short and deliberately shorter than a stroke: the badge is a
@@ -291,7 +287,7 @@ const SEAM_EXIT_MS = 220;
  * The stage-2 lane props for one clip: ONE leftward stroke, run once, held at the end.
  *
  * ── Why this is an enter lane and not an `loopAnimation` ────────────────
- * It used to be the latter, and that was the reported defect («不是持续动画，而是入场动画»). The
+ * It used to be the latter, and that was the reported defect ("not a continuous animation, but an entrance animation"). The
  * structural difference matters beyond the loop count: an `<Animate>` that declares
  * `loopAnimation` renders an EXTRA anonymous motion.div (Animate.tsx's drag branch), which
  * is what forced the `.s03-clip-slot .cineview-animate > *` rule after clip 2 measured 2.0px
@@ -310,26 +306,30 @@ const SEAM_EXIT_MS = 220;
  * which would re-fade the block over its stroke and multiply against the fade lane below.
  */
 /**
- * 每个 clip 的 stroke 起点 —— **绝对延迟，不用 `after`**（2026-08-08 修）。
+ * Each clip's stroke starting point — **absolute delay, not using `after`** (2026-08-08 fix).
  *
- * 换掉 `after` 的理由只有一条：`temporalDragW0.contract.test.ts:94-112` 在整个
- * `/drag` 目录**以 AST 级断言禁用 `after` 属性赋值**，`SceneSync` 是最后一处违例。
+ * The reason for dropping `after` is only one: `temporalDragW0.contract.test.ts:94-112` across the entire
+ * `/drag` directory **bans `after` property assignment at the AST level**, and `SceneSync` is the last violation.
  *
- * ⚠️ 不要把「registry 会累积误差」当成这里的依据 —— 那条机制在本文件**不适用**：
- * 累积误差来自 leader 的 registered duration 被 stagger 膨胀，而这两条 lane 都不用
- * stagger（见下方 NON-BLOCKING 段），链是精确的。同幕 `SceneFlux.tsx:39` /
- * `DialTicks.tsx:135` 弃用 `after` 各有自己的理由（前者链上有 stagger，后者是
- * sweep 语义根本不该串行），不能直接搬到这里。
+ * ⚠️ Don't use "registry accumulates error" as the basis here — that mechanism does **not apply** in this file:
+ * accumulated error comes from leader's registered duration being inflated by stagger, and both of these lanes don't use
+ * stagger (see NON-BLOCKING section below), so the chain is exact. The sibling `SceneFlux.tsx:39` /
+ * `DialTicks.tsx:135` each have their own reasons for dropping `after` (former has stagger in chain, latter is
+ * sweep semantics that should fundamentally not be serial), and cannot be directly transplanted here.
  *
- * 时间轴锚 `clipAssemblyStartMs`（2026-08-20 从 `clipSelectionStartMs` 平移 LEAD）：
- * stroke 长恰为一段 SEGMENT，故 stroke 终点 = 播放进入第 index 段的时刻 − LEAD ——
- * 拼接在播放抵达**之前**完成。不要绕过它去写 `clipSelectionStartMs(index) − 800`
- * 之类的展开 —— 那正是 `CLIP_ASSEMBLED_LEFT` 注释警告的「同一事实两处各写、日后
- * 静默分叉」。selection 覆盖层共用本函数，与它标注的 stroke 天然同起点同跨度。
+ * Timeline anchor `clipAssemblyStartMs` (2026-08-20 shifted from `clipSelectionStartMs` by LEAD):
+ * stroke length is exactly one SEGMENT, so stroke endpoint = playback entering segment index moment − LEAD —
+ * stitching completes **before** playback arrives. Don't bypass it to write `clipSelectionStartMs(index) − 800`
+ * type expansion — that's exactly the "same fact written in two places, silently diverging later" warned in
+ * the `CLIP_ASSEMBLED_LEFT` comment. The selection overlay shares this function, naturally sharing the same
+ * starting point and span with the stroke it marks.
  */
-function clipSequenceTimeline(timing: TemporalMotionTiming, index: number): { delay: number } {
+export const clipSequenceTimeline = (
+  timing: TemporalMotionTiming,
+  index: number
+): { delay: number } => {
   return { delay: timing.delay(clipAssemblyStartMs(index)) };
-}
+};
 
 function clipDemoLaneProps(
   timing: TemporalMotionTiming,
@@ -344,8 +344,8 @@ function clipDemoLaneProps(
     };
   };
   duration: { enter: number };
-  // 无 `after?: string`：本目录契约禁用它（W0），留着是零消费的死字段，
-  // 且真写进去会被那条 AST 断言打红。
+  // No `after?: string`: this directory's contract (W0) bans it; keeping it would be a dead field with zero consumption,
+  // and actually writing to it would fail that AST assertion.
   timeline: { delay: number };
 } {
   // reduced-motion: no stroke at all. The block is authored at its SEPARATED position, so
@@ -376,23 +376,27 @@ function clipDemoLaneProps(
 /**
  * One transition badge, over the band where two assembled blocks lap.
  *
- * 用户原话:「拖到重叠位置，然后在重叠交界处出现新的元素。」The overlap is now a PERMANENT end
- * state rather than a moment in a cycle, so the badge is an enter lane that lands and holds —
- * it no longer needs to know how to disappear again. That is what removes the whole
+ * User's exact words: "Drag to the overlap position, then a new element appears at the overlap junction."
+ * The overlap is now a PERMANENT end state rather than a moment in a cycle, so the badge is an enter lane
+ * that lands and holds — it no longer needs to know how to disappear again. That is what removes the whole
  * host-times-wrapper opacity trap this component used to carry: with no `loopAnimation`
  * there is no second node multiplying against the host, so the lane's own opacity IS the
  * badge's opacity and the CSS pre-start `opacity: 0` hack is no longer load-bearing either.
  *
  * The badge lands on the frame its clip stops: its delay is `clipAssemblyStartMs(index + 1)`,
  * which IS that clip's lane end (a demo lane runs exactly one SEGMENT, and consecutive demo
- * lanes abut — see `clipSequenceTimeline`). «visible» and «overlapping» are therefore the
+ * lanes abut — see `clipSequenceTimeline`). "visible" and "overlapping" are therefore the
  * same frame, derived from the shared beat function rather than from a registry dependency
  * or a transcribed constant.
  *
  * It sits in the TRACK, not in a clip slot, because it belongs to the boundary between two
  * blocks rather than to either one.
  */
-function ClipSeam({ seam }: { seam: (typeof CLIP_SEAMS)[number] }): JSX.Element | null {
+function ClipSeam({
+  seam,
+}: {
+  seam: (typeof CLIP_SEAMS)[number];
+}): import('react').JSX.Element | null {
   const timing = useTemporalMotion();
   // reduced-motion: the blocks never travel, so there is no lap for a badge to mark. Rendering
   // one anyway would put a transition marker over a gap.
@@ -419,11 +423,11 @@ function ClipSeam({ seam }: { seam: (typeof CLIP_SEAMS)[number] }): JSX.Element 
           enter: timing.duration(CLIP_SEAM_ENTER_MS),
           exit: timing.duration(SEAM_EXIT_MS),
         }}
-        /* 绝对延迟，不用 `after`（2026-08-08 修，理由见 clipSequenceTimeline 注释）。
-           徽章要「在方块停下之后落定」= 它对应的那条 demo lane 演完的时刻。
-           demo lane 的 `duration.enter` 恰为一段 SEGMENT，故终点 = 下一个 clip 的
-           assembly 起点，即 `clipAssemblyStartMs(seam.index + 1)` —— 直接用它，
-           不再手写 `+ SEGMENT`，也不跟随 LEAD 平移（终点由首尾相接性质自动带出）。 */
+        /* Absolute delay, not using `after` (2026-08-08 fix, reason in clipSequenceTimeline comment).
+           Badge wants "to land after the block stops" = the moment that demo lane finishes playing.
+           demo lane's `duration.enter` is exactly one SEGMENT, so endpoint = next clip's
+           assembly starting point, i.e. `clipAssemblyStartMs(seam.index + 1)` — use it directly,
+           no longer manually writing `+ SEGMENT`, and doesn't follow LEAD shift (endpoint automatically brought by abutting property). */
         timeline={{ delay: timing.delay(clipAssemblyStartMs(seam.index + 1)) }}
       >
         <span className="s03-seam__band">
@@ -437,12 +441,18 @@ function ClipSeam({ seam }: { seam: (typeof CLIP_SEAMS)[number] }): JSX.Element 
 /** The waveform canvas reads this lane's own progress (reveal + filter opening) and its
  *  phase (the mandatory rAF gate — the canvas is inside a <Scene>, so the `tp-ambient`
  *  chrome exemption does not apply). See `WaveformCanvas.tsx`'s file header. */
-function WaveformStage(): JSX.Element {
+function WaveformStage(): import('react').JSX.Element {
   const timeline = useAnimateTimeline();
   return <WaveformCanvas progress={timeline.progress} phase={timeline.phase} />;
 }
 
-function V1Clip({ spec, index }: { spec: S03ClipSpec; index: number }): JSX.Element {
+function V1Clip({
+  spec,
+  index,
+}: {
+  spec: S03ClipSpec;
+  index: number;
+}): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const clipBody = (
     <Animate
@@ -492,7 +502,7 @@ function V1Clip({ spec, index }: { spec: S03ClipSpec; index: number }): JSX.Elem
       <Animate
         // ── STAGE 1 of 2: the clip APPEARS. It does not travel.
         //
-        // 返工 (verbatim): 「我要的是先入场展示出来 clip。然后模拟拖拽的概念动画」— two
+        // Rework (verbatim): "What I want is for the clip to appear first on entry. Then simulate the drag concept animation" — two
         // stages, not one. The earlier version fused them: the block was pulled in from the
         // left as its entrance, so you never got to see the cut before a hand was already
         // moving it. Now the block lands in its authored slot first (this lane: fade + a
@@ -539,7 +549,7 @@ function V2Subtitle({
 }: {
   spec: (typeof V2_SUBTITLES)[number];
   index: number;
-}): JSX.Element {
+}): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const { t } = useI18n();
   const start = clipSelectionStartMs(index);
@@ -555,7 +565,7 @@ function V2Subtitle({
       <Animate
         // ── OUTER lane: the full-length travel. `opacity: 1` on BOTH ends, deliberately.
         //
-        // 设计档 §1.5 rule 1 asks for «淡入前 10% 完成，位移走满全程» and states it as
+        // Design doc §1.5 rule 1 asks for "fade-in completes in first 10%, displacement covers full range" and states it as
         // per-property keyframes (`opacity: [0, 1], times: [0, 0.1]`). That form cannot work
         // on the drag lane, and this is verified rather than assumed: the lane resolves every
         // property through `lerpTransformValue(initial, animate, p)` with a single scalar p
@@ -570,7 +580,7 @@ function V2Subtitle({
         // here would NOT mean "no opacity animation": getDefaultValue supplies 0 → 1 across
         // the full budget, silently re-coupling the fade to the travel.
         //
-        // TRAVEL AXIS: `x`, not `y` (返工: 「模拟人工拖拽」). A subtitle block belongs to the
+        // TRAVEL AXIS: `x`, not `y` (rework: "simulate manual dragging"). A subtitle block belongs to the
         // shot above it and is placed the same way — dragged along its lane, pulled in from
         // the left, so both rows read as one hand working down the bed rather than two
         // unrelated entrances. Shorter stroke than a V1 clip: see the constant.
@@ -599,11 +609,11 @@ function V2Subtitle({
           timeline={{ delay: timing.delay(start) }}
         >
           <div className="s03-subtitle" data-s03-subtitle-index={index}>
-            {/* 返工:「v2 把模糊去掉」— the word is now legible. It used to carry a static
-                `filter: blur(2.4px)` on this span, authored to 设计档 §3.3「模糊不可辨风格」,
+            {/* Rework: "remove blur from v2" — the word is now legible. It used to carry a static
+                `filter: blur(2.4px)` on this span, authored to design doc §3.3 "blurred unreadable style",
                 which made the subtitles read as smears rather than as words on a
                 track. Nothing replaces it: the block's own border and fill already say
-                「这是一条字幕」, so the blur was only ever costing legibility. */}
+                "this is a subtitle", so the blur was only ever costing legibility. */}
             <span className="s03-subtitle__word">{t(`dragTemporal.s03.${spec.key}`)}</span>
           </div>
         </Animate>
@@ -612,7 +622,7 @@ function V2Subtitle({
   );
 }
 
-function SceneSyncStage(): JSX.Element {
+function SceneSyncStage(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const { t } = useI18n();
   const mediaTimeline = useAnimateTimeline();
@@ -826,7 +836,7 @@ function SceneSyncStage(): JSX.Element {
   );
 }
 
-export const SceneSync = memo(function SceneSync(): JSX.Element {
+export const SceneSync = memo(function SceneSync(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

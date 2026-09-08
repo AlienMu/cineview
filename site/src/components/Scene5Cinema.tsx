@@ -19,62 +19,62 @@ import './Scene5Cinema.css';
 const GITHUB_URL = 'https://github.com/AlienMu/cineview';
 
 /**
- * 第五幕：Cinema Entrance（熄屏入场）。
+ * Act 5: Cinema Entrance (screen-off entry).
  *
- * 三阶段串行（zone 预算分数窗口，task-flow 2026-08-02-scene5-cinema-entrance）：
- *   0.02–1.0 熄灯（黑 overlay 线性变黑，反向可逆，斜坡贯穿整个 zone）
- *   0.4–0.7 手机显现（mockup opacity/scale/blur scrub）
- *   0.7–1.0 揭幕（iframe opacity/blur scrub + postMessage 激活 /drag 冷启动入场）
+ * Three sequential stages (zone budget fractional windows, task-flow 2026-08-02-scene5-cinema-entrance):
+ *   0.02–1.0 Lights off (black overlay linear to black, reversible both ways, ramp spans entire zone)
+ *   0.4–0.7 Phone appears (mockup opacity/scale/blur scrub)
+ *   0.7–1.0 Reveal (iframe opacity/blur scrub + postMessage activates /drag cold-start entry)
  *
- * 总预算由 cinema-clock lane 唯一决定（2200ms → 2200px 锁定滚动）。
- * iframe 生命周期为只进不退的 latch：progress ≥0.4 创建 deferred iframe、≥0.7 激活；
- * 回滚只反向 scrub 视觉，不重新冻结。场景整体离开视口（末幕唯一退场路径 = 向上滚出，
- * 此时 progress 已回 0）才 freeze + 卸载 + 重置，重进从头重放。
+ * Total budget uniquely decided by cinema-clock lane (2200ms → 2200px locked scroll).
+ * iframe lifecycle is forward-only latch: progress ≥0.4 creates deferred iframe, ≥0.7 activates;
+ * rollback only reverses scrub visuals, doesn't re-freeze. Scene entirely leaves viewport (last act's only exit path = scroll up,
+ * at which point progress already back to 0) then freeze + unmount + reset, re-entry replays from start.
  */
 
-/* 预算 1600 → 2200（2026-08-04，D4）：标题从角落 13px 单行升级为放映机字幕卡
- * （虚焦→实焦 + 流光 + 阴影脉冲），需要一段独占窗口把入场演完，再交给手机显现。
- * 手机/揭幕仍占 0.4→0.7 与 0.7→1 的同一分数窗口，绝对时长随总预算等比拉长。 */
+/* Budget 1600 → 2200 (2026-08-04, D4): title upgraded from corner 13px single line to projector subtitle card
+ * (defocus→focus + beam + shadow pulse), needs dedicated window to finish entry, then hands to phone appearance.
+ * Phone/reveal still occupy same 0.4→0.7 and 0.7→1 fractional windows, absolute duration proportionally lengthens with total budget. */
 const TOTAL_MS = 2200;
 const CREATE_AT = 0.4;
 const REVEAL_AT = 0.7;
-/* ⚠️ 标题的 phase 窗口与两条常驻 lane（TITLE_START/TITLE_END/TITLE_LOOP_*、
- * titleVariant、TITLE_BEAM_LOOP、TITLE_SHADOW_LOOP）已于 2026-08-06 全部删除。
- * 标题不再由 zone progress 驱动入场，而是随右栏在**分栏态**出现（由子页
- * `cineview-embed-finished` 触发）—— 用户指定的时序是「手机先入场，滑到结尾且
- * commit 完成后才出标题」，那不是 progress 的函数，故不能再用 phase 窗口表达。 */
-/** 熄灯终点 0.94 而非 1.0：留极微暖底透出，避免第五幕变成纯黑（用户明确要求）。 */
+/* ⚠️ Title's phase window and two persistent lanes (TITLE_START/TITLE_END/TITLE_LOOP_*,
+ * titleVariant, TITLE_BEAM_LOOP, TITLE_SHADOW_LOOP) all deleted 2026-08-06.
+ * Title no longer driven by zone progress entry, but appears with right column in **split state** (triggered by child page
+ * `cineview-embed-finished` event) — user-specified timing is "phone enters first, scroll to end and
+ * commit completes then title appears", that's not a function of progress, so can no longer express with phase window. */
+/** Lights-off endpoint 0.94 not 1.0: leaves extremely faint warm backdrop showing through, avoiding act 5 becoming pure black (user explicit requirement). */
 const LIGHTS_OFF_MAX = 0.94;
-// 交互开放晚于激活（审查建议）：activate 在 0.7 就送达（入场链在揭幕 blur-in 中播放），
-// 但 pointer-events 到揭幕近完成才开——否则 0.7–0.98 锁定段内触屏按在手机上滑动会被
-// 半透明 iframe 吞掉、无法推进外层揭幕；反滚离开段末则收回交互（带迟滞防抖）。
+// Interaction opens later than activation (review suggestion): activate sent at 0.7 (entry chain plays during reveal blur-in),
+// but pointer-events opens near reveal completion — otherwise 0.7–0.98 locked segment touch-dragging on phone would be
+// swallowed by semi-transparent iframe, unable to advance outer reveal; reverse-scrolling away from segment end then withdraws interaction (with hysteresis debounce).
 const INTERACT_AT = 0.98;
 const INTERACT_OFF_BELOW = 0.92;
 
-/* ── 收尾层退场语义：scrub（2026-08-15 用户拍板，取代 2026-08-14 手动控制轨）──
- * 旧方案（enterRef/exitRef 手动控制轨 + SPLIT_ENTER / SPLIT_EXIT 定时器
- * 编排）已整体删除：事件驱动退场不跟手——用户往上滚时文字/CTA 不动，
- * 要等消息/定时器才退。新语义三件事：
- *   1. 文字/CTA/footer 的**透明度 = zone progress 的纯函数**，scrub 窗
- *      0.85→1（下方 SPLIT_SCRUB_*）：往上滚跟手淡出、滚回来原样回来。
- *   2. 元素**挂载门控在 finished latch 上**（latch 才渲染）：框架轨制下
- *      同一 lane 不能「手动入场 + scrub 退场」（scrub 轨手动写入会被下一帧
- *      scroll 覆盖），故串行入场改为子元素的**一次性 CSS transform/visibility 动画**
- *      （`animation: … both` + delay 0/0.25s/0.6s/0.9s，见 Scene5Cinema.css；
- *      CLAUDE.md 规则 6 允许一次性插值，禁 infinite）。滚动 opacity 由外层 scrub owner
- *      写入；unfinished 才会启用独立的 manual-opacity 通道。
- *   3. 列收拢阈值 0.85：progress < 0.85 → 收列（手机回中，CSS 1.1s 位移段照旧）；
- *      progress 回升至 0.95 才重开，且递增 replay generation 重新走四拍，避免
- *      0.85 临界来回抖动与隐藏期间跳过入场。
- * unfinished 消息先按序驱动一次性 manual-opacity，再由同一代 sequence 收列；
- * manual-opacity 只负责消息时序，不另写框架 progress。 */
+/* ── Closing layer exit semantics: scrub (2026-08-15 user decision, replaces 2026-08-14 manual control track) ──
+ * Old approach (enterRef/exitRef manual control track + SPLIT_ENTER / SPLIT_EXIT timer
+ * choreography) entirely deleted: event-driven exit doesn't follow finger — user scrolling up text/CTA doesn't move,
+ * waits for message/timer to exit. New semantics three things:
+ *   1. Text/CTA/footer **opacity = pure function of zone progress**, scrub window
+ *      0.85→1 (SPLIT_SCRUB_* below): scrolling up follows finger fade-out, scroll back returns as-is.
+ *   2. Element **mount gating on finished latch** (only latch renders): under framework track system
+ *      same lane cannot "manual entry + scrub exit" (scrub track manual write gets overwritten next frame
+ *      by scroll), so sequential entry changed to child element's **one-time CSS transform/visibility animation**
+ *      (`animation: … both` + delay 0/0.25s/0.6s/0.9s, see Scene5Cinema.css;
+ *      CLAUDE.md rule 6 allows one-time interpolation, forbids infinite). Scroll opacity written by outer scrub owner;
+ *      unfinished enables independent manual-opacity channel.
+ *   3. Column collapse threshold 0.85: progress < 0.85 → collapse columns (phone returns center, CSS 1.1s displacement segment as usual);
+ *      progress rises back to 0.95 to reopen, and increments replay generation to re-walk four beats, avoiding
+ *      0.85 critical threshold back-and-forth jitter and skipping entry during hidden period.
+ * unfinished message first drives one-time manual-opacity in sequence, then same-generation sequence collapses columns;
+ * manual-opacity only handles message timing, doesn't also write framework progress. */
 const SPLIT_SCRUB_END = 1;
-/* ── 严格串行时序（2026-08-16 用户指令，回归 08-09 裁决语义）───────────────
- * 入场：手机位移 1.1s（CSS gap/basis/width transition）**完成后**标题才起
- * （1.1s），副标题 1.35s、CTA 1.7s、footer 2.0s——CSS animation delay 对齐。
- * unfinished 路径退场：**先**按序驱动子节点的 manual-opacity 通道（footer 0 /
- * cta 0.15 / 副标题 0.35 / 标题 0.55s），**再**收列（手机位移）——外层 scrub
- * 仍独占滚动透明度，JS 只编排一次性事件时序（非每帧；滚轮路径不受影响）。 */
+/* ── Strict sequential timing (2026-08-16 user directive, returns to 08-09 ruling semantics) ───────────────
+ * Entry: phone displacement 1.1s (CSS gap/basis/width transition) **completes then** title starts
+ * (1.1s), subtitle 1.35s, CTA 1.7s, footer 2.0s — CSS animation delay aligned.
+ * unfinished path exit: **first** drive child nodes' manual-opacity channel in sequence (footer 0 /
+ * cta 0.15 / subtitle 0.35 / title 0.55s), **then** collapse columns (phone displacement) — outer scrub
+ * still monopolizes scroll opacity, JS only choreographs one-time event timing (not per-frame; scroll wheel path unaffected). */
 const SPLIT_EXIT_DONE_MS = 1050;
 const SPLIT_EXIT_DELAYS_MS: Array<[className: string, delay: number]> = [
   ['scene5-cinema__footer', 0],
@@ -82,14 +82,14 @@ const SPLIT_EXIT_DELAYS_MS: Array<[className: string, delay: number]> = [
   ['scene5-cinema__subtitle-text', 350],
   ['scene5-cinema__title-text', 550],
 ];
-/** freeze 路径的两级串行（视口外的最终清理，语义保留）：t=700ms 收列
- * （此时 progress≈0，文字 opacity 已被 scrub 归零，收列只是布局复位），
- * t=1400ms 卸载 iframe + 重置 latch。 */
+/** freeze path's two-level sequential (final cleanup outside viewport, semantics preserved): t=700ms collapse columns
+ * (at this point progress≈0, text opacity already zeroed by scrub, collapse just layout reset),
+ * t=1400ms unmount iframe + reset latch. */
 const FREEZE_COLLAPSE_MS = 700;
 const FREEZE_UNMOUNT_MS = 1400;
 
-/** 收尾 scrub variant：纯 opacity 0→1（y 不参与——退场只做透明度跟手，
- * 位移分量一律交给子元素的一次性 CSS 入场动画，两层职责不重叠）。 */
+/** Closing scrub variant: pure opacity 0→1 (y does not participate — exit only does opacity follow-finger,
+ * displacement component all handed to child element's one-time CSS entry animation, two-layer responsibilities don't overlap). */
 const closingFadeVariant = {
   initial: { opacity: 0 },
   animate: { opacity: 1, transition: { duration: 0 } },
@@ -108,59 +108,59 @@ function clockVariant(): {
 }
 
 /**
- * 熄灯：黑 overlay 由 zone progress 线性拉到 `LIGHTS_OFF_MAX`。
+ * Lights off: black overlay linearly pulled by zone progress to `LIGHTS_OFF_MAX`.
  *
- * ⚠️ **起点必须是 0**（2026-08-09 用户指令，**有意反转** 2026-08-08 的 ISSUE-B 修复）。
- * 历史：第四幕内容在它自己主轴末端就收干，而本幕 slot 要晚 ~900px 才接管 ⇒ 那段滑入
- * 行程透出奶白空屏。08-08 的修法是让 overlay 从 0.62 起步（接管前画面已压暗，接缝被
- * 本幕自己接上）。用户 08-09 否掉了这个方向：「场景5的背景不能在过渡的时候是黑色，
- * 目前是屏幕5未接管就变成是黑色背景了」。
+ * ⚠️ **Start must be 0** (2026-08-09 user directive, **intentionally reversing** the 2026-08-08 ISSUE-B fix).
+ * History: Act 4 content completes at its own axis end, but this act's slot takeover is ~900px later ⇒ that slide-in
+ * travel exposed a milk-white empty screen. The 08-08 fix started overlay from 0.62 (screen already darkened before takeover,
+ * seam covered by this act itself). User rejected this on 08-09: "Scene 5 background cannot be black during transition;
+ * currently the screen turns black before scene 5 takes over."
  *
- * 现裁决：接管前的滑入行程透出**色带尾段暖色**（容器背景兜底 #f7dfcc，见 global.css
- * 无级色带），暖接暖、无分层接缝；熄灯斜坡贯穿锁定后整个 zone（0.02→1，见
- * `LIGHTS_OFF_RAMP_END`）。
- * 已知代价（用户知情接受）：那段 ~900px 会回到「暖色空屏」——平坦但不黑，
- * 与前四幕屏间过渡的观感一致。
+ * Current ruling: slide-in travel before takeover shows **gradient tail warm color** (container background fallback #f7dfcc, see global.css
+ * seamless gradient), warm-to-warm with no layering seam; lights-off ramp spans entire zone after lock (0.02→1, see
+ * `LIGHTS_OFF_RAMP_END`).
+ * Known cost (user informed and accepted): that ~900px returns to "warm empty screen"—flat but not black,
+ * matching the visual of inter-act transitions from first four acts.
  */
 const LIGHTS_OFF_MIN = 0;
 
 /**
- * ── 熄灯必须真的黑，且黑了就不再退回（2026-08-12 真机实测修正）──────────────
- * 用户报：「我要求背景是黑色的，背景出现后又消失了。」探针
- * `site/scripts/rv-20260812-sweep.mjs`（130px 小步 wheel 穿段，sweep.json）实测：
- *   y=30450 → 0.256、30840 → 0.392、31100 → 0.439、**31230 峰值 0.442**，
- *   之后 31360 → 0.434、31490 → 0.415、31600（页面到底）→ **0.388**。
- * 两个结论，都与旧实现的意图相反：
- *   1. **永远到不了黑**。实测斜率约 3.5e-4 /px，从 0 拉到 0.94 需要约 2700px，
- *      而本幕从熄灯起点到文档末尾根本没有这么多可滚距离 ⇒ 峰值卡在 0.44。
- *      旧写法把 0→0.94 摊在相位 0→0.4 上，等于把全部黑度压在一段走不完的行程里。
- *   2. **到底部还在往回亮**。旧的四点镜像关键帧 `[0,.94,.94,0]` @ `[0,.4,.6,1]`
- *      在相位后段线性回 0 —— 正向滚到底时黑幕自己淡掉了，就是用户说的「出现后又消失」。
+ * ── Lights off must actually go black, and once black stays black (2026-08-12 real-device test fix) ──────────────
+ * User reported: "I requested the background to be black; the background appeared then disappeared." Probe
+ * `site/scripts/rv-20260812-sweep.mjs` (130px small-step wheel sweep through segment, sweep.json) measured:
+ *   y=30450 → 0.256, 30840 → 0.392, 31100 → 0.439, **31230 peak 0.442**,
+ *   then 31360 → 0.434, 31490 → 0.415, 31600 (page bottom) → **0.388**.
+ * Two conclusions, both contrary to old implementation intent:
+ *   1. **Never reaches black**. Measured slope ~3.5e-4 /px, pulling 0→0.94 requires ~2700px,
+ *      but this act from lights-off start to document end doesn't have this much scrollable distance ⇒ peak stuck at 0.44.
+ *      Old approach spread 0→0.94 across phase 0→0.4, effectively compressing all blackness into a travel segment that never completes.
+ *   2. **At bottom still brightening back up**. Old four-point mirrored keyframes `[0,.94,.94,0]` @ `[0,.4,.6,1]`
+ *      linear back to 0 in later phase segment — forward scroll to bottom and curtain fades away on its own, which is user's "appeared then disappeared".
  *
- * 现改：**整 zone 单段线性斜坡拉到全黑**（`times:[0,1]` / `opacity:[0,0.94]`，
- *   `LIGHTS_OFF_RAMP_END=1`），斜坡贯穿整个 zone。达到 0.94 后**再也不回亮**。
+ * Now changed: **single linear ramp across entire zone to full black** (`times:[0,1]` / `opacity:[0,0.94]`,
+ *   `LIGHTS_OFF_RAMP_END=1`), ramp spans entire zone. After reaching 0.94 **never brightens back**.
  *   times    [0,   1   ]
  *   opacity  [0,   0.94]
  *
- * 「退场与入场一样」仍然成立，而且是更本质的成立方式：本 lane 的 opacity 是 zone
- * progress 的**纯函数**，反向滚动时 progress 递减、黑幕沿同一条曲线原样亮回来 ——
- * 镜像是免费的，不需要（也不该）在正向行程末尾人为加一段回亮。
+ * "Exit matches entry" still holds, and in a more essential way: this lane's opacity is a **pure function** of zone
+ * progress; reverse scrolling decrements progress, curtain brightens back along same curve identically —
+ * mirroring is free, doesn't need (and shouldn't have) an artificial brightening segment at forward travel end.
  *
- * 起点仍必须是 0（2026-08-09 用户指令未变）：接管前的滑入行程透出色带尾段暖色，
- * 不能一进过渡就是黑的。
+ * Start must still be 0 (2026-08-09 user directive unchanged): slide-in travel before takeover shows gradient tail warm color,
+ * can't be black right at transition start.
  */
-/* 斜坡长度（2026-08-13 用户裁决重定）：斜坡 = **整个 zone**（RAMP_END = 1）。
- * 历史：0.029 太短（瞬变）、0.12 走不完（峰值 0.44）、0.17 折中（斜坡 600px + 恒黑
- * 1700px）。但 0.17 有两个用户裁决压不住的缺点：
- *   1. 屏闪（N13 回归）：移除 1.05s 防闪 transition 后（用户 2026-08-13 裁决
- *      「黑屏完全消失才结束滚动拦截」优先），600px 斜坡在离散滚轮档位下
- *      每档 Δopacity ≈ 0.19（-120px 档）≈ 40+ lum 单帧跳——频闪复现（用户报障）。
- *   2. 整 zone 线性斜坡把每档 Δ 压到 ≈ 0.032（-120px 档）≈ 7 lum/帧，低于
- *      N13 的 15 lum 阈值；-400px 快甩档 Δ ≈ 0.107 ≈ 25 lum——快速甩动时
- *      被运动本身掩盖（已知残余，用户知情）。
- * 代价：熄灯从「前段快速变黑 + 恒黑」改为「贯穿整段滚动的缓慢变暗」（影院调性，
- * 正向单调不减，08-12「黑了就不再退回」仍成立）；黑屏仍在解钉前完全消失
- * （相位窗起点 0.02 见 JSX 注释）。 */
+/* Ramp length (2026-08-13 user ruling reset): ramp = **entire zone** (RAMP_END = 1).
+ * History: 0.029 too short (instant change), 0.12 incomplete (peak 0.44), 0.17 compromise (600px ramp + 1700px
+ * constant black). But 0.17 has two flaws user rulings couldn't suppress:
+ *   1. Screen flashing (N13 regression): after removing 1.05s anti-flash transition (user 2026-08-13 ruling
+ *      "black screen completely disappears before scroll intercept ends" priority), 600px ramp under discrete wheel notches
+ *      each notch Δopacity ≈ 0.19 (-120px notch) ≈ 40+ lum single-frame jump—flicker recurs (user reported).
+ *   2. Entire zone linear ramp compresses each notch Δ to ≈ 0.032 (-120px notch) ≈ 7 lum/frame, below
+ *      N13's 15 lum threshold; -400px fast-fling notch Δ ≈ 0.107 ≈ 25 lum—during rapid fling
+ *      masked by motion itself (known residual, user informed).
+ * Cost: lights-off changes from "rapid early blackout + constant black" to "slow dimming spanning entire scroll" (cinema tone,
+ * forward monotonic non-increasing, 08-12 "once black stays black" still holds); black screen still completely disappears
+ * before unpin (phase window start 0.02 see JSX comment). */
 const LIGHTS_OFF_RAMP_END = 1;
 
 function lightsOffVariant(): {
@@ -176,11 +176,12 @@ function lightsOffVariant(): {
   };
 }
 
-/* ── 星光已整体退役（2026-08-19 用户指令：「黑色背景星星去掉，增加淡淡的黑金
- *    渐变背景 + 持续动画」）。9 条 twinkle 频道 lane、54 颗逐星 DOM、buildStars
- *    种子随机全部删除，氛围改由两层黑金渐变雾承担（见下方 JSX 与 CSS
- *    `.scene5-cinema__gold-mist-*`）。历史上的逐星闪烁实现与性能消融记录见
- *    git 历史与本文件 2026-08-08/09 版本，不在此保留。 */
+/* ── Starlight entirely retired (2026-08-19 user directive: "remove stars from black background,
+ *    add subtle black-gold gradient background + continuous animation"). All 9 twinkle channel lanes,
+ *    54 individual star DOM nodes, and buildStars seed randomization deleted; atmosphere now carried by
+ *    two layers of black-gold gradient mist (see JSX below and CSS `.scene5-cinema__gold-mist-*`).
+ *    Historical per-star twinkle implementation and performance ablation records are in git history
+ *    and 2026-08-08/09 versions of this file, not preserved here. */
 function phoneVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
@@ -201,7 +202,7 @@ function revealVariant(): {
   };
 }
 
-/** 只读投影 zone progress 做阶段 latch；每帧仅数字比较，setState 只在阈值穿越时发生。 */
+/** Read-only projection of zone progress for stage latching; each frame only numeric comparison, setState only fires on threshold crossing. */
 function CinemaLatchProjection({ onProgress }: { onProgress: (value: number) => void }): null {
   const { progress } = useAnimateTimeline();
 
@@ -213,7 +214,7 @@ function CinemaLatchProjection({ onProgress }: { onProgress: (value: number) => 
   return null;
 }
 
-export function Scene5Cinema(): JSX.Element {
+export function Scene5Cinema(): import('react').JSX.Element {
   const { t, lang } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -224,12 +225,12 @@ export function Scene5Cinema(): JSX.Element {
   const [stage, setStage] = useState<CinemaStage>('idle');
   const [live, setLive] = useState(false);
   const [interactive, setInteractive] = useState(false);
-  /** zone progress 的最新值镜像（消息 handler 到达时读当前进度用）。 */
+  /** Latest value mirror of zone progress (for reading current progress when message handler arrives). */
   const progressRef = useRef(0);
   const textColRef = useRef<HTMLDivElement>(null);
   /**
-   * Scene5 的离散生命周期只有一个 owner。消息、progress 和
-   * IntersectionObserver 都通过这个 reducer 进入；React state 只是该状态的渲染投影。
+   * Scene5's discrete lifecycle has only one owner. Messages, progress, and
+   * IntersectionObserver all enter through this reducer; React state is merely the render projection of that state.
    */
   const [lifecycle, setLifecycle] = useState<Scene5LifecycleState>(() =>
     createScene5LifecycleState()
@@ -401,7 +402,7 @@ export function Scene5Cinema(): JSX.Element {
         stageRef.current = 'mounted';
         setStage('mounted');
       }
-      // 交互门（非 latch，带迟滞）：揭幕近完成才开放 iframe 指针，反滚离段末收回
+      // Interaction gate (not latch, with hysteresis): opens iframe pointer only near reveal completion, withdrawn when reverse-scrolling away from segment end
       if (value >= INTERACT_AT) {
         if (!interactiveRef.current) {
           interactiveRef.current = true;
@@ -411,15 +412,15 @@ export function Scene5Cinema(): JSX.Element {
         interactiveRef.current = false;
         setInteractive(false);
       }
-      /* 列收拢/重开：reducer 在 0.85/0.95 两个阈值上只做离散转换；重开会递增
-       * replayKey，下面的 keyed Fragment 因此重新播放四拍 CSS 入场，而不是揭示已完成帧。 */
+      /* Column collapse/reopen: reducer performs discrete transitions only at 0.85/0.95 thresholds; reopening
+       * increments replayKey, so the keyed Fragment below replays the four-beat CSS entrance instead of revealing an already-completed frame. */
       dispatchLifecycle({ type: 'progress', value });
     },
     [dispatchLifecycle, sendActivate]
   );
 
-  // deferred iframe 的就绪握手：只有「ready 已收到 + progress 已过揭幕阈值」才发 activate，
-  // 规避 iframe 加载竞态丢消息。双向都校验同源 + 消息源。
+  // deferred iframe ready handshake: only "ready received + progress passed reveal threshold" triggers activate,
+  // avoiding iframe load race losing messages. Both directions validate same-origin + message source.
   useEffect(() => {
     const origin = window.location.origin;
     const handleMessage = (event: MessageEvent): void => {
@@ -430,13 +431,13 @@ export function Scene5Cinema(): JSX.Element {
         if (stageRef.current === 'revealed') sendActivate();
         return;
       }
-      /* 第四条消息（2026-08-06）：子页滑到末幕且 commit 完成 ⇒ 进入分栏态：
-         手机移到左侧、右栏收尾层挂载。用户指定的时序就是这一刻，
-         不是 progress 到 1、也不是 drag 进行中（那两者手指可能还没松）。
-         2026-08-15 scrub 语义 + 2026-08-16 严格串行修订（见 SPLIT_EXIT_* 注释）：
-         finished ⇒ latch 置位（收尾层挂载 + CSS 串行入场）+ 开列；
-         unfinished ⇒ **先文字有序退场（SPLIT_EXIT_DELAYS_MS），退完才收列**——
-         不再瞬时卸载。重复消息幂等/last-wins。 */
+      /* Fourth message (2026-08-06): child page reached final scene and commit completed ⇒ enter split state:
+         phone moves to left, right column closing layer mounts. User-specified timing is exactly this moment,
+         not progress reaching 1, not during drag (at those two points the finger may not have released yet).
+         2026-08-15 scrub semantics + 2026-08-16 strict sequential revision (see SPLIT_EXIT_* comments):
+         finished ⇒ latch sets (closing layer mounts + CSS sequential entrance) + open columns;
+         unfinished ⇒ **first text exits in sequence (SPLIT_EXIT_DELAYS_MS), columns collapse only after exit completes** —
+         no longer instant unmount. Repeated messages are idempotent/last-wins. */
       if (event.data === 'cineview-embed-finished') {
         // An offscreen/cleanup generation is authoritative: the reducer ignores this late
         // message instead of cancelling the freeze that owns resource release.
@@ -449,19 +450,19 @@ export function Scene5Cinema(): JSX.Element {
     return (): void => window.removeEventListener('message', handleMessage);
   }, [dispatchLifecycle, sendActivate]);
 
-  // 场景整体离开视口 → freeze + 卸载 iframe + 重置 latch（重新进入时从头重放）。
-  // 末幕向下无后继，唯一退场路径是向上滚出。可见退场 = 收尾层 scrub 淡出
-  // （progress 纯函数，视口内跟手播完）+ zone 三段反向 scrub；本 effect 是
-  // 视口外的最终清理（用户滚离后 iframe 还在后台跑才是浪费），不挂
-  // exitAnimation 的裁决不变（架构细化 #5）。
+  // Scene entirely leaves viewport → freeze + unmount iframe + reset latch (replay from start on re-entry).
+  // Final act has no downward successor, only exit path is scrolling up. Visible exit = closing layer scrub fade-out
+  // (progress pure function, plays out follow-finger while in viewport) + zone three-phase reverse scrub; this effect is
+  // final cleanup outside viewport (wasteful for iframe to keep running in background after user scrolls away), doesn't
+  // change exitAnimation ruling (architecture refinement #5).
   //
-  // 2026-08-15 scrub 语义下两级串行（freeze 的 iframe 清理职责不变）：
-  //   t=700ms  收列（此时 progress≈0，文字 opacity 已被 scrub 归零，收列只是
-  //            布局复位，不再有文字退场编排——旧 exitRef 链已删）
-  //   t=1400ms 卸载 iframe + 重置 latch/stage
-  // 滚出后 <1.4s 内滚回（对抗复审 R6-1 场景）：取消定时器即可——latch 仍持有、
-  // 收尾层仍挂载，滚回段末时 opacity 随 scrub 窗原样回来；progress 到 0.95 时
-  // 由 lifecycle replay generation 重新走四拍。
+  // Two-level sequential under 2026-08-15 scrub semantics (freeze's iframe cleanup responsibility unchanged):
+  //   t=700ms  Collapse columns (at this point progress≈0, text opacity already zeroed by scrub, collapse just
+  //            layout reset, no text exit choreography — old exitRef chain deleted)
+  //   t=1400ms Unmount iframe + reset latch/stage
+  // Scrolling back within <1.4s after scrolling out (adversarial review R6-1 scenario): cancel timers —latch still holds,
+  // closing layer still mounted, opacity returns as-is with scrub window when scrolling back to segment end; when progress
+  // reaches 0.95, lifecycle replay generation re-walks the four beats.
   useEffect(() => {
     const node = rootRef.current;
     if (node === null || typeof IntersectionObserver === 'undefined') return;
@@ -480,36 +481,36 @@ export function Scene5Cinema(): JSX.Element {
 
   return (
     <div ref={rootRef} className="scene5-cinema" data-cinema-stage={stage} data-lang={lang}>
-      {/* 熄灯 overlay：Animate 驱动 opacity 曲线（2026-08-13 用户裁决 A：
-          黑罩留在场景内、保留 Animate；黑屏必须在滚动拦截结束前完全消失）。
-          ⚠️ 相位窗起点 0.02 而非 0：zone progress < 0.02 时本 lane 停在 initial
-          （opacity 0）—— 反向滚出时黑罩在解钉（progress 0）前约 44px 就完全消失，
-          「黑屏完全消失才结束滚动拦截」成立（解钉滑动发生时黑罩已透明、不可见）。
-          ⚠️ 1.05s 防闪 transition 已按用户裁决移除（原 N13 修复）：快滚时淡入/淡出
-          斜坡回到逐档跳变，属用户知情接受的代价（用户 2026-08-13 选择
-          「完全消失」优先于「无频闪」）。 */}
+      {/* Lights-off overlay: Animate drives opacity curve (2026-08-13 user ruling A:
+          black overlay stays within scene, keeps Animate; black screen must completely disappear before scroll intercept ends).
+          ⚠️ Phase window starts at 0.02 not 0: when zone progress < 0.02 this lane stops at initial
+          (opacity 0)— when reverse-scrolling out, black overlay completely disappears ~44px before unpin (progress 0),
+          "black screen completely disappears before scroll intercept ends" holds (overlay already transparent, invisible when unpin slide happens).
+          ⚠️ 1.05s anti-flash transition removed per user ruling (original N13 fix): during fast scrolling fade-in/fade-out
+          ramp returns to notch-by-notch jumps, a cost the user knowingly accepted (user chose "complete disappearance"
+          priority over "no flicker" on 2026-08-13). */}
       <Animate
         animateId="cinema-lightsoff"
         enterAnimation={lightsOffVariant()}
         duration={{ enter: 640 }}
-        /* 整幕相位（C-act5）：退场要与入场镜像，故不能只覆盖 0→CREATE_AT。
-           lightsOffVariant 是整 zone 单段线性斜坡（见其注释），phase 窗 0.02→1。 */
+        /* Full act phase (C-act5): exit must mirror entry, so can't cover only 0→CREATE_AT.
+           lightsOffVariant is entire zone single-segment linear ramp (see its comments), phase window 0.02→1. */
         timeline={{ phase: { start: 0.02, end: 1 } }}
       >
         <div className="scene5-cinema__overlay" aria-hidden="true" />
       </Animate>
 
-      {/* 黑金渐变氛围（2026-08-19 重做：星野退役，用户指令「星星去掉，淡黑金渐变
-          + 持续动画」）。两层大 radial 金雾（alpha ≤0.055，淡而不显），各自一条
-          infinite lane 写 CSS 变量（--gold-drift-1/2，周期 9s/14s 互质 ⇒ 两层呼吸
-          不同相、合成波不复现）映射到自身 opacity 做极慢呼吸 ⇒ 「背景持续动画」
-          且不与标题/手机动效同相抢眼。嵌套结构与旧星光同构：每层 Animate 只写
-          自己的变量，雾层作为最内层子节点继承并消费。
-          ⚠️ infinite lane 只能写 CSS 变量不能写 opacity 白名单属性
-          （memory `infinite-lane-cannot-drive-whitelist-props`）。
-          ⚠️ 全屏 gradient + 每帧变量改写会全屏重绘（memory
-          `css-var-opacity-repaints-fullscreen`）——两层都 translateZ(0) 提为
-          合成层，opacity 呼吸交合成器，与旧三层星幕方案同一修法。 */}
+      {/* Black-gold gradient atmosphere (2026-08-19 rework: starfield retired, user directive "remove stars,
+          subtle black-gold gradient + continuous animation"). Two layers of large radial gold mist (alpha ≤0.055, subtle not prominent),
+          each with one infinite lane writing CSS variable (--gold-drift-1/2, periods 9s/14s coprime ⇒ two layers breathe
+          out of phase, composite wave doesn't repeat) mapped to its own opacity for extremely slow breathing ⇒ "background continuous animation"
+          and not in-phase with title/phone effects competing for attention. Nested structure isomorphic to old starlight: each Animate layer only writes
+          its own variable, mist layers as innermost child nodes inherit and consume.
+          ⚠️ infinite lane can only write CSS variables not opacity whitelist properties
+          (memory `infinite-lane-cannot-drive-whitelist-props`).
+          ⚠️ Full-screen gradient + per-frame variable rewrite causes full-screen repaint (memory
+          `css-var-opacity-repaints-fullscreen`)— both layers translateZ(0) promoted to
+          compositing layers, opacity breathing handed to compositor, same fix as old three-layer starfield approach. */}
       <div className="scene5-cinema__gold-mist" aria-hidden="true">
         <Animate
           animateId="cinema-gold-mist-a"
@@ -537,16 +538,16 @@ export function Scene5Cinema(): JSX.Element {
         </Animate>
       </div>
 
-      {/* 视口带：center-lock 锁定时与视口严格重合（架构细化 #6）
-          ── 布局与时序（2026-08-06 用户指令）────────────────────────────
-          横向两栏：手机在左、标题+副标题在右（原为纵向：标题压在手机上方，
-          用户判「太占位置」）。
-          两态由 `split` 切换：
-            默认   手机居中、右栏 width:0 不占位（用户：「入场手机先入场」）
-            分栏   收到子页 `cineview-embed-finished`（滑到末幕且 commit 完成）
-                   ⇒ 手机左移、右栏出现
-          位移与展开由 CSS transition 承担（一次性状态切换，非常驻动效，
-          不属 CLAUDE.md 规则 6 第一条约束的 `animation: infinite`）。 */}
+      {/* Viewport ribbon: strictly coincides with viewport when center-locked (architecture refinement #6)
+          ── Layout and timing (2026-08-06 user directive) ────────────────────────────
+          Horizontal two columns: phone on left, title+subtitle on right (originally vertical: title above phone,
+          user judged "takes up too much space").
+          Two states switched by `split`:
+            default   phone centered, right column width:0 doesn't occupy space (user: "phone enters first on entry")
+            split     receives child page `cineview-embed-finished` (reached final scene and commit completed)
+                      ⇒ phone moves left, right column appears
+          Displacement and expansion carried by CSS transition (one-time state switch, not persistent animation,
+          not constrained by CLAUDE.md rule 6 first clause `animation: infinite`). */}
       <div className="scene5-cinema__stage">
         <div className={`scene5-cinema__phone-slot${split ? ' is-split' : ''}`}>
           <div className="scene5-cinema__phone-col">
@@ -580,16 +581,16 @@ export function Scene5Cinema(): JSX.Element {
             </Animate>
           </div>
 
-          {/* 右栏收尾层：标题 + 副标题 + CTA + footer（2026-08-15 scrub 语义）。
-              - 挂载门控在 finished latch（closing）上：latch 才渲染，串行入场
-                由子元素一次性 CSS 动画承担（delay 0/0.25s/0.6s/0.9s，
-                Scene5Cinema.css `scene5-closing-*`，规则 6 允许一次性插值）。
-              - 每个元素一条 scrub lane：timeline.phase 窗 0.85→1（driver 默认 'scene'
-                默认，绑本 zone takeover 时间轴）——包装层 opacity 是 progress
-                的纯函数，往上滚跟手淡出、滚回来原样回来，无消息/定时器参与。
-              - FOUC：latch 挂载时 progress 已为 1，包装层 opacity 由 scrub 立即
-                解析为 1，子元素 CSS 动画 `both` 在 delay 期停在 opacity 0——
-                两层都不会闪现半成品。 */}
+          {/* Right column closing layer: title + subtitle + CTA + footer (2026-08-15 scrub semantics).
+              - Mount gating on finished latch (closing): only renders when latched, sequential entrance
+                carried by child element one-time CSS animation (delay 0/0.25s/0.6s/0.9s,
+                Scene5Cinema.css `scene5-closing-*`, rule 6 allows one-time interpolation).
+              - Each element one scrub lane: timeline.phase window 0.85→1 (driver defaults to 'scene',
+                binds this zone's takeover timeline)— wrapper layer opacity is pure function of progress,
+                scrolling up follows finger fade-out, scrolling back returns as-is, no messages/timers participate.
+              - FOUC: when latch mounts progress is already 1, wrapper layer opacity immediately
+                resolved to 1 by scrub, child element CSS animation `both` stops at opacity 0 during delay—
+                both layers won't flash half-finished product. */}
           <div ref={textColRef} className="scene5-cinema__text-col" aria-hidden={!split}>
             {closing ? (
               <Fragment key={closingReplayKey}>
@@ -609,9 +610,9 @@ export function Scene5Cinema(): JSX.Element {
                 >
                   <p className="scene5-cinema__subtitle-text">{t('scene5.subtitle')}</p>
                 </Animate>
-                {/* 收尾 CTA（第三拍）。按钮用本幕 scoped 类（黑场影院语境：
-                    浅色文字/实底骨白主钮 + 描边次钮，无 box-shadow——列容器
-                    overflow:hidden 会裁掉阴影，亮度层级取代光晕）。 */}
+                {/* Closing CTA (third beat). Button uses this act's scoped class (black scene cinema context:
+                    light text/solid bone-white primary button + outline secondary button, no box-shadow— column container
+                    overflow:hidden would clip shadow, brightness hierarchy replaces glow). */}
                 <Animate
                   animateId="cinema-split-cta"
                   enterAnimation={closingFadeVariant}
@@ -641,8 +642,8 @@ export function Scene5Cinema(): JSX.Element {
                     <p className="scene5-cinema__cta-body">{t('cta.body')}</p>
                   </div>
                 </Animate>
-                {/* footer（第四拍）：2026-08-15 从视口底 absolute 挪进右栏，
-                    排在 cta.body 下方——同栏语境、同 scrub 窗。 */}
+                {/* footer (fourth beat): moved from viewport bottom absolute into right column on 2026-08-15,
+                    positioned below cta.body— same column context, same scrub window. */}
                 <Animate
                   animateId="cinema-footer"
                   enterAnimation={closingFadeVariant}
@@ -666,7 +667,7 @@ export function Scene5Cinema(): JSX.Element {
         </div>
       </div>
 
-      {/* 预算钟：唯一决定 zone 总预算（2200px 锁定滚动），并投影 progress 做阶段 latch */}
+      {/* Budget clock: uniquely decides zone total budget (2200px locked scroll), and projects progress for stage latching */}
       <Animate
         animateId="cinema-clock"
         enterAnimation={clockVariant()}

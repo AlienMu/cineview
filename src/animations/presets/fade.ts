@@ -1,6 +1,6 @@
 /**
- * Fade 系列动画
- * 淡入淡出效果
+ * Fade animation series
+ * Fade in/out effects
  */
 
 import type { Variant } from 'framer-motion';

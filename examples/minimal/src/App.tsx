@@ -39,7 +39,7 @@ const toggleStyle: CSSProperties = {
   cursor: 'pointer',
 };
 
-export default function App(): JSX.Element {
+export default function App(): import('react').JSX.Element {
   const [mode, setMode] = useState<ScrollMode>('drag');
   const next = mode === 'drag' ? 'scroll' : 'drag';
 

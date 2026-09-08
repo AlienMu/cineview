@@ -3,7 +3,7 @@ title: Drag layout contract
 eyebrow: DRAG / LAYOUT
 ---
 
-In drag mode every scene is a viewport-filling card container that the engine positions absolutely and slides by whole screens. That establishes predetermined layout constraints, and leaves some of the scroll-mode props inert.
+Drag scenes occupy full-screen navigation positions. Scene dimensions can be smaller than the viewport, but they do not change the distance between page positions.
 
 ## Scene size defaults
 
@@ -20,44 +20,42 @@ Nine-grid anchors resolve to absolute positioning in drag (`top`/`left`/`right`/
 
 ## Engine-level fixed styles
 
-None of these have a corresponding prop:
+These styles are supplied by the engine:
 
 | Where            | Style                                                     | Consequence                                                               |
 | ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Root container   | `height: 100vh; min-height: 100vh`                        | The page is always one screen tall                                        |
 | Root container   | `overflow-x: hidden; overflow-y: hidden`                  | The root never scrolls                                                    |
-| Root container   | `background: '#0d1624'`                                   | The dark backdrop cannot be changed; scroll uses `#ffffff`                |
+| Root container   | `background: '#0d1624'`                                   | Default inline background; scroll defaults to white                       |
 | Each scene frame | `position: absolute; inset: 0; width: 100%; height: 100%` | Scenes are positioned inside a full-screen cell                           |
 | Each scene frame | `z-index: 10` (current) / `1` (others)                    | Cross-scene layering is managed by the engine                             |
 | Scene itself     | `contain: 'layout style'`                                 | Establishes a stacking context, see [DOM contract](/docs/06-dom-contract) |
 
-`CineView` accepts neither `className` nor `style`. The available styling seams are the `.cineview-container` class, the `[data-cineview-container="true"]` attribute selector, and the `--cineview-unit` CSS variable published on the outermost wrapper div.
+CineView has no `className` or `style` prop. External CSS can target `.cineview-container` or `[data-cineview-container="true"]`; use `!important` when overriding an inline background. `--cineview-unit` provides responsive lengths for authored CSS.
 
-A scene's `layout.width` / `layout.height` land on the Scene element, but the Scene sits inside that `inset: 0` full-screen cell. So a sub-viewport scene is "placed somewhere within a full-screen cell": the declaration sizes the visible card, not the paging step.
+`Scene.layout.width` and `height` size the Scene's content area within its full-screen navigation position.
 
 ## Only the current scene and its two neighbors render
 
-The virtualization window is `current ± 1`, and scenes outside it are not mounted. Three consequences:
+The current Scene and its immediate neighbors stay mounted. Scenes farther away unmount, so returning recreates their local state, effects, and animations. Store state that must survive navigation outside CineView.
 
-- Effects in distant scenes do not run. Subscriptions, timers, and videos inside `useEffect` do not exist at all.
-- Returning to a scene more than one step away is a remount: component state resets, the animation registry rebuilds, and the element timeline restarts at 0.
-- Scenes are keyed by array index. Conditionally rendering or reordering scenes maps instance identity onto position rather than onto the element.
+Scene identity follows array position. Reordering or conditionally inserting scenes can change which instance occupies a position.
 
 ## Props that are ignored
 
 **`transition.enterAnimation` and `transition.exitAnimation` do nothing in drag**, with a one-time development warning. Scene-level transitions are a scroll concept: drag page movement follows the finger directly, and element animation belongs to child `Animate` components.
 
-`transition.exitDuration` from the same group still applies, though: it feeds the resolved scene transition duration, and that duration is the numerator of the exit scrub (`renderProgress × sceneTransitionDuration`); the divisor is the element's own `duration.exit`. Raising `exitDuration` makes the exit scrub run faster, not slower.
+`transition.exitDuration` still affects the scaling of child exit progress in drag. At the same page position, a larger value advances an element farther through its exit animation.
 
-**`stack.mode` has no effect in drag.** Only the scroll engine consumes it; in drag it takes part in no computation. `stack.zIndex` lands on the Scene element, but cross-scene layering is decided by the scene frame listed under "Engine-level fixed styles."
+`layout.overlap` does not change drag behavior. `layout.zIndex` orders content within a scene frame; the engine controls ordering between frames.
 
-**In drag, `scrollbar` only injects CSS that hides the native scrollbar; no rail is rendered.** The custom scrollbar overlay mounts in scroll mode only, so `width`, `radius`, `trackColor`, `thumbColor`, `autoHide`, and `ariaLabel` are all inert here. Omitting the `scrollbar` prop entirely injects nothing at all.
+The custom scrollbar overlay is available only in scroll mode. In drag, a `scrollbar` object only injects native-scrollbar hiding styles; its width and color options have no visible overlay to style.
 
-The scroll-only root fields (`zoneTrigger`, `sceneSizing`, `enterMargin`, `exitMargin`) are not merely inert on a drag root: the type excludes them, so writing one fails type-checking. `firstSceneTimeout` is drag-only in the same way, and the scroll cold-start gate is fixed at 3000 ms regardless. See [Preloading](/docs/02-preload).
+TypeScript excludes scroll-only root fields in drag, including `zoneTrigger`, `sceneSizing`, `enterMargin`, `exitMargin`, and `debug`. `firstSceneTimeout` is drag-only; scroll uses a 3000ms initial resource wait. See [Preloading](/docs/02-preload).
 
 ## Related pages
 
 - [Gestures and thresholds](/docs/02-gestures): input checks, the threshold formula, mapping units
 - [Page movement and element time](/docs/03-two-track): how the two quantities divide the work
-- [DOM and layout contract](/docs/06-dom-contract): the real DOM tree and the z-index host
+- [DOM and layout contract](/docs/06-dom-contract): the real DOM hierarchy and the z-index host
 - [Scene](/docs/02-scene): the full `layout` / `transition` tables

@@ -1,7 +1,7 @@
 import { PERFORMANCE_EXPERIENCE } from '../content/performanceExperience';
 import { MODE_ROUTES, buildModeHref } from '../routing';
 
-export function ExperienceHub(): JSX.Element {
+export function ExperienceHub(): import('react').JSX.Element {
   return (
     <main
       style={{

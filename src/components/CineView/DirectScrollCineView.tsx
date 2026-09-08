@@ -50,7 +50,7 @@ import {
 } from '../runtime/runtimeContext';
 import { SceneScrollRuntimeContext, SceneScrollTimelineContext } from '../Scene/sceneScrollRuntime';
 
-// mode 在 DirectScrollCineView 上是冗余的（它就是 scroll 根），测试/内部调用可省略。
+// mode is redundant on DirectScrollCineView (it is always the scroll root); tests/internal calls may omit it.
 type DirectScrollCineViewProps = Omit<CineViewScrollModeProps, 'mode'> & { mode?: 'scroll' };
 
 export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineViewProps>(
@@ -66,6 +66,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
       scrollbar,
       callbacks,
       monitor,
+      debug,
     },
     ref
   ) {
@@ -152,7 +153,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
         updateSceneRenderSnapshotsRef,
       });
     const isScrollingStateRef = useRef(false);
-    const exposeTakeoverDebugData = isScrollDebugEnabled();
+    const exposeTakeoverDebugData = isScrollDebugEnabled(debug);
 
     const preloadPlan = useMemo(() => {
       const firstSceneImages = getScenePreloadImages(scenes[0]?.props ?? {});
@@ -508,6 +509,9 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
           <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
             <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
               {isScrollbarEnabled && <style>{createScrollbarCss()}</style>}
+              {direction === 'x' && (
+                <style>{'[data-cineview-scroll-stream="x"] > * { flex-shrink: 0; }'}</style>
+              )}
               <div
                 style={{
                   position: 'relative',
@@ -563,13 +567,27 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
                     }
                   }}
                 >
-                  <ScrollSceneStack
-                    childrenArray={childrenArray}
-                    store={sceneRenderStore}
-                    frameStore={sceneFrameStore}
-                    setWrapperRef={setSceneWrapperRef}
-                    scrollCallbacks={resolvedCallbacks.scroll}
-                  />
+                  <div
+                    data-cineview-scroll-stream={direction}
+                    style={
+                      direction === 'x'
+                        ? {
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'stretch',
+                            width: '100%',
+                          }
+                        : undefined
+                    }
+                  >
+                    <ScrollSceneStack
+                      childrenArray={childrenArray}
+                      store={sceneRenderStore}
+                      frameStore={sceneFrameStore}
+                      setWrapperRef={setSceneWrapperRef}
+                      scrollCallbacks={resolvedCallbacks.scroll}
+                    />
+                  </div>
                 </div>
                 {isScrollbarEnabled && (
                   <ScrollbarOverlay

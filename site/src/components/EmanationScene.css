@@ -1,0 +1,251 @@
+.emanation-scene {
+  position: relative;
+  width: 100%;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: clamp(4rem, 8vh, 6rem) max(1.5rem, 6vw);
+  color: var(--ink);
+}
+
+.emanation-scene__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(3rem, 8vw, 7.5rem);
+  width: min(100%, 1080px);
+  margin-inline: auto;
+}
+
+.emanation-scene__slate,
+.emanation-scene__control-label,
+.emanation-scene__gallery-heading,
+.emanation-scene__order,
+.emanation-frame figcaption,
+.emanation-scene__code {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.emanation-scene__slate {
+  margin-bottom: 1.25rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--ink-mute);
+}
+
+.emanation-scene__header h2 {
+  font-size: clamp(2.4rem, 4vw, 3.75rem);
+  font-weight: 500;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.emanation-scene__header h2 em {
+  color: var(--accent-ink);
+  font-weight: inherit;
+}
+
+.emanation-scene__header > p:last-child {
+  max-width: 43ch;
+  margin-top: 1.25rem;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.emanation-scene__controls {
+  margin-top: 2rem;
+}
+
+.emanation-scene__control-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.emanation-scene__control-label output {
+  white-space: nowrap;
+  color: var(--accent-ink);
+}
+
+.emanation-scene__playback {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.emanation-scene__interval {
+  flex: 1;
+  min-width: 0;
+}
+
+.emanation-scene__interval input {
+  display: block;
+  width: 100%;
+}
+
+.emanation-scene__replay {
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  margin-bottom: 0.125rem;
+}
+
+.emanation-scene__note {
+  min-height: 3.2em;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.emanation-scene__code {
+  margin-top: 1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--frame-line);
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.emanation-scene__gallery {
+  --emanation-gap: clamp(0.625rem, 1.2vw, 1rem);
+  width: min(100%, 27rem);
+  justify-self: end;
+}
+
+.emanation-scene__gallery-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.5625rem;
+  line-height: 1.5;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+
+.emanation-scene__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  gap: var(--emanation-gap);
+}
+
+.emanation-frame {
+  min-width: 0;
+  margin: 0;
+}
+
+.emanation-frame__image {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  background: var(--ink);
+}
+
+.emanation-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.emanation-frame figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding-top: 0.5rem;
+  font-size: 0.625rem;
+  color: var(--ink-soft);
+}
+
+.emanation-scene__order {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--frame-line);
+  color: var(--ink-soft);
+  font-size: 0.625rem;
+  line-height: 1.6;
+}
+
+.emanation-scene__order > span:first-child {
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+}
+
+@media (max-width: 700px) {
+  .emanation-scene {
+    padding: 2.5rem 1.5rem;
+  }
+
+  .emanation-scene__layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.25rem;
+  }
+
+  .emanation-scene__settings {
+    display: contents;
+  }
+
+  .emanation-scene__header h2 {
+    font-size: 2rem;
+  }
+
+  .emanation-scene__slate {
+    margin-bottom: 0.75rem;
+  }
+
+  .emanation-scene__header > p:last-child {
+    max-width: 36ch;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .emanation-scene__controls {
+    margin-top: 0;
+  }
+
+  .emanation-scene__playback {
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .emanation-scene__gallery {
+    order: 2;
+    align-self: center;
+    width: min(100%, 17.75rem);
+  }
+
+  .emanation-scene__code {
+    order: 3;
+    margin-top: 0;
+    font-size: 0.6875rem;
+  }
+
+  .emanation-scene__gallery-heading {
+    margin-bottom: 0.75rem;
+    font-size: 0.5625rem;
+    gap: 0.5rem;
+  }
+
+  .emanation-scene__note {
+    min-height: 0;
+    margin-top: 0.75rem;
+  }
+}

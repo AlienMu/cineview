@@ -164,8 +164,8 @@ export function useAnimateArrival({
     manualRequestedRef.current = false;
     setShouldRunInfinite(false);
     setStaticReveal(false);
-    visualMotion.set(config.hasAuthoredEnterAnimation ? 0 : 1);
     phaseMotion.set(config.hasAuthoredEnterAnimation ? 'idle' : 'entered');
+    visualMotion.set(config.hasAuthoredEnterAnimation ? 0 : 1);
   }, [phaseMotion, stopPlayback, visualMotion]);
 
   const startToken = useCallback(
@@ -216,22 +216,22 @@ export function useAnimateArrival({
 
       const hasPlayableEnter = config.hasAuthoredEnterAnimation && config.enterVariant !== null;
       if (!hasPlayableEnter || staticForExistingMount) {
-        visualMotion.set(1);
         phaseMotion.set('entered');
+        visualMotion.set(1);
         scheduleInfinite();
         return;
       }
 
-      visualMotion.set(0);
       phaseMotion.set('waiting');
+      visualMotion.set(0);
       const startEnter = (): void => {
         delayTimerRef.current = null;
         if (!stillOwnsToken()) return;
         phaseMotion.set('entering');
         const safeDuration = Math.max(config.enterDuration, 0);
         if (safeDuration <= 0) {
-          visualMotion.set(1);
           phaseMotion.set('entered');
+          visualMotion.set(1);
           setShouldRunInfinite(true);
           return;
         }
@@ -241,8 +241,8 @@ export function useAnimateArrival({
           onComplete: () => {
             controlsRef.current = null;
             if (!stillOwnsToken()) return;
-            visualMotion.set(1);
             phaseMotion.set('entered');
+            visualMotion.set(1);
             setShouldRunInfinite(true);
           },
         });

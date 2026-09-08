@@ -11,8 +11,8 @@ type DragTimecodeProps = {
   spanFrames: number;
 };
 
-// Per-character lane schedule, rebuilt for the act-04 redesign budget (设计档 §4:
-// 时间码 delay 0 / enter 1200, entering TOGETHER with the ring).
+// Per-character lane schedule, rebuilt for the act-04 redesign budget (Design Doc §4:
+// timecode delay 0 / enter 1200, entering TOGETHER with the ring).
 //
 // The old numbers were CHAR_START_MS 2400 + a 180ms stride against a 3000ms budget —
 // i.e. the last of 11 characters started at 4200 and ran to 7200, more than twice the
@@ -41,17 +41,17 @@ export const TIMECODE_EXIT_RESET_FRACTION = 0.65;
  * Two things were removed to get here, both reported as defects:
  *
  *  1. A FREE RUN (`runFrames`, a rAF accumulator at 40ms/frame) that kept the counter
- *     ticking once the scene settled. That made the number climb on its own — 「时间不要自己
- *     涨，而是拖拽的时候变化」. A timecode that advances without input is not continuous
- *     motion, it is a second clock competing with the gesture.
+ *     ticking once the scene settled. That made the number climb on its own — "time should
+ *     not increment on its own, but change during drag". A timecode that advances without
+ *     input is not continuous motion, it is a second clock competing with the gesture.
  *
  *  2. A SECOND SOURCE: the readout used to prefer `signedDragProgress` while a finger was
  *     down and fall back to `timeline.progress` otherwise. Those two disagree, so the
- *     handover was a step discontinuity — the reported 跳变. Concretely, at release
+ *     handover was a step discontinuity — the reported jump. Concretely, at release
  *     `signed` snaps to 0 and the value jumped from `baseFrame + signed * dragSpan` to
  *     `baseFrame - (1 - progress) * enterSpan`. One source cannot disagree with itself.
  */
-export function DragTimecode({ spanFrames }: DragTimecodeProps): JSX.Element {
+export function DragTimecode({ spanFrames }: DragTimecodeProps): import('react').JSX.Element {
   const timeline = useAnimateTimeline();
   const timing = useTemporalMotion();
   const containerRef = useRef<HTMLDivElement>(null);

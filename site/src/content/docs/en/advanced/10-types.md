@@ -3,7 +3,7 @@ title: Public types
 eyebrow: ADVANCED / TYPES
 ---
 
-Component prop references are available on their respective documentation pages ([CineView](/docs/01-cineview), [Scene](/docs/02-scene), [Animate](/docs/03-animate), [AnimateVideo](/docs/04-animate-video), [Position](/docs/05-position)). This document provides shared core type definitions exported from the package root:
+Import shared types from `cineview`. Component pages describe their individual props; this page lists the types used across components and callbacks.
 
 ```tsx
 import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
@@ -23,7 +23,7 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 
 ## The three layers of AnimationType
 
-`AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`. It is what `enterAnimation` / `exitAnimation` / `loopAnimation` accept (including on `Scene.transition` and `AnimateVideo`).
+`AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`. Animate's animation props accept it. Scene transitions and AnimateVideo also accept it for their supported entrance and exit fields.
 
 | Layer               | Definition                                                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -33,18 +33,18 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 
 ## Error codes
 
-`CineViewErrorCode` is an 8-value union; switching on `code` inside `onError` provides compile-time exhaustiveness checking.
+`CineViewErrorCode` contains eight string values. Use a `never` check when a switch needs to handle every value.
 
-| Code                          | Triggered when                                                                                                                                                                                                |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EMPTY_SCENES`                | CineView has no Scene children.                                                                                                                                                                               |
-| `IMAGE_LOAD_FAILED`           | A preloaded image failed.                                                                                                                                                                                     |
-| `FIRST_SCENE_TIMEOUT`         | First-screen priority assets did not settle within `firstSceneTimeout` (default 3000ms). Recoverable: call `preventDefault()` to take over; otherwise the default fallback places the first scene statically. |
-| `INVALID_ANIMATION`           | `after` points at a nonexistent animateId.                                                                                                                                                                    |
-| `CIRCULAR_DEPENDENCY`         | The `after` chain contains a cycle.                                                                                                                                                                           |
-| `INVALID_COMPONENT_HIERARCHY` | A duplicate animateId or duplicate zone identity in the component tree.                                                                                                                                       |
-| `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config. Recoverable.                                                                                                                                                      |
-| `ANIMATION_ASSET_LOAD_FAILED` | A preset animation asset failed to load. Retryable.                                                                                                                                                           |
+| Code                          | Triggered when                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `EMPTY_SCENES`                | CineView has no Scene children, or a Scene has no content.                                                       |
+| `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode.                                                                           |
+| `FIRST_SCENE_TIMEOUT`         | Initial priority resource wait timed out. Call `preventDefault?.()` only when providing an application fallback. |
+| `INVALID_ANIMATION`           | A dependency is missing or incompatible, or manual control is unsupported.                                       |
+| `CIRCULAR_DEPENDENCY`         | The `after` chain contains a cycle.                                                                              |
+| `INVALID_COMPONENT_HIERARCHY` | A duplicate animateId or duplicate zone identity in the component tree.                                          |
+| `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config. Recoverable.                                                         |
+| `ANIMATION_ASSET_LOAD_FAILED` | A preset animation asset failed to load. Retryable.                                                              |
 
 The payload type is `CineViewErrorDetail = { code, message, context?, preventDefault? }`; `preventDefault` exists only on recoverable errors. Handling patterns: [Callbacks](/docs/03-callbacks).
 
@@ -73,21 +73,15 @@ The payload type is `CineViewErrorDetail = { code, message, context?, preventDef
 
 ## Component prop types
 
-Every component's props are exported from the package root, so a wrapper can name them
-without re-declaring the shape. The three below have no page of their own; the rest are
-documented on their component pages.
+Props types are exported from `cineview`. Their field references are [AnimateVideo](/docs/04-animate-video), [Image](/docs/06-image), and [Container](/docs/07-container).
 
-| Type                | Extends                                                             | Own fields                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AnimateVideoProps` | Native video events (`onPlay`, `onSeeked`, …)                       | `src`, `poster`, `width`, `height`, `style`, `preload`, `playbackRate`, `scrubRange`, `animateId`, `duration`, `enterAnimation`, `exitAnimation`, `timeline`, `visibility`, `releaseOnLeave` |
-| `ImageProps`        | `img` attributes minus `src` / `alt` / `width` / `height` / `style` | `src` (required), `alt` (required), `width`, `height`, `style`, `preload`                                                                                                                    |
-| `ContainerProps`    | `div` attributes minus `children` / `style` / `className`           | `width`, `height`, `children` (required), `style`, `className`                                                                                                                               |
+| Type                | Extends                                                                  | Own fields                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimateVideoProps` | Native events: `onEnded`, `onPlay`, `onPause`, `onTimeUpdate`, `onError` | `src`, `poster`, `width`, `height`, `style`, `preload`, `playbackRate`, `scrubRange`, `animateId`, `duration`, `enterAnimation`, `exitAnimation`, `timeline`, `visibility`, `releaseOnLeave` |
+| `ImageProps`        | `img` attributes minus `src` / `alt` / `width` / `height` / `style`      | `src` (required), `alt` (required), `width`, `height`, `style`, `preload`                                                                                                                    |
+| `ContainerProps`    | `div` attributes minus `children` / `style` / `className`                | `width`, `height`, `children` (required), `style`, `className`                                                                                                                               |
 
-`width` / `height` / `style` accept design pixels as numbers on all three, converted
-through the same `designWidth` ruler as everywhere else. `AnimateVideoProps.scrubRange`
-is a readonly `[fromSeconds, toSeconds]` pair and may run backwards; see
-[AnimateVideo](/docs/04-animate-video). `releaseOnLeave` applies to scroll takeover
-zones only and is ignored in drag mode.
+Numeric dimensions and supported numeric style lengths use `designWidth` conversion. `scrubRange` is a readonly `[fromSeconds, toSeconds]` pair and can run in reverse. `releaseOnLeave` applies only inside scroll locked zones; see [AnimateVideo](/docs/04-animate-video).
 
 ```tsx
 import type { AnimateVideoProps, ImageProps, ContainerProps } from 'cineview';
@@ -95,8 +89,8 @@ import type { AnimateVideoProps, ImageProps, ContainerProps } from 'cineview';
 
 ## Animate-specific types
 
-| Type                   | Definition                                                                                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AnimateRenderState`   | The state passed to render-prop children: `{ enterProgress: number (0..1), phase: AnimatePhase }`.                                                                                         |
-| `AnimateStaggerConfig` | `{ each?: number, from?: 'first' \| 'last' \| 'center' }`, defaulting to each 40ms, from `'first'`.                                                                                        |
-| `AnimateTimeline`      | The return of `useAnimateTimeline()`: six readonly fields; progress / signedProgress / phase / frame are MotionValues. Field table in [useAnimateTimeline](/docs/09-use-animate-timeline). |
+| Type                   | Definition                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AnimateRenderState`   | The state passed to render-prop children: `{ enterProgress: number (0..1), phase: AnimatePhase }`.                                                           |
+| `AnimateStaggerConfig` | `{ each?: number, from?: 'first' \| 'last' \| 'center' }`, defaulting to each 40ms, from `'first'`.                                                          |
+| `AnimateTimeline`      | `mode`, `lane`, `progress`, `signedProgress`, `phase`, and `frame`. The last four are MotionValues; see [useAnimateTimeline](/docs/09-use-animate-timeline). |

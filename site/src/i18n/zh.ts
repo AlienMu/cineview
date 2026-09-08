@@ -1,7 +1,7 @@
-// 集中式短文案字典(官网 + demo + 导航)。文档长文走 content/docs/zh/*.md,不在此。
-// zh 不标注类型:作为 DictKey 的唯一真相源,key 须保持字面量推断(见 types.ts)。
+// Centralized short-copy dictionary (website + demo + navigation). Long-form documentation goes to content/docs/zh/*.md, not here.
+// zh does not annotate types: as the sole source of truth for DictKey, keys must maintain literal inference (see types.ts).
 export const zh = {
-  // ── 顶栏 / 导航 ──
+  // ── Top bar / Navigation ──
   'nav.home': '首页',
   'nav.demo': '演示',
   'nav.docs': '文档',
@@ -9,8 +9,8 @@ export const zh = {
   'nav.lang': 'EN',
   'nav.langLabel': '切换语言',
 
-  // ── 第1幕 Hero ──
-  // 三排:title(中)/ slogan(最大,流光)/ intro(小)
+  // ── Act 1 Hero ──
+  // Three rows: title (center) / slogan (largest, shimmer) / intro (small)
   'hero.title': 'CineView',
   'hero.slogan': '像导演一样\n控制每一帧',
   'hero.intro': '滚动是胶片,拖拽是分镜。\n把每一次位移,都交给时间线。',
@@ -19,15 +19,15 @@ export const zh = {
   'hero.ctaGithub': 'GitHub',
   'hero.scrollHint': '向下滚动,胶片开始走动',
 
-  // ── 第2幕 理念 ──
+  // ── Act 2 Philosophy ──
   'idea.eyebrow': '为什么是 CineView',
   'idea.title': '滚动不该只是位移,\n而是被排好的时间线',
   'idea.body':
     '传统页面里,滚动只是把内容往上推。在 CineView 里,滚动是胶片推进——每一段位移都映射到场景的进退场时间轴,元素按 delay 与 after 依次入场,像分镜表一样被精确排进时间线。',
 
-  // ── 第2幕 能力展示（框架即演示 · 两镜 + 贯穿时间码胶囊）──
-  // 标题用 '|' 分隔：竖线后半段渲染为 Fraunces 斜体陶土强调（语言无关）。
-  // slate/code 为 API 字面量，中英一致（等宽）。
+  // ── Act 2 Capability showcase (framework as demo · two shots + through-line timecode capsule) ──
+  // Title uses "|" separator: the right-hand segment renders as Fraunces italic terracotta emphasis (language-agnostic).
+  // slate/code are API literals, identical across zh/en (monospace).
   'cap.tc.rec': 'REC',
 
   'cap.shot1.slate': 'SCENE TIMELINE',
@@ -71,7 +71,7 @@ export const zh = {
   'cap.shot1.preset.blur.desc': '由虚焦到清晰，像镜头缓缓对上焦。',
   'cap.shot1.preset.blur.code': '<Animate enterAnimation="blur-in" />',
 
-  // ── 第3幕 推镜(dolly in)──
+  // ── Act 3 Dolly in ──
   'cap.shot3.slate': 'DOLLY IN · DECLARATIVE TIMELINE',
   'cap.shot3.card.chain.label': '链式时间线',
   'cap.shot3.card.stagger.label': '错峰级联',
@@ -79,11 +79,11 @@ export const zh = {
   'cap.shot3.card.container.label': '尺寸换算',
   'cap.shot3.card.scrub.label': '滚动接管',
   'cap.shot3.card.image.label': '资源预加载',
-  /* 2026-08-16 用户指令：zh 与 en 一样换行，但走首页 hero 的错位换行
-   * （\n 断行 + 行内 ±44u 静态横移，见 Act3DollyScene 的分行渲染）。 */
+  /* 2026-08-16 user directive: zh uses same line breaks as en, but follows the homepage hero staggered line-break pattern
+   * (\n line break + inline ±44u static horizontal shift, see Act3DollyScene split-line rendering). */
   'cap.shot3.title': '时间随滚动流转，\n画面随叙事前行',
 
-  // ── 第3幕 双引擎 ──
+  // ── Act 3 Dual engines ──
   'engines.eyebrow': '双引擎',
   'engines.title': '一套场景,两种驱动',
   'engines.dragName': 'drag · 移动端',
@@ -93,7 +93,7 @@ export const zh = {
   'engines.scrollDesc':
     '接管真实文档滚动,center-lock 把关键场景锁定在视口中心,滚动距离即动画进度(1ms=1px),正反向天然可逆。',
 
-  // ── 第4幕 手机高光场景 ──
+  // ── Act 4 Phone highlight scene ──
   'phone.eyebrow': '此刻 · 亲手体验',
   'phone.title': '一台手机,\n装着 drag 模式',
   'phone.body':
@@ -101,7 +101,7 @@ export const zh = {
   'phone.unlockHint': '↑ 按住屏幕上下拖动',
   'phone.locked': '对焦中…',
 
-  // 手机内 drag demo 4 屏
+  // Phone interior drag demo 4 screens
   'demoDrag.s1.eyebrow': '第一镜',
   'demoDrag.s1.title': 'CineView',
   'demoDrag.s1.sub': '影院级叙事,触手可及',
@@ -118,17 +118,17 @@ export const zh = {
   'demoDrag.s4.title': '40+ 动画预设',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur 任意组合',
 
-  // ── 首页第五幕 Cinema Entrance（熄屏入场）──
-  /* 标题+副标题（2026-08-09 重写，用户访谈裁决「方向 A：点破双模式同框」）。
-     这一幕的客观事实：页面本身是 scroll 模式、手机里是 drag 模式，观众正同时
-     看着两种模式跑同一个框架 —— 文案直接点破它。第一行副标题用「它」回指标题
-     的「一套体系」，第二行落到可核对的框架事实（时间轴语义 / 动画声明同源）。
-     刻意不写成宣传语：全站语气是「示范给你看」，不是「告诉你它很好」。 */
+  // ── Act 5 Cinema Entrance (fade-in from black) ──
+  /* Title + subtitle (2026-08-09 rewrite, user interview ruling "Direction A: reveal dual-mode co-existence").
+     This act's objective fact: the page itself is scroll mode, the phone interior is drag mode, the audience is simultaneously
+     watching both modes running the same framework — the copy reveals it directly. First subtitle line uses "it" to refer back
+     to the title's "unified system"; second line lands on verifiable framework facts (timeline semantics / animation declarations share the same source).
+     Deliberately not written as marketing copy: the site's tone is "show you by demonstration", not "tell you it's great". */
   'scene5.title': '两种模式，一套体系',
   'scene5.subtitle': '指尖拖拽的是它，这一页滚动的也是它。\n同一套时间轴，同一种动画声明。',
   'scene5.frameTitle': 'CineView 拖拽体验',
 
-  // ── 第5幕 能力矩阵 ──
+  // ── Act 5 Capability matrix ──
   'caps.eyebrow': '能力',
   'caps.title': '为叙事而生的工具箱',
   'caps.1.title': '40+ 动画预设',
@@ -145,7 +145,7 @@ export const zh = {
   'caps.6.title': 'scene-scoped 固定层',
   'caps.6.desc': '固定层限定在场景内,跨场景不漂浮,Position 直接挂载,层级清晰可控。',
 
-  // ── 第6幕 CTA / Footer ──
+  // ── Act 6 CTA / Footer ──
   'cta.title': '现在,开始你的第一镜',
   'cta.body': '安装、写下第一个场景,几分钟就能跑起一段电影感叙事。',
   'cta.start': '快速开始',
@@ -163,7 +163,7 @@ export const zh = {
   'demoHub.scrollHint': '向下滚动,关键场景会锁定在中心',
   'demoHub.backHome': '返回首页',
 
-  // ── Demo · AnimateVideo(或许，也能驱动视频？）──
+  // ── Demo · AnimateVideo (perhaps, can also drive video?) ──
   'demoVideo.slate': 'SCROLL-DRIVEN VIDEO',
   'demoVideo.title': '或许|也能驱动视频？',
   'demoVideo.intro':
@@ -172,7 +172,7 @@ export const zh = {
     '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc': '滚动即时间轴：进度 0→1 映射到视频首帧→末帧，反向滚动天然倒放。',
 
-  // ── 文档外壳 ──
+  // ── Documentation shell ──
   'docs.title': '文档',
   'docs.search': '搜索',
   'docs.onThisPage': '本页目录',
@@ -181,18 +181,18 @@ export const zh = {
   'docs.editTip': '内容随框架版本更新',
   'docs.notFound': '未找到该文档',
 
-  // 文档导航分组（条目标题走各语言 md frontmatter，不再经 i18n）
-  'docs.group.getting-started': '上手',
+  // Documentation navigation groups (entry titles come from each language's md frontmatter, no longer through i18n)
+  'docs.group.getting-started': '开始使用',
   'docs.group.concepts': '核心概念',
-  'docs.group.drag': 'drag 引擎',
-  'docs.group.scroll': 'scroll 引擎',
-  'docs.group.components': '组件',
-  'docs.group.advanced': '进阶',
+  'docs.group.drag': '拖动模式',
+  'docs.group.scroll': '滚动模式',
+  'docs.group.components': '组件参考',
+  'docs.group.advanced': '进阶用法',
 
-  // ── 通用 ──
+  // ── Common ──
   'common.timecode': '时间码',
 
-  // ── /drag 时间叙事体验（仅译叙事文案；电影术语保留英文）──
+  // ── /drag temporal narrative experience (only translate narrative copy; preserve film terminology in English) ──
   'dragTemporal.s01.eyebrow': 'CINEMATIC UI FRAMEWORK',
   'dragTemporal.s01.footerHint': '释放后，时间继续完成',
   'dragTemporal.s01.dialLabel': '时间校准盘',
@@ -212,10 +212,10 @@ export const zh = {
   'dragTemporal.s03.card3': '停留',
   'dragTemporal.s03.card4': '退场',
   'dragTemporal.s03.card5': '倒带',
-  // 剪辑台（act 03 重写）新增。previewLabel / timelineLabel 是 aria-label——只给读屏，
-  // 屏幕上不显示。sub1..5 是 V2 字幕轨的五个词（2026-08-18 起 10s 源五段；设计档 §3.3
-  // 的刻意模糊已于 2026-08-19 撤销，现为可读文案）：既印在轨道块上，也随 active-media
-  // 逐段点亮在预览画面上。CSS 侧的揭示选择器必须与这里的数量同步——契约测试已钉。
+  // Editing desk (act 03 rewrite) new additions. previewLabel / timelineLabel are aria-labels — screen-reader only,
+  // not displayed on screen. sub1..5 are the five words on the V2 subtitle track (2026-08-18 onwards 10s source five segments; design doc §3.3
+  // deliberate blur was revoked 2026-08-19, now readable copy): both printed on track blocks and progressively highlighted
+  // on the preview frame with active-media. CSS-side reveal selectors must stay in sync with the count here — contract test pinned.
   'dragTemporal.s03.previewLabel': '节目预览监视器',
   'dragTemporal.s03.timelineLabel': '剪辑时间线',
   'dragTemporal.s03.sub1': '剪辑',

@@ -1,16 +1,18 @@
 /**
- * `cineview/scroll` —— **只含滚动引擎**的入口。
+ * `cineview/scroll` — entry point containing **only the scroll engine**.
  *
- * 存在理由同 `entry-drag.ts`：单文件 UMD 不能代码拆分，全量入口必然两套引擎
- * 都带。只用滚动的消费者不该背拖拽引擎的重量。
+ * Rationale matches `entry-drag.ts`: single-file UMD cannot code-split, so a full entry
+ * point inevitably bundles both engines. Consumers using only scroll should not carry
+ * the drag engine's weight.
  *
- * 与拖拽入口的**不对称**（实测得出，不是遗漏）：这里**不需要**运行时强制
- * `mode`。`DirectScrollCineView` 内部把 `mode: 'scroll'` 硬编码在自己发出的
- * 事件 detail 里（DirectScrollCineView.tsx:188、469），**从不读 `props.mode`**，
- * 所以传错 `mode` 不会让它短路。拖拽引擎则相反（约 30 处 `!== 'drag'` 守卫），
- * 故只有那一侧需要覆写。多加一层无用包装只会白增体积。
+ * **Asymmetry** with drag entry (empirically verified, not an omission): runtime `mode`
+ * enforcement is **not needed** here. `DirectScrollCineView` internally hardcodes
+ * `mode: 'scroll'` in the event detail it emits (DirectScrollCineView.tsx:188, 469)
+ * and **never reads `props.mode`**, so passing the wrong `mode` will not short-circuit it.
+ * The drag engine is the opposite (~30 `!== 'drag'` guards), hence only that side needs
+ * the override. Adding a useless wrapper here would only bloat the bundle.
  *
- * Props 类型不用 `Omit<CineViewProps, 'mode'>`，理由见 `entry-drag.ts` 文件头。
+ * Props type does not use `Omit<CineViewProps, 'mode'>` — rationale in `entry-drag.ts` header.
  */
 
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
@@ -19,7 +21,7 @@ import type { CineViewBaseProps, ScrollModeCallbacks, CineViewRef } from './type
 
 export * from './public-api';
 
-/** 滚动入口的 Props：无 `mode`，callbacks 固定为滚动组。 */
+/** Scroll entry Props: no `mode`, callbacks fixed to scroll group. */
 export type CineViewScrollProps = CineViewBaseProps & {
   callbacks?: ScrollModeCallbacks;
 };

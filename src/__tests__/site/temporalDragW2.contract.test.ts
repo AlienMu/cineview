@@ -55,9 +55,11 @@ const siteReactDom = require(
 
 const { createElement } = siteReact;
 const { createRoot } = siteReactDom;
-const reactAct = (
-  siteReact as unknown as { unstable_act: (callback: () => Promise<void>) => Promise<void> }
-).unstable_act;
+const reactAct =
+  (siteReact as unknown as { act?: (callback: () => Promise<void>) => Promise<void> }).act ??
+  (async (callback: () => Promise<void>) => {
+    await callback();
+  });
 
 function parse(filePath: string): ts.SourceFile {
   return ts.createSourceFile(
@@ -83,8 +85,8 @@ describe('/drag W2 clapperboard contract', () => {
    * Where the SLATE'S OWN chain ends: gate + board. DERIVED from its two owners rather than a
    * ceiling they must fit inside, and deliberately NOT called tSelf — see below.
    *
-   * Both terms moved this pass: the gate 1600 -> 1100 (返工「继续加快act2画板入场时间」) and the
-   * board 3600 -> 3560 (its table traded 280ms of convergence for a 240ms held-board beat).
+   * Both terms moved this pass: the gate 1600 -> 1100 (rework: "continue speeding up act2 board entrance")
+   * and the board 3600 -> 3560 (its table traded 280ms of convergence for a 240ms held-board beat).
    */
   const ACT2_BOARD_CHAIN_END_MS = 4370;
 
@@ -173,16 +175,17 @@ describe('/drag W2 clapperboard contract', () => {
     // separately from the table so the failure names the symptom.
     expect(ACT2_BOARD_TIMING_MS.countBeat * ACT2_BOARD_TIMING_MS.countChars.length).toBe(2160);
 
-    // THE HELD BOARD, asserted as its own claim: 「需要完全展示后才执行倒计时」. `settle` is the beat
-    // in which the assembled slate is on screen and STILL, and it is the segment the countdown is
-    // anchored off. Zero here (or the countdown re-anchored at FORM_END) is the regression where
-    // the last particles to arrive are immediately recruited into the numeral "3", so the board is
-    // never seen as a board. Stated separately from the table for the same reason countBeat is:
-    // the failure should name the symptom, not just "the object changed".
+    // THE HELD BOARD, asserted as its own claim: "must be fully displayed before the countdown executes".
+    // `settle` is the beat in which the assembled slate is on screen and STILL, and it is the segment
+    // the countdown is anchored off. Zero here (or the countdown re-anchored at FORM_END) is the
+    // regression where the last particles to arrive are immediately recruited into the numeral "3",
+    // so the board is never seen as a board. Stated separately from the table for the same reason
+    // countBeat is: the failure should name the symptom, not just "the object changed".
     expect(ACT2_BOARD_TIMING_MS.settle).toBeGreaterThan(0);
     // The entrance is FASTER than the beat it feeds: 620 of convergence against 240 of stillness.
-    // This ordering is what 「继续加快act2画板入场时间」 bought — the hold may not grow until it
-    // outweighs the convergence, which would read as a stalled entrance rather than a held board.
+    // This ordering is what "continue speeding up act2 board entrance" bought — the hold may not
+    // grow until it outweighs the convergence, which would read as a stalled entrance rather than
+    // a held board.
     expect(ACT2_BOARD_TIMING_MS.form).toBeGreaterThan(ACT2_BOARD_TIMING_MS.settle);
 
     // The table's own segments are the ONLY things in the sum: no slack, no overflow. Asserted
@@ -216,8 +219,8 @@ describe('/drag W2 clapperboard contract', () => {
     // half a second after the ACTION word has landed.
     expect(tSelf - ACT2_BOARD_CHAIN_END_MS).toBe(830);
 
-    // The gate IS the set layer's enter. This is the invariant the locked order 灯光入场 →
-    // 再出现 canvas rests on: shorter and the board starts after the light has finished (a
+    // The gate IS the set layer's enter. This is the invariant the locked order "light entrance →
+    // then canvas appears" rests on: shorter and the board starts after the light has finished (a
     // visible stall), longer and particles gather over an unlit stage.
     const set = ACT2_LIGHT_LAYERS.find((layer) => layer.id === 's02-light-set');
     expect(set?.enterMs).toBe(ACT2_LIGHT_GATE_MS);
@@ -424,7 +427,7 @@ describe('/drag W2 clapperboard contract', () => {
 
     // The six RGB stops, exactly, in order. Plus the property they were chosen for: monotonically
     // rising luminance across the word (A dark bronze → N warm white), all on the warm side of
-    // the wheel — the 暗金不要用青色 decree, expressed as r > g > b on every stop.
+    // the wheel — the "dark gold should not use cyan" decree, expressed as r > g > b on every stop.
     const stops = Array.from({ length: 6 }, (_, index) => letterRamp(index));
     expect(stops).toEqual([
       '96, 70, 34',
@@ -483,8 +486,8 @@ describe('/drag W2 clapperboard contract', () => {
   //
   // This exists because the structural checks could not tell a graded word from a flat one. The
   // AST test counted `letterRamp` calls (`toBe(1)`), which `letterRamp(0)` satisfies — and a
-  // constant index paints all six letters the same colour, i.e. precisely the 字太平 / flat-WARM
-  // bug §3.2 records. Only running the loop and reading back the fills can catch that.
+  // constant index paints all six letters the same colour, i.e. precisely the "type too flat" /
+  // flat-WARM bug §3.2 records. Only running the loop and reading back the fills can catch that.
   it('paints each ACTION letter its own ramp stop when the draw loop runs', async () => {
     const fills: string[] = [];
     const rects: Array<{ x: number; y: number; fill: string }> = [];

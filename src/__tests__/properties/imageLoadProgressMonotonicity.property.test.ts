@@ -1,9 +1,9 @@
 /**
- * Property-Based Test: 图片加载进度单调性
+ * Property-Based Test: Image Load Progress Monotonicity
  * **Validates: Requirements 11.6**
  *
- * 属性 4: 后一个时间点的加载进度必须大于或等于前一个时间点
- * 形式化：∀ time t1, t2: t1 < t2 ⟹ progress(t1) ≤ progress(t2)
+ * Property 4: Loading progress at a later time point must be greater than or equal to the progress at an earlier time point
+ * Formal: ∀ time t1, t2: t1 < t2 ⟹ progress(t1) ≤ progress(t2)
  */
 
 import { test } from '@fast-check/jest';
@@ -11,12 +11,10 @@ import * as fc from 'fast-check';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 
-describe('Property: 图片加载进度单调性', () => {
-  // 保存原始 Image 构造函数
+describe('Property: Image Load Progress Monotonicity', () => {
   const originalImage = global.Image;
 
   afterEach(() => {
-    // 恢复原始 Image
     global.Image = originalImage;
   });
 
@@ -29,16 +27,14 @@ describe('Property: 图片加载进度单调性', () => {
       { minLength: 2, maxLength: 10 }
     ),
   ])(
-    '图片加载进度应该单调递增（不会减少）',
+    'image load progress should monotonically increase (never decrease)',
     async (imageConfigs: Array<{ shouldLoad: boolean; delay: number }>) => {
       const configs = imageConfigs;
-      // 创建模拟图片 URL
       const imageUrls = configs.map(
         (_: { shouldLoad: boolean; delay: number }, index: number) =>
           `https://example.com/image-${index}.jpg`
       );
 
-      // 模拟 Image 对象
       let imageIndex = 0;
       global.Image = class {
         onload: ((this: GlobalEventHandlers, ev: Event) => unknown) | null = null;
@@ -63,17 +59,14 @@ describe('Property: 图片加载进度单调性', () => {
 
       const progressHistory: number[] = [];
 
-      // 记录初始进度
       const [initialState] = result.current;
       progressHistory.push(initialState.progress);
 
-      // 开始预加载
       act(() => {
         const [, actions] = result.current;
         actions.startPreload();
       });
 
-      // 等待加载完成，同时记录进度变化
       await waitFor(
         () => {
           const [state] = result.current;
@@ -83,12 +76,11 @@ describe('Property: 图片加载进度单调性', () => {
         { timeout: 5000, interval: 50 }
       );
 
-      // 验证单调性：每个进度值都应该 >= 前一个进度值
+      // Verify monotonicity: each progress value should be >= the previous value
       for (let i = 1; i < progressHistory.length; i++) {
         expect(progressHistory[i]).toBeGreaterThanOrEqual(progressHistory[i - 1]);
       }
 
-      // 验证进度范围
       progressHistory.forEach((progress) => {
         expect(progress).toBeGreaterThanOrEqual(0);
         expect(progress).toBeLessThanOrEqual(100);
@@ -97,7 +89,7 @@ describe('Property: 图片加载进度单调性', () => {
   );
 
   test.prop([fc.integer({ min: 1, max: 20 })])(
-    '边界情况：初始进度应该为 0',
+    'boundary case: initial progress should be 0',
     (imageCount: number) => {
       const count = imageCount;
       const imageUrls = Array.from(
@@ -113,7 +105,7 @@ describe('Property: 图片加载进度单调性', () => {
   );
 
   test.prop([fc.integer({ min: 1, max: 20 })])(
-    '边界情况：所有图片加载完成后进度应该为 100',
+    'boundary case: progress should be 100 after all images load',
     async (imageCount: number) => {
       const count = imageCount;
       const imageUrls = Array.from(
@@ -121,14 +113,12 @@ describe('Property: 图片加载进度单调性', () => {
         (_, i) => `https://example.com/image-${i}.jpg`
       );
 
-      // 模拟所有图片成功加载
       global.Image = class {
         onload: ((this: GlobalEventHandlers, ev: Event) => unknown) | null = null;
         onerror: ((this: GlobalEventHandlers, ev: Event) => unknown) | null = null;
         src = '';
 
         constructor() {
-          // 使用 queueMicrotask 确保在 React 更新周期内执行
           queueMicrotask(() => {
             if (this.onload) {
               this.onload.call({} as GlobalEventHandlers, new Event('load'));
@@ -142,7 +132,6 @@ describe('Property: 图片加载进度单调性', () => {
       await act(async () => {
         const [, actions] = result.current;
         actions.startPreload();
-        // 等待微任务队列清空
         await new Promise((resolve) => setTimeout(resolve, 50));
       });
 
@@ -160,7 +149,7 @@ describe('Property: 图片加载进度单调性', () => {
   );
 
   test.prop([fc.integer({ min: 2, max: 10 }), fc.integer({ min: 1, max: 9 })])(
-    '部分加载情况：进度应该反映已加载图片的比例',
+    'partial load case: progress should reflect the proportion of loaded images',
     async (totalImages: number, loadedCount: number) => {
       const total = totalImages;
       const loaded = loadedCount;
@@ -170,7 +159,6 @@ describe('Property: 图片加载进度单调性', () => {
         (_, i) => `https://example.com/image-${i}.jpg`
       );
 
-      // 模拟部分图片加载
       let loadedImages = 0;
       global.Image = class {
         onload: ((this: GlobalEventHandlers, ev: Event) => unknown) | null = null;
@@ -191,12 +179,10 @@ describe('Property: 图片加载进度单调性', () => {
 
       const { result } = renderHook(() => useImagePreloader({ priorityUrls: imageUrls }));
 
-      // 确保 hook 正确初始化
       if (!result.current) {
         return;
       }
 
-      // 开始预加载
       await act(async () => {
         const [, actions] = result.current;
         if (actions) {
@@ -204,7 +190,6 @@ describe('Property: 图片加载进度单调性', () => {
         }
       });
 
-      // 等待加载完成
       await waitFor(
         () => {
           const [state] = result.current;
@@ -215,11 +200,9 @@ describe('Property: 图片加载进度单调性', () => {
 
       const [finalState] = result.current;
 
-      // 验证进度在合理范围内
       expect(finalState.progress).toBeGreaterThanOrEqual(0);
       expect(finalState.progress).toBeLessThanOrEqual(100);
 
-      // 如果有图片加载，进度应该大于 0
       if (actualLoadedCount > 0) {
         expect(finalState.progress).toBeGreaterThan(0);
       }

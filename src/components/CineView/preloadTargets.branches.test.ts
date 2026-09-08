@@ -1,10 +1,10 @@
 /**
- * preloadTargets 分支补充测试
- * 覆盖 resolveScenePreloadTargetImages 的未覆盖分支：
- *  - line 36: addSceneImages 收到 undefined scene（越界 number 之外，by-id 不命中无影响；
- *    这里通过 number target 命中一个槽位为 undefined 的 scenes 数组触发）
- *  - line 41: url 为空串 / 重复 url 时 skip（去重 + falsy 过滤）
- *  - line 58: target 为 falsy（空串）时 early-return
+ * preloadTargets branch coverage tests
+ * Covers uncovered branches in resolveScenePreloadTargetImages:
+ *  - line 36: addSceneImages receives undefined scene (triggered via numeric target
+ *    hitting a sparse array slot; by-id lookups are unaffected)
+ *  - line 41: empty string url or duplicate url skipped (deduplication + falsy filter)
+ *  - line 58: falsy target (empty string) early-returns
  */
 
 import { resolveScenePreloadTargetImages } from './preloadTargets';

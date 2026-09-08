@@ -3,26 +3,26 @@ title: Introduction
 eyebrow: GETTING STARTED / INTRODUCTION
 ---
 
-CineView is a React animation framework for cinematic full-screen narrative experiences. Declare scenes, animation specifications, and a design width baseline; the engine manages transitions, timeline scheduling, and single-axis responsive scaling.
+CineView is a React library for full-screen scene transitions and animations driven by drag or scroll input. Declare scenes, animation timing, and the design width; CineView handles navigation and scales numeric design lengths to the viewport.
 
 ## Two modes
 
-CineView has two engines, picked by the `mode` prop on the root component:
+Select the interaction with the root component's `mode` prop:
 
-- **drag**: swipe pagination. One gesture flips one screen; each screen is one narrative beat.
-- **scroll**: real document-flow scrolling. The page scrolls normally. Inside a scene with a locked zone, scrolling drives a timeline that scrubs with scroll (center-lock).
+- **drag**: full-screen paging through pointer gestures, keyboard navigation, or ref methods.
+- **scroll**: content moves in a native scroll container. A scene with a locked zone stays in place while scrolling advances its animations.
 
 Both modes share the same Scene / Animate / Position components. Their timeline semantics differ, and state is not shared across modes. See [Modes](/docs/01-modes) and [Choosing a mode](/docs/04-choosing-mode).
 
-## Three core concepts
+## Core concepts
 
-**px2vw single-axis responsive baseline.** The system relies on a single viewport scaling baseline: `designWidth` (default 750). Coordinates and box-model dimensions scale via `scale = viewportWidth / designWidth`. Scaling derives strictly from viewport width to maintain consistent proportions across display sizes. See [Responsive](/docs/05-responsive).
+**Responsive lengths.** Set `designWidth` to the design's width (default 750). Numeric design lengths use `scale = viewportWidth / designWidth` on both axes. See [Responsive conversion](/docs/05-responsive).
 
-**Scenes and timelines.** `Scene` is the chapter boundary. `Animate` consumes the current mode's timeline semantics. In drag, switching scenes defaults to `transitionDuration: 800` ms.
+**Scenes and timelines.** `Scene` groups content with shared layout and transition behavior. `Animate` sets an element's animation and timing. In drag mode, page movement can finish before its elements finish entering.
 
-**1ms = 1px.** A locked zone budgets duration directly as physical scroll distance: one millisecond of `duration` corresponds to one pixel of scroll travel. Scrolling back through the segment reduces progress from 100% to 0% continuously without jumps. See [Center-lock](/docs/01-centerlock).
+**1ms = 1px.** Inside a locked zone, one millisecond of authored animation duration corresponds to one pixel of scroll distance. Reverse scrolling moves the animation back through the same range. See [Center-lock](/docs/01-centerlock).
 
-## A 30-second example
+## Two-scene example
 
 ```tsx
 import { CineView, Scene, Animate } from 'cineview';
@@ -45,10 +45,10 @@ export default function App() {
 }
 ```
 
-`designWidth: 750` declares the design width baseline. `Scene` defines a chapter boundary, and `Animate` coordinates preset entrance transitions for its content. In drag mode, swipe gestures transition between the two screens.
+`designWidth={750}` sets the design width. Each `Scene` contains a title with a preset entrance animation. A drag gesture or keyboard navigation moves between the two scenes.
 
 ## Next steps
 
 - [Installation](/docs/02-installation): packages, peer dependencies, and per-mode entry points.
-- [Quickstart](/docs/03-quickstart): a minimal standalone scene with key property breakdowns.
-- [Choosing a mode](/docs/04-choosing-mode): architectural trade-offs and decision matrix.
+- [Quickstart](/docs/03-quickstart): a two-scene example with positioning and ordered animations.
+- [Selecting a mode](/docs/04-choosing-mode): compare drag and scroll behavior.

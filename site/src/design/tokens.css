@@ -6,23 +6,23 @@
 
 :root {
   /* — 基础色:暖白 / 暖墨 / 胶片线 — */
-  --film-white: #faf8f4;
-  --film-white-2: #f3efe8;
+  --film-white: #fcf8f1;
+  --film-white-2: #f5e9da;
   --ink: #1a1814;
-  --ink-soft: #4a463e;
-  --ink-mute: #847d70;
-  --frame-line: #e4dfd6;
-  --frame-line-soft: #eee9e0;
+  --ink-soft: #665346;
+  --ink-mute: #947b68;
+  --frame-line: #d9c1a9;
+  --frame-line-soft: #eadbca;
 
   /* — 柔彩首页 palette；具体 Scene 在 global.css 中覆盖 — */
   /* 非首页页面与滚动条使用的静态默认色。 */
   /* 与 LUT 停靠 0（design/lut.ts）同步：2026-08-16 参照胶带边缘 accent 家族
    * （#ca8a4c hue≈33°）调亮——top #f8e3c6 / bot #f9eee0（用户两轮判白/冷后
    * 的第三版）。旧 --lut-* 四族死 token 已删（历史在 git）。 */
-  --bg-grad-top: #f8e3c6;
-  --bg-grad-bot: #f9eee0;
+  --bg-grad-top: #f7dfbd;
+  --bg-grad-bot: #fcf1e3;
   --accent: #d59273; /* 当前镜头色,随滚动被 JS 覆写 */
-  --accent-ink: #a86247;
+  --accent-ink: #9e6344;
 
   /* — REC 常驻指示(时间码胶囊专用,不随镜头色变)— */
   --rec: #c4453f;
@@ -60,10 +60,6 @@
 
   /* — 结构 — */
   --content-max: 1080px;
-  /* docs 顶栏实高：.docs-shell__inner min-height 68px + 1px 下边框。
-     它是 sticky 且背景不透明，所以 sticky 侧栏的 top、可视高度上限、
-     以及锚点 scroll-margin-top 都必须减掉这一段，否则内容滚到它下面被盖住。 */
-  --docs-header-h: 69px;
 
   /* — 阴影（编辑派：柔和、浅层）— */
   --shadow-sm: 0 1px 3px rgba(26, 24, 20, 0.05);
@@ -73,6 +69,25 @@
   /* — 动效 — */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.home-page {
+  --warm-ivory: #fff9ef;
+  --burnt-terracotta: #994f36;
+  --brass-clay: #a4814c;
+  --film-white: #fffaf3;
+  --film-white-2: #f1dfc9;
+  --ink: #352820;
+  --ink-soft: #695143;
+  --ink-mute: #84664f;
+  --frame-line: #b99870;
+  --frame-line-soft: #dbc4a7;
+  --accent: #d59273;
+  --accent-ink: #994f36;
+}
+
+.home-page :is(h1, h2, h3, h4, p, span, a, button) {
+  letter-spacing: 0;
 }
 
 * {

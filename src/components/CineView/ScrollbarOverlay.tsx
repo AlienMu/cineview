@@ -1,13 +1,13 @@
 /**
- * ScrollbarOverlay — scroll 模式自绘滚动条覆盖层（从 DirectScrollCineView 抽出）。
+ * ScrollbarOverlay — custom scrollbar overlay for scroll mode (extracted from DirectScrollCineView).
  *
- * 纯展示 + 拖拽输入组件：接收已就绪的滚动量（viewportSpan / scrollContentSpan /
- * scrollOffset / isScrolling）与滚动条配置，自行计算 rail/thumb 几何并渲染；拖拽时
- * 经 `onScrollToOffset(targetOffset)` 把目标偏移回传给父组件（父持有真实 scroll
- * 状态写入权 —— containerRef / setNativeOffset / syncNativeScrollState）。
+ * Pure presentation + drag input component: receives ready scroll metrics (viewportSpan /
+ * scrollContentSpan / scrollOffset / isScrolling) and scrollbar config, calculates rail/thumb
+ * geometry and renders; on drag, sends target offset back to parent via `onScrollToOffset(targetOffset)`
+ * (parent owns the real scroll state write authority — containerRef / setNativeOffset / syncNativeScrollState).
  *
- * 几何/拖拽/自动隐藏语义与 DirectScrollCineView 保持一致；连续 offset 通过
- * 外部 store 直接写 thumb/ARIA，避免把每个滚动帧送回 React。
+ * Geometry/drag/auto-hide semantics match DirectScrollCineView; continuous offset writes thumb/ARIA
+ * directly via external store, avoiding sending every scroll frame back to React.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { clamp, normalizeKeyboardDeltaPx } from './directScrollHelpers';
@@ -17,19 +17,19 @@ import type { ScrollbarConfig, SlideDirection } from '../../types';
 
 export interface ScrollbarOverlayProps {
   direction: SlideDirection;
-  /** 主轴视口跨度（direction==='x' 时为宽，否则为高）。 */
+  /** Main-axis viewport span (width when direction==='x', height otherwise). */
   viewportSpan: number;
-  /** 内容可滚动总跨度。 */
+  /** Total scrollable content span. */
   scrollContentSpan: number;
-  /** 当前原生滚动偏移（未 clamp，组件内 clamp 到可滚动范围）。 */
+  /** Current native scroll offset (unclamped, component clamps to scrollable range). */
   scrollOffset: number;
   /** Optional live offset store; keeps the root scroll component out of the frame loop. */
   scrollOffsetStore?: ScrollExternalStore<number>;
-  /** 是否正在滚动（驱动 autoHide 淡入淡出）。 */
+  /** Whether currently scrolling (drives autoHide fade in/out). */
   isScrolling: boolean;
-  /** 已解析的滚动条配置对象（width/inset/colors/autoHide）。 */
+  /** Resolved scrollbar config object (width/inset/colors/autoHide). */
   config: ScrollbarConfig;
-  /** 拖拽/点击轨道时，把目标原生偏移回传父组件写入真实 scroll 状态。 */
+  /** On drag/track click, sends target native offset back to parent to write real scroll state. */
   onScrollToOffset: (targetOffset: number) => void;
 }
 
@@ -273,7 +273,7 @@ export function ScrollbarOverlay({
             ? {
                 position: 'absolute',
                 left: scrollbarInset,
-                top: Math.max(viewportSpan - scrollbarThickness - scrollbarInset, 0),
+                bottom: scrollbarInset,
                 width: railLength,
                 height: scrollbarThickness,
                 borderRadius: scrollbarRadius,

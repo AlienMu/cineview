@@ -140,7 +140,7 @@ export function createMinuteAdvanceContract(targetAngle: number): {
  *   3. inner  — the framework infinite lane: real-rate live time, phase-gated by
  *               shouldRunInfinite so it cannot keep ticking after the act leaves.
  */
-function RunningSecondHand({ startAngle }: { startAngle: number }): JSX.Element {
+function RunningSecondHand({ startAngle }: { startAngle: number }): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const sweep = createHandSweepContract(startAngle);
   return (
@@ -198,7 +198,7 @@ function RunningSecondHand({ startAngle }: { startAngle: number }): JSX.Element 
  * advance to the sampled minute. Their transforms compose, so minute 59 approaches but never
  * crosses two complete turns. The live one-hour rotation begins from that settled position.
  */
-function RunningMinuteHand({ targetAngle }: { targetAngle: number }): JSX.Element {
+function RunningMinuteHand({ targetAngle }: { targetAngle: number }): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const sweep = createHandSweepContract(0);
   const advance = createMinuteAdvanceContract(targetAngle);
@@ -265,7 +265,13 @@ function RunningMinuteHand({ targetAngle }: { targetAngle: number }): JSX.Elemen
 // The dial shell carries no lane of its own. It used to wrap everything in a 980ms
 // opacity/scale/blur takeover, which both duplicated the ring lane and smeared the
 // tick sweep behind a blur that was still resolving while ticks were lighting.
-function DialShell({ children, label }: { children: ReactNode; label: string }): JSX.Element {
+function DialShell({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}): import('react').JSX.Element {
   return (
     <div className="s01-dial-shell">
       <div className="s01-dial" role="img" aria-label={label}>
@@ -275,7 +281,7 @@ function DialShell({ children, label }: { children: ReactNode; label: string }):
   );
 }
 
-function GatedInnerRing(): JSX.Element {
+function GatedInnerRing(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
@@ -299,7 +305,7 @@ function GatedCenterNumber({
 }: {
   hour: string;
   previousHour: string | null;
-}): JSX.Element {
+}): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
@@ -354,7 +360,7 @@ function GatedCenterNumber({
 // Copy, language toggle and actions are parallel lanes on the same clock. Their small
 // absolute offsets preserve editorial rhythm without making one group wait for the
 // previous group to finish; by the first commit window the whole composition exists.
-function GatedEyebrow({ text }: { text: string }): JSX.Element {
+function GatedEyebrow({ text }: { text: string }): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
@@ -375,7 +381,7 @@ function GatedEyebrow({ text }: { text: string }): JSX.Element {
   );
 }
 
-function GatedTitle(): JSX.Element {
+function GatedTitle(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
@@ -396,7 +402,7 @@ function GatedTitle(): JSX.Element {
   );
 }
 
-function GatedDate({ text }: { text: string }): JSX.Element {
+function GatedDate({ text }: { text: string }): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
@@ -412,9 +418,10 @@ function GatedDate({ text }: { text: string }): JSX.Element {
       }}
       timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.date) }}
     >
-      {/* translate="no" + lang="en"（2026-08-16 用户报「AUGUST 16TH 被翻译成中文」）：
-          日期本来就是 English-only 设计（formatEnglishDate），但整页自动翻译
-          （页面 lang=zh-CN 时浏览器会连它一起翻）——挂标准属性明确不翻。 */}
+      {/* translate="no" + lang="en" (2026-08-16 user reported "AUGUST 16TH was translated to Chinese"):
+          The date is intentionally English-only by design (formatEnglishDate), but automatic page
+          translation (when page lang=zh-CN) would translate it along with everything else — these
+          standard attributes explicitly mark it as untranslatable. */}
       <p className="s01-date" translate="no" lang="en">
         {text}
       </p>
@@ -470,7 +477,7 @@ function useLiveDialClock(epoch: DialEpoch): LiveDialClock {
 // The language toggle now belongs to act 1 rather than the app shell: as page-level
 // chrome it was the one element that ignored the drag timeline entirely, sitting at
 // full opacity over every act.
-function GatedLangToggle(): JSX.Element {
+function GatedLangToggle(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <div className="s01-lang-slot">
@@ -501,7 +508,7 @@ function GatedActions({
   actionsLabel: string;
   btnHome: string;
   btnDocs: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   const timing = useTemporalMotion();
   return (
     <Animate
@@ -536,7 +543,7 @@ function GatedActions({
   );
 }
 
-export const SceneRolling = memo(function SceneRolling(): JSX.Element {
+export const SceneRolling = memo(function SceneRolling(): import('react').JSX.Element {
   const { t } = useI18n();
   // Sampled once per mount. The hands and all 60 tick delays derive from this one
   // reading, so they cannot disagree about where "now" is.

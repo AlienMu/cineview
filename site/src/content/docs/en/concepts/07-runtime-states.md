@@ -1,60 +1,50 @@
 ---
-title: Runtime states
+title: Scene visibility and input
 eyebrow: CONCEPTS / STATES
 ---
 
-The framework maintains a runtime state for every scene, consumed by `Animate` and event handling pipelines. It coordinates motion activation and interactivity, preventing off-screen elements from consuming redundant rendering resources.
+A Scene's visibility and transition stage determine whether its content accepts input and whether Animate loops run.
 
-## Six possible states
+## Scene activity and input
 
-| Runtime state | Meaning                                                  | Interactive |
-| ------------- | -------------------------------------------------------- | ----------- |
-| `inactive`    | The scene at the current position, not yet active        | No          |
-| `entering`    | Entering                                                 | Yes         |
-| `active`      | Arrived and settled                                      | Yes         |
-| `exiting`     | Exiting (when an exit animation exists)                  | Yes         |
-| `covered`     | Covered by a scene stacked above                         | No          |
-| `parked`      | Already scrolled past or released, resting at a boundary | No          |
+| Scene condition            | Pointer input |
+| -------------------------- | ------------- |
+| Not yet active             | Off           |
+| Entering                   | On            |
+| Visible and settled        | On            |
+| Playing its exit animation | On            |
+| Covered by another Scene   | Off           |
+| Past its scroll range      | Off           |
 
-Both `covered` and `parked` mean the scene no longer receives pointer events (the framework sets `pointer-events` to `none`). The difference is semantic: `covered` means _another scene is on top_; `parked` means _this one has retreated past its boundary_.
+Inactive content also follows the framework's accessibility behavior. Pointer input resumes when the Scene becomes interactive again.
 
-## Continuous animation stops automatically in these states
+## When continuous animation stops
 
-**When the runtime state is `covered`, `inactive`, `parked`, or `exiting`, continuous animation stops by default.**
+`loopAnimation` runs only during the element's eligible animation stage while it is visible. It pauses when the Scene becomes inactive, covered, or past its range, and during exit.
 
-This is one of the key differences between `loopAnimation` and CSS `animation: … infinite`. A CSS infinite animation is bound by no runtime state and keeps repainting every frame after the element has left; with `loopAnimation` the framework decides from the runtime state together with viewport intersection, and it stops the moment the element leaves its own phase or scrolls out of view.
+CSS animations do not automatically follow those conditions. Use `loopAnimation` for effects that need to stop with the Scene. See [Animate](/docs/03-animate).
 
-So the inconsistent behavior of "every other element has exited but this one is still moving" usually comes from a hand-rolled CSS loop used instead of `loopAnimation`. See [Troubleshooting](/docs/07-common-pitfalls).
+## Scroll scene transitions
 
-## Deriving state from timeline phase in scroll mode
+| Scroll stage                   | Scene behavior                                         |
+| ------------------------------ | ------------------------------------------------------ |
+| Entrance                       | The Scene enters                                       |
+| Exit with an exit animation    | The Scene plays its exit                               |
+| Exit without an exit animation | The Scene becomes covered                              |
+| Main visible section           | The current Scene accepts input; covered Scenes do not |
+| After the section              | The Scene is no longer interactive                     |
 
-In scroll mode, runtime states derive from the scene timeline's lifecycle phase rather than index distance:
+A Scene without an exit animation becomes covered directly. A Scene stacked above it can also cover it before its own range ends.
 
-| Scene phase | Derived runtime state                                   |
-| ----------- | ------------------------------------------------------- |
-| `enter`     | `entering`                                              |
-| `exit`      | With an exit animation → `exiting`; otherwise `covered` |
-| `hold`      | The active scene → `active`; otherwise `covered`        |
-| `after`     | With an exit animation → `parked`; otherwise `covered`  |
+## Observe visibility
 
-Whether an exit animation exists changes the outcome: a scene with no exit never passes through `exiting` or `parked` and counts as `covered` directly. Separately, when a scene above stacks in cover mode, the one underneath is also judged `covered`.
+Use `Scene.callbacks.onVisibilityChange` for `visible` and `progress`. The root's `onSceneVisibilityChange` observes the same kind of information.
 
-## Differences from sceneState
-
-The framework also keeps an internal `sceneState` (`initial` / `entering` / `active` / `exiting`). The two are often confused:
-
-|         | `sceneState`                                   | Runtime state                                 |
-| ------- | ---------------------------------------------- | --------------------------------------------- |
-| Nature  | Internal React state                           | **Derived reading**                           |
-| Writer  | One writer per mode                            | No writer; derived from inputs                |
-| Purpose | Drives the scene's own visuals and transitions | Handed to `Animate`, decides `pointer-events` |
-| Values  | Four                                           | Six (adds `covered` / `parked`)               |
-
-Neither value is directly exposed through the public API. Observable properties from the outside include `Scene.callbacks.onVisibilityChange` (visibility and progress) and element-side phases, see [Animate timeline](/docs/02-timeline).
+These callbacks describe Scene visibility, not completion of every child animation. Use [useAnimateTimeline](/docs/09-use-animate-timeline) to read an individual Animate's progress and phase. In a locked zone, use `onZoneProgress` for the zone's scroll progress.
 
 ## Related pages
 
-- [Animate timeline](/docs/02-timeline): how element-level phases relate to runtime state
-- [Visibility conditions](/docs/03-visibility-conditions): enter and exit criteria for non-zone elements
-- [DOM and layout contract](/docs/06-dom-contract): where `pointer-events` and stacking actually land
-- [Troubleshooting](/docs/07-common-pitfalls): why CSS infinite animations are unbound
+- [Animate timeline](/docs/02-timeline): element phases and drivers
+- [Visibility conditions](/docs/03-visibility-conditions): conditions for timed entrance and exit
+- [DOM and layout](/docs/06-dom-contract): pointer events and stacking
+- [Troubleshooting](/docs/07-common-pitfalls): loops that keep running

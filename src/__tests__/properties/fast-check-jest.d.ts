@@ -1,10 +1,10 @@
 /**
- * 类型声明文件：修复 @fast-check/jest 的类型问题
+ * Type declaration file: fixes type issues with @fast-check/jest
  *
- * @fast-check/jest 的类型定义在某些情况下会导致 TypeScript 报错
+ * @fast-check/jest's type definitions can cause TypeScript errors in some cases:
  * "Type 'Arbitrary<T>' is missing the following properties from type 'Arbitrary<T>': noShrink, noBias"
  *
- * 这个文件提供了更宽松的类型定义来解决这个问题
+ * This file provides a more permissive type definition to resolve the issue
  */
 
 declare module '@fast-check/jest' {

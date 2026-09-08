@@ -31,7 +31,7 @@ export default function PerformanceMonitor({
   onToggle,
   open,
   totalScenes,
-}: PerformanceMonitorProps): JSX.Element {
+}: PerformanceMonitorProps): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -141,7 +141,7 @@ function MetricRow({
   label: string;
   tone: string;
   value: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{

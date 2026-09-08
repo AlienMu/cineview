@@ -75,7 +75,7 @@ const CREDIT_FADE_MS = CREDIT_ENTER_MS * 0.5;
 // budget extinguishes first; copy remains legible for the final portion of the 700ms exit.
 const COPY_EXIT_MS = 700;
 
-export const SceneCut = memo(function SceneCut(): JSX.Element {
+export const SceneCut = memo(function SceneCut(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const { t } = useI18n();
 

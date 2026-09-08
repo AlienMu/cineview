@@ -184,8 +184,9 @@ describe('interpolateVariant — type-conversion branches', () => {
 
 describe('interpolateVariant — multi-value string endpoints (E-E8)', () => {
   it('returns equal string endpoints verbatim instead of collapsing them via parseFloat', () => {
-    // transformOrigin '50% 100%' 两端相同:旧代码走 % 分支 parseFloat 取 50 →
-    // 输出 '50%',双值坍缩成单值。相等端点必须原样返回。
+    // transformOrigin '50% 100%' with equal endpoints: old code hit the % branch,
+    // took parseFloat → 50, output '50%' — collapsing a two-value property into
+    // a single value. Equal endpoints must return unchanged.
     const result = interpolateVariant(
       { transformOrigin: '50% 100%' },
       { transformOrigin: '50% 100%' },
@@ -199,8 +200,9 @@ describe('interpolateVariant — multi-value string endpoints (E-E8)', () => {
   });
 
   it('threshold-switches unequal multi-token unit strings instead of collapsing them', () => {
-    // 端点不等的多值字符串无法单值插值:退化为 0.5 阈值切换,而不是 parseFloat
-    // 坍缩('50% 0%' → '50%' 会改变 transformOrigin 的语义)。
+    // Unequal multi-value strings cannot be single-value interpolated: falls back
+    // to 0.5 threshold switching rather than parseFloat collapse ('50% 0%' → '50%'
+    // would alter transformOrigin semantics).
     const below = interpolateVariant(
       { transformOrigin: '50% 0%' },
       { transformOrigin: '50% 100%' },

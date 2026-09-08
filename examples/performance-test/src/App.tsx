@@ -5,7 +5,7 @@ import DragModePage from './pages/DragModePage';
 import { ExperienceHub } from './pages/ExperienceHub';
 import ScrollModePage from './pages/ScrollModePage';
 
-export default function App(): JSX.Element {
+export default function App(): import('react').JSX.Element {
   const route = useHashRoute();
 
   if (route === 'drag') {

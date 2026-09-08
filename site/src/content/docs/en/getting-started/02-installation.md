@@ -3,76 +3,101 @@ title: Installation
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-Install `cineview` and its peer dependencies, then select the target entry point.
+Install CineView 1.0.0 in a React application with React 19 and Framer Motion 13.
 
-## Package install
+## Install in a React app
 
 ```bash
-pnpm add cineview framer-motion
-# or
-npm install cineview framer-motion
+npm install cineview@1.0.0 react@19 react-dom@19 framer-motion@13
 ```
+
+With pnpm:
+
+```bash
+pnpm add cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+```
+
+## Run the local example
+
+The repository uses pnpm 10.22.0 and Node.js `^22.22.1 || >=24.0.0`.
+
+```bash
+git clone https://github.com/AlienMu/cineview.git
+cd cineview
+pnpm install --frozen-lockfile
+pnpm build
+pnpm --dir examples/minimal install --frozen-lockfile
+pnpm --dir examples/minimal dev
+```
+
+To test local package changes in another app, run `pnpm pack` in the CineView repository after building, then install the generated `.tgz` file in that app.
 
 ## Peer dependencies
 
-CineView does not bundle React or Framer Motion. Both are peer dependencies supplied by the host application:
+The application supplies these three runtimes:
 
-| Package         | Required version       |
-| --------------- | ---------------------- |
-| `react`         | `^18.0.0 \|\| ^19.0.0` |
-| `react-dom`     | `^18.0.0 \|\| ^19.0.0` |
-| `framer-motion` | `>=10.0.0`             |
+| Package         | Required version |
+| --------------- | ---------------- |
+| `react`         | `^19.0.0`        |
+| `react-dom`     | `^19.0.0`        |
+| `framer-motion` | `^13.0.0`        |
 
-Keep one copy of each runtime in the app bundle. Do not duplicate framer-motion into a vendor chunk.
+Keep one copy of each runtime in the app bundle.
 
-## Three entry points
+## Three runtime entries
 
-| Entry             | Contents                                                                  | When to use                                      |
-| ----------------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
-| `cineview`        | Full entry, both drag and scroll engines, dispatched by `mode` at runtime | Projects needing both modes or dynamic selection |
-| `cineview/drag`   | Drag engine only; exports `CineViewDragProps`                             | Drag pagination only                             |
-| `cineview/scroll` | Scroll engine only; exports `CineViewScrollProps`                         | Scroll mode only                                 |
+| Entry             | Contents                         | Module support          |
+| ----------------- | -------------------------------- | ----------------------- |
+| `cineview`        | Both engines, selected by `mode` | ES modules and CommonJS |
+| `cineview/drag`   | Drag engine                      | CommonJS                |
+| `cineview/scroll` | Scroll engine                    | CommonJS                |
 
 ```tsx
-import { CineView } from 'cineview'; // full entry, dispatched by mode at runtime
+import { CineView, Scene, Animate } from 'cineview';
 ```
 
-## On the ES module (ESM) side, the full entry carries both engines
+## The full ES module (ESM) entry includes both engines
 
-The `CineView` from the full entry is a dispatcher: it picks the drag engine or the scroll engine based on `mode`. The dispatcher references both engines **statically**, so tree-shaking cannot drop either one. Even when declaring only `mode="scroll"`, the ESM bundle contains both engines.
+Use `cineview` in Vite, webpack, or Rollup applications. The full entry references both engines, so selecting a single `mode` does not remove the other engine from the bundle.
 
-The bundle size remains within standard performance targets. For production environments requiring strict isolation of unused engine code, specialized mode-specific entry points are available.
+## Mode subpaths support CommonJS
 
-## The per-mode entries have only a require condition
-
-In `package.json`, `cineview/drag` and `cineview/scroll` define `types` and `require` export conditions. In standard ESM bundling setups, import the primary `cineview` package. Mode-specific subpaths serve CommonJS runtimes and standalone browser script tags:
-
-```html
-<script src="cineview-drag.umd.js"></script>
-```
+The mode subpaths have `types` and `require` export conditions, with no `import` condition. TypeScript can resolve their types, but an ESM application cannot import runtime exports through those subpaths.
 
 ```js
 const { CineView } = require('cineview/drag');
 ```
 
-## Choosing an entry
+Separate Universal Module Definition (UMD) files support script loading when the application already provides the required React, React DOM, and Framer Motion globals. These files do not supply those runtimes.
 
-| Consumption method                     | Pick                                               | Cost                                                |
-| -------------------------------------- | -------------------------------------------------- | --------------------------------------------------- |
-| ESM bundlers (Vite / Webpack / Rollup) | Primary `cineview` entry                           | Includes both engines; dispatches at runtime        |
-| Browser `<script>` tag (single mode)   | `cineview-drag.umd.js` or `cineview-scroll.umd.js` | Loads only the target engine; minimal download size |
-| Browser `<script>` tag (both modes)    | `cineview.umd.js`                                  | Single-file distribution containing both engines    |
-| CommonJS `require` (single mode)       | `cineview/drag` or `cineview/scroll`               | Loads only the specified engine implementation      |
+## Select an entry
 
-Single-file Universal Module Definition (UMD) formats cannot support dynamic code splitting due to distribution format constraints. To maintain a lightweight footprint when loaded via browser `<script>` tags, CineView provides independently built UMD bundles for each interaction mode.
+| Application setup           | Entry or file            |
+| --------------------------- | ------------------------ |
+| ESM bundler                 | `cineview`               |
+| CommonJS, drag only         | `cineview/drag`          |
+| CommonJS, scroll only       | `cineview/scroll`        |
+| Browser script, drag only   | `cineview-drag.umd.js`   |
+| Browser script, scroll only | `cineview-scroll.umd.js` |
+| Browser script, both modes  | `cineview.umd.js`        |
 
-## Single-mode builds reject the wrong mode
+A UMD file contains its selected engine code in one bundle.
 
-`cineview/drag` (and `cineview-drag.umd.js`) validates the `mode` parameter at startup. If initialized with `mode="scroll"`, the engine throws an error detailing the correct scroll bundle to import.
-`DirectScrollCineView` operates in scroll mode by default and injects `mode: 'scroll'` into event arguments, requiring no redundant mode checks.
+## Single-mode behavior
 
-## TypeScript types
+The drag entry always runs drag mode. A JavaScript caller that passes another `mode` value receives an error. The scroll entry always runs scroll mode and does not use a supplied `mode` value. For runtime mode selection, use the full `cineview` entry.
 
-Type definitions ship with the package; no separate `@types/*` needed. Entry-level types (`CineViewDragProps` / `CineViewScrollProps`) come from the corresponding subpath. They resolve even on the ESM side, because the `types` condition is present.
+## TypeScript and development tools
 
-Next: [Quickstart](/docs/03-quickstart).
+Types ship with the package. Import shared types from `cineview`; `CineViewDragProps` and `CineViewScrollProps` are exported by their respective mode subpaths.
+
+Import the optional performance panel and its styles separately:
+
+```tsx
+import { PerfPanel } from 'cineview/dev';
+import 'cineview/dev/style.css';
+```
+
+Enable `monitor` on CineView and pass the ref from `callbacks.onReady` to the panel's `source` prop. The same entry exports `usePerfMonitor` for custom displays. See [Performance](/docs/01-performance) for the available metrics.
+
+Continue with [Quickstart](/docs/03-quickstart).

@@ -15,7 +15,8 @@
  * render lane and the timeline lane have INDEPENDENT durations on release.
  */
 
-import React, { act, createRef } from 'react';
+import React, { createRef } from 'react';
+import { act } from '@testing-library/react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CineView, Scene, Animate, Position } from '../../index';

@@ -217,12 +217,12 @@ mockIntersectionObserver.mockReturnValue({
 });
 window.IntersectionObserver = mockIntersectionObserver as unknown as typeof IntersectionObserver;
 
-function renderDragApp(onSceneLeave: jest.Mock): React.RefObject<CineViewRef> {
+function renderDragApp(onSceneLeave: jest.Mock): React.RefObject<CineViewRef | null> {
   const cineViewRef = createRef<CineViewRef>();
 
   render(
     <CineView
-      ref={cineViewRef}
+      ref={cineViewRef as React.RefObject<CineViewRef>}
       mode="drag"
       direction={'y'}
       transitionDuration={800}

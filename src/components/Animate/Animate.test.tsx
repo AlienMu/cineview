@@ -397,13 +397,17 @@ describe('Animate Component', () => {
     });
 
     it('scrubs the exit opacity lane from renderProgress while the active scene slides away', async () => {
-      const contextAt = (renderProgress: number): SceneContextType =>
-        createMockSceneContext({
+      const renderProgressMotion = createMotionValueStub(0);
+      const contextAt = (renderProgress: number): SceneContextType => {
+        const context = createMockSceneContext({
           isDragging: true,
           sceneState: 'exiting',
           renderProgress,
           sceneTransitionDuration: 800,
+          renderProgressMotion,
         });
+        return context;
+      };
       const tree = (context: SceneContextType): React.JSX.Element => (
         <SceneContext.Provider value={context}>
           <Animate animateId="exit-lane" enterAnimation="fade-in" exitAnimation="fade-out">
@@ -416,11 +420,20 @@ describe('Animate Component', () => {
       await waitFor(() => expect(resolvedOpacity('exit-lane')).toBe(1));
 
       const samples: number[] = [];
-      for (const renderProgress of [0, 0.25, 0.5, 0.75, 1]) {
+      // Start from renderProgress 0 and include it in samples
+      const progressValues = [0, 0.25, 0.5, 0.75, 1];
+      for (let i = 0; i < progressValues.length; i++) {
+        const renderProgress = progressValues[i];
         await act(async () => {
+          renderProgressMotion.set(renderProgress);
           rerender(tree(contextAt(renderProgress)));
         });
-        samples.push(resolvedOpacity('exit-lane'));
+        // React 19: wait for motion value updates to propagate through multiple microtasks
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        });
+        const opacity = resolvedOpacity('exit-lane');
+        samples.push(opacity);
       }
 
       // 800ms of render travel against a 600ms exit: the fade completes at 0.75
@@ -1346,6 +1359,46 @@ describe('Animate Component', () => {
       expect(screen.getByTestId('arrival-frozen-child').closest('.cineview-animate')).toBe(
         originalHost
       );
+    });
+
+    it('finishes the frozen pending parse and adopts new authoring on the next activation', async () => {
+      const context = createMockSceneContext({ activationToken: 1, activationKind: 'commit' });
+      let resolveFirst!: (variant: ParsedAnimationVariant) => void;
+      const firstParse = new Promise<ParsedAnimationVariant>((resolve) => {
+        resolveFirst = resolve;
+      });
+      (parseAnimationWithComposition as jest.Mock).mockImplementation((animation: string) =>
+        animation === 'fade-in'
+          ? firstParse
+          : Promise.resolve({ initial: { y: 100 }, animate: { y: 0 }, exit: {} })
+      );
+      const probe = (animation: PresetAnimation, token: number) => (
+        <SceneContext.Provider value={{ ...context, activationToken: token }}>
+          <Animate enterAnimation={animation} timeline={{ driver: 'clock' }}>
+            <div data-testid="pending-arrival-child">Pending arrival</div>
+          </Animate>
+        </SceneContext.Provider>
+      );
+      const { rerender } = render(probe('fade-in', 1));
+      await flushAnimationParsing();
+      const child = screen.getByTestId('pending-arrival-child');
+      const host = child.closest('.cineview-animate');
+      expect(host).not.toBeNull();
+
+      rerender(probe('slide-up', 1));
+      await flushAnimationParsing();
+      await act(async () => {
+        resolveFirst({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: {} });
+        await firstParse;
+      });
+      expect(screen.getByTestId('pending-arrival-child')).toBe(child);
+      expect(child.closest('.cineview-animate')).toBe(host);
+      expect(resolvedStyle()).toHaveProperty('opacity');
+      expect(resolvedStyle()).toHaveProperty('y', 0);
+
+      rerender(probe('slide-up', 2));
+      await flushAnimationParsing();
+      expect(resolvedStyle()).toHaveProperty('y', 100);
     });
 
     it('reports and fails open statically for an exit-only runtime payload', async () => {

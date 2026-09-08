@@ -1,9 +1,9 @@
 ---
-title: zone 与滚动预算
+title: 锁定区与时长预算
 eyebrow: SCROLL / BUDGET
 ---
 
-锁定区（zone）的滚动距离由子元素声明的动画时长累加得出。本页说明预算计算、时间轴区间映射和零预算行为。
+锁定区的时长预算取子元素动画最晚结束的位置，时长、延迟和依赖都会影响该位置。
 
 ## 1ms = 1px
 
@@ -22,13 +22,13 @@ eyebrow: SCROLL / BUDGET
 
 ## 零预算退化机制
 
-仅当锁定段长度超过 0.5px（即 `totalBudgetPx > 0.5`）时才触发 center-lock 边界约束。预算为 0 的锁定区不产生停留行程：wrapper 回退至视觉高度，滚动连续穿过，`onZoneEnter` 与 `onZoneLeave` 不触发，`onZoneProgress` 仅在初始帧派发一次 `progress: 0`。
+预算为零时，不增加动画行程。场景仍占据视觉跨度与一个视窗中的较大值。`onZoneEnter` 和 `onZoneLeave` 不触发，`onZoneProgress` 报告初始零进度。只有长度超过 0.5px 的区间参与防跳过限制。
 
-仅显式声明了 `enterAnimation` 或 `exitAnimation` 的 `Animate` 节点会注册时间预算。若 Scene 内部仅包含 `loopAnimation`，总预算为 0，场景将作为常规流式 section 渲染。
+跟随场景的元素在声明入场或退场动画时注册时长预算，仅有循环动画的 Scene 不产生动画预算。
 
 ```tsx
 {
-  /* 声明了 zone 但未提供入场/退场时长，预算为 0，作为普通 section 渲染 */
+  /* 仅包含循环动画的锁定区没有额外动画行程。 */
 }
 <Scene sceneId="loop" scroll={{ zoneId: 'loop' }}>
   <Animate animateId="pulse" loopAnimation="pulse">
@@ -57,29 +57,27 @@ eyebrow: SCROLL / BUDGET
 follower.start = leader.phaseEndPx + follower.delay
 ```
 
-以入场完成点作为连接基准可保证依赖链具备确定解。当配置 `phase` 时，建议将 `phase.end` 设为 `0.95` 等预留余量的值，以便后续依赖元素在有限预算内完成排布。
+`after` 跟随元素从前序入场终点开始。前序使用 `phase` 时，可将结束比例设为小于 1 的数值，例如 0.95，为后续元素预留空间。
 
-## zone 身份
+## 锁定区标识
 
-| 来源            | 优先级 | 说明                                                      |
-| --------------- | ------ | --------------------------------------------------------- |
-| `scroll.zoneId` | 最高   | 显式声明                                                  |
-| `sceneId`       | 次之   | 没写 `zoneId` 时直接当 zone id 用                         |
-| 自动 id         | 兜底   | 形如 `scene-zone-<实例 id>`，实例级、跨渲染稳定但不可预测 |
+| 来源            | 优先级 | 说明                                    |
+| --------------- | ------ | --------------------------------------- |
+| `scroll.zoneId` | 最高   | 显式声明                                |
+| `sceneId`       | 次之   | 未设置 `zoneId` 时，用作锁定区标识      |
+| 自动标识        | 兜底   | 由 Scene 自动生成，需要导航时应显式声明 |
 
-两个都没写就落到自动 id：zone 能正常工作，但此时无法使用 `goToZone` 定位它，也无法在 `timeline.zoneId` 里引用它。想程序化跳转或跨 Scene 指定归属，就得写出 authored 身份。
+需要使用 `goToZone`，或将 Animate 显式绑定到锁定区时，设置 `scroll.zoneId` 或 `sceneId`。
 
-重复 `zoneId` 的后续场景会被自动降级。根组件按文档顺序执行校验，首个声明该 id 的 Scene 获得所有权；后续同名 Scene 的 `scroll` 配置将被移除，并作为常规流场景渲染。
-
-发生降级时，框架通过 `onError` 回调派发 `INVALID_COMPONENT_HIERARCHY`（`reason: 'duplicate-scroll-zone'`），开发环境下同时输出提示信息。
+多个 Scene 声明相同标识时，第一个保留锁定区，后续重复项作为普通场景渲染，并通过 `onError` 报告 `INVALID_COMPONENT_HIERARCHY`；开发构建还会提示。
 
 ## 场景尺寸的两套规则
 
 `sceneSizing` 包含 `'content'`（默认）与 `'screen'` 两种模式，仅作用于常规流场景：`'screen'` 为其设置视窗高度的最小跨度，`'content'` 则完全由内容高度决定。锁定区场景在此两种设置下的行为一致。
 
-在锁定区场景中，`layout.height` 的绝对 px 数值不参与计算，统一回退为 DOM 实测尺寸；若需精确控制锁定区视觉盒高度，应使用 `vh` 或 `vw` 等视窗相对单位。
+锁定区可通过 `vh`、`vw` 等视窗单位明确视觉跨度。其他声明长度使用 Scene 的实际 DOM 测量尺寸。
 
-锁定区视觉壳设置了 `maxHeight: 100vh` 与 `overflow: hidden`，超出单屏的内容在垂直方向被裁切，不会生成内部滚动条。超长内容建议拆分为多个连续场景或使用常规流式场景承载。
+视觉容器会裁切超出视窗的内容，长篇阅读内容适合放在普通场景中，或拆成多个场景。
 
 ## 相关页面
 

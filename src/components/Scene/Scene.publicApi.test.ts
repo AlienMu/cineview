@@ -35,6 +35,7 @@ describe('Scene public API typing', () => {
         '--checkJs',
         '--skipLibCheck',
         fixturePath,
+        '--skipDefaultLibCheck',
       ],
       {
         cwd: repoRoot,

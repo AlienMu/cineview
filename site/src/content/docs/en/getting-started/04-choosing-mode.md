@@ -3,31 +3,31 @@ title: Choosing a mode
 eyebrow: GETTING STARTED / CHOOSING A MODE
 ---
 
-Core decision criteria: if each screen represents an independent narrative beat transitioned by gestures, select drag. If the page consists primarily of a document flow where specific scenes lock scrolling to drive timelines, select scroll.
+Use drag for full-screen pages with discrete scene changes. Use scroll for a continuous document that includes sections whose animations follow scroll distance.
 
 ## When to use drag
 
-- Full-screen paging: one screen per act, flipped by gesture or ref.
-- No resting state between screens. A switch is a single 800ms (default) transition.
-- Scene element timelines follow gesture progress (`unit: 'time'` by default; every 1% of drag maps to 10 time units).
+- Navigate by pointer gesture, keyboard, or ref method.
+- After release, page movement completes the switch or returns to the current scene.
+- Scene-driven element timelines follow the gesture. With the default `unit: 'time'` and `scale: 10`, each 1% of drag advances 10ms.
 
 ## When to use scroll
 
-- The page body is an ordinary long document flow. Native scrolling, keyboard, and scrollbar behave as users expect.
+- Content moves in a native scroll container, with wheel, touch, keyboard, and scrollbar input.
 - Scenes declaring `scroll={{ zoneId, trigger: 'center-lock' }}` become locked zones. Inside a locked zone, scrolling drives the in-scene Animate timelines. The budget is 1ms=1px of real scroll distance, and scrolling back moves progress from 100% to 0%.
 - Scenes without a locked zone are plain scrolling content and can sit between locked zones.
 
 ## Comparison
 
-|                     | drag                                                                                       | scroll                                  |
-| ------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------- |
-| Interaction model   | Gesture paging, one screen per act                                                         | Real document flow + local locked zones |
-| Timeline driver     | Gesture progress + transition                                                              | Scroll position inside a zone (1ms=1px) |
-| Between scenes      | A scene is a whole screen                                                                  | Plain content mixes with zone scenes    |
-| Transition duration | Gesture movement fixed at 800ms; `transitionDuration` governs programmatic navigation only | No transitions; budget = scrolled px    |
-| Extra callbacks     | onDragStart/Commit/Cancel, and more                                                        | onZoneEnter/Progress/Leave, and more    |
-| Entry point         | `cineview/drag`                                                                            | `cineview/scroll`                       |
-| Default             | The default mode                                                                           | Enabled explicitly with `mode="scroll"` |
+|                     | drag                                                                               | scroll                                         |
+| ------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Interaction model   | Gesture paging, one screen per act                                                 | Real document flow + local locked zones        |
+| Timeline driver     | Gesture progress + transition                                                      | Scroll position inside a zone (1ms=1px)        |
+| Between scenes      | A scene is a whole screen                                                          | Plain content mixes with zone scenes           |
+| Transition duration | `transitionDuration` configures ref navigation; gesture timing depends on movement | Zone duration maps to scroll distance          |
+| Callbacks           | `onDragStart`, `onDragEnd`, `onDragCancel`                                         | `onZoneEnter`, `onZoneProgress`, `onZoneLeave` |
+| CommonJS entry      | `cineview/drag`                                                                    | `cineview/scroll`                              |
+| Default             | The default mode                                                                   | Enabled explicitly with `mode="scroll"`        |
 
 ## drag skeleton
 
@@ -65,4 +65,4 @@ import { CineView, Scene, Animate } from 'cineview';
 
 ## Entry points and bundle size
 
-These examples use the primary `cineview` entry, which selects the engine from `mode`. The per-mode subpaths are CommonJS and Universal Module Definition (UMD) entry points; they do not expose an ES module (ESM) `import` condition. A single-file UMD bundle has no code splitting, so the full entry includes both engines. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).
+Use `cineview` with ES module (ESM) bundlers. It includes both engines and selects one through `mode`. Mode subpaths support CommonJS; separate Universal Module Definition (UMD) files support browser script loading with supplied peer runtimes. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).

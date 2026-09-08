@@ -5,14 +5,8 @@ import type { MotionValue } from 'framer-motion';
 // Basic Types
 // ============================================================================
 
-/**
- * 滑动方向类型
- */
 export type SlideDirection = 'x' | 'y';
 
-/**
- * 滚动模式类型
- */
 export type ScrollMode = 'drag' | 'scroll';
 /**
  * Scene timeline phase for scroll-mode scenes. `hold` is the steady middle
@@ -78,6 +72,8 @@ export interface ScrollModeConfig {
   direction?: SlideDirection;
   zoneTrigger?: 'center-lock';
   sceneSizing?: 'content' | 'screen';
+  /** Enable runtime parameter diagnostics for scroll layout and zone geometry. */
+  debug?: boolean;
   // Global default enter/exit gate margins (design px) for visibility-driven
   // Animate elements in scroll mode. Per-Animate `visibility.enterMargin` /
   // `exitMargin` override these. Both default to 50.
@@ -86,16 +82,19 @@ export interface ScrollModeConfig {
 }
 
 /**
- * 无障碍配置。
+ * Accessibility configuration.
  *
- * 只有一个字段是因为其余三条无障碍行为没有「可配」的空间：非活动场景对辅助技术
- * 隐藏、换场经 `aria-live` 播报、drag 键盘翻页，都是缺了就不合规的能力，不是偏好。
- * 「减少动态效果」读的是系统设置，同样不接受组件级覆盖。
+ * Only one field exists because the other three accessibility behaviors have no
+ * configurable space: hiding inactive scenes from assistive technology, announcing
+ * scene changes via `aria-live`, and drag keyboard navigation are compliance
+ * requirements, not preferences. "Reduce motion" reads from system settings and
+ * similarly accepts no component-level override.
  */
 export interface A11yConfig {
   /**
-   * drag 根容器的可访问名称（`aria-label`）。默认 `'Scenes'`。
-   * 一页多个 CineView 时必须各给一个，否则屏幕阅读器的地标列表里无法区分。
+   * Accessible name for the drag root container (`aria-label`). Defaults to `'Scenes'`.
+   * When multiple CineView instances exist on one page, each must have a unique label
+   * so they can be distinguished in screen reader landmark lists.
    */
   label?: string;
 }
@@ -119,18 +118,18 @@ export interface SceneChangeDetail {
 }
 
 /**
- * 框架运行时实际会发出的错误码联合。消费者在 `onError` 里对 `code` 做 switch
- * 时可获得自动补全与穷尽性检查（不再是裸 string）。
+ * Error codes emitted by the framework at runtime. Consumers can switch on `code`
+ * in `onError` to get autocomplete and exhaustiveness checking (no longer a bare string).
  *
- * - `EMPTY_SCENES`：CineView 没有任何 Scene 子节点（`context.scope` 缺省），
- *   或某个 Scene 没有任何子节点（`context.scope === 'scene'`，带 `sceneIndex`）。
- * - `IMAGE_LOAD_FAILED`：预加载图片失败。
- * - `FIRST_SCENE_TIMEOUT`：首屏优先资源等待超时（可恢复，带 preventDefault）。
- * - `INVALID_ANIMATION`：Animate 的 after 指向不存在的组件。
- * - `CIRCULAR_DEPENDENCY`：Animate 的 after 链存在循环。
- * - `INVALID_COMPONENT_HIERARCHY`：组件树内出现重复的 animateId 或 authored scroll zone identity。
- * - `INVALID_DRAG_CONFIG`：drag unit / scale / enabled 配置非法（可恢复）。
- * - `ANIMATION_ASSET_LOAD_FAILED`：动画预设资源加载失败（可重试）。
+ * - `EMPTY_SCENES`: CineView has no Scene children (`context.scope` is default),
+ *   or a Scene has no children (`context.scope === 'scene'`, includes `sceneIndex`).
+ * - `IMAGE_LOAD_FAILED`: Image preload failed.
+ * - `FIRST_SCENE_TIMEOUT`: First-screen priority resource wait timed out (recoverable, includes preventDefault).
+ * - `INVALID_ANIMATION`: Animate's after points to a nonexistent component.
+ * - `CIRCULAR_DEPENDENCY`: Animate's after chain contains a cycle.
+ * - `INVALID_COMPONENT_HIERARCHY`: Duplicate animateId or authored scroll zone identity in component tree.
+ * - `INVALID_DRAG_CONFIG`: Drag unit / scale / enabled config is invalid (recoverable).
+ * - `ANIMATION_ASSET_LOAD_FAILED`: Animation preset asset load failed (retryable).
  */
 export type CineViewErrorCode =
   | 'EMPTY_SCENES'
@@ -251,57 +250,43 @@ export type CineViewCallbacks = DragModeCallbacks | ScrollModeCallbacks;
 // Animation Types
 // ============================================================================
 
-/**
- * 预设动画名称类型
- */
 export type PresetAnimation =
-  // 基础动画
   | 'fade'
   | 'fade-in'
   | 'fade-out'
-  // 滑动动画
   | 'slide-up'
   | 'slide-down'
   | 'slide-left'
   | 'slide-right'
-  // 缩放动画
   | 'zoom-in'
   | 'zoom-out'
   | 'scale-up'
   | 'scale-down'
-  // 旋转动画
   | 'rotate'
   | 'rotate-in'
   | 'rotate-out'
   | 'spin'
-  // 翻转动画
   | 'flip'
   | 'flip-x'
   | 'flip-y'
-  // 弹跳动画
   | 'bounce'
   | 'bounce-in'
   | 'bounce-out'
-  // 闪烁动画
   | 'blink'
   | 'flash'
   | 'pulse'
-  // 抖动动画
   | 'shake'
   | 'shake-x'
   | 'shake-y'
   | 'vibrate'
   | 'jello'
-  // 模糊动画
   | 'blur-in'
   | 'blur-out'
   | 'focus-in'
-  // 弹性动画
   | 'elastic'
   | 'rubber-band'
   | 'wobble'
   | 'swing'
-  // 特殊效果
   | 'heartbeat'
   | 'tada'
   | 'wave'
@@ -310,36 +295,24 @@ export type PresetAnimation =
   | 'hinge'
   | 'jack-in-the-box';
 
-/**
- * 解析后的动画变体（Framer Motion 格式）
- */
 export interface ParsedAnimationVariant {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
   exit: Record<string, unknown>;
 }
 
-/**
- * 自定义动画（Framer Motion variant subset）
- */
 export interface CustomAnimation {
   initial?: Record<string, unknown>;
   animate?: Record<string, unknown>;
   exit?: Record<string, unknown>;
 }
 
-/**
- * 组合动画
- */
 export interface ComposedAnimation {
   animations: (PresetAnimation | CustomAnimation)[];
-  mode: 'sequential' | 'parallel'; // 顺序执行 | 并行执行
-  delays?: number[]; // 每个动画的延迟
+  mode: 'sequential' | 'parallel';
+  delays?: number[];
 }
 
-/**
- * 动画类型（预设、自定义或组合）
- */
 export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation;
 
 // ============================================================================
@@ -354,14 +327,17 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
  */
 export interface CineViewBaseProps {
   /**
-   * 设计稿尺寸基准（设计 px）。这是全站唯一的换算尺子：
-   * `scale = viewportWidth / designWidth`，坐标（Position）、盒模型（Container）等设计
-   * 长度全部乘同一个 `scale`（认宽不认高，绝不形变）。scroll takeover 的时间预算仍按
-   * `1ms = 1px` 结算；场景绝对跨度回退 DOM 实测，不引入第二把高度尺子。
+   * Design viewport width baseline (design px). The single site-wide conversion
+   * ruler: `scale = viewportWidth / designWidth`. All design lengths (Position
+   * coordinates, Container box model, etc.) are multiplied by the same `scale`
+   * (width-only, never distorted). Scroll takeover time budget is still settled
+   * at `1ms = 1px`; scene absolute spans fall back to measured DOM, without
+   * introducing a second height ruler.
    *
-   * 对齐 Figma / 设计稿的通用标准：填一个设计稿宽度（默认 750，移动端标准稿），
-   * 之后所有设计 px 数值都以此为基准换算到任意视口。不再有独立的高度基准——
-   * 纵向超出交给自然文档流 / 滚动延展。
+   * Aligns with common Figma / design file standards: set to the design file
+   * width (default 750, standard mobile viewport), then all design px values
+   * are scaled to any viewport from this baseline. No separate height baseline —
+   * vertical overflow is left to natural document flow / scroll extension.
    */
   designWidth?: number;
   scrollbar?: false | ScrollbarConfig;
@@ -370,18 +346,15 @@ export interface CineViewBaseProps {
   children: ReactNode;
 }
 
-/** drag 分支专属字段在 scroll 根上不可出现（反之亦然）——与 callbacks 交叉排除同理。 */
-type ScrollOnlyConfigKeys = 'zoneTrigger' | 'sceneSizing' | 'enterMargin' | 'exitMargin';
+/** Drag-branch-only config keys cannot appear on scroll root (and vice versa) — same cross-exclusion as callbacks. */
+type ScrollOnlyConfigKeys = 'zoneTrigger' | 'sceneSizing' | 'enterMargin' | 'exitMargin' | 'debug';
 type DragOnlyConfigKeys =
-  | 'transitionDuration'
-  | 'threshold'
-  | 'unit'
-  | 'scale'
-  | 'firstSceneTimeout';
+  'transitionDuration' | 'threshold' | 'unit' | 'scale' | 'firstSceneTimeout';
 
 /**
- * CineView drag 分支 Props：`mode` 缺省即 drag。模式专属字段平铺在根级
- * （不再有 `modes.drag` 壳）；scroll 专属字段被排除为 `never`。
+ * CineView drag branch Props: `mode` defaults to drag. Mode-specific fields are
+ * flattened at root level (no `modes.drag` wrapper); scroll-specific fields are
+ * excluded as `never`.
  */
 export type CineViewDragModeProps = CineViewBaseProps &
   DragModeConfig & {
@@ -390,8 +363,8 @@ export type CineViewDragModeProps = CineViewBaseProps &
   } & { [K in ScrollOnlyConfigKeys]?: never };
 
 /**
- * CineView scroll 分支 Props：scroll 专属字段平铺在根级（不再有 `modes.scroll`
- * 壳）；drag 专属字段被排除为 `never`。
+ * CineView scroll branch Props: scroll-specific fields are flattened at root
+ * level (no `modes.scroll` wrapper); drag-specific fields are excluded as `never`.
  */
 export type CineViewScrollModeProps = CineViewBaseProps &
   ScrollModeConfig & {
@@ -400,7 +373,7 @@ export type CineViewScrollModeProps = CineViewBaseProps &
   } & { [K in DragOnlyConfigKeys]?: never };
 
 /**
- * CineView 组件 Props — discriminated on `mode`. Drag mode (the default when
+ * CineView component Props — discriminated on `mode`. Drag mode (the default when
  * `mode` is omitted) accepts common + drag callbacks and flat drag config
  * fields; scroll mode accepts common + scroll callbacks and flat scroll config
  * fields. Passing a callback or config field from the wrong mode is a type
@@ -409,13 +382,13 @@ export type CineViewScrollModeProps = CineViewBaseProps &
 export type CineViewProps = CineViewDragModeProps | CineViewScrollModeProps;
 
 /**
- * 性能指标
+ * Performance metrics for monitoring runtime behavior.
  */
 export interface PerformanceMetrics {
-  fps: number; // 当前帧率
-  avgFrameTime: number; // 平均帧时间（ms）
-  memoryUsage?: number; // 内存使用（MB）
-  bundleSize: number; // Bundle 大小（KB）
+  fps: number;
+  avgFrameTime: number;
+  memoryUsage?: number;
+  bundleSize: number;
 }
 
 /**
@@ -426,12 +399,12 @@ export interface PerformanceMetrics {
 export type CineViewPreloadTarget = number | string;
 
 /**
- * CineView Ref 方法。
+ * CineView Ref methods.
  *
- * 这 5 个方法在 drag 与 scroll 两种模式下都必定存在，因此为必填——
- * 调用点不再需要 `ref.current?.refreshLayout?.()` 的逐方法判空。
- * `goToZone` 是 scroll 模式专属能力（drag 模式下无 zone 概念），保持可选；
- * scroll 消费者可改用 {@link CineViewScrollRef} 取得 `goToZone` 必填的视图。
+ * These 5 methods exist in both drag and scroll modes, so they are required —
+ * call sites no longer need `ref.current?.refreshLayout?.()` per-method null checks.
+ * `goToZone` is scroll-mode-only (drag mode has no zone concept), so it remains optional;
+ * scroll consumers can switch to {@link CineViewScrollRef} for a view with `goToZone` required.
  */
 export interface CineViewRef {
   goToScene: (index: number, animated?: boolean) => void;
@@ -439,20 +412,20 @@ export interface CineViewRef {
   preload: (targets?: CineViewPreloadTarget[]) => Promise<void>;
   getCurrentIndex: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
-  /** scroll 模式专属：跳转到指定 zone。drag 模式下不提供。 */
+  /** Scroll mode only: jump to specified zone. Not available in drag mode. */
   goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
 }
 
 /**
- * scroll 模式下的 CineView Ref——`goToZone` 在此为必填。
- * 用法：`const ref = useRef<CineViewScrollRef>(null)`，搭配 `mode="scroll"`。
+ * CineView Ref in scroll mode — `goToZone` is required here.
+ * Usage: `const ref = useRef<CineViewScrollRef>(null)`, with `mode="scroll"`.
  */
 export interface CineViewScrollRef extends CineViewRef {
   goToZone: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
 }
 
 /**
- * Scene 组件 Props
+ * Scene component Props
  */
 export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   sceneId?: string;
@@ -462,11 +435,12 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
     anchor?: SceneAnchor;
     overflow?: 'hidden' | 'visible' | 'clip';
     /**
-     * 叠放策略（原 `stack.mode`）：本场景与相邻场景同屏时谁是背景。
-     * drag 默认 'replace'，scroll 默认 'cover'。
+     * Stacking strategy (formerly `stack.mode`): which scene acts as background
+     * when this scene and adjacent scenes share the screen.
+     * Defaults to 'replace' in drag mode, 'cover' in scroll mode.
      */
     overlap?: SceneStackMode;
-    /** 叠放 z 序（原 `stack.zIndex`）。 */
+    /** Stacking z-order (formerly `stack.zIndex`). */
     zIndex?: number;
   };
   transition?: {
@@ -489,30 +463,31 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
 }
 
 /**
- * Animate 组件 Props
+ * Animate component Props
  */
 interface AnimateBaseProps {
-  animateId?: string; // 组件唯一标识
-  exitAnimation?: AnimationType; // 离开动画类型（必须与 enter 或 loop 共存）
+  animateId?: string;
+  exitAnimation?: AnimationType;
   duration?: {
     enter?: number;
     exit?: number;
   };
   timeline?: {
     /**
-     * 动画时间轴由谁驱动。默认 `'scene'`（优雅推断）：
+     * Timeline driver. Defaults to `'scene'` (graceful inference):
      *
-     * - **`'scene'` + 位于带 `scroll` 接管配置的 `Scene`（继承到 zoneId）内** → 由该 zone 的
-     *   真实滚动预算（progressPx）驱动，可配合 `phase`（scroll 接管）。
-     * - **`'scene'` + scroll 模式且不在 zone 内** → 优雅降级为可见性闸门，由元素进出视口触发。
-     * - **`'scene'` + drag 模式** → 由 Scene 的共享元素时间轴驱动。
-     * - **`'clock'` + scroll 模式** → 强制独立走可见性闸门，即使身处 zone 内也不被接管。
-     * - **`'clock'` + drag 模式** → Scene 正式到场后按真实时钟独立播放；不参与 Scene registry、
-     *   `after` 或 `T_self`，并忽略 `exitAnimation`。
+     * - **`'scene'` + inside a `Scene` with `scroll` takeover config (inherits zoneId)** → driven by
+     *   that zone's real scroll budget (progressPx), works with `phase` (scroll takeover).
+     * - **`'scene'` + scroll mode but not inside a zone** → gracefully degrades to visibility gate,
+     *   triggered by element entering/exiting viewport.
+     * - **`'scene'` + drag mode** → driven by Scene's shared element timeline.
+     * - **`'clock'` + scroll mode** → forces independent visibility gate, not taken over by zone even when inside one.
+     * - **`'clock'` + drag mode** → after Scene officially arrives, plays independently on real clock;
+     *   does not participate in Scene registry, `after`, or `T_self`, and ignores `exitAnimation`.
      */
     driver?: 'scene' | 'clock';
     delay?: number;
-    /** 等某个 animateId 播完再入场。 */
+    /** Wait for a specific animateId to finish before entering. */
     after?: string;
     zoneId?: string;
     phase?: {
@@ -521,7 +496,7 @@ interface AnimateBaseProps {
     };
   };
   visibility?: {
-    /** 元素重新进入后是否重放入场（原名 `replay`，默认相当于 true）。 */
+    /** Whether to replay enter animation when element re-enters (formerly `replay`, defaults to true). */
     replay?: boolean;
     // Design-px gap from the viewport edges that gates enter/exit. Enter fires
     // when the element is fully inside the viewport AND its bottom clears the
@@ -535,14 +510,16 @@ interface AnimateBaseProps {
   };
 
   /**
-   * 暴露入场触发函数，用于手动控制入场时机（如异步事件成功时立即显示）。
+   * Exposes enter trigger function for manual enter timing control (e.g., show content
+   * immediately on async event success).
    *
-   * **行为规则：**
-   * - **调用 `enterRef.current()` 时**：立即播放入场动画，打断任何正在等待的 `after`/`delay`。
-   * - **传了 `enterRef` + 传了 `timeline.after/delay`**：若用户未调用 ref，框架会在 `after`/`delay` 结束后**兜底触发**入场。
-   * - **传了 `enterRef`，但未传 `after/delay`**：永远不会自动触发，必须手动调用 `enterRef.current()` 才会入场。
+   * **Behavior rules:**
+   * - **Calling `enterRef.current()`**: plays enter animation immediately, interrupting any pending `after`/`delay`.
+   * - **Passed `enterRef` + passed `timeline.after/delay`**: if user doesn't call ref, framework will
+   *   **fallback trigger** enter after `after`/`delay` completes.
+   * - **Passed `enterRef`, but no `after/delay`**: never auto-triggers, must manually call `enterRef.current()` to enter.
    *
-   * **典型用途：** API 请求成功时立即显示内容，请求失败时依赖 `delay` 兜底显示空状态。
+   * **Typical use:** Show content immediately on API success, rely on `delay` fallback on failure.
    *
    * @example
    * ```tsx
@@ -552,16 +529,16 @@ interface AnimateBaseProps {
    *   fetch('/api/data')
    *     .then(data => {
    *       setContent(data);
-   *       contentEnterRef.current?.(); // 成功 → 立即显示
+   *       contentEnterRef.current?.(); // success → show immediately
    *     })
    *     .catch(() => {
-   *       // 失败 → 不调 ref，等 3 秒兜底触发
+   *       // failure → don't call ref, wait 3s fallback trigger
    *     });
    * }, []);
    *
    * <Animate
    *   enterRef={contentEnterRef}
-   *   timeline={{ delay: 3000 }}  // 兜底：3 秒后无论如何都显示
+   *   timeline={{ delay: 3000 }}  // fallback: show after 3s regardless
    *   enterAnimation="fade-in"
    * >
    *   {content || <EmptyState />}
@@ -571,13 +548,14 @@ interface AnimateBaseProps {
   enterRef?: React.MutableRefObject<(() => void) | null>;
 
   /**
-   * 暴露退场触发函数，用于手动控制退场时机。
+   * Exposes exit trigger function for manual exit timing control.
    *
-   * **行为规则：**
-   * - **传了 `exitRef`**：禁用框架的自动退场机制（scroll 离开 zone / drag 切换 scene），必须手动调用 `exitRef.current()` 才会退场。
-   * - **调用 `exitRef.current()` 时**：立即播放退场动画，打断任何正在等待的入场（如果有）。
+   * **Behavior rules:**
+   * - **Passed `exitRef`**: disables framework's auto-exit mechanism (scroll leaving zone / drag switching scene),
+   *   must manually call `exitRef.current()` to exit.
+   * - **Calling `exitRef.current()`**: plays exit animation immediately, interrupting any pending enter (if any).
    *
-   * **注意：** `exitRef` 不支持 `timeline.delay` 兜底机制（退场没有"超时后自动退"的语义）。
+   * **Note:** `exitRef` does not support `timeline.delay` fallback mechanism (exit has no "timeout then auto-exit" semantics).
    *
    * @example
    * ```tsx
@@ -596,8 +574,8 @@ interface AnimateBaseProps {
 }
 
 export interface AnimateStaggerConfig {
-  each?: number; // 每子元素间隔 ms，默认 40
-  from?: 'first' | 'last' | 'center'; // 起始方向，默认 'first'
+  each?: number;
+  from?: 'first' | 'last' | 'center';
 }
 
 type EnterAnimationRequired = {
@@ -614,12 +592,14 @@ export type AnimateProps =
   | (AnimateBaseProps &
       EnterAnimationRequired & {
         /**
-         * 子元素错峰入场编排。设定后，`children` 的每个**直接子元素**由 framer 原生
-         * `staggerChildren` 逐个揭示，各子元素用 `enterAnimation` 的变体（绕过 enter/exit
-         * 的 10 属性白名单，可用任意 framer 可动画属性，如 `clipPath`/`width`）。
+         * Staggered enter choreography for child elements. When set, each **direct child**
+         * of `children` is revealed sequentially by framer's native `staggerChildren`,
+         * using `enterAnimation`'s variants (bypasses enter/exit's 10-property whitelist,
+         * can animate any framer-animatable property like `clipPath`/`width`).
          *
-         * 时间驱动、不随滚动/拖拽 scrub（需要 scrub 的逐元素揭示改用 render-prop 的
-         * `enterProgress`）。用于 visibility 入场：打字机、列表级联、字母波浪等。
+         * Time-driven, does not scrub with scroll/drag (for scrub-based per-element reveal,
+         * use render-prop `enterProgress` instead). Used for visibility enter: typewriter,
+         * list cascade, letter wave, etc.
          */
         stagger: AnimateStaggerConfig;
         children: ReactElement;
@@ -631,23 +611,19 @@ export type AnimateProps =
       });
 
 /**
- * render-prop children 接收的动画状态。进度天然跟随当前时间轴来源：
- * visibility 按时间推进，scroll/drag 随滚动/拖拽 scrub。
+ * Render-prop children receives animation state. Progress naturally follows
+ * current timeline source: visibility advances by time, scroll/drag scrubs
+ * with scroll/drag.
  */
 export interface AnimateRenderState {
-  enterProgress: number; // 0..1，0=初始帧，1=完全进入
+  enterProgress: number;
   phase: 'idle' | 'waiting' | 'entering' | 'entered' | 'exiting' | 'exited';
 }
 
 export type AnimatePhase = AnimateRenderState['phase'];
 export type AnimateTimelineLane = 'drag' | 'scroll' | 'visibility';
 export type AnimateTimelineSource =
-  | 'idle'
-  | 'gesture'
-  | 'continuation'
-  | 'programmatic'
-  | 'scroll'
-  | 'visibility';
+  'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility';
 
 export interface AnimateTimelineFrame {
   progress: number;
@@ -662,7 +638,7 @@ export interface AnimateTimelineFrame {
  */
 export interface AnimateTimeline {
   readonly mode: ScrollMode;
-  /** 公开侧 timeline.driver 归一化后的运行时车道（'drag' | 'scroll' | 'visibility'）。 */
+  /** Public-side timeline.driver normalized to runtime lane ('drag' | 'scroll' | 'visibility'). */
   readonly lane: AnimateTimelineLane;
   readonly progress: MotionValue<number>;
   readonly signedProgress: MotionValue<number>;
@@ -684,7 +660,7 @@ export interface ScrollTimelineState {
 }
 
 /**
- * Position 组件 Props
+ * Position component Props
  */
 export interface PositionProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
@@ -696,52 +672,51 @@ export interface PositionProps extends Omit<
     offsetX?: number;
     offsetY?: number;
     /**
-     * 居中锚点。设定后元素相对视口居中，无需再手写 `translate(-50%)`：
-     * - `'center'`：水平 + 垂直双向居中
-     * - `'center-x'`：仅水平居中（`y` 仍为绝对设计坐标）
-     * - `'center-y'`：仅垂直居中（`x` 仍为绝对设计坐标）
+     * Centering anchor. When set, element centers relative to viewport without
+     * manually writing `translate(-50%)`:
+     * - `'center'`: horizontal + vertical centering
+     * - `'center-x'`: horizontal centering only (`y` remains absolute design coordinate)
+     * - `'center-y'`: vertical centering only (`x` remains absolute design coordinate)
      *
-     * 居中后 `x` / `y` 改作「相对中心的偏移量」（设计 px，经单尺子 `scale` 换算）：
-     * 例如 `anchor: 'center', x: 0, y: -100` 表示水平居中、垂直居中再上移 100。
-     * 被居中的轴忽略 `offsetX` / `offsetY` 相对定位链。
+     * After centering, `x` / `y` become "offset from center" (design px, converted via
+     * single-ruler `scale`): e.g. `anchor: 'center', x: 0, y: -100` means horizontally
+     * centered, vertically centered then moved up 100. The centered axis ignores
+     * `offsetX` / `offsetY` relative positioning chain.
      */
     anchor?: 'center' | 'center-x' | 'center-y';
   };
-  /** scene-scoped fixed layer 挂载（原 `layer: { fixed: true }` 壳已删除）。 */
+  /** Scene-scoped fixed layer mount (former `layer: { fixed: true }` wrapper removed). */
   fixed?: boolean;
   children: ReactNode;
-  style?: React.CSSProperties; // 额外的样式
-  className?: string; // CSS 类名
+  style?: React.CSSProperties;
+  className?: string;
 }
 
 /**
- * Container 组件 Props — px2vw 盒模型换算容器。
- * width/height 与 style 内的所有长度量（padding/margin/gap/borderRadius/fontSize/...）
- * 均按设计 px 经单尺子 `convert` 自动换算。
+ * Container component Props — px2vw box model conversion container.
+ * width/height and all length values inside style (padding/margin/gap/borderRadius/fontSize/...)
+ * are converted from design px via single-ruler `convert`.
  */
 export interface ContainerProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   'children' | 'style' | 'className'
 > {
-  width?: number; // 容器宽度（设计 px）
-  height?: number; // 容器高度（设计 px）
+  width?: number;
+  height?: number;
   children: ReactNode;
-  style?: React.CSSProperties; // 额外样式；数值型长度量按设计 px 换算
-  className?: string; // CSS 类名
+  style?: React.CSSProperties;
+  className?: string;
 }
 
 // ============================================================================
 // Utility Types
 // ============================================================================
 
-/**
- * 手势类型
- */
 export type GestureType = 'swipe-up' | 'swipe-down' | 'swipe-left' | 'swipe-right' | 'none';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-export const DEFAULT_SLIDE_DURATION = 800; // 默认滑动动画时间（毫秒）
-export const DEFAULT_ANIMATION_DURATION = 600; // 默认动画时长（毫秒）
+export const DEFAULT_SLIDE_DURATION = 800;
+export const DEFAULT_ANIMATION_DURATION = 600;

@@ -7,8 +7,8 @@
  * reason in CLAUDE.md self-check 3: the canvas file stays small enough to read and the
  * geometry stays testable as pure functions.
  *
- * ── 返工: this is now ONE EXPOSURE, not a slow stop-down ──────────────────────
- * 用户原话:「快门时间太慢了，出现的时候需要较快的完全闭拢，然后再分开。来表达进行了一次拍摄。」
+ * ── Rework: this is now ONE EXPOSURE, not a slow stop-down ──────────────────────
+ * User's exact words: "The shutter time is too slow; when it appears, it needs to close completely quite quickly, then open again. To convey that a shot was taken."
  *
  * Two things were wrong and they were separate faults:
  *
@@ -21,12 +21,12 @@
  *     closure and hold. `shutterCycle` below is therefore non-monotonic and has a stable
  *     terminal value rather than returning fully open.
  *
- * The lane it runs in was also shortened 2400 → 900ms (see `ApertureIris.tsx`); 那 900ms is the
+ * The lane it runs in was also shortened 2400 → 900ms (see `ApertureIris.tsx`); that 900ms is the
  * whole take. Speed alone would not have fixed it, because a fast slow-stop-down is still a
  * stop-down; the shape of the curve is what carries the reading.
  *
  * ── ONE degree of freedom, and it is still the visible one ───────────────────
- * This is the act-01 idiom («指针带动刻度»): the thing you see moving must BE the cause of the
+ * This is the act-01 idiom ("pointer drives scale"): the thing you see moving must BE the cause of the
  * thing you see changing, not a second animation that happens to agree. The chain is unchanged
  * in structure — only its input curve is new:
  *
@@ -43,7 +43,7 @@
  * `spin` monotonic would have the leaves retreat while the ring kept turning one way, which is
  * the exact class of "two animations that merely agree" this file exists to prevent.
  *
- * ── NINE leaves, curved, nonagonal opening (返工: 「形状需要是这样的」) ─────────
+ * ── NINE leaves, curved, nonagonal opening (rework: "the shape needs to be like this") ─────────
  * Was eight leaves with near-straight flanks. The reference is a stills shutter: nine blades
  * whose bodies sweep as scimitars round the barrel, leaving a clean NONAGON of light at the
  * centre. Two constants carry that and they are independent:
@@ -54,7 +54,7 @@
  *     off into a circle and lose the shape being asked for.
  *
  * ── §8.4: no clip, and it is a proof rather than a promise ───────────────────
- * §8.4 («mix-blend-mode: screen 图层不能加 overflow: hidden») bit the corona shell because a
+ * §8.4 ("mix-blend-mode: screen layers cannot have overflow: hidden") bit the corona shell because a
  * clip edge on a blended layer renders as a hard bright line under transform. Blades are the
  * exact shape that invites the same mistake — the obvious build is "a rectangle clipped to a
  * circle", via `clip-path` or `ctx.clip()`.
@@ -105,9 +105,9 @@ export const OPEN_INRADIUS = Math.cos(BLADE_HALF_SPAN);
 /**
  * Nonagon inradius, as a fraction of the barrel, at FULL CLOSURE.
  *
- * 返工: this was `CLOSED_INRADIUS = 0.42`, and 0.42 is why the act never read as a photograph
+ * Rework: this was `CLOSED_INRADIUS = 0.42`, and 0.42 is why the act never read as a photograph
  * being taken — the leaves stopped a long way short of each other and the frame simply had a
- * smaller hole in it. 「需要较快的完全闭拢」 means the nine edges have to MEET.
+ * smaller hole in it. "Needs to close completely quite quickly" means the nine edges have to MEET.
  *
  * Not exactly 0, and the reason is mechanical rather than defensive: at 0 every leading-edge
  * vertex collapses onto the centre point, so all nine paths degenerate to zero area on the
@@ -166,7 +166,7 @@ export const FLANK_SWEEP = 0.42;
 export const LIGHT_ANGLE_RAD = -Math.PI * 0.75;
 
 /** Radians per second for the specular travelling round the lit edges. ~12.5s a revolution:
- *  slow enough to read as light moving over metal, and it is the act's 防空等 cover — after
+ *  slow enough to read as light moving over metal, and it is the act's idle-prevention cover — after
  *  tSelf the shutter holds at 80% closure while its nine edges keep catching light. */
 export const SPECULAR_RAD_PER_SECOND = 0.5;
 
@@ -179,7 +179,7 @@ const BLADE_PHASE_RAD = -Math.PI / 2;
 // ── The exposure's shape, as fractions of the lane's own budget ──────────────
 // One statement of the arithmetic: the three phases are authored as fractions that SUM TO 1,
 // and every boundary below is chained off its predecessor, so no gap can exist between them.
-// (Act 02's archived 倒计时结束卡顿 was exactly a 0.01 gap between two such boundaries, in
+// (Act 02's archived countdown-end stutter was exactly a 0.01 gap between two such boundaries, in
 // which no phase matched and the geometry jumped in a single frame.)
 //
 // The entrance has four explicit phases: close quickly, register one fully-shut frame,
@@ -228,7 +228,7 @@ function smoothstep(value: number): number {
  * How far through the exposure the mechanism is at lane progress `p`: 0 = wide open,
  * 1 = fully shut. It passes through 1, settles at 0.8, and holds there.
  *
- * NON-MONOTONIC, which is the entire 返工. This is the only place the close-hold-open shape is
+ * NON-MONOTONIC, which is the entire rework. This is the only place the close-hold-open shape is
  * stated; `spin` and therefore `stop` and the opening are all projections of it, so there is no
  * second curve anywhere that could disagree about when the shutter is shut.
  */

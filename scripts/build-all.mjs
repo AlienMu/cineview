@@ -1,5 +1,5 @@
 /**
- * 按模式分包的多趟构建：**3 趟出 4 个产物**。
+ * 按模式分包的多趟构建：**4 趟出 5 个 JS 产物**。
  *
  * 为什么必须分趟：UMD 是单文件格式，Rollup 明确拒绝 `UMD + code-splitting`
  * （`Invalid value "umd" for option "output.format"`），而一次 Rollup 构建只有
@@ -10,6 +10,7 @@
  *   cineview.umd.js           全量，运行时按 mode 派发（UMD/CJS）
  *   cineview-drag.umd.js      仅拖拽引擎（UMD/CJS）
  *   cineview-scroll.umd.js    仅滚动引擎（UMD/CJS）
+ *   cineview-dev.es.mjs      开发工具（ESM，样式单独导出）
  *
  * **root 的两种格式能力一致**：`require('cineview')` 与 `import('cineview')` 都拿到
  * 按 `mode` 派发的全量组件。这是 conditional exports 的本意 —— 同一套 API 走不同
@@ -26,10 +27,8 @@
  * 引擎（派发器静态引用，tree-shaking 保不住）—— 接受，等真有 ESM 消费者反馈体积
  * 再加，那时是真实需求而不是假设场景。
  *
- * 只有第一趟清空 dist 并生成 `index.d.ts`（`dts` 门控在 `CLEAN_OUT_DIR`）。
- * 子路径的 `.d.ts` 由本脚本末尾手写生成 —— `vite-plugin-dts` 配的是
- * `include:['src'] + rollupTypes`，它把整个 src 汇总成单个 `index.d.ts`，
- * **不按入口分名**。
+ * 只有第一趟清空 dist 并生成声明树（含 index.d.ts 和 dev/index.d.ts）。
+ * 最后统一生成两个模式入口的薄声明，保留 CineView 的模式专用签名。
  */
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -96,6 +95,13 @@ const passes = [
       { file: 'cineview-scroll.umd.js', module: false, budgetKB: 50, label: 'UMD（仅滚动引擎）' },
     ],
   },
+  {
+    entry: 'src/dev/index.ts',
+    outBase: 'cineview-dev',
+    formats: 'es',
+    label: '开发工具 ES + CSS',
+    artifacts: [{ file: 'cineview-dev.es.mjs', module: true, budgetKB: 10, label: '开发工具 ESM' }],
+  },
 ];
 
 for (const [index, pass] of passes.entries()) {
@@ -129,17 +135,12 @@ writeFileSync('dist/artifacts.json', `${JSON.stringify(manifest, null, 2)}\n`, '
 process.stdout.write(`\n产物清单：dist/artifacts.json（${manifest.artifacts.length} 个产物）\n`);
 
 // ── 子路径类型 ────────────────────────────────────────────────────────────
-// `vite-plugin-dts` 配的是 `include:['src'] + rollupTypes`，它把整个 src 的类型面
-// 汇总成单个 `index.d.ts`，**不按入口分名** —— 所以三趟 ES 产出的是同一份全量类型
-// （内容正确，但 `entry-drag.d.ts` / `entry-scroll.d.ts` 根本不会出现）。
-// package.json 的子路径 `types` 必须有真文件可指，否则 TS 消费者
-// `import "cineview/drag"` 直接解析失败。故在此生成两个薄声明：
+// 声明树由第一趟生成。此处统一两个模式入口的公共签名：
 // 星号再导出全量面 + 用本地声明**遮蔽** `CineView`（.d.ts 里显式声明优先于
 // `export *`，与 ES 模块语义一致），把它收窄成不接受 `mode` 的单模式签名。
 // 这样类型与运行时一致：拖拽入口传 `mode` 编译期就报错，而不是等运行时抛。
 // Props 从已导出的 `CineViewProps` 联合里**提取对应分支**再去掉 `mode`，而不是引用
-// `CineViewBaseProps` —— 后者在 index.d.ts 里是 `declare interface`（未导出，因为
-// public-api.ts 没再导出它），引用它会 TS2724。也不为此扩大公共类型面。
+// `CineViewBaseProps` —— public-api.ts 没再导出它，也不为此扩大公共类型面。
 // 注意：`Omit` 施加在**单个分支**上是安全的；施加在整个联合上会抹掉 `mode` 判别式、
 // 把 callbacks 塌成两模式的并集（src/entry-drag.ts 文件头记了这个坑）。
 const subpathTypes = [

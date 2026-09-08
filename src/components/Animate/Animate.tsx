@@ -1,7 +1,7 @@
 /**
- * Animate Component - 统一入口，根据 mode 选择实现
- * drag 模式：使用 useAnimateDrag
- * scroll 模式：使用 useAnimateScroll
+ * Animate Component - Unified entry point that selects implementation based on mode.
+ * drag mode: uses useAnimateDrag
+ * scroll mode: uses useAnimateScroll
  */
 
 import React, {
@@ -56,12 +56,7 @@ import type { SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
 import { useStructurallyStableValue } from '../../utils/useStructurallyStableValue';
 
 export type SceneRuntimeState =
-  | 'inactive'
-  | 'entering'
-  | 'active'
-  | 'exiting'
-  | 'covered'
-  | 'parked';
+  'inactive' | 'entering' | 'active' | 'exiting' | 'covered' | 'parked';
 
 // Scene Context
 export interface SceneBaseRuntimeContext {
@@ -148,13 +143,13 @@ export type SceneContextType = SceneBaseRuntimeContext &
 
 export const SceneContext = createContext<SceneContextType | null>(null);
 
-/** stagger 容器的中性外层样式：见下方 scrollOuterStyle 处的所有权说明。
- *  必须是模块级常量（稳定引用），否则每次渲染换新对象会让 framer 重建绑定。 */
+/** Neutral outer style for stagger containers. Must be a module-level constant
+ *  (stable reference), otherwise each render creates a new object causing framer to rebuild bindings. */
 const STAGGER_NEUTRAL_STYLE = Object.freeze({ opacity: 1 });
 
 let animateIdCounter = 0;
 
-export const Animate: React.FC<AnimateInternalProps> = ({
+export const Animate = ({
   enterAnimation,
   exitAnimation,
   loopAnimation,
@@ -166,10 +161,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   enterRef,
   exitRef,
   children,
-}) => {
+}: AnimateInternalProps): React.ReactNode => {
   const componentId = useRef(animateId || `animate-${++animateIdCounter}`);
   const id = componentId.current;
   const sceneContext = useContext(SceneContext);
+
   const cineViewRuntime = useCineViewRuntimeContext();
   const reportRuntimeError = cineViewRuntime?.reportError;
   const prefersReducedMotion = cineViewRuntime?.prefersReducedMotion === true;
@@ -191,6 +187,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     generation: number;
     lease: ScenePreparationLease;
   } | null>(null);
+  const allCreatedLeasesRef = useRef<Set<ScenePreparationLease>>(new Set());
   const stableEnterAnimation = useStructurallyStableValue(enterAnimation);
   const stableExitAnimation = useStructurallyStableValue(exitAnimation);
   const stableLoopAnimation = useStructurallyStableValue(loopAnimation);
@@ -198,6 +195,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const scrollInfiniteControls = useAnimation();
   const normalizedSemantics = normalizeAnimateSemantics({ duration, timeline, visibility });
   const mode = sceneContext?.mode ?? cineViewRuntime?.mode ?? 'drag';
+
   const authoredDragArrival = mode === 'drag' && normalizedSemantics.timeline.driver === 'clock';
   // Driver selection is frozen for one formal Scene activation. Prop updates during
   // a pass are authoring for the next activation (or remount), never a live handoff.
@@ -257,6 +255,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     exitDuration: number;
     delay: number;
     stagger: typeof stagger;
+    enterAnimation: typeof stableEnterAnimation;
+    exitAnimation: typeof stableExitAnimation;
+    loopAnimation: typeof stableLoopAnimation;
   } | null>(null);
   const captureArrivalRenderSnapshot = (): void => {
     arrivalRenderSnapshotRef.current = {
@@ -270,6 +271,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       exitDuration: normalizedExitDuration,
       delay: normalizedDelay,
       stagger,
+      enterAnimation: stableEnterAnimation,
+      exitAnimation: stableExitAnimation,
+      loopAnimation: stableLoopAnimation,
     };
   };
   const arrivalSnapshot = arrivalRenderSnapshotRef.current;
@@ -277,12 +281,35 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     isDragArrival &&
     (arrivalPlaybackToken === 0 ||
       arrivalSnapshot === null ||
-      arrivalSnapshot.token !== arrivalPlaybackToken ||
-      (!arrivalSnapshot.ready && currentAuthoringParseReady))
+      arrivalSnapshot.token !== arrivalPlaybackToken)
   ) {
     captureArrivalRenderSnapshot();
   }
   const activeArrivalSnapshot = isDragArrival ? arrivalRenderSnapshotRef.current : null;
+  if (
+    activeArrivalSnapshot &&
+    !activeArrivalSnapshot.ready &&
+    settledParseGeneration > 0 &&
+    settledParseInputsRef.current?.enterAnimation === activeArrivalSnapshot.enterAnimation &&
+    settledParseInputsRef.current?.exitAnimation === activeArrivalSnapshot.exitAnimation &&
+    settledParseInputsRef.current?.loopAnimation === activeArrivalSnapshot.loopAnimation
+  ) {
+    activeArrivalSnapshot.ready = true;
+    activeArrivalSnapshot.enterVariant = enterVariant;
+    activeArrivalSnapshot.exitVariant = exitVariant;
+    activeArrivalSnapshot.infiniteVariant = infiniteVariant;
+  }
+  // Keep a pending parse attached to the activation that requested it. New props
+  // are picked up when the next activation captures its authoring snapshot.
+  const parseEnterAnimation = activeArrivalSnapshot
+    ? activeArrivalSnapshot.enterAnimation
+    : stableEnterAnimation;
+  const parseExitAnimation = activeArrivalSnapshot
+    ? activeArrivalSnapshot.exitAnimation
+    : stableExitAnimation;
+  const parseLoopAnimation = activeArrivalSnapshot
+    ? activeArrivalSnapshot.loopAnimation
+    : stableLoopAnimation;
   const renderEnterVariant = activeArrivalSnapshot?.ready
     ? activeArrivalSnapshot.enterVariant
     : isDragArrival
@@ -301,7 +328,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const renderEnterDuration = activeArrivalSnapshot?.enterDuration ?? normalizedEnterDuration;
   const renderExitDuration = activeArrivalSnapshot?.exitDuration ?? normalizedExitDuration;
   const renderDelay = activeArrivalSnapshot?.delay ?? normalizedDelay;
-  const renderStagger = activeArrivalSnapshot?.stagger ?? stagger;
+  const renderStagger = activeArrivalSnapshot ? activeArrivalSnapshot.stagger : stagger;
 
   useEffect(() => {
     if (!isDragArrival) return;
@@ -357,12 +384,15 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // visualMotion at 0, the arrival lane seeds 0 whenever an enter was authored,
   // and the drag lane is held at its initial frame via `variantsPending` below.
   // Only a genuinely animation-free Animate still early-returns bare children.
-  const authoredPlayableAnimation = Boolean(stableEnterAnimation) || Boolean(stableLoopAnimation);
-  // ⚠️ 必须同时要求「解析尚未 settle」。`parseAnimationSafely` 在预设不存在 / chunk
-  // 加载失败时返回 null，但解析 effect 照样推进 settledParseGeneration —— 只看
-  // 「变体为空」无法区分「还在解析」与「解析失败」。漏掉这个条件会让失败态永久
-  // pending：元素被各 driver 永久按在 initial 帧（opacity 0），而修复前它是渲染裸
-  // children 的 fail-open。把一个可诊断的降级变成永久空白是更坏的失败模式。
+  const authoredPlayableAnimation = Boolean(parseEnterAnimation) || Boolean(parseLoopAnimation);
+  // ⚠️ Must also require "parse not yet settled". `parseAnimationSafely` returns null
+  // when preset does not exist / chunk load fails, but the parse effect still advances
+  // settledParseGeneration — checking only "variant is empty" cannot distinguish "still
+  // parsing" from "parse failed". Missing this condition leaves the failed state
+  // permanently pending: element is held at initial frame (opacity 0) by each driver,
+  // and before the fix it rendered bare children as fail-open. Turning a diagnosable
+  // degradation into a permanent blank is a worse failure mode. See the branch matrix
+  // guard in animateStaggerOuterStyle.test.tsx.
   const parseSettled = isDragArrival
     ? (activeArrivalSnapshot?.ready ?? currentAuthoringParseReady)
     : currentAuthoringParseReady;
@@ -382,7 +412,7 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   // away on the next frame. Reporting that is the honest behaviour; silently
   // accepting the ref would look like a framework bug at the call site.
   const isScrubLane = mode === 'drag' ? !isDragArrival : resolvedTimeline.lane === 'scroll';
-  /** 本次渲染下真正由 `useAnimateScroll` 的 visibility 状态机驱动 —— 只有它可认领 ref。 */
+  /** Currently actually driven by useAnimateScroll's visibility state machine — only it can claim the ref. */
   const manualControlLane = mode === 'scroll' && !isScrubLane;
   const manualControlDiagnosticKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -480,18 +510,14 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   );
 
   useEffect(() => {
+    const createdLeases = allCreatedLeasesRef.current;
     const generation = ++parseGenerationRef.current;
     const isCurrentGeneration = (): boolean => parseGenerationRef.current === generation;
     const completePreparation = (): void => {
       const current = preparationLeaseRef.current;
       if (!current || current.generation !== generation) return;
       current.lease.complete();
-      preparationLeaseRef.current = null;
-    };
-    const cancelPreparation = (): void => {
-      const current = preparationLeaseRef.current;
-      if (!current || current.generation !== generation) return;
-      current.lease.cancel();
+      createdLeases.delete(current.lease);
       preparationLeaseRef.current = null;
     };
 
@@ -502,6 +528,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     preparationLeaseRef.current?.lease.cancel();
     preparationLeaseRef.current = null;
     const preparationLease = mode === 'drag' && !isDragArrival ? beginPreparation?.() : undefined;
+    if (preparationLease) {
+      createdLeases.add(preparationLease);
+    }
     preparationLeaseRef.current = preparationLease ? { generation, lease: preparationLease } : null;
     const reportFailure = (failure: AnimationParseFailure): void => {
       if (!isCurrentGeneration()) return;
@@ -515,34 +544,42 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     setInfiniteVariant(null);
     setSettledParseGeneration(0);
 
-    if (!stableEnterAnimation && !stableLoopAnimation) {
+    if (!parseEnterAnimation && !parseLoopAnimation) {
       reportRuntimeError?.({
         code: 'INVALID_ANIMATION',
         message: `Animate "${id}" requires enterAnimation or loopAnimation.`,
         context: {
           componentId: id,
-          hasExitAnimation: Boolean(stableExitAnimation),
+          hasExitAnimation: Boolean(parseExitAnimation),
         },
       });
       completePreparation();
       return (): void => {
-        completePreparation();
+        // Dispose all leases created during this effect, regardless of generation.
+        // StrictMode double-invoke creates orphaned leases when the first mount is
+        // torn down before its lease is completed/cancelled via generation matching.
+        createdLeases.forEach((lease) => lease.cancel());
+        createdLeases.clear();
         if (isCurrentGeneration()) parseGenerationRef.current += 1;
       };
     }
 
     const parseAnimations = async (): Promise<void> => {
       const [enter, exit, infinite] = await Promise.all([
-        parseAnimationSafely(stableEnterAnimation, id, 'enter', reportFailure),
-        parseAnimationSafely(stableExitAnimation, id, 'exit', reportFailure),
-        parseAnimationSafely(stableLoopAnimation, id, 'loop', reportFailure),
+        parseAnimationSafely(parseEnterAnimation, id, 'enter', reportFailure),
+        parseAnimationSafely(parseExitAnimation, id, 'exit', reportFailure),
+        parseAnimationSafely(parseLoopAnimation, id, 'loop', reportFailure),
       ]);
 
-      if (!isCurrentGeneration()) return;
+      // Re-check generation after await to prevent stale closure from overwriting newer state.
+      // The isCurrentGeneration check captures `generation` at effect start, but parseGenerationRef
+      // may have been incremented by a newer effect while this parse was in flight.
+      if (parseGenerationRef.current !== generation) return;
+
       settledParseInputsRef.current = {
-        enterAnimation: stableEnterAnimation,
-        exitAnimation: stableExitAnimation,
-        loopAnimation: stableLoopAnimation,
+        enterAnimation: parseEnterAnimation,
+        exitAnimation: parseExitAnimation,
+        loopAnimation: parseLoopAnimation,
       };
       setEnterVariant((enter as ParsedAnimationVariant) ?? null);
       setExitVariant((exit as ParsedAnimationVariant) ?? null);
@@ -553,7 +590,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     void parseAnimations();
 
     return (): void => {
-      cancelPreparation();
+      // Cancel all leases created during this effect, regardless of generation.
+      // StrictMode double-invoke creates orphaned leases when the first mount is
+      // torn down before its lease is completed/cancelled via generation matching.
+      createdLeases.forEach((lease) => lease.cancel());
+      createdLeases.clear();
       if (isCurrentGeneration()) parseGenerationRef.current += 1;
     };
   }, [
@@ -562,6 +603,31 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     isDragArrival,
     reportRuntimeError,
     beginPreparation,
+    parseEnterAnimation,
+    parseExitAnimation,
+    parseLoopAnimation,
+  ]);
+
+  // Authoring may change while a clock-driven arrival is active. Parse new
+  // values in the background for the next activation, while this activation
+  // keeps consuming its frozen snapshot.
+  useEffect(() => {
+    if (!isDragArrival || arrivalPlaybackToken === 0 || !activeArrivalSnapshot) return;
+    const changed =
+      activeArrivalSnapshot.enterAnimation !== stableEnterAnimation ||
+      activeArrivalSnapshot.exitAnimation !== stableExitAnimation ||
+      activeArrivalSnapshot.loopAnimation !== stableLoopAnimation;
+    if (!changed) return;
+    void Promise.all([
+      parseAnimationSafely(stableEnterAnimation, id, 'enter'),
+      parseAnimationSafely(stableExitAnimation, id, 'exit'),
+      parseAnimationSafely(stableLoopAnimation, id, 'loop'),
+    ]);
+  }, [
+    activeArrivalSnapshot,
+    arrivalPlaybackToken,
+    id,
+    isDragArrival,
     stableEnterAnimation,
     stableExitAnimation,
     stableLoopAnimation,
@@ -591,8 +657,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     parseReady: activeArrivalSnapshot?.ready ?? settledParseGeneration > 0,
     delay: renderDelay,
     enterDuration: effectiveEnterDuration,
-    // ref 归属：只有当前生效的 driver 才可认领，否则两条 hook 的 effect 会互相覆盖
-    // `enterRef.current`（后跑的赢），消费者拿到的是一条根本不驱动任何东西的 trigger。
+    // ref ownership: only the currently active driver can claim it, otherwise the effects
+    // from both hooks would overwrite each other's `enterRef.current` (last one wins), and
+    // the consumer gets a trigger that doesn't actually drive anything.
     enterRef: isDragArrival ? enterRef : undefined,
   });
 
@@ -614,9 +681,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     visibility: normalizedSemantics.visibility,
     globalEnterMargin: cineViewRuntime?.scrollEnterMargin,
     globalExitMargin: cineViewRuntime?.scrollExitMargin,
-    // 同上：drag arrival 生效时本 hook 不驱动任何东西，不得认领 ref。
-    // scrub 轨（scroll takeover / drag scene-controlled）也不认领 —— 契约是「忽略」，
-    // 那就必须让 `enterRef.current` 保持 null，消费者的能力探测才不会被误导。
+    // Same as above: when drag arrival is active, this hook doesn't drive anything and must not claim the ref.
+    // scrub lanes (scroll takeover / drag scene-controlled) also don't claim — the contract is "ignore",
+    // so `enterRef.current` must remain null so consumer's capability detection isn't misled.
     enterRef: manualControlLane ? enterRef : undefined,
     exitRef: manualControlLane ? exitRef : undefined,
     variantsPending,
@@ -708,8 +775,9 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     scrollInfiniteControls,
   ]);
 
-  // render-prop 桥接:children 为函数时,按当前 mode 挂对应 bridge 订阅进度/相位源;
-  // 否则原样透传。非函数 children 零额外成本(不挂 bridge、不订阅)。
+  // render-prop bridge: when children is a function, attach corresponding bridge to
+  // subscribe progress/phase source based on current mode; otherwise pass through as-is.
+  // Non-function children have zero extra cost (no bridge, no subscription).
   const renderFn = isRenderProp
     ? (children as (state: AnimateRenderState) => React.ReactNode)
     : undefined;
@@ -726,10 +794,11 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     <DragRenderBridge visualState={dragResult.visualState} render={renderFn} />
   );
 
-  // Tier 2 stagger:children 为单个有效元素容器 + 有 stagger + 有 enterVariant 时,
-  // 子元素由 framer 原生 variant 传播错峰(方案B,绕白名单)。外层 motion.div 的视觉
-  // style 中和(否则容器整体入场与子元素错峰双重动画),但 visualMotion 仍在内部跑作
-  // 触发源供 stagger 订阅。render-prop 与 stagger 互斥(函数 children 无容器可拆)。
+  // Tier 2 stagger: when children is a single valid element container + has stagger + has enterVariant,
+  // child elements are staggered via framer's native variant propagation (solution B, bypasses whitelist).
+  // Outer motion.div's visual style is neutralized (otherwise container entry + child stagger double-animate),
+  // but visualMotion still runs internally as the trigger source for stagger subscription. render-prop and
+  // stagger are mutually exclusive (function children has no container to decompose).
   const staggeredContent: React.ReactNode =
     staggerContainer && renderEnterVariant ? (
       mode === 'scroll' ? (
@@ -773,12 +842,14 @@ export const Animate: React.FC<AnimateInternalProps> = ({
   const providedContent = (
     <AnimateTimelineProvider value={publicTimeline}>{content}</AnimateTimelineProvider>
   );
-  // ⚠️ stagger 生效时外层必须交出视觉属性（否则容器整体入场与子元素错峰双重动画），
-  // 但**不能把 style 切成 undefined**：那是「framer 不再拥有该属性」，而不是「属性回到
-  // 默认值」——上一次写进 DOM 的 inline 值会原样留着。variantsPending 期间外层曾短暂
-  // 绑过 opacity 0 的 scrub style，解析落地后一旦切成 undefined，那个 0 就永久钉在
-  // 容器上，子元素错峰揭示到 opacity 1 也全被容器盖住（实测首屏打字机副标题整段消失）。
-  // 显式给一个稳定的中性 style，让 framer 全程持有并在接管瞬间写回 1。
+  // ⚠️ When stagger is active, outer layer must relinquish visual properties (otherwise container
+  // entry + child stagger double-animate), but **cannot switch style to undefined**: that means
+  // "framer no longer owns this property", not "property returns to default value" — the inline
+  // value last written to the DOM stays as-is. During variantsPending, outer layer briefly bound
+  // to opacity 0 scrub style; once parse lands and switches to undefined, that 0 is permanently
+  // pinned to the container, and even if child stagger reveals to opacity 1, they're all covered
+  // by the container (verified by main page typewriter subtitle disappearing on first-screen).
+  // Explicitly provide a stable neutral style, let framer own it throughout and write back 1 on takeover.
   const scrollOuterStyle = staggerActive ? STAGGER_NEUTRAL_STYLE : scrollResult.style;
   const dragOuterStyle = staggerActive
     ? STAGGER_NEUTRAL_STYLE
@@ -787,7 +858,8 @@ export const Animate: React.FC<AnimateInternalProps> = ({
       : dragResult.style;
 
   if (!renderEnterVariant && !renderExitVariant && !renderInfiniteVariant && !variantsPending) {
-    // 无动画早退:无进度可推,函数 children 直接给初始态(否则会渲染成 [object Function])。
+    // No-animation early exit: no progress to push, function children get initial state directly
+    // (otherwise would render as [object Function]).
     return (
       <AnimateTimelineProvider value={publicTimeline}>
         {renderFn ? renderFn(IDLE_RENDER_STATE) : plainChildren}
@@ -799,11 +871,12 @@ export const Animate: React.FC<AnimateInternalProps> = ({
     if (renderInfiniteVariant) {
       return (
         <div data-cineview-animate-host={id}>
-          {/* scrollOuterStyle（不是 scrollResult.style）：stagger 生效时外层必须交出
-              视觉属性，见上方 scrollOuterStyle 处的说明。此分支曾直接绑原始 scrub
-              style，是四个返回分支里唯一漏掉该守卫的一个——stagger + infinite 同时
-              出现时外层会停在 scrub 轨初始帧 opacity 0，把已错峰到 1 的子元素整组
-              压暗。分支矩阵守卫见 animateStaggerOuterStyle.test.tsx。 */}
+          {/* scrollOuterStyle (not scrollResult.style): when stagger is active, outer layer must
+              relinquish visual properties, see explanation above at scrollOuterStyle definition.
+              This branch previously bound raw scrub style directly, was the only one of four return
+              branches that missed this guard — when stagger + infinite appear together, outer layer
+              stays at scrub lane initial frame opacity 0, darkening the entire group of children
+              already staggered to 1. Branch matrix guard is in animateStaggerOuterStyle.test.tsx. */}
           <motion.div
             style={scrollOuterStyle}
             className="cineview-animate"

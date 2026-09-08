@@ -2,8 +2,9 @@
  * Scene Component Tests
  */
 
-import React, { act, useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act } from '@testing-library/react';
 import { SceneInternal as Scene } from './Scene';
 import { CineViewProvider } from '../../context/CineViewContext';
 import { SceneContext } from '../Animate/Animate';
@@ -194,6 +195,19 @@ describe('Scene Component', () => {
     expect(scene.style.touchAction).toBe('pan-x pinch-zoom');
     expect(scene.style.backgroundColor).toBe('red');
     expect(scene.style.transform).not.toBe('scale(2)');
+  });
+
+  it('preserves an author-owned inert scene while active', async () => {
+    renderScene(
+      <Scene isActive={true} inert>
+        <div>Author inert scene</div>
+      </Scene>
+    );
+
+    const scene = screen.getByText('Author inert scene').parentElement as HTMLElement;
+    await waitFor(() => expect(scene.inert).toBe(true));
+    expect(scene).toHaveAttribute('inert');
+    expect(scene).not.toHaveAttribute('aria-hidden', 'true');
   });
 
   it('composes authored pointer handlers with the drag owner and honors preventDefault', () => {

@@ -1,7 +1,7 @@
 import type { Dict } from './types';
 
 export const en: Dict = {
-  // ── Topbar / nav ──
+  // Topbar / nav
   'nav.home': 'Home',
   'nav.demo': 'Demo',
   'nav.docs': 'Docs',
@@ -9,7 +9,7 @@ export const en: Dict = {
   'nav.lang': 'ZH',
   'nav.langLabel': 'Switch language',
 
-  // ── Act 1 Hero ──
+  // Act 1 Hero
   'hero.title': 'CineView',
   'hero.slogan': 'Direct every frame\nlike a filmmaker',
   'hero.intro':
@@ -19,15 +19,15 @@ export const en: Dict = {
   'hero.ctaGithub': 'GitHub',
   'hero.scrollHint': 'Scroll down — the film starts rolling',
 
-  // ── Act 2 Idea ──
+  // Act 2 Idea
   'idea.eyebrow': 'Why CineView',
   'idea.title': 'Scroll should not be mere\ntranslation, but time on a timeline',
   'idea.body':
     'On a normal page, scrolling just pushes content up. In CineView, scrolling advances the film — every bit of travel maps to a scene’s enter/exit timeline, and elements arrive in turn by delay and after, arranged on a timeline as precisely as a shot list.',
 
-  // ── Act 2 Capabilities (framework-as-demo · two shots + timecode capsule) ──
-  // Title uses '|' split: the part after the bar renders as italic Fraunces accent.
-  // slate/code are API literals, identical zh/en (mono).
+  // Act 2 Capabilities (framework-as-demo · two shots + timecode capsule)
+  // Title uses pipe separator: the part after the bar renders as italic Fraunces accent.
+  // slate/code are API literals, identical zh/en (monospace).
   'cap.tc.rec': 'REC',
 
   'cap.shot1.slate': 'SCENE TIMELINE',
@@ -71,7 +71,7 @@ export const en: Dict = {
   'cap.shot1.preset.blur.desc': 'From blur to sharp, like a lens finding focus.',
   'cap.shot1.preset.blur.code': '<Animate enterAnimation="blur-in" />',
 
-  // ── Act 3 Dolly in ──
+  // Act 3 Dolly in
   'cap.shot3.slate': 'DOLLY IN · DECLARATIVE TIMELINE',
   'cap.shot3.card.chain.label': 'Chained order',
   'cap.shot3.card.stagger.label': 'Staggered cascade',
@@ -81,7 +81,7 @@ export const en: Dict = {
   'cap.shot3.card.image.label': 'Asset preloading',
   'cap.shot3.title': 'Time flows with scroll, scenes move with the story',
 
-  // ── Act 3 Engines ──
+  // Act 3 Engines
   'engines.eyebrow': 'Two engines',
   'engines.title': 'One scene model, two drivers',
   'engines.dragName': 'drag · mobile',
@@ -91,7 +91,7 @@ export const en: Dict = {
   'engines.scrollDesc':
     'Takes over real document scroll. Center-lock pins key scenes to the viewport center; scroll distance is animation progress (1ms=1px), reversible by construction.',
 
-  // ── Act 4 Phone hero ──
+  // Act 4 Phone hero
   'phone.eyebrow': 'Right now · hands on',
   'phone.title': 'One phone,\nrunning drag mode',
   'phone.body':
@@ -99,7 +99,7 @@ export const en: Dict = {
   'phone.unlockHint': '↑ Press and drag the screen',
   'phone.locked': 'Focusing…',
 
-  // Phone drag demo — 4 scenes
+  // Phone drag demo: 4 scenes
   'demoDrag.s1.eyebrow': 'Shot one',
   'demoDrag.s1.title': 'CineView',
   'demoDrag.s1.sub': 'Cinematic storytelling, within reach',
@@ -116,11 +116,7 @@ export const en: Dict = {
   'demoDrag.s4.title': '40+ animation presets',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur, freely composed',
 
-  // ── Homepage act 5 · Cinema Entrance ──
-  /* Title + subtitle (rewritten 2026-08-09, direction A: call out the two-mode
-     simultaneity). The scene's plain fact: this page IS scroll mode while the
-     phone runs drag mode — the reader is watching both modes of one framework
-     at once. See the zh copy for the full rationale. */
+  // Homepage act 5: Cinema Entrance
   'scene5.title': 'Two modes, one system',
   'scene5.subtitle':
     'Drag it in the phone; scroll it on this page.\nSame timeline, same animation grammar.',
@@ -187,12 +183,12 @@ export const en: Dict = {
   'docs.notFound': 'Document not found',
 
   // Docs nav groups (page titles live in per-language md frontmatter, not i18n)
-  'docs.group.getting-started': 'Getting Started',
-  'docs.group.concepts': 'Core Concepts',
-  'docs.group.drag': 'Drag engine',
-  'docs.group.scroll': 'Scroll engine',
-  'docs.group.components': 'Components',
-  'docs.group.advanced': 'Advanced',
+  'docs.group.getting-started': 'Getting started',
+  'docs.group.concepts': 'Core concepts',
+  'docs.group.drag': 'Drag mode',
+  'docs.group.scroll': 'Scroll mode',
+  'docs.group.components': 'Component reference',
+  'docs.group.advanced': 'Advanced use',
 
   // ── Common ──
   'common.timecode': 'Timecode',

@@ -14,7 +14,7 @@ export default function SceneNavigation({
   mode,
   onGoToScene,
   totalScenes,
-}: SceneNavigationProps): JSX.Element {
+}: SceneNavigationProps): import('react').JSX.Element {
   return (
     <div
       style={{

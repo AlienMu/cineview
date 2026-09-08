@@ -42,8 +42,8 @@ jest.mock('framer-motion', () => {
       typeof (value as { on: unknown }).on === 'function'
     );
 
-  // 只给最外层那一个 motion.div 打 testid：内层（infinite 的嵌套 wrapper、stagger 的
-  // 子项）不带，避免 getByTestId 命中多个。用 depth 计数区分。
+  // Only the outermost motion.div gets a testid: inner layers (infinite's nested wrapper,
+  // stagger children) do not, to prevent getByTestId from matching multiple elements.
   let depth = 0;
 
   const MotionDiv = ({
@@ -165,7 +165,7 @@ function createSceneContext(mode: 'drag' | 'scroll'): SceneContextType {
   };
 }
 
-/** 解析请求按被请求的 phase 分发：enter → 入场变体，infinite → 循环变体。 */
+/** Parse requests dispatch by requested phase: enter → enter variant, infinite → loop variant. */
 function mockParseByPhase(): void {
   (parseAnimationWithComposition as jest.Mock).mockImplementation((animation: unknown) => {
     const isInfinite =
@@ -189,8 +189,9 @@ describe('Animate outer style ownership under stagger (branch matrix)', () => {
     jest.clearAllMocks();
   });
 
-  // 四格全覆盖。scroll + infinite 那格曾是唯一绑原始 scrub style 的分支
-  // （`scrollResult.style` 而非 `scrollOuterStyle`），2026-08-27 修正后并回矩阵。
+  // Full coverage of the four-cell matrix. The scroll + infinite cell was the only branch
+  // binding the raw scrub style (`scrollResult.style` instead of `scrollOuterStyle`),
+  // fixed 2026-08-27 and merged back into the matrix.
   it.each([
     ['drag', undefined, 'drag, no infinite'],
     ['drag', INFINITE_VARIANT, 'drag + infinite'],
@@ -216,8 +217,9 @@ describe('Animate outer style ownership under stagger (branch matrix)', () => {
         </SceneContext.Provider>
       );
 
-      // 变体解析落地后，外层必须交出视觉属性 = 中性 opacity 1。
-      // 若某个分支绑了原始 scrub style，这里会读到初始帧的 0（或其他 scrub 值）。
+      // After variant parsing lands, the outer wrapper must hand over visual properties
+      // = neutral opacity 1. If a branch binds the raw scrub style, this reads 0 (or other
+      // scrub values) from the initial frame.
       await waitFor(() => {
         expect(readOuterOpacity()).toBe('1');
       });
@@ -225,8 +227,9 @@ describe('Animate outer style ownership under stagger (branch matrix)', () => {
   );
 
   it('leaves the outer wrapper scrub-driven when stagger is NOT used', async () => {
-    // 反向守卫：中和只应在 stagger 生效时发生。没有 stagger 时外层必须仍由
-    // 自己的驱动轨拥有（初始帧 0），否则「中和」就泄漏成了无条件行为。
+    // Reverse guard: neutralization should only occur when stagger is active. Without
+    // stagger, the outer wrapper must still be owned by its own drive lane (initial frame 0),
+    // otherwise "neutralization" would leak into unconditional behavior.
     render(
       <SceneContext.Provider value={createSceneContext('scroll')}>
         <Animate

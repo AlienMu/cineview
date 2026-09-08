@@ -29,7 +29,7 @@ export default function ExperienceOverlayChrome({
   onToggleMonitor,
   subtitle,
   totalScenes,
-}: ExperienceOverlayChromeProps): JSX.Element {
+}: ExperienceOverlayChromeProps): import('react').JSX.Element {
   return (
     <div
       style={{

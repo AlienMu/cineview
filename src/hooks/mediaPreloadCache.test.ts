@@ -1,6 +1,6 @@
 /**
- * media 预加载缓存单测(video):预加载、in-flight 去重、订阅通知、LRU 字节淘汰、
- * objectURL revoke、类型推断、reset。fetch + URL 均 mock。
+ * Media preload cache unit tests (video): preloading, in-flight dedup, subscription notifications,
+ * LRU byte eviction, objectURL revoke, type inference, reset. Both fetch and URL are mocked.
  */
 
 import {
@@ -78,7 +78,7 @@ describe('preloadMedia — dedup & guards', () => {
   });
 
   it('rejects unknown media type without explicit kind', async () => {
-    await expect(preloadMedia('/mystery')).rejects.toThrow(/无法判定媒体类型/);
+    await expect(preloadMedia('/mystery')).rejects.toThrow(/Cannot determine media type/);
   });
 
   it('honours explicit kind override', async () => {
@@ -88,6 +88,32 @@ describe('preloadMedia — dedup & guards', () => {
 
   it('empty src resolves as no-op', async () => {
     await expect(preloadMedia('')).resolves.toBeUndefined();
+  });
+});
+
+describe('preloadMedia — malformed blob responses', () => {
+  it('rejects null blob without accessing .size', async () => {
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(null),
+      })
+    );
+
+    await expect(preloadMedia('/malformed.mp4', 'video')).rejects.toThrow(/Invalid blob response/);
+  });
+
+  it('rejects undefined blob without accessing .size', async () => {
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(undefined),
+      })
+    );
+
+    await expect(preloadMedia('/malformed2.mp4', 'video')).rejects.toThrow(/Invalid blob response/);
   });
 });
 
@@ -101,10 +127,10 @@ describe('preloadMedia — HTTP failure & timeout (E-A1 / E-A4)', () => {
       })
     );
     await expect(preloadMedia('/missing.mp4')).rejects.toThrow(/404/);
-    // 失败不得进入任何「已就绪」缓存集合:否则 readyUrls 含该 src,永久污染无法重试。
+    // Failure must not enter any "ready" cache set: otherwise readyUrls contains the src, permanently polluted and unable to retry.
     expect(isMediaPreloaded('/missing.mp4')).toBe(false);
     expect(getVideoObjectUrl('/missing.mp4')).toBeUndefined();
-    // in-flight 已清理 → 重试可再次发起并成功。
+    // in-flight cleared → retry can initiate again and succeed.
     await expect(preloadMedia('/missing.mp4')).resolves.toBeUndefined();
     expect(isMediaPreloaded('/missing.mp4')).toBe(true);
     expect(global.fetch as jest.Mock).toHaveBeenCalledTimes(2);

@@ -195,11 +195,16 @@ describe('N7 · inactive scenes are hidden from assistive tech', () => {
     renderDragApp();
     await waitFor(() => expect(screen.getByText('Scene one')).toBeInTheDocument());
 
+    // Wait for the useEffect that sets inert to complete
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
     const hidden = Array.from(document.querySelectorAll('[aria-hidden="true"]'));
     expect(hidden.length).toBeGreaterThan(0);
     // aria-hidden alone still leaves Tab stops behind; the two travel together.
     hidden.forEach((node) => {
-      expect(node.hasAttribute('inert')).toBe(true);
+      expect((node as HTMLElement).inert).toBe(true);
     });
 
     // The scene the reader is on must not be hidden.

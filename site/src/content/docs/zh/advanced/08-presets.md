@@ -3,7 +3,7 @@ title: 预设动画总览
 eyebrow: ADVANCED / PRESETS
 ---
 
-CineView 内置 43 个预设动画，分为 11 个动画类别。通过 `enterAnimation="fade-in"` 等字面量名称直接声明；所有名称均属于 `PresetAnimation` 联合类型，非法名称在编译期即可触发类型校验拦截，避免运行时异常。
+CineView 提供 43 个预设，分为 11 组。传入 `enterAnimation="fade-in"` 等名称，`PresetAnimation` 类型会检查拼写。
 
 ## 预设目录
 
@@ -23,11 +23,11 @@ CineView 内置 43 个预设动画，分为 11 个动画类别。通过 `enterAn
 
 ## 命名约定
 
-`-in` / `-out` 后缀是进出场方向的语义约定：成对使用的常规写法是 `-in` 入场、`-out` 退场。无后缀的名字（`fade`、`spin`、`pulse`、`shake` 等）双向通用，也更适合交给 `loopAnimation` 做常驻循环：常驻循环只在元素处于自身生命周期阶段且位于视窗内时运行，规则见 [Animate](/docs/03-animate)。
+以 `-in` 和 `-out` 结尾的名称通常分别用于入场和退场。`spin`、`pulse`、`shake` 等也可用于循环，播放受元素可见性与动画阶段约束，详见 [Animate](/docs/03-animate)。
 
 ## 用法示例
 
-预设名直接传给 `Animate` 的 `enterAnimation` / `exitAnimation`，也可用于 `Scene.transition`：
+预设可传给 Animate 的动画属性，也可用于 scroll 模式的 Scene 转场。
 
 ```tsx
 <Animate

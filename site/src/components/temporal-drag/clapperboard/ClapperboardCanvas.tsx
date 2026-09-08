@@ -28,7 +28,7 @@ interface ClapperboardCanvasProps {
 }
 
 // Dark-gold grade only. The teal that used to colour the body/value particles is
-// gone by decree ("颜色改为暗金色不要用青色"): three golds plus a warm white
+// gone by decree ("change colour to dark gold, no teal"): three golds plus a warm white
 // highlight, nothing on the cool side of the wheel.
 const GOLD_DEEP = '150, 112, 54';
 const GOLD = '190, 146, 74';
@@ -58,7 +58,7 @@ export const ACT2_BOARD_TIMING_MS = {
   word: 260,
 } as const;
 
-// 620, cut from 900 (返工:「继续加快act2画板入场时间，加快粒子淡入放大动画」). This is the
+// 620, cut from 900 (rework: "continue to speed up act2 board entrance time, accelerate particle fade-in scale animation"). This is the
 // convergence itself — scattered dust walking into the open slate — and it is the segment the
 // entrance speed IS. The particle-level ramps nested inside it (APPEAR_MS, SWARM_IN_*) were cut
 // in the same proportion; they have to move together, because they are windows INSIDE this
@@ -67,14 +67,14 @@ export const ACT2_BOARD_TIMING_MS = {
 const FORM_MS = ACT2_BOARD_TIMING_MS.form;
 /**
  * The BOARD IS FULLY ASSEMBLED AND STILL. New segment, and it is the whole of
- * 「需要完全展示后才执行倒计时」.
+ * "must fully display before executing countdown".
  *
  * The countdown used to start on the exact frame the convergence ended — `COUNT_BEATS[0].start`
  * was `FORM_END` — so the last particles to arrive were immediately recruited into the numeral
  * "3". The board was therefore never seen as a board: assembly handed straight over to
  * re-assembly, and the object the act is about existed for zero frames.
  *
- * That is not a lead-in gap of the kind act 02's archived 倒计时结束卡顿 was about (that was a
+ * That is not a lead-in gap of the kind act 02's archived "countdown end stutter" was about (that was a
  * 0.01 boundary gap in which `countIndex` fell to -1 mid-countdown and the geometry jumped a
  * frame). Here -1 is the CORRECT state and the geometry is continuous through it: `form` is
  * clamped at 1 across this whole window, so every particle holds the board position it just
@@ -96,8 +96,8 @@ const WORD_MS = ACT2_BOARD_TIMING_MS.word;
 /**
  * The board's enter budget: 620 + 240 + 3x720 + 100 + 180 + 260 = 3560ms.
  *
- * 返工: 3600 -> 3560, and note WHAT moved. The convergence was cut 900 -> 620 (「继续加快act2画板
- * 入场时间」) and a 240ms held-board beat was added after it (「需要完全展示后才执行倒计时」), so the
+ * Rework: 3600 -> 3560, and note WHAT moved. The convergence was cut 900 -> 620 ("continue to speed up act2 board
+ * entrance time") and a 240ms held-board beat was added after it ("must fully display before executing countdown"), so the
  * entrance is 280ms faster while the countdown itself is untouched at 720ms/numeral. The two
  * changes are near-offsetting by arithmetic, not by design — the total is a consequence of the
  * table, which is the whole reason the sum is written as an expression over it.
@@ -107,7 +107,7 @@ const WORD_MS = ACT2_BOARD_TIMING_MS.word;
  * lane read `gate 1600 + board 3600 = 5200 = tSelf`, and against THAT equation 3560 looks like
  * 40ms of dead air to be padded back. It is not, for two independent reasons:
  *
- *  1. The gate is no longer 1600. It was cut 1600 -> 1100 by the same 返工 that cut the
+ *  1. The gate is no longer 1600. It was cut 1600 -> 1100 by the same rework that cut the
  *     convergence (see `ACT2_LIGHT_GATE_MS` in SlateLightRig), so the chain is 1100 + 3560 =
  *     4660. Padding the board to 3600 would give 4700, which matches nothing.
  *  2. `gate + board` was never the act's tSelf in the first place — it is one chain among the
@@ -125,7 +125,7 @@ const WORD_MS = ACT2_BOARD_TIMING_MS.word;
  * the ms table above literally true — the canvas is driven by `timeline.progress` (0..1 over the
  * enter), so a segment's real duration is its fraction times whatever THIS number is. Previously it
  * was declared in SceneSlate while the fractions were hard-coded here, and that split is the
- * mechanism behind 倒计时太快: cutting the budget 8000 -> 2400 for the `scale: 10` clock re-priced
+ * mechanism behind "countdown too fast": cutting the budget 8000 -> 2400 for the `scale: 10` clock re-priced
  * every beat silently, taking the countdown from 720ms/numeral to 216ms without contradicting
  * anything written in either file.
  */
@@ -148,7 +148,7 @@ function seg(ms: number): number {
 // strength in ONE frame instead of fading up from nothing. Anchoring it at 0 is what lets
 // FORM_START be 0 without trading the old dead lead-in for a pop.
 //
-// 200, cut from 300 — 「加快粒子淡入放大动画」. Both windows below were cut in the same ~0.69
+// 200, cut from 300 — "accelerate particle fade-in scale animation". Both windows below were cut in the same ~0.69
 // proportion as FORM (900 → 620), and that proportionality is required rather than tidy: they
 // are windows INSIDE form, so holding them fixed while form shortens changes their MEANING.
 // SWARM_IN_END_MS at its old 700 against a 620ms form is the sharp case — the swarm's fade-in
@@ -175,7 +175,7 @@ const SETTLE_END = FORM_END + seg(SETTLE_MS);
 // 3 -> 2 -> 1, each formed by the value-column particles re-organising, each exactly
 // COUNT_BEAT_MS long. Generated rather than transcribed so the three cannot drift apart.
 //
-// ANCHORED AT SETTLE_END, NOT FORM_END — this is 「需要完全展示后才执行倒计时」 in one token.
+// ANCHORED AT SETTLE_END, NOT FORM_END — this is "must fully display before executing countdown" in one token.
 // Anchoring at FORM_END is what made the countdown start on the same frame the convergence
 // finished, so the board handed straight from assembly into re-assembly and was never seen
 // whole. Every beat below is chained off this anchor, so the hold cannot be skipped for one
@@ -188,7 +188,7 @@ const COUNT_BEATS = COUNT_BEAT_CHARS.map((char, index) => ({
 // Value particles walk back to the slate's own numbers just before the stick falls.
 //
 // REFORM_START must EQUAL the last beat's end. It used to be 0.84 against a beat ending at
-// 0.83, and that 0.01 gap (160ms of authored time) was the reported 倒计时结束卡顿: inside it
+// 0.83, and that 0.01 gap (160ms of authored time) was the reported "countdown end stutter": inside it
 // no beat matches and `raw < REFORM_START`, so countIndex fell to -1 and every value
 // particle jumped from the "1" straight back to its slate position in a SINGLE frame. It was
 // never a dropped frame — measured max frame time through the whole countdown is 18ms and
@@ -229,7 +229,7 @@ function easeInOut(value: number): number {
 }
 
 // The stick's fall, 0 = fully open, 1 = shut. This is deliberately NOT easeOutCubic, which
-// is what it used to be, and that substitution is the whole 卡顿 bug:
+// is what it used to be, and that substitution is the whole "stutter" bug:
 //
 //   d/dt (1 - (1-t)^3) at t=0  =  3      <- maximum velocity on the very first frame
 //
@@ -250,7 +250,7 @@ function clapFall(value: number): number {
 export const ClapperboardCanvas = memo(function ClapperboardCanvas({
   progress,
   phase,
-}: ClapperboardCanvasProps): JSX.Element {
+}: ClapperboardCanvasProps): import('react').JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
 
@@ -279,7 +279,7 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
     });
 
     // Countdown targets. The digits are built from the board's OWN particles inside the
-    // value column ("3 2 1 由粒子进行重组"), so nothing is drawn on top of the slate.
+    // value column ("3 2 1 reassembled from particles"), so nothing is drawn on top of the slate.
     //
     // Recruited: the value glyphs (135 points) AND the grid-rule segments that cross the
     // value column (~135 more). Two reasons: the numeral needs the density to read as a
@@ -288,7 +288,7 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
     // the digit is not competing with the furniture it sits on. They walk back when the
     // countdown ends.
     // Only the value glyphs are recruited. The grid rules were recruited too for density,
-    // but the user's read was 粒子太多、太厚 — the numeral became a slab. 135 points on a
+    // but the user's read was "too many particles, too thick" — the numeral became a slab. 135 points on a
     // single-cell stencil is a light dot-matrix digit, which is what a slate shows.
     const countParts = parts.filter((part) => part.target.role === 'value');
     const digits = COUNT_BEATS.map((beat) => buildCountdownDigit(beat.char, countParts.length));
@@ -304,7 +304,7 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
     // field so it can gather after the clap without disturbing the slate's own particles.
     //
     // Each particle also carries the data for the two motions requested on top of the
-    // gather (「在 canvas 加入环绕动画和粒子渐变动画，需要采用暗金色」):
+    // gather ("add swirl animation and particle gradient animation on canvas, need to use dark gold color"):
     //  - walk: a mean-reverting random walk, so after landing every point keeps drifting
     //    instead of freezing. This REPLACES a circular orbit. The orbit was periodic by
     //    construction — every particle returned to the same offset on a fixed cycle — and a
@@ -335,14 +335,14 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
         // the ramp would be two conversions that have to agree, which is the kind of duplicated
         // arithmetic this file has already been bitten by.
         letter: target.letter ?? 0,
-        // PRE-ASSEMBLY STATION (「属于 action 的粒子预先环绕在四周，然后最后的时候才去组装」).
+        // PRE-ASSEMBLY STATION ("action particles hover around the periphery first, then assemble at the end").
         // Before the word assembles each particle waits in the frame's outer band, so the letters
         // are present as loose dust long before they mean anything — they used to be gated behind
-        // `wordIn > 0.005`, so 100+ dots appeared from nothing in one frame (the reported 突然出现).
+        // `wordIn > 0.005`, so 100+ dots appeared from nothing in one frame (the reported "sudden appearance").
         //
         // The waiting is a fixed anchor plus a bounded aperiodic drift, NOT a circle. What was here
         // before advanced an angle at a constant rate about the canvas centre, i.e. every dot wound
-        // around the frame on rails and repeated every 10-20s — the 绕圆 being removed. `hoverAnchor`
+        // around the frame on rails and repeated every 10-20s — the "circular motion" being removed. `hoverAnchor`
         // scatters the stations around the four edges instead, and `stepHover` wanders each one about
         // its own station with no angular term anywhere. See wordMotion.ts for the measured
         // autocorrelation / net-winding numbers.
@@ -610,7 +610,7 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
         // inside the glyph rect rises 1079 -> 2417 as the digit forms while ink outside it
         // is unchanged (2769 settled vs 2364 counting), i.e. the digit is drawn correctly
         // and then has ruled lines crossing it. On screen the "3" reads as a numeral with
-        // two bars through it, which is what 倒计时看不清 comes down to.
+        // two bars through it, which is what "countdown illegible" comes down to.
         //
         // The fade is distance-based rather than a hard test against the rect: a binary cut
         // would make each rule stop dead at the rect edge and restart on the other side,
@@ -683,7 +683,7 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
             //
             // NOT an orbit. The previous version advanced an angle at a constant rate about the
             // canvas centre, which wound every dot around the frame on a fixed period — the
-            // 绕圆 being removed here. There is no angle in this path at all.
+            // "circular motion" being removed here. There is no angle in this path at all.
             //
             // Integrated only while the station still influences the position. At gather = 1 the
             // lerp below discards `sx/sy` entirely, so advancing the hover would be ~120 wasted

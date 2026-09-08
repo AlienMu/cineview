@@ -1,0 +1,283 @@
+/* CineView 开发者性能面板样式 */
+
+.cineview-perf-panel {
+  position: fixed;
+  z-index: 999999;
+  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  background: rgba(10, 13, 18, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  color: #e5e7eb;
+  max-width: 320px;
+  user-select: none;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.cineview-perf-panel--top-left {
+  top: 16px;
+  left: 16px;
+}
+
+.cineview-perf-panel--top-right {
+  top: 16px;
+  right: 16px;
+}
+
+.cineview-perf-panel--bottom-left {
+  bottom: 16px;
+  left: 16px;
+}
+
+.cineview-perf-panel--bottom-right {
+  bottom: 16px;
+  right: 16px;
+}
+
+.cineview-perf-panel--collapsed {
+  cursor: pointer;
+  padding: 8px 12px;
+  background: rgba(10, 13, 18, 0.9);
+}
+
+.cineview-perf-panel--collapsed:hover {
+  background: rgba(15, 19, 28, 0.95);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cineview-perf-collapsed-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.cineview-perf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cineview-perf-header[data-draggable='true'] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.cineview-perf-panel[data-dragging='true'] .cineview-perf-header {
+  cursor: grabbing;
+}
+
+.cineview-perf-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f9fafb;
+  letter-spacing: 0.02em;
+}
+
+.cineview-perf-toggle {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.cineview-perf-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f9fafb;
+}
+
+.cineview-perf-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cineview-perf-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cineview-perf-metric {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.cineview-perf-metric-label {
+  font-size: 9px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.cineview-perf-metric-value {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.cineview-perf-chart {
+  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px 8px 24px 8px;
+}
+
+.cineview-perf-chart-title {
+  font-size: 9px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.cineview-perf-chart-svg {
+  width: 100%;
+  height: 60px;
+  display: block;
+}
+
+.cineview-perf-chart-labels {
+  position: absolute;
+  right: 8px;
+  top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 8px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.cineview-perf-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cineview-perf-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+.cineview-perf-stat-label {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.cineview-perf-stat-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e5e7eb;
+  font-variant-numeric: tabular-nums;
+}
+
+.cineview-perf-warning {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 10px;
+  color: #fbbf24;
+  line-height: 1.4;
+}
+
+.cineview-perf-warning--critical {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.cineview-perf-warning-details {
+  margin-top: 6px;
+  font-size: 9px;
+  opacity: 0.9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cineview-perf-tips {
+  background: rgba(110, 231, 183, 0.1);
+  border: 1px solid rgba(110, 231, 183, 0.3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 10px;
+  color: #6ee7b7;
+  line-height: 1.4;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .cineview-perf-panel {
+    max-width: 280px;
+    font-size: 10px;
+  }
+
+  .cineview-perf-panel--top-left,
+  .cineview-perf-panel--top-right {
+    top: 8px;
+  }
+
+  .cineview-perf-panel--top-right,
+  .cineview-perf-panel--bottom-right {
+    right: 8px;
+  }
+
+  .cineview-perf-metrics {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .cineview-perf-metric {
+    padding: 6px;
+  }
+
+  .cineview-perf-metric-value {
+    font-size: 14px;
+  }
+}
+
+/* 深色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .cineview-perf-panel {
+    background: rgba(10, 13, 18, 0.98);
+  }
+}
+
+/* 打印时隐藏 */
+@media print {
+  .cineview-perf-panel {
+    display: none !important;
+  }
+}

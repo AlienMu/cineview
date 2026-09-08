@@ -11,7 +11,7 @@
  */
 import { Animate, CineView, Scene } from 'cineview';
 
-export default function DualClockFixturePage(): JSX.Element {
+export default function DualClockFixturePage(): import('react').JSX.Element {
   return (
     <CineView designWidth={1440} mode="scroll">
       <Scene sceneId="dual-intro" layout={{ width: '100%', height: '80vh' }}>

@@ -3,7 +3,7 @@ title: Quickstart
 eyebrow: GETTING STARTED / QUICKSTART
 ---
 
-A minimal standalone application setup: two scenes and four core components (CineView / Scene / Animate / Position), paging in drag mode.
+This example uses two scenes with drag navigation. Position places the titles, and `timeline.after` starts the subtitle after the main title.
 
 ## Complete example
 
@@ -12,13 +12,7 @@ import { CineView, Scene, Animate, Position } from 'cineview';
 
 export default function App() {
   return (
-    <CineView
-      designWidth={750}
-      mode="drag"
-      direction="y"
-      transitionDuration={800}
-      scrollbar={{ enabled: true, width: 6, autoHide: true }}
-    >
+    <CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
       <Scene
         sceneId="hero"
         layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
@@ -56,23 +50,22 @@ export default function App() {
 
 ## Key property reference
 
-- `designWidth={750}`: design width baseline (750px). All Position coordinates and box-model dimensions scale via `scale = viewportWidth / 750`. Defaults to 750 when omitted.
-- `mode="drag"`: enables the swipe-pagination engine (default, specified here for clarity).
-- `direction: 'y'`: vertical swipe gestures. Use `'x'` for horizontal.
-- `transitionDuration: 800`: **affects programmatic navigation only** (`ref.goToScene()`). Gesture page movement and rebound timing remain fixed at 800ms inside the engine.
-- `scrollbar={{ enabled: true, width: 6, autoHide: true }}`: injects a 6px scrollbar that hides when idle. Pass `scrollbar={false}` to turn it off entirely.
-- `sceneId`: the scene's unique identifier, used by callbacks and `ref.preload` for targeting.
-- `layout.anchor: 'top-center'`: placement within the 3x3 layout alignment grid. `overflow: 'hidden'` clips overflowing content.
+- `designWidth={750}`: numeric design lengths scale by `viewportWidth / 750`. The default design width is 750.
+- `mode="drag"`: enables drag navigation, the default mode.
+- `direction="y"`: vertical gestures. Use `"x"` for horizontal gestures.
+- `transitionDuration={800}`: configures programmatic navigation with `ref.goToScene()`. Gesture timing uses the framework's separate timing rules.
+- `sceneId`: identifies a scene for `ref.preload()` and provides a fallback locked-zone identifier.
+- `layout.anchor: 'top-center'`: aligns the scene content. `overflow: 'hidden'` clips content outside its bounds.
 - `at={{ x: 60, y: 200 }}`: design-px coordinates, converted through `designWidth`.
-- `animateId` / `timeline.after: 'title'`: the subtitle plays after `title` finishes entering. A `timeline.after` pointing at a missing `animateId` raises `INVALID_ANIMATION`; a dependency cycle raises `CIRCULAR_DEPENDENCY`.
+- `animateId` / `timeline.after: 'title'`: the subtitle begins after `title` enters. A missing target reports `INVALID_ANIMATION`; a cycle reports `CIRCULAR_DEPENDENCY`.
 - `duration={{ enter: 800 }}`: 800ms entrance.
 
 ## Switching to scroll mode
 
-Preserve the same component structure and make two adjustments: set `mode` to `"scroll"`, and add `scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}` to the designated scene. The page connects to the native document flow; ordinary sections scroll naturally, while locked zones drive their timelines directly through scrolling (1ms=1px). See [Choosing a mode](/docs/04-choosing-mode) and [Center-lock](/docs/01-centerlock).
+Set `mode="scroll"`, remove the drag-only `transitionDuration` prop, and add `scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}` to the target scene. Its animations then follow scroll distance at `1ms = 1px`. Add `scrollbar={{}}` to display the optional scrollbar in scroll mode. See [Selecting a mode](/docs/04-choosing-mode) and [Center-lock](/docs/01-centerlock).
 
 ## Next steps
 
 - [CineView reference](/docs/01-cineview): all root props and ref methods.
-- [Scene reference](/docs/02-scene): full tables for layout / stack / transition / assets.
+- [Scene reference](/docs/02-scene): layout, transitions, and assets.
 - [Animate reference](/docs/03-animate): timeline inference, enterRef/exitRef, stagger.

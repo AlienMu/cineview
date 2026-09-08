@@ -313,6 +313,10 @@ export function useAnimateScroll({
   // that recovery an initialization event rather than a permanent gate, so
   // later measurements can still drive exit/re-entry and infinite lifecycle.
   const staticFallbackAppliedRef = useRef(false);
+  // When an element is revealed above-top (either via static fallback or initial
+  // measurement), it must not exit until it has been seen on-screen at least once.
+  // This prevents immediate exit on the measurement following an above-top reveal.
+  const seenOnScreenSinceAboveTopRevealRef = useRef(false);
 
   const readZoneState = useCallback((): SceneScrollTimelineState | null => {
     if (!zoneRuntime || !zoneId) return null;
@@ -422,11 +426,18 @@ export function useAnimateScroll({
         tweenControlsRef.current = null;
         setPhase('entered');
         publishEnterCompleted(completionLease);
-        setShouldRunInfiniteState(true);
+        scheduleCurrentGateRecheck();
       },
     });
     tweenControlsRef.current = controls;
-  }, [clearPendingEnter, tweenEnterDuration, publishEnterCompleted, setPhase, visualMotion]);
+  }, [
+    clearPendingEnter,
+    tweenEnterDuration,
+    publishEnterCompleted,
+    scheduleCurrentGateRecheck,
+    setPhase,
+    visualMotion,
+  ]);
 
   const beginEnterAttempt = useCallback(
     (coldStartBypass = false): void => {
@@ -543,16 +554,16 @@ export function useAnimateScroll({
       const firstSceneActive = sceneContext?.firstSceneEnterActive;
       if (firstSceneGateKnown === false) {
         stopTween();
-        visualMotion.set(0);
         setPhase('idle');
+        visualMotion.set(0);
         setShouldRunInfiniteState(false);
         return;
       }
       if (firstSceneReady === false && firstSceneActive === true) {
         staticFallbackAppliedRef.current = false;
         stopTween();
-        visualMotion.set(0);
         setPhase('idle');
+        visualMotion.set(0);
         setShouldRunInfiniteState(false);
         return;
       }
@@ -568,8 +579,8 @@ export function useAnimateScroll({
         staticFallbackAppliedRef.current = true;
         initializedRef.current = true;
         stopTween();
-        visualMotion.set(1);
         setPhase('entered');
+        visualMotion.set(1);
         publishEnterCompleted(registrationLeaseRef.current);
       }
 
@@ -630,6 +641,11 @@ export function useAnimateScroll({
       // even when the element currently overlaps an exit band. Future measurements
       // rejoin the normal gate machine, so authored exit/re-entry remains available.
       if (applyStaticFallback) {
+        // Mark that this element was revealed while above-top, so it cannot exit
+        // until it has been seen on-screen at least once.
+        if (aboveTop) {
+          seenOnScreenSinceAboveTopRevealRef.current = false;
+        }
         setShouldRunInfiniteState(resolveInfiniteActive('entered', onScreen));
         return;
       }
@@ -649,10 +665,13 @@ export function useAnimateScroll({
         }
         if (aboveTop) {
           stopTween();
-          visualMotion.set(1);
           setPhase('entered');
+          visualMotion.set(1);
           publishEnterCompleted(registrationLeaseRef.current);
           setShouldRunInfiniteState(resolveInfiniteActive('entered', false));
+          // Mark that this element was revealed while above-top, so it cannot exit
+          // until it has been seen on-screen at least once.
+          seenOnScreenSinceAboveTopRevealRef.current = false;
           return;
         }
         // First-screen cold-start reveal: whatever the author placed fully inside
@@ -698,6 +717,12 @@ export function useAnimateScroll({
           hasExplicitExit,
           replay,
         });
+
+        // Track when the element comes on-screen so we can clear the above-top guard
+        if (onScreen && !seenOnScreenSinceAboveTopRevealRef.current) {
+          seenOnScreenSinceAboveTopRevealRef.current = true;
+        }
+
         // Manual ownership wins over the gate: a suppressed lane never auto-fires,
         // and a lane the consumer has already driven never auto-replays.
         if (
@@ -709,7 +734,14 @@ export function useAnimateScroll({
           beginEnterAttempt();
           advanceEnterAttempt();
         } else if (action === 'exit' && !autoExitSuppressed) {
-          runExitTween();
+          // An element revealed while above-top (either via static fallback or initial
+          // measurement) must not exit until it has been seen on-screen at least once.
+          // This prevents immediate exit on measurements following an above-top reveal.
+          if (!seenOnScreenSinceAboveTopRevealRef.current && aboveTop) {
+            // Block exit: hold at entered phase until element comes on-screen
+          } else {
+            runExitTween();
+          }
         }
       }
 
@@ -906,10 +938,10 @@ export function useAnimateScroll({
       // rest state so the render-prop bridge and the per-scene enter bus see it
       // as entered (a follower after-ing it is not deadlocked).
       if (!hasExplicitEnter && !hasExplicitExit) {
-        if (visualMotion.get() !== 1) visualMotion.set(1);
         if (phaseRef.current !== 'entered') {
           setPhase('entered');
         }
+        if (visualMotion.get() !== 1) visualMotion.set(1);
         return;
       }
 

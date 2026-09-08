@@ -5,7 +5,10 @@ interface ProfileBoundaryProps {
   id: string;
 }
 
-export function ProfileBoundary({ children, id }: ProfileBoundaryProps): JSX.Element {
+export function ProfileBoundary({
+  children,
+  id,
+}: ProfileBoundaryProps): import('react').JSX.Element {
   if (!window.__CINEVIEW_PROFILE__) {
     return <>{children}</>;
   }

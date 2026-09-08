@@ -3,7 +3,7 @@ title: Container
 eyebrow: COMPONENTS / CONTAINER
 ---
 
-Container converts `width`, `height`, and all numeric length values in `style` against a unified design width baseline. Dimensions from design drafts can be specified directly in code; the framework scales containers proportionally across screen sizes. Both horizontal and vertical dimensions share the same scale factor, preserving aspect ratios.
+Container scales numeric dimensions and supported style lengths by `viewportWidth / designWidth`. Width and height use the same ratio.
 
 ## Props
 
@@ -16,7 +16,7 @@ Container converts `width`, `height`, and all numeric length values in `style` a
 | `children`  | ReactNode                                        | Required                                                            |
 | rest        | HTMLAttributes (except children/style/className) | Passed through to the root div                                      |
 
-forwardRef points at the root div.
+The forwarded `ref` points to the root div.
 
 Container only works under `<CineView>`: conversion depends on the context. Rendering it outside CineView throws in development builds.
 
@@ -27,12 +27,12 @@ Container only works under `<CineView>`: conversion depends on the context. Rend
 Numeric values in `style` are converted through an explicit property allowlist, covering:
 
 - Sizing: `width` / `height` / `minWidth` / `maxWidth` / `minHeight` / `maxHeight`
-- Positioning and inset: `top` / `right` / `bottom` / `left` / `inset*` (but Container is not the coordinate owner; see "Common mistakes")
+- Positioning and inset: `top` / `right` / `bottom` / `left` / `inset*`
 - Margins and padding: `margin*` / `padding*`
 - Borders: `borderWidth*` / `borderRadius*`
 - Spacing and type: `gap` / `columnGap` / `rowGap` / `fontSize` / `letterSpacing` / `outlineWidth` / `outlineOffset`
 
-String values (`'50%'`, `'1rem'`) are not converted and pass through as-is; non-length numeric properties (`zIndex`, `opacity`, `fontWeight`, `lineHeight`, etc.) are not converted: they represent scalar quantities rather than physical lengths.
+CSS strings such as `'50%'` and `'1rem'` pass through unchanged. Unitless numbers such as `zIndex`, `opacity`, `fontWeight`, and `lineHeight` are not scaled.
 
 ```tsx
 <Container width={520} style={{ padding: 24, borderRadius: 12, fontSize: 28 }}>
@@ -42,10 +42,10 @@ String values (`'50%'`, `'1rem'`) are not converted and pass through as-is; non-
 
 ## Common mistakes
 
-- **Using it as the coordinate owner**: positioning always belongs to [Position](/docs/05-position); the hierarchy is `Scene → Position → Container`. Passing `top` / `left` to a Container is a category error.
-- **Writing font sizes as `'28px'` strings**: not converted. Provide the raw design numeric value directly: `28`.
-- **Using it for Scene layout**: Scene's `layout.width` / `layout.height` have their own semantics; Container targets box models inside a Scene.
+- Use [Position](/docs/05-position) to place content by design coordinates. Container does not set a positioning mode.
+- Use numeric `fontSize: 28` to scale a design font size. The string `'28px'` stays at 28 CSS pixels.
+- Use `Scene.layout` for scene dimensions and Container for content inside it.
 
 ---
 
-For the full conversion model (width-only, vertical overflow goes to document flow), see the [responsive model](/docs/05-responsive).
+See [Responsive conversion](/docs/05-responsive) for the design-width calculation.

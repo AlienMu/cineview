@@ -3,11 +3,11 @@ title: Scrollbar theming
 eyebrow: SCROLL / SCROLLBAR
 ---
 
-Scroll mode ships a self-drawn scrollbar overlay. Enabling it hides the native gutter; the rail and thumb are plain DOM elements with full field-by-field theme customization.
+Pass a `scrollbar` object in scroll mode to display a custom scrollbar. It replaces the native scrollbar and supports track, thumb, size, and color options.
 
 ## Only an object enables it
 
-`scrollbar` is typed `false | ScrollbarConfig`, and the resolution rule is "`typeof scrollbar === 'object'` and `scrollbar.enabled !== false`":
+Use an object to enable the scrollbar and `false` to disable it:
 
 | Written as                       | Result                                                               |
 | -------------------------------- | -------------------------------------------------------------------- |
@@ -17,13 +17,13 @@ Scroll mode ships a self-drawn scrollbar overlay. Enabling it hides the native g
 | `scrollbar={false}`              | disabled                                                             |
 | `scrollbar={true}`               | **ineffective**, fails the object test, same as omitting it          |
 
-`scrollbar={true}` is a type error, but code that skips the type check (a JS caller, an `as any`) gets a silent no-op. To enable it, pass an object; the smallest form is `scrollbar={{}}`.
+`scrollbar={true}` is not supported. Use `scrollbar={{}}` to enable the default appearance.
 
 When enabled, the framework injects CSS that hides the native scrollbar on the container (`scrollbar-width: none` plus zeroed `::-webkit-scrollbar`) and sets the container's `scrollbarGutter` to `auto`; when disabled the gutter is `stable`.
 
 ## Fields and defaults
 
-Every field listed here is resolved inside the overlay component, defaults applied, and clamps enforced.
+The overlay uses these defaults and limits:
 
 | Field             | Type      | Default                       | Clamp          | Renders as                                               |
 | ----------------- | --------- | ----------------------------- | -------------- | -------------------------------------------------------- |
@@ -37,23 +37,21 @@ Every field listed here is resolved inside the overlay component, defaults appli
 | `autoHide`        | `boolean` | `true`                        | none           | fade out when idle, see "autoHide timing"                |
 | `ariaLabel`       | `string`  | `'CineView scroll position'`  | none           | accessible name of the rail                              |
 
-The `thumbHoverColor` row is a case where the field name does not match the behavior: it is not a hover color, it is the thumb's permanent ring color, present in every interaction state. Implementing dynamic hover effects requires external CSS on an ancestor.
+`thumbHoverColor` colors the thumb's one-pixel border in every state. It does not change only on hover.
 
-Three invariants are fixed by the engine: the thumb never shrinks below 40px (bounded by the rail when the rail is shorter); the overlay does not render at all when the content fits the viewport (scrollable span at or below 1px); and the rail's outer ring, drop shadow, and keyboard-focus outline are all fixed styling.
+The thumb is at least 40px long, or the track length when shorter. The overlay is hidden when scrollable distance is at most one pixel. Its outer border, shadow, and focus outline are fixed.
 
 The overlay's `z-index` is 80, above the fixed layer (20) and the active locked-zone shell (30).
 
 ## Drag and keyboard
 
-The rail carries `role="scrollbar"` and `tabIndex={0}`, so once focused it accepts arrow keys, PageUp/PageDown, Space, and Home/End, sharing the step table with the wheel path (see [The four input paths](/docs/03-inputs)).
+The focusable scrollbar supports ArrowUp/ArrowDown, PageUp/PageDown, Space, Home, and End. Its steps match other keyboard scrolling; see [Input paths](/docs/03-inputs).
 
 A gesture starting on the thumb becomes a drag; a press on empty rail is a single jump and starts no drag. The offsets a drag writes run through the same intent clamp as the other three paths, so dragging the bar cannot skip a locked segment either. Only one pointer owns the thumb at a time, and a second finger does not interrupt the first.
 
 ## CSS variable linkage
 
-Color strings are written verbatim into `background`, so any CSS color value works, including `var()` references. A custom property that other parts of the page rewrite live re-themes the thumb with zero JS coupling.
-
-The site root does exactly this: the accent token is overwritten per scroll position by the background ribbon, and the thumb follows it frame by frame.
+Color options accept CSS colors and custom-property references. For example, `thumbColor: 'var(--accent)'` follows the current value of `--accent`.
 
 ```tsx
 <CineView
@@ -68,13 +66,15 @@ The site root does exactly this: the accent token is overwritten per scroll posi
     thumbHoverColor: 'rgba(255, 255, 255, 0.9)',
   }}
 >
+  <Scene sceneId="content">Scrollable content</Scene>
+</CineView>
 ```
 
 ## autoHide timing
 
-The fade is asymmetric on purpose: the bar snaps visible within 80ms of scrolling starting, then, after a 120ms idle timer flips the scrolling flag false, waits 0.15s and drifts out over 0.5s.
+The scrollbar appears over 80ms when scrolling begins. After 120ms without scroll input, it waits another 150ms and fades over 500ms.
 
-The asymmetry is a requirement, not a style preference. A single symmetric duration either fails to appear instantly, or, on a short scroll, never reaches full opacity before fading, because the visible window itself is only about 120ms. Keyboard focus on the rail keeps the bar visible regardless of scroll state. The timings are fixed, not configurable.
+Keyboard focus keeps it visible. These timings are not configurable.
 
 ## Related pages
 

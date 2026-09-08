@@ -37,7 +37,7 @@ export function SectionHeader({
   title: string;
   subtitle?: string;
   color?: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div style={{ textAlign: 'center' }}>
       <div
@@ -103,7 +103,7 @@ export function PandaCard({
   width?: number;
   accentColor?: string;
   children?: ReactNode;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -178,7 +178,7 @@ export function StatBlock({
   label: string;
   icon?: string;
   color?: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -233,7 +233,7 @@ export function GalleryFrame({
   children?: ReactNode;
   bgColor?: string;
   label?: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -288,7 +288,7 @@ export function CtaButton({
   onClick?: () => void;
   color?: string;
   size?: 'small' | 'medium' | 'large';
-}): JSX.Element {
+}): import('react').JSX.Element {
   const sizes: Record<string, CSSProperties> = {
     small: { padding: '8px 20px', fontSize: 13, borderRadius: 14 },
     medium: { padding: '14px 32px', fontSize: 16, borderRadius: 18 },
@@ -334,7 +334,7 @@ export function FunFactBubble({
   fact: string;
   color?: string;
   align?: 'left' | 'right';
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -367,7 +367,7 @@ export function PandaSceneWash({
 }: {
   style?: CSSProperties;
   children?: ReactNode;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -400,7 +400,7 @@ export function ScenePhoto({
   height?: number;
   borderRadius?: number;
   shadow?: boolean;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -440,7 +440,7 @@ export function ProgressDots({
   total: number;
   current: number;
   color?: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
       {Array.from({ length: total }).map((_, i) => (
@@ -462,7 +462,7 @@ export function ProgressDots({
 // ---------------------------------------------------------------------------
 // Bamboo Divider
 // ---------------------------------------------------------------------------
-export function BambooDivider(): JSX.Element {
+export function BambooDivider(): import('react').JSX.Element {
   return (
     <div
       style={{

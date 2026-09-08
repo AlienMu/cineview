@@ -19,11 +19,7 @@ export interface PresetAnimation {
 
 export type PresetLoadErrorCode = 'INVALID_ANIMATION' | 'ANIMATION_ASSET_LOAD_FAILED';
 export type PresetLoadState =
-  | 'idle'
-  | 'pending'
-  | 'success'
-  | 'failed-permanent'
-  | 'failed-transient';
+  'idle' | 'pending' | 'success' | 'failed-permanent' | 'failed-transient';
 
 export const PRESET_LOAD_TIMEOUT_MS = 3000;
 

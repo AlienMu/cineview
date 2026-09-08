@@ -1,6 +1,6 @@
 /**
- * useImagePreloader Hook 单元测试
- * 测试图片预加载队列管理、优先级加载、进度计算、错误处理
+ * useImagePreloader Hook Unit Tests
+ * Tests image preload queue management, priority loading, progress calculation, and error handling
  */
 
 import { renderHook, waitFor } from '@testing-library/react';
@@ -15,7 +15,7 @@ class MockImage {
   onerror: (() => void) | null = null;
 
   constructor() {
-    // 模拟异步加载
+    // Simulate async loading
     setTimeout(() => {
       if (this.src.includes('error')) {
         this.onerror?.();
@@ -26,8 +26,7 @@ class MockImage {
   }
 }
 
-// 替换全局 Image
-
+// Replace global Image
 (global as any).Image = MockImage;
 
 describe('useImagePreloader', () => {
@@ -36,7 +35,7 @@ describe('useImagePreloader', () => {
     resetPreloadedImageCache();
   });
 
-  describe('初始状态', () => {
+  describe('Initial state', () => {
     it('should initialize with default state', () => {
       const { result } = renderHook(() => useImagePreloader());
       const [state] = result.current;
@@ -62,7 +61,7 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('图片加载队列管理', () => {
+  describe('Image loading queue management', () => {
     it('should load all images in queue', async () => {
       const options: UseImagePreloaderOptions = {
         priorityUrls: ['image1.jpg', 'image2.jpg'],
@@ -127,7 +126,7 @@ describe('useImagePreloader', () => {
         actions.addUrls(['image3.jpg'], false);
       });
 
-      // 开始预加载以验证 URL 已添加
+      // Start preload to verify URLs were added
       act(() => {
         const [, actions] = result.current;
         actions.startPreload();
@@ -146,13 +145,13 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('优先级加载', () => {
+  describe('Priority loading', () => {
     it('should load priority images before background images', async () => {
       const loadOrder: string[] = [];
 
       const originalImage = (global as any).Image;
 
-      // 自定义 Mock 来追踪加载顺序
+      // Custom Mock to track load order
       class TrackingMockImage {
         src: string = '';
         onload: (() => void) | null = null;
@@ -188,12 +187,11 @@ describe('useImagePreloader', () => {
         { timeout: 1000 }
       );
 
-      // 验证优先级图片先加载
+      // Verify priority images load first
       expect(loadOrder[0]).toBe('priority1.jpg');
       expect(loadOrder[1]).toBe('priority2.jpg');
 
-      // 恢复原始 Mock
-
+      // Restore original Mock
       (global as any).Image = originalImage;
     });
 
@@ -242,7 +240,7 @@ describe('useImagePreloader', () => {
         { timeout: 1000 }
       );
 
-      // 验证优先级图片在后台图片之前完成
+      // Verify priority images complete before background images
       expect(priorityComplete.length).toBeGreaterThan(0);
       expect(backgroundStart.length).toBeGreaterThan(0);
 
@@ -250,7 +248,7 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('进度计算', () => {
+  describe('Progress calculation', () => {
     it('should calculate progress correctly', async () => {
       const progressUpdates: number[] = [];
       const options: UseImagePreloaderOptions = {
@@ -276,7 +274,7 @@ describe('useImagePreloader', () => {
         { timeout: 1000 }
       );
 
-      // 验证进度从 0 到 100
+      // Verify progress goes from 0 to 100
       expect(progressUpdates.length).toBeGreaterThan(0);
       expect(progressUpdates[progressUpdates.length - 1]).toBe(100);
     });
@@ -338,7 +336,7 @@ describe('useImagePreloader', () => {
         { timeout: 1000 }
       );
 
-      // 验证进度是递增的
+      // Verify progress is monotonically increasing
       for (let i = 1; i < progressUpdates.length; i++) {
         expect(progressUpdates[i]).toBeGreaterThanOrEqual(progressUpdates[i - 1]);
       }
@@ -477,7 +475,7 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('错误处理', () => {
+  describe('Error handling', () => {
     it('should handle image load errors', async () => {
       const onError = jest.fn();
       const options: UseImagePreloaderOptions = {
@@ -641,7 +639,7 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('重置和清理', () => {
+  describe('Reset and cleanup', () => {
     it('should reset state', async () => {
       const options: UseImagePreloaderOptions = {
         priorityUrls: ['image1.jpg'],
@@ -687,7 +685,7 @@ describe('useImagePreloader', () => {
         actions.startPreload();
       });
 
-      // 在加载完成前重置
+      // Reset before loading completes
       act(() => {
         const [, actions] = result.current;
         actions.reset();
@@ -698,9 +696,9 @@ describe('useImagePreloader', () => {
     });
 
     it('should cleanup on unmount', async () => {
-      // 真正要防的回归：卸载后那张仍在飞行中的图片 onload 触发时，hook 不得再 setState。
-      // React 会把卸载后的 setState 记成 console.error；本用例原先只有一条恒真断言，
-      // 那条断言抓不到任何东西。
+      // The real regression to prevent: after unmount, when the in-flight image's onload fires,
+      // the hook must not call setState. React logs unmount-after setState as console.error;
+      // the original test only had a truthy assertion that caught nothing.
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       const onProgress = jest.fn();
       const options: UseImagePreloaderOptions = {
@@ -716,10 +714,10 @@ describe('useImagePreloader', () => {
       });
       expect(result.current[0].isLoading).toBe(true);
 
-      // 卸载组件（此时 MockImage 的 10ms 定时器还没到期）
+      // Unmount component (MockImage's 10ms timer has not expired yet)
       unmount();
 
-      // 让飞行中的加载完成，然后确认既没抛错、也没有卸载后的状态写入。
+      // Let the in-flight load complete, then confirm no error thrown and no post-unmount state write.
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 30));
       });
@@ -729,7 +727,7 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('回调函数', () => {
+  describe('Callback functions', () => {
     it('should call onProgress callback', async () => {
       const onProgress = jest.fn();
       const options: UseImagePreloaderOptions = {
@@ -806,7 +804,7 @@ describe('useImagePreloader', () => {
     });
   });
 
-  describe('并发控制', () => {
+  describe('Concurrency control', () => {
     it('should prevent multiple simultaneous preloads', async () => {
       const options: UseImagePreloaderOptions = {
         priorityUrls: ['image1.jpg'],
@@ -817,7 +815,7 @@ describe('useImagePreloader', () => {
 
       act(() => {
         actions.startPreload();
-        actions.startPreload(); // 第二次调用应该被忽略
+        actions.startPreload(); // Second call should be ignored
       });
 
       await waitFor(
@@ -829,12 +827,12 @@ describe('useImagePreloader', () => {
       );
 
       const [state] = result.current;
-      // 应该只加载一次
+      // Should only load once
       expect(state.loadedCount).toBe(1);
     });
   });
 
-  describe('边界情况', () => {
+  describe('Edge cases', () => {
     it('should handle very large queue', async () => {
       const largeQueue = Array.from({ length: 100 }, (_, i) => `image${i}.jpg`);
       const options: UseImagePreloaderOptions = {
@@ -883,7 +881,7 @@ describe('useImagePreloader', () => {
       );
 
       const [state] = result.current;
-      expect(state.loadedCount).toBe(1); // 重复 URL 只预热一次
+      expect(state.loadedCount).toBe(1); // Duplicate URLs only preloaded once
     });
 
     it('should handle special characters in URLs', async () => {

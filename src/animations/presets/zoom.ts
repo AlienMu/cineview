@@ -1,6 +1,6 @@
 /**
- * Zoom/Scale 系列动画
- * 缩放效果
+ * Zoom/Scale animation presets
+ * Scaling effects
  */
 
 import type { Variant } from 'framer-motion';

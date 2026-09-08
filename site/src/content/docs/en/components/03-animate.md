@@ -3,86 +3,75 @@ title: Animate
 eyebrow: COMPONENTS / ANIMATE
 ---
 
-Animate attaches animation timing and transition semantics to an element. It consumes the active mode's timeline: in drag mode it follows scene gestures, inside a locked zone it scrubs with physical scroll pixels, and in other scenarios it plays on real time based on visibility conditions. All entrance, exit, and persistent loop animations are managed through Animate; avoid manual CSS animations.
+Animate adds entrance, exit, and loop animations to content. Its progress follows the Scene by default, or uses an independent clock when configured with `timeline.driver: 'clock'`.
 
 ```tsx
-<Animate
-  animateId="title"
-  enterAnimation="fade-in"
-  exitAnimation="fade-out"
-  duration={{ enter: 800, exit: 400 }}
-  timeline={{ delay: 200, after: 'subtitle' }}
-  visibility={{ replay: true }}
->
+<Animate enterAnimation="fade-in" duration={{ enter: 800 }}>
   <h1>Hello</h1>
 </Animate>
 ```
 
 ## Props
 
-| prop                                    | type                                     | default   | notes                                                                                                                                                                                                                                                                                                        |
-| --------------------------------------- | ---------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `animateId`                             | string                                   | none      | Unique element identifier. Duplicates raise `INVALID_COMPONENT_HIERARCHY`; required when referenced by `after`                                                                                                                                                                                               |
-| `enterAnimation`                        | AnimationType                            | none      | Enter animation. Provide at least one of `enterAnimation` / `loopAnimation`                                                                                                                                                                                                                                  |
-| `exitAnimation`                         | AnimationType                            | none      | Exit animation; must coexist with `enterAnimation` or `loopAnimation`. In drag it covers the forward exit only: dragging back reverses the entrance and never reads this exit configuration, and with none declared a forward exit plays nothing (the element holds). See [Timeline](/docs/04-orchestration) |
-| `loopAnimation`                         | AnimationType                            | none      | Persistent looping animation. When used alone, **omit** `enterAnimation` entirely (typed as `never`, meaning the key must be absent)                                                                                                                                                                         |
-| `duration.enter` / `duration.exit`      | number (ms)                              | `600`     | Enter/exit duration. Inside a locked zone, `1ms = 1px` of real scroll distance                                                                                                                                                                                                                               |
-| `timeline.driver`                       | `'scene'\|'clock'`                       | `'scene'` | Who drives the progress, see the "driver resolution" section                                                                                                                                                                                                                                                 |
-| `timeline.delay`                        | number (ms)                              | `0`       | Enter delay                                                                                                                                                                                                                                                                                                  |
-| `timeline.after`                        | string                                   | none      | Start after another `animateId` finishes entering. Missing target = `INVALID_ANIMATION`, cycle = `CIRCULAR_DEPENDENCY`                                                                                                                                                                                       |
-| `timeline.zoneId`                       | string                                   | none      | Explicitly bind to a locked zone                                                                                                                                                                                                                                                                             |
-| `timeline.phase.start` / `end`          | number                                   | none      | Phase interval the element occupies within the zone's scroll budget                                                                                                                                                                                                                                          |
-| `visibility.replay`                     | boolean                                  | `true`    | Replay the enter animation when the element becomes visible again                                                                                                                                                                                                                                            |
-| `visibility.enterMargin` / `exitMargin` | number (design px)                       | 50 global | Visibility-condition margins; default to `enterMargin/exitMargin`. Elements taller than the viewport fall back to a center/70% rule                                                                                                                                                                          |
-| `stagger`                               | `{each?, from?}`                         | none      | Staggered reveal of children, see the "stagger reveal" section                                                                                                                                                                                                                                               |
-| `enterRef` / `exitRef`                  | `MutableRefObject<(() => void) \| null>` | none      | Manual enter/exit triggers, see the "enterRef / exitRef manual triggers" section                                                                                                                                                                                                                             |
-| `children`                              | ReactNode or render-prop                 | none      | With `stagger` set, must be a **single** ReactElement                                                                                                                                                                                                                                                        |
+| Prop                                    | Type                              | Default                | Behavior                                                                        |
+| --------------------------------------- | --------------------------------- | ---------------------- | ------------------------------------------------------------------------------- |
+| `animateId`                             | string                            | Generated per instance | Needed when another Animate references it through `after`                       |
+| `enterAnimation`                        | AnimationType                     | none                   | Provide this, `loopAnimation`, or both                                          |
+| `exitAnimation`                         | AnimationType                     | none                   | Exit visuals; ignored by drag's clock driver                                    |
+| `loopAnimation`                         | AnimationType                     | none                   | Loop while the element is eligible and visible                                  |
+| `duration.enter` / `duration.exit`      | number, ms                        | 600                    | Animation duration; scene-driven locked-zone values correspond to scroll pixels |
+| `timeline.driver`                       | `'scene' \| 'clock'`              | `'scene'`              | Progress source                                                                 |
+| `timeline.delay`                        | number, ms                        | 0                      | Entrance delay                                                                  |
+| `timeline.after`                        | string                            | none                   | Wait for another `animateId` to enter                                           |
+| `timeline.zoneId`                       | string                            | Inherited zone         | Explicit locked-zone binding                                                    |
+| `timeline.phase.start` / `end`          | number                            | Whole range            | Fraction of the zone's total budget                                             |
+| `visibility.replay`                     | boolean                           | true                   | Replay after exiting and becoming visible again                                 |
+| `visibility.enterMargin` / `exitMargin` | number, design px                 | Root value, then 50    | Visibility margins                                                              |
+| `stagger`                               | `{ each?, from? }`                | none                   | Reveal direct children at intervals                                             |
+| `enterRef` / `exitRef`                  | Mutable ref to a function or null | none                   | Manual triggers on supported drivers                                            |
+| `children`                              | ReactNode or render function      | Required               | With stagger, a single ReactElement                                             |
 
-## AnimationType variants
+Duplicate identifiers report `INVALID_COMPONENT_HIERARCHY`. Missing or incompatible `after` targets report `INVALID_ANIMATION`; dependency cycles report `CIRCULAR_DEPENDENCY`.
 
-`enterAnimation`/`exitAnimation`/`loopAnimation` all accept an `AnimationType`, in three forms:
+## AnimationType forms
 
-- Preset name: one of the 43 built-in presets, for example `"fade-in"`. Full list in [Presets](/docs/08-presets).
-- CustomAnimation: a Framer Motion animation object subset `{ initial?, animate?, exit? }`; keys are any framer-animatable properties.
-- ComposedAnimation: `{ animations: (PresetAnimation | CustomAnimation)[], mode: 'sequential' | 'parallel', delays?: number[] }`: run several animations in sequence or in parallel, `delays` delays each one.
+Animation props accept a preset name, a custom object, or a composition:
+
+- `PresetAnimation`: one of the 43 [preset names](/docs/08-presets).
+- `CustomAnimation`: `{ initial?, animate?, exit? }`. Ordinary entrance and exit animations support ten mapped properties: opacity, translation, scale, rotation, skew, and filter. See [Custom animations](/docs/05-custom-animation) for the exact list.
+- `ComposedAnimation`: `{ animations, mode: 'sequential' | 'parallel', delays? }`.
 
 ```tsx
 <Animate
-  animateId="card"
-  enterAnimation={{
-    animations: ['slide-up', { initial: { opacity: 0 }, animate: { opacity: 1 } }],
-    mode: 'parallel',
-    delays: [0, 100],
-  }}
+  enterAnimation={{ initial: { y: '10%', opacity: 0 }, animate: { y: 0, opacity: 1 } }}
+  duration={{ enter: 800 }}
 >
-  <Card />
+  <article>Content</article>
 </Animate>
 ```
 
-## driver resolution
+## Driver behavior
 
-`timeline.driver` decides who drives the progress: `'scene'` (default) or `'clock'`. All five cases:
+| Driver    | Context               | Behavior                                                       |
+| --------- | --------------------- | -------------------------------------------------------------- |
+| `'scene'` | Scroll locked zone    | Follows zone scroll progress                                   |
+| `'scene'` | Scroll outside a zone | Starts through visibility conditions                           |
+| `'scene'` | Drag                  | Follows the Scene's element timeline                           |
+| `'clock'` | Scroll                | Uses visibility conditions, including inside a zone            |
+| `'clock'` | Drag                  | Plays after arrival; no `after` dependencies or exit animation |
 
-| driver    | location                               | driven by                                                                                                           |
-| --------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `'scene'` | inside a locked zone (inherits zoneId) | the zone's real scroll budget; `timeline.phase` applies                                                             |
-| `'scene'` | scroll mode, outside any zone          | degrades to a visibility condition, triggered by viewport entry/exit                                                |
-| `'scene'` | drag                                   | the Scene's shared element timeline, scrubbed with the drag                                                         |
-| `'clock'` | scroll                                 | forced visibility condition, even inside a zone                                                                     |
-| `'clock'` | drag                                   | plays independently on real time once the Scene arrives; **opts out of registry/after and ignores `exitAnimation`** |
-
-With `driver: 'clock'` in drag mode, exit animations do not play. To preserve exit animations, maintain `driver: 'scene'`.
+In drag mode, a forward exit uses `exitAnimation`, while moving back toward the previous scene reverses the entrance. Without a forward exit animation, the element holds its entered state while the page moves.
 
 ## When loopAnimation runs
 
-Use `loopAnimation` for persistent loops rather than CSS `animation: … infinite`. CSS loops are not bound to phase lifecycles and continue running after an element exits or leaves the viewport. `loopAnimation` runs only while the element occupies its active lifecycle state within the visible area, stopping immediately when either condition fails.
+Use `loopAnimation` when a repeating effect needs to stop with the element or Scene. CSS animations do not automatically follow CineView's visibility and lifecycle conditions.
 
-`loopAnimation` can coexist with `enterAnimation` (taking over as a persistent loop after the enter finishes) or be used alone; used alone, omit `enterAnimation` — the type marks it `never`, which means the key must be absent, not that you write `never` as its value.
+A loop can follow `enterAnimation`, or run alone. For a loop-only element, omit `enterAnimation`.
 
-## stagger reveal
+## Staggered children
 
 ```tsx
-<Animate animateId="list" enterAnimation="fade-in" stagger={{ each: 40, from: 'first' }}>
+<Animate enterAnimation="fade-in" stagger={{ each: 40, from: 'first' }}>
   <ul>
     <li>First</li>
     <li>Second</li>
@@ -90,82 +79,88 @@ Use `loopAnimation` for persistent loops rather than CSS `animation: … infinit
 </Animate>
 ```
 
-- `each`: gap between adjacent children in ms, default `40`.
-- `from`: start direction: `'first'` (default) / `'last'` / `'center'`.
-- Uses framer's native `staggerChildren` to reveal direct children one by one, each with the `enterAnimation` preset. The 10-property allowlist does not apply here, so any framer property like `clipPath`/`width` works.
-- **Time-driven, not scrubbed** by scroll/drag. For a scrubbed element-by-element reveal, use the render-prop `enterProgress` instead.
+`each` is the interval in ms (default 40). `from` accepts `'first'` (default), `'last'`, or `'center'`.
 
-## render-prop children
+Stagger uses Framer Motion's child animation support, including properties such as `clipPath` and `width`. It plays by elapsed time, even when the surrounding Scene follows scroll or drag. For progress-driven child reveals, use separate Animate elements or derive their styles from the timeline.
+
+## Render-prop children
 
 ```tsx
-<Animate animateId="bar" enterAnimation="fade-in">
+<Animate enterAnimation="fade-in">
   {({ enterProgress, phase }) => (
     <div style={{ width: `${enterProgress * 100}%` }} data-phase={phase} />
   )}
 </Animate>
 ```
 
-`AnimateRenderState`:
+The render function receives `enterProgress` (0–1) and `phase` (`idle`, `waiting`, `entering`, `entered`, `exiting`, or `exited`). Progress changes rerender this content.
 
-| field           | type                                                                      | notes                                                                                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `enterProgress` | number `0..1`                                                             | 0 = initial frame, 1 = fully entered. Advances with time under visibility, scrubs with scroll/drag otherwise                                                                                                 |
-| `phase`         | `'idle' \| 'waiting' \| 'entering' \| 'entered' \| 'exiting' \| 'exited'` | Six lifecycle states. **Inside a locked zone `phase` never updates and stays at `idle`**, so don't read it there; judge on `signedProgress` instead, see [useAnimateTimeline](/docs/09-use-animate-timeline) |
+For a scene-driven entrance or exit in a locked zone, phase stays at `idle`; clock-driven elements use visibility phases and loop-only elements rest at `entered`. Use [useAnimateTimeline](/docs/09-use-animate-timeline) for MotionValue bindings that avoid React rendering.
 
-For continuous values as MotionValues, without going through the React render pipeline, use [useAnimateTimeline](/docs/09-use-animate-timeline).
+## Manual entrance and exit
 
-## enterRef / exitRef manual triggers
+Visibility-driven scroll animations support both refs. Drag with `driver: 'clock'` supports `enterRef` only. Scene-driven drag and locked-zone animations ignore both refs and report `INVALID_ANIMATION`.
 
-`enterRef` rules:
+Calling `enterRef.current?.()` starts entrance immediately. An authored `after` or positive `timeline.delay` remains a fallback where that option is supported. Without a fallback, manual invocation is required.
 
-- Calling `enterRef.current()` plays the enter immediately, interrupting any pending `after`/`delay`.
-- `enterRef` set + `after`/`delay` set: if the application does not call the ref, the framework triggers entrance after `after`/`delay` completes.
-- `enterRef` set without `after`/`delay`: never fires automatically; manual invocation is required.
+Passing `exitRef` disables the supported animation's automatic exit. Call it to exit; there is no timeout fallback. It does not change Scene visibility or mounting.
 
-`exitRef` rules:
-
-- Effective on time-driven lanes only: setting it takes over that element's automatic exit, and manual invocation is required.
-- **Scrub lanes (the drag scene track, a scroll takeover zone) ignore both refs** and report `INVALID_ANIMATION`:
-  their progress is decided one-way by gesture or scroll distance, leaving no time origin to inject into.
-  For manual control, use `timeline.driver: 'clock'` (drag) or move the element outside the takeover zone (scroll).
-- Calling it plays the exit immediately, interrupting a pending enter.
-- No delay fallback: there is no "auto-exit after timeout" semantics.
-
-Typical use: show content the moment async data arrives, fall back to a delay on failure:
+This example displays response text as soon as it arrives, with a delay fallback after the visibility condition is met:
 
 ```tsx
-const contentEnterRef = useRef<(() => void) | null>(null);
+import { useEffect, useRef, useState } from 'react';
+import { Animate, CineView, Scene } from 'cineview';
 
-useEffect(() => {
-  fetch('/api/data')
-    .then((data) => {
-      setContent(data);
-      contentEnterRef.current?.(); // success → show now
-    })
-    .catch(() => {
-      // failure → don't call the ref, wait for the 3s fallback
-    });
-}, []);
+function Message() {
+  const [message, setMessage] = useState('');
+  const enter = useRef<(() => void) | null>(null);
+  const exit = useRef<(() => void) | null>(null);
 
-<Animate
-  enterRef={contentEnterRef}
-  timeline={{ delay: 3000 }} // fallback: show after 3s no matter what
-  enterAnimation="fade-in"
->
-  {content || <EmptyState />}
-</Animate>;
+  useEffect(() => {
+    let active = true;
+    fetch('/api/message')
+      .then((response) => {
+        if (!response.ok) throw new Error('Request failed');
+        return response.text();
+      })
+      .then((text) => {
+        if (!active) return;
+        setMessage(text);
+        enter.current?.();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <Animate
+      enterAnimation="fade-in"
+      exitAnimation="fade-out"
+      timeline={{ driver: 'clock', delay: 3000 }}
+      enterRef={enter}
+      exitRef={exit}
+    >
+      <div>
+        <p>{message || 'Message unavailable.'}</p>
+        <button onClick={() => exit.current?.()}>Close</button>
+      </div>
+    </Animate>
+  );
+}
+
+export default function App() {
+  return (
+    <CineView mode="scroll">
+      <Scene sceneId="message">
+        <Message />
+      </Scene>
+    </CineView>
+  );
+}
 ```
 
-Manual exit:
+## Entrance and exit ordering
 
-```tsx
-const modalExitRef = useRef<(() => void) | null>(null);
-
-<Animate exitRef={modalExitRef} enterAnimation="fade-in" exitAnimation="fade-out">
-  <Modal onClose={() => modalExitRef.current?.()} />
-</Animate>;
-```
-
-## Timeline rule
-
-If the enter uses an `after` cascade, the exit must have a matching reverse timeline. An enter-only chain makes every element exit in the same frame, lopsided against the ordered enter cascade. See [Timeline](/docs/04-orchestration) and [Troubleshooting](/docs/07-common-pitfalls).
+`after` orders entrances only. `duration.exit` changes an exit's length, not its start time. Add ordered exits when needed, using the controls supported by the chosen driver. See [Timeline](/docs/04-orchestration).

@@ -16,7 +16,7 @@ const SPEED_SECONDS: Record<'left' | 'center' | 'right', number> = {
   right: 8,
 };
 
-// Rise lane (设计档 §4 act4: delay 100, enter 1400). 100ms puts it inside the
+// Rise lane (Design spec §4 act4: delay 100, enter 1400). 100ms puts it inside the
 // 0-300ms opening-response band alongside the ring and the timecode.
 const RISE_START_MS = 100;
 const RISE_ENTER_MS = 1400;
@@ -25,9 +25,9 @@ const RISE_ENTER_MS = 1400;
  * One background column: a rise, and a scroll, on TWO SEPARATE DOM LAYERS.
  *
  * Both animations drive `y`, so they cannot share a node — the second writer would
- * simply overwrite the first. The requirement 「外层 enterAnimation 做位移，内层
- * loopAnimation 做滚动。两个 y 在不同 DOM 层，互不干扰」 is therefore structural,
- * not stylistic:
+ * simply overwrite the first. The requirement "outer layer enterAnimation does
+ * translation, inner layer loopAnimation does scrolling. Two `y` values on different
+ * DOM layers, mutually independent" is therefore structural, not stylistic:
  *
  *   <Animate s04-stream-rise-*>      enterAnimation: y 12% -> 0      (rises from below)
  *     <Animate s04-stream-*>         loopAnimation: y 0% -> -50% (scrolls forever)
@@ -42,7 +42,11 @@ const RISE_ENTER_MS = 1400;
  * The scroll stays on the framework's infinite lane (never a CSS `animation: … infinite`)
  * so `shouldRunInfinite` freezes it when act 04 leaves its phase. See rule 6.
  */
-function StreamColumn({ position }: { position: 'left' | 'center' | 'right' }): JSX.Element {
+function StreamColumn({
+  position,
+}: {
+  position: 'left' | 'center' | 'right';
+}): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const items = [...TIMECODES, ...TIMECODES];
 
@@ -82,13 +86,13 @@ function StreamColumn({ position }: { position: 'left' | 'center' | 'right' }): 
       // Rises from below. `y` in percent resolves against the holder's own box, which
       // the CSS change order gives `inset: 0` — so 12% is 12% of the stage height.
       //
-      // NO per-property `times` here, deliberately. 设计档 §1.5 rule 1 asks for the fade
+      // NO per-property `times` here, deliberately. Design spec §1.5 rule 1 asks for the fade
       // to finish in the first 10% while the travel runs full length, but the DRAG lane
       // cannot express that: `resolvePropertyValue` lerps `initial` -> `animate` by a
       // single `localProgress` per property (useAnimateDrag.ts) and never reads
       // `transition`, so a `times` array here would be silently dropped — an authored
       // no-op that reads as implemented. Instead the travel is kept SHORT (12%) so the
-      // shared curve cannot produce the 「字在半透明状态下一路飘上来」 look that rule is
+      // shared curve cannot produce the "text drifting up while semi-transparent" look that rule is
       // guarding against. Flagged in the report as a framework limitation, not fixed here.
       enterAnimation={{
         initial: { opacity: 0, y: '12%' },
@@ -103,7 +107,7 @@ function StreamColumn({ position }: { position: 'left' | 'center' | 'right' }): 
   );
 }
 
-export const TimeStreams = memo(function TimeStreams(): JSX.Element {
+export const TimeStreams = memo(function TimeStreams(): import('react').JSX.Element {
   return (
     <div className="s04-streams" aria-hidden="true">
       <StreamColumn position="left" />

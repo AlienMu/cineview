@@ -1,7 +1,7 @@
 /**
- * AnimateRenderBridge 单测：render-prop 桥接把 MotionValue 源派生成 AnimateRenderState。
- * 覆盖 scroll / drag 两桥的初始态求值、change 事件更新，以及 drag 侧 null 源的
- * IDLE 兜底分支（初始 + change 两处）。
+ * AnimateRenderBridge unit tests: render-prop bridge derives AnimateRenderState from MotionValue sources.
+ * Covers initial state evaluation and change event updates for both scroll/drag bridges,
+ * plus drag-side null-source IDLE fallback (initial + change branches).
  */
 import { render } from '@testing-library/react';
 import { act } from '@testing-library/react';
@@ -27,7 +27,7 @@ function makeDragState(mode: DragVisualState['mode'], localProgress: number): Dr
 }
 
 describe('ScrollRenderBridge', () => {
-  it('派生初始态并在 signedVisual / phaseMotion change 时更新', () => {
+  it('derives initial state and updates on signedVisual / phaseMotion change', () => {
     const signedVisual = motionValue(0);
     const phaseMotion = motionValue<GatePhase>('idle');
     let seen: AnimateRenderState | null = null;
@@ -43,16 +43,16 @@ describe('ScrollRenderBridge', () => {
       />
     );
 
-    // 初始：signedVisual=0（初始帧）
+    // Initial: signedVisual=0 (initial frame)
     expect(seen!.enterProgress).toBe(0);
 
-    // signedVisual change → 进入
+    // signedVisual change → entering
     act(() => {
       signedVisual.set(1);
     });
     expect(seen!.enterProgress).toBe(1);
 
-    // phaseMotion change 也触发重算（分支：phase 订阅）
+    // phaseMotion change also triggers recalculation (branch: phase subscription)
     act(() => {
       phaseMotion.set('entered');
     });
@@ -61,7 +61,7 @@ describe('ScrollRenderBridge', () => {
 });
 
 describe('DragRenderBridge', () => {
-  it('null 源初始态回退 IDLE（初始分支）', () => {
+  it('null source initial state falls back to IDLE (initial branch)', () => {
     const visualState = motionValue<DragVisualState | null>(null);
     let seen: AnimateRenderState | null = null;
 
@@ -80,7 +80,7 @@ describe('DragRenderBridge', () => {
     expect(seen!.enterProgress).toBe(0);
   });
 
-  it('非 null 源初始态派生，change 到 null 回退 IDLE（change 分支）', () => {
+  it('non-null source derives initial state, change to null falls back to IDLE (change branch)', () => {
     const visualState: MotionValue<DragVisualState | null> = motionValue<DragVisualState | null>(
       makeDragState('enter', 1)
     );
@@ -96,16 +96,16 @@ describe('DragRenderBridge', () => {
       />
     );
 
-    // 初始：enter + localProgress=1 → entered/1
+    // Initial: enter + localProgress=1 → entered/1
     expect(seen!.enterProgress).toBe(1);
 
-    // change 到 null → IDLE 兜底（change 事件里的 : IDLE 分支）
+    // change to null → IDLE fallback (: IDLE branch in change event)
     act(() => {
       visualState.set(null);
     });
     expect(seen!.phase).toBe('idle');
 
-    // change 回非 null → 再次派生
+    // change back to non-null → derive again
     act(() => {
       visualState.set(makeDragState('enter', 0));
     });

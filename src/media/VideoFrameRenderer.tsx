@@ -1,15 +1,19 @@
 /**
- * VideoFrameRenderer — dumb「progress → currentTime」scrub 渲染器。零控件、静音、
- * 内联播放。progress 变 → currentTime = progress * duration。无抽帧(video 原生连续)。
+ * VideoFrameRenderer — dumb progress → currentTime scrub renderer. No controls, muted,
+ * inline playback. progress change → currentTime = progress * duration. No frame skipping
+ * (native video continuity).
  *
- * 优先用预加载缓存的 objectURL(整段 blob,保证可 seek);未就绪则直接用 src(浏览器
- * 自行 buffer)。SSR 下不 seek。
+ * Prefers preloaded objectURL cache (full blob, guarantees seek); falls back to src
+ * if not ready (browser buffers). No seek during SSR.
  *
- * ⚠ scrub 平滑度取决于视频编码的「关键帧(I 帧)密度」。H.264 的 P/B 帧是相对前帧的差分,
- * seek 到任意帧须从最近的 I 帧起逐帧解码到目标帧。若视频关键帧稀疏(常见默认每 ~250 帧一个),
- * 每次 scrub 都要长距离解码 → 解码线程吃满 → 掉帧(尤其往回 seek)。这是编码问题,非本组件可解:
- * 用于 scrub 的视频应重编码为「全关键帧」(每帧皆 I 帧,如 `ffmpeg -i in.mp4 -g 1 out.mp4`),
- * 代价是文件变大,换来任意帧可直接解码。开发环境下,本组件测得 seek 延迟持续偏高时会 console.warn。
+ * ⚠ Scrub smoothness depends on video encoding keyframe (I-frame) density. H.264 P/B frames
+ * are deltas relative to previous frames; seeking to arbitrary frames requires decoding
+ * from the nearest keyframe to the target frame. If keyframes are sparse (typical default
+ * ~250 frames), each scrub incurs long-distance decode → decoder thread maxed → dropped
+ * frames (especially backward seeks). This is an encoding issue beyond component scope:
+ * scrub videos should be re-encoded as all-keyframe (every frame an I-frame, e.g.
+ * `ffmpeg -i in.mp4 -g 1 out.mp4`), trading larger file size for direct frame decode.
+ * In development, this component console.warns when seek latency is consistently high.
  */
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -186,9 +190,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
 
         const isCurrent = (): boolean =>
           activationIdRef.current === activationId && mediaGenerationRef.current === generation;
-        // Resource/residency changes replace the underlying video node. The
-        // generation gate then covers listener rebinding within that node;
-        // loadstart only arms events emitted by the current node generation.
         const isReady = (): boolean =>
           isCurrent() && readyMediaGenerationRef.current === generation;
         const loadStart: EventListener = (): void => {
@@ -216,9 +217,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           const untaggedNativePlayAccepted =
             requestId === undefined && !ownership.frameworkPlayBlocked;
 
-          // Keep the token attached until this event arrives. If the timeline
-          // reclaimed the scrub lane after the promise settled, the late event
-          // is still identifiable and cannot become a second native owner.
           if (requestId !== undefined) pendingPlayRequestRef.current = undefined;
           if (!taggedFrameworkPlayAccepted && !untaggedNativePlayAccepted) {
             dispatchOwnershipRef.current({ type: 'media-play', requestId, activationId });
@@ -239,9 +237,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           accept(event);
           dispatchOwnershipRef.current({ type: 'media-ended', activationId });
         };
-        // Capture runs before React's delegated media listeners, allowing the
-        // same committed generation/activation gate to govern reducer state
-        // and all public media callbacks.
         video.addEventListener('loadstart', loadStart, MEDIA_EVENT_CAPTURE);
         video.addEventListener('play', play, MEDIA_EVENT_CAPTURE);
         video.addEventListener('pause', pause, MEDIA_EVENT_CAPTURE);
@@ -259,9 +254,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       []
     );
 
-    /* Residency state: `released` detaches src; `mediaEpoch` invalidates stale
-     * metadata listeners so warm-up re-arms seek catch-up. Both change only on
-     * release/warmUp — never per frame. */
     const [released, setReleased] = useState(false);
     const [mediaEpoch, setMediaEpoch] = useState(0);
     const [mediaNodeEpoch, setMediaNodeEpoch] = useState(0);
@@ -290,9 +282,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           setReleased(true);
           if (video) {
             video.pause();
-            // 暂存被摘除的源：同一 tick 内紧跟的 warmUp() 无法依赖 React 属性 diff
-            // 恢复它（released true→false 批处理抵消，src prop 前后同值，React 跳过
-            // DOM 写入），存活节点会永远无源。见 warmUp 的命令式恢复。
             releasedSrcRef.current = video.getAttribute('src');
             video.removeAttribute('src');
             video.load();
@@ -301,9 +290,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
         },
         warmUp: (): void => {
           const video = videoRef.current;
-          // 存活节点（未经过 key 变化换新）且源缺失：命令式写回。正常的
-          // release→warmUp 跨 commit 序列会经 key 变化换节点、由 React 重挂 src，
-          // 不走这里；只有背靠背同 tick 调用才需要（P3 边界，2026-08-23 修复）。
           if (video && !video.getAttribute('src')) {
             const restore = releasedSrcRef.current;
             if (restore) {
@@ -450,9 +436,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
                   return;
                 }
                 pendingRequest.settled = true;
-                // Keep a resolved request token until the native play event is
-                // observed. A rejected request has no valid late play handoff,
-                // so release it and preserve external native retry semantics.
                 if (type === 'play-rejected') pendingPlayRequestRef.current = undefined;
                 if (
                   mediaGenerationRef.current !== pendingRequest.generation ||
@@ -483,10 +466,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       },
       [seek]
     );
-    /* `mediaEpoch` re-runs this effect after warmUp on a surviving node: the
-     * warmUp control strips listeners via resetOwnership(false) while the
-     * element key stays stable (no release → no node replacement → setVideoRef
-     * never re-fires), so this bind is the only rebind path left. */
+
     useIsomorphicLayoutEffect(() => {
       dispatchOwnershipRef.current = dispatchOwnership;
       const committedIdentity = committedMediaIdentityRef.current;
@@ -523,10 +503,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           (ownership.status === 'ended' || ownership.outgoingLatched)
         ) {
           activationIdRef.current += 1;
-          // The outgoing activation may still have pause/ended tasks queued.
-          // Native media events do not expose their originating activation, so
-          // detach the old listener and replace the node before publishing the
-          // first frame for the new activation.
           bindNativeMediaListeners(null, activationIdRef.current);
           dispatchOwnership({ type: 'activate', activationId: activationIdRef.current });
           setMediaNodeEpoch((epoch) => epoch + 1);
@@ -603,10 +579,6 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
     };
 
     const isReleasedForSource = released && objectUrlState.src === src;
-    // Native media events do not carry the source or activation that queued
-    // them. Replace the node at resource/residency boundaries so an event from
-    // the old queue cannot be observed by the new generation's listeners.
-    // Progress-only updates keep this key stable and retain the video element.
     const mediaElementKey = JSON.stringify([
       src,
       objectUrl,
@@ -618,8 +590,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       <video
         key={mediaElementKey}
         ref={setVideoRef}
-        /* released 态摘除 src（React 对 undefined 会移除属性）——解码帧随 load() 丢弃 */
-        src={isReleasedForSource ? undefined : (objectUrl ?? src)}
+        src={(isReleasedForSource ? undefined : (objectUrl ?? src)) || undefined}
         muted
         playsInline
         preload={isReleasedForSource ? 'none' : preload ? 'auto' : objectUrl ? 'metadata' : 'none'}
@@ -627,7 +598,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
         width={resolvedWidth}
         height={resolvedHeight}
         style={resolvedStyle}
-        poster={poster}
+        poster={poster || undefined}
         onPlay={handlePlay}
         onPause={handlePause}
         onEnded={handleEnded}

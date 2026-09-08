@@ -1,5 +1,5 @@
 /**
- * 性能监控工具函数测试
+ * Performance monitoring utility function tests
  */
 
 import {

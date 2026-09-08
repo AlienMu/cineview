@@ -22,7 +22,11 @@ const DEFAULT_TIMING: TemporalMotionTiming = {
 
 const TemporalMotionContext = createContext<TemporalMotionTiming>(DEFAULT_TIMING);
 
-export function TemporalMotionProvider({ children }: { children: ReactNode }): JSX.Element {
+export function TemporalMotionProvider({
+  children,
+}: {
+  children: ReactNode;
+}): import('react').JSX.Element {
   const reduced = usePrefersReducedMotion();
   const timing = useMemo<TemporalMotionTiming>(
     () => ({

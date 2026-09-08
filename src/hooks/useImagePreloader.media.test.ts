@@ -1,7 +1,8 @@
 /**
- * 回归:useImagePreloader 把 video URL 路由到 mediaPreloadCache(blob buffer),
- * 且这些媒体计入同一优先级批次 → priorityComplete 等媒体就绪才 fire。普通图片仍走
- * Image()。mediaPreloadCache 被 mock 以隔离网络。
+ * Regression: useImagePreloader routes video URLs to mediaPreloadCache (blob buffer),
+ * and these media assets count toward the same priority batch → priorityComplete waits
+ * for media to be ready before firing. Plain images still use Image(). mediaPreloadCache
+ * is mocked to isolate network.
  */
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';

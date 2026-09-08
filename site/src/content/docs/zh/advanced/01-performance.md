@@ -3,102 +3,93 @@ title: 性能
 eyebrow: ADVANCED / PERFORMANCE
 ---
 
-CineView 的每帧代价主要取决于两点：每帧高频变量是否绕过 React 渲染管线，以及冷启动就绪机制对首帧抖动的平抑效果。本文阐述监控指标的实际含义、每帧高频变量的观测机制，以及热路径上的回调约束。
+连续变化的视觉值使用 MotionValue，掉帧时结合浏览器性能工具检查。CineView 的监控提供页面级帧时间采样。
 
 ## 运行时监控
 
-给 CineView 根上传 `monitor` 开启运行时监控，指标通过 ref 读取：
+启用 `monitor`，通过 CineView ref 读取结果：
 
 ```tsx
-const ref = useRef<CineViewRef>(null);
+import { useRef } from 'react';
+import { CineView, Scene, type CineViewRef } from 'cineview';
 
-<CineView designWidth={750} monitor ref={ref}>
-  {/* ... */}
-</CineView>;
-
-const metrics = ref.current!.getPerformanceMetrics();
+export default function Demo() {
+  const ref = useRef<CineViewRef>(null);
+  return (
+    <>
+      <button onClick={() => console.table(ref.current?.getPerformanceMetrics())}>
+        输出性能数据
+      </button>
+      <CineView monitor ref={ref}>
+        <Scene sceneId="example">
+          <h1>示例</h1>
+        </Scene>
+      </CineView>
+    </>
+  );
+}
 ```
 
-监控就是一个布尔，没有别的配置。它是观测手段，不改变任何动画行为。不开 `monitor` 时 `getPerformanceMetrics()` 仍然可调，但页面上没有任何实例开着监控时它拿不到帧样本，`fps` 与 `avgFrameTime` 会是 `0`。
+读取方法不要求开启 `monitor`，但至少一个实例开启后才会采集帧样本。尚无样本时帧数据为零，停止监控后保留最近的样本。
 
-## 四个指标字段的真相
+## 指标字段
 
-`getPerformanceMetrics()` 返回 `PerformanceMetrics`。每个字段都有需要注意的地方：
+| 字段           | 含义                                                          |
+| -------------- | ------------------------------------------------------------- |
+| `fps`          | 根据平均帧时间估算，上限 60，保留一位小数                     |
+| `avgFrameTime` | 最近至多 60 个帧间隔的均值，单位 ms                           |
+| `memoryUsage`  | 至多八次采样的 JavaScript 堆大小中位数，单位 MB；不支持时缺省 |
+| `bundleSize`   | 整个页面报告的代码与 CSS 资源大小，单位 KB                    |
 
-| 字段           | 类型                | 默认/缺省           | 真实含义                                                      |
-| -------------- | ------------------- | ------------------- | ------------------------------------------------------------- |
-| `fps`          | number              | `0`（无样本时）     | 上限限制为 60，120Hz 屏幕同样返回 60                          |
-| `avgFrameTime` | number (ms)         | `0`（无样本时）     | 最多 60 帧的均值，不是分位数                                  |
-| `memoryUsage`  | number \| undefined | `undefined`         | JS 堆（MB），8 次采样的中位数；非 Chromium 内核为 `undefined` |
-| `bundleSize`   | number (KB)         | `0`（无资源条目时） | 页面所有 `.js` / `.mjs` / `.css` 资源之和，不是本库体积       |
+FPS 上限无法反映高刷新率屏幕是否被充分利用。平均值可能掩盖单次停顿，具体停顿应通过浏览器性能记录或 `PerformanceObserver` 检查。
 
-三条推论值得记住：
+`bundleSize` 包含应用代码与依赖，在监控开始时采样，结果为零时可再次读取。CineView 自身的体积应查看构建输出。
 
-**`fps` 的 60 上限是固化的内置基准。** 算式是 `Math.min(Math.max(1000 / avgFrameTime, 0), 60)`（`src/utils/performanceMonitor.ts:103-105`）。高刷屏上真实 90fps 与真实 60fps 读数完全一样，所以 `fps === 60` 只能证明「没掉到 60 以下」，不能证明「跑满刷新率」。
+## 页面共享的读数
 
-**`avgFrameTime` 不能用于卡顿检测。** 它是最近至多 60 个帧间隔的算术平均（`:44-46`、`:118-123`）。一个 200ms 的长任务混进 59 个 16ms 的帧里，均值只抬到 19ms 左右，看着完全健康。卡顿要看分位数与 long task，那得用浏览器的 Performance 面板或 `PerformanceObserver`，框架的读数给不了。
+所有 CineView 实例共享页面监控。第一个开启监控的实例启动采样，最后一个释放监控的实例停止采样。
 
-**`bundleSize` 不是本库体积。** 它遍历 `performance.getEntriesByType('resource')`，把所有代码类资源的字节加起来（`:175-204`），包含业务应用代码、第三方依赖、CSS，与 CineView 无关的全算进去。而且它在监控 `start()` 时算一次就永久缓存（`:166-173`），之后动态加载的 chunk 不会反映进去。要衡量 CineView 自身的体积，建议查阅构建包输出而不是这个字段。
+因此两个实例返回相同读数，数据不会将渲染成本归属到某个 Scene 或 CineView。
 
-## 监控是页面级单例
+## 初始资源等待
 
-监控器是一个页面级单例，配引用计数：第一个开了 `monitor` 的 CineView 挂载时启动 rAF（requestAnimationFrame）循环，最后一个卸载时停止（`src/utils/performanceMonitor.ts:217-241`）。
+首个 Scene 等待声明的优先资源请求完成。视频需要加入等待时，将 URL 写入 `Scene.assets.preloadImages`；视频自身的 `preload` 仅填充共享缓存。
 
-后果是读数是页面级的，不是实例级的。页面上有两个 CineView，它们的 `getPerformanceMetrics()` 返回同一份数据，反映的是整个页面的帧率，无法归因到某一个实例。这是有意的：帧率本身就是页面级属性，一个 rAF 循环也比 N 个便宜。
+默认等待上限为 3000ms。drag 可通过 `firstSceneTimeout` 配置，scroll 使用 3000ms。超时报告 `FIRST_SCENE_TIMEOUT`，并将首场景显示为完成态；应用调用 `preventDefault?.()` 时可取消该默认处理。详见[预加载](/docs/02-preload)。
 
-## 冷启动就绪判定
+## 使用 MotionValue 保存进度
 
-冷启动时，首屏的优先资源经预加载进入就绪判定：就绪前框架阻塞进场时间线，避免「图没到人先动」的抖动。`AnimateVideo` 的首屏媒体走同一条管线，且要求整段 blob 可 seek 才算就绪。
+将 MotionValue 绑定到 motion 样式。需要从进度直接映射位置或透明度时，使用 `useTransform`。
 
-等待有上限：`firstSceneTimeout` 默认 3000ms。它只在 drag 模式可用，scroll 的冷启动门恒用默认值。超时触发 `FIRST_SCENE_TIMEOUT`（可恢复），默认回退为静态放置首场景的 rest 态；在 `onError` 里调 `detail.preventDefault()` 可拿回控制权自行处理（比如展示重试 UI）。完整回调语义见[回调](/docs/03-callbacks)，预加载配置见[预加载](/docs/02-preload)。
+render-prop children 通过重新渲染提供普通数值，适合 JSX 需要变化值的情况，但不会避免 React 渲染。
 
-## 每帧走 MotionValue
+额外的 `useSpring` 会改变时序，可能落后于拖拽或滚动。画面需要匹配进度时，直接派生视觉值。
 
-每帧都在变的量（progress、elapsed、滚动偏移）必须走 `MotionValue`，React state 只留给结构性变化。每帧 `setState` 会放大成全场景子树重渲染，这是叙事页掉帧的第一来源。
+## 读取变化的值
 
-框架内已经这么做的：`Animate` 的属性映射由 MotionValue 派生，跟随滚动时不重渲染。编写自定义消费方时同样适用：
+在 render 中调用一次 `.get()` 不会让 React 订阅后续变化。
 
-- 读 progress 用 render-prop 的 `enterProgress`（见 [Animate](/docs/03-animate)）或 `useAnimateTimeline()` 返回的只读 MotionValue（见 [useAnimateTimeline](/docs/09-use-animate-timeline)），更新不经过 React 渲染管线。
-- 在 `onDragProgress` / `onZoneProgress` 回调里读值没问题，把值写进 state 才有问题。要驱动 DOM 就用 ref 投影或直接消费 MotionValue。
-- 不要另起 `useSpring`/`useTransform` 自行加工这些值：spring 按自己的节奏收尾，不跟随退场进度。
+MotionValue 绑定与订阅使用 [useAnimateTimeline](/docs/09-use-animate-timeline)。它的 `frame` 汇总同一次更新中的进度、阶段与来源；观察整个锁定区时使用 `onZoneProgress`。
 
-## scroll 下 render 路径拿到的连续量是陈旧的
+## 回调的执行成本
 
-这不是建议，是结构上的事实。scroll 模式把更新分成两类：React 渲染用的快照，和命令式消费者订阅的逐帧数据。
+| 回调                                 | 频率                                           |
+| ------------------------------------ | ---------------------------------------------- |
+| `Scene.callbacks.onVisibilityChange` | 可能在每个滚动帧执行                           |
+| `onZoneProgress`                     | 与上次报告相差超过 0.5px，另包含初始值与端点值 |
 
-快照什么时候更新由一次比较决定，而比较刻意把连续量排除在外（`src/components/CineView/ScrollSceneSlot.tsx:74-124`）：`visualViewportOffset`、`zoneState.progressPx`、以及 `sceneProgress` / `enterProgress` / `exitProgress` 都不参与比较。所以这些字段变化不会触发重渲染，render 路径读到的是上一次结构性变化时的值。源码注释直接写了 `the React snapshot is intentionally stale`（`:190-191`）。
+保持回调内的工作量较小。仅需要偶尔更新时，可过滤重复的可见性值或对进度采样。回调中的 React state 更新和布局读取仍会产生相应成本。
 
-这样设计是为了让原生滚动的每一像素都不触发 React 渲染。代价是：**每帧数值只能经两个面观测**：
+锁定区阈值相对于上次上报值累计，因此缓慢移动也会在累计足够位移后发出通知。
 
-- `useAnimateTimeline()` 返回的 MotionValue（`progress` / `signedProgress` / `phase`）；
-- 根的 `onZoneProgress` 回调。
+## 视频定位与内存
 
-连续量由独立的数据源（`src/components/runtime/scrollSceneFrameStore.ts`）发布，native scroll controller 是唯一写入方，消费者以订阅方式读取。想在 render 里读 `progressPx` 然后画个数字，会看到它停住不动，那不是 bug。
+密集关键帧可减少随机和反向定位的解码工作。开发构建在定位延迟样本的中位数超过 50ms 时提示，应同时检查素材和设备负载。
 
-## 热路径上的两个回调
-
-| 回调                                 | 触发频率          | 去重               |
-| ------------------------------------ | ----------------- | ------------------ |
-| `Scene.callbacks.onVisibilityChange` | scroll 下逐滚动帧 | 无                 |
-| 根的 `onZoneProgress`                | 变化超 0.5px 时   | 有，且端点强制透出 |
-
-`onVisibilityChange` 订阅的是逐帧数据源，每个滚动帧都会调一次，不做任何去重（`src/components/Scene/Scene.tsx:513-543`）。Scene 子树不会因此重渲染（逐帧数据不进 React，这正是它存在的意义），但回调执行体在热路径上：在其中执行 `setState`、修改 DOM 或读取布局均会产生逐帧开销。如需限制调用频率，需在回调内自行节流。
-
-`onZoneProgress` 已经有 0.5px 阈值，而且比较的基线是上次上报值而不是上一帧（`src/components/CineView/useNativeScrollController.ts:96-100`）。基线选上一帧会让每帧移动 0.5px 以内的慢滚永远触发不了回调，选上次上报值就不会。终端的 0 与满值强制透出，因此不会遗漏「刚好到达边界」的关键帧（`:325-337`）。
-
-## 视频逐帧定位与解码帧
-
-`AnimateVideo` 把时间轴位置映射到 `currentTime`，逐帧 seek。片源关键帧稀疏时，每次 seek 都要从最近关键帧长程解码，解码线程被打满就直接掉帧。跟随滚动的片源必须密集关键帧（最好全关键帧）编码，开发期框架会采样 seek 延迟并在中位数超 50ms 时警告。
-
-内存侧的另一半是 `releaseOnLeave`：观众滚远后释放解码帧，回来再回挂。两者的完整规则、阈值与 ffmpeg 命令见[媒体所有权](/docs/06-media-ownership)。
+scroll 锁定区中的 `releaseOnLeave` 可在视频距离较远时释放解码帧，返回时恢复，详见[媒体播放](/docs/06-media-ownership)。
 
 ## 包体积
 
-全量入口 `cineview` 同时含 drag 与 scroll 两套引擎，运行时按 `mode` 派发。派发器静态引用两个引擎，所以 ESM 侧只用一种模式也带两套：
+ES 模块应用使用 `cineview`，其中包含两套引擎，由 `mode` 选择。
 
-```js
-const { CineView } = require('cineview/drag');
-// 浏览器也可以通过 <script> 加载 cineview-drag.umd.js。
-```
-
-按模式入口的可用范围与打包后果见[安装](/docs/02-installation)，模式选型见[选择模式](/docs/04-choosing-mode)。
+CommonJS 应用可使用按模式子路径。应用提供 peer 运行时后，也可通过脚本加载独立的 UMD 文件。详见[安装](/docs/02-installation)。

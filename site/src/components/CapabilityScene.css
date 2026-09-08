@@ -356,7 +356,7 @@
 .film-frame__slot.is-active .film-frame__icon {
   background: var(--accent);
   color: #fff;
-  transform: scale(1.06);
+  transform: scale(1.08) translateY(calc(-2 * var(--cv-u)));
 }
 .film-frame__name {
   font-family: var(--font-mono);
@@ -506,11 +506,15 @@
   background: color-mix(in srgb, var(--accent), black 12%);
 }
 .film-codecard__file {
-  margin-left: calc(10 * var(--cv-u));
+  flex: 1;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--ink-mute);
   letter-spacing: 0.04em;
+}
+/* 新增：运行状态指示器放在右侧 */
+.film-codecard__indicator {
+  margin-left: auto;
 }
 .film-codecard__body {
   display: flex;
@@ -580,4 +584,287 @@
 }
 .film-codecard__desc.is-active {
   opacity: 1;
+}
+
+/* ===================================================================
+   第二幕新增元素（2026-09-05）
+   =================================================================== */
+
+/* 1. 时间轴可视化：显示在胶带下方，标记播放进度 */
+.film-timeline {
+  position: relative;
+  width: calc(800 * var(--cv-u));
+  height: calc(40 * var(--cv-u));
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--cv-u));
+}
+
+.film-timeline__track {
+  flex: 1;
+  height: calc(2 * var(--cv-u));
+  background: rgba(26, 24, 20, 0.12);
+  border-radius: calc(999 * var(--cv-u));
+  position: relative;
+  overflow: hidden;
+}
+
+.film-timeline__progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--accent);
+  border-radius: calc(999 * var(--cv-u));
+  transform-origin: left center;
+}
+
+.film-timeline__label {
+  font-family: var(--font-mono);
+  font-size: calc(11 * var(--cv-u));
+  font-weight: 600;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 2. 帧间过渡粒子：从旧帧飞向新帧 */
+.frame-transition-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.transition-particle {
+  position: absolute;
+  width: calc(6 * var(--cv-u));
+  height: calc(6 * var(--cv-u));
+  border-radius: 50%;
+  background: var(--accent-ink);
+  box-shadow: 0 0 calc(8 * var(--cv-u)) color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* 3. 代码卡片运行状态指示 */
+.film-codecard__status {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--cv-u));
+  padding: calc(6 * var(--cv-u)) 0;
+  border-top: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.08);
+  margin-top: calc(8 * var(--cv-u));
+}
+
+.film-codecard__indicator {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--cv-u));
+}
+
+.film-codecard__led {
+  width: calc(8 * var(--cv-u));
+  height: calc(8 * var(--cv-u));
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 calc(8 * var(--cv-u)) rgba(34, 197, 94, 0.5);
+  animation: led-pulse 2s ease-in-out infinite;
+}
+
+@keyframes led-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.film-codecard__runtime {
+  font-family: var(--font-mono);
+  font-size: calc(11 * var(--cv-u));
+  font-weight: 500;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* hover 时显示 easing 曲线可视化 */
+.film-codecard:hover .film-codecard__easing-viz {
+  opacity: 1;
+}
+
+.film-codecard__easing-viz {
+  position: absolute;
+  right: calc(16 * var(--cv-u));
+  bottom: calc(16 * var(--cv-u));
+  width: calc(60 * var(--cv-u));
+  height: calc(60 * var(--cv-u));
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  pointer-events: none;
+}
+
+.film-codecard__easing-viz svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Preserve the desktop composition; mobile needs readable type in normal flow. */
+@media (max-width: 700px) {
+  .home-scene--film .home-scene-canvas {
+    height: 100vh !important;
+  }
+  .capability-full--film {
+    --cap-codecard-width: calc(100vw - 2.5rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    overflow-clip-margin: 0;
+    gap: 1.5rem;
+    padding: 5rem 0 2.5rem;
+  }
+  .capability-full--film .film-layout-title,
+  .capability-full--film .film-layout-caption,
+  .capability-full--film .film-layout-strip,
+  .capability-full--film .film-layout-code {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    flex: 0 0 auto;
+  }
+  .capability-full--film .film-layout-title {
+    width: calc(100% - 2.5rem);
+  }
+  .capability-full--film .film-titleblock {
+    gap: 1rem;
+  }
+  .capability-full--film .film-intro {
+    max-width: 100%;
+  }
+  .capability-full--film .tc-capsule {
+    top: 1.5rem;
+    left: 1.25rem;
+    gap: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.625rem;
+    backdrop-filter: none;
+  }
+  .capability-full--film .cap-slate {
+    top: 1.85rem;
+    left: auto;
+    right: 1.25rem;
+    font-size: 0.5625rem;
+    letter-spacing: 0.06em;
+  }
+  .capability-full--film .cap-title--header {
+    font-size: 1.875rem;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .capability-full--film .film-intro {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+  .capability-full--film .film-intro br {
+    display: none;
+  }
+  .capability-full--film .film-caption-slot {
+    width: 90vw;
+    height: 4rem;
+  }
+  .capability-full--film .film-caption {
+    gap: 0.5rem;
+  }
+  .capability-full--film .film-caption__title {
+    font-size: 1.5rem;
+  }
+  .capability-full--film .film-caption__tag {
+    font-size: 0.75rem;
+  }
+  .capability-full--film .film-gate,
+  .capability-full--film .film-track {
+    height: 11rem;
+  }
+  .capability-full--film .film-track {
+    width: 300%;
+    transform: translateX(var(--film-frame-offset, 0%));
+    transition: transform 220ms ease-out;
+  }
+  .capability-full--film .film-track__perf {
+    height: 0.875rem;
+  }
+  .capability-full--film .film-track__frames {
+    top: 0.875rem;
+    height: 9.25rem;
+  }
+  .capability-full--film .film-frame__card {
+    gap: 0.5rem;
+  }
+  .capability-full--film .film-frame__icon {
+    width: 3rem;
+    height: 3rem;
+  }
+  .capability-full--film .film-frame__icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .capability-full--film .film-frame__no {
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.625rem;
+  }
+  .capability-full--film .film-frame__name {
+    font-size: 0.6875rem;
+  }
+  .capability-full--film .film-codecard {
+    border-radius: 0.5rem;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .capability-full--film .film-codecard__bar {
+    padding: 0.5rem 0.75rem;
+    gap: 0.375rem;
+  }
+  .capability-full--film .film-codecard__dot {
+    width: 0.375rem;
+    height: 0.375rem;
+  }
+  .capability-full--film .film-codecard__file {
+    font-size: 0.625rem;
+  }
+  .capability-full--film .film-codecard__body {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+  .capability-full--film .film-codecard__code {
+    font-size: 0.6875rem;
+    letter-spacing: -0.02em;
+  }
+  .capability-full--film .film-codecard__head {
+    gap: 0.5rem;
+  }
+  .capability-full--film .film-codecard__code-slot {
+    height: 1.5rem;
+  }
+  .capability-full--film .film-codecard__desc-slot {
+    font-size: 0.75rem;
+    min-height: 2.5rem;
+  }
+  .capability-full--film .film-codecard__desc {
+    top: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capability-full--film .film-track {
+    transition: none;
+  }
 }

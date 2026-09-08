@@ -8,7 +8,7 @@ import { ApertureCanvas } from './ApertureCanvas';
  *
  * ── What this replaces, and why ──────────────────────────────────────────────
  * The corona held this slot: 72 filaments fired OUTWARD from the ring. On real hardware it
- * read as a starburst rather than as light, and it was cut. This is 方案 C in its place: a
+ * read as a starburst rather than as light, and it was cut. This is solution C in its place: a
  * nine-leaf aperture closing INWARD inside the same barrel. Nothing here travels outward and
  * nothing radiates — the silhouette is nine hard-edged plates converging on a shrinking
  * nonagon, which is the opposite reading to the one that failed.
@@ -18,7 +18,7 @@ import { ApertureCanvas } from './ApertureCanvas';
  * ring's ends. The ring is delay 0 + enter 1200, so this lane opens at 1300 — 100ms of clear
  * air past the ring's completion, on the same element clock both lanes read. It runs 2400ms
  * from there, so the act's tSelf stays 1300 + 2400 = 3700ms exactly, unchanged from the
- * corona it replaces (设计档 §4 act 04 lane budget).
+ * corona it replaces (design doc §4 act 04 lane budget).
  *
  * ── Driven by the lane, never self-running ───────────────────────────────────
  * `timeline.progress` under the drag driver IS the gesture, rescaled: while the finger is
@@ -28,7 +28,7 @@ import { ApertureCanvas } from './ApertureCanvas';
  * (the trap `EclipseGraphic`'s header documents: raw `dragProgress` resets to 0 at release,
  * which would spring the iris back open at the exact moment it should finish shutting).
  */
-function ApertureStage(): JSX.Element {
+function ApertureStage(): import('react').JSX.Element {
   const timeline = useAnimateTimeline();
   return <ApertureCanvas progress={timeline.progress} phase={timeline.phase} />;
 }
@@ -36,7 +36,7 @@ function ApertureStage(): JSX.Element {
 /** 1300 = ring completion (0 + 1200) + 100ms of air. Same slot the corona lane held. */
 export const ACT4_IRIS_START_MS = 1300;
 /**
- * 900ms — the whole exposure, cut from 2400 (返工:「快门时间太慢了」).
+ * 900ms — the whole exposure, cut from 2400 (rework: "shutter time too slow").
  *
  * This is HALF the fix and it does not work alone. 2400ms was slow, but a faster
  * monotonic stop-down is still a stop-down: `apertureBlades.ts` had `stop` rise 0 → 1 and
@@ -56,7 +56,7 @@ export const ACT4_IRIS_START_MS = 1300;
  * The iris was the act's longest lane (1300 + 2400 = 3700), so shortening it re-prices the
  * act's own clock to 1300 + 900 = 2200ms. That is the intended consequence rather than
  * collateral: the exposure IS the act's closing beat, and stretching the act out to 3700 with
- * nothing happening after 2200 would re-introduce the 空等 the budget table exists to prevent.
+ * nothing happening after 2200 would re-introduce the idle wait the budget table exists to prevent.
  * Every other lane is untouched (ring/timecode 0+1200, streams 100+1400, label 240+500), so
  * the ring still closes before the shutter fires — the mechanical order the act depends on.
  */
@@ -74,7 +74,7 @@ export const ACT4_IRIS_ENTER_MS = 900;
  */
 const IRIS_EXIT_MS = 240;
 
-export const ApertureIris = memo(function ApertureIris(): JSX.Element {
+export const ApertureIris = memo(function ApertureIris(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

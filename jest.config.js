@@ -28,6 +28,6 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   moduleNameMapper: {
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '\\.(css|less|scss|sass)$': '<rootDir>/src/__mocks__/styleMock.js',
   },
 };

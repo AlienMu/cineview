@@ -1,38 +1,47 @@
-// 柔彩 LUT 色带：全站滚动总进度 → 上下双端渐变色 + 当前镜头强调色。
-// 停靠点在 tokens.css 中定义两端色；这里在相邻停靠点间线性插值。
+// Soft-color LUT ribbon: site-wide scroll progress → dual-end gradient colors + current shot accent color.
+// Anchor points define the two end colors in tokens.css; this file linearly interpolates between adjacent anchors.
 //
-// 初版机制还原（2026-08-13，用户裁决「只还原这个」）：源自 2026-06-30 站点设计
-// task-flow（「全站总进度驱动 + 上下双端 linear-gradient 插值 + 停靠点数组可配」），
-// f164470 快照中的本文件 + BackgroundRibbon + useScrollProgress 即该机制。
-// C1（2026-08-10）曾以 600vh 色带 + 明度纱替换整套，因用户多轮报障（灰粉交替闪烁、
-// 30MB 提层、无 accent 流动）于 2026-08-13 还原。
+// Initial mechanism restoration (2026-08-13, user verdict "restore only this"): originated from 2026-06-30 site design
+// task-flow ("site-wide total progress drives + dual-end linear-gradient interpolation + configurable anchor array"),
+// this file + BackgroundRibbon + useScrollProgress from f164470 snapshot comprise that mechanism.
+// C1 (2026-08-10) replaced the entire system with a 600vh ribbon + luminance veil, then due to multiple user-reported
+// issues (gray-pink alternating flicker, 30MB layer promotion, no accent flow) was restored on 2026-08-13.
 //
-// 停靠点按用户三轮裁决重定：**全程暖色、单向流动、无粉**（原版的暖珊瑚/暖玫瑰
-// 两个偏粉停靠被换为琥珀金/陶土橙）。accent = 每段加深一档的「当前镜头色」，
-// 由 BackgroundRibbon 写入 :root，滚动条/按钮/选区随滚动流动。
-// 2026-08-14 追加裁决：首屏锚回 f164470 奶白桃（#fcede4/#faf8f4，蜜桃调非灰粉），
-// 与 08-13 拔掉的「灰粉交替闪烁」不同源；其余五锚维持琥珀/陶土链。
+// Anchor points redefined per three user verdicts: **all-warm, unidirectional flow, no pink** (original warm coral/warm rose
+// two pinkish anchors replaced with amber gold/terracotta orange). accent = "current shot color" one stop darker per segment,
+// written to :root by BackgroundRibbon, scrollbar/buttons/selection flow with scroll.
+// 2026-08-14 additional verdict: first-screen anchor back to f164470 creamy peach (#fcede4/#faf8f4, peach tone not gray-pink),
+// different origin from "gray-pink alternating flicker" removed on 08-13; remaining five anchors maintain amber/terracotta chain.
 
 interface LutStop {
-  at: number; // 0..1 滚动位置
-  top: string; // 渐变上端
-  bot: string; // 渐变下端
-  accent: string; // 当前镜头强调色
-  accentInk: string; // 强调色深一档(文字/focus)
+  at: number; // 0..1 scroll position
+  top: string; // gradient top end
+  bot: string; // gradient bottom end
+  accent: string; // current shot accent color
+  accentInk: string; // accent color one stop darker (text/focus)
 }
 
 const LUT: LutStop[] = [
-  /* 首屏锚沿革：08-14 回 f164470 原值 #fcede4（实测更白）→ 08-16 暖桃 #fbe8d4
-   * （用户仍判冷）→ 现按用户指令「参照胶带边缘的颜色」：以 act2 胶带基边的
-   * accent 家族（实测 #ca8a4c，hue≈33° 琥珀陶土）为色相基准调亮——top #f8e3c6
-   * （R−B=50）/ bot #f9eee0（R−B=25），与 0.2 停靠（#f7e3c8/#faf3e7）平滑衔接。
-   * 其余五锚不动。 */
-  { at: 0.0, top: '#f8e3c6', bot: '#f9eee0', accent: '#d59273', accentInk: '#a86247' }, // 暖蜜桃(胶带族)
-  { at: 0.2, top: '#f7e3c8', bot: '#faf3e7', accent: '#cf8a56', accentInk: '#a2603f' }, // 暖杏
-  { at: 0.4, top: '#f6d9ae', bot: '#faf1e0', accent: '#c98a4a', accentInk: '#985f30' }, // 琥珀金
-  { at: 0.6, top: '#eec49c', bot: '#f8ebdc', accent: '#b07f4e', accentInk: '#855c36' }, // 暖陶土
-  { at: 0.8, top: '#e9be9c', bot: '#f7e6d8', accent: '#a9713f', accentInk: '#7d522c' }, // 陶土橙
-  { at: 1.0, top: '#f2d6c0', bot: '#f9efe4', accent: '#b5824f', accentInk: '#8a6038' }, // 奶油收尾
+  /* First-screen anchor evolution: 08-14 back to f164470 original #fcede4 (tested whiter) → 08-16 warm peach #fbe8d4
+   * (user still judged cold) → now per user directive "reference the tape edge color": using act2 tape base edge
+   * accent family (tested #ca8a4c, hue≈33° amber terracotta) as hue baseline, brightened—top #f8e3c6
+   * (R−B=50) / bot #f9eee0 (R−B=25), smoothly connects with 0.2 anchor (#f7e3c8/#faf3e7).
+   * Remaining five anchors unchanged. */
+  { at: 0.0, top: '#f7dfbd', bot: '#fcf1e3', accent: '#d59273', accentInk: '#9e6344' },
+  { at: 0.2, top: '#f6dbb8', bot: '#fbefdf', accent: '#cf8a56', accentInk: '#995c3d' },
+  { at: 0.4, top: '#f3d0a2', bot: '#faead5', accent: '#c47d44', accentInk: '#8e542f' },
+  { at: 0.6, top: '#edc89f', bot: '#f8e8d5', accent: '#b36e3c', accentInk: '#814b2d' },
+  { at: 0.8, top: '#e8c4a1', bot: '#f6e3d0', accent: '#a9623d', accentInk: '#794329' },
+  { at: 1.0, top: '#f1d5ba', bot: '#fbefe1', accent: '#b9784a', accentInk: '#885435' },
+];
+
+const HOME_LUT: LutStop[] = [
+  { at: 0.0, top: '#f2dcc2', bot: '#fff9ef', accent: '#d59273', accentInk: '#994f36' },
+  { at: 0.2, top: '#f5e3cc', bot: '#fff9ef', accent: '#d59273', accentInk: '#994f36' },
+  { at: 0.4, top: '#faeddb', bot: '#fffaf3', accent: '#d59273', accentInk: '#994f36' },
+  { at: 0.6, top: '#f6e3ca', bot: '#fff9ef', accent: '#d59273', accentInk: '#994f36' },
+  { at: 0.8, top: '#f9ebd8', bot: '#fff9ef', accent: '#d59273', accentInk: '#994f36' },
+  { at: 1.0, top: '#f2dcc2', bot: '#fff9ef', accent: '#d59273', accentInk: '#994f36' },
 ];
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -58,15 +67,16 @@ export interface LutColors {
   accentInk: string;
 }
 
-export function lutAt(progress: number): LutColors {
+export function lutAt(progress: number, homepage = false): LutColors {
+  const stops = homepage ? HOME_LUT : LUT;
   const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
 
-  let lo = LUT[0];
-  let hi = LUT[LUT.length - 1];
-  for (let i = 0; i < LUT.length - 1; i++) {
-    if (p >= LUT[i].at && p <= LUT[i + 1].at) {
-      lo = LUT[i];
-      hi = LUT[i + 1];
+  let lo = stops[0];
+  let hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (p >= stops[i].at && p <= stops[i + 1].at) {
+      lo = stops[i];
+      hi = stops[i + 1];
       break;
     }
   }

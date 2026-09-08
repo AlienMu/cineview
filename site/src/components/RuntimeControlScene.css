@@ -1,0 +1,138 @@
+.runtime-control {
+  display: flex;
+  align-items: center;
+  height: 100vh;
+  padding: 6rem clamp(1.25rem, 5.5vw, 5rem) 3rem;
+  box-sizing: border-box;
+  overflow-clip-margin: 0;
+}
+
+.runtime-content {
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.runtime-title {
+  max-width: 50rem;
+  margin: 0 0 3rem;
+  font-size: clamp(2rem, 3.2vw, 3rem);
+}
+
+.runtime-readout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 1fr);
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: center;
+}
+
+.runtime-chart {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.runtime-chart figcaption {
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.runtime-chart svg {
+  display: block;
+  width: 100%;
+  height: 12rem;
+  overflow: visible;
+}
+
+.runtime-chart line {
+  stroke: var(--frame-line);
+  stroke-dasharray: 3 5;
+}
+
+.runtime-chart text {
+  fill: var(--ink-mute);
+  font-size: 11px;
+}
+
+.runtime-chart polyline {
+  fill: none;
+  stroke: var(--accent-ink);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.runtime-caption,
+.runtime-note {
+  color: var(--ink-mute);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.runtime-caption {
+  margin: 1rem 0 0;
+}
+
+.runtime-note {
+  max-width: 50rem;
+  margin: 2rem 0 0;
+}
+
+.runtime-metrics {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.runtime-metrics div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid var(--frame-line);
+}
+
+.runtime-metrics dt {
+  color: var(--ink-mute);
+  font-size: 0.85rem;
+}
+
+.runtime-metrics dd {
+  margin: 0;
+  color: var(--accent-ink);
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .runtime-control {
+    padding-top: 4rem;
+    padding-bottom: 2rem;
+  }
+
+  .runtime-title {
+    margin-bottom: 2rem;
+  }
+
+  .runtime-readout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .runtime-chart svg {
+    height: 8rem;
+  }
+
+  .runtime-chart text {
+    font-size: 20px;
+  }
+
+  .runtime-metrics div {
+    padding: 0.65rem 0;
+  }
+
+  .runtime-note {
+    margin-top: 1rem;
+  }
+}

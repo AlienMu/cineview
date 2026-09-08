@@ -3,102 +3,93 @@ title: Performance
 eyebrow: ADVANCED / PERFORMANCE
 ---
 
-CineView keeps per-frame changes outside the React render pipeline and delays the first screen until its critical assets are ready. The monitor exposes the resulting frame metrics. The callback sections describe which values are safe to read on every frame.
+Use MotionValues for continuously changing visuals, and inspect the browser when a page drops frames. CineView's monitor provides a page-level sample of frame timing.
 
 ## Runtime monitor
 
-Pass `monitor` on the CineView root to enable runtime monitoring, then read metrics through the ref:
+Enable `monitor` and read the result through the CineView ref:
 
 ```tsx
-const ref = useRef<CineViewRef>(null);
+import { useRef } from 'react';
+import { CineView, Scene, type CineViewRef } from 'cineview';
 
-<CineView designWidth={750} monitor ref={ref}>
-  {/* ... */}
-</CineView>;
-
-const metrics = ref.current!.getPerformanceMetrics();
+export default function Demo() {
+  const ref = useRef<CineViewRef>(null);
+  return (
+    <>
+      <button onClick={() => console.table(ref.current?.getPerformanceMetrics())}>
+        Log metrics
+      </button>
+      <CineView monitor ref={ref}>
+        <Scene sceneId="example">
+          <h1>Example</h1>
+        </Scene>
+      </CineView>
+    </>
+  );
+}
 ```
 
-There is nothing else to configure; monitoring is a single boolean. It is observational and changes no animation behavior. Without `monitor`, `getPerformanceMetrics()` is still callable, but with no instance on the page running the monitor there are no frame samples, so `fps` and `avgFrameTime` come back as `0`.
+Reading metrics does not require `monitor`, but frame samples are collected only while at least one instance enables it. Before any samples exist, frame values are zero. Stopping the monitor retains its last samples.
 
-## What the four metric fields really mean
+## Metric fields
 
-`getPerformanceMetrics()` returns a `PerformanceMetrics`. Every field has its own catch:
+| Field          | Meaning                                                                           |
+| -------------- | --------------------------------------------------------------------------------- |
+| `fps`          | Estimated from average frame time, capped at 60 and rounded to one decimal        |
+| `avgFrameTime` | Mean of up to 60 recent frame intervals, in ms                                    |
+| `memoryUsage`  | JavaScript heap in MB, the median of up to eight samples; absent when unsupported |
+| `bundleSize`   | Code and CSS resource sizes reported for the whole page, in KB                    |
 
-| Field          | Type                | Default / absent             | What it actually is                                                                    |
-| -------------- | ------------------- | ---------------------------- | -------------------------------------------------------------------------------------- |
-| `fps`          | number              | `0` with no samples          | clamped to 60; a 120Hz display also reports 60                                         |
-| `avgFrameTime` | number (ms)         | `0` with no samples          | the mean of at most 60 frames, not a percentile                                        |
-| `memoryUsage`  | number \| undefined | `undefined`                  | JS heap (MB), median of 8 samples; `undefined` outside Chromium                        |
-| `bundleSize`   | number (KB)         | `0` with no resource entries | the sum of every `.js` / `.mjs` / `.css` resource on the page, not this library's size |
+The FPS cap does not reveal whether a high-refresh display is fully used. An average can hide individual stalls; use browser performance traces or a `PerformanceObserver` to inspect those.
 
-Three consequences worth remembering:
+`bundleSize` includes application code and dependencies. It is sampled when monitoring starts and can be retried while zero. Use build output to measure CineView itself.
 
-**The 60 ceiling on `fps` is a fixed upper bound.** The formula is `Math.min(Math.max(1000 / avgFrameTime, 0), 60)` (`src/utils/performanceMonitor.ts:103-105`). On a high-refresh display a real 90fps and a real 60fps read identically, so `fps === 60` only proves "at least 60," never "matching the display refresh rate."
+## Shared page readings
 
-**`avgFrameTime` cannot detect jank.** It is the arithmetic mean of the last 60 frame intervals at most (`:44-46`, `:118-123`). One 200ms long task mixed into 59 frames of 16ms lifts the mean to roughly 19ms, which looks perfectly healthy. Jank diagnostics require percentiles and long-task records from browser developer tools or a `PerformanceObserver`; framework-level readings cannot provide that level of granularity.
+All CineView instances share the page monitor. The first monitored instance starts sampling; the last one to release monitoring stops it.
 
-**`bundleSize` is not this library's size.** It walks `performance.getEntriesByType('resource')` and sums the bytes of every code-like asset (`:175-204`), which includes application code, third-party libraries, and CSS, all of it unrelated to CineView. It is also computed once when the monitor calls `start()` and then cached permanently (`:166-173`), so chunks loaded later never show up. To measure CineView itself, look at build output rather than this field.
+Two instances therefore return the same readings. The data does not attribute rendering cost to a particular Scene or CineView.
 
-## The monitor is a page-level singleton
+## Initial resource wait
 
-The monitor is a page-level singleton behind a reference count: the first CineView with `monitor` enabled starts the requestAnimationFrame (rAF) loop on mount, and the last one to unmount stops it (`src/utils/performanceMonitor.ts:217-241`).
+The first Scene waits for its declared priority resource requests to settle. To include a video, add its URL to `Scene.assets.preloadImages`; a video's own `preload` only fills the shared cache.
 
-That makes the readings page-level rather than per-instance. With two CineViews on a page, both `getPerformanceMetrics()` calls return the same data, reflecting the whole page's frame rate with no way to attribute it to one instance. This is deliberate: frame rate is a page-level property to begin with, and one rAF loop is cheaper than N.
+The default wait limit is 3000ms. Drag can configure `firstSceneTimeout`; scroll uses 3000ms. A timeout reports `FIRST_SCENE_TIMEOUT` and shows the first Scene at its completed state unless the application calls `preventDefault?.()`. See [Preloading](/docs/02-preload).
 
-## Cold-start gate
+## Keep progress in MotionValues
 
-On cold start, the first screen's priority assets pass through the preload pipeline into a gate: the entry timeline is blocked until they are ready, so nothing animates before its images arrive. First-screen `AnimateVideo` media goes through the same pipeline, and only counts as ready once the whole blob is seekable.
+Bind MotionValues to motion styles. Use `useTransform` for direct mappings from progress, such as position or opacity.
 
-The wait is capped: `firstSceneTimeout` defaults to 3000ms. It is a drag-mode-only prop; scroll's cold-start gate always uses the default. On timeout the recoverable `FIRST_SCENE_TIMEOUT` error fires, and the default fallback statically places the first scene in its rest state. Calling `detail.preventDefault()` inside `onError` hands error handling to consumer logic (such as rendering a custom retry interface). See [Callbacks](/docs/03-callbacks) for the full callback semantics and [Preloading](/docs/02-preload) for preload configuration.
+Render-prop children receive ordinary numbers by rerendering their content. Use that form when JSX needs the changing value. It does not avoid React rendering.
 
-## MotionValue per frame
+An added `useSpring` changes timing and can lag behind drag or scroll input. Derive visuals directly when they need to match progress.
 
-Anything that changes every frame (progress, elapsed, scroll offset) must live in a `MotionValue`; React state is only for structural changes. A per-frame `setState` fans out into a whole-scene subtree re-render, the number one source of dropped frames in narrative pages.
+## Read changing values
 
-The framework already does this: `Animate`'s property mapping derives from MotionValues and never re-renders during scrubbing. Apply the same rule in custom consumers:
+A one-time `.get()` during render does not subscribe React to later changes.
 
-- Read progress through the render-prop `enterProgress` (see [Animate](/docs/03-animate)) or a read-only MotionValue from `useAnimateTimeline()` (see [useAnimateTimeline](/docs/09-use-animate-timeline)); updates arrive without touching React rendering.
-- Inside `onDragProgress` / `onZoneProgress` callbacks, reading values is fine; writing them into state is the problem. To drive the DOM, project through a ref or consume the MotionValue directly.
-- Don't add custom `useSpring`/`useTransform` on top of these values: a spring settles on its own schedule and does not follow exit progress.
+Use [useAnimateTimeline](/docs/09-use-animate-timeline) for MotionValue bindings and subscriptions. Its `frame` groups progress, phase, and source from one update. Use `onZoneProgress` when observing the whole locked zone.
 
-## In scroll mode, the render path sees stale continuous values
+## Callback cost
 
-This is not advice, it is structural. Scroll mode splits updates in two: the snapshot React renders from, and the per-frame data that imperative consumers subscribe to.
+| Callback                             | Frequency                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| `Scene.callbacks.onVisibilityChange` | Can run on each scroll frame                                              |
+| `onZoneProgress`                     | Changes over 0.5px from the last report, plus initial and endpoint values |
 
-The comparison deciding when the snapshot changes deliberately excludes the continuous values (`src/components/CineView/ScrollSceneSlot.tsx:74-124`): `visualViewportOffset`, `zoneState.progressPx`, and `sceneProgress` / `enterProgress` / `exitProgress` take no part in it. Changes to those fields therefore schedule no re-render, and the render path reads whatever they were at the last structural change. The source comment says it outright: `the React snapshot is intentionally stale` (`:190-191`).
+Keep work in these callbacks small. Filter repeated visibility values or sample progress when only occasional updates are needed. React state updates and layout reads still have their normal cost inside a callback.
 
-The point is to keep every pixel of native scrolling from triggering React work. The cost is that **per-frame numbers are observable through exactly two surfaces**:
+The zone threshold accumulates against the last reported value, so slow movements eventually produce a notification.
 
-- The MotionValues returned by `useAnimateTimeline()` (`progress` / `signedProgress` / `phase`)
-- The root's `onZoneProgress` callback
+## Video seeking and memory
 
-Continuous values are published by a separate source (`src/components/runtime/scrollSceneFrameStore.ts`), written only by the native scroll controller and read by subscription. Reading `progressPx` during component render to display a dynamic number results in a static value; this is by design.
+Dense video keyframes can reduce random and reverse seek work. Development builds warn when sampled median seek latency exceeds 50ms; inspect both the asset and device workload when this occurs.
 
-## Two callbacks on the hot path
-
-| Callback                             | Fires                             | Deduplicated                          |
-| ------------------------------------ | --------------------------------- | ------------------------------------- |
-| `Scene.callbacks.onVisibilityChange` | every scroll frame in scroll mode | no                                    |
-| the root's `onZoneProgress`          | when the change exceeds 0.5px     | yes, and endpoints are forced through |
-
-`onVisibilityChange` subscribes to the per-frame data and runs once per scroll frame with no deduplication at all (`src/components/Scene/Scene.tsx:513-543`). The Scene subtree does not re-render because of it (keeping per-frame data out of React is the whole point), but the callback body is on the hot path: a `setState`, a DOM write, or a layout read inside it costs once per frame. Throttle inside the callback if needed.
-
-`onZoneProgress` already has a 0.5px threshold, and its baseline is the last reported value rather than the previous frame (`src/components/CineView/useNativeScrollController.ts:96-100`). Using the previous frame as the baseline starves the callback forever during a slow scroll that moves under 0.5px per frame; using the last reported value does not. The terminal 0 and full values are forced through, so callers never miss the frame that lands exactly on an endpoint (`:325-337`).
-
-## Video scrubbing and decoded frames
-
-`AnimateVideo` frame-scrubbing maps position to `currentTime`, seeking every frame. With sparse keyframes, each seek decodes a long run from the nearest keyframe, saturating the decode thread and dropping frames. Scrubbed sources must be encoded with dense keyframes (ideally all-keyframe); in development the framework samples seek latency and warns when the median exceeds 50ms.
-
-The memory half is `releaseOnLeave`: decoded frames are released once the viewer scrolls well past, and reattached on return. The full rules, thresholds, and ffmpeg command are in [Media ownership](/docs/06-media-ownership).
+For scroll locked zones, `releaseOnLeave` can release decoded frames after a video is far away and restore them on return. See [Media playback](/docs/06-media-ownership).
 
 ## Bundle size
 
-The full `cineview` entry ships both the drag and the scroll engine and dispatches by `mode` at runtime. The dispatcher references both engines statically, so an ES module (ESM) consumer using one mode still carries both:
+ES module (ESM) applications use `cineview`, which includes both engines and selects one through `mode`.
 
-```js
-const { CineView } = require('cineview/drag');
-// Or load cineview-drag.umd.js from a browser <script> tag.
-```
-
-Where the per-mode entries are usable and what that means for bundling is in [Installation](/docs/02-installation); the mode decision is in [Choosing a mode](/docs/04-choosing-mode).
+CommonJS applications can use a mode subpath. Separate Universal Module Definition (UMD) files are also available for script loading with supplied peer runtimes. See [Installation](/docs/02-installation).

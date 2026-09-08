@@ -3,21 +3,21 @@ title: Callbacks
 eyebrow: ADVANCED / CALLBACKS
 ---
 
-`CineView`'s `callbacks` prop is a flat object whose accepted keys are discriminated by `mode`: drag mode takes common + drag callbacks, scroll mode takes common + scroll callbacks. Passing a wrong-mode callback is not silently ignored at runtime: it's a TypeScript type error.
+Pass a flat `callbacks` object to CineView. TypeScript checks its keys against `mode`: both modes accept common callbacks, with drag and scroll events available only in their corresponding mode.
 
 ## Callback table
 
 Common callbacks (available in both modes):
 
-| Callback         | detail / argument                    | Fires                                                                                                        |
-| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `onReady`        | `api: CineViewRef`                   | Runtime ready, carrying the ref API                                                                          |
-| `onLoadProgress` | `progress: number`                   | Preload progress as an **integer from 0 to 100** (not 0 to 1); reports 100 outright when there are no assets |
-| `onSceneEnter`   | `{ fromIndex, toIndex, direction? }` | Before a scene change                                                                                        |
-| `onSceneLeave`   | `{ fromIndex, toIndex, direction? }` | After a scene change                                                                                         |
-| `onError`        | `CineViewErrorDetail`                | Single error outlet, see "onError and error codes"                                                           |
+| Callback         | detail / argument                    | Fires                                                                          |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| `onReady`        | `api: CineViewRef`                   | Ref API available after mount; does not wait for resources                     |
+| `onLoadProgress` | `progress: number`                   | Queued request completion, integer 0–100, including failures                   |
+| `onSceneEnter`   | `{ fromIndex, toIndex, direction? }` | Scene-change notification; gesture changes notify at commit                    |
+| `onSceneLeave`   | `{ fromIndex, toIndex, direction? }` | Companion scene-change notification, independent of child animation completion |
+| `onError`        | `CineViewErrorDetail`                | Single error outlet, see "onError and error codes"                             |
 
-`direction` is `'forward' | 'backward'` and may be `null`.
+`direction` is `'forward'`, `'backward'`, or `null`. Gesture and programmatic timing are described in [Drag callbacks](/docs/05-callbacks).
 
 Drag-only:
 
@@ -42,18 +42,15 @@ Scroll-only:
 
 Passing a scroll callback with `mode="drag"` (or vice versa) is a type error:
 
+The unsupported callback in this example produces a type error:
+
 ```tsx
-// ❌ Type error: a scroll-only callback can't enter drag mode
-<CineView
-  mode="drag"
-  callbacks={{
-    onDragEnd: (d) => console.log(d.targetSceneIndex),
-    onZoneProgress: (d) => console.log(d.progress), // ts error
-  }}
->
+<CineView mode="drag" callbacks={{ onZoneProgress: () => {} }}>
+  <Scene sceneId="example">Content</Scene>
+</CineView>
 ```
 
-The rejection holds on both assignment paths: inline object literals are caught by excess-property checking, and a pre-extracted variable mixing callbacks from both modes (`{ onDragEnd, onZoneProgress }`) is caught by the `never` fallback marking every cross-mode key. This is the type system enforcing it, not a convention.
+The same check applies when the callback object is stored in a variable.
 
 Correctly split per mode:
 
@@ -62,39 +59,46 @@ Correctly split per mode:
   mode="scroll"
   callbacks={{
     onReady: (api) => api.preload(['intro']),
-    onZoneProgress: ({ zoneId, progress }) => {},
-    onError: ({ code }) => {},
+    onError: ({ code, message }) => console.error(code, message),
   }}
 >
+  <Scene sceneId="intro" assets={{ preloadImages: ['/intro.jpg'] }}>
+    Content
+  </Scene>
+</CineView>
 ```
 
 ## onError and error codes
 
-`CineViewErrorDetail` is `{ code, message, context?, preventDefault? }`. `code` is the `CineViewErrorCode` union, so a `switch` gets autocompletion and exhaustiveness checking:
+`CineViewErrorDetail` contains `code`, `message`, optional `context`, and optional `preventDefault`. Use a `never` check when a switch needs exhaustive handling.
 
-| code                          | Meaning                                           | Recoverability                     |
-| ----------------------------- | ------------------------------------------------- | ---------------------------------- |
-| `EMPTY_SCENES`                | CineView has no Scene children                    | No                                 |
-| `IMAGE_LOAD_FAILED`           | A preloaded image failed                          | No                                 |
-| `FIRST_SCENE_TIMEOUT`         | First-screen priority asset wait timed out        | Recoverable (has `preventDefault`) |
-| `INVALID_ANIMATION`           | `after` points at a non-existent component        | No                                 |
-| `CIRCULAR_DEPENDENCY`         | The `after` chain has a cycle                     | No                                 |
-| `INVALID_COMPONENT_HIERARCHY` | Duplicate `animateId`, or duplicate zone identity | No                                 |
-| `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config        | Recoverable                        |
-| `ANIMATION_ASSET_LOAD_FAILED` | An animation preset asset failed to load          | Retryable                          |
+| code                          | Meaning                                                           | Recoverability                     |
+| ----------------------------- | ----------------------------------------------------------------- | ---------------------------------- |
+| `EMPTY_SCENES`                | CineView has no Scene children, or a Scene has no content         | Add content                        |
+| `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode                             | Handle the resource error          |
+| `FIRST_SCENE_TIMEOUT`         | Initial priority resource wait timed out                          | Optional fallback control          |
+| `INVALID_ANIMATION`           | Missing or incompatible dependency, or unsupported manual control | Correct the reported configuration |
+| `CIRCULAR_DEPENDENCY`         | The `after` chain has a cycle                                     | No                                 |
+| `INVALID_COMPONENT_HIERARCHY` | Duplicate `animateId`, or duplicate zone identity                 | No                                 |
+| `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config                        | Recoverable                        |
+| `ANIMATION_ASSET_LOAD_FAILED` | An animation preset asset failed to load                          | Retryable                          |
 
-`preventDefault` only appears on recoverable errors that have a default framework fallback (`FIRST_SCENE_TIMEOUT` being the typical one). Calling it suppresses the default behavior and hands event control over to custom handling (for example to render a retry UI); not calling it lets the framework proceed with its fallback.
+A `FIRST_SCENE_TIMEOUT` supplies `preventDefault`. Call it only when the application provides another wait or retry interface; otherwise the default displays the first Scene at its completed state.
 
 ```tsx
-onError: ({ code, message, preventDefault }) => {
-  if (code === 'FIRST_SCENE_TIMEOUT') {
-    preventDefault(); // suppress default fallback; take over error handling
-    showRetry();
+import type { CineViewErrorDetail } from 'cineview';
+
+export function handleError(detail: CineViewErrorDetail) {
+  if (detail.code === 'FIRST_SCENE_TIMEOUT') {
+    // Keep the default display behavior and report the timeout.
+    console.warn(detail.message);
     return;
   }
-  reportToSentry(code, message); // report everything else as usual
-};
+  console.error(detail.code, detail.message);
+}
 ```
+
+For an application-owned fallback, use `detail.preventDefault?.()` before displaying it. The optional call is required because the public error type does not narrow this method by code.
 
 ## Two behavioral notes
 

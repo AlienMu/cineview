@@ -192,9 +192,9 @@ export const VALUE_BOX = {
 //  - 3 columns made "2" and "3" differ by two cells out of twenty-one, indistinguishable
 //    at particle resolution;
 //  - two-cell-thick strokes fixed an audit complaint about the narrow "1" but the user
-//    then reported 粒子太多、太厚 — a dot-matrix numeral filling half the value column
-//    reads as a slab. Back to single-cell strokes at 5 columns: distinct silhouettes,
-//    light ink.
+//    then reported too many particles, too thick — a dot-matrix numeral filling half the
+//    value column reads as a slab. Back to single-cell strokes at 5 columns: distinct
+//    silhouettes, light ink.
 const COUNTDOWN_GLYPHS: Record<string, string[]> = {
   '1': ['00100', '01100', '10100', '00100', '00100', '00100', '11111'],
   '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
@@ -265,7 +265,7 @@ export function buildCountdownDigit(character: string, count: number): TargetPoi
   // spill past the value column (the 3-wide version only ever needed a height fit).
   //
   // The 0.74 scale is a legibility/weight trade-off, not decoration: strokes are one cell
-  // thick (the user rejected two-cell strokes as 太厚), and 135 particles spread over a
+  // thick (the user rejected two-cell strokes as too thick), and 135 particles spread over a
   // full-height numeral leave visible gaps in every stroke. Shrinking the numeral packs the
   // same particles into shorter strokes, so it reads as a continuous thin digit.
   //
@@ -302,8 +302,8 @@ export function buildCountdownDigit(character: string, count: number): TargetPoi
   return ranked.map((entry) => entry.point);
 }
 
-// The ACTION word is drawn as particles too (locked: 「action 也改为粒子组成，放在板子下面
-// 一点」), so it lives in the same normalised board space: y > 1 is BELOW the board body.
+// The ACTION word is drawn as particles too (locked: "action is also made of particles, placed a
+// bit below the board"), so it lives in the same normalised board space: y > 1 is BELOW the board body.
 //
 // 7x9 stencils with TWO-CELL strokes. The previous set was 5x7 with single-cell strokes,
 // i.e. a stroke-to-cap-height ratio of 1/7 ≈ 14%; film title cards sit at 20-25%, and the

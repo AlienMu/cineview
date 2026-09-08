@@ -11,7 +11,7 @@ import {
   StatGrid,
 } from './SharedBlocks';
 
-export function renderScrollScenes(sections: ExperienceSection[]): JSX.Element[] {
+export function renderScrollScenes(sections: ExperienceSection[]): import('react').JSX.Element[] {
   const sceneNodes = sections.map((section, index) => {
     const sceneHeight = resolveSceneHeight(section);
     const takeover = section.composition.scroll.takeover;
@@ -39,7 +39,7 @@ export function renderScrollScenes(sections: ExperienceSection[]): JSX.Element[]
   return [...sceneNodes, renderOrdinaryDocumentInterlude()];
 }
 
-function renderOrdinaryDocumentInterlude(): JSX.Element {
+function renderOrdinaryDocumentInterlude(): import('react').JSX.Element {
   return (
     <article
       key="ordinary-document-interlude"
@@ -114,7 +114,7 @@ function renderOrdinaryDocumentInterlude(): JSX.Element {
   );
 }
 
-function AcceptanceFixtures(): JSX.Element {
+function AcceptanceFixtures(): import('react').JSX.Element {
   return (
     <section
       data-testid="scroll-acceptance-fixtures"
@@ -190,7 +190,7 @@ function renderSceneBody(
   section: ExperienceSection,
   index: number,
   takeover: boolean
-): JSX.Element {
+): import('react').JSX.Element {
   switch (section.composition.scroll.style) {
     case 'document-hero':
       return <DocumentHero section={section} index={index} takeover={takeover} />;
@@ -217,7 +217,7 @@ function DocumentHero({
   section: ExperienceSection;
   index: number;
   takeover: boolean;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <>
       <Position at={{ x: 112, y: 96 }} fixed={takeover}>
@@ -277,7 +277,7 @@ function EditorialSplit({
 }: {
   section: ExperienceSection;
   index: number;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <>
       <Position at={{ x: 116, y: 116 }}>
@@ -358,7 +358,7 @@ function SpecTakeover({
   section: ExperienceSection;
   index: number;
   takeover: boolean;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <>
       <Position at={{ x: 1080, y: 104 }} fixed={takeover}>
@@ -430,7 +430,7 @@ function ExplodedStory({
 }: {
   section: ExperienceSection;
   index: number;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <>
       <Position at={{ x: 120, y: 112 }}>
@@ -511,7 +511,7 @@ function ScenarioTakeover({
   section: ExperienceSection;
   index: number;
   takeover: boolean;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <>
       <Position at={{ x: 118, y: 102 }} fixed={takeover}>
@@ -587,7 +587,7 @@ function DecisionAppendix({
 }: {
   section: ExperienceSection;
   index: number;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <>
       <Position at={{ x: 118, y: 112 }}>

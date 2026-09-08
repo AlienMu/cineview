@@ -78,9 +78,10 @@ export async function parseAnimationSafely(
 }
 
 /**
- * 多值字符串(空格分隔且非 transform 函数,如 transformOrigin '50% 100%')无法用
- * parseFloat 单值插值——那会坍缩成 '50%' 之类的单值并改变语义。transform 函数串
- * (含 '(')仍走原有的函数参数插值分支。
+ * Multi-token strings (space-separated, non-transform functions like transformOrigin '50% 100%')
+ * cannot use parseFloat single-value interpolation — that would collapse to a single value like '50%'
+ * and change semantics. Transform function strings (containing '(') still use the existing
+ * function-parameter interpolation branch.
  */
 function isMultiTokenString(value: unknown): boolean {
   return typeof value === 'string' && !value.includes('(') && value.trim().includes(' ');
@@ -96,7 +97,7 @@ export function interpolateVariant(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
-  // 合并所有键（start 和 end 的并集）
+  // Merge all keys (union of start and end)
   const allKeys = new Set([...Object.keys(start), ...Object.keys(end)]);
 
   allKeys.forEach((key) => {
@@ -105,20 +106,20 @@ export function interpolateVariant(
     const startVal = start[key];
     const endVal = end[key];
 
-    // 如果 end 没有这个键，使用 start 的值
+    // If end doesn't have this key, use start's value
     if (endVal === undefined) {
       result[key] = startVal;
       return;
     }
 
-    // 相等端点原样返回:根本无需插值。这同时挡住多值字符串在下方数值分支里的
-    // parseFloat 坍缩(如 transformOrigin '50% 100%' 被坍缩成 '50%')。
+    // Equal endpoints: no interpolation needed. This also prevents parseFloat collapse
+    // for multi-token strings (e.g., transformOrigin '50% 100%' collapsing to '50%').
     if (startVal === endVal) {
       result[key] = endVal;
       return;
     }
 
-    // 如果 start 没有这个键，根据类型设置默认值
+    // If start doesn't have this key, set default value based on type
     const effectiveStartVal =
       startVal !== undefined
         ? startVal
@@ -128,20 +129,20 @@ export function interpolateVariant(
             ? 0
             : '0';
 
-    // 端点不等的多值字符串同样无法单值插值:退化为 0.5 阈值切换,
-    // 避免 '50% 0%' → '50%' 这类格式/语义坍缩。
+    // Unequal multi-token strings cannot use single-value interpolation either:
+    // degrade to 0.5 threshold switching to avoid format/semantic collapse like '50% 0%' → '50%'.
     if (isMultiTokenString(effectiveStartVal) || isMultiTokenString(endVal)) {
       result[key] = progress > 0.5 ? endVal : effectiveStartVal;
       return;
     }
 
-    // 处理数字类型
+    // Handle number types
     if (typeof endVal === 'number' && typeof effectiveStartVal === 'number') {
       result[key] = effectiveStartVal + (endVal - effectiveStartVal) * progress;
       return;
     }
 
-    // 处理数字到字符串的转换（例如 y: 0 到 y: '100%'）
+    // Handle number-to-string conversion (e.g., y: 0 to y: '100%')
     if (typeof effectiveStartVal === 'number' && typeof endVal === 'string') {
       if (endVal.includes('px')) {
         const endNum = parseFloat(endVal) || 0;
@@ -160,7 +161,7 @@ export function interpolateVariant(
       }
     }
 
-    // 处理字符串到数字的转换（例如 y: '100%' 到 y: 0）
+    // Handle string-to-number conversion (e.g., y: '100%' to y: 0)
     if (typeof effectiveStartVal === 'string' && typeof endVal === 'number') {
       if (effectiveStartVal.includes('px')) {
         const startNum = parseFloat(effectiveStartVal) || 0;
@@ -179,9 +180,9 @@ export function interpolateVariant(
       }
     }
 
-    // 处理字符串类型
+    // Handle string types
     if (typeof endVal === 'string' && typeof effectiveStartVal === 'string') {
-      // 处理 px 单位
+      // Handle px units
       if (endVal.includes('px') || effectiveStartVal.includes('px')) {
         const startNum = parseFloat(effectiveStartVal) || 0;
         const endNum = parseFloat(endVal) || 0;
@@ -189,7 +190,7 @@ export function interpolateVariant(
         return;
       }
 
-      // 处理 % 单位
+      // Handle % units
       if (endVal.includes('%') || effectiveStartVal.includes('%')) {
         const startNum = parseFloat(effectiveStartVal) || 0;
         const endNum = parseFloat(endVal) || 0;
@@ -197,7 +198,7 @@ export function interpolateVariant(
         return;
       }
 
-      // 处理 deg 单位（旋转）
+      // Handle deg units (rotation)
       if (endVal.includes('deg') || effectiveStartVal.includes('deg')) {
         const startNum = parseFloat(effectiveStartVal) || 0;
         const endNum = parseFloat(endVal) || 0;
@@ -205,7 +206,7 @@ export function interpolateVariant(
         return;
       }
 
-      // 处理 transform 函数（如 translateY(100%), scale(1.5) 等）
+      // Handle transform functions (e.g., translateY(100%), scale(1.5), etc.)
       if (
         (endVal.includes('(') && endVal.includes(')')) ||
         (effectiveStartVal.includes('(') && effectiveStartVal.includes(')'))
@@ -218,8 +219,9 @@ export function interpolateVariant(
           const startValue = startMatch[2];
           const endValue = endMatch[2];
 
-          // 处理数字值。能走到这里的 transform 参数必为无单位（含 px/%/deg
-          // 的字符串已被上方单位分支拦截并 return），所以这里只产出无单位形式。
+          // Handle numeric values. Transform parameters reaching here must be unitless
+          // (strings with px/%/deg are already intercepted and returned by unit branches above),
+          // so this only produces unitless output.
           if (!isNaN(parseFloat(startValue)) && !isNaN(parseFloat(endValue))) {
             const startNum = parseFloat(startValue);
             const endNum = parseFloat(endValue);
@@ -231,7 +233,7 @@ export function interpolateVariant(
       }
     }
 
-    // 默认：使用阈值切换
+    // Default: use threshold switching
     result[key] = progress > 0.5 ? endVal : effectiveStartVal;
   });
 

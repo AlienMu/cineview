@@ -3,11 +3,11 @@ title: 自定义动画
 eyebrow: ADVANCED / CUSTOM ANIMATION
 ---
 
-当没有合用的预设时，直接声明自定义动画配置对象。自定义动画是 Framer Motion 动画结构的一个子集（`initial`、`animate`、`exit` 三个属性记录），以内联对象传给动画配置参数。
+预设无法提供所需动效时，传入自定义动画对象。对象可包含 `initial`、`animate` 和 `exit` 值。
 
 ## 自定义动画配置
 
-`CustomAnimation` 的形状只允许这三个键，且至少一个为非空对象；其余形态会被解析器拒绝（`src/animations/animationParser.ts`）。
+`initial`、`animate` 或 `exit` 中至少一个为非空对象，不支持其他顶层键。
 
 ```tsx
 <Animate
@@ -26,7 +26,7 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 
 - 字符串按预设名解析，对象按自定义动画配置解析；解析器按类型分派。
 - `transformOrigin` 字符串会归一化为百分比对（`'top left'` → `'0% 0%'`、`'center'` → `'50% 50%'`）。
-- 自定义配置内的 transition 时间参数（`transition.duration` 单位秒、`transition.delay` 单位秒）只在时间驱动的动画中生效。跟随滚动位置的动画（scroll 锁定区内、drag 场景驱动的元素）按位置插值，忽略 transition 时间参数；那里的时长来自 `duration.enter`，即跟随滚动的跨度。
+- 普通 Animate 通过 `duration` 和 `timeline.delay` 配置时序。动画对象内的 transition 时间参数用于 stagger、循环等 Framer 原生播放，不改变随位置推进的动画距离。`transition.times` 仍用于设置关键帧位置。
 
 ## 关键帧与 times
 
@@ -55,7 +55,7 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 </Animate>
 ```
 
-跟随滚动时，运行时按滚动进度逐属性求值：标量目标是 from→to 的 lerp；数组目标沿关键帧分段推进。字符串插值器支持数字、带单位字符串（`100%`、`12px`、`45deg`）与单参变换函数（`translateY(100%)`），因此端点可以按设计单位书写。
+数值目标在起止值之间插值，数组在关键帧之间插值。`100%`、`12px` 和 `45deg` 等字符串保留其单位，动画值不会自动按 `designWidth` 换算。
 
 ## 关键帧如何随滚动进度求值
 
@@ -67,16 +67,14 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 | 0.45     | 0.3 → 0.9 内部（两个关键帧都是 1） | 保持 `1`                                          |
 | 0.95     | 0.9 → 1                            | 从 1 向 0 插值，`(0.95 − 0.9) / 0.1 = 0.5`：`0.5` |
 
-关键帧让跟随滚动的元素在自己的跨度内拥有丰富的动效曲线：在同一个 `duration.enter` 内完成入场、停留与离场，这是朴素的起止两态配置无法表达的。需要在同一个锁定区内既到达又离开的元素，标准写法是：一个元素、一个跨度、四个关键帧。
+关键帧可让元素在同一个 `duration.enter` 中入场、保持可见并离场，按效果需要设置关键帧数量。
 
-## 工程实现中的两类动画构造函数
+## 复用动画对象
 
-工程实现中存在两类典型的动画构造函数（示例源自 `site/src/components/CapabilityScene.tsx`）：
+静态透明度配置可为自绘内容提供时间轴，而不改变其透明度。位移与淡入也可在同一段入场中使用：
 
 ```tsx
-/* Neutral variant: establishes the shared timeline without fading the carried
-   content across the whole span. transition duration 0. Under scroll the
-   position drives the value, so the variant only fixes the endpoints. */
+// 进度变化时保持透明度不变。
 export function solidVariant() {
   return {
     initial: { opacity: 1 },
@@ -84,8 +82,7 @@ export function solidVariant() {
   };
 }
 
-/* Allowlist-only rise: custom variants for scroll-driven animations should stick to the
-   ten engine-owned properties. */
+// 使用受支持的属性完成位移与淡入。
 export function riseVariant(amplitude: string) {
   return {
     initial: { y: amplitude, opacity: 0 },
@@ -94,7 +91,7 @@ export function riseVariant(amplitude: string) {
 }
 ```
 
-`solidVariant()` 用于「元素需要挂载到共享时间轴上（供给 render-prop、`useAnimateTimeline` 消费，或作为 after 依赖前驱），但自身无需视觉位移动效」的标准场景，`AnimateVideo` 包装层内部也采用相同模式。
+内容需要通过 `useAnimateTimeline()` 读取进度，或为 `after` 依赖提供时序时，可使用 `solidVariant()`。AnimateVideo 默认采用静态透明度入场。
 
 ## 退场动画配置
 
@@ -114,7 +111,7 @@ export function riseVariant(amplitude: string) {
 </Animate>
 ```
 
-（该形态应用于场记板场景：入场位移到位，退场伴随轻微缩放与淡出。）
+示例先位移并淡入，再缩放并淡出。
 
 退场关键帧数组的规则与入场完全一致（包括 `times`），元素的完成态取最后一个关键帧。反向滚动时沿同一套插值逆向回放，因此用关键帧编写的退场会逐关键帧反向还原。
 
@@ -124,10 +121,9 @@ enter/exit 可动画的属性一共十个：
 
 `opacity`、`x`、`y`、`scale`、`rotate`、`rotateX`、`rotateY`、`skewX`、`skewY`、`filter`。
 
-跟随滚动的自定义动画配置受限于上述十个属性。以下两类特殊场景除外：
+属性列表适用于普通 Animate 的入退场。stagger 使用 Framer 子元素动画，还支持 `clipPath` 和 `width` 等属性。
 
-- `stagger` 属性经 Framer 原生 variant 传播逐个揭示直接子元素，接受任意 Framer 可动画属性（`clipPath`、`width`……），由时间驱动，不跟随滚动位置。
-- canvas 与自绘渲染器直接读 `useAnimateTimeline()` 的 MotionValue（canvas 豁免）。
+canvas 等自绘内容可直接读取时间轴 MotionValue，绘制所需画面。
 
 ## 组合动画
 
@@ -146,7 +142,7 @@ enter/exit 可动画的属性一共十个：
 </Animate>
 ```
 
-组合规则（来自 `src/animations/composer.ts`）：
+组合配置字段：
 
 | 字段         | 含义                                                                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
@@ -154,8 +150,8 @@ enter/exit 可动画的属性一共十个：
 | `mode`       | `'sequential'`：每步在前序步骤的时长加自身 delay 之后开始；`'parallel'`：所有步骤在各自 delay 处开始。 |
 | `delays`     | 每步的额外延迟（ms），按书写位置索引。                                                                 |
 
-- `sequential`：步骤 delay 按「前序 duration + 前序 customDelay」累加；未声明 `transition.duration` 的步骤按 1s 计（Framer 的隐式时长在编译期读不出，请显式声明时长）。`initial` 取第一步，`exit` 取最后一步。
-- `parallel`：每步保留自己的 delay；`initial` 与 `exit` 合并全部步骤（同名属性 last-wins）。
-- 合并后的 `animate` 采用 Framer 的逐值 transition 形态（`transition: { opacity: {...}, y: {...} }`），每个属性携带自己所属步骤的 delay/duration。注意该形态为时间驱动服务；跟随滚动时按值插值、忽略 transition。
+- `sequential` 模式在前一步的时长与延迟之后开始后续步骤。步骤未声明 `transition.duration` 时，计算采用 1s。`initial` 取第一步，`exit` 取最后一步。
+- `parallel` 模式保留各步骤的延迟，合并初始与退场属性，同名属性采用后面的值。
+- 动画目标及逐属性 transition 按同一方式合并。多个步骤修改同一属性时，最后一步提供目标值；需要同一属性多次变化时，使用关键帧数组。随位置推进的动画读取映射值和关键帧时间，不使用 transition 延迟。
 
 要排的是**元素之间**的先后而非单元素内部的步骤时，用 `after` 级联，见 [时间线](/docs/04-orchestration)。

@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import type { AnimationControls } from 'framer-motion';
+import { useAnimationControls } from 'framer-motion';
 import type { ScrollTimelineState } from '../../types';
 import { createScrollSceneFrameStore } from '../runtime/scrollSceneFrameStore';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
@@ -20,7 +20,7 @@ function timeline(enterProgress: number): ScrollTimelineState {
 
 describe('useScrollSceneEngine frame lane', () => {
   it('updates visual controls per frame but publishes SceneState only at phase changes', () => {
-    const controls = { set: jest.fn() } as unknown as AnimationControls;
+    const controls = { set: jest.fn() } as unknown as ReturnType<typeof useAnimationControls>;
     const setSceneState = jest.fn();
     const frameStore = createScrollSceneFrameStore();
     frameStore.setSnapshot([

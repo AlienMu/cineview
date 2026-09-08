@@ -210,7 +210,7 @@ describe('Animate FOUC guard (authored variants still parsing)', () => {
       </SceneContext.Provider>
     );
 
-    // stagger 下 DOM 里有多个 motion 节点（外层 + 每个子项），必须按 id 精确读外层。
+    // Under stagger, the DOM has multiple motion nodes (outer wrapper + each child). Must read the outer wrapper precisely by id.
     const outer = (): number =>
       Number(
         document

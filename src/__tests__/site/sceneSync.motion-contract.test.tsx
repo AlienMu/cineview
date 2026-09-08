@@ -185,9 +185,10 @@ describe('SceneSync motion contract', () => {
   it('shows all five V1 blocks in place before anything is dragged', () => {
     render(<SceneSync />);
 
-    // 「直接出现全部内容」 — the appear lane carries NO horizontal travel. It used to enter at
-    // `x: -36`, which fused the entrance and the drag into one motion so the cut was never seen
-    // before a hand moved it. The stroke is now a separate lane (`-demo`, asserted below).
+    // All content appears directly in place — the appear lane carries NO horizontal travel. It
+    // used to enter at `x: -36`, which fused the entrance and the drag into one motion so the
+    // cut was never seen before a hand moved it. The stroke is now a separate lane (`-demo`,
+    // asserted below).
     for (const animateId of V1_IDS) {
       const appear = lane(animateId);
       expect(appear.enterAnimation).toEqual({
@@ -244,9 +245,9 @@ describe('SceneSync motion contract', () => {
     for (const animateId of DEMO_IDS) {
       const demo = lane(animateId);
 
-      // ONE-SHOT, not a loop: 「不是持续动画，而是入场动画」. An `loopAnimation` here is the
-      // exact regression — it would also re-introduce the anonymous wrapper node that once
-      // collapsed clip 2 to 2px tall.
+      // ONE-SHOT, not a loop: this is an entrance animation, not a continuous animation. An
+      // `loopAnimation` here is the exact regression — it would also re-introduce the anonymous
+      // wrapper node that once collapsed clip 2 to 2px tall.
       expect(demo.loopAnimation).toBeUndefined();
 
       // Leftward travel, and `x` in percent (of the block's own box) so the lap survives every
@@ -310,17 +311,21 @@ describe('SceneSync motion contract', () => {
   it('finishes each stitch before the playback reaches the segment it prepares', () => {
     render(<SceneSync />);
 
-    // 用户原话（2026-08-20 返工）：「我希望 v1 那一列的帧，能在动画播放到那个环节之前，
-    // 先拼接好，也就是先执行完毕动画」。stroke 终点必须早于播放进入第 k 段 —— 恰早一个
-    // ACT3_CLIP_ASSEMBLY_LEAD_MS。旧时序是零提前量的 JIT（落定即抵达），被本断言打红；
-    // LEAD 的数值上界由两段式约束解出（首 stroke 须晚于末块入场 2300 ⇒ LEAD ≤ 900），
-    // 推导记录在 act3MediaTimeline.ts 的 ACT3_CLIP_ASSEMBLY_LEAD_MS 注释。
+    // User requirement (2026-08-20 rework): "I want the frames in the V1 column to be stitched
+    // together before the animation reaches that segment — that is, the animation should finish
+    // executing first." The stroke endpoint must precede playback entering segment k — by exactly
+    // ACT3_CLIP_ASSEMBLY_LEAD_MS. The old timing was zero-lead JIT (lands exactly when reached),
+    // which this assertion turned red; the upper bound on LEAD is derived from the two-stage
+    // constraint (first stroke must follow final block entrance 2300 ⇒ LEAD ≤ 900), derivation
+    // documented in the ACT3_CLIP_ASSEMBLY_LEAD_MS comment in act3MediaTimeline.ts.
     expect(ACT3_CLIP_ASSEMBLY_LEAD_MS).toBeGreaterThan(0);
 
-    // LEAD 的数值不用魔法数钉，用**跨 lane 结构不变量**钉：首个 stroke 的起点必须等于
-    // preview 显影的终点（画面就绪 → 剪辑开始）。两者与「stroke 终点 = 段抵达 − LEAD」
-    // 联立 ⇒ LEAD = SCRUB_START − PREVIEW_END = 3200 − 2400 = 800，任何一处漂移都会红
-    // （对抗评审 M5 实证：LEAD=100 时仅靠下面的自指断言全绿，本不变量补上这个洞）。
+    // LEAD's value is pinned not by a magic number but by a **cross-lane structural invariant**:
+    // the first stroke's start must equal the preview reveal's end (picture ready → editing
+    // begins). Together with "stroke endpoint = segment arrival − LEAD", this implies
+    // LEAD = SCRUB_START − PREVIEW_END = 3200 − 2400 = 800, and any drift makes this red
+    // (adversarial review M5 proved: with LEAD=100, only the self-referential assertion below
+    // stayed green; this invariant closes that gap).
     const previewLane = lane('s03-preview');
     const previewRevealEnd =
       (previewLane.timeline?.delay ?? 0) + (previewLane.duration?.enter ?? 0);
@@ -328,15 +333,16 @@ describe('SceneSync motion contract', () => {
     expect(firstStrokeStart).toBe(previewRevealEnd);
 
     for (const [i, animateId] of DEMO_IDS.entries()) {
-      const segmentIndex = i + 1; // DEMO_IDS 从 clip 2 开始，其内容是第 1..4 段
+      const segmentIndex = i + 1; // DEMO_IDS starts at clip 2, whose content is segments 1..4
       const strokeEnd =
         (lane(animateId).timeline?.delay ?? 0) + (lane(animateId).duration?.enter ?? 0);
       const segmentArrival = ACT3_MEDIA_SCRUB_START_MS + segmentIndex * ACT3_CLIP_SEGMENT_MS;
       expect(segmentArrival - strokeEnd).toBe(ACT3_CLIP_ASSEMBLY_LEAD_MS);
     }
 
-    // seam 徽章的落定 = 对应 stroke 的终点（相邻 stroke 首尾相接的性质），随 LEAD 平移。
-    // 旧的 ≥ 断言容许徽章晚于落定；这里钉成相等，LEAD 改动若漏改徽章会立刻红。
+    // Seam badge lands at the corresponding stroke's endpoint (adjacent strokes are contiguous),
+    // shifting with LEAD. The old ≥ assertion allowed badges to appear after landing; this pins
+    // it to exact equality, so changing LEAD without updating badges immediately turns red.
     for (const [index, seamId] of SEAM_IDS.entries()) {
       const strokeLane = lane(DEMO_IDS[index]);
       const strokeEnd = (strokeLane.timeline?.delay ?? 0) + (strokeLane.duration?.enter ?? 0);
@@ -347,10 +353,11 @@ describe('SceneSync motion contract', () => {
   it('lands the five blocks lapped together, and marks each lap with a badge', () => {
     const { container } = render(<SceneSync />);
 
-    // The END STATE is the requirement («拖成三块并拢重叠»), so it is reconstructed here from the
-    // authored geometry and the authored strokes rather than trusted: final left edge =
-    // slot left + (push% of slot width). The old looping version returned to its start, so the
-    // track never reached an assembled state at all and this check is what pins that shut.
+    // The END STATE is the requirement ("drag three blocks to overlap and touch"), so it is
+    // reconstructed here from the authored geometry and the authored strokes rather than trusted:
+    // final left edge = slot left + (push% of slot width). The old looping version returned to
+    // its start, so the track never reached an assembled state at all and this check is what pins
+    // that shut.
     const slots = readV1Slots(container);
     // Clip 1 has NO demo lane (authored flush at left: 0, zero push) — its contribution to the
     // assembly walk is a literal 0. Only clips 2–5 carry strokes. Indexing DEMO_IDS by the
@@ -390,9 +397,11 @@ describe('SceneSync motion contract', () => {
     const { container } = render(<SceneSync />);
     const posters = Array.from(container.querySelectorAll<HTMLImageElement>('.s03-clip__poster'));
 
-    // 用户报（2026-08-20 第三轮）：「v1帧为什么都长一样？」——五块曾共用同一张
-    // ACT3_POSTER_SRC。每块必须用它自己那一段的中点抽帧（ACT3_CLIP_POSTERS 按
-    // 段数派生），src 两两不同；真机侧的像素级两两不同由 a3-intra-lead.mjs 断言。
+    // User report (2026-08-20 round 3): "Why do all the V1 frames look the same?" — the five
+    // blocks once shared the same ACT3_POSTER_SRC. Each block must use a frame extracted from
+    // the midpoint of its own segment (ACT3_CLIP_POSTERS derived by segment count), src must be
+    // pairwise distinct; pixel-level pairwise distinctness on real device is asserted by
+    // a3-intra-lead.mjs.
     expect(posters).toHaveLength(V1_IDS.length);
     const srcs = posters.map((img) => img.getAttribute('src'));
     expect(new Set(srcs).size).toBe(V1_IDS.length);
@@ -480,8 +489,8 @@ describe('SceneSync motion contract', () => {
     // The active-media reveal selector lists must cover EVERY subtitle index this component
     // renders. The 2026-08-18 five-clip rework extended the i18n keys and the DOM to five
     // but left both CSS lists at three, so sub4/sub5 never lit (user report 2026-08-20:
-    // 「v2前三个会出现字母后面两个不会」). Both channels are pinned here: the picture word
-    // (opacity 0 → 1) and the track block highlight (0.34 → 1).
+    // "v2 first three appear but the last two don't"). Both channels are pinned here: the picture
+    // word (opacity 0 → 1) and the track block highlight (0.34 → 1).
     for (let index = 0; index < V2_IDS.length; index += 1) {
       expect(css).toMatch(
         new RegExp(`\\[data-active-media='${index}'\\] \\[data-s03-preview-subtitle='${index}'\\]`)

@@ -14,7 +14,7 @@ export function ValidStaggerComposition(): React.JSX.Element {
 
 export function InvalidStaggerRenderProp(): React.JSX.Element {
   return (
-    // @ts-expect-error stagger requires one concrete container element, not render-prop children
+    // @ts-expect-error stagger with render prop is invalid
     <Animate enterAnimation="fade-in" stagger={{ each: 80 }}>
       {(_state): ReactNode => <div />}
     </Animate>
@@ -23,7 +23,7 @@ export function InvalidStaggerRenderProp(): React.JSX.Element {
 
 export function InvalidStaggerSiblingArray(): React.JSX.Element {
   return (
-    // @ts-expect-error stagger requires one container whose direct children are staggered
+    // @ts-expect-error stagger with sibling array is invalid
     <Animate enterAnimation="fade-in" stagger={{ each: 80 }}>
       <span>A</span>
       <span>B</span>
@@ -33,7 +33,7 @@ export function InvalidStaggerSiblingArray(): React.JSX.Element {
 
 export function InvalidEmptyAnimate(): React.JSX.Element {
   return (
-    // @ts-expect-error Animate requires enterAnimation or loopAnimation
+    // @ts-expect-error an Animate requires an enter or loop animation
     <Animate>
       <div />
     </Animate>
@@ -42,7 +42,7 @@ export function InvalidEmptyAnimate(): React.JSX.Element {
 
 export function InvalidExitOnlyAnimate(): React.JSX.Element {
   return (
-    // @ts-expect-error exitAnimation cannot be the only effective animation
+    // @ts-expect-error an exit animation requires an enter or loop animation
     <Animate exitAnimation="fade-out">
       <div />
     </Animate>
@@ -51,7 +51,7 @@ export function InvalidExitOnlyAnimate(): React.JSX.Element {
 
 export function InvalidInfiniteStagger(): React.JSX.Element {
   return (
-    // @ts-expect-error stagger requires enterAnimation, not loopAnimation alone
+    // @ts-expect-error stagger requires an enter animation, not a loop alone
     <Animate loopAnimation="pulse" stagger={{ each: 80 }}>
       <div>
         <span>A</span>

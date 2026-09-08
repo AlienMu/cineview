@@ -3,21 +3,21 @@ title: Image
 eyebrow: COMPONENTS / IMAGE
 ---
 
-Image 是接入框架预加载缓存的 `<img>` 组件：`src` 与 `alt` 为必填项，数值宽高基于设计稿像素按统一尺度换算。组件不会阻塞普通内容的首次呈现。
+Image 渲染 `<img>`，并将加载完成的图片记入框架缓存。`src` 和 `alt` 必填，数值宽高使用设计像素。加载不会延迟普通内容的挂载。
 
 ## Props
 
-| prop               | 类型                                               | 默认 | 说明                                                                          |
-| ------------------ | -------------------------------------------------- | ---- | ----------------------------------------------------------------------------- |
-| `src`              | string                                             | 无   | 必填                                                                          |
-| `alt`              | string                                             | 无   | 必填                                                                          |
-| `width` / `height` | `number \| string`                                 | 无   | 数字 = 设计稿像素，按统一尺度换算；字符串原样透传                             |
-| `style`            | CSSProperties                                      | 无   | 数值型盒模型属性（padding/margin/borderRadius/fontSize 等）同样按统一尺度换算 |
-| `preload`          | boolean                                            | true | 挂载时把 URL 登记进共享预加载缓存                                             |
-| `loading`          | `'eager' \| 'lazy'`                                | 无   | 显式 `'lazy'` 会强制关闭 `preload`                                            |
-| 其余               | ImgHTMLAttributes（除 src/alt/width/height/style） | 无   | 透传 `<img>`                                                                  |
+| prop               | 类型                                               | 默认                      | 说明                                                                          |
+| ------------------ | -------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------- |
+| `src`              | string                                             | 无                        | 必填                                                                          |
+| `alt`              | string                                             | 无                        | 必填                                                                          |
+| `width` / `height` | `number \| string`                                 | 无                        | 数字 = 设计稿像素，按统一尺度换算；字符串原样透传                             |
+| `style`            | CSSProperties                                      | 无                        | 数值型盒模型属性（padding/margin/borderRadius/fontSize 等）同样按统一尺度换算 |
+| `preload`          | boolean                                            | true                      | 挂载时把 URL 登记进共享预加载缓存                                             |
+| `loading`          | `'eager' \| 'lazy'`                                | 预加载时 eager，否则 lazy | 显式 `'lazy'` 关闭预加载                                                      |
+| 其余               | ImgHTMLAttributes（除 src/alt/width/height/style） | 无                        | 透传 `<img>`                                                                  |
 
-forwardRef 指向 `<img>` 元素。
+转发的 `ref` 指向 `<img>` 元素。
 
 ## 换算行为
 
@@ -25,15 +25,15 @@ forwardRef 指向 `<img>` 元素。
 
 ## 预加载语义
 
-- `preload` 为真时，组件挂载就把 `src` 登记进框架的共享预加载缓存，与 `Scene.assets.preloadImages`、根 ref 的 `preload()` 是同一份缓存，同一 URL 不重复加载。
-- 该缓存只是后台预热，**不声明首屏优先级**：首屏优先队列的成员资格由 `Scene.assets.preloadImages` 决定，它计入冷启动就绪判定；`Image` 的 `preload` 不参与。
-- 加载策略联动：`preload` 为真时 `loading` 默认 `'eager'`，否则默认 `'lazy'`；显式声明 `loading='lazy'` 时，`preload` 会被强制关闭。
-- 组件挂载即渲染 `<img>`。预加载管的是网络与缓存命中，不阻断可见性；要「图到才显示」这类时间线，用 [Animate](/docs/03-animate) 的 visibility/timeline 语义。
+- 开启 `preload` 后，组件加载图片，并在共享缓存中记录完成状态。后续预加载可复用已完成的结果，同时挂载的实例仍可能分别创建图片加载器。
+- Image 的 `preload` 不声明首屏优先级。首屏入场需要等待的资源应写入 `Scene.assets.preloadImages`。
+- 预加载时默认 `'eager'`，否则默认 `'lazy'`。显式设置 `loading='lazy'` 会关闭预加载。
+- `<img>` 立即挂载，可通过原生 `onLoad` 和 `onError` 获取单项资源的结果。
 
 冷启动就绪判定与优先队列的完整语义见 [预加载](/docs/02-preload)。
 
 ## 常见误用
 
-- **用 `preload` 声明首屏优先级**：成员资格归 `Scene.assets`，首屏大图两边都要写：Scene 上声明优先级，Image 上消费缓存。
-- **写了 `loading='lazy'` 又指望 `preload` 生效**：前者把后者强制关闭。
-- **把数字尺寸当渲染像素写**：`width={375}` 是设计稿 px，会换算；不想换算就用字符串。
+- 首屏优先资源写入 `Scene.assets.preloadImages`。
+- 不需要立即预加载的图片可使用 `loading='lazy'`。
+- 数值尺寸使用设计像素，CSS 字符串原样传入。

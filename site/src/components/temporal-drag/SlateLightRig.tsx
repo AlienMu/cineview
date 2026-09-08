@@ -7,7 +7,7 @@ import { useTemporalMotion } from './TemporalMotion';
 // What this replaces: a static `.s02-set` block whose key light was a
 // `clip-path: polygon(...)` cone with `filter: blur(9px)`. CSS applies the filter
 // first and clips afterwards, so the blur was sliced off along two straight lines —
-// that pair of hard diagonals was the "打光简陋粗糙 / 边缘锐利" read. The whole block
+// that pair of hard diagonals was the "crude lighting with sharp edges" read. The whole block
 // was also completely static (no continuous motion) and everything in it sat in the
 // same focal plane (1px hairlines, crisp type), so the frame had no depth.
 //
@@ -56,7 +56,7 @@ export const ACT2_BOARD_GATE_MS = ACT2_LIGHT_SET_DELAY_MS + ACT2_LIGHT_GATE_MS *
 // out-of-focus specks nearest the lens.
 //
 // There is no head-spill layer. It was measured as the single biggest contributor to the
-// reported 内容明显分层: with luminance smoothed over a 10px baseline (390x844, band =
+// reported visible layering: with luminance smoothed over a 10px baseline (390x844, band =
 // cssY 14-32 vs floor = cssY 44-58), the band-to-floor step was 7.39 with all layers on,
 // 4.94 with the spill stretched to 70% vertical radius, and 3.76 with the spill hidden
 // outright. Deleting it is therefore better than the tuned version, and it does not bring
@@ -77,10 +77,10 @@ export const ACT2_BOARD_GATE_MS = ACT2_LIGHT_SET_DELAY_MS + ACT2_LIGHT_GATE_MS *
 //  - VISIBLE RAMP (long): beam/pool/haze/bokeh stay far longer than the gate (4800-4900ms,
 //    unchanged) so the light is still measurably brightening after the board appears. When
 //    every layer finished at the gate the rig was ~90% up at landing and a pixel probe could
-//    barely see it rise — the "灯光无入场动画" report. Shortening these to match the new gate
-//    would re-introduce exactly that, so the compression was deliberately NOT spread across
-//    them: the four ambient layers now simply overlap the board's gather, which is what keeps
-//    the act from reading as two discrete slideshow steps.
+//    barely see it rise — the "no light entrance animation" report. Shortening these to match
+//    the new gate would re-introduce exactly that, so the compression was deliberately NOT
+//    spread across them: the four ambient layers now simply overlap the board's gather, which
+//    is what keeps the act from reading as two discrete slideshow steps.
 //
 // The settled composition is static. Profiling at 1440x900 showed that continuously
 // transforming the masked beam over the other full-frame gradients drops p95 frame pacing
@@ -143,7 +143,7 @@ export const ACT2_LIGHT_LAYERS: Act2LightLayerSpec[] = [
   // `s02-light-spill` used to sit here — the lamp-head glow at the top of the frame. It is
   // GONE, and that is a measured decision rather than a simplification.
   //
-  // The layer was the single largest contributor to the reported 内容明显分层: a bright
+  // The layer was the single largest contributor to the reported visible layering: a bright
   // horizontal stratum across the top of the frame with a visible floor under it. Measured on a
   // settled act 2 (390x844, luminance smoothed over a 10px baseline to remove the scanline's own
   // 3px ripple, band = cssY 14-32 vs floor = cssY 44-58):
@@ -184,7 +184,7 @@ export const ACT2_LIGHT_LAYERS: Act2LightLayerSpec[] = [
   },
 ];
 
-export const SlateLightRig = memo(function SlateLightRig(): JSX.Element {
+export const SlateLightRig = memo(function SlateLightRig(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

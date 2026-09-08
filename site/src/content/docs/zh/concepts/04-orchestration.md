@@ -3,127 +3,111 @@ title: 时间线
 eyebrow: CONCEPTS / SEQUENCING
 ---
 
-多元素时序调度主要依托两项机制：`after` 构建元素间的前后依赖链，`stagger` 调度容器内子元素依次揭示。两者均在首帧绘制前完成静态编译，避免运行时的动态状态轮询。
+`timeline.after` 设置多个元素的动画顺序，`stagger` 按间隔显示同一容器的直接子元素。
 
 ## after 链
 
-`timeline.after` 指向另一个元素的 `animateId`。被等者入场完成后，等待者才开始。
+将 `timeline.after` 设为同一 Scene 中另一个元素的 `animateId`。目标完成入场后，再经过自身延迟，跟随元素开始入场。
 
 ```tsx
-<Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }} />
-<Animate animateId="sub" enterAnimation="fade-in"
-  timeline={{ after: 'title', delay: 100 }} />
-<Animate animateId="cta" enterAnimation="fade-in"
-  timeline={{ after: 'sub' }} />
+<Scene sceneId="titles">
+  <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
+    <h1>标题</h1>
+  </Animate>
+  <Animate animateId="sub" enterAnimation="fade-in" timeline={{ after: 'title', delay: 100 }}>
+    <p>副标题</p>
+  </Animate>
+  <Animate animateId="cta" enterAnimation="fade-in" timeline={{ after: 'sub' }}>
+    <button>继续</button>
+  </Animate>
+</Scene>
 ```
 
-## after 有两套机制，取决于元素由什么驱动
+## after 如何触发动画
 
-同样一行 `after` 配置，跟随滚动的元素与可见性驱动的元素遵循不同的运行时机制。在配置时间线前，需首先明确元素的驱动类型。
+触发方式取决于元素的驱动方式。
 
-### 跟随滚动：注册时算好累计延迟
+### 跟随进度的元素
 
-drag 的场景驱动元素与 scroll 锁定区（locked zone）内的元素走这条。依赖在注册阶段就被折成一个累计延迟：
+跟随场景的 drag 元素，以及 scroll 锁定区内跟随场景进度的元素，使用累加后的时间偏移：
 
 ```text
-累计延迟(follower) = follower.delay + 累计延迟(leader) + leader 入场时长
+跟随元素起点 = 自身延迟 + 前序元素起点 + 前序入场时长
 ```
 
-在上文示例中，`cta` 的起始时间为：title 入场时长 + sub.delay(100) + sub 入场时长 + cta.delay，在初始编译阶段一次性完成计算。
+示例中的副标题从 700ms 开始，按钮从 1300ms 开始。拖拽或滚动经过这些位置时，对应元素开始变化，无需在到达位置后额外等待。
 
-这条路上运行时没有任何等待与订阅：进度直接由拖拽位移或 zone 的滚动进度决定，`after` 只是改变了各元素在同一条时钟上的起跑偏移。
+### 可见性触发的元素
 
-### 可见性驱动：等 leader 完成过入场
-
-scroll 里不在 zone 内的元素走这条。它不复用上面的累计延迟，改为等 leader「曾经完成过一次入场」这个事实成立，再等自己的 `delay`：
+由可见性驱动的 scroll 元素等待前序元素至少完成一次入场，然后检查自身的可见性条件与延迟。
 
 ```text
-放行条件 = leader 已完成过入场 && 自身 gate 满足 && 自身 delay 走完
+开始条件 = 前序已入场 + 自身可见性条件 + 自身延迟
 ```
 
-那个完成标记一次性置真、永不撤回：leader 退场、反向滚动、follower 重播都不会让它回到未完成。
+前序元素退场或跟随元素重播，不会撤销这次已完成的入场。跟随元素仅等待自己的延迟，不会再次加上前序元素已经经过的播放时间。
 
-为什么不能复用累计延迟：可见性驱动的每个元素各自进入可视区域才起跑，没有共享原点。把 leader 的 delay 加时长再算一遍，等于凭空多等一整段。
+### 混合驱动方式
 
-### 混合驱动依赖规则
+| 跟随元素                 | 前序元素           | 是否支持                   |
+| ------------------------ | ------------------ | -------------------------- |
+| 可见性驱动               | 可见性驱动         | 支持                       |
+| 跟随场景进度             | 相同的进度驱动方式 | 支持                       |
+| 可见性驱动的 scroll 元素 | scroll 锁定区动画  | 支持，在前序入场完成后开始 |
+| scroll 锁定区动画        | 可见性驱动         | 不支持                     |
+| 跟随场景的 drag 元素     | 其他驱动方式       | 不支持                     |
 
-| follower      | leader           | 是否允许                                 |
-| ------------- | ---------------- | ---------------------------------------- |
-| 可见性驱动    | 可见性驱动       | 允许                                     |
-| 跟随滚动      | 同为跟随滚动     | 允许                                     |
-| 可见性驱动    | scroll 锁定区    | 允许（运行时按 leader 完成入场状态判定） |
-| scroll 锁定区 | 可见性驱动       | 拒绝                                     |
-| drag          | 任何其他驱动方式 | 拒绝                                     |
+不支持的依赖会报告 `INVALID_ANIMATION` 并被忽略，跟随元素保留自己的延迟与驱动方式。固定的滚动位置无法等待一个时机由用户输入决定的可见性事件。
 
-拒绝的方向报 `INVALID_ANIMATION`（内部原因 `incompatible-driver`）并**跳过这条依赖**，follower 仍按自身的可见性条件与 delay 运行。
+drag 模式下的 `driver: 'clock'` 元素不能作为 `after` 链的前序或跟随元素。
 
-理由是两条时钟对不上：zone 的预算是确定的 `1ms = 1px`，而可见性驱动的完成时刻取决于何时将元素滚入可视区域，没有任何滚动坐标可以对应它。反过来可以，因为「scroll leader 越过入场终点」这件事本身是一个可以观察到的运行时事实。
+## 错误处理
 
-另外 drag 下 `driver: 'clock'` 的元素既不能当 leader 也不能当 follower：它不注册进场景的时间线。
+| 错误码                | 条件                                      |
+| --------------------- | ----------------------------------------- |
+| `INVALID_ANIMATION`   | 目标 `animateId` 不存在，或驱动方式不兼容 |
+| `CIRCULAR_DEPENDENCY` | 依赖链包含循环                            |
 
-## 错误与降级
-
-registry 直接报两个错误码（走 `onError`）：
-
-| 错误码                | 触发                           |
-| --------------------- | ------------------------------ |
-| `INVALID_ANIMATION`   | `after` 指向不存在的 animateId |
-| `CIRCULAR_DEPENDENCY` | 链上出现循环（A 等 B、B 等 A） |
-
-`after` 只能指向已存在的 animateId，先写等待、后补 ID 的写法会在注册时报错。
+Scene 中的动画声明就绪时，目标必须存在。JSX 的书写顺序不决定动画顺序，同一次渲染中可以先写跟随元素，再写前序元素。标识必须完全匹配，依赖不能成环。
 
 ## stagger
 
-配置 `stagger` 后，`children` 必须为单个 ReactElement，其直接子元素由 `staggerChildren` 逐个揭示，子元素复用 `enterAnimation` 的动画配置。
+使用 `stagger` 时，传入单个容器元素，其直接子元素按顺序使用同一入场动画。
 
 ```tsx
-<Animate animateId="list" enterAnimation="fade-in" stagger={{ each: 40, from: 'first' }}>
+<Animate enterAnimation="fade-in" stagger={{ each: 40, from: 'first' }}>
   <ul>
-    <li>第一条</li>
-    <li>第二条</li>
-    <li>第三条</li>
+    <li>第一项</li>
+    <li>第二项</li>
+    <li>第三项</li>
   </ul>
 </Animate>
 ```
 
-- `each`：相邻子元素间隔 ms，默认 40。
-- `from`：`'first'`（默认）| `'last'` | `'center'`，从哪一端开始。
+`each` 为间隔毫秒数，默认 40。`from` 可取 `'first'`、`'last'` 或 `'center'`，默认 `'first'`。
 
-**stagger 按真实时间播放，不跟随滚动。** 在 scroll 锁定区里它按时钟播完，不跟滚动进度走。要逐元素随滚动手动揭示，改用 render-prop children 的 `enterProgress`（0..1）自己映射，见 [Animate API](/docs/03-animate)。
+stagger 按经过的时间播放，在锁定区内也一样。若子元素需要分别跟随滚动区间变化，可从 `useAnimateTimeline()` 的进度映射视觉值，或分别使用 Animate。
 
-## 入场链必须有退场时间线
+## 配置退场行为
 
-强制规则：**入场写了 after 级联，退场就必须写对应的反向时间线**。
+`after` 只控制入场顺序。设计需要时再添加退场，入场顺序不要求对应的反向退场。
 
-`after` 和 `delay` 只管入场，退场没有级联链。只配了 enter 链时，退场信号一到，所有元素的 `exitAnimation` 同帧一起触发，整屏在同一帧退场，跟入场一拍一个的节奏完全不对称。
+`exitAnimation` 声明视觉变化，`duration.exit` 设置时长，两者都不会增加退场依赖。需要可见性驱动的 scroll 元素依次退场时，按所需顺序调用各自的 `exitRef`。详见[手动触发](/docs/03-animate)。
 
-退场动画需显式声明反向时序规范：
+反向滚动锁定区时，映射的动画会随之倒放。通过时长、延迟与关键帧定义各滚动位置对应的画面。
 
-```tsx
-<Animate animateId="title" enterAnimation="fade-in" exitAnimation="fade-out"
-  duration={{ enter: 600, exit: 400 }} />
-<Animate animateId="sub" enterAnimation="fade-in" exitAnimation="fade-out"
-  duration={{ exit: 300 }} timeline={{ after: 'title' }} />
-```
+## drag 的正向与反向退场
 
-- 每个元素都写 `exitAnimation` + `duration.exit`，不要只配入场。
-- 需要精确控制谁先离场时用 `exitRef` 手动触发退场（注意：传了 `exitRef` 就禁用全部自动退场，退场没有 delay 兜底；且 `exitRef` 只对可见性驱动的元素生效，跟随滚动的元素会忽略它并报错）。
-- scroll 锁定区内跟随滚动的元素，反向回滚时按入场原路退回，不受此影响。
+| 方向                 | 动画                                     |
+| -------------------- | ---------------------------------------- |
+| 前往后一个场景       | 执行声明的 `exitAnimation`               |
+| 返回前一个场景       | 反向播放入场动画，不使用 `exitAnimation` |
+| 正向离开，未声明退场 | 页面移动，元素保持入场完成态             |
 
-## drag 的「退场」是两件事
+两个方向需要相近的视觉效果时，可让退场接近入场的反向变化。不声明退场时，正向切换中的场景内容保持静止。
 
-`exitAnimation` 只覆盖正向离场，不等于「离开场景就播的动画」：
+## 相关页面
 
-| 离场方向               | 实际播什么                                                                  |
-| ---------------------- | --------------------------------------------------------------------------- |
-| 正向（往下一屏拖走）   | `exitAnimation` 动画配置，从当前态插值到退场态                              |
-| 反向（往上一屏拖回）   | 入场动画倒放（`initial → animate` 取 `1 - 进度`），完全不看 `exitAnimation` |
-| 未声明 `exitAnimation` | 正向离场不执行补间，元素保持静止完成态                                      |
-
-所以在 drag 下写 `exitAnimation` 只影响一半的手势方向。想让两个方向观感一致，让退场尽量接近入场的镜像；想要「拖回去等于撤销」，不写 `exitAnimation` 反而是对的。详见 [drag 排错](/docs/06-drag-pitfalls)。
-
-## 下一步
-
-- [Animate API](/docs/03-animate)：timeline/duration/render-prop 全表
-- [时间轴概念](/docs/02-timeline)：phase 与 driver 的判定
-- [排错](/docs/07-common-pitfalls)：after 与 stagger 的常见故障汇总
+- [Animate](/docs/03-animate)：时长、时间线与手动 ref
+- [Animate 时间线](/docs/02-timeline)：驱动方式与阶段
+- [排错](/docs/07-common-pitfalls)：时序问题

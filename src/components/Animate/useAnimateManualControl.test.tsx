@@ -1,7 +1,7 @@
 /**
  * Manual control tests: `AnimateProps.enterRef` / `exitRef`.
  *
- * Contract under test (see DESIGN.md "手动控制 + 兜底触发"):
+ * Contract under test (see DESIGN.md "Manual control + fallback trigger"):
  *   enterRef + no waitFor/delay → the gate NEVER fires on its own; only the ref does.
  *   enterRef + waitFor/delay    → the wait is a FALLBACK: it still self-starts, and a
  *                                 manual call preempts whatever is left of it.

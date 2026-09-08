@@ -3,7 +3,7 @@ title: Position
 eyebrow: COMPONENTS / POSITION
 ---
 
-Position owns where an element sits inside a Scene. Coordinates are written in design px and converted against the px2vw conversion base; box sizing belongs to [Container](/docs/07-container). The hierarchy is fixed: `Scene → Position → Container`.
+Position places content inside a Scene using design-pixel coordinates. Use [Container](/docs/07-container) for responsive dimensions and spacing.
 
 ## Props
 
@@ -16,7 +16,7 @@ Position owns where an element sits inside a Scene. Coordinates are written in d
 | `className` | string                                           | Root div class                                          |
 | rest        | HTMLAttributes (except children/style/className) | Passed through to the root div                          |
 
-forwardRef points at the root div.
+The forwarded `ref` points to the root div.
 
 ### at fields
 
@@ -24,20 +24,20 @@ forwardRef points at the root div.
 | --------------------- | -------------------------------------- | ------------------------------------------------------------------ |
 | `x` / `y`             | number                                 | Absolute design coordinates, converted against the conversion base |
 | `offsetX` / `offsetY` | number                                 | Delta from the nearest enclosing Position (design px)              |
-| `anchor`              | `'center' \| 'center-x' \| 'center-y'` | Centering anchor; centered axes align to the viewport center       |
+| `anchor`              | `'center' \| 'center-x' \| 'center-y'` | Centers the selected axes within the containing block              |
 
 ### Positioning precedence
 
 Each axis resolves in priority order, highest first:
 
-1. **Centered**: the axis is named by `anchor` → centered on the viewport (see "Centering anchors").
+1. **Centered**: an axis selected by `anchor` is centered in its containing block.
 2. **Absolute**: either `x` or `y` present; a missing axis defaults to `0`.
 3. **Relative chain**: only `offsetX` / `offsetY` given → accumulated on top of the nearest enclosing Position. Once absolute positioning triggers, the offset chain yields entirely.
 4. None given → `(0, 0)`.
 
 ## Centering anchors
 
-`anchor: 'center'` centers horizontally and vertically; `'center-x'` / `'center-y'` center one axis while the other stays an absolute coordinate.
+`anchor: 'center'` centers both axes. `'center-x'` and `'center-y'` center one axis; the other retains its normal coordinate rules.
 
 After centering, `x` / `y` on a centered axis become "offset from center" values (design px, still converted against the conversion base): `anchor: 'center', y: -100` means centered, then shifted up by 100. A centered axis ignores the `offsetX` / `offsetY` relative chain.
 
@@ -51,17 +51,17 @@ No hand-written `translate(-50%, -50%)` needed; the framework composes it, placi
 
 ## Scene-scoped fixed layer
 
-In scroll mode, `fixed` portals the element into its Scene's fixed layer host: it holds its viewport position while scrolling and exits together with its host Scene. When the Scene has no fixed layer host, it degrades to `sticky`.
+In scroll mode, `fixed` places content in the Scene's fixed layer. It keeps a screen-aligned position while that Scene is visible and leaves with the Scene. Without a fixed-layer host, it uses sticky positioning.
 
-> Never write raw `position: fixed` inside a locked zone: the zone moves content with real transforms, so fixed no longer resolves against the viewport and lands inside the ancestor transform. Use the `fixed` prop instead.
+A transformed ancestor changes the containing block for native `position: fixed`. Use the `fixed` prop inside a Scene; see [Fixed elements](/docs/04-fixed-layer).
 
-Scene-scoped is a strict boundary: the fixed layer is scoped to its Scene, and persistent overlays that float across scenes are not part of this model.
+Place UI that must persist across Scenes outside CineView.
 
 ## Common mistakes
 
-- **Positioning with Container**: positioning always belongs to Position; Container only owns how big the box is.
-- **Hand-written `translate(-50%)` on fixed elements**: use `at.anchor` instead.
-- **Expecting the fixed layer to float across scenes**: it doesn't, by design.
+- Use Position for design-coordinate placement and Container for dimensions and spacing.
+- Use `at.anchor` for centering so custom transforms compose with it.
+- Put persistent navigation outside CineView.
 
 ---
 

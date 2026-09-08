@@ -1,0 +1,136 @@
+.particle-scene {
+  --particle-accent: var(--accent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(1.5rem, 4vh, 3rem);
+  width: 100%;
+  height: 100%;
+  padding: clamp(4rem, 8vh, 6.5rem) 5vw;
+  overflow: hidden;
+  color: var(--ink);
+  background: transparent;
+}
+
+.particle-scene__heading {
+  align-self: center;
+  width: min(100%, 1080px);
+}
+
+.particle-scene .cap-slate {
+  position: static;
+  font-size: 0.75rem;
+}
+
+.particle-scene .particle-scene__title {
+  max-width: 20ch;
+  margin-top: 0.85rem;
+  font-size: clamp(2rem, 3.6vw, 3.6rem);
+  text-wrap: balance;
+  text-align: left;
+}
+
+.particle-scene__title em {
+  color: var(--ink-soft);
+}
+
+.particle-scene__intro {
+  max-width: 55ch;
+  margin-top: 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.particle-stage {
+  position: relative;
+  width: min(90vw, 1080px);
+  margin: 0 auto;
+  border-top: 1px solid var(--frame-line);
+  border-bottom: 1px solid var(--frame-line);
+}
+
+.particle-stage__index,
+.particle-stage__caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0;
+  color: var(--ink-soft);
+  font: 0.6875rem/1.5 var(--font-mono);
+}
+
+.particle-stage__index {
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+}
+
+.particle-stage__field {
+  position: relative;
+  height: clamp(180px, 35vh, 360px);
+}
+
+.particle-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--ink);
+}
+
+.particle-stage__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 600 clamp(2.3rem, 9vw, 9rem)/1 var(--font-display);
+  pointer-events: none;
+}
+
+.particle-canvas[data-canvas-ready='true'] + .particle-stage__fallback {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .particle-scene {
+    gap: 2rem;
+    padding: 4.75rem 6vw 3rem;
+  }
+
+  .particle-scene .particle-scene__title {
+    max-width: 18ch;
+    font-size: 2rem;
+  }
+
+  .particle-scene__intro {
+    max-width: 34ch;
+    font-size: 0.875rem;
+  }
+
+  .particle-stage {
+    width: 88vw;
+  }
+
+  .particle-stage__field {
+    height: clamp(180px, 30vh, 280px);
+  }
+
+  .particle-stage__caption {
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.6875rem;
+  }
+}
+
+@media (max-height: 650px) and (min-width: 701px) {
+  .particle-scene {
+    gap: 1rem;
+    padding-block: 2rem;
+  }
+
+  .particle-stage__field {
+    height: 26vh;
+  }
+}

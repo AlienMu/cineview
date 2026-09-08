@@ -82,8 +82,8 @@ jest.mock('framer-motion', () => {
       }: React.PropsWithChildren<Record<string, unknown>>,
       ref: React.Ref<HTMLDivElement>
     ) => {
-      const [animatedStyle, setAnimatedStyle] = React.useState(
-        (): React.CSSProperties => resolveStyleObject(initial)
+      const [animatedStyle, setAnimatedStyle] = React.useState((): React.CSSProperties =>
+        resolveStyleObject(initial)
       );
       const [, forceRender] = React.useState(0);
 

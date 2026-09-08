@@ -1,8 +1,8 @@
 /**
- * useScrollZoneRegistry 单测（B3 整改）。
+ * useScrollZoneRegistry unit tests (B3 refactor).
  *
- * 重复 zoneId 注册（两个 Scene 共用同一 sceneId / scroll.zoneId）必须 first-wins。
- * 后注册者及其 stale cleanup 都不能覆盖、修改或删除合法 owner。
+ * Duplicate zoneId registration (two Scenes sharing the same sceneId / scroll.zoneId) must follow first-wins semantics.
+ * Later registrants and their stale cleanup must not overwrite, modify, or delete the legitimate owner.
  */
 import { act, renderHook } from '@testing-library/react';
 import type { SceneScrollAnimationRegistration } from '../Scene/sceneScrollBudget';

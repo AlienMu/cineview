@@ -1,6 +1,6 @@
 /**
- * Shake/Vibrate/Jello 系列动画
- * 抖动、震动、果冻效果
+ * Shake/Vibrate/Jello animation series
+ * Shake, vibrate, and jello effects
  */
 
 import type { Variant } from 'framer-motion';

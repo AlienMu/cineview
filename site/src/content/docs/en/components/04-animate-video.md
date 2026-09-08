@@ -3,20 +3,20 @@ title: AnimateVideo
 eyebrow: COMPONENTS / ANIMATEVIDEO
 ---
 
-AnimateVideo drives a native `<video>` from the timeline position: the drag or scroll position maps directly onto `currentTime`, and reverse input plays backward. It is a thin wrapper over `Animate`, reusing the render-prop to feed the internal `enterProgress` to the frame renderer. Zero dependencies, no controls, always muted + `playsInline`.
+AnimateVideo maps an Animate timeline to a native video's playback position. Reverse progress seeks backward. It adds no separate video-library dependency and always uses muted, inline playback.
 
 ```tsx
 <AnimateVideo
   src="/clip.mp4"
   duration={{ enter: 2000 }} // scrub span (real scroll px in locked zones)
-  timeline={{ delay: 100, after: 'intro' }}
   visibility={{ replay: true }}
+  aria-label="Product demonstration"
 />
 ```
 
-## Frame-scrub semantics
+## Video position
 
-The outer `Animate` manages the progress; the video consumes it as a MotionValue, with no per-frame React state. Position is the input, frames are the output:
+The video reads timeline MotionValues without per-frame React state updates.
 
 - Without `scrubRange`, `currentTime = progress × duration`: progress 0 is the first frame, progress 1 the last.
 - Reverse input plays backward. Dragging or scrolling back seeks back frame by frame; there is no separate "reverse mode" to author.
@@ -24,61 +24,62 @@ The outer `Animate` manages the progress; the video consumes it as a MotionValue
 
 `duration.enter` is the timeline span the scrub occupies, not the video's length. A locked zone settles each animation at `1ms = 1px` of scroll distance: `duration={{ enter: 2000 }}` means the video scrubs across 2000px of real scrolling; in drag mode it is 2000ms of element-timeline time.
 
-`AnimateVideo.timeline` is a deliberately narrowed type: only `delay` and `after`. The wrapper's `driver` stays at its default (`'scene'`), so it binds to its zone's/scene's timeline like any other `Animate`.
+The public `timeline` options are `delay` and `after`. The driver defaults to `'scene'`, so the video follows its Scene or locked zone. Outside a locked zone in scroll mode, it uses visibility-triggered timing.
 
 ## Props
 
-| prop                                                  | type                                | default        | notes                                                                                                                               |
-| ----------------------------------------------------- | ----------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `src`                                                 | string                              | none           | Video URL. Scrub footage must be keyframe-dense, see "Footage must be keyframe-dense"                                               |
-| `animateId`                                           | string                              | none           | Same as [Animate](/docs/03-animate); required when referenced by `after`                                                            |
-| `duration.enter` / `exit`                             | number (ms)                         | none           | Scrub span; `1ms = 1px` inside a locked zone                                                                                        |
-| `scrubRange`                                          | `readonly [from, to]` (seconds)     | none           | Maps the timeline onto an explicit interval of video time; reverse intervals (`from > to`) are valid. Ends clamp to `[0, duration]` |
-| `enterAnimation` / `exitAnimation`                    | AnimationType                       | neutral preset | Defaults to `opacity: 1 → 1`, keeping frame scrubbing the only visible animation                                                    |
-| `timeline.delay` / `after`                            | none                                | -              | Only these two fields; semantics as in Animate                                                                                      |
-| `visibility`                                          | `{replay, enterMargin, exitMargin}` | none           | Same as Animate                                                                                                                     |
-| `preload`                                             | boolean                             | `true`         | Eagerly fills the shared video preload cache                                                                                        |
-| `releaseOnLeave`                                      | boolean                             | `false`        | Decoded-frame residency management, locked zones only                                                                               |
-| `width` / `height`                                    | number \| string                    | none           | Numbers are design px                                                                                                               |
-| `poster`                                              | string                              | none           |                                                                                                                                     |
-| `playbackRate`                                        | number                              | none           |                                                                                                                                     |
-| `style`                                               | CSSProperties                       | none           |                                                                                                                                     |
-| `aria-label`                                          | string                              | none           | A control-less silent video must describe itself                                                                                    |
-| `onEnded` `onPlay` `onPause` `onTimeUpdate` `onError` | native video events                 | none           | Passed through to the underlying `<video>`, gated by playback ownership                                                             |
+| prop                                                  | type                                 | default          | notes                                                                                      |
+| ----------------------------------------------------- | ------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------ |
+| `src`                                                 | string                               | none             | Video URL. Encoding guidance: [Prepare video for seeking](#Prepare-video-for-seeking).     |
+| `animateId`                                           | string                               | none             | Same as [Animate](/docs/03-animate); required when referenced by `after`                   |
+| `duration.enter` / `exit`                             | number, ms                           | 600              | Timeline span; scene-driven locked-zone values correspond to scroll pixels                 |
+| `scrubRange`                                          | `readonly [from, to]`, seconds       | Full video       | Video-time range; reverse ranges are supported and endpoints are clamped to media duration |
+| `enterAnimation`                                      | AnimationType                        | `opacity: 1 → 1` | Optional entrance effect over the video                                                    |
+| `exitAnimation`                                       | AnimationType                        | none             | Optional exit effect                                                                       |
+| `timeline`                                            | `{ delay?: number; after?: string }` | none             | Supported timing options                                                                   |
+| `visibility`                                          | `{replay, enterMargin, exitMargin}`  | none             | Same as Animate                                                                            |
+| `preload`                                             | boolean                              | `true`           | Eagerly fills the shared video preload cache                                               |
+| `releaseOnLeave`                                      | boolean                              | `false`          | Decoded-frame residency management, locked zones only                                      |
+| `width` / `height`                                    | number \| string                     | none             | Numbers are design px                                                                      |
+| `poster`                                              | string                               | none             |                                                                                            |
+| `playbackRate`                                        | number                               | none             |                                                                                            |
+| `style`                                               | CSSProperties                        | none             |                                                                                            |
+| `aria-label`                                          | string                               | none             | A control-less silent video must describe itself                                           |
+| `onEnded` `onPlay` `onPause` `onTimeUpdate` `onError` | native video events                  | none             | Passed through to the underlying `<video>`, following the playback rules                   |
 
 ## scrubRange and the endpoint handoff
 
-When the interval ends before the footage does, reaching the interval end does this: the framework seeks to `to`, then hands ownership to native playback (`play()`), and the tail plays out at its own pace instead of following user scroll speed. Scrolling back out of the end band (2% debounce band) reclaims scrub ownership: pause, seek, resume scrubbing.
+An explicit range ending before the video's end starts native playback when progress reaches its endpoint. Scrolling back outside the 2% endpoint band pauses playback and restores timeline seeking. A reverse range also starts a forward tail at its endpoint; use a pre-reversed source to end on a fixed frame instead.
 
-Example: 8-second footage, `scrubRange={[1.2, 4.8]}`, `duration={{ enter: 3600 }}`. Progress 0.5 seeks to `1.2 + 0.5 × 3.6 = 3.0s`; progress 1 seeks to 4.8s and hands off, and the remaining 3.2 seconds play natively.
+For an 8-second video with `scrubRange={[1.2, 4.8]}`, progress 0.5 seeks to 3.0s. At the range end, the remaining 3.2 seconds play natively.
 
-## Footage must be keyframe-dense
+## Prepare video for seeking
 
-H.264 P/B frames are deltas against the previous frame, so seeking to any frame decodes the whole run from the nearest keyframe. With sparse keyframes (a common default of roughly one every 250 frames), every scrub step maxes out the decode thread and drops frames; reverse is the worst.
+Dense keyframes reduce decoding work for random and reverse seeks. Interframes depend on reference frames, so sparse keyframes can increase seek latency.
 
-Encode every frame as an I-frame:
+To encode every frame independently:
 
 ```bash
 ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 scrub.mp4
 ```
 
-The cost is a bigger file (every frame self-contained); the gain is direct decode of any frame and flat seek latency. The runtime measures per-step seek latency while scrubbing and warns once when a single source's median exceeds 50ms, surfacing mis-encoded videos during development.
+All-keyframe encoding increases file size and can reduce seek work. In development, the framework warns once per source when sampled median seek latency exceeds 50ms. The warning identifies slow seeking, not a specific encoding fault.
 
 ## releaseOnLeave: decoded-frame residency
 
-A scrubbed `<video>` keeps its decoded frames and GPU textures after being scrolled past, which can cause frame drops in subsequent scenes. `releaseOnLeave` (default `false`) manages that residency, effective only inside locked zones and silently ignored in drag mode and outside zones:
+`releaseOnLeave` defaults to false and applies only inside scroll locked zones:
 
-- **Beyond 1.5 viewports from the zone** (band `far`): release: `pause` + detach `src` + `load()`, decoded frames dropped, the in-memory blob lease kept.
-- **Back within 1 viewport height of the zone** (band `near`): re-attach the source (zero network, the blob is still in memory), and once metadata is ready, chase the seek up to the current timeline position.
-- The release threshold deliberately sits outside the re-attach threshold (hysteresis), so hovering between the two never oscillates.
-- Release only happens after the timeline has genuinely been scrubbed or played at least once: an unplayed video holds no decoded frames requiring release.
+- Beyond 1.5 viewport spans from the zone, it pauses the video and detaches its source to release decoded frames.
+- Back within one viewport span, it restores the source and seeks to the current timeline position. A retained blob can be reused without downloading it again.
+- The different thresholds avoid repeated release and restore operations near a boundary.
+- Release starts only after timeline progress has moved. Changing the video source resets that condition.
 
 ## Preload and cold-start readiness
 
-`preload` (default `true`) eagerly fills the shared video preload cache. On a cache hit the renderer mounts a whole-segment blob objectURL instead of the raw `src`: a complete in-memory blob guarantees seekability, progressive network buffers do not, and frame scrubbing needs the former.
+`preload` fills the shared video cache. A cache hit uses a complete downloaded blob, which supports seeking across the file.
 
-First-screen media preloaded this way joins the cold-start readiness check, ensuring `onReady` waits for it before presenting the initial scene. A video already loaded through the page-level preload pipeline can opt out per instance with `preload={false}` to avoid duplicate work. See [Preload](/docs/02-preload).
+To include a first-screen video in the initial resource wait, declare its URL in `Scene.assets.preloadImages`. The video's own `preload` does not add it to that queue. `onReady` only exposes the ref API after mount; it does not wait for the video. See [Preloading](/docs/02-preload).
 
 ## Under drag mode
 
-Everything carries over: the scene's element timeline drives the progress, the gesture position maps to `currentTime`, and dragging back plays backward. Two props are scroll-only: `releaseOnLeave` is ignored (no approach band outside zones), and `duration.enter` reads as element-timeline milliseconds rather than px.
+In drag mode, scene element progress determines the video's position. `duration.enter` is measured in element-timeline milliseconds, and `releaseOnLeave` has no effect. Other supported video options retain their behavior.

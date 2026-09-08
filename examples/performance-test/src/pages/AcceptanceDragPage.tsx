@@ -18,7 +18,7 @@ const initialCounts: AcceptanceCounts = {
 const VIDEO_SCRUB_RANGE = [0, 10] as const;
 const ACCEPTANCE_VIDEO_URL = new URL('../../../../site/public/video.mp4', import.meta.url).href;
 
-function ColdStartProbe(): JSX.Element {
+function ColdStartProbe(): import('react').JSX.Element {
   const timeline = useAnimateTimeline();
 
   useEffect(() => {
@@ -63,7 +63,7 @@ function markVideoError(): void {
   if (root) root.dataset.videoError = 'true';
 }
 
-export default function AcceptanceDragPage(): JSX.Element {
+export default function AcceptanceDragPage(): import('react').JSX.Element {
   const [currentScene, setCurrentScene] = useState(0);
   const [counts, setCounts] = useState(initialCounts);
 

@@ -1,6 +1,6 @@
 /**
  * Animation Composer
- * 组合动画处理器，支持顺序和并行执行
+ * Handles composed animations with sequential and parallel execution
  */
 
 import { parseAnimation } from './animationParser';
@@ -10,19 +10,17 @@ import type { ComposedAnimation, CustomAnimation, ParsedAnimationVariant } from 
 import type { Variant } from 'framer-motion';
 
 /**
- * 验证组合动画配置
+ * Validate composed animation configuration
  */
 export const validateComposedAnimation = (animation: ComposedAnimation): boolean => {
   if (!animation || typeof animation !== 'object') {
     return false;
   }
 
-  // 检查 mode
   if (!animation.mode || !['sequential', 'parallel'].includes(animation.mode)) {
     return false;
   }
 
-  // 检查 animations 数组
   if (!Array.isArray(animation.animations) || animation.animations.length === 0) {
     return false;
   }
@@ -31,7 +29,7 @@ export const validateComposedAnimation = (animation: ComposedAnimation): boolean
 };
 
 /**
- * 合并多个 Variant 对象（用于 initial / exit：不携带时间编排的静态帧）
+ * Merge multiple Variant objects (for initial/exit: static frames without timing orchestration)
  */
 const mergeVariants = (variants: Variant[]): Variant => {
   const merged: Variant = {};
@@ -43,18 +41,19 @@ const mergeVariants = (variants: Variant[]): Variant => {
   return merged;
 };
 
-// 顺序编排中,子动画若未声明 transition.duration,按此时长(秒)累计下一步的起始
-// delay。framer-motion 的隐式时长由弹簧/默认 tween 决定,编排期无法读出,故取 1s
-// 作为文档化假设;显式声明的 duration(含 0)一律用真实值。
+// In sequential composition, if a child animation has no explicit transition.duration,
+// use this duration (seconds) to calculate the next step's delay. Framer-motion's
+// implicit duration depends on spring/default tween and cannot be read during composition,
+// so we use 1s as a documented assumption; explicit durations (including 0) always use real values.
 const DEFAULT_SEQUENTIAL_STEP_DURATION_S = 1;
 
-/** 解析后带原始下标的子动画:delays[] 必须按作者书写位置对应,与无效项被跳过无关。 */
+/** Parsed child animation with original index: delays[] must correspond to author's written position, regardless of skipped invalid items. */
 interface IndexedParsedAnimation {
   variant: ParsedAnimationVariant;
   sourceIndex: number;
 }
 
-/** 一个编排步骤:animate 的值(不含 transition 键)+ 该步骤自己的 transition。 */
+/** An orchestration step: animate values (without transition key) + transition for this step. */
 interface TimedVariantStep {
   values: Record<string, unknown>;
   transition: Record<string, unknown>;
@@ -75,19 +74,20 @@ const parseIndexedAnimations = async (
   return parsedAnimations;
 };
 
-/** 拆出 animate 的值与 transition(值里不保留 transition 键)。 */
+/** Extract animate values and transition (values don't retain the transition key). */
 const splitAnimateVariant = (variant: ParsedAnimationVariant): TimedVariantStep => {
   const { transition, ...values } = variant.animate as Record<string, unknown>;
   return { values, transition: (transition as Record<string, unknown>) || {} };
 };
 
 /**
- * 把多个步骤合并成单个 animate variant,transition 采用 framer-motion 的
- * per-value 形式(`transition: { opacity: {...}, y: {...} }`),让每个属性携带
- * 自己所属子动画的 delay/duration。普通 Object.assign 合并会让 `transition`
- * 作为普通键 last-wins → 除最后一项外逐步累计的 delay 全部丢失,编排失效。
- * 同名属性 last-wins,其 transition 也随之取最后写入者,与值语义一致。
- * (drag/scroll scrub 路径按值 lerp、忽略 transition;本形状服务时间驱动路径。)
+ * Merge multiple steps into a single animate variant, with transition using framer-motion's
+ * per-value form (`transition: { opacity: {...}, y: {...} }`), so each property carries
+ * the delay/duration from its own child animation. Plain Object.assign would treat `transition`
+ * as a regular key with last-wins behavior → accumulated delays from all but the last item
+ * are lost, breaking orchestration. Properties with the same name use last-wins, and their
+ * transition follows the last writer, consistent with value semantics.
+ * (drag/scroll scrub paths lerp values and ignore transition; this shape serves time-driven paths.)
  */
 const mergeTimedVariants = (steps: TimedVariantStep[]): Record<string, unknown> => {
   const merged: Record<string, unknown> = {};
@@ -105,7 +105,7 @@ const mergeTimedVariants = (steps: TimedVariantStep[]): Record<string, unknown> 
 };
 
 /**
- * 处理顺序执行的组合动画
+ * Compose sequential animation
  */
 const composeSequentialAnimation = async (
   animations: Array<string | CustomAnimation>,
@@ -117,11 +117,10 @@ const composeSequentialAnimation = async (
     throw new Error('No valid animations in sequential composition');
   }
 
-  // 构建顺序动画
   const initial = parsedAnimations[0].variant.initial;
   const exit = parsedAnimations[parsedAnimations.length - 1].variant.exit;
 
-  // 创建动画序列:每步的 delay = 前序步骤(duration + customDelay)之和 + 本步 customDelay
+  // Create animation sequence: each step's delay = sum of (duration + customDelay) of preceding steps + this step's customDelay
   let totalDelay = 0;
   const steps: TimedVariantStep[] = parsedAnimations.map(({ variant, sourceIndex }) => {
     const customDelay = delays[sourceIndex] || 0;
@@ -148,7 +147,7 @@ const composeSequentialAnimation = async (
 };
 
 /**
- * 处理并行执行的组合动画
+ * Compose parallel animation
  */
 const composeParallelAnimation = async (
   animations: Array<string | CustomAnimation>,
@@ -160,7 +159,6 @@ const composeParallelAnimation = async (
     throw new Error('No valid animations in parallel composition');
   }
 
-  // 合并所有动画的 initial、animate、exit
   const initialVariants = parsedAnimations.map(({ variant }) => variant.initial as Variant);
   const steps: TimedVariantStep[] = parsedAnimations.map(({ variant, sourceIndex }) => {
     const customDelay = delays[sourceIndex] || 0;
@@ -184,7 +182,7 @@ const composeParallelAnimation = async (
 };
 
 /**
- * 组合动画
+ * Compose animation
  */
 export const composeAnimation = async (
   animation: ComposedAnimation
@@ -214,16 +212,14 @@ export const composeAnimation = async (
 };
 
 /**
- * 解析动画（支持预设、自定义、组合）
+ * Parse animation (supports preset, custom, and composed)
  */
 export const parseAnimationWithComposition = async (
   animation: string | CustomAnimation | ComposedAnimation
 ): Promise<ParsedAnimationVariant | null> => {
-  // 检查是否为组合动画
   if (typeof animation === 'object' && 'mode' in animation && 'animations' in animation) {
     return await composeAnimation(animation as ComposedAnimation);
   }
 
-  // 否则使用普通解析
   return await parseAnimation(animation as string | CustomAnimation);
 };

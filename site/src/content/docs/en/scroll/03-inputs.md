@@ -3,41 +3,34 @@ title: The four input paths
 eyebrow: SCROLL / INPUT
 ---
 
-Wheel, touch, keyboard, and scrollbar drag inputs route through a unified dispatch pipeline. Input deltas are evaluated against anti-skip boundary constraints, written to `scrollTop`, and synchronized with locked-zone state. Differences across the four paths center on delta computation and event consumption conditions.
+Wheel, touch, keyboard, and scrollbar input all update the native scroll position. Locked zones apply the same anti-skip limits to each input.
 
-## The shared entry point
-
-```text
-input event → normalize to a main-axis px delta → applyNativeScrollDelta(delta)
-            → anti-skip boundary clamp → write scrollTop → sync zone state
-```
-
-Applying a delta returns a boolean indicating whether the displacement was consumed. If the computed target offset rests within 0.5px of the current position, the function returns `false` without performing DOM writes.
-
-Scrollbar dragging takes a separate entry point: it converts target offsets into deltas, then applies identical boundary constraints.
-
-## Conditional preventDefault
-
-The engine invokes `preventDefault` only when the displacement delta is actively consumed:
+## Input and scroll position
 
 ```text
-if (applyNativeScrollDelta(delta) && event.cancelable) event.preventDefault();
+input → main-axis pixel movement → segment limits → scroll position → animation progress
 ```
 
-When scrolling reaches the end of a locked segment (`segmentEnd`), boundary clamping produces zero movement, leaving the event unconsumed and allowing native document flow scrolling to continue uninterrupted.
+Movements of at most 0.5px can leave the position unchanged. A scrollbar drag calculates its target position first, then applies the same segment limits.
 
-Events where `defaultPrevented` is already `true` or whose targets reside outside the CineView container are ignored.
+## When input is consumed
+
+When CineView applies a movement, it prevents the cancelable event's browser default. If the event produces no effective movement, the default remains available.
+
+An input that crosses a locked segment can stop at its endpoint. The next input continues into the following content. A segment endpoint does not always produce zero movement; the container's scroll limit does.
+
+Pointer input outside CineView and events already marked `defaultPrevented` are ignored. The keyboard focus rules are described in [Keyboard event listeners](#Keyboard-event-listeners).
 
 ## What differs per path
 
-| Path      | Delta source                                                             | Normalization                                                                           | Notable                                                    |
-| --------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| wheel     | `deltaY` with `direction:'y'`, `deltaX` with `'x'`                       | `deltaMode:1` (lines) ×18; `deltaMode:2` (pages) × viewport span; `0` (pixels) verbatim | bound in the capture phase with `passive: false`           |
-| touch     | `touchstart` sets a baseline, `touchmove` takes the main-axis difference | used directly as px                                                                     | baseline resets every frame to track per-frame delta       |
-| keyboard  | keys map to fixed steps                                                  | see the keyboard step table                                                             | two handlers with different semantics                      |
-| scrollbar | drag or track click computes a target offset                             | converted to a delta, same clamp                                                        | arrow keys with the rail focused share the same step table |
+| Path      | Delta source                                       | Normalization                                                                           | Notable                                                    |
+| --------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| wheel     | `deltaY` with `direction:'y'`, `deltaX` with `'x'` | `deltaMode:1` (lines) ×18; `deltaMode:2` (pages) × viewport span; `0` (pixels) verbatim | bound in the capture phase with `passive: false`           |
+| touch     | Difference from the preceding touch position       | Main-axis pixels                                                                        | Updates the baseline after each move                       |
+| keyboard  | keys map to fixed steps                            | see the keyboard step table                                                             | two handlers with different semantics                      |
+| scrollbar | drag or track click computes a target offset       | converted to a delta, same clamp                                                        | arrow keys with the rail focused share the same step table |
 
-The keyboard steps are fixed invariants and cannot be reconfigured:
+Keyboard step sizes are fixed:
 
 | Key                     | Step                              |
 | ----------------------- | --------------------------------- |
@@ -67,9 +60,9 @@ See [Horizontal direction: 'x'](/docs/04-direction-x).
 
 ## Nested scrollables take precedence
 
-Before applying boundary constraints, the engine traverses upward from the event target to find any ancestor container with unconsumed scroll capacity on the active axis (computed `overflow` of `auto` or `scroll` with remaining distance > 1px). When found, the engine defers event handling to the nested container.
+If a nested scrollable can move in the input direction, CineView lets it handle the event. The check uses the active axis, a scrollable overflow style, and remaining travel greater than one pixel.
 
-Wheel, touch, and container-level keyboard listeners all enforce this check.
+This applies to wheel, touch, and keyboard events handled inside the container.
 
 ## Programmatic scroll versus user input
 

@@ -1,6 +1,6 @@
 /**
- * Blink/Flash/Pulse 系列动画
- * 闪烁、闪光、脉冲效果
+ * Blink/Flash/Pulse animation presets
+ * Blinking, flashing, and pulsing effects
  */
 
 import type { Variant } from 'framer-motion';

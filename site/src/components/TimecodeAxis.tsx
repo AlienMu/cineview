@@ -4,20 +4,25 @@ import { useI18n } from '../i18n';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 /**
- * 时间码胶囊 -- Act 2 两镜的统一签名元素。
+ * Timecode capsule -- unified signature element across Act 2 scenes.
  *
- * 左上角小胶囊：REC 红点由框架 infinite lane 驱动，时间读数直接消费最近的
- * Animate timeline MotionValue，不把每帧进度镜像进 React。
- * 读数随本镜 center-lock 段内滚动进度递增，每镜独立从 0 重新计。
+ * Top-left capsule: REC dot driven by framework infinite lane; timecode readout
+ * consumes the nearest Animate timeline MotionValue directly without mirroring
+ * per-frame progress into React.
+ * Readout increments with scroll progress during this shot's center-lock segment;
+ * each shot resets to 0 independently.
  */
 interface TimecodeAxisProps {
-  /** 本镜在 Act2 中的序号（1、2...），对应 data-scene-index */
+  /** Shot index within Act2 (1, 2...), corresponds to data-scene-index */
   shotIndex: number;
-  /** 本镜读数满格秒数（≈ 本镜滚动预算/1000），默认 9 */
+  /** Full-scale duration in seconds for this shot's readout (≈ scroll budget/1000), defaults to 9 */
   seconds?: number;
 }
 
-export function TimecodeAxis({ shotIndex, seconds = 9 }: TimecodeAxisProps): JSX.Element {
+export function TimecodeAxis({
+  shotIndex,
+  seconds = 9,
+}: TimecodeAxisProps): import('react').JSX.Element {
   const { t } = useI18n();
   const timeline = useAnimateTimeline();
   const reduced = usePrefersReducedMotion();

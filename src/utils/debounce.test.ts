@@ -88,7 +88,7 @@ describe('debounce', () => {
     const fn = jest.fn(() => 'result');
     const debouncedFn = debounce(fn, 100);
 
-    // 返回类型应该是 void（因为是异步的）
+    // Return type should be void (async execution)
     const result = debouncedFn();
     expect(result).toBeUndefined();
   });

@@ -20,10 +20,10 @@
  * ── What drives what ─────────────────────────────────────────────────────────
  *  - `timeline.progress` (a MotionValue, read not subscribed-to-React) is this lane's own
  *    enter progress. It does two things: reveals the waveform left-to-right (a track being
- *    written), and opens the filter — the 「拖拽控制滤波」 of 设计档 §3.3, expressed purely
+ *    written), and opens the filter — the "drag-controlled filtering" of design document §3.3, expressed purely
  *    visually since the audio was cut.
  *  - Wall-clock elapsed drives the horizontal FLOW, which is why the track keeps moving
- *    after every act-03 lane has finished. That is this act's 防空等 coverage together with
+ *    after every act-03 lane has finished. That is this act's continuous coverage together with
  *    the playhead breath (§1.4).
  *
  * There is NO audio here and none is intended: no Web Audio, no `<audio>`, no analyser.
@@ -61,7 +61,7 @@ const VISIBLE_SPAN = 0.55;
 export const WaveformCanvas = memo(function WaveformCanvas({
   progress,
   phase,
-}: WaveformCanvasProps): JSX.Element {
+}: WaveformCanvasProps): import('react').JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
 

@@ -1,10 +1,10 @@
 /**
  * Performance Monitor
- * 性能监控工具，用于收集和分析应用性能指标
+ * Performance monitoring utility for collecting and analyzing application performance metrics
  */
 
-// 单一真源：公共 PerformanceMetrics（types/index.ts）。运行时监控不再自定义副本，
-// 避免两份定义漂移（历史上内部曾多一个从不被读取的 `timestamp` 字段，已删除）。
+// Single source of truth: public PerformanceMetrics (types/index.ts). Runtime monitoring no longer
+// maintains a custom copy, avoiding definition drift (historically had an extra unused `timestamp` field).
 import type { PerformanceMetrics } from '../types';
 
 export type { PerformanceMetrics };
@@ -40,7 +40,7 @@ export class PerformanceMonitor {
       this.frameCount++;
       this.frameTimes.push(deltaTime);
 
-      // 保持固定数量的样本
+      // Keep a fixed number of samples
       if (this.frameTimes.length > 60) {
         this.frameTimes.shift();
       }
@@ -52,7 +52,7 @@ export class PerformanceMonitor {
   }
 
   /**
-   * 开始监控性能
+   * Start performance monitoring
    */
   start(): void {
     if (this.isMonitoring) return;
@@ -69,7 +69,7 @@ export class PerformanceMonitor {
   }
 
   /**
-   * 停止监控性能
+   * Stop performance monitoring
    */
   stop(): void {
     this.isMonitoring = false;
@@ -80,15 +80,12 @@ export class PerformanceMonitor {
   }
 
   /**
-   * 测量帧性能
-   */
-  /**
-   * 获取当前性能指标
+   * Get current performance metrics
    */
   getMetrics(): PerformanceMetrics {
     const avgFrameTime = this.calculateAvgFrameTime();
 
-    // 如果没有帧时间数据，返回 0
+    // Return zeros if no frame time data available
     if (this.frameTimes.length === 0) {
       return {
         fps: 0,
@@ -98,10 +95,10 @@ export class PerformanceMonitor {
       };
     }
 
-    // 防止除以零或异常小的值，设置最小帧时间为 1ms
+    // Prevent division by zero or abnormally small values, set minimum frame time to 1ms
     const safeFrameTime = Math.max(avgFrameTime, 1);
     const fps = 1000 / safeFrameTime;
-    // 限制 FPS 在合理范围内 (0-60)
+    // Clamp FPS to reasonable range (0-60)
     const clampedFps = Math.min(Math.max(fps, 0), 60);
 
     return {
@@ -113,7 +110,7 @@ export class PerformanceMonitor {
   }
 
   /**
-   * 计算平均帧时间
+   * Calculate average frame time
    */
   private calculateAvgFrameTime(): number {
     if (this.frameTimes.length === 0) return 0;
@@ -123,8 +120,8 @@ export class PerformanceMonitor {
   }
 
   /**
-   * 获取内存使用情况（如果浏览器支持）
-   * @returns 内存使用量（MB）
+   * Get memory usage (if browser supports it)
+   * @returns Memory usage in MB
    */
   private getMemoryUsage(): number | undefined {
     this.sampleMemory(performance.now(), this.cachedMemoryUsage === undefined);
@@ -132,7 +129,7 @@ export class PerformanceMonitor {
   }
 
   private sampleMemory(currentTime: number, force: boolean = false): void {
-    // @ts-expect-error - performance.memory 不是标准 API
+    // @ts-expect-error - performance.memory is non-standard API
     if (!performance.memory) {
       this.cachedMemoryUsage = undefined;
       this.memorySamples = [];
@@ -205,14 +202,14 @@ export class PerformanceMonitor {
 }
 
 /**
- * 创建性能监控实例
+ * Create performance monitor instance
  */
 export const createPerformanceMonitor = (): PerformanceMonitor => {
   return new PerformanceMonitor();
 };
 
 /**
- * 单例性能监控器（用于全局监控）
+ * Singleton performance monitor (for global monitoring)
  */
 const globalMonitor = new PerformanceMonitor();
 let globalMonitorLeaseCount = 0;
@@ -220,8 +217,8 @@ let globalMonitorLeaseCount = 0;
 export const performanceMonitor = globalMonitor;
 
 /**
- * 为一个挂载中的 CineView 实例租用页面级性能监控。
- * 第一个租约启动监控，最后一个租约释放后才停止；release 幂等。
+ * Acquire page-level performance monitoring for a mounted CineView instance.
+ * First lease starts monitoring, stops only after last lease is released; release is idempotent.
  */
 export const acquirePerformanceMonitoring = (): (() => void) => {
   globalMonitorLeaseCount += 1;
@@ -241,29 +238,29 @@ export const acquirePerformanceMonitoring = (): (() => void) => {
 };
 
 /**
- * 开始性能监控（使用单例）
+ * Start performance monitoring (using singleton)
  */
 export const startPerformanceMonitoring = (): void => {
   globalMonitor.start();
 };
 
 /**
- * 停止性能监控（使用单例）
+ * Stop performance monitoring (using singleton)
  */
 export const stopPerformanceMonitoring = (): void => {
   globalMonitor.stop();
 };
 
 /**
- * 获取性能指标（使用单例）
+ * Get performance metrics (using singleton)
  */
 export const getPerformanceMetrics = (): PerformanceMetrics => {
   return globalMonitor.getMetrics();
 };
 
 /**
- * 获取全局性能监控器实例
- * @deprecated 使用 performanceMonitor 单例代替
+ * Get global performance monitor instance
+ * @deprecated Use performanceMonitor singleton instead
  */
 export const getGlobalPerformanceMonitor = (): PerformanceMonitor => {
   return globalMonitor;

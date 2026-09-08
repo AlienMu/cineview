@@ -36,11 +36,7 @@ export default defineConfig(({ command }) => ({
       : undefined,
   plugins: [
     react(),
-    // 生成 TypeScript 类型定义文件。**只在第一趟**生成，不能用 EMIT_ES 当条件：
-    // 按模式的 ES 趟（第 2、3 趟）也满足 EMIT_ES，那样 dts 会跑三次、`index.d.ts`
-    // 的最终内容取决于「哪一趟最后跑」—— 实测目前内容恰好正确（仍是全量面），
-    // 但那是巧合而非设计，改趟序就会静默变成单模式类型面。故绑定到 CLEAN_OUT_DIR
-    // （只有第一趟为真），让类型产出确定化。
+    // 第一趟为所有公开入口生成声明树；后续 JS/CSS 构建保留这些文件。
     ...(CLEAN_OUT_DIR
       ? [
           dts({
@@ -55,7 +51,8 @@ export default defineConfig(({ command }) => ({
               'src/setupTests.ts',
               '**/*.type-assert.*',
             ],
-            rollupTypes: true, // 将所有类型定义打包到单个文件
+            // vite-plugin-dts 5 emits the source declaration tree, including dev/index.d.ts.
+            entryRoot: 'src',
           }),
         ]
       : []),
@@ -80,6 +77,7 @@ export default defineConfig(({ command }) => ({
     lib: {
       entry: ENTRY,
       name: 'CineView',
+      cssFileName: OUT_BASE,
     },
     rollupOptions: {
       // 外部化依赖，不打包到 bundle 中

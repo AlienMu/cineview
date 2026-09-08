@@ -1,6 +1,6 @@
 /**
- * Slide 系列动画
- * 滑动效果
+ * Slide animation presets
+ * Sliding transition effects
  */
 
 import type { Variant } from 'framer-motion';

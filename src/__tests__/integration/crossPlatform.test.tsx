@@ -1,11 +1,12 @@
 /**
- * 集成测试：跨平台兼容性测试
- * 测试移动端触摸事件、PC 端鼠标滚轮事件、不同屏幕尺寸响应式表现
+ * Integration test: Cross-platform compatibility testing
+ * Tests mobile touch events, desktop mouse wheel events, and responsive behavior across screen sizes
  *
  * **Validates: Requirements 21.1, 21.2, 21.3, 21.4, 21.5, 22.1**
  */
 
-import React, { act } from 'react';
+import React from 'react';
+import { act } from '@testing-library/react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CineView, Scene, Animate, Position } from '../../index';
@@ -128,8 +129,8 @@ mockIntersectionObserver.mockReturnValue({
 });
 window.IntersectionObserver = mockIntersectionObserver as unknown as typeof IntersectionObserver;
 
-describe('跨平台兼容性测试', () => {
-  let cineViewRef: React.RefObject<CineViewRef>;
+describe('Cross-platform compatibility tests', () => {
+  let cineViewRef: React.RefObject<CineViewRef | null>;
 
   beforeEach(() => {
     cineViewRef = React.createRef();
@@ -140,11 +141,11 @@ describe('跨平台兼容性测试', () => {
     jest.restoreAllMocks();
   });
 
-  describe('事件监听器注册测试 (Requirements 21.1, 21.2, 21.3)', () => {
-    test('应该在 drag 模式下正确渲染并准备处理触摸和鼠标事件', async () => {
+  describe('Event listener registration tests (Requirements 21.1, 21.2, 21.3)', () => {
+    test('should render correctly in drag mode and be ready to handle touch and mouse events', async () => {
       const TestApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -165,16 +166,16 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('场景 1')).toBeInTheDocument();
       });
 
-      // 验证场景正确渲染，准备处理事件 (Requirements 21.1, 21.2)
+      // Verify scenes render correctly and are ready to handle events (Requirements 21.1, 21.2)
       const scene1 = screen.getByText('场景 1').parentElement;
       expect(scene1).toBeInTheDocument();
       expect(scene1).toHaveStyle({ width: '100vw', height: '100vh' });
     });
 
-    test('应该在 drag 模式下正确渲染并准备处理拖拽事件', async () => {
+    test('should render correctly in drag mode and be ready to handle drag events', async () => {
       const TestApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={800}
@@ -195,16 +196,16 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('拖拽场景')).toBeInTheDocument();
       });
 
-      // 验证拖拽模式场景正确渲染 (Requirements 21.1, 21.2, 21.3)
+      // Verify drag mode scene renders correctly (Requirements 21.1, 21.2, 21.3)
       const scene = screen.getByText('拖拽场景').parentElement;
       expect(scene).toBeInTheDocument();
       expect(scene).toHaveStyle({ width: '100vw', height: '100vh' });
     });
 
-    test('应该支持横向和纵向滑动方向', async () => {
+    test('should support both horizontal and vertical swipe directions', async () => {
       const HorizontalApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'x'}
           transitionDuration={500}
@@ -220,7 +221,7 @@ describe('跨平台兼容性测试', () => {
       );
       const VerticalApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -250,13 +251,13 @@ describe('跨平台兼容性测试', () => {
     });
   });
 
-  describe('API 控制场景切换测试', () => {
-    test('应该通过 API 正确切换场景', async () => {
+  describe('API-controlled scene switching tests', () => {
+    test('should correctly switch scenes via API', async () => {
       const onAfterSceneChange = jest.fn();
 
       const TestApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -281,7 +282,7 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('场景 1')).toBeInTheDocument();
       });
 
-      // 切换到场景 2
+      // Switch to scene 2
       act(() => {
         cineViewRef.current?.goToScene(1, false);
       });
@@ -294,7 +295,7 @@ describe('跨平台兼容性测试', () => {
         expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
       );
 
-      // 切换到场景 3
+      // Switch to scene 3
       act(() => {
         cineViewRef.current?.goToScene(2, false);
       });
@@ -307,7 +308,7 @@ describe('跨平台兼容性测试', () => {
         expect.objectContaining({ fromIndex: 1, toIndex: 2, direction: 'forward' })
       );
 
-      // 切换回场景 1
+      // Switch back to scene 1
       act(() => {
         cineViewRef.current?.goToScene(0, false);
       });
@@ -322,9 +323,9 @@ describe('跨平台兼容性测试', () => {
     });
   });
 
-  describe('不同屏幕尺寸响应式测试 (Requirement 21.4)', () => {
-    test('应该在移动端屏幕尺寸下正确换算尺寸（375px）', async () => {
-      // 设置移动端视口
+  describe('Responsive tests across different screen sizes (Requirement 21.4)', () => {
+    test('should correctly convert dimensions on mobile screen size (375px)', async () => {
+      // Set mobile viewport
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -350,16 +351,16 @@ describe('跨平台兼容性测试', () => {
       const element = screen.getByTestId('positioned-element');
       const parent = element.parentElement;
 
-      // 验证元素存在
+      // Verify element exists
       expect(parent).toBeInTheDocument();
 
-      // 在 375px 视口下，750 设计稿尺寸应该换算为 375px（比例 0.5）
+      // At 375px viewport, 750 design width should convert to 375px (ratio 0.5)
       const style = window.getComputedStyle(parent!);
       expect(style).toBeDefined();
     });
 
-    test('应该在平板屏幕尺寸下正确换算尺寸（768px）', async () => {
-      // 设置平板视口
+    test('should correctly convert dimensions on tablet screen size (768px)', async () => {
+      // Set tablet viewport
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -387,13 +388,13 @@ describe('跨平台兼容性测试', () => {
 
       expect(parent).toBeInTheDocument();
 
-      // 在 768px 视口下，375 设计稿尺寸应该换算为约 384px（比例 768/750 ≈ 1.024）
+      // At 768px viewport, 375 design width should convert to ~384px (ratio 768/750 ≈ 1.024)
       const style = window.getComputedStyle(parent!);
       expect(style).toBeDefined();
     });
 
-    test('应该在桌面屏幕尺寸下正确换算尺寸（1920px）', async () => {
-      // 设置桌面视口
+    test('should correctly convert dimensions on desktop screen size (1920px)', async () => {
+      // Set desktop viewport
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -421,13 +422,13 @@ describe('跨平台兼容性测试', () => {
 
       expect(parent).toBeInTheDocument();
 
-      // 在 1920px 视口下，375 设计稿尺寸应该换算为 960px（比例 1920/750 = 2.56）
+      // At 1920px viewport, 375 design width should convert to 960px (ratio 1920/750 = 2.56)
       const style = window.getComputedStyle(parent!);
       expect(style).toBeDefined();
     });
 
-    test('应该响应窗口 resize 事件并重新计算尺寸', async () => {
-      // 初始视口
+    test('should respond to window resize events and recalculate dimensions', async () => {
+      // Initial viewport
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -453,11 +454,11 @@ describe('跨平台兼容性测试', () => {
       const element = screen.getByTestId('responsive-element');
       const parent = element.parentElement;
 
-      // 获取初始样式
+      // Get initial style
       const initialStyle = window.getComputedStyle(parent!);
       expect(initialStyle).toBeDefined();
 
-      // 改变视口尺寸
+      // Change viewport size
       fireEvent(
         window,
         new Event('resize', {
@@ -465,7 +466,7 @@ describe('跨平台兼容性测试', () => {
         })
       );
 
-      // 等待防抖完成（150ms）
+      // Wait for debounce to complete (150ms)
       await waitFor(
         () => {
           const newStyle = window.getComputedStyle(parent!);
@@ -475,7 +476,7 @@ describe('跨平台兼容性测试', () => {
       );
     });
 
-    test('应该在不同单位类型下正确换算（rem）', async () => {
+    test('should correctly convert dimensions for different unit types (rem)', async () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -502,7 +503,7 @@ describe('跨平台兼容性测试', () => {
       expect(element.parentElement).toBeInTheDocument();
     });
 
-    test('应该在不同单位类型下正确换算（vw）', async () => {
+    test('should correctly convert dimensions for different unit types (vw)', async () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -530,9 +531,9 @@ describe('跨平台兼容性测试', () => {
     });
   });
 
-  describe('跨浏览器兼容性测试 (Requirement 21.5)', () => {
-    test('应该在不支持 IntersectionObserver 的环境中正常工作', async () => {
-      // 临时移除 IntersectionObserver
+  describe('Cross-browser compatibility tests (Requirement 21.5)', () => {
+    test('should work correctly in environments without IntersectionObserver support', async () => {
+      // Temporarily remove IntersectionObserver
       const originalIO = window.IntersectionObserver;
       // @ts-expect-error - Testing undefined IntersectionObserver
       delete window.IntersectionObserver;
@@ -551,14 +552,14 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('测试场景')).toBeInTheDocument();
       });
 
-      // 恢复 IntersectionObserver
+      // Restore IntersectionObserver
       window.IntersectionObserver = originalIO;
     });
 
-    test('应该同时支持触摸和鼠标事件', async () => {
+    test('should support both touch and mouse events', async () => {
       const TestApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -579,20 +580,20 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('场景 1')).toBeInTheDocument();
       });
 
-      // 验证场景正确渲染，框架支持触摸和鼠标事件
+      // Verify scene renders correctly, framework supports touch and mouse events
       const scene = screen.getByText('场景 1').parentElement;
       expect(scene).toBeInTheDocument();
       expect(scene).toHaveStyle({ width: '100vw', height: '100vh' });
     });
   });
 
-  describe('滑动模式兼容性测试', () => {
-    test('应该在 drag 模式下支持场景切换', async () => {
+  describe('Swipe mode compatibility tests', () => {
+    test('should support scene switching in drag mode', async () => {
       const onAfterSceneChange = jest.fn();
 
       const TestApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -614,7 +615,7 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('Drag 场景 1')).toBeInTheDocument();
       });
 
-      // 使用 API 切换场景
+      // Use API to switch scenes
       act(() => {
         cineViewRef.current?.goToScene(1, false);
       });
@@ -626,10 +627,10 @@ describe('跨平台兼容性测试', () => {
       });
     });
 
-    test('应该在 drag 模式下支持拖拽', async () => {
+    test('should support dragging in drag mode', async () => {
       const TestApp = () => (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={800}
@@ -652,7 +653,7 @@ describe('跨平台兼容性测试', () => {
         expect(screen.getByText('Drag 场景')).toBeInTheDocument();
       });
 
-      // 验证拖拽模式场景正常渲染
+      // Verify drag mode scene renders normally
       expect(screen.getByText('Drag 场景')).toBeInTheDocument();
     });
   });

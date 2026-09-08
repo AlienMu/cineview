@@ -15,16 +15,7 @@
  */
 
 export type AnimatableProperty =
-  | 'opacity'
-  | 'x'
-  | 'y'
-  | 'scale'
-  | 'rotate'
-  | 'rotateX'
-  | 'rotateY'
-  | 'skewX'
-  | 'skewY'
-  | 'filter';
+  'opacity' | 'x' | 'y' | 'scale' | 'rotate' | 'rotateX' | 'rotateY' | 'skewX' | 'skewY' | 'filter';
 
 export type TransformValue = number | string;
 export type VariantRecord = Record<string, unknown>;

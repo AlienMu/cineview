@@ -1,9 +1,9 @@
 /**
- * Property-Based Test: 相对定位累加性
+ * Property-Based Test: Relative Position Accumulation
  * **Validates: Requirements 10.4**
  *
- * 属性 5: 每个组件的最终位置等于所有前置组件位置的累加
- * 形式化：Ci.finalX = Σ(Cj.x + Cj.offsetX) for j ∈ [1, i]
+ * Property 5: Each component's final position equals the sum of all preceding component positions
+ * Formalized: Ci.finalX = Σ(Cj.x + Cj.offsetX) for j ∈ [1, i]
  */
 
 import { test } from '@fast-check/jest';
@@ -18,8 +18,8 @@ interface PositionConfig {
   offsetX?: number;
 }
 
-describe('Property: 相对定位累加性', () => {
-  // 创建测试用的上下文
+describe('Property: Relative Position Accumulation', () => {
+  // Create test context
   const createTestContext = (designSize: number, viewportWidth: number): CineViewContextValue => {
     const scale = viewportWidth / designSize;
     return {
@@ -37,11 +37,11 @@ describe('Property: 相对定位累加性', () => {
           x: fc.option(fc.integer({ min: 0, max: 500 }), { nil: undefined }),
           offsetX: fc.option(fc.integer({ min: -100, max: 100 }), { nil: undefined }),
         })
-        .filter((pos: PositionConfig) => pos.x !== undefined || pos.offsetX !== undefined), // 至少有一个定义
+        .filter((pos: PositionConfig) => pos.x !== undefined || pos.offsetX !== undefined), // at least one defined
       { minLength: 2, maxLength: 5 }
     ),
   ])(
-    '相对定位组件序列：每个组件的最终位置应该等于所有前置组件位置的累加',
+    'Relative positioning sequence: each component final position should equal the sum of all preceding positions',
     (designSize: number, viewportWidth: number, positions: PositionConfig[]) => {
       const ds = designSize;
       const vw = viewportWidth;
@@ -49,24 +49,24 @@ describe('Property: 相对定位累加性', () => {
 
       const context = createTestContext(ds, vw);
 
-      // 计算每个组件的期望最终位置
-      // Position 组件使用百分比系统：所有坐标都是设计稿坐标
+      // Calculate expected final position for each component
+      // Position component uses percentage system: all coordinates are design coordinates
       let cumulativeX = 0;
       const expectedPositions: number[] = [];
 
       pos.forEach((p) => {
         if (p.x !== undefined) {
-          // 绝对定位：直接使用设计稿坐标
+          // Absolute positioning: use design coordinate directly
           cumulativeX = p.x;
         } else if (p.offsetX !== undefined) {
-          // 相对定位：累加设计稿坐标
+          // Relative positioning: accumulate design coordinate
           cumulativeX += p.offsetX;
         }
-        // 转换为百分比后的实际像素位置：(设计稿坐标 / 设计稿尺寸) * 视口宽度
+        // Convert to actual pixel position after percentage: (design coordinate / design size) * viewport width
         expectedPositions.push((cumulativeX / ds) * vw);
       });
 
-      // 渲染嵌套组件以实现累加
+      // Render nested components to implement accumulation
       const renderNestedPositions = (
         positions: PositionConfig[],
         index: number = 0
@@ -90,17 +90,17 @@ describe('Property: 相对定位累加性', () => {
         </CineViewContext.Provider>
       );
 
-      // 验证每个元素的实际位置
+      // Verify actual position of each element
       // forEach over an empty array asserts nothing; pin the count first.
       expect(pos.length).toBeGreaterThan(0);
       pos.forEach((_, index) => {
         const element = container.querySelector(`[data-testid="element-${index}"]`)?.parentElement;
-        // 必须先断言非空：`if (element)` 会让「包装层根本没渲染」的那 100 次运行全部空过。
+        // Must assert non-null first: `if (element)` would let those 100 runs where the wrapper never rendered all pass empty.
         expect(element).not.toBeNull();
         const style = window.getComputedStyle(element!);
         const actualLeft = parseFloat(style.left || '0');
 
-        // 允许浮点数误差（百分比转换可能有精度损失）
+        // Allow floating-point error (percentage conversion may lose precision)
         expect(Math.abs(actualLeft - expectedPositions[index])).toBeLessThanOrEqual(1);
       });
     }
@@ -112,7 +112,7 @@ describe('Property: 相对定位累加性', () => {
     fc.integer({ min: 0, max: 500 }),
     fc.array(fc.integer({ min: -50, max: 50 }), { minLength: 1, maxLength: 5 }),
   ])(
-    '混合定位：第一个组件使用绝对定位，后续组件使用相对定位',
+    'Mixed positioning: first component uses absolute positioning, subsequent components use relative positioning',
     (designSize: number, viewportWidth: number, absoluteX: number, relativeOffsets: number[]) => {
       const ds = designSize;
       const vw = viewportWidth;
@@ -121,23 +121,23 @@ describe('Property: 相对定位累加性', () => {
 
       const context = createTestContext(ds, vw);
 
-      // 计算期望位置
+      // Calculate expected positions
       const expectedPositions: number[] = [];
-      // 绝对定位：设计稿坐标转百分比
+      // Absolute positioning: design coordinate to percentage
       let currentX = absX;
       expectedPositions.push((currentX / ds) * vw);
 
       offsets.forEach((offset) => {
-        // 相对定位：累加设计稿坐标
+        // Relative positioning: accumulate design coordinate
         currentX += offset;
         expectedPositions.push((currentX / ds) * vw);
       });
 
-      // 渲染嵌套组件
+      // Render nested components
       const renderNestedPositions = (): React.ReactElement => {
         let result: React.ReactElement = <></>;
 
-        // 从后往前构建嵌套结构
+        // Build nested structure backwards
         for (let i = offsets.length; i >= 0; i--) {
           if (i === 0) {
             result = (
@@ -166,16 +166,16 @@ describe('Property: 相对定位累加性', () => {
         </CineViewContext.Provider>
       );
 
-      // 验证位置
+      // Verify positions
       // forEach over an empty array asserts nothing; pin the count first.
       expect(expectedPositions.length).toBeGreaterThan(0);
       expectedPositions.forEach((expectedX, index) => {
         const element = container.querySelector(`[data-testid="element-${index}"]`)?.parentElement;
-        // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+        // Must assert non-null first: `if (element)` would let those runs where the wrapper never rendered all pass empty.
         expect(element).not.toBeNull();
         const style = window.getComputedStyle(element!);
         const actualLeft = parseFloat(style.left || '0');
-        // 允许浮点数误差（百分比转换可能有精度损失）
+        // Allow floating-point error (percentage conversion may lose precision)
         expect(Math.abs(actualLeft - expectedX)).toBeLessThanOrEqual(1);
       });
     }
@@ -186,7 +186,7 @@ describe('Property: 相对定位累加性', () => {
     fc.integer({ min: 320, max: 1920 }),
     fc.array(fc.integer({ min: 10, max: 100 }), { minLength: 2, maxLength: 5 }),
   ])(
-    '纯相对定位序列：验证累加性',
+    'Pure relative positioning sequence: verify accumulation',
     (designSize: number, viewportWidth: number, offsets: number[]) => {
       const ds = designSize;
       const vw = viewportWidth;
@@ -194,16 +194,16 @@ describe('Property: 相对定位累加性', () => {
 
       const context = createTestContext(ds, vw);
 
-      // 计算累加位置
+      // Calculate cumulative positions
       let cumulativeX = 0;
       const expectedPositions = offs.map((offset) => {
-        // 累加设计稿坐标
+        // Accumulate design coordinate
         cumulativeX += offset;
-        // 转换为实际像素位置
+        // Convert to actual pixel position
         return (cumulativeX / ds) * vw;
       });
 
-      // 渲染嵌套组件
+      // Render nested components
       const renderNestedPositions = (offsets: number[], index: number = 0): React.ReactElement => {
         if (index >= offsets.length) {
           return <></>;
@@ -223,16 +223,16 @@ describe('Property: 相对定位累加性', () => {
         </CineViewContext.Provider>
       );
 
-      // 验证累加性
+      // Verify accumulation
       // forEach over an empty array asserts nothing; pin the count first.
       expect(expectedPositions.length).toBeGreaterThan(0);
       expectedPositions.forEach((expectedX, index) => {
         const element = container.querySelector(`[data-testid="element-${index}"]`)?.parentElement;
-        // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+        // Must assert non-null first: `if (element)` would let those runs where the wrapper never rendered all pass empty.
         expect(element).not.toBeNull();
         const style = window.getComputedStyle(element!);
         const actualLeft = parseFloat(style.left || '0');
-        // 允许浮点数误差（百分比转换可能有精度损失）
+        // Allow floating-point error (percentage conversion may lose precision)
         expect(Math.abs(actualLeft - expectedX)).toBeLessThanOrEqual(1);
       });
     }
@@ -243,7 +243,7 @@ describe('Property: 相对定位累加性', () => {
     fc.integer({ min: 320, max: 1920 }),
     fc.integer({ min: 0, max: 500 }),
   ])(
-    '边界情况：单个绝对定位组件，位置应该等于 x * scale',
+    'Edge case: single absolute positioning component, position should equal x * scale',
     (designSize: number, viewportWidth: number, x: number) => {
       const ds = designSize;
       const vw = viewportWidth;
@@ -262,13 +262,13 @@ describe('Property: 相对定位累加性', () => {
       );
 
       const element = container.querySelector('[data-testid="element-0"]')?.parentElement;
-      // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+      // Must assert non-null first: `if (element)` would let those runs where the wrapper never rendered all pass empty.
       expect(element).not.toBeNull();
       const style = window.getComputedStyle(element!);
       const actualLeft = parseFloat(style.left || '0');
-      // 百分比系统：(设计稿坐标 / 设计稿尺寸) * 视口宽度
+      // Percentage system: (design coordinate / design size) * viewport width
       const expectedLeft = (xPos / ds) * vw;
-      // 允许浮点数误差（百分比转换可能有精度损失）
+      // Allow floating-point error (percentage conversion may lose precision)
       expect(Math.abs(actualLeft - expectedLeft)).toBeLessThanOrEqual(1);
     }
   );
@@ -279,7 +279,7 @@ describe('Property: 相对定位累加性', () => {
     fc.integer({ min: 0, max: 500 }),
     fc.integer({ min: -100, max: 100 }),
   ])(
-    '边界情况：绝对定位优先于相对定位',
+    'Edge case: absolute positioning takes precedence over relative positioning',
     (designSize: number, viewportWidth: number, x: number, offsetX: number) => {
       const ds = designSize;
       const vw = viewportWidth;
@@ -299,13 +299,13 @@ describe('Property: 相对定位累加性', () => {
       );
 
       const element = container.querySelector('[data-testid="element-0"]')?.parentElement;
-      // 必须先断言非空：`if (element)` 会让包装层未渲染的那些运行全部空过。
+      // Must assert non-null first: `if (element)` would let those runs where the wrapper never rendered all pass empty.
       expect(element).not.toBeNull();
       const style = window.getComputedStyle(element!);
       const actualLeft = parseFloat(style.left || '0');
-      // 应该使用绝对定位 x，而不是 offsetX
+      // Should use absolute positioning x, not offsetX
       const expectedLeft = (xPos / ds) * vw;
-      // 允许浮点数误差（百分比转换可能有精度损失）
+      // Allow floating-point error (percentage conversion may lose precision)
       expect(Math.abs(actualLeft - expectedLeft)).toBeLessThanOrEqual(1);
     }
   );

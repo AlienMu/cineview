@@ -1,16 +1,16 @@
 import { GestureType } from '../types';
 
 /**
- * 手势检测配置
+ * Gesture detection configuration
  */
 interface GestureConfig {
-  minSwipeDistance?: number; // 最小滑动距离（px）
-  maxSwipeTime?: number; // 最大滑动时间（ms）
-  direction?: 'x' | 'y' | 'both'; // 检测方向
+  minSwipeDistance?: number;
+  maxSwipeTime?: number;
+  direction?: 'x' | 'y' | 'both';
 }
 
 /**
- * 触摸/鼠标事件位置
+ * Touch or mouse event position
  */
 interface Position {
   x: number;
@@ -25,7 +25,7 @@ const DEFAULT_CONFIG: Required<GestureConfig> = {
 };
 
 /**
- * 手势检测器类
+ * Gesture detector class
  */
 export class GestureDetector {
   private startPos: Position | null = null;
@@ -36,7 +36,7 @@ export class GestureDetector {
   }
 
   /**
-   * 处理触摸/鼠标开始事件
+   * Handle touch or mouse start event
    */
   handleStart(event: TouchEvent | MouseEvent): void {
     const pos = this.getPosition(event);
@@ -48,8 +48,8 @@ export class GestureDetector {
   }
 
   /**
-   * 处理触摸/鼠标结束事件
-   * @returns 检测到的手势类型
+   * Handle touch or mouse end event
+   * @returns Detected gesture type
    */
   handleEnd(event: TouchEvent | MouseEvent): GestureType {
     if (!this.startPos) {
@@ -63,7 +63,6 @@ export class GestureDetector {
 
     this.startPos = null;
 
-    // 检查时间是否超过最大滑动时间
     if (deltaTime > this.config.maxSwipeTime) {
       return 'none';
     }
@@ -71,12 +70,10 @@ export class GestureDetector {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // 检查是否达到最小滑动距离
     if (absX < this.config.minSwipeDistance && absY < this.config.minSwipeDistance) {
       return 'none';
     }
 
-    // 根据配置的方向检测手势
     if (this.config.direction === 'x') {
       if (absX < this.config.minSwipeDistance) {
         return 'none';
@@ -91,7 +88,6 @@ export class GestureDetector {
       return deltaY > 0 ? 'swipe-down' : 'swipe-up';
     }
 
-    // 'both' 模式：检测主要方向
     if (absX > absY) {
       return deltaX > 0 ? 'swipe-right' : 'swipe-left';
     } else {
@@ -100,10 +96,10 @@ export class GestureDetector {
   }
 
   /**
-   * 获取当前拖拽进度（0-1）
-   * @param event - 当前事件
-   * @param containerSize - 容器尺寸（宽度或高度）
-   * @returns 拖拽进度
+   * Get current drag progress (0-1)
+   * @param event - Current event
+   * @param containerSize - Container size (width or height)
+   * @returns Drag progress
    */
   getDragProgress(event: TouchEvent | MouseEvent, containerSize: number): number {
     if (!this.startPos) {
@@ -121,14 +117,14 @@ export class GestureDetector {
   }
 
   /**
-   * 重置手势检测器
+   * Reset gesture detector
    */
   reset(): void {
     this.startPos = null;
   }
 
   /**
-   * 从事件中获取位置
+   * Extract position from event
    */
   private getPosition(event: TouchEvent | MouseEvent): { x: number; y: number } {
     if ('touches' in event && event.touches.length > 0) {
@@ -147,16 +143,16 @@ export class GestureDetector {
 }
 
 /**
- * 创建手势检测器
- * @param config - 手势检测配置
- * @returns 手势检测器实例
+ * Create gesture detector
+ * @param config - Gesture detection configuration
+ * @returns Gesture detector instance
  */
 export function createGestureDetector(config?: GestureConfig): GestureDetector {
   return new GestureDetector(config);
 }
 
 /**
- * 检测是否为触摸设备
+ * Detect if device supports touch
  */
 export function isTouchDevice(): boolean {
   return (
@@ -167,12 +163,12 @@ export function isTouchDevice(): boolean {
 }
 
 /**
- * 简单的手势检测函数
- * @param start - 起始位置
- * @param end - 结束位置
- * @param direction - 检测方向
- * @param minDistance - 最小滑动距离
- * @returns 手势类型
+ * Simple gesture detection function
+ * @param start - Start position
+ * @param end - End position
+ * @param direction - Detection direction
+ * @param minDistance - Minimum swipe distance
+ * @returns Gesture type
  */
 export function detectGesture(
   start: { x: number; y: number },
@@ -185,12 +181,10 @@ export function detectGesture(
   const absX = Math.abs(deltaX);
   const absY = Math.abs(deltaY);
 
-  // 检查是否达到最小滑动距离
   if (absX < minDistance && absY < minDistance) {
     return 'none';
   }
 
-  // 根据方向检测
   if (direction === 'x') {
     if (absX < minDistance) return 'none';
     return deltaX > 0 ? 'swipe-right' : 'swipe-left';

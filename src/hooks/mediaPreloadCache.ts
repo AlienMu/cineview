@@ -1,9 +1,10 @@
 /**
- * 媒体预加载缓存(video blob),与 imagePreloadCache 平行。
+ * Media preload cache (video blobs), parallel to imagePreloadCache.
  *
- * 与图片的区别:图片 `onload` 即可用,但 video scrub 要求**整段 buffer 可 seek**。本缓存
- * 把「已就绪」定义为「video blob 已取到、可 seek」,并在首屏冷启动门控里作为
- * priorityComplete 的一部分等待。淘汰时 revoke objectURL。SSR/无 window 时不启动。
+ * Unlike images where `onload` means ready, video scrub requires the entire
+ * buffer to be seekable. This cache defines "ready" as "video blob fetched
+ * and seekable", and waits for it as part of priorityComplete in the first-screen
+ * cold-start gate. Eviction revokes objectURLs. Disabled in SSR/no-window environments.
  */
 
 export type MediaKind = 'video';
@@ -14,10 +15,10 @@ interface VideoEntry {
   bytes: number;
 }
 
-// 默认 LRU 字节预算:128 MB。超预算逐出最久未用项(并 revoke objectURL)。
+// Default LRU byte budget: 128 MB. When exceeded, evicts least-recently-used entries (and revokes their objectURLs).
 const DEFAULT_BYTE_BUDGET = 128 * 1024 * 1024;
 
-const cache = new Map<string, VideoEntry>(); // Map 迭代序 = 插入序,用于 LRU
+const cache = new Map<string, VideoEntry>(); // Map iteration order = insertion order, used for LRU
 const readyUrls = new Set<string>();
 const inflight = new Map<string, Promise<void>>();
 const listeners = new Set<(url: string) => void>();
@@ -29,7 +30,7 @@ let totalBytes = 0;
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogv|ogg)(\?|#|$)/i;
 
-/** 从 URL 后缀推断媒体类型;非视频返回 null(调用方可显式传 kind)。 */
+/** Infers media type from URL extension; returns null for non-video (caller can pass explicit kind). */
 export function inferMediaKind(src: string): MediaKind | null {
   return VIDEO_EXT.test(src) ? 'video' : null;
 }
@@ -62,7 +63,7 @@ function notify(src: string): void {
   }
 }
 
-/** LRU touch:把 src 移到 Map 末尾(最近使用)。 */
+/** LRU touch: moves src to end of Map (most recently used). */
 function touch(src: string): void {
   const entry = cache.get(src);
   if (entry) {
@@ -77,7 +78,7 @@ function revoke(objectUrl: string): void {
   }
 }
 
-/** 逐出最久未用项直到总字节 ≤ 预算。保护当前插入项及挂载中 consumer 的 URL。 */
+/** Evicts least-recently-used entries until total bytes ≤ budget. Protects the current insert and URLs held by mounted consumers. */
 function evictToBudget(protect: string): void {
   for (const [src, entry] of cache) {
     if (totalBytes <= byteBudget) {
@@ -94,8 +95,8 @@ function evictToBudget(protect: string): void {
 }
 
 /**
- * 为挂载中的 video consumer 获取并租用 objectURL。租约存在期间 LRU 不得 revoke。
- * 每次成功 acquire 必须与一次 release 配对。
+ * Acquires and leases an objectURL for a mounted video consumer. LRU must not revoke
+ * URLs while leases exist. Each successful acquire must be paired with one release.
  */
 export function acquireVideoObjectUrl(src: string): string | undefined {
   const entry = cache.get(src);
@@ -107,7 +108,7 @@ export function acquireVideoObjectUrl(src: string): string | undefined {
   return entry.objectUrl;
 }
 
-/** 释放挂载 consumer 的租约；最后一个租约释放后立即重试预算淘汰。 */
+/** Releases the mounted consumer's lease; retries budget eviction immediately after the last lease is released. */
 export function releaseVideoObjectUrl(src: string): void {
   const count = activeLeases.get(src) ?? 0;
   if (count <= 1) {
@@ -129,9 +130,9 @@ function insert(src: string, entry: VideoEntry): void {
   evictToBudget(src);
 }
 
-// 视频 fetch 超时:挂起的 priority 媒体会永久卡死 priorityComplete 首屏门。video blob
-// 是整段下载(体积远大于图片,AbortSignal 同时覆盖 header 与 body 读取),给 30s,
-// 比图片侧 useImagePreloader 的 15s 宽。
+// Video fetch timeout: hung priority media would deadlock priorityComplete first-screen gate.
+// Video blobs are full downloads (much larger than images; AbortSignal covers both headers
+// and body reads). Allow 30s, double the 15s timeout in useImagePreloader.
 const VIDEO_FETCH_TIMEOUT_MS = 30_000;
 
 async function runVideoPreload(src: string): Promise<void> {
@@ -142,13 +143,16 @@ async function runVideoPreload(src: string): Promise<void> {
   try {
     const response = await fetch(src, controller ? { signal: controller.signal } : undefined);
     if (!response.ok) {
-      // 404/500 的 HTML 错误页不是视频:绝不能进入 cache/readyUrls(否则永久污染、
-      // 后续无法重试)。以 Error reject,沿 useImagePreloader 的 {success:false}
-      // 失败链路结算(onError / errors);in-flight 记录由 preloadMedia 的 finally
-      // 清理,保证重试可再发起。
+      // 404/500 HTML error pages are not videos: must never enter cache/readyUrls
+      // (would poison cache permanently, blocking retries). Reject with Error,
+      // following useImagePreloader's {success:false} failure path (onError / errors).
+      // In-flight record cleaned by preloadMedia's finally, allowing retries.
       throw new Error(`Failed to preload media: ${src} (HTTP ${response.status})`);
     }
     const blob = await response.blob();
+    if (!blob) {
+      throw new Error(`Invalid blob response for media: ${src}`);
+    }
     const objectUrl = URL.createObjectURL(blob);
     insert(src, { kind: 'video', objectUrl, bytes: blob.size });
     notify(src);
@@ -174,8 +178,9 @@ async function runVideoPreload(src: string): Promise<void> {
 }
 
 /**
- * 预加载一个媒体资源。已就绪 → 立即 resolve;进行中 → 复用同一 Promise(去重)。
- * kind 缺省时按后缀推断;推断失败则 reject。失败会清理 in-flight 记录,使后续可重试。
+ * Preloads a media resource. Already ready → resolves immediately; in-flight → reuses
+ * same Promise (deduplication). When kind is missing, infers from extension; inference
+ * failure rejects. Failure clears in-flight record, allowing retries.
  */
 export function preloadMedia(src: string, kind?: MediaKind): Promise<void> {
   if (!src) {
@@ -189,12 +194,12 @@ export function preloadMedia(src: string, kind?: MediaKind): Promise<void> {
     return existing;
   }
   if (typeof fetch === 'undefined') {
-    return Promise.reject(new Error('preloadMedia 需要 fetch(仅客户端可用)'));
+    return Promise.reject(new Error('preloadMedia requires fetch (client-side only)'));
   }
 
   const resolvedKind = kind ?? inferMediaKind(src);
   if (!resolvedKind) {
-    return Promise.reject(new Error(`无法判定媒体类型: ${src}(请显式传 kind)`));
+    return Promise.reject(new Error(`Cannot determine media type: ${src} (pass explicit kind)`));
   }
 
   const tracked = runVideoPreload(src).finally(() => {
@@ -204,13 +209,13 @@ export function preloadMedia(src: string, kind?: MediaKind): Promise<void> {
   return tracked;
 }
 
-/** 设置 LRU 字节预算(默认 128MB)。设置后立即按新预算淘汰。 */
+/** Sets LRU byte budget (default 128MB). Immediately evicts to new budget after setting. */
 export function setMediaByteBudget(bytes: number): void {
   byteBudget = Math.max(0, bytes);
   evictToBudget('');
 }
 
-/** 测试/热重置:清空缓存并 revoke 所有 objectURL。 */
+/** Test/hot-reload reset: clears cache and revokes all objectURLs. */
 export function resetMediaPreloadCache(): void {
   for (const entry of cache.values()) {
     revoke(entry.objectUrl);

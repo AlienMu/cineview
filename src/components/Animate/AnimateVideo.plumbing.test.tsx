@@ -62,8 +62,7 @@ jest.mock('../../media/VideoFrameRenderer', () => {
         mockRendererProps.push(props);
         React.useEffect(() => {
           const controlRef = props.controlRef as
-            | { current: { release: () => void; warmUp: () => void } | null }
-            | undefined;
+            { current: { release: () => void; warmUp: () => void } | null } | undefined;
           if (!controlRef) return undefined;
           controlRef.current = { release: mockRelease, warmUp: mockWarmUp };
           return () => {

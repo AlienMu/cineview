@@ -70,7 +70,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (animate as jest.Mock).mockImplementation((value, target, options) => {
+    (animate as unknown as jest.Mock).mockImplementation((value, target, options) => {
       if (
         typeof value === 'object' &&
         value !== null &&

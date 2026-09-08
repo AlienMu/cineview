@@ -12,7 +12,7 @@ import '../../styles/temporal-scenes-03-05.css';
 
 const GRAIN_TIMES = [0, 0.249, 0.25, 0.499, 0.5, 0.749, 0.75, 0.999, 1];
 
-function SceneTexture({ id }: { id: string }): JSX.Element {
+function SceneTexture({ id }: { id: string }): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (
@@ -45,38 +45,45 @@ function SceneTexture({ id }: { id: string }): JSX.Element {
 }
 
 type TemporalDragExperienceProps = {
-  /** 预热壳：只让 hidden iframe 把本页 HTML/JS/CSS 拉进缓存并求值模块，
-   *  不 mount CineView、零动画零 rAF；iframe onLoad 即完成使命。 */
+  /** Preload shell: only lets the hidden iframe pull this page's HTML/JS/CSS into cache
+   *  and evaluate modules, without mounting CineView—zero animation, zero rAF; the iframe's
+   *  onLoad completes its mission. */
   preload?: boolean;
-  /** 延迟启动（Homepage scene5 内嵌）：先渲染暗场壳并向父窗口宣告
-   *  'cineview-embed-ready'，收到 'cineview-activate' 才冷启动挂载完整
-   *  CineView（第一幕入场链在揭幕瞬间从零播放）；'cineview-freeze' 卸载回壳。
-   *  壳态零 CPU，不与外层滚动抢主线程（task-flow 2026-08-02 架构细化 #1/#2）。
-   *  注：内部协议 URL——直接开 tab 访问 /drag?deferred=true 无父窗口应答，
-   *  将停留在暗场壳，属预期行为。 */
+  /** Deferred start (embedded in Homepage scene5): first renders a dark shell and announces
+   *  'cineview-embed-ready' to the parent window; only mounts the full CineView on receiving
+   *  'cineview-activate' (cold start—the first act's entrance chain plays from zero at the
+   *  reveal moment); 'cineview-freeze' unmounts back to shell.
+   *  Shell state consumes zero CPU and doesn't compete with outer scroll for the main thread
+   *  (task-flow 2026-08-02 architecture refinement #1/#2).
+   *  Note: internal protocol URL—directly opening /drag?deferred=true in a tab has no parent
+   *  window response, so it stays in the dark shell, which is expected behavior. */
   deferred?: boolean;
 };
 
-/** 末幕索引（五幕：rolling/slate/sync/flux/cut）。到达它即「滑到结尾」。 */
+/** Final act index (five acts: rolling/slate/sync/flux/cut). Reaching it means "scrolled to end". */
 const LAST_SCENE_INDEX = 4;
 
 export const TemporalDragExperience = memo(function TemporalDragExperience({
   preload = false,
   deferred = false,
-}: TemporalDragExperienceProps): JSX.Element {
+}: TemporalDragExperienceProps): import('react').JSX.Element {
   const [stage, setStage] = useState<'frozen' | 'live'>(deferred ? 'frozen' : 'live');
   const reduced = usePrefersReducedMotion();
 
-  /* 第四条消息：`cineview-embed-finished` / `cineview-embed-unfinished`（2026-08-06；
-   * 2026-08-09 增加反向 —— 用户访谈裁决「退场 = 完整反向编排」）。
-   * 用户要的时序是「在 /drag 页面滑动到结束并且 commit 完成的情况」才让外层手机左移。
-   * 判据必须是 **commit 完成**而非 drag 进行中 —— `onSceneLeave` 正是转场结算后
-   * 才发，且带 toIndex，故用它而不用 `onDragProgress`（后者在手指还没松时就到 1）。
-   * 反向同理：commit 离开末幕（toIndex < LAST_SCENE_INDEX）发 unfinished，外层
-   * 标题/副标题镜像退场、手机移回居中（split 从单向 latch 变双向）。两向都幂等：
-   * 父层对重复的 finished/unfinished 只是 setSplit 同值，无副作用。
-   * 只在 deferred（被首页内嵌）时发：独立开 /drag 时没有父窗口，发了也无人接。
-   * 同源校验沿用既有约定。 */
+  /* Fourth message: `cineview-embed-finished` / `cineview-embed-unfinished` (2026-08-06;
+   * 2026-08-09 added reverse direction—user interview verdict: "exit = complete reverse choreography").
+   * The timing users want is "only let the outer phone slide left when the user has scrolled to the end
+   * in the /drag page AND the commit is complete".
+   * The criterion must be **commit complete** not mid-drag—`onSceneLeave` fires exactly after the
+   * transition settles and carries toIndex, so use it instead of `onDragProgress` (which reaches 1
+   * before the finger releases).
+   * Reverse is the same: committing away from the final act (toIndex < LAST_SCENE_INDEX) sends unfinished,
+   * and the outer title/subtitle mirrors the exit, phone returns to center (split changes from one-way
+   * latch to bidirectional). Both directions are idempotent: the parent layer's repeated finished/unfinished
+   * messages just setSplit to the same value, no side effects.
+   * Only sent when deferred (embedded in homepage): when /drag is opened independently there's no parent
+   * window, sending has no recipient.
+   * Same-origin validation follows the existing convention. */
   const notifySceneSettled = useCallback(
     (detail: { toIndex: number }): void => {
       if (!deferred) return;
@@ -90,36 +97,38 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
     [deferred]
   );
 
-  /* 第五幕黑幕 + 场景纹理会（2026-08-13，task-flow 2026-08-13-act5-black-exit-bg-follow；
-   * code-review 发现 1/2/4 修正版）。黑幕背景已从 .tp-scene--05 迁到 .tp-act5-black
-   * （temporal-drag.css），本组件负责两个面的 opacity：
-   *   - `.tp-act5-black`：第五幕黑色背景（z1 根级层，不随场景框平移）。
-   *   - `.tp-scene--05 .tp-texture`：颗粒/扫描线/暗角。场景背景透明后这些覆盖层若
-   *     不退场就会随场景框滑过第四幕内容（review 发现 1）——必须与黑层同步淡出。
-   * 编排三态（零 React state，直写 DOM）：
-   *   1. 手势期：逐 tick 直写 + transition:none —— 完全跟手、无滞后（review 发现 4
-   *      否决了「每帧重定向 250ms transition」的写法；drag 的 progress 本身就是每帧
-   *      平滑值，不需要再平滑）。
-   *   2. 松手（pointerup，session 内）：transition 线性过渡到终值，时长 = |终值 − 当前值|
-   *      × slideDuration(800ms)（与剩余滑程同速，淡完与 commit 同时到达）——settle
-   *      补间期间黑幕/纹理平滑淡完，不再冻结在松手值等 commit 才 snap（review 发现 2）。
-   *      bounce 回程 tick 会立即夺回手势态，不受影响。
-   *   3. commit/cancel：snap 终值（第四幕框已铺满，snap 不可见）。
-   * latch（对抗验收 A3/S2）：首个匹配「进入/退出第五幕」的 tick 建立，本 session 内
-   * 不再判 direction——手势中途 forward↔reverse 反转仍按 sceneIndex 跟 |progress| 回缩；
-   * 歧义方向起步的 session 逐 tick 匹配补上。commit/cancel 复位（DESIGN.md：每 session
-   * 恰好一次 commit|cancel，跨 session 无残留）。 */
+  /* Fifth act black curtain + scene texture choreography (2026-08-13, task-flow 2026-08-13-act5-black-exit-bg-follow;
+   * code-review found issues 1/2/4 fixed). The black curtain background has moved from .tp-scene--05 to .tp-act5-black
+   * (temporal-drag.css), this component manages opacity for two surfaces:
+   *   - `.tp-act5-black`: fifth act black background (z1 root-level layer, doesn't slide with scene frame).
+   *   - `.tp-scene--05 .tp-texture`: grain/scanline/vignette. After the scene background becomes transparent, if these
+   *     overlay layers don't exit they'll slide over act four content with the scene frame (review found issue 1)—must
+   *     fade out in sync with the black layer.
+   * Three-state choreography (zero React state, direct DOM writes):
+   *   1. Gesture phase: per-tick direct write + transition:none—fully finger-tracking, no lag (review found issue 4
+   *      rejected the "reapply 250ms transition every frame" approach; drag's progress is already a per-frame smooth
+   *      value, doesn't need further smoothing).
+   *   2. Release (pointerup, within session): transition linearly to terminal value, duration = |terminal − current|
+   *      × slideDuration(800ms) (same speed as remaining slide distance, fade completes simultaneously with commit)—during
+   *      settle tween the black curtain/texture fade smoothly, no longer freeze at release value waiting for commit to
+   *      snap (review found issue 2).
+   *      Bounce return ticks immediately reclaim gesture state, unaffected.
+   *   3. commit/cancel: snap to terminal value (act four frame is already full-bleed, snap is invisible).
+   * Latch (resisting acceptance criteria A3/S2): established by the first tick matching "enter/exit fifth act", doesn't
+   * re-check direction within this session—mid-gesture forward↔reverse flips still follow sceneIndex and shrink by |progress|;
+   * sessions starting in ambiguous direction match per-tick to fill in. Reset on commit/cancel (DESIGN.md: exactly one
+   * commit|cancel per session, no cross-session residue). */
   const blackRef = useRef<HTMLDivElement | null>(null);
   const textureRef = useRef<HTMLElement | null>(null);
   const blackSessionRef = useRef<number | null>(null);
-  /** 黑层当前值跟踪：settle 时长按「剩余滑程」换算（见 pointerup 处理）。 */
+  /** Black layer current value tracking: settle duration is calculated from "remaining slide distance" (see pointerup handler). */
   const lastBlackRef = useRef(1);
 
   const applyBlack = useCallback(
     (opacity: number, mode: 'gesture' | 'settle' | 'snap', settleMs?: number): void => {
-      // freeze/activate 壳切换会卸载重挂 CineView（blackRef 由 React 自动重挂），
-      // 手动缓存的 textureRef 会指向已脱离文档的旧节点 —— isConnected 校验并重解析
-      // （对抗验收 T4 实测：旧引用导致纹理恒 1 卡死）。
+      // freeze/activate shell switching unmounts and remounts CineView (blackRef is auto-remounted by React),
+      // manually cached textureRef will point to old nodes detached from the document—isConnected validates and re-parses
+      // (resisting acceptance criteria T4 actual test: stale reference caused texture to freeze at 1).
       if (!textureRef.current?.isConnected) {
         textureRef.current = document.querySelector<HTMLElement>('.tp-scene--05 .tp-texture');
       }
@@ -166,9 +175,9 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
     [applyBlack, notifySceneSettled]
   );
 
-  // 松手 → settle 淡入淡出（三态之 2）。用 capture 相位，防框架指针路径拦截冒泡。
-  // 时长按剩余滑程换算：|终值 − 当前值| × slideDuration(800ms)，淡完与 commit 同时
-  // 到达，snap 零跳变（对抗验收「进场侧 commit pop」建议）。
+  // Release → settle fade in/out (three-state phase 2). Use capture phase to prevent framework pointer path from intercepting bubbling.
+  // Duration calculated from remaining slide distance: |terminal − current| × slideDuration(800ms), fade completes simultaneously
+  // with commit, snap has zero jump (resisting acceptance "entrance side commit pop" suggestion).
   useEffect(() => {
     const onPointerUp = (): void => {
       if (blackSessionRef.current === null) return;
@@ -195,7 +204,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
       }
     };
     window.addEventListener('message', handleMessage);
-    // listener 就位后才宣告就绪；父层只在收到 ready 后发 activate，规避 load 竞态。
+    // Only announce ready after listener is in place; parent only sends activate after receiving ready, avoiding load race.
     window.parent?.postMessage('cineview-embed-ready', origin);
     return (): void => window.removeEventListener('message', handleMessage);
   }, [deferred]);
@@ -206,8 +215,8 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
 
   return (
     <div className="drag-temporal" data-embed={deferred ? 'deferred-live' : undefined}>
-      {/* 第五幕黑幕根级层：必须在 CineView 之前（DOM 序）+ z-index 1，
-          高于容器背景、低于全部场景框（见 temporal-drag.css .tp-act5-black）。 */}
+      {/* Fifth act black curtain root-level layer: must come before CineView (DOM order) + z-index 1,
+          above container background, below all scene frames (see temporal-drag.css .tp-act5-black). */}
       <div ref={blackRef} className="tp-act5-black" aria-hidden="true" />
       <TemporalMotionProvider>
         <CineView

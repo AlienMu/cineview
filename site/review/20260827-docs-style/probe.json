@@ -1,0 +1,10 @@
+{
+  "base": "http://127.0.0.1:4010",
+  "ranAt": "2026-09-08T02:31:49.207Z",
+  "pagesChecked": 80,
+  "slugCount": 40,
+  "failedPages": 0,
+  "structuralIssues": [],
+  "consoleIssues": [],
+  "failures": []
+}

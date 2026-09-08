@@ -18,7 +18,7 @@ interface VisibilityScheduleEntry {
 const entries = new WeakMap<VisibilityRoot, VisibilityScheduleEntry>();
 
 interface VisibilityRecheckEntry {
-  callbacks: Set<() => void>;
+  callbacks: Map<() => void, { callback: () => void; cancelled: boolean }>;
   frame: number | null;
   requestFrame: (callback: FrameRequestCallback) => number;
   cancelFrame: (handle: number) => void;
@@ -119,30 +119,44 @@ export function scheduleVisibilityRecheck(ownerWindow: Window, callback: () => v
     const cancelFrame =
       ownerWindow.cancelAnimationFrame?.bind(ownerWindow) ??
       ((handle: number): void => ownerWindow.clearTimeout(handle));
-    entry = { callbacks: new Set(), frame: null, requestFrame, cancelFrame };
+    entry = { callbacks: new Map(), frame: null, requestFrame, cancelFrame };
     recheckEntries.set(ownerWindow, entry);
   }
 
   const currentEntry = entry;
-  currentEntry.callbacks.add(callback);
+  const job = currentEntry.callbacks.get(callback) ?? { callback, cancelled: false };
+  currentEntry.callbacks.set(callback, job);
   if (currentEntry.frame === null) {
     currentEntry.frame = currentEntry.requestFrame(() => {
       currentEntry.frame = null;
-      const callbacks = [...currentEntry.callbacks];
+      const callbacks = [...currentEntry.callbacks.values()];
       currentEntry.callbacks.clear();
-      callbacks.forEach((scheduled) => scheduled());
-      if (currentEntry.callbacks.size === 0 && currentEntry.frame === null) {
+      callbacks.forEach((scheduled) => {
+        if (!scheduled.cancelled) {
+          scheduled.callback();
+        }
+      });
+      if (
+        currentEntry.callbacks.size === 0 &&
+        currentEntry.frame === null &&
+        recheckEntries.get(ownerWindow) === currentEntry
+      ) {
         recheckEntries.delete(ownerWindow);
       }
     });
   }
 
   return (): void => {
-    currentEntry.callbacks.delete(callback);
+    job.cancelled = true;
+    if (currentEntry.callbacks.get(callback) === job) {
+      currentEntry.callbacks.delete(callback);
+    }
     if (currentEntry.callbacks.size === 0 && currentEntry.frame !== null) {
       currentEntry.cancelFrame(currentEntry.frame);
       currentEntry.frame = null;
-      recheckEntries.delete(ownerWindow);
+      if (recheckEntries.get(ownerWindow) === currentEntry) {
+        recheckEntries.delete(ownerWindow);
+      }
     }
   };
 }

@@ -1,12 +1,12 @@
 /**
- * 开发环境日志工具：仅在 `NODE_ENV === 'development'` 时输出，生产静默。
+ * Development logging utility: outputs only when `NODE_ENV === 'development'`, silent in production.
  *
- * 背景：animations 层历史上散落多处裸 `console.warn/error`（无 NODE_ENV 守卫）。
- * 虽然 build 时 `esbuild.drop:['console']` 会移除生产包里的 console 调用，但依赖
- * 本库源码的 dev 构建 / SSR 场景仍会打日志。此工具把门控集中一处，与 context /
- * Scene 等已有守卫模式对齐。
+ * Background: the animations layer historically had raw `console.warn/error` calls scattered throughout
+ * (no NODE_ENV guard). While `esbuild.drop:['console']` removes console calls from production bundles,
+ * dev builds and SSR scenarios that depend on the library source still log. This utility centralizes
+ * the gate, aligning with existing guard patterns in context/Scene modules.
  *
- * 统一前缀 `[CineView]`，与其它面向开发者的诊断信息一致。
+ * Uniform prefix `[CineView]` for consistency with other developer-facing diagnostic messages.
  */
 
 const PREFIX = '[CineView]';
@@ -25,14 +25,14 @@ export function devError(...args: unknown[]): void {
   }
 }
 
-/** devWarn 的跨实例去重版：同 key 整个会话只告警一次，替代各模块手写的 once flag。 */
+/** Cross-instance deduplicated devWarn: warns once per key across the entire session, replacing per-module once flags. */
 export function devWarnOnce(key: string, ...args: unknown[]): void {
   if (process.env.NODE_ENV !== 'development' || onceKeys.has(key)) return;
   onceKeys.add(key);
   console.warn(PREFIX, ...args);
 }
 
-/** devError 的跨实例去重版，语义同 devWarnOnce。 */
+/** Cross-instance deduplicated devError: same semantics as devWarnOnce. */
 export function devErrorOnce(key: string, ...args: unknown[]): void {
   if (process.env.NODE_ENV !== 'development' || onceKeys.has(key)) return;
   onceKeys.add(key);

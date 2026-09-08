@@ -3,93 +3,96 @@ title: useAnimateTimeline
 eyebrow: ADVANCED / USEANIMATETIMELINE
 ---
 
-`useAnimateTimeline()` returns a read-only view of the nearest `Animate` timeline: `progress` / `signedProgress` / `phase` / `frame` are all MotionValues whose updates never touch React rendering. Use it for continuous style bindings and canvas self-drawing; if a plain number is needed within the React render flow, use the render-prop `enterProgress` instead, see [Animate](/docs/03-animate).
+`useAnimateTimeline()` provides MotionValues from the nearest Animate. Bind them to motion styles or subscribe to changes for custom drawing. Updates do not cause React renders unless the consumer puts values into React state.
 
-## Call constraint
+## Call the hook inside an Animate child
 
-It must be called inside the children of `<Animate>` (plain children or inside a render-prop both work); anywhere else it throws:
+Call the hook in a descendant React component, including a component returned by render-prop children. A call outside an Animate throws:
 
 ```text
 useAnimateTimeline must be used inside an <Animate> child.
 ```
 
-The framework is the only timeline writer; every field of the returned object is `readonly` and no external writer is exposed.
+Treat the returned values as read-only. Derive new MotionValues instead of setting framework progress.
 
 ## Return fields
 
-| Field            | Type                                | Description                                                                                                                                                                                                                      |
-| ---------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`           | `ScrollMode`                        | Root mode (`'drag' \| 'scroll'`); read-only static value.                                                                                                                                                                        |
-| `driver`         | `AnimateTimelineLane`               | How this element is actually driven: `'drag' \| 'scroll' \| 'visibility'`. Under scroll mode, elements outside any locked zone fall back to `visibility`.                                                                        |
-| `progress`       | `MotionValue<number>`               | Enter progress, 0..1.                                                                                                                                                                                                            |
-| `signedProgress` | `MotionValue<number>`               | Signed progress; drives negative during exit, so an entrance is distinguishable from an exit.                                                                                                                                    |
-| `phase`          | `MotionValue<AnimatePhase>`         | The six-state phase: `'idle' \| 'waiting' \| 'entering' \| 'entered' \| 'exiting' \| 'exited'`.                                                                                                                                  |
-| `frame`          | `MotionValue<AnimateTimelineFrame>` | A full snapshot of one update, `{ progress, signedProgress, phase, source }`: all four values always update together. Reading progress and phase separately can mix old and new (new progress, old phase); `frame` removes that. |
+| Field            | Type                              | Meaning                                                           |
+| ---------------- | --------------------------------- | ----------------------------------------------------------------- |
+| `mode`           | ScrollMode                        | `'drag'` or `'scroll'`                                            |
+| `lane`           | AnimateTimelineLane               | Resolved driver: `'drag'`, `'scroll'`, or `'visibility'`          |
+| `progress`       | MotionValue<number>               | Normalized element progress, 0–1                                  |
+| `signedProgress` | MotionValue<number>               | Signed progress; interpret it with the mode and phase             |
+| `phase`          | MotionValue<AnimatePhase>         | `idle`, `waiting`, `entering`, `entered`, `exiting`, or `exited`  |
+| `frame`          | MotionValue<AnimateTimelineFrame> | Progress, signed progress, phase, and source grouped in one value |
 
-The type of `frame.source` is `AnimateTimelineSource`, with six values: `'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility'`.
+`frame.source` is `idle`, `gesture`, `continuation`, `programmatic`, `scroll`, or `visibility`. Use `frame` when one operation needs several related values from an update.
 
-## Binding continuous values to style
-
-For visual values interpolated from progress, attach MotionValues directly to a `motion.*` element's style, deriving them from `progress` with `useTransform`; the `motion.*` element applies updates without React re-renders:
+## Bind progress to styles
 
 ```tsx
 import { motion, useTransform } from 'framer-motion';
+import { Animate, useAnimateTimeline } from 'cineview';
 
-function ParallaxLayer() {
+function MovingContent() {
   const { progress } = useAnimateTimeline();
   const y = useTransform(progress, [0, 1], [80, -80]);
-  return <motion.div style={{ y }} />;
+  return <motion.div style={{ y }}>Content</motion.div>;
 }
 
-<Animate animateId="layer" enterAnimation="fade-in" duration={{ enter: 1200 }}>
-  <ParallaxLayer />
-</Animate>;
+export function Example() {
+  return (
+    <Animate enterAnimation="fade-in" duration={{ enter: 1200 }}>
+      <MovingContent />
+    </Animate>
+  );
+}
 ```
 
-## phase stays at idle inside a locked zone
+Motion applies these style updates without React rendering. Render-prop children are another option when JSX needs ordinary numbers, with a React render for updates.
 
-**Inside a scroll locked zone, `phase` never changes; it stays at `'idle'`.** Phases describe animations entering and leaving by visibility. A locked-zone animation is driven entirely by scroll position and never goes through phases, so nothing advances it to `entering` / `entered` / `exiting`. **This applies only inside a scroll locked zone**: in drag mode phases advance as usual (`hidden→idle`, `enter→entering/entered`, `rest→entered`, `outgoing→exiting`), so judging on phase is correct under drag. `progress` and `signedProgress` still follow the scroll there; only `phase` stays at `idle`.
+## Interpret phase by driver
 
-The `state.phase` handed to render-prop children comes from the same source and likewise stays at `idle`.
+For a scene-driven entrance or exit inside a scroll locked zone, phase remains `idle` while progress follows scrolling. Clock-driven elements use visibility phases, and loop-only elements rest at `entered`.
 
-Inside a locked zone, relying solely on `phase !== 'idle'` to stop and resume a `requestAnimationFrame` (rAF) loop stops the loop immediately without restarting. To decide whether to keep drawing inside a zone, use one of these instead:
+In scroll mode, negative signed progress identifies an exit. In drag mode, forward exits can have positive signed progress, so use phase to distinguish an exit from an entrance.
 
-- `signedProgress`: `0` is the initial frame, `1` is fully entered, and negative values mean the exit direction.
-- `frame.source`: the snapshot carries the driving source, which distinguishes `scroll` from `visibility`.
+Neither phase nor source alone proves that content is visible. An entrance-only element can remain `entered` after leaving the viewport.
 
-## Canvas self-drawing
+## Draw a canvas when progress changes
 
-Canvas self-drawing is the only place where a self-driven rAF is permitted: read MotionValues through `.get()` each frame, and subscribe to `phase` so the loop stops on `exited` / `idle`. **This applies everywhere except inside a locked zone** (elements outside zones in scroll, and both scene-driven and independently playing elements in drag); inside a locked zone, switch the predicate as described in "phase stays at idle inside a locked zone":
+A canvas that only depends on progress can draw once and subscribe to changes. It does not need its own requestAnimationFrame (rAF) loop.
 
 ```tsx
-function Meter() {
-  const { progress, phase } = useAnimateTimeline();
+import { useEffect, useRef } from 'react';
+import { useAnimateTimeline } from 'cineview';
+
+export function Meter() {
+  const { progress } = useAnimateTimeline();
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    let raf = 0;
-    const ctx = ref.current!.getContext('2d')!;
-    const draw = () => {
-      drawArc(ctx, progress.get());
-      raf = requestAnimationFrame(draw);
-    };
-    const stop = phase.on('change', (p) => {
-      cancelAnimationFrame(raf);
-      if (p !== 'exited' && p !== 'idle') raf = requestAnimationFrame(draw);
-    });
-    if (phase.get() !== 'exited' && phase.get() !== 'idle') raf = requestAnimationFrame(draw);
-    return () => {
-      stop();
-      cancelAnimationFrame(raf);
-    };
-  }, [progress, phase]);
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
 
-  return <canvas ref={ref} />;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      ctx.arc(64, 64, 48, -Math.PI / 2, progress.get() * Math.PI * 2 - Math.PI / 2);
+      ctx.stroke();
+    };
+
+    draw();
+    return progress.on('change', draw);
+  }, [progress]);
+
+  return <canvas ref={ref} width={128} height={128} aria-label="Animation progress" />;
 }
 ```
 
-Without the `phase` subscription the loop never stops: the element has exited while the canvas keeps repainting at full speed.
+For drawing that also changes with elapsed time, use an explicit visibility condition to start and stop a rAF loop. Cancel it on cleanup; an `entered` phase alone does not mean the canvas is still on screen.
 
-## Avoid external useSpring instances
+## Keep derived motion aligned
 
-Derive all continuous values directly from the MotionValues returned by this hook without introducing external `useSpring` instances or detached animation loops. Spring physics settle according to their own damping profiles rather than tracking scroll displacement, producing visual overshoot or target misalignment.
+Use `useTransform` for direct mappings from progress. An added `useSpring` introduces its own timing, so the result can lag or overshoot the scroll or drag position. Add that behavior only when the design calls for it.

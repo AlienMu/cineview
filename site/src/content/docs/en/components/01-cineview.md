@@ -3,87 +3,89 @@ title: CineView
 eyebrow: COMPONENTS / CINEVIEW
 ---
 
-CineView is the root component: it picks the mode engine (drag paging / scroll document flow), sets the single conversion base for the whole page, schedules preloading, and exposes an imperative ref. If a page has `Scene`s, CineView runs them.
+CineView runs the page's scenes, selects drag or scroll behavior, and sets the design width used for responsive lengths. Its ref provides navigation, layout refresh, preloading, and performance readings.
 
 ## Props
 
 `CineViewProps` is a union discriminated on `mode`: omitting `mode` means `'drag'`, and the callbacks surface narrows with the mode.
 
-| prop          | type                       | default  | notes                                          |
-| ------------- | -------------------------- | -------- | ---------------------------------------------- |
-| `designWidth` | `number`                   | `750`    | Design width base, see the designWidth section |
-| `mode`        | `'drag' \| 'scroll'`       | `'drag'` | Drag paging / scroll document flow             |
-| `scrollbar`   | `false \| ScrollbarConfig` | none     | Scrollbar overlay; pass `false` to disable     |
-| `monitor`     | `boolean`                  | none     | Performance monitor flag                       |
-| `callbacks`   | Discriminated by mode      | none     | See "Callbacks"                                |
-| `children`    | `ReactNode`                | required | Only `Scene` children are recognized           |
+| prop          | type                       | default           | notes                                          |
+| ------------- | -------------------------- | ----------------- | ---------------------------------------------- |
+| `designWidth` | `number`                   | `750`             | Design width base, see the designWidth section |
+| `mode`        | `'drag' \| 'scroll'`       | `'drag'`          | Drag paging / scroll document flow             |
+| `scrollbar`   | `false \| ScrollbarConfig` | off               | Optional overlay in scroll mode                |
+| `monitor`     | `boolean`                  | `false`           | Enables performance sampling                   |
+| `a11y`        | `{ label?: string }`       | label: `'Scenes'` | Accessible name for the drag container         |
+| `callbacks`   | Depends on mode            | none              | Scene, input, and resource notifications       |
+| `children`    | `ReactNode`                | required          | Declare Scene nodes directly under CineView    |
 
 ### designWidth
 
-| field         | type     | default | notes                                                                                                                                                                                                                                                                           |
-| ------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `designWidth` | `number` | `750`   | Design width base (design px). `scale = viewportWidth / designWidth`, the single conversion base for the whole page: coordinates and box-model lengths all multiply by it, width-only, preserving the aspect ratio. Locked zones still settle their time budgets at `1ms = 1px` |
+| field         | type     | default | notes                                                                                                               |
+| ------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
+| `designWidth` | `number` | `750`   | Numeric design lengths scale by `viewportWidth / designWidth` on both axes. Locked-zone timing remains `1ms = 1px`. |
 
-`designWidth` is not a zoom knob; it is the design base. Changing it changes every design px with it. See [Responsive scaling](/docs/05-responsive).
+Set it to the design's width. See [Responsive conversion](/docs/05-responsive).
 
 ### Drag-only fields (flat on the root with `mode='drag'`)
 
 | field                | type                                               | default                   | notes                                                                                                                                                                                                      |
 | -------------------- | -------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `direction`          | `SlideDirection` (`'x' \| 'y'`)                    | none                      | Swipe direction                                                                                                                                                                                            |
-| `transitionDuration` | `number`                                           | `800`                     | **Programmatic navigation only.** Gesture paging and rebound always use an internal 800ms duration that no public prop can change; here it only decides when `onSceneLeave` fires after `ref.goToScene()`  |
-| `threshold`          | `{ minVelocity, maxVelocity, minRatio, maxRatio }` | none                      | Gesture thresholds; all four optional numbers                                                                                                                                                              |
+| `direction`          | `'x' \| 'y'`                                       | `'y'`                     | Drag direction                                                                                                                                                                                             |
+| `transitionDuration` | `number`                                           | `800`                     | Timing for `ref.goToScene()`; gesture timing is calculated separately                                                                                                                                      |
+| `threshold`          | `{ minVelocity, maxVelocity, minRatio, maxRatio }` | `0 / 1000 / 0.15 / 0.3`   | Commit thresholds, detailed in [Gestures](/docs/02-gestures)                                                                                                                                               |
 | `unit`               | `'time' \| 'percent'`                              | `'time'`                  | Drag-mapping unit for Scene element timelines                                                                                                                                                              |
 | `scale`              | `number`                                           | `time: 10` / `percent: 1` | Amount mapped per 1% of drag, interpreted by `unit`                                                                                                                                                        |
 | `firstSceneTimeout`  | `number`                                           | `3000`                    | Wait cap (ms) for first-screen priority images. On timeout a `FIRST_SCENE_TIMEOUT` is emitted; without `preventDefault()` the framework falls back to statically placing the first scene in its rest state |
 
 ### Scroll-only fields (flat on the root with `mode='scroll'`)
 
-| field         | type                    | default | notes                                                                                                                    |
-| ------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `direction`   | `SlideDirection`        | none    | Scroll direction                                                                                                         |
-| `zoneTrigger` | `'center-lock'`         | none    | The only trigger                                                                                                         |
-| `sceneSizing` | `'content' \| 'screen'` | none    | Scene sizing strategy                                                                                                    |
-| `enterMargin` | `number`                | `50`    | Global default margin (design px) for the visibility condition; overridable per Animate through `visibility.enterMargin` |
-| `exitMargin`  | `number`                | `50`    | Same condition, exit half                                                                                                |
+| field         | type                    | default         | notes                                                    |
+| ------------- | ----------------------- | --------------- | -------------------------------------------------------- |
+| `direction`   | `SlideDirection`        | `'y'`           | Scroll direction                                         |
+| `zoneTrigger` | `'center-lock'`         | `'center-lock'` | Supported trigger                                        |
+| `sceneSizing` | `'content' \| 'screen'` | `'content'`     | Size ordinary scenes by content or at least one viewport |
+| `enterMargin` | `number`                | `50`            | Default visibility entrance margin in design pixels      |
+| `exitMargin`  | `number`                | `50`            | Default visibility exit margin in design pixels          |
+| `debug`       | `boolean`               | `false`         | Enables scroll parameter and layout diagnostics          |
 
 ### scrollbar
 
 The scrollbar overlay, an optional scroll-mode add-on. Pass an object to enable, `false` to disable.
 
-| field             | type      | default                      | notes                                   |
-| ----------------- | --------- | ---------------------------- | --------------------------------------- |
-| `enabled`         | `boolean` | none                         | On/off                                  |
-| `ariaLabel`       | `string`  | `'CineView scroll position'` | Accessible label                        |
-| `width`           | `number`  | `6`                          | Thickness (px), floored at 4            |
-| `radius`          | `number`  | `999`                        | Corner radius; fully rounded by default |
-| `inset`           | `number`  | `0`                          | Inset from the rail edges (px)          |
-| `trackColor`      | `string`  | `'transparent'`              | Track color                             |
-| `thumbColor`      | `string`  | `'rgba(255,255,255,0.28)'`   | Thumb color                             |
-| `thumbHoverColor` | `string`  | `'rgba(255,255,255,0.42)'`   | Thumb hover color                       |
-| `autoHide`        | `boolean` | `true`                       | Hide when idle                          |
+| field             | type      | default                           | notes                                   |
+| ----------------- | --------- | --------------------------------- | --------------------------------------- |
+| `enabled`         | `boolean` | `true` when an object is supplied | Overlay on or off                       |
+| `ariaLabel`       | `string`  | `'CineView scroll position'`      | Accessible label                        |
+| `width`           | `number`  | `6`                               | Thickness (px), floored at 4            |
+| `radius`          | `number`  | `999`                             | Corner radius; fully rounded by default |
+| `inset`           | `number`  | `0`                               | Inset from container edges (px)         |
+| `trackColor`      | `string`  | `'transparent'`                   | Track color                             |
+| `thumbColor`      | `string`  | `'rgba(255,255,255,0.28)'`        | Thumb color                             |
+| `thumbHoverColor` | `string`  | `'rgba(255,255,255,0.42)'`        | Thumb border color in every state       |
+| `autoHide`        | `boolean` | `true`                            | Hide when idle                          |
 
 Theming example: [Scrollbar theming](/docs/05-scrollbar).
 
 ## Callbacks
 
-`callbacks` is discriminated with `mode`: writing `onZoneProgress` in drag mode is a type error, and so is `onDragEnd` in scroll mode. Both the inline-literal path and the assign-variable-first path fail (scroll-only keys are typed as optional `never` on the drag side). It is not silently ignored at runtime.
+TypeScript checks `callbacks` against `mode`. For example, `onZoneProgress` is unavailable in drag and `onDragEnd` is unavailable in scroll. The check also applies to callback objects stored in variables.
 
 ### Common callbacks (both modes)
 
-| callback         | detail                                                               | notes                                   |
-| ---------------- | -------------------------------------------------------------------- | --------------------------------------- |
-| `onReady`        | `api: CineViewRef`                                                   | Runtime ready; fires once on mount      |
-| `onLoadProgress` | `progress: number`                                                   | Preload progress, integer 0-100         |
-| `onSceneEnter`   | `SceneChangeDetail` `{ fromIndex, toIndex, direction? }`             | Before a switch                         |
-| `onSceneLeave`   | `SceneChangeDetail`                                                  | After a switch                          |
-| `onError`        | `CineViewErrorDetail` `{ code, message, context?, preventDefault? }` | Central error outlet; see "Error codes" |
+| callback         | detail                | notes                                                                      |
+| ---------------- | --------------------- | -------------------------------------------------------------------------- |
+| `onReady`        | `api: CineViewRef`    | Ref API available after mount; does not wait for assets                    |
+| `onLoadProgress` | `progress: number`    | Queued request completion, integer 0–100, including failed requests        |
+| `onSceneEnter`   | `SceneChangeDetail`   | Scene-change notification; gesture changes notify at commit                |
+| `onSceneLeave`   | `SceneChangeDetail`   | Companion scene-change notification; child animations may still be running |
+| `onError`        | `CineViewErrorDetail` | Error code, message, context, and optional fallback control                |
 
 ### Drag-only
 
 | callback         | detail                                                           | notes                                                                         |
 | ---------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `onDragStart`    | `DragStartDetail` `{ sceneIndex, progress, direction }`          | Fires only after the first direction-qualified gesture takes drag ownership   |
+| `onDragStart`    | `DragStartDetail` `{ sceneIndex, progress, direction }`          | Fires only after the first direction-qualified gesture starts a drag session  |
 | `onDragProgress` | `DragDetail` `{ sceneIndex, progress, direction? }`              | Drag in progress                                                              |
 | `onDragBlocked`  | `DragBlockedDetail` `{ fromIndex, targetSceneIndex, direction }` | Drag blocked, for example when the target scene is disabled                   |
 | `onDragEnd`      | `DragEndDetail`                                                  | Switch committed; carries `targetSceneIndex / elapsedMs / timelineDurationMs` |
@@ -117,7 +119,7 @@ const ref = useRef<CineViewRef>(null);
 | `getCurrentIndex`       | `() => number`                                         | Current scene index                                                                              |
 | `getPerformanceMetrics` | `() => PerformanceMetrics`                             | `{ fps, avgFrameTime, memoryUsage?, bundleSize }`                                                |
 
-These five have real implementations in both modes and are required. No `?.()` guarding is needed at call sites.
+These methods exist in both modes. Guard `ref.current` until mount; the individual methods do not need optional calls.
 
 `goToZone(zoneId, { align?: 'center', animated?: boolean })` is scroll-only and optional on `CineViewRef` (drag has no zones). Scroll consumers can use `CineViewScrollRef`, where `goToZone` is required:
 
@@ -128,26 +130,26 @@ ref.current?.goToZone('intro-seq', { align: 'center' });
 
 ## Error codes
 
-The `code` passed to `onError` is the `CineViewErrorCode` union, so a switch gets exhaustiveness checking. Recoverable errors carry `preventDefault`: if uncalled, the engine executes its default fallback strategy; calling it yields control to custom application logic (such as rendering a retry interface).
+`onError` receives a `CineViewErrorCode` string union. Use a `never` check when exhaustive handling is needed. Some errors provide `preventDefault`; call `detail.preventDefault?.()` to suppress their default fallback and show application UI.
 
-| code                          | fired when                                                                   | recovery                                                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `EMPTY_SCENES`                | CineView has no `Scene` children                                             | none                                                                                                     |
-| `IMAGE_LOAD_FAILED`           | A preloaded image failed                                                     | none                                                                                                     |
-| `FIRST_SCENE_TIMEOUT`         | First-screen priority assets timed out (`firstSceneTimeout`, default 3000ms) | Recoverable, with `preventDefault`; default fallback statically places the first scene in its rest state |
-| `INVALID_ANIMATION`           | An Animate `after` points at a component that does not exist                 | none                                                                                                     |
-| `CIRCULAR_DEPENDENCY`         | An `after` chain forms a cycle                                               | none                                                                                                     |
-| `INVALID_COMPONENT_HIERARCHY` | Duplicate `animateId`, or duplicate scroll zone identity                     | none                                                                                                     |
-| `INVALID_DRAG_CONFIG`         | Illegal drag `unit` / `scale` / `enabled` config                             | Recoverable                                                                                              |
-| `ANIMATION_ASSET_LOAD_FAILED` | An animation preset asset failed to load                                     | Retryable                                                                                                |
+| code                          | fired when                                                             | recovery                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `EMPTY_SCENES`                | CineView has no Scene children, or a Scene has no content              | Add the missing content                                                          |
+| `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode                                  | Handle the asset failure                                                         |
+| `FIRST_SCENE_TIMEOUT`         | First-screen resource wait exceeded its limit                          | Optional `preventDefault`; otherwise show the first Scene at its completed state |
+| `INVALID_ANIMATION`           | Missing dependency, incompatible driver, or unsupported manual control | Correct the reported animation configuration                                     |
+| `CIRCULAR_DEPENDENCY`         | An `after` chain forms a cycle                                         | none                                                                             |
+| `INVALID_COMPONENT_HIERARCHY` | Duplicate `animateId`, or duplicate scroll zone identity               | none                                                                             |
+| `INVALID_DRAG_CONFIG`         | Illegal drag `unit` / `scale` / `enabled` config                       | Recoverable                                                                      |
+| `ANIMATION_ASSET_LOAD_FAILED` | An animation preset asset failed to load                               | Retryable                                                                        |
 
 ## Entries and bundle size
 
-At runtime CineView dispatches on `mode`, and the full `cineview` entry ships both engines. When using only a single mode, import the per-mode entry `cineview/drag` or `cineview/scroll` (exporting `CineViewDragProps` / `CineViewScrollProps` respectively). A single-file Universal Module Definition (UMD) build cannot code-split, so single-mode UMD consumers especially must pick the right entry. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).
+Use `cineview` with ES module (ESM) bundlers; it includes both engines. The mode subpaths `cineview/drag` and `cineview/scroll` support CommonJS and export their respective prop types. Separate Universal Module Definition (UMD) files support script loading with supplied peer runtimes. See [Installation](/docs/02-installation).
 
 ## Related pages
 
-- [Scene](/docs/02-scene): the chapter container
+- [Scene](/docs/02-scene): scene content, layout, and transitions
 - [The two modes](/docs/01-modes): what drag and scroll actually mean
 - [Responsive scaling](/docs/05-responsive): how `designWidth` drives conversion
 

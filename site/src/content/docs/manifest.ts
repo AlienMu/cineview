@@ -1,34 +1,32 @@
 /**
- * 双语文档清单 —— 阶段 3 文档架构的真源（task-flow 2026-08-23-stage3-demo-hub-docs T1.1）。
+ * Bilingual documentation manifest — the source of truth for Stage 3 documentation architecture (task-flow 2026-08-23-stage3-demo-hub-docs T1.1).
  *
- * 内容以 `./{zh,en}/{group}/{slug}.md` 落盘，frontmatter 仅两个键（title/eyebrow），
- * 正文交给 react-markdown 管线。本模块在构建期用 import.meta.glob 把全部 md 以
- * raw 字符串收齐，派生出：每语言页面索引（侧边栏/路由）、单页读取、目录（TOC）标题。
+ * Content is stored as `./{zh,en}/{group}/{slug}.md`, with frontmatter containing only two keys (title/eyebrow),
+ * and the body handled by the react-markdown pipeline. During build, this module uses import.meta.glob to
+ * collect all md files as raw strings, then derives: per-language page index (sidebar/routing), single page retrieval, and TOC headings.
  *
- * 契约（由 src/__tests__/site/docsContent.test.ts 独立复检）：
- * - zh/ 与 en/ 的相对文件集**必须同构**——缺页即构建测试红；
- * - 组内排序按文件名字典序（确定性；需要显式顺序时在文件名上做文章，不引入 order 键）；
- * - 标题在 frontmatter，语言各自维护（不走 i18n DictKey——md 本身就是语言真源）。
+ * Contract (independently verified by src/__tests__/site/docsContent.test.ts):
+ * - zh/ and en/ relative file sets **must be isomorphic** — missing pages fail build tests;
+ * - Within-group ordering is by filename lexicographic order (deterministic; when explicit order is needed, encode it in filenames rather than introducing an order key);
+ * - Titles live in frontmatter, maintained per-language (not via i18n DictKey — md itself is the language source of truth).
  */
 
+import { parseDocSource } from './frontmatter';
+
 export type DocsGroupId =
-  | 'getting-started'
-  | 'concepts'
-  | 'drag'
-  | 'scroll'
-  | 'components'
-  | 'advanced';
+  'getting-started' | 'concepts' | 'drag' | 'scroll' | 'components' | 'advanced';
 
 /**
- * 侧边栏与路由的组序。drag / scroll 两组承载各自引擎的专章，位置在概念之后、
- * 参考之前——读者先建立概念，再按自己用的引擎深入，最后查 API。
+ * Group order for sidebar and routing. drag / scroll groups carry dedicated chapters for their respective engines,
+ * positioned after concepts and before reference — readers establish concepts first, dive deep into the engine
+ * they're using, then consult the API.
  *
- * ⚠️ 新增组时有四处必须同步，漏掉任一处的失败形态不同：
- *   1. 本文件的 DocsGroupId 联合
- *   2. 本文件的 DOC_GROUP_ORDER（漏则该组页面不进侧栏索引）
- *   3. DocsPage.tsx 的 GROUP_KEY_BY_ID（Record<DocsGroupId,…>，漏则 type-check 失败）
- *   4. DocsPage.tsx 的 GROUPS（裸数组无穷尽性约束，漏则该组静默不渲染）
- * 另需同步 i18n（zh 先 en 后，否则 en.ts 过不了 Dict 类型）与契约测试的 VALID_GROUPS。
+ * ⚠️ When adding a new group, four places must be synchronized; missing any produces different failure modes:
+ *   1. DocsGroupId union in this file
+ *   2. DOC_GROUP_ORDER in this file (missing → pages from that group don't appear in sidebar index)
+ *   3. GROUP_KEY_BY_ID in DocsPage.tsx (Record<DocsGroupId,…>, missing → type-check failure)
+ *   4. GROUPS in DocsPage.tsx (bare array with no exhaustiveness check, missing → group silently doesn't render)
+ * Also sync i18n (zh first, en second, else en.ts fails Dict type) and VALID_GROUPS in contract tests.
  */
 export const DOC_GROUP_ORDER: DocsGroupId[] = [
   'getting-started',
@@ -50,32 +48,13 @@ export interface DocsPageMeta {
 }
 
 export interface DocsHeading {
-  /** 锚点 id，与渲染组件生成的 id 同源（headingId）。 */
+  /** Anchor id, derived from the same source as the rendering component's generated id (headingId). */
   id: string;
   text: string;
   depth: 2 | 3;
 }
 
-interface ParsedDocSource {
-  title: string;
-  eyebrow: string;
-  markdown: string;
-}
-
-const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-
-function parseDocSource(source: string): ParsedDocSource {
-  const match = FRONTMATTER_PATTERN.exec(source);
-  if (!match) return { title: '', eyebrow: '', markdown: source };
-  const meta: Record<string, string> = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const keyValuePair = /^([a-zA-Z]+):\s*(.*)$/.exec(line);
-    if (keyValuePair) meta[keyValuePair[1]] = keyValuePair[2].trim();
-  }
-  return { title: meta.title ?? '', eyebrow: meta.eyebrow ?? '', markdown: match[2] };
-}
-
-/** 标题文本 → 锚点 id。剥离行内标记后按空白连字符化；保留 CJK 原文（浏览器原生支持）。 */
+/** Heading text → anchor id. Strips inline markers then hyphenates on whitespace; preserves CJK text (natively supported by browsers). */
 export function headingId(text: string): string {
   return text
     .replace(/[`*_[\]()]/g, '')
@@ -92,7 +71,7 @@ const rawDocFiles = import.meta.glob<string>('./{zh,en}/*/*.md', {
 const pages = new Map<string, DocsPageMeta>();
 
 for (const [path, source] of Object.entries(rawDocFiles)) {
-  // path 形如 './zh/start/introduction.md'
+  // path format: './zh/start/introduction.md'
   const segments = /^\.\/(zh|en)\/([a-z-]+)\/([a-z0-9-]+)\.md$/.exec(path);
   if (!segments) continue;
   const [, lang, group, slug] = segments;
@@ -113,11 +92,11 @@ export function getDocsPage(slug: string, lang: DocsLang): DocsPageMeta | null {
 export interface DocsIndexEntry {
   slug: string;
   group: DocsGroupId;
-  /** 语言真源标题（md frontmatter），不走 DictKey。 */
+  /** Language source of truth title (md frontmatter), not via DictKey. */
   title: string;
 }
 
-/** 侧边栏索引：组序按 DOC_GROUP_ORDER，组内按 slug 字典序。 */
+/** Sidebar index: group order per DOC_GROUP_ORDER, within-group by slug lexicographic order. */
 export function getDocsIndex(lang: DocsLang): DocsIndexEntry[] {
   return DOC_GROUP_ORDER.flatMap((group) =>
     [...pages.entries()]
@@ -128,7 +107,7 @@ export function getDocsIndex(lang: DocsLang): DocsIndexEntry[] {
   );
 }
 
-/** 从 md 源文本提取 h2/h3 目录；id 与渲染组件的 headingId 同源。 */
+/** Extract h2/h3 TOC from md source; id derived from same source as rendering component's headingId. */
 export function getDocHeadings(markdown: string): DocsHeading[] {
   const headings: DocsHeading[] = [];
   for (const line of markdown.split(/\r?\n/)) {

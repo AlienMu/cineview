@@ -12,7 +12,7 @@ const BREATH_SECONDS = 3.4;
  * `--s03-play` compositor offset and this component's readout from the same scrub/native time.
  * The two framework lanes here own only entrance, exit and the phase-gated idle breath.
  */
-export function TimelinePlayhead(): JSX.Element {
+export function TimelinePlayhead(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (

@@ -6,10 +6,10 @@ import { useTemporalMotion } from './TemporalMotion';
  * Act 04 — the eclipse ring.
  *
  * ── Arc length: gesture, then settle. ONE input, not two. ────────────────────
- * The requirement is "跟手段由 dragProgress 驱动弧长；释放后由框架 settle 自动补满
- * 360°", and the sharp edge in it is that the fill-up is NOT a function of
- * `dragProgress`: at release the pointer value may be 0.30 and the arc still has to
- * reach a full circle.
+ * The requirement is "During drag, dragProgress drives arc length; after release,
+ * the framework's settle automatically fills the remaining 360°", and the sharp edge
+ * in it is that the fill-up is NOT a function of `dragProgress`: at release the
+ * pointer value may be 0.30 and the arc still has to reach a full circle.
  *
  * That is exactly what `timeline.progress` already is under the drag driver, so the
  * ring reads THAT and nothing else:
@@ -32,7 +32,7 @@ import { useTemporalMotion } from './TemporalMotion';
  * See the report's settle verification section for the arithmetic that shows a 30%
  * release lands at local progress 0.25 and settles the remaining 0.75.
  */
-function EclipseGraphic(): JSX.Element {
+function EclipseGraphic(): import('react').JSX.Element {
   const timeline = useAnimateTimeline();
   const timing = useTemporalMotion();
   const arcRef = useRef<SVGCircleElement>(null);
@@ -50,7 +50,7 @@ function EclipseGraphic(): JSX.Element {
       // eclipse un-winding. `1 - raw` starts exit at the full circle and unwinds it.
       // Same correction, same reason, as `DragTimecode`'s readout mirror.
       const value = timeline.phase.get() === 'exiting' ? 1 - clamped : clamped;
-      // `pathLength="1"` normalises the circumference, so the dash offset is a plain
+      // `pathLength="1"` normalizes the circumference, so the dash offset is a plain
       // 1 - progress and needs no radius arithmetic here.
       if (arc) arc.style.strokeDashoffset = String(1 - value);
     };
@@ -108,7 +108,7 @@ const RING_EXIT_MS = 380;
 const LIMB_ONSET = 0.72;
 const LIMB_PROGRESS_SPAN = 1 - LIMB_ONSET;
 
-export function ProgressRing(): JSX.Element {
+export function ProgressRing(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 
   return (
@@ -119,8 +119,8 @@ export function ProgressRing(): JSX.Element {
         animate: { opacity: 1, scale: 1 },
       }}
       exitAnimation={{ exit: { opacity: 0, scale: 0.84 } }}
-      // Absolute delay 0: the ring and the timecode enter TOGETHER (设计档 §3.4
-      // 「圆圈 + 时间码同时入场」), and 0 also puts this lane in the 0-300ms
+      // Absolute delay 0: the ring and the timecode enter TOGETHER (Design spec §3.4
+      // "Ring + timecode enter simultaneously"), and 0 also puts this lane in the 0-300ms
       // opening-response band so the first pixel of finger travel moves something.
       duration={{ enter: timing.duration(RING_ENTER_MS), exit: timing.duration(RING_EXIT_MS) }}
       timeline={{ delay: timing.delay(0) }}

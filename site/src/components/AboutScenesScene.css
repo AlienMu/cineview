@@ -1,0 +1,203 @@
+.about-scenes {
+  width: 100%;
+  padding: 7rem max(1.5rem, 6%) 5rem;
+  color: var(--ink);
+}
+
+.about-scenes__inner {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+.about-scenes__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 4rem;
+  align-items: center;
+}
+.about-scenes__header {
+  max-width: 32rem;
+}
+.about-scenes__eyebrow {
+  margin: 0 0 1.5rem;
+  color: var(--accent-ink);
+  font: 0.875rem/1.4 var(--font-body);
+}
+.about-scenes__header h2 {
+  margin: 0;
+  font: 500 3.5rem/1.08 var(--font-display);
+  text-wrap: balance;
+}
+.about-scenes__header h2 em {
+  display: block;
+  color: var(--accent-ink);
+  font-style: italic;
+  font-weight: 500;
+}
+[data-lang='zh'] .about-scenes__header h2 em {
+  font-style: normal;
+}
+.about-scenes__header > p:last-child {
+  margin: 1.5rem 0 0;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.about-scenes__spread {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 4 / 3;
+  perspective: 900px;
+}
+.about-scenes__spread-layer {
+  position: absolute;
+  inset: 0;
+}
+.about-scenes__intro > [data-cineview-animate-host='s03-copy'] {
+  overflow: clip;
+}
+.about-scenes__spread-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  overflow: visible;
+}
+.spread-page {
+  stroke: var(--brass-clay);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+}
+.spread-page--back {
+  fill: var(--warm-ivory);
+}
+.spread-page--left {
+  fill: #fffcf7;
+}
+.spread-page--right {
+  fill: #f5e7d9;
+}
+.spread-shadow {
+  fill: color-mix(in srgb, var(--burnt-terracotta) 12%, transparent);
+  stroke: none;
+}
+.spread-rule,
+.spread-ink,
+.spread-thread,
+.spread-baseline {
+  fill: none;
+  stroke: var(--brass-clay);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.spread-ink {
+  stroke: var(--burnt-terracotta);
+  stroke-width: 3;
+}
+.spread-thread {
+  stroke: var(--burnt-terracotta);
+  stroke-width: 2.5;
+}
+.spread-baseline {
+  stroke: var(--frame-line);
+  stroke-width: 1;
+}
+.spread-accent-fill {
+  fill: var(--accent);
+  stroke: none;
+}
+.spread-accent-line {
+  fill: var(--warm-ivory);
+  stroke: var(--burnt-terracotta);
+  stroke-width: 1.5;
+}
+.spread-point {
+  fill: var(--warm-ivory);
+  stroke: var(--burnt-terracotta);
+  stroke-width: 1.5;
+}
+.spread-point--warm {
+  fill: var(--burnt-terracotta);
+}
+.about-scenes__spread figcaption {
+  color: var(--ink-mute);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.about-scenes__principles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2.75rem;
+  margin-top: 4rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--frame-line);
+}
+.about-scenes__principle {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.about-scenes__principle-mark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--burnt-terracotta);
+}
+.about-scenes__principle-mark svg {
+  width: 2.25rem;
+  height: 2.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.about-scenes__principle h3 {
+  margin: 0;
+  font: 600 1rem/1.4 var(--font-body);
+}
+.about-scenes__principle p {
+  margin: 0.6rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+
+@media (max-width: 900px) {
+  .about-scenes {
+    padding-top: 5rem;
+  }
+  .about-scenes__intro {
+    gap: 2rem;
+  }
+  .about-scenes__header h2 {
+    font-size: 2.75rem;
+  }
+  .about-scenes__principles {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+    margin-top: 2.5rem;
+  }
+}
+@media (max-width: 600px) {
+  .about-scenes {
+    padding: 4rem 1.5rem 3.5rem;
+  }
+  .about-scenes__intro {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .about-scenes__header h2 {
+    font-size: 2.5rem;
+  }
+  .about-scenes__spread {
+    width: 100%;
+    max-width: 500px;
+    margin-inline: auto;
+  }
+}

@@ -7,7 +7,7 @@ const mutedText = '#5F6C8D';
 const panelBorder = '1px solid rgba(96, 120, 167, 0.18)';
 const panelShadow = '0 24px 60px rgba(119, 146, 201, 0.18)';
 
-export function LabPill({ children }: { children: ReactNode }): JSX.Element {
+export function LabPill({ children }: { children: ReactNode }): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -39,7 +39,7 @@ export function SectionCopy({
   maxWidth?: number;
   section: ExperienceSection;
   titleSize?: 'medium' | 'large' | 'hero';
-}): JSX.Element {
+}): import('react').JSX.Element {
   const resolvedTitleSize = titleSize === 'hero' ? 74 : titleSize === 'medium' ? 42 : 56;
 
   return (
@@ -88,7 +88,7 @@ export function StatGrid({
   columns?: 2 | 3;
   compact?: boolean;
   section: ExperienceSection;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -130,7 +130,11 @@ export function StatGrid({
   );
 }
 
-export function BulletColumn({ section }: { section: ExperienceSection }): JSX.Element {
+export function BulletColumn({
+  section,
+}: {
+  section: ExperienceSection;
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -170,7 +174,7 @@ export function DetailList({
   accent: string;
   items: string[];
   title: string;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -206,7 +210,7 @@ export function MediaFrame({
   section: ExperienceSection;
   width: number;
   withCaption?: boolean;
-}): JSX.Element | null {
+}): import('react').JSX.Element | null {
   if (!section.media) {
     return null;
   }
@@ -249,7 +253,7 @@ export function MetricRail({
 }: {
   section: ExperienceSection;
   stacked?: boolean;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{
@@ -288,7 +292,7 @@ export function SceneWash({
   accent: string;
   children?: ReactNode;
   style?: CSSProperties;
-}): JSX.Element {
+}): import('react').JSX.Element {
   return (
     <div
       style={{

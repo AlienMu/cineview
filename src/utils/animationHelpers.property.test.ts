@@ -1,6 +1,6 @@
 /**
  * Property-Based Tests for Animation Helpers
- * 验证动画辅助函数的数学属性和边界条件
+ * Validates mathematical properties and boundary conditions of animation helper functions
  */
 
 import { test } from '@fast-check/jest';
@@ -8,7 +8,7 @@ import * as fc from 'fast-check';
 import { interpolateVariant } from './animationHelpers';
 
 describe('Property: interpolateVariant', () => {
-  describe('数学属性', () => {
+  describe('Mathematical properties', () => {
     test.prop([
       fc.record({
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
@@ -23,7 +23,7 @@ describe('Property: interpolateVariant', () => {
         scale: fc.double({ min: 0, max: 5, noNaN: true }),
       }),
     ])(
-      '属性1: 起点插值 (progress=0) 应该返回起始值',
+      'Property 1: Start interpolation (progress=0) returns start value',
       (start: Record<string, number>, end: Record<string, number>) => {
         const result = interpolateVariant(start, end, 0);
 
@@ -47,7 +47,7 @@ describe('Property: interpolateVariant', () => {
         scale: fc.double({ min: 0, max: 5, noNaN: true }),
       }),
     ])(
-      '属性2: 终点插值 (progress=1) 应该返回结束值',
+      'Property 2: End interpolation (progress=1) returns end value',
       (start: Record<string, number>, end: Record<string, number>) => {
         const result = interpolateVariant(start, end, 1);
 
@@ -69,7 +69,7 @@ describe('Property: interpolateVariant', () => {
         y: fc.double({ min: -1000, max: 1000, noNaN: true }),
       }),
     ])(
-      '属性3: 中点插值 (progress=0.5) 应该返回中间值',
+      'Property 3: Midpoint interpolation (progress=0.5) returns middle value',
       (start: Record<string, number>, end: Record<string, number>) => {
         const result = interpolateVariant(start, end, 0.5);
 
@@ -93,7 +93,7 @@ describe('Property: interpolateVariant', () => {
       }),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性4: 线性插值公式 result = start + (end - start) * progress',
+      'Property 4: Linear interpolation formula result = start + (end - start) * progress',
       (start: Record<string, number>, end: Record<string, number>, progress: number) => {
         const result = interpolateVariant(start, end, progress);
 
@@ -107,7 +107,7 @@ describe('Property: interpolateVariant', () => {
     );
   });
 
-  describe('单调性属性', () => {
+  describe('Monotonicity properties', () => {
     test.prop([
       fc.record({
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
@@ -120,13 +120,12 @@ describe('Property: interpolateVariant', () => {
       fc.double({ min: 0, max: 1, noNaN: true }),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性5: 单调性 - 如果 progress1 < progress2，则插值结果应该在 start 和 end 之间单调变化',
+      'Property 5: Monotonicity - if progress1 < progress2, interpolation result changes monotonically between start and end',
       (start: Record<string, number>, end: Record<string, number>, p1: number, p2: number) => {
-        // 确保 p1 < p2
         const progress1 = Math.min(p1, p2);
         const progress2 = Math.max(p1, p2);
 
-        if (progress1 === progress2) return; // 跳过相等的情况
+        if (progress1 === progress2) return;
 
         const result1 = interpolateVariant(start, end, progress1);
         const result2 = interpolateVariant(start, end, progress2);
@@ -138,13 +137,10 @@ describe('Property: interpolateVariant', () => {
           const val2 = result2[key] as number;
 
           if (startVal < endVal) {
-            // 递增情况: val1 <= val2
             expect(val1).toBeLessThanOrEqual(val2 + 1e-10);
           } else if (startVal > endVal) {
-            // 递减情况: val1 >= val2
             expect(val1).toBeGreaterThanOrEqual(val2 - 1e-10);
           } else {
-            // 相等情况: val1 === val2
             expect(val1).toBeCloseTo(val2, 10);
           }
         });
@@ -152,7 +148,7 @@ describe('Property: interpolateVariant', () => {
     );
   });
 
-  describe('边界条件', () => {
+  describe('Boundary conditions', () => {
     test.prop([
       fc.record({
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
@@ -164,7 +160,7 @@ describe('Property: interpolateVariant', () => {
       }),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性6: 插值结果应该在 [min(start, end), max(start, end)] 范围内',
+      'Property 6: Interpolation result stays within [min(start, end), max(start, end)] range',
       (start: Record<string, number>, end: Record<string, number>, progress: number) => {
         const result = interpolateVariant(start, end, progress);
 
@@ -190,9 +186,8 @@ describe('Property: interpolateVariant', () => {
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
       }),
     ])(
-      '属性7: 当 start === end 时，任何 progress 都应该返回相同的值',
+      'Property 7: When start === end, any progress returns the same value',
       (start: Record<string, number>, _end: Record<string, number>) => {
-        // 使用相同的值作为 start 和 end
         const end = { ...start };
 
         const result1 = interpolateVariant(start, end, 0);
@@ -208,27 +203,29 @@ describe('Property: interpolateVariant', () => {
     );
   });
 
-  describe('字符串值处理', () => {
+  describe('String value handling', () => {
     test.prop([
       fc.integer({ min: -1000, max: 1000 }),
       fc.integer({ min: -1000, max: 1000 }),
       fc.double({ min: 0, max: 1, noNaN: true }),
-    ])('属性8: px 字符串值应该正确插值', (startNum: number, endNum: number, progress: number) => {
-      const start = { x: `${startNum}px` };
-      const end = { x: `${endNum}px` };
+    ])(
+      'Property 8: px string values interpolate correctly',
+      (startNum: number, endNum: number, progress: number) => {
+        const start = { x: `${startNum}px` };
+        const end = { x: `${endNum}px` };
 
-      const result = interpolateVariant(start, end, progress);
+        const result = interpolateVariant(start, end, progress);
 
-      const expected = startNum + (endNum - startNum) * progress;
-      const resultNum = parseFloat(result.x as string);
+        const expected = startNum + (endNum - startNum) * progress;
+        const resultNum = parseFloat(result.x as string);
 
-      expect(resultNum).toBeCloseTo(expected, 5);
-      // 允许科学计数法格式
-      expect(result.x).toMatch(/^-?\d+(\.\d+)?(e[+-]?\d+)?px$/);
-    });
+        expect(resultNum).toBeCloseTo(expected, 5);
+        expect(result.x).toMatch(/^-?\d+(\.\d+)?(e[+-]?\d+)?px$/);
+      }
+    );
 
     test.prop([fc.integer({ min: 0, max: 1000 }), fc.integer({ min: 0, max: 1000 })])(
-      '属性9: px 字符串在 progress=0 时返回起始值',
+      'Property 9: px string at progress=0 returns start value',
       (startNum: number, endNum: number) => {
         const start = { width: `${startNum}px` };
         const end = { width: `${endNum}px` };
@@ -240,7 +237,7 @@ describe('Property: interpolateVariant', () => {
     );
 
     test.prop([fc.integer({ min: 0, max: 1000 }), fc.integer({ min: 0, max: 1000 })])(
-      '属性10: px 字符串在 progress=1 时返回结束值',
+      'Property 10: px string at progress=1 returns end value',
       (startNum: number, endNum: number) => {
         const start = { width: `${startNum}px` };
         const end = { width: `${endNum}px` };
@@ -252,15 +249,15 @@ describe('Property: interpolateVariant', () => {
     );
   });
 
-  describe('非数值类型处理', () => {
+  describe('Non-numeric type handling', () => {
     test.prop([
       fc.constantFrom('visible', 'hidden', 'collapse'),
       fc.constantFrom('visible', 'hidden', 'collapse'),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性11: 非数值类型在 progress <= 0.5 时返回起始值',
+      'Property 11: Non-numeric type at progress <= 0.5 returns start value',
       (startVal: string, endVal: string, progress: number) => {
-        if (progress > 0.5) return; // 只测试 <= 0.5 的情况
+        if (progress > 0.5) return;
 
         const start = { visibility: startVal };
         const end = { visibility: endVal };
@@ -276,9 +273,9 @@ describe('Property: interpolateVariant', () => {
       fc.constantFrom('visible', 'hidden', 'collapse'),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性12: 非数值类型在 progress > 0.5 时返回结束值',
+      'Property 12: Non-numeric type at progress > 0.5 returns end value',
       (startVal: string, endVal: string, progress: number) => {
-        if (progress <= 0.5) return; // 只测试 > 0.5 的情况
+        if (progress <= 0.5) return;
 
         const start = { visibility: startVal };
         const end = { visibility: endVal };
@@ -290,7 +287,7 @@ describe('Property: interpolateVariant', () => {
     );
   });
 
-  describe('缺失值处理', () => {
+  describe('Missing value handling', () => {
     test.prop([
       fc.record({
         x: fc.double({ min: -1000, max: 1000, noNaN: true }),
@@ -298,9 +295,9 @@ describe('Property: interpolateVariant', () => {
       }),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性13: 当 start 缺少某个属性时，应该使用默认值 (opacity=1, 其他=0)',
+      'Property 13: When start is missing properties, use default values (opacity=1, others=0)',
       (end: Record<string, number>, progress: number) => {
-        const start = {}; // 空对象
+        const start = {};
 
         const result = interpolateVariant(start, end, progress);
 
@@ -319,13 +316,12 @@ describe('Property: interpolateVariant', () => {
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
         x: fc.double({ min: -1000, max: 1000, noNaN: true }),
       }),
-    ])('属性14: opacity 缺失时默认为 1', (end: Record<string, number>) => {
-      const start = {}; // 没有 opacity
+    ])('Property 14: Missing opacity defaults to 1', (end: Record<string, number>) => {
+      const start = {};
 
       const result = interpolateVariant(start, end, 0);
 
       if (end.opacity !== undefined) {
-        // 如果 end 有 opacity，start 应该默认为 1
         expect(result.opacity).toBeCloseTo(1, 10);
       }
     });
@@ -335,20 +331,23 @@ describe('Property: interpolateVariant', () => {
         x: fc.double({ min: -1000, max: 1000, noNaN: true }),
         y: fc.double({ min: -1000, max: 1000, noNaN: true }),
       }),
-    ])('属性15: 非 opacity 属性缺失时默认为 0', (end: Record<string, number>) => {
-      const start = {}; // 没有 x, y
+    ])(
+      'Property 15: Missing non-opacity properties default to 0',
+      (end: Record<string, number>) => {
+        const start = {};
 
-      const result = interpolateVariant(start, end, 0);
+        const result = interpolateVariant(start, end, 0);
 
-      Object.keys(end).forEach((key) => {
-        if (key !== 'opacity') {
-          expect(result[key]).toBeCloseTo(0, 10);
-        }
-      });
-    });
+        Object.keys(end).forEach((key) => {
+          if (key !== 'opacity') {
+            expect(result[key]).toBeCloseTo(0, 10);
+          }
+        });
+      }
+    );
   });
 
-  describe('transition 属性处理', () => {
+  describe('Transition property handling', () => {
     test.prop([
       fc.record({
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
@@ -366,7 +365,7 @@ describe('Property: interpolateVariant', () => {
       }),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性16: transition 属性应该被忽略，不出现在结果中',
+      'Property 16: Transition properties are ignored and excluded from result',
       (start: Record<string, unknown>, end: Record<string, unknown>, progress: number) => {
         const result = interpolateVariant(start, end, progress);
 
@@ -375,7 +374,7 @@ describe('Property: interpolateVariant', () => {
     );
   });
 
-  describe('组合属性测试', () => {
+  describe('Combined property tests', () => {
     test.prop([
       fc.record({
         opacity: fc.double({ min: 0, max: 1, noNaN: true }),
@@ -393,11 +392,10 @@ describe('Property: interpolateVariant', () => {
       }),
       fc.double({ min: 0, max: 1, noNaN: true }),
     ])(
-      '属性17: 多个属性同时插值应该独立计算',
+      'Property 17: Multiple properties interpolate independently',
       (start: Record<string, number>, end: Record<string, number>, progress: number) => {
         const result = interpolateVariant(start, end, progress);
 
-        // 验证每个属性都独立插值
         Object.keys(end).forEach((key) => {
           const startVal = start[key] as number;
           const endVal = end[key] as number;
@@ -406,7 +404,6 @@ describe('Property: interpolateVariant', () => {
           expect(result[key]).toBeCloseTo(expected, 10);
         });
 
-        // 验证结果包含所有 end 的属性
         expect(Object.keys(result).length).toBeGreaterThanOrEqual(Object.keys(end).length);
       }
     );

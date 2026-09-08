@@ -1,14 +1,14 @@
 /**
- * Tier 1 render-prop 测试。覆盖 Animate.tsx 的函数 children 分支:
- *   - 非函数 children 原样透传(不挂 bridge)
- *   - 函数 children + scroll → ScrollRenderBridge 派生 state
- *   - 函数 children + drag  → DragRenderBridge 派生 state
- *   - 无动画早退分支下,函数 children 收到 IDLE_RENDER_STATE(不渲染成 [object Function])
+ * Tier 1 render-prop tests. Covers function children branches in Animate.tsx:
+ *   - Non-function children pass through directly (no bridge attached)
+ *   - Function children + scroll → ScrollRenderBridge derives state
+ *   - Function children + drag → DragRenderBridge derives state
+ *   - Early return with no animation: function children receive IDLE_RENDER_STATE (not rendered as [object Function])
  *
- * 断言方式沿用主套件:getByText 冒烟 + 读渲染出的 state 文本。framer mock inline
- * (本仓无共享 mock),补齐 motion.span / useMotionValueEvent 供 bridge 订阅。
+ * Assertions follow main suite pattern: getByText smoke tests + read rendered state text.
+ * Inline framer mock (no shared mock in this repo), adds motion.span / useMotionValueEvent for bridge subscription.
  */
-import { act } from 'react';
+import { act } from '@testing-library/react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
@@ -146,10 +146,11 @@ describe('Tier 1 render-prop', () => {
   });
 });
 
-// 直接驱动 bridge 的 MotionValue change 回调 —— scrub 的核心路径(进度/相位变化时
-// 重新派生 state)。穿过整个 Animate 无法确定性推进 motion value,故直接测导出组件。
-describe('ScrollRenderBridge — 订阅 signedVisual + phaseMotion 重新派生', () => {
-  it('progress 与 phase 变化都触发重新渲染', () => {
+// Drive bridge MotionValue change callbacks directly — the core scrub path (re-derive state
+// when progress/phase changes). Cannot deterministically advance motion values through full
+// Animate component, so test the exported bridge component directly.
+describe('ScrollRenderBridge — subscribe to signedVisual + phaseMotion and re-derive', () => {
+  it('progress and phase changes both trigger re-render', () => {
     const signed = makeStub(0) as MotionValue<number>;
     const phase = makeStub<GatePhase>('idle') as unknown as MotionValue<GatePhase>;
     render(
@@ -169,7 +170,7 @@ describe('ScrollRenderBridge — 订阅 signedVisual + phaseMotion 重新派生'
     });
     expect(screen.getByText('p=0.50/entering')).toBeInTheDocument();
 
-    // 退出段 signedVisual<0 → enterProgress 夹到 0
+    // Exit segment: signedVisual<0 → enterProgress clamped to 0
     act(() => {
       signed.set(-1);
       (phase as unknown as MotionValue).set('exiting' as never);
@@ -178,11 +179,11 @@ describe('ScrollRenderBridge — 订阅 signedVisual + phaseMotion 重新派生'
   });
 });
 
-describe('DragRenderBridge — 订阅 visualState 派生 mode+progress', () => {
+describe('DragRenderBridge — subscribe to visualState and derive mode+progress', () => {
   const vs = (mode: DragVisualState['mode'], localProgress: number): DragVisualState =>
     ({ mode, localProgress }) as DragVisualState;
 
-  it('null 初始 → idle;enter 中途 → entering;rest → entered', () => {
+  it('null initial → idle; enter mid-progress → entering; rest → entered', () => {
     const state = makeStub<DragVisualState | null>(
       null
     ) as unknown as MotionValue<DragVisualState | null>;
@@ -206,8 +207,8 @@ describe('DragRenderBridge — 订阅 visualState 派生 mode+progress', () => {
   });
 });
 
-describe('drag 模式 Animate:函数 children 走 DragRenderBridge', () => {
-  it('挂载即渲染 state 文本(不崩、不 [object Function])', async () => {
+describe('drag mode Animate: function children use DragRenderBridge', () => {
+  it('renders state text on mount (no crash, not [object Function])', async () => {
     const ctx = {
       ...scrollCtx(),
       mode: 'drag' as const,

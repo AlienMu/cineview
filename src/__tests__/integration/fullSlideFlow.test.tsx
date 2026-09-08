@@ -1,9 +1,10 @@
 /**
- * 集成测试：完整滑动流程
- * 测试初始化 → 首屏加载 → 滑动切换 → 动画播放 → 事件触发
+ * Integration test: Full slide flow
+ * Tests initialization → first screen loading → slide switching → animation playback → event triggering
  */
 
-import React, { act } from 'react';
+import React from 'react';
+import { act } from '@testing-library/react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CineView, Scene, Animate, Position } from '../../index';
@@ -111,8 +112,8 @@ mockIntersectionObserver.mockReturnValue({
 });
 window.IntersectionObserver = mockIntersectionObserver as unknown as typeof IntersectionObserver;
 
-describe('完整滑动流程集成测试', () => {
-  let cineViewRef: React.RefObject<CineViewRef>;
+describe('Full slide flow integration test', () => {
+  let cineViewRef: React.RefObject<CineViewRef | null>;
 
   beforeEach(() => {
     cineViewRef = React.createRef();
@@ -123,7 +124,7 @@ describe('完整滑动流程集成测试', () => {
     jest.restoreAllMocks();
   });
 
-  test('完整流程：初始化 → 首屏加载 → 滑动切换 → 动画播放 → 事件触发', async () => {
+  test('Full flow: initialization → first screen → slide switching → animation playback → event triggering', async () => {
     const onInit = jest.fn();
     const onBeforeSceneChange = jest.fn();
     const onAfterSceneChange = jest.fn();
@@ -132,7 +133,7 @@ describe('完整滑动流程集成测试', () => {
     const TestApp = () => {
       return (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -184,36 +185,29 @@ describe('完整滑动流程集成测试', () => {
       );
     };
 
-    // 1. 渲染组件
     render(<TestApp />);
 
-    // 2. 验证初始化
     await waitFor(() => {
       expect(onInit).toHaveBeenCalledTimes(1);
     });
 
-    // 3. 验证首屏渲染（无图片预加载时应该立即渲染）
     await waitFor(() => {
       expect(screen.getByText('场景 1')).toBeInTheDocument();
     });
     expect(screen.getByText('欢迎来到 CineView')).toBeInTheDocument();
 
-    // 4. 验证当前场景索引
     expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
-    // 5. 触发场景切换（使用 API）
     await act(async () => {
       cineViewRef.current?.goToScene(1, true);
     });
 
-    // 6. 验证场景切换前回调
     await waitFor(() => {
       expect(onBeforeSceneChange).toHaveBeenCalledWith(
         expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
       );
     });
 
-    // 7. 等待场景切换完成
     await waitFor(
       () => {
         expect(onAfterSceneChange).toHaveBeenCalledWith(expect.objectContaining({ toIndex: 1 }));
@@ -221,13 +215,10 @@ describe('完整滑动流程集成测试', () => {
       { timeout: 2000 }
     );
 
-    // 8. 验证新场景渲染
     expect(screen.getByText('场景 2')).toBeInTheDocument();
 
-    // 9. 验证当前场景索引更新
     expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
 
-    // 10. 继续切换到场景 3
     await act(async () => {
       cineViewRef.current?.goToScene(2, true);
     });
@@ -248,18 +239,17 @@ describe('完整滑动流程集成测试', () => {
     expect(screen.getByText('场景 3')).toBeInTheDocument();
     expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
 
-    // 11. 验证事件回调调用次数
     expect(onBeforeSceneChange).toHaveBeenCalledTimes(2);
     expect(onAfterSceneChange).toHaveBeenCalledTimes(2);
   });
 
-  test('拖拽模式：拖拽进度与动画同步', async () => {
+  test('Drag mode: drag progress synchronized with animation', async () => {
     const onAfterSceneChange = jest.fn();
 
     const TestApp = () => {
       return (
         <CineView
-          ref={cineViewRef}
+          ref={cineViewRef as React.RefObject<CineViewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={800}
@@ -281,17 +271,14 @@ describe('完整滑动流程集成测试', () => {
 
     render(<TestApp />);
 
-    // 验证首屏渲染
     await waitFor(() => {
       expect(screen.getByText('拖拽场景 1')).toBeInTheDocument();
     });
 
-    // 在拖拽模式下，使用 API 切换场景来验证功能
     await act(async () => {
       cineViewRef.current?.goToScene(1, false);
     });
 
-    // 验证场景切换
     await waitFor(
       () => {
         expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
@@ -299,16 +286,14 @@ describe('完整滑动流程集成测试', () => {
       { timeout: 2000 }
     );
 
-    // 验证回调被调用
     await waitFor(() => {
       expect(onAfterSceneChange).toHaveBeenCalledWith(expect.objectContaining({ toIndex: 1 }));
     });
 
-    // 验证新场景渲染
     expect(screen.getByText('拖拽场景 2')).toBeInTheDocument();
   });
 
-  test('动画延迟关联机制：waitFor 链式执行', async () => {
+  test('Animation delay chaining mechanism: waitFor chain execution', async () => {
     const TestApp = () => {
       return (
         <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
@@ -346,21 +331,16 @@ describe('完整滑动流程集成测试', () => {
 
     render(<TestApp />);
 
-    // 等待场景渲染
     await waitFor(() => {
       expect(screen.getByText('动画 1')).toBeInTheDocument();
     });
 
-    // 验证所有动画组件都已渲染（waitFor 机制确保它们按顺序执行）
     expect(screen.getByText('动画 1')).toBeInTheDocument();
     expect(screen.getByText('动画 2')).toBeInTheDocument();
     expect(screen.getByText('动画 3')).toBeInTheDocument();
-
-    // 验证动画延迟关联机制正常工作（组件已正确注册和渲染）
-    // 实际的动画执行时序由 Animate 组件内部的 waitFor 逻辑控制
   });
 
-  test('响应式尺寸换算：窗口 resize 触发重新计算', async () => {
+  test('Responsive size conversion: window resize triggers recalculation', async () => {
     const TestApp = () => {
       return (
         <CineView designWidth={750}>
@@ -375,12 +355,9 @@ describe('完整滑动流程集成测试', () => {
 
     render(<TestApp />);
 
-    // 获取初始位置
     const element = screen.getByTestId('positioned-element');
-    // 验证元素存在
     expect(element).toBeInTheDocument();
 
-    // 模拟窗口 resize
     act(() => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
@@ -390,21 +367,19 @@ describe('完整滑动流程集成测试', () => {
       window.dispatchEvent(new Event('resize'));
     });
 
-    // 等待防抖完成
     await waitFor(
       () => {
         const newStyle = window.getComputedStyle(element.parentElement!);
-        // 验证样式已更新（具体值取决于实现）
         expect(newStyle).toBeDefined();
       },
       { timeout: 500 }
     );
   });
 
-  test('性能指标获取：getPerformanceMetrics', async () => {
+  test('Performance metrics retrieval: getPerformanceMetrics', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} designWidth={750}>
+        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
           <Scene>
             <h1>性能测试场景</h1>
           </Scene>
@@ -418,10 +393,8 @@ describe('完整滑动流程集成测试', () => {
       expect(cineViewRef.current).not.toBeNull();
     });
 
-    // 获取性能指标
     const metrics = cineViewRef.current?.getPerformanceMetrics();
 
-    // 验证性能指标存在
     expect(metrics).toBeDefined();
     if (metrics) {
       expect(typeof metrics.fps).toBe('number');
@@ -430,10 +403,10 @@ describe('完整滑动流程集成测试', () => {
     }
   });
 
-  test('虚拟化渲染：仅渲染当前场景及前后各一个', async () => {
+  test('Virtualized rendering: only render current scene plus one before and after', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} designWidth={750}>
+        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
@@ -455,12 +428,10 @@ describe('完整滑动流程集成测试', () => {
 
     render(<TestApp />);
 
-    // 初始状态：应该渲染场景 0 和场景 1
     expect(screen.getByText('场景 0')).toBeInTheDocument();
     expect(screen.queryByText('场景 1')).toBeInTheDocument();
     expect(screen.queryByText('场景 2')).not.toBeInTheDocument();
 
-    // 切换到场景 2
     act(() => {
       cineViewRef.current?.goToScene(2, false);
     });
@@ -469,7 +440,6 @@ describe('完整滑动流程集成测试', () => {
       expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
     });
 
-    // 应该渲染场景 1, 2, 3
     expect(screen.queryByText('场景 0')).not.toBeInTheDocument();
     expect(screen.getByText('场景 1')).toBeInTheDocument();
     expect(screen.getByText('场景 2')).toBeInTheDocument();
@@ -477,12 +447,12 @@ describe('完整滑动流程集成测试', () => {
     expect(screen.queryByText('场景 4')).not.toBeInTheDocument();
   });
 
-  test('错误处理：无效场景索引', async () => {
+  test('Error handling: invalid scene index', async () => {
     const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef} designWidth={750}>
+        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
@@ -499,15 +469,12 @@ describe('完整滑动流程集成测试', () => {
       expect(cineViewRef.current).not.toBeNull();
     });
 
-    // 尝试切换到无效索引
     act(() => {
       cineViewRef.current?.goToScene(10, false);
     });
 
-    // 验证当前场景未改变
     expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
 
-    // 验证警告信息
     expect(consoleWarnSpy).toHaveBeenCalled();
 
     consoleWarnSpy.mockRestore();

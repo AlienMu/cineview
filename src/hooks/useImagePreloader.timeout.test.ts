@@ -1,17 +1,19 @@
 /**
- * 回归(E-A4):
- *  1. 挂起(既不 onload 也不 onerror)的图片请求必须在超时(15s)后按加载失败
- *     {success:false} 结算 —— 否则一张挂起的 priority 图会冻结 progress、阻塞
- *     background 队列、卡死 priorityComplete 首屏门。
- *  2. priority 批必须并发加载:priorityComplete 的等待时间取决于最慢一张,
- *     而不是各图加载时间之和(旧实现逐张串行 await)。
+ * Regression (E-A4):
+ *  1. Stalled image requests (neither onload nor onerror) must settle as
+ *     {success:false} after timeout (15s) — otherwise a single hung priority
+ *     image will freeze progress, block the background queue, and deadlock
+ *     the priorityComplete first-screen gate.
+ *  2. Priority batch must load concurrently: priorityComplete wait time depends
+ *     on the slowest image, not the sum of all load times (old implementation
+ *     loaded serially with sequential awaits).
  */
 
 import { renderHook, act } from '@testing-library/react';
 import { useImagePreloader } from './useImagePreloader';
 import { resetPreloadedImageCache } from './imagePreloadCache';
 
-// src 含 'hang' 的图片永不结算;其余在 100ms 后 onload。
+// Images with 'hang' in src never settle; others fire onload after 100ms.
 class TimerMockImage {
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
@@ -24,7 +26,7 @@ class TimerMockImage {
   set src(value: string) {
     this.currentSrc = value;
     if (value === '' || value.includes('hang')) {
-      return; // 永不 load / error
+      return; // never load / error
     }
     setTimeout(() => this.onload?.(), 100);
   }
@@ -59,7 +61,7 @@ describe('useImagePreloader — stalled requests & priority concurrency', () => 
     await act(async () => {
       jest.advanceTimersByTime(100);
     });
-    // ok.jpg 已结算,但挂起图未超时前不放行首屏门。
+    // ok.jpg settled, but the first-screen gate stays closed until hung image times out.
     expect(result.current[0].priorityComplete).toBe(false);
 
     await act(async () => {
@@ -82,8 +84,9 @@ describe('useImagePreloader — stalled requests & priority concurrency', () => 
       void result.current[1].startPreload();
     });
 
-    // 单张耗时 100ms;并发下推进一个 100ms 窗口即可全部结算并放行首屏门。
-    // 串行(bug)时 p2/p3 的加载在 p1 结算前根本没开始,此断言必然失败。
+    // Each image takes 100ms; with concurrency, advancing one 100ms window settles
+    // all images and releases the first-screen gate. Serial loading (bug) would not
+    // start p2/p3 until p1 completes, and this assertion would fail.
     await act(async () => {
       jest.advanceTimersByTime(100);
     });

@@ -3,7 +3,7 @@ title: Position
 eyebrow: COMPONENTS / POSITION
 ---
 
-Position 负责 Scene 内部元素的空间坐标定位。所有坐标均按设计稿 px 声明并经由 px2vw 响应式比例等比换算；盒模型尺寸由 [Container](/docs/07-container) 管理，标准嵌套层级为 `Scene → Position → Container`。
+Position 使用设计像素坐标在 Scene 内放置内容。响应式宽高与间距使用 [Container](/docs/07-container)。
 
 ## Props
 
@@ -16,7 +16,7 @@ Position 负责 Scene 内部元素的空间坐标定位。所有坐标均按设�
 | `className` | string                                        | 根 div 类名                                |
 | 其余        | HTMLAttributes（除 children/style/className） | 透传根 div                                 |
 
-forwardRef 指向根 div。
+转发的 `ref` 指向根 div。
 
 ### at 字段
 
@@ -24,20 +24,20 @@ forwardRef 指向根 div。
 | --------------------- | -------------------------------------- | ------------------------------------------- |
 | `x` / `y`             | number                                 | 绝对设计坐标，按设计比例换算                |
 | `offsetX` / `offsetY` | number                                 | 相对最近上层 Position 的坐标增量（设计 px） |
-| `anchor`              | `'center' \| 'center-x' \| 'center-y'` | 居中对齐基准，被居中的轴相对可视区域居中    |
+| `anchor`              | `'center' \| 'center-x' \| 'center-y'` | 在定位包含块中对所选轴居中                  |
 
 ### 定位裁决
 
 每个轴按优先级解析，高者优先：
 
-1. **居中**：该轴在 `anchor` 中被声明 → 相对可视区域居中（见「居中对齐」小节）。
+1. **居中**：`anchor` 选中的轴在定位包含块内居中。
 2. **绝对**：`x` / `y` 任一存在即触发，未给的轴补 `0`。
 3. **相对链**：仅给了 `offsetX` / `offsetY` → 在最近上层 Position 的坐标上累加。绝对定位一旦触发，offset 链整体让位。
 4. 都不给 → `(0, 0)`。
 
 ## 居中对齐
 
-`anchor: 'center'` 水平 + 垂直双向居中；`'center-x'` / `'center-y'` 只居中一个轴，另一轴仍是绝对坐标。
+`anchor: 'center'` 在两个轴上居中。`'center-x'` 和 `'center-y'` 只居中一个轴，另一轴保留正常坐标规则。
 
 居中之后，被居中轴上的 `x` / `y` 改作「相对中心的偏移量」（设计 px，同样按设计比例换算）：`anchor: 'center', y: -100` 表示整体居中再上移 100。被居中的轴忽略 `offsetX` / `offsetY` 相对链。
 
@@ -49,20 +49,20 @@ forwardRef 指向根 div。
 </Position>
 ```
 
-## scene-scoped fixed layer
+## Scene 作用域固定层
 
-scroll 模式下传 `fixed`，元素 portal 进本 Scene 的 fixed layer 宿主：滚动时保持屏幕固定位置，离开宿主 Scene 随之退场。Scene 没有 fixed layer 宿主时降级为 `sticky`。
+scroll 模式的 `fixed` 将内容放入 Scene 固定层。该 Scene 可见期间，元素保持相对于屏幕的位置，并随 Scene 离开。没有固定层容器时使用 sticky 定位。
 
-> 不要在 scroll 锁定区里直接声明原生 `position: fixed`：锁定区用真实 transform 移动内容，`fixed` 不再相对于浏览器窗口解析，而是相对带 transform 的祖先。正确做法是传 `fixed` prop。
+带 transform 的祖先会改变原生 `position: fixed` 的定位包含块。在 Scene 内使用 `fixed` 属性，详见[固定元素](/docs/04-fixed-layer)。
 
-scene-scoped 是严格边界：fixed layer 以 Scene 为作用域，跨场景的常驻漂浮不属于这套模型。
+需要跨场景持续显示的 UI 放在 CineView 外部。
 
 ## 常见误用
 
-- **拿 Container 做定位**：定位始终归 Position，Container 只管盒子多大。
-- **给 fixed 元素手写 `translate(-50%)` 居中**：用 `at.anchor`。
-- **期望 fixed layer 跨场景漂浮**：不会，也不支持。
+- 用 Position 设置设计坐标，用 Container 设置宽高与间距。
+- 用 `at.anchor` 居中，使自定义变换与居中变换组合。
+- 常驻导航放在 CineView 外部。
 
 ---
 
-响应式换算模型（仅按宽度等比换算、比例保持一致）详见 [响应式模型](/docs/05-responsive)；fixed layer 的机制与限制详见 [Fixed Layer](/docs/04-fixed-layer)。
+宽度换算规则见[响应式模型](/docs/05-responsive)，固定元素的行为见[固定层](/docs/04-fixed-layer)。

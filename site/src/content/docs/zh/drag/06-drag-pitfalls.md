@@ -7,9 +7,9 @@ eyebrow: DRAG / TROUBLESHOOTING
 
 ## 1. `transitionDuration` 不影响手势翻页速度
 
-将 `transitionDuration` 从 800 改为 300 后，手势驱动的页面过渡速度不会变化。手势平移和回弹使用固定的 800 毫秒时长。`transitionDuration` 只在调用 `ref.goToScene()` 时安排 `onSceneLeave` 定时器。
+`transitionDuration` 配置程序化导航。手势位移使用单独的计时基准，普通回弹时长随位移计算，上限为 300ms。
 
-手势时长保持固定。若要调整感知节奏，修改元素的 `duration` 和 `delay`，或设置 `unit: 'percent'` 改变位移到元素时间线的映射方式。详见[手势与阈值](/docs/02-gestures)。
+调整元素节奏时，修改 `duration`、`timeline.delay`，或通过 `unit` 与 `scale` 改变拖拽映射。详见[手势](/docs/02-gestures)。
 
 ## 2. 反向拖拽时不执行 `exitAnimation`
 
@@ -21,13 +21,13 @@ eyebrow: DRAG / TROUBLESHOOTING
 
 如果场景在首轮渲染后才加入，首屏可能直接显示完成态，而后续场景仍能正常播放入场动画。首屏入场判断在初次挂载时执行。初次挂载时场景数量为零，会让这次挂载周期不再播放首屏入场动画。
 
-让首轮渲染就包含 `Scene` 节点。数据或动态 import 尚未完成时，先挂载占位或骨架场景，不要用 `{data && <Scene>...</Scene>}` 推迟整棵场景树。
+首轮渲染就包含 Scene。数据或动态导入尚未完成时，先显示占位 Scene，不要推迟全部 Scene 声明。
 
 ## 4. `driver: 'clock'` 元素不会退场
 
 drag 模式下，`timeline.driver: 'clock'` 会在 Scene 到场后按真实时间独立播放。元素不参与 `after` 顺序，不执行 `exitAnimation`，自身时长也不计入场景时间线。开发构建会报告这些被忽略的配置。
 
-需要退场动作或有序时序时使用默认的 `driver: 'scene'`。独立时钟适合不参与叙事顺序的装饰性动效，例如静止后的呼吸光晕。详见[Animate 时间线](/docs/02-timeline)。
+元素需要跟随手势退场或参与 `after` 依赖时，使用 `driver: 'scene'`。需要到达后独立播放的动效时，使用 clock 驱动。
 
 ## 5. 远处场景的定时器和本地状态丢失
 
@@ -39,11 +39,11 @@ drag 模式只保持当前场景和相邻场景挂载。距离当前位置超过
 
 `CineView` 只检查直接子节点来发现 `Scene`。React 会展平数组，因此 `{list.map(...)}` 可以使用。Fragment 不会展平，在自定义组件的 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。直接子节点和 Fragment 混用时，框架只发现直接子节点中的场景，也不会发出空场景警告。
 
-将所有 `Scene` 直接声明为 `CineView` 的子节点。需要复用一组场景时，导出返回 `Scene[]` 的函数并展开结果，不要返回 Fragment。
+将 Scene 直接声明在 CineView 下。复用一组场景时，可让函数返回 Scene 元素数组，在 CineView 的 children 中调用；不要再用组件包裹这些 Scene。
 
 ## 相关页面
 
 - [drag 布局契约](/docs/01-layout)：场景挂载范围与忽略的属性
-- [所有权与事务](/docs/04-ownership)：早期手势可能无效的原因
+- [拖拽的开始与继续](/docs/04-ownership)：早期手势可能无效的原因
 - [drag 回调时序](/docs/05-callbacks)：回调时刻与命名
 - [排错](/docs/07-common-pitfalls)：跨模式通用问题

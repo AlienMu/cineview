@@ -1,15 +1,17 @@
 /**
  * CineView React UI Framework
- * 专为 React 开发的 UI 框架，用于快速创建影院式全屏滑动页面介绍效果
+ * A React UI framework for creating cinematic full-screen sliding page introductions
  *
- * 本入口 = **全量**：`CineView` 是运行时按 `mode` 派发的组件，两套引擎都在包里。
- * 保持既有行为与导出面不变（默认 `mode='drag'`）。
+ * This entry point is **full-featured**: `CineView` is a runtime-dispatched component
+ * based on `mode`, and both engines are included in the bundle.
+ * Maintains existing behavior and export surface (default `mode='drag'`).
  *
- * 若只用单一模式、且在意包体积，改用按模式的入口（UMD 消费者尤其相关，
- * 单文件 UMD 无法代码拆分，全量入口必然同时含两套引擎）：
- *   - `cineview/drag`   → 只含拖拽引擎
- *   - `cineview/scroll` → 只含滚动引擎
- * 见 `src/entry-drag.ts` / `src/entry-scroll.ts`。
+ * For single-mode usage with smaller bundle size, use mode-specific entry points
+ * (especially relevant for UMD consumers, as single-file UMD cannot code-split
+ * and the full entry point will always include both engines):
+ *   - `cineview/drag`   → drag engine only
+ *   - `cineview/scroll` → scroll engine only
+ * See `src/entry-drag.ts` / `src/entry-scroll.ts`.
  */
 
 export * from './public-api';

@@ -1,23 +1,25 @@
 /**
- * `cineview/drag` —— **只含拖拽引擎**的入口。
+ * `cineview/drag` — drag-only engine entry point.
  *
- * 存在理由：单文件 UMD 无法代码拆分（Rollup 报
- * `UMD and IIFE output formats are not supported for code-splitting builds`），
- * 所以全量入口的 UMD 必然同时含拖拽 + 滚动两套引擎。实测滚动引擎
- * （`DirectScrollCineView`）单独占 UMD gzip 10437 字节 ≈ 全包 20%，
- * 只用拖拽的消费者不该背这份重量。
+ * Rationale: single-file UMD cannot code-split (Rollup reports
+ * `UMD and IIFE output formats are not supported for code-splitting builds`),
+ * so the full entry's UMD bundle necessarily includes both drag + scroll engines.
+ * The scroll engine (`DirectScrollCineView`) alone occupies 10437 gzipped bytes
+ * ≈ 20% of the full bundle; drag-only consumers should not carry that weight.
  *
- * 与全量入口的两点差异：
- * 1. 这里的 `CineView` 是拖拽引擎本身，不是按 `mode` 派发的组件。
- * 2. **`mode` 被运行时强制为 `'drag'`**，不是仅靠类型挡。原因：拖拽引擎内部约
- *    30 处 `if (resolvedRootMode !== 'drag') return;` 守卫读 `props.mode`，
- *    传 `mode="scroll"` 会渲染出壳但全部逻辑短路 —— 静默失效。而 UMD /
- *    script-tag 消费者没有类型保护，只有运行时覆写能真正堵住。
+ * Two differences from the full entry:
+ * 1. `CineView` here is the drag engine itself, not a mode-dispatching wrapper.
+ * 2. **`mode` is runtime-enforced to `'drag'`**, not just type-level blocking.
+ *    Reason: the drag engine has ~30 internal `if (resolvedRootMode !== 'drag') return;`
+ *    guards reading `props.mode`. Passing `mode="scroll"` renders a shell but
+ *    short-circuits all logic — silent failure. UMD / script-tag consumers lack
+ *    type protection; only runtime override truly prevents this.
  *
- * Props 类型不用 `Omit<CineViewProps, 'mode'>`：`CineViewProps` 是以 `mode` 为
- * 判别式的联合（types/index.ts:377-379），Omit 掉判别式会把 `callbacks` 塌成
- * 两模式的并集、谁都不匹配。故直接从 `CineViewBaseProps` + 拖拽 callbacks 组装，
- * 天然无 `mode`，且保住 callbacks 与模式的对应关系。
+ * Props type is not `Omit<CineViewProps, 'mode'>`: `CineViewProps` is a discriminated
+ * union keyed on `mode` (types/index.ts:377-379). Omitting the discriminant collapses
+ * `callbacks` into the union of both modes, matching neither. Instead, assemble directly
+ * from `CineViewBaseProps` + drag callbacks — naturally no `mode`, and preserves the
+ * callbacks-to-mode correspondence.
  */
 
 import { forwardRef, createElement } from 'react';
@@ -27,24 +29,25 @@ import type { CineViewBaseProps, DragModeCallbacks, CineViewRef } from './types'
 
 export * from './public-api';
 
-/** 拖拽入口的 Props：无 `mode`，callbacks 固定为拖拽组。 */
+/** Drag entry props: no `mode`, callbacks fixed to drag set. */
 export type CineViewDragProps = CineViewBaseProps & {
   callbacks?: DragModeCallbacks;
 };
 
 const CineViewDragOnly = forwardRef<CineViewRef, CineViewDragProps>((props, ref) => {
-  // script-tag / CJS 消费者没有类型保护，可能把 `mode="scroll"` 传进来。此时
-  // **必须抛错**：本产物没有滚动引擎，静默按拖拽渲染会让人以为「滚动模式坏了」。
-  // 抛错则直接指向正确产物。类型层已 Omit 掉 mode，故 TS 消费者走不到这里。
+  // script-tag / CJS consumers lack type protection and may pass `mode="scroll"`.
+  // **Must throw**: this artifact has no scroll engine; silently rendering as drag
+  // would make users think "scroll mode is broken". Throwing points them to the
+  // correct artifact. Type layer already Omits mode, so TS consumers never reach here.
   const requested = (props as { mode?: string }).mode;
   if (requested !== undefined && requested !== 'drag') {
     throw new Error(
-      `[CineView] 本产物（cineview.umd.js / "cineview/drag"）只含拖拽引擎，` +
-        `不支持 mode="${requested}"。滚动模式请加载 cineview-scroll.umd.js（或 import "cineview/scroll"）；` +
-        `需要运行时按 mode 切换请用全量入口 import "cineview"。`
+      `[CineView] This artifact (cineview.umd.js / "cineview/drag") contains only the drag engine ` +
+        `and does not support mode="${requested}". For scroll mode, load cineview-scroll.umd.js ` +
+        `(or import "cineview/scroll"); for runtime mode switching, use the full entry import "cineview".`
     );
   }
-  // mode 恒为 'drag'：拖拽引擎内部约 30 处以 `!== 'drag'` 守卫，缺省值必须坐实。
+  // mode is always 'drag': drag engine has ~30 internal `!== 'drag'` guards; default must be explicit.
   return createElement(CineViewDragEngine, { ...props, mode: 'drag', ref });
 });
 

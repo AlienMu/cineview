@@ -139,7 +139,11 @@ export function createTicks(
  * wait out the hand's whole revolution). Absolute delays let the ticks and the hand
  * share one clock and stay co-located by construction.
  */
-export const DialTicks = memo(function DialTicks({ exitMs }: { exitMs: number }): JSX.Element {
+export const DialTicks = memo(function DialTicks({
+  exitMs,
+}: {
+  exitMs: number;
+}): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const ticks = useMemo(
     () => createTicks(timing.duration(TICK_ENTER_MS), timing.duration(exitMs), timing.delay),

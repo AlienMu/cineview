@@ -1,6 +1,6 @@
 /**
- * Rotate/Spin 系列动画
- * 旋转效果
+ * Rotate/Spin animation presets
+ * Rotation effects
  */
 
 import type { Variant } from 'framer-motion';

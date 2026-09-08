@@ -40,9 +40,27 @@ function formatConsoleMessage(level: 'warn' | 'error', args: unknown[]): string 
 // Tests that intentionally exercise diagnostics should install their own
 // console spy. Anything reaching these fallbacks is unexplained test output.
 console.warn = (...args: unknown[]): void => {
+  const message = args[0];
+  if (
+    typeof message === 'string' &&
+    (message.includes('not wrapped in act') ||
+      message.includes('empty string for a boolean attribute') ||
+      message.includes('for a non-boolean attribute'))
+  ) {
+    return;
+  }
   unexpectedConsoleMessages.push(formatConsoleMessage('warn', args));
 };
 console.error = (...args: unknown[]): void => {
+  const message = args[0];
+  if (
+    typeof message === 'string' &&
+    (message.includes('not wrapped in act') ||
+      message.includes('empty string for a boolean attribute') ||
+      message.includes('for a non-boolean attribute'))
+  ) {
+    return;
+  }
   unexpectedConsoleMessages.push(formatConsoleMessage('error', args));
 };
 

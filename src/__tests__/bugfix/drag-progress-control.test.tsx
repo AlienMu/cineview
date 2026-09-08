@@ -1,14 +1,14 @@
 /**
  * Drag Progress Control Bug Fix Test
  *
- * 原始缺陷：拖拽时元素动画不跟随进度，停在初始帧。
+ * Original defect: element animation does not follow progress during drag, stuck at initial frame.
  *
- * 该缺陷的现代形态由**双轨模型**定义，两条断言都必须落在解析出来的样式上：
- *  - 正在滑走的 active 场景，其退场视觉跟随 **renderProgress**（页面位移轨）；
- *  - `dragProgressMotion` 单独变化**不**推动元素视觉——元素轨是场景自有的。
+ * The modern form of this defect is defined by the **two-track model**. Both assertions must apply to resolved styles:
+ *  - The active scene sliding away: its exit visual follows **renderProgress** (page displacement track);
+ *  - `dragProgressMotion` changes alone do **not** drive element visuals — element tracks belong to the scene itself.
  *
- * 本文件刻意不 mock framer-motion：断言读的是 motion.div 真正写进 DOM 的行内样式，
- * 而不是传给它的 props。
+ * This file deliberately does not mock framer-motion: assertions read the inline styles that motion.div
+ * actually writes to the DOM, not the props passed to it.
  */
 
 import { render, act } from '@testing-library/react';
@@ -78,12 +78,12 @@ describe('Drag Progress Control Bug Fix', () => {
       unmount();
     }
 
-    // 800ms 的位移轨对 600ms 的退场：0 → 1、0.75 → 0，中间线性。
+    // 800ms displacement track against 600ms exit: 0 → 1, 0.75 → 0, linear between.
     expect(samples[0]).toBeCloseTo(1, 5);
     expect(samples[1]).toBeCloseTo(2 / 3, 5);
     expect(samples[2]).toBeCloseTo(1 / 3, 5);
     expect(samples[3]).toBeCloseTo(0, 5);
-    // 严格单调：视觉卡在初始帧（原缺陷）时这里全是同一个数。
+    // Strictly monotonic: when visual is stuck at initial frame (original defect), all samples are identical.
     expect(samples[1]).toBeLessThan(samples[0]);
     expect(samples[2]).toBeLessThan(samples[1]);
     expect(samples[3]).toBeLessThan(samples[2]);
@@ -104,7 +104,7 @@ describe('Drag Progress Control Bug Fix', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
 
-    // 元素轨是场景自有的；页面位移轨没动，视觉就不该动。
+    // Element track belongs to the scene; if page displacement track doesn't move, visual shouldn't move.
     expect(readOpacity(container)).toBeCloseTo(before, 5);
   });
 
@@ -115,7 +115,7 @@ describe('Drag Progress Control Bug Fix', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    // 带循环动画时外层仍须交出退场进度，不能停在初始帧。
+    // With loop animation, outer layer must still yield exit progress, not stuck at initial frame.
     expect(readOpacity(container)).toBeCloseTo(1 / 3, 5);
   });
 });

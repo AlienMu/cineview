@@ -67,9 +67,10 @@ interface ApertureCanvasProps {
   phase: MotionValue<AnimatePhase>;
 }
 
-// 2026-08-15 写实化：真实光圈叶片是近黑的淬火钢（中性偏冷、微发蓝灰），片与片靠
-// 1px 级的亮边缘（金属倒角反光）区分，不是整片饱和色。叶片基体因此压到 #0d-#1a 区间，
-// 分片感移交给亮边缘；仅存的颜色是低饱和 teal sheen（下方渐变），呼应本幕冷极。
+// 2026-08-15 realistic rendering: real aperture blades are near-black tempered steel (neutral-cool, slightly blue-gray tint),
+// distinguished from each other by 1px-level bright edges (chamfered metal reflections), not full saturated color.
+// Blade bodies are therefore compressed to the #0d-#1a range, separation handed off to the bright edges;
+// the only remaining color is low-saturation teal sheen (gradient below), echoing this act's cold extreme.
 // Numeric channels avoid parsing CSS strings in the per-blade loop; the static glass
 // reflections live in DOM/CSS above canvas.
 const EDGE_COOL: readonly [number, number, number] = [176, 205, 212]; // steel catching a teal reflection
@@ -91,7 +92,7 @@ function mixChannel(from: number, to: number, amount: number): number {
 export const ApertureCanvas = memo(function ApertureCanvas({
   progress,
   phase,
-}: ApertureCanvasProps): JSX.Element {
+}: ApertureCanvasProps): import('react').JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
 
@@ -165,7 +166,7 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         const bowX = centerX + Math.cos(axis) * controlRadius;
         const bowY = centerY + Math.sin(axis) * controlRadius;
 
-        // The two swept flanks. 返工「形状需要是这样的」: the reference's leaves are scimitars,
+        // The two swept flanks. Rework "the shape needs to be like this": the reference's leaves are scimitars,
         // and that shape comes from the flanks bulging TANGENTIALLY round the barrel — a
         // radially-placed control point only ever yields a straighter or kinkier wedge. Both
         // flanks take the SAME `sweepSign` so the plate curves one way round the barrel rather
@@ -294,9 +295,10 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         height * 0.5,
         Math.max(width, height) * 0.66
       );
-      // 2026-08-15 写实化：sheen 从四档亮 teal 渐变（0.95 起步）压成极低饱和的冷钢
-      // 反射——叶片基体已近黑，sheen 不再承担「让叶片显色」的职责，只留一层薄薄的
-      // teal 环境反射（呼应本幕冷极）；外圈落到近黑，顺带把镜筒向黑收拢。
+      // 2026-08-15 realistic rendering: sheen compressed from four-stop bright teal gradient (starting at 0.95)
+      // to extremely low-saturation cool steel reflection — blade bodies are already near-black, sheen no longer
+      // carries "make blades show color" responsibility, only leaves a thin layer of teal environment reflection
+      // (echoing this act's cold extreme); outer ring falls to near-black, incidentally tightening the lens barrel toward black.
       bladeSheen.addColorStop(0, 'rgba(150, 190, 198, 0.14)');
       bladeSheen.addColorStop(0.22, 'rgba(64, 155, 168, 0.07)');
       bladeSheen.addColorStop(0.58, 'rgba(12, 30, 34, 0.1)');

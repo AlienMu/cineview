@@ -3,7 +3,7 @@ title: The Animate timeline
 eyebrow: CONCEPTS / TIMELINE
 ---
 
-Every `Animate` element runs on a dedicated timeline: `phase` indicates its current lifecycle state, `timeline.*` configures its driver and scheduling, and `enterRef` / `exitRef` provide manual control.
+`Animate` uses `timeline` to select its progress source and timing. Read `phase` for its animation stage, or use the supported manual refs to trigger an entrance or exit.
 
 ## phase: the six states
 
@@ -16,13 +16,13 @@ Every `Animate` element runs on a dedicated timeline: `phase` indicates its curr
 | `exiting`  | exit in progress                        |
 | `exited`   | exit complete (at rest until a replay)  |
 
-Two ways to read it: render-prop children receive `{ enterProgress, phase }`; inside a child component, `useAnimateTimeline()` returns read-only MotionValues, so reading progress does not trigger React re-renders (see [useAnimateTimeline](/docs/09-use-animate-timeline)). Enter progress runs 0→1, and exit rewinds along the same path.
+Render-prop children receive `{ enterProgress, phase }` as React values. A descendant component can call `useAnimateTimeline()` for MotionValues that update without React rendering. See [useAnimateTimeline](/docs/09-use-animate-timeline).
 
-**`phase` does not advance inside a locked zone.** For an element inside a locked zone it stays at `idle`, while `progress` scrubs with scrolling as usual. So any "keep drawing while phase says so" logic stops immediately inside a zone; use `signedProgress` or `frame.source` there instead. Drag mode is unaffected and runs the full set of phases. See [useAnimateTimeline](/docs/09-use-animate-timeline).
+For a scene-driven entrance or exit inside a scroll locked zone, `phase` stays at `idle` while progress follows scrolling. Clock-driven elements use visibility phases; loop-only elements rest at `entered`. In drag mode, phases identify entering and exiting.
 
 ## driver: timeline drivers
 
-`timeline.driver` configures the source that drives progress, accepting either `'scene'` (default) or `'clock'`. The driving rules across modes and configurations are as follows:
+`timeline.driver` accepts `'scene'` (default) or `'clock'`. Its behavior depends on the mode:
 
 | driver    | context                                       | driven by                                                                      |
 | --------- | --------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -32,7 +32,7 @@ Two ways to read it: render-prop children receive `{ enterProgress, phase }`; in
 | `'clock'` | scroll                                        | forced to the visibility conditions on its own (even inside a zone)            |
 | `'clock'` | drag                                          | plays independently in real time once the scene arrives                        |
 
-The last row needs care: with `driver: 'clock'` + drag the element **does not join the registry / `after` / T_self, and ignores `exitAnimation`**: the exit animation does not play.
+In drag mode, `driver: 'clock'` plays after the Scene arrives. It does not participate in `after` dependencies or the Scene's total element duration, and does not play `exitAnimation`.
 
 ## delay, after, and phase ranges
 
@@ -41,21 +41,20 @@ The last row needs care: with `driver: 'clock'` + drag the element **does not jo
 - `timeline.zoneId`: explicitly assigns the element to a locked zone.
 - `timeline.phase: { start, end }`: restricts the scrub window to a segment of zone progress; only meaningful in the "`'scene'` + scroll locked zone" row.
 
-Full timeline rules (chain resolution, stagger, mirrored exits) live in [Timeline](/docs/04-orchestration). One rule up front: **if the entrance cascades with `after`, the exit needs a mirrored reverse timeline**, or every element exits in the same frame.
+`after` controls entrance order. Add ordered exits only when the design needs them; an entrance cascade does not create an exit sequence. See [Timeline](/docs/04-orchestration).
 
 ## enterRef / exitRef: manual triggers
 
-Both refs are manual triggers on the element's timeline. The type is `MutableRefObject<(() => void) | null>`, so call `ref.current?.()` to trigger.
+The refs contain trigger functions; call `ref.current?.()` to use one.
 
-**`enterRef`** rules:
+Visibility-driven scroll animations support both refs, including `driver: 'clock'` elements inside a locked zone. Drag with `driver: 'clock'` supports `enterRef` only. Scene-driven drag and locked-zone animations ignore both refs and report `INVALID_ANIMATION`.
 
-- Calling it enters immediately and interrupts a pending `after` / `delay`.
-- With both the ref and `after` / `delay` set: `after` / `delay` act as the fallback: if nobody fires the manual trigger, the timeline plays automatically as usual.
-- With the ref set but no `after` / `delay`: **it never auto-fires**; manual calls only.
+For supported `enterRef` usage:
 
-**`exitRef`** is stricter:
+- Calling it starts entering immediately and interrupts a pending wait.
+- An authored `after` dependency or positive `timeline.delay` remains an automatic fallback where that option is supported.
+- Without a fallback, entrance requires a manual call.
 
-- Setting it disables _all_ automatic exits: leaving a scroll zone or switching away in drag mode does not exit the element; exit must be triggered manually via the ref.
-- **No delay fallback exists.** If `exitRef` is assigned without being invoked, the element remains mounted indefinitely. Omitting `exitRef` preserves the automatic exit fallback.
+For supported `exitRef` usage, passing the ref disables automatic exit. Calling it starts the exit and interrupts a pending entrance. There is no delay fallback. Scene mounting and visibility still apply; the ref does not keep content on screen after its Scene leaves.
 
 The full props table: [Animate reference](/docs/03-animate).

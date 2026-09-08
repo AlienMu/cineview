@@ -3,9 +3,9 @@ title: Visibility conditions
 eyebrow: CONCEPTS / VISIBILITY
 ---
 
-In scroll mode, elements that are not inside a locked zone are driven by the visibility conditions. This is not a continuous scrub that maps position onto progress; it is a boolean test plus a duration-based tween: the element rests at its initial frame until the enter condition holds, then plays through on its own `duration`.
+In scroll mode, elements outside locked zones use visibility conditions by default. `timeline.driver: 'clock'` selects the same behavior inside a locked zone. The element waits at its initial frame until the enter condition is met, then plays for its configured duration.
 
-That distinction has two direct consequences: this driver never leaves an element frozen half-entered, and it never skips frames when scrolling is fast.
+Scrolling determines when the animation starts. Its playback duration is independent of scroll speed; frame delivery still depends on browser workload.
 
 ## The six phases
 
@@ -18,7 +18,7 @@ That distinction has two direct consequences: this driver never leaves an elemen
 | `exiting`  | The exit tween is running                                |
 | `exited`   | The exit is complete                                     |
 
-`idle` never exiting is deliberate: an element rising in from below the viewport sits at `idle`, and even if it simultaneously satisfies the bottom exit condition it is not mistaken for exiting.
+An `idle` element does not exit. This lets content approaching from beyond the viewport enter before an exit condition applies.
 
 ## Condition geometry
 
@@ -35,9 +35,9 @@ Entering requires the element to be fully inside the viewport, with its bottom e
 
 ## Debounce overlap range
 
-The enter condition and the top exit condition may both evaluate to true across `relTop ∈ [0, exitMargin]`. Without state locking, reverse re-entry through that overlap triggers enter and exit sequences within the same batch, causing visual glitches.
+The enter and top exit conditions overlap when `relTop ∈ [0, exitMargin]`.
 
-The evaluation rule: **when both conditions are true, hold the current lifecycle state and make no transition**. Entering triggers only strictly above the overlap boundary, and exiting triggers only strictly below it.
+When both conditions are true, the element keeps its current phase. Entering starts beyond the overlap and exiting starts after crossing its opposite boundary.
 
 ## Tall element evaluation rules
 
@@ -52,11 +52,11 @@ These criteria overlap across a wider range. In this scenario, exit evaluation t
 
 ## Behavior without exitAnimation
 
-**Only an element with a declared `exitAnimation` executes the exit sequence.** Without an exit animation, an element remains at its `entered` resting state: scrolling past viewport boundaries neither hides nor resets it, and `replay` settings have no effect.
+Without `exitAnimation`, an element remains `entered` after its entrance. Moving outside the viewport does not reset it, and `visibility.replay` has no effect.
 
-This design prevents elements without exit transitions from abruptly disappearing when crossing viewport bounds.
+To make an element leave and replay, declare an exit animation.
 
-Exit declarations are recognized when non-empty exit variants exist with `duration.exit > 0`, or when `exitAnimation` is explicitly passed. Omitting `exitAnimation` keeps the element persistent. Declaring `exitAnimation` with `duration.exit: 0` performs an instantaneous state transition upon meeting exit criteria.
+An explicit `exitAnimation` with `duration.exit: 0` changes state immediately when the exit condition is met. A parsed non-empty exit variant with a positive exit duration also enables the exit condition.
 
 ## Two special cases for the first screen and the first frame
 

@@ -5,10 +5,12 @@ export const ACT3_CLIP_DURATION_SECONDS = 2;
 export const ACT3_CLIP_COUNT = ACT3_MEDIA_DURATION_SECONDS / ACT3_CLIP_DURATION_SECONDS;
 
 /**
- * V1 轨道每段一块的独立缩略帧（2026-08-20，用户报「v1帧为什么都长一样？」——旧实现
- * 五块共用同一张 ACT3_POSTER_SRC）。每帧取自**该段中点**（1/3/5/7/9s，ffmpeg 抽帧
- * scale 360），由 ACT3_CLIP_COUNT 派生：段数变了帧数自动跟，别手写第二份清单。
- * 预览监视器自身的 poster 仍用 ACT3_POSTER_SRC（帧 0 附近的整片定妆帧）。
+ * V1 track's independent thumbnail frames, one per segment (2026-08-20, user reported "why do
+ * all v1 frames look the same?" — old implementation shared a single ACT3_POSTER_SRC across
+ * all five blocks). Each frame is extracted from **the midpoint of that segment** (1/3/5/7/9s,
+ * ffmpeg extraction at scale 360), derived from ACT3_CLIP_COUNT: when segment count changes,
+ * frame count follows automatically — don't maintain a second hardcoded list.
+ * The preview monitor's own poster still uses ACT3_POSTER_SRC (the full hero frame near frame 0).
  */
 export const ACT3_CLIP_POSTERS: readonly string[] = Array.from(
   { length: ACT3_CLIP_COUNT },
@@ -23,42 +25,46 @@ export const ACT3_MEDIA_SCRUB_DURATION_MS = ACT3_MEDIA_DURATION_SECONDS * 1000;
 export const ACT3_FIRST_SELECTION_START_MS = ACT3_MEDIA_SCRUB_START_MS - ACT3_CLIP_SEGMENT_MS;
 
 /**
- * V1 拼接提前量（2026-08-20，用户返工）：clip k 的拼接 stroke 必须在播放抵达其
- * 第 k 段**之前**完成 ——「先拼接好，也就是先执行完毕动画」。
+ * V1 assembly lead time (2026-08-20, user rework): the assembly stroke for clip k must complete
+ * **before** playback reaches its segment k — "assemble first, meaning the animation completes
+ * before playback arrives."
  *
- * 数值推导（约束求解，不是拍的）：stroke 长 = 恰一段 SEGMENT，故
- * `stroke_k = [clipSelectionStartMs(k) − LEAD, clipSelectionStartMs(k) + SEGMENT − LEAD]`，
- * 终点恰比播放进入第 k 段早 LEAD。两段式（先全部入场再拖拽，用户钦定）要求首个
- * stroke 起点晚于末块入场（600 + 4×300 + 500 = 2300）⇒ 3200 − LEAD ≥ 2300 ⇒
- * LEAD ≤ 900。取 800：首 stroke 起点 2400 = preview 显影完成时刻（画面就绪 →
- * 剪辑开始），且给入场留 100ms 呼吸；800ms ≈ 一段的 40%，「先拼好」无可争议。
+ * Value derivation (constraint solving, not arbitrary): stroke length = exactly one SEGMENT, so
+ * `stroke_k = [clipSelectionStartMs(k) − LEAD, clipSelectionStartMs(k) + SEGMENT − LEAD]`,
+ * ending exactly LEAD ms before playback enters segment k. The two-phase design (all clips enter
+ * first, then drag begins — user mandated) requires the first stroke's start to come after the
+ * last block's entrance (600 + 4×300 + 500 = 2300) ⇒ 3200 − LEAD ≥ 2300 ⇒ LEAD ≤ 900.
+ * Chosen value 800: first stroke starts at 2400 = the moment preview finishes appearing (picture
+ * ready → editing begins), leaving 100ms breathing room after entrance; 800ms ≈ 40% of one
+ * segment, "assemble first" is unambiguous.
  */
 export const ACT3_CLIP_ASSEMBLY_LEAD_MS = 800;
 
 /**
- * 第三幕的**唯一节拍函数**：index 个 SEGMENT 之后的绝对时刻。
+ * Act 3's **single timing function**: the absolute timestamp after index SEGMENTs.
  *
- * 播放侧锚点用它，不各自算一遍（2026-08-08）：
- *   - V2 字幕的绝对锚点（字幕本就领先自身内容一整段出现）
+ * Playback-side anchors use this, rather than each computing independently (2026-08-08):
+ *   - V2 subtitle absolute anchors (subtitles appear one full segment ahead of their content)
  *
- * 原注释写「V1 clip sequencing is owned by Animate `after`」，那已过期：
- * `temporalDragW0.contract.test.ts` 在整个 `/drag` 目录禁用 `after`。别再为某一类
- * lane 另写一个等价的算术函数 —— 那会静默分叉。
+ * The old comment "V1 clip sequencing is owned by Animate `after`" is now obsolete:
+ * `temporalDragW0.contract.test.ts` disables `after` across the entire `/drag` directory.
+ * Don't write a separate equivalent arithmetic function for a given lane type — that silently forks.
  *
- * V1 装配侧（stroke / selection / seam）不再锚在这里：2026-08-20 起它们锚在
- * `clipAssemblyStartMs`（= 本函数 − `ACT3_CLIP_ASSEMBLY_LEAD_MS`），即「提前拼好」。
- * 那是**派生**（新事实从共享节拍平移而来），不是并行的第二套算术。
+ * V1 assembly side (stroke / selection / seam) no longer anchors here: since 2026-08-20 they
+ * anchor at `clipAssemblyStartMs` (= this function − `ACT3_CLIP_ASSEMBLY_LEAD_MS`), meaning
+ * "assemble ahead of time." That's a **derivation** (new fact shifted from the shared beat),
+ * not a parallel second arithmetic system.
  */
 export function clipSelectionStartMs(index: number): number {
   return ACT3_FIRST_SELECTION_START_MS + index * ACT3_CLIP_SEGMENT_MS;
 }
 
 /**
- * V1 clip k 的装配 stroke 起点：比 `clipSelectionStartMs(k)` 提前 LEAD。
+ * V1 clip k's assembly stroke start: LEAD ms ahead of `clipSelectionStartMs(k)`.
  *
- * 消费者：clip k 的 demo/selection lane 起点与 seam k−1 徽章的落定时刻
- * （stroke 长恰一段 SEGMENT ⇒ 相邻 stroke 首尾相接 ⇒ stroke k 的终点 =
- * `clipAssemblyStartMs(k + 1)`，徽章时序的推导形式不变）。
+ * Consumers: clip k's demo/selection lane start and seam k−1 badge settle time
+ * (stroke length = exactly one SEGMENT ⇒ adjacent strokes connect end-to-end ⇒
+ * stroke k's end = `clipAssemblyStartMs(k + 1)`, badge timing derivation form unchanged).
  */
 export function clipAssemblyStartMs(index: number): number {
   return clipSelectionStartMs(index) - ACT3_CLIP_ASSEMBLY_LEAD_MS;

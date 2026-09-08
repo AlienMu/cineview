@@ -3,11 +3,11 @@ title: Scene-scoped fixed layer
 eyebrow: SCROLL / FIXED LAYER
 ---
 
-In scroll mode, elements requiring fixed screen alignment (such as action bars, scroll indicators, or watermarks) use the `fixed` prop on `Position`. The node is mounted via a React Portal into the scene's dedicated fixed layer.
+Use `Position fixed` for an action bar, indicator, or other element that stays aligned to the screen while its Scene is visible.
 
 ## Layer stacking and containing block constraints
 
-Under CSS specification rules, any ancestor with a non-`none` `transform` property redefines the containing block for `position: fixed` from the viewport to that ancestor. In scroll mode, each Scene container carries `transform: translateZ(0)` for hardware layer promotion, constraining direct native fixed elements within Scene boundaries.
+In scroll mode, a Scene's transform makes it the containing block for native `position: fixed` descendants. Use the framework's fixed layer when alignment needs to follow the viewport.
 
 ## Fixed layer architecture
 
@@ -21,10 +21,7 @@ The `fixed` prop on `Position` operates through a three-layer DOM structure:
 
 The frame offset computes as `clamp(viewport offset - sceneStart, 0, scene span - frame span)`. The frame uses `position: absolute` with this offset to track scroll position, achieving screen-relative visual pinning without triggering transform containing block restrictions.
 
-Key characteristics:
-
-- **Scene-scoped lifecycle**: The clip matches the active scene's scroll range, transitioning to `visibility: hidden` when the scene exits the display.
-- **Cross-scene elements reside externally**: Fixed layers are hosted within individual scenes; mount global persistent elements (such as site navigation bars) outside `<CineView>`.
+The fixed layer is visible only within its Scene's scroll range. Put navigation or other UI that must remain across scene changes outside CineView.
 
 ## Pointer event handling
 
@@ -34,7 +31,7 @@ Outer wrapper elements enforce `pointerEvents: 'none'` to prevent intercepting p
 
 ```tsx
 <Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
-  {/* Regular content scrolls with document flow */}
+  {/* Content belonging to this Scene */}
   <Position at={{ x: 40, y: 200 }}>
     <h1>Title</h1>
   </Position>

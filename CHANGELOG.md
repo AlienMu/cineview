@@ -2,10 +2,10 @@
 
 All notable changes to CineView are documented here.
 
-## 1.0.0 — 2026-09-01
+## 1.0.0 — 2026-09-08
 
-First stable release. The public API is now frozen; anything below is a rename
-from the pre-1.0 betas.
+Initial npm release of CineView. The migration table lists API renames from the
+pre-1.0 development versions.
 
 ### BREAKING — renames from pre-1.0
 
@@ -31,7 +31,12 @@ a migration surfaces at build time rather than at runtime.
 
 ### Added
 
-- Added the read-only `useAnimateTimeline` zero-render MotionValue API.
+- Added `useAnimateTimeline` to read animation progress through read-only
+  MotionValues without per-frame React rendering.
+- Added the optional `cineview/dev` ESM entry with `PerfPanel` and
+  `usePerfMonitor`. The panel accepts a public CineView ref through `source`,
+  supports English and Chinese labels, and loads styles from
+  `cineview/dev/style.css`.
 - Split drag/scroll scene rendering, pointer input, fixed layers, animation
   registration, scroll input, viewport measurement, and imperative ref wiring
   into focused owners.
@@ -50,9 +55,12 @@ a migration surfaces at build time rather than at runtime.
 
 ### Package
 
-- `files` narrowed to runtime and type artifacts. The published tarball drops
-  from 4.76 MB unpacked (57 files) to 744 KB (27 files); source maps and
-  pre-compressed copies are no longer published.
+- Applications must provide React `^19.0.0`, React DOM `^19.0.0`, and Framer
+  Motion `^13.0.0` as peer dependencies.
+- The main `cineview` entry supports ESM and CommonJS. The `cineview/drag` and
+  `cineview/scroll` subpaths provide CommonJS runtime entries and types.
+- `files` includes runtime JavaScript, type declarations, CSS, and the build
+  artifact manifest. Source maps and pre-compressed copies are excluded.
 - `prepublishOnly` runs the headless-safe static gate, so publishing no longer
   requires a local Chrome.
 - Added `homepage`, `bugs`, and `browserslist`.

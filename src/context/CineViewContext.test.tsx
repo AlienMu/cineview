@@ -1,8 +1,8 @@
 /**
- * CineViewContext 测试（px2vw 单尺子模型）
+ * CineViewContext test (px2vw single-ruler model)
  *
- * 换算内核只认宽度：`scale = viewportWidth / designSize`，`convert(size) = size * scale`。
- * `viewportHeight` 不参与 `scale`（见 CineViewContext.tsx 头注）。
+ * Conversion engine uses width only: `scale = viewportWidth / designSize`, `convert(size) = size * scale`.
+ * `viewportHeight` does not affect `scale` (see CineViewContext.tsx header).
  */
 
 import { act, render, screen, waitFor } from '@testing-library/react';
@@ -12,7 +12,7 @@ import { CineViewProvider, useCineViewContext } from './CineViewContext';
 describe('CineViewContext', () => {
   describe('CineViewProvider', () => {
     it('should default to designSize 750 when no props are passed (scale reflects it)', (): void => {
-      // context 不再暴露 designSize；默认 750 通过 scale = viewportWidth/750 间接验证。
+      // Context no longer exposes designSize; default 750 is verified indirectly via scale = viewportWidth/750.
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -23,7 +23,7 @@ describe('CineViewContext', () => {
         wrapper: ({ children }) => <CineViewProvider>{children}</CineViewProvider>,
       });
 
-      // 默认 designSize=750，viewport=750 → scale=1
+      // Default designSize=750, viewport=750 → scale=1
       expect(result.current!.scale).toBe(1);
     });
 
@@ -119,7 +119,7 @@ describe('CineViewContext', () => {
     });
 
     it('should NOT let viewportHeight affect scale', (): void => {
-      // px2vw 认宽不认高：即使视口高度悬殊，scale 只由宽度决定。
+      // px2vw uses width only: even when viewport height differs drastically, scale is determined solely by width.
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -135,7 +135,7 @@ describe('CineViewContext', () => {
         wrapper: ({ children }) => <CineViewProvider designSize={750}>{children}</CineViewProvider>,
       });
 
-      // scale = 750 / 750 = 1，与 viewportHeight(100) 无关。
+      // scale = 750 / 750 = 1, unaffected by viewportHeight(100).
       expect(result.current!.scale).toBe(1);
     });
 
@@ -164,7 +164,7 @@ describe('CineViewContext', () => {
         configurable: true,
         value: 1500,
       });
-      // 高度变化不应影响 scale（认宽不认高）——一并派发验证只有宽度生效。
+      // Height change should not affect scale (width-only) — dispatch both to verify only width takes effect.
       Object.defineProperty(window, 'innerHeight', {
         writable: true,
         configurable: true,
@@ -220,7 +220,7 @@ describe('CineViewContext', () => {
       const { result } = renderHook(() => useCineViewContext(), { wrapper });
 
       expect(result.current).not.toBeNull();
-      // context 只暴露换算内核 { scale, convert }；designSize 是 provider 私有输入。
+      // Context exposes only conversion kernel { scale, convert }; designSize is provider's private input.
       expect(typeof result.current?.scale).toBe('number');
       expect(typeof result.current?.convert).toBe('function');
     });

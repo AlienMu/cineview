@@ -1,8 +1,8 @@
 /**
- * 测试拖拽回弹场景的修复
+ * Test drag bounce scenario fix
  *
- * 问题：释放拖拽后，即使没有切换场景（回弹），当前场景也会重新运行入场动画
- * 修复：检测回弹场景（sceneOffset = 0 且 progress < 0.5），直接恢复到完成状态
+ * Issue: After releasing drag, even without scene switch (bounce back), the current scene replays enter animation
+ * Fix: Detect bounce scenario (sceneOffset = 0 and progress < 0.5), restore directly to complete state
  */
 
 import { render, screen, waitFor } from '@testing-library/react';

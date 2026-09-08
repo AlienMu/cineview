@@ -1,0 +1,62 @@
+/* Shared controls for the interactive third, fourth, and fifth scenes. */
+.home-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.home-demo-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--frame-line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: transparent;
+  font: 500 0.75rem/1.4 var(--font-mono);
+  cursor: pointer;
+  transition:
+    color 160ms,
+    border-color 160ms,
+    background-color 160ms;
+}
+
+.home-demo-button:hover {
+  color: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+
+.home-demo-button[aria-pressed='true'],
+.home-demo-button[aria-pressed='true']:hover,
+.home-demo-button--primary,
+.home-demo-button--primary:hover {
+  color: var(--film-white);
+  background: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+
+.home-demo-button:focus-visible,
+.home-demo-range:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 4px;
+}
+
+.home-demo-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.home-demo-range {
+  min-height: 36px;
+  accent-color: var(--accent-ink);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-demo-button {
+    transition: none;
+  }
+}

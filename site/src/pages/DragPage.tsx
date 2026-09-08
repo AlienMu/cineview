@@ -1,10 +1,10 @@
 import { useSearchParams } from 'react-router-dom';
 import { TemporalDragExperience } from '../components/temporal-drag';
 
-export default function DragPage(): JSX.Element {
-  // Homepage scene5 内嵌协议（task-flow 2026-08-02-scene5-cinema-entrance）：
-  // ?preload=true → 预热壳；?deferred=true → 暗场壳等待 postMessage 激活。
-  // 无参数直接访问 /drag 时两者均为 false，行为与内嵌前完全一致。
+export default function DragPage(): import('react').JSX.Element {
+  // Homepage scene5 embedding protocol (task-flow 2026-08-02-scene5-cinema-entrance):
+  // ?preload=true → warm up shell; ?deferred=true → dark shell waits for postMessage activation.
+  // Direct access to /drag with no params sets both to false, behavior identical to pre-embedding.
   const [searchParams] = useSearchParams();
 
   return (

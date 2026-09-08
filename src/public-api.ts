@@ -1,17 +1,18 @@
 /**
- * 公共导出面中**与模式无关**的那部分。
+ * Mode-agnostic portion of the public export surface.
  *
- * 为什么单独一个文件：三个入口（`index.ts` 全量派发 / `entry-drag.ts` / `entry-scroll.ts`）
- * 需要导出同一套 Animate/Position/Container/Scene/Image/AnimateVideo + 全部类型，
- * 唯一差别是 `CineView` 指向哪个引擎。若让 mode 入口 `export * from './index'`，
- * 就会把 `index.ts` 静态 import 的派发器（连带两个引擎）拖进来——实测 UMD 反而从
- * 51391 涨到 51937 字节。故把「模式无关的面」放这里，三个入口各自只补自己的 CineView。
+ * Why a separate file: Three entry points (index.ts full dispatch / entry-drag.ts / entry-scroll.ts)
+ * need to export the same set of Animate/Position/Container/Scene/Image/AnimateVideo + all types.
+ * The only difference is which engine CineView points to. If mode entries used `export * from './index'`,
+ * they would pull in the dispatcher statically imported by index.ts (along with both engines) — in practice,
+ * the UMD bundle grew from 51391 to 51937 bytes. So we place the mode-agnostic surface here, and each
+ * entry only adds its own CineView.
  *
- * ⚠️ 本文件**不得**导出 CineView / CineViewDragEngine / DirectScrollCineView 中的任何一个，
- * 否则 mode 入口又会同时拖进两个引擎，拆分失效。
+ * ⚠️ This file MUST NOT export any of CineView / CineViewDragEngine / DirectScrollCineView,
+ * otherwise mode entries would pull in both engines simultaneously, defeating the split.
  */
 
-import type { FC, ForwardRefExoticComponent, RefAttributes } from 'react';
+import type { ForwardRefExoticComponent, ReactNode, RefAttributes } from 'react';
 import { Animate as AnimateComponent } from './components/Animate';
 import { Position as PositionComponent } from './components/Position';
 import { Scene as SceneComponent } from './components/Scene';
@@ -24,9 +25,9 @@ export type { ImageProps } from './components/Image';
 export { AnimateVideo } from './components/Animate/AnimateVideo';
 export type { AnimateVideoProps } from './components/Animate/AnimateVideo';
 
-export const Animate = AnimateComponent as FC<AnimateProps>;
-// Position/Scene 的真实实现是 forwardRef（可拿到根 <div> 的 ref）；公共类型必须
-// 保留 ref 能力，故 cast 为 ForwardRefExoticComponent 而非 FC（FC 会抹掉 ref prop）。
+export const Animate: (props: AnimateProps) => ReactNode = AnimateComponent;
+// Position/Scene are implemented with forwardRef (exposing the root <div> ref). Public types must
+// preserve ref capability, so cast to ForwardRefExoticComponent rather than FC (FC erases ref prop).
 export const Position = PositionComponent as ForwardRefExoticComponent<
   PositionProps & RefAttributes<HTMLDivElement>
 >;

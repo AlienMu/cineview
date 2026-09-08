@@ -3,20 +3,20 @@ title: AnimateVideo
 eyebrow: COMPONENTS / ANIMATEVIDEO
 ---
 
-AnimateVideo 用时间轴位置驱动原生 `<video>`：drag 或 scroll 的位置直接映射 `currentTime`，反向输入即倒放。它是 `Animate` 的薄封装，复用 render-prop 把内部 `enterProgress` 喂给帧渲染器。零依赖库、无控件、始终静音 + `playsInline`。
+AnimateVideo 将 Animate 时间轴映射为原生视频的播放位置，进度回退时向前面的画面定位。无需额外的视频库，视频始终静音并在页面内播放。
 
 ```tsx
 <AnimateVideo
   src="/clip.mp4"
-  duration={{ enter: 2000 }} // scrub 跨度（scroll 锁定区内即真实滚动 px）
-  timeline={{ delay: 100, after: 'intro' }}
+  duration={{ enter: 2000 }} // 时间轴跨度，锁定区内对应滚动像素
   visibility={{ replay: true }}
+  aria-label="产品演示"
 />
 ```
 
 ## 进度即播放位置
 
-外层 `Animate` 管理 progress；video 以 MotionValue 消费 progress，每帧不走 React state。位置是输入，帧是输出：
+视频直接读取时间轴 MotionValue，不通过逐帧 React state 更新播放位置。
 
 - 不设 `scrubRange` 时 `currentTime = progress × duration`：progress 0 即首帧，progress 1 即末帧。
 - 反向输入即倒放。往回拖、往回滚逐帧 seek 回去，不需要单独的「倒放模式」。
@@ -24,61 +24,62 @@ AnimateVideo 用时间轴位置驱动原生 `<video>`：drag 或 scroll 的位�
 
 `duration.enter` 是这段定位占用的时间轴跨度，不是视频时长。scroll 锁定区（locked zone）内 `1ms = 1px`：`duration={{ enter: 2000 }}` 意味着滚动 2000px 对应视频走完整个区间；drag 模式下则是元素时间轴的 2000ms。
 
-`AnimateVideo.timeline` 是刻意收窄的类型：只有 `delay` 与 `after`。包装层的 `driver` 停在默认 `'scene'`，与其他 `Animate` 一样绑定所在 zone/scene 的时间轴。
+公开的 `timeline` 选项为 `delay` 和 `after`。默认 driver 为 `'scene'`，视频跟随所在 Scene 或锁定区；scroll 模式的锁定区外，使用可见性触发的计时。
 
 ## Props 全表
 
-| prop                                                  | 类型                                | 默认               | 说明                                                                                                         |
-| ----------------------------------------------------- | ----------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `src`                                                 | string                              | 无                 | 视频地址。片源必须密集关键帧编码，见「片源必须密集关键帧编码」小节                                           |
-| `animateId`                                           | string                              | 无                 | 同 [Animate](/docs/03-animate)，被 `after` 引用时必须声明                                                    |
-| `duration.enter` / `exit`                             | number (ms)                         | 无                 | 定位跨度；scroll 锁定区内 `1ms = 1px`                                                                        |
-| `scrubRange`                                          | `readonly [from, to]` （秒）        | 无                 | 将时间轴映射到视频时间的指定区间，支持反向区间（`from > to`）。端点数值自动限制在 `[0, duration]` 有效范围内 |
-| `enterAnimation` / `exitAnimation`                    | AnimationType                       | 默认透明度固定配置 | 默认 `opacity: 1 → 1`，让逐帧定位保持为唯一可见动画                                                          |
-| `timeline.delay` / `after`                            | 无                                  | -                  | 仅这两个字段，语义同 Animate                                                                                 |
-| `visibility`                                          | `{replay, enterMargin, exitMargin}` | 无                 | 同 Animate                                                                                                   |
-| `preload`                                             | boolean                             | `true`             | 积极填充共享视频预加载缓存                                                                                   |
-| `releaseOnLeave`                                      | boolean                             | `false`            | 解码帧释放管理，scroll 锁定区专属                                                                            |
-| `width` / `height`                                    | number \| string                    | 无                 | 数字 = 设计 px                                                                                               |
-| `poster`                                              | string                              | 无                 |                                                                                                              |
-| `playbackRate`                                        | number                              | 无                 |                                                                                                              |
-| `style`                                               | CSSProperties                       | 无                 |                                                                                                              |
-| `aria-label`                                          | string                              | 无                 | 无控件无声视频必须自报语义                                                                                   |
-| `onEnded` `onPlay` `onPause` `onTimeUpdate` `onError` | 原生 video 事件                     | 无                 | 透传给底层 `<video>`（播放归属仍由框架判定）                                                                 |
+| prop                                                  | 类型                                 | 默认             | 说明                                                            |
+| ----------------------------------------------------- | ------------------------------------ | ---------------- | --------------------------------------------------------------- |
+| `src`                                                 | string                               | 无               | 视频地址。编码建议见[准备用于定位的视频](#准备用于定位的视频)。 |
+| `animateId`                                           | string                               | 无               | 同 [Animate](/docs/03-animate)，被 `after` 引用时必须声明       |
+| `duration.enter` / `exit`                             | number，ms                           | 600              | 时间轴跨度；锁定区内跟随场景的值对应滚动像素                    |
+| `scrubRange`                                          | `readonly [from, to]`，秒            | 完整视频         | 视频时间区间，支持反向区间，端点限制在素材时长内                |
+| `enterAnimation`                                      | AnimationType                        | `opacity: 1 → 1` | 可叠加的入场效果                                                |
+| `exitAnimation`                                       | AnimationType                        | 无               | 可叠加的退场效果                                                |
+| `timeline`                                            | `{ delay?: number; after?: string }` | 无               | 支持的时序选项                                                  |
+| `visibility`                                          | `{replay, enterMargin, exitMargin}`  | 无               | 同 Animate                                                      |
+| `preload`                                             | boolean                              | `true`           | 积极填充共享视频预加载缓存                                      |
+| `releaseOnLeave`                                      | boolean                              | `false`          | 解码帧释放管理，scroll 锁定区专属                               |
+| `width` / `height`                                    | number \| string                     | 无               | 数字 = 设计 px                                                  |
+| `poster`                                              | string                               | 无               |                                                                 |
+| `playbackRate`                                        | number                               | 无               |                                                                 |
+| `style`                                               | CSSProperties                        | 无               |                                                                 |
+| `aria-label`                                          | string                               | 无               | 无控件无声视频必须自报语义                                      |
+| `onEnded` `onPlay` `onPause` `onTimeUpdate` `onError` | 原生 video 事件                      | 无               | 透传给底层 `<video>`（播放归属仍由框架判定）                    |
 
 ## scrubRange 与终点交接
 
-区间终点早于素材结尾时，定位到达终点会：先 seek 到 `to`，再将播放控制交给原生播放（`play()`），素材尾部按正常速率播放，不再跟随滚动位移。往回滚动脱离终点区域（包含 2% 防抖缓冲区）后框架收回控制权：暂停、seek 并恢复跟随滚动。
+显式区间的终点早于片尾时，进度到达终点后会开始原生播放。反向滚出终点附近 2% 的范围时，暂停播放并恢复时间轴定位。反向区间在终点也会向片尾正向播放；若需要停在固定帧，可改用预先倒序编码的素材。
 
-示例：8 秒素材、`scrubRange={[1.2, 4.8]}`、`duration={{ enter: 3600 }}`。progress 0.5 seek 到 `1.2 + 0.5 × 3.6 = 3.0s`；progress 1 seek 到 4.8s 并交接，剩余 3.2 秒原生播完。
+8 秒视频设置 `scrubRange={[1.2, 4.8]}` 时，进度 0.5 定位到 3.0 秒；到达区间终点后，剩余 3.2 秒由原生播放器播放。
 
-## 片源必须密集关键帧编码
+## 准备用于定位的视频
 
-H.264 的 P/B 帧是相对前帧的差分，seek 到任意帧都要从最近的关键帧起整段解码。稀疏关键帧（常见默认约每 250 帧一个）下，每次 seek 都要解码一长段，解码线程被打满就掉帧，反向最糟。
+密集关键帧可减少随机定位和反向定位的解码工作。帧间编码依赖参考帧，关键帧稀疏时可能增加定位延迟。
 
-把每一帧编成 I 帧：
+将每帧独立编码：
 
 ```bash
 ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 scrub.mp4
 ```
 
-代价是文件变大（每帧自包含），收益是任意帧直接解码、seek 延迟变平。运行时会测量每次 seek 的延迟，单源中位数超过 50ms 时告警一次，让错编码的视频在开发期暴露。
+全关键帧编码会增大文件，也可减少定位时的解码工作。开发环境中，定位延迟样本的中位数超过 50ms 时，每个素材会收到一次警告。该警告表示定位较慢，不代表已经确定某种编码错误。
 
 ## releaseOnLeave：解码帧释放
 
-随滚动逐帧定位的 `<video>` 在离开可视区域后仍可能占用解码帧与 GPU 纹理，可能导致后续场景出现掉帧。`releaseOnLeave`（默认 `false`）负责管理该释放行为：仅在 scroll 锁定区内生效，drag 模式与 zone 外不动作：
+`releaseOnLeave` 默认为 false，仅在 scroll 锁定区内生效：
 
-- **离开 zone 超过 1.5 倍屏幕高度**（band `far`）：释放。`pause` + 摘除 `src` + `load()`，解码帧丢弃，内存中的 blob 租约保留。
-- **回到距 zone 1 倍屏幕高度内**（band `near`）：回挂：重新 attach source（零网络，blob 仍在内存），元数据就绪后把 seek 追到当前时间轴位置。
-- 释放阈值刻意放在回挂阈值之外（双阈值防抖），两阈值之间悬停不会抖动。
-- 仅当视频在时间轴上实际执行过 seek 或播放后才会触发释放；未加载播放的视频无需执行释放。
+- 距锁定区超过 1.5 个视窗跨度时，暂停视频并解除素材绑定，以释放解码帧。
+- 回到一个视窗跨度以内时，恢复素材并定位到当前时间轴位置。保留的 blob 可直接复用，无需再次下载。
+- 两个不同的阈值用于避免在边界附近反复释放和恢复。
+- 时间轴进度发生过变化后才会释放，更换视频素材会重置此条件。
 
 ## 预加载与冷启动
 
-`preload`（默认 `true`）积极填充共享视频预加载缓存。缓存命中时渲染器挂载整段 blob objectURL 而非原始 `src`：完整内存 blob 保证可 seek，渐进式网络缓冲不保证，逐帧定位需要前者。
+`preload` 填充共享视频缓存。命中缓存时，使用已下载完整的 blob，以便在整个文件内定位。
 
-经此预加载的首屏媒体计入冷启动就绪判定，`onReady` 会等待其完全就绪，确保首帧展示时视频资源已准备完毕。已由页面级预加载管线装载的视频可在实例上设 `preload={false}` 退出，避免重复工作。预加载管线见[预加载](/docs/02-preload)。
+需要首屏等待视频资源时，将 URL 写入 `Scene.assets.preloadImages`。视频自身的 `preload` 不会将其加入该队列。`onReady` 仅在挂载后提供 ref API，不等待视频加载。详见[预加载](/docs/02-preload)。
 
 ## drag 模式下
 
-语义照搬：场景元素时间轴驱动 progress，手指位置即 `currentTime`，拖回去即倒放。两个属性是 scroll 专属：`releaseOnLeave` 被忽略（zone 外没有 approach band）；`duration.enter` 按元素时间轴的毫秒计，不再按 px。
+drag 模式下，视频位置由场景的元素进度决定。`duration.enter` 使用元素时间线的毫秒数，`releaseOnLeave` 不生效；其他受支持的视频选项保持原有行为。

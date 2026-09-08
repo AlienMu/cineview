@@ -1,6 +1,6 @@
 /**
- * CineView 容器组件
- * 提供全局配置上下文，管理响应式尺寸换算、场景切换、事件系统和图片预加载
+ * CineView container component
+ * Provides global configuration context, manages responsive size conversion, scene switching, event system, and image preloading
  */
 
 import React, {
@@ -169,7 +169,7 @@ export function resolveRootSceneStackMode(
 }
 
 /**
- * CineView 组件实现
+ * CineView component implementation
  */
 // Off-screen but still announced. `display:none` / `visibility:hidden` would drop the
 // node from the accessibility tree, which is the opposite of what a live region needs;
@@ -216,7 +216,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     [dragDirection, transitionDuration, threshold, unit, scale, firstSceneTimeout]
   );
 
-  // 场景引用存储（使用 WeakMap 避免内存泄漏）
+  // Scene reference storage (using WeakMap to avoid memory leaks)
   // Validates Requirement 26.2: Use WeakMap to store component references
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneWrapperRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -229,7 +229,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
   // Validates Requirement 26.5: Clean up timers on unmount
   const cleanupTimersRef = useRef<Set<NodeJS.Timeout>>(new Set());
 
-  // 收集所有 Scene 子组件
+  // Collect all Scene child components
   const [scenes, hasLegacyDisplayNameScene] = useMemo(() => {
     const sceneArray: React.ReactElement[] = [];
     let hasLegacyScene = false;
@@ -409,7 +409,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     [resolvedCallbacks]
   );
 
-  // 场景管理
+  // Scene management
   const [sceneState, sceneActions] = useSceneManager({
     totalScenes,
     initialScene: 0,
@@ -452,18 +452,18 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     dragTimelineProgressMotion.set(0);
   }, [currentScene, dragTimelineProgressMotion, renderProgressMotion]);
 
-  // 监听场景切换，在动画完成后调用 setAnimating(false)
+  // Monitor scene switching; call setAnimating(false) after animation completes
   useEffect(() => {
     if (!isAnimating) return;
 
-    // 获取当前场景的动画持续时间
+    // Get current scene's animation duration
     const currentSceneElement = scenes[currentScene];
     if (!currentSceneElement) return;
 
     const sceneProps = currentSceneElement.props as SceneAuthoringCompatProps;
     const duration = getSceneSettleDuration(sceneProps, resolvedRootMode, transitionDuration);
 
-    // 等待动画完成后通知 scene manager
+    // Wait for animation to complete, then notify scene manager
     const timer = setTimeout(() => {
       sceneActions.setAnimating(false);
     }, duration);
@@ -860,13 +860,13 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
 
   const preloadActiveSceneIndex = currentScene;
 
-  // 首屏只等待当前场景；其余场景进入后台队列，避免远端资源阻塞首屏 ready。
+  // First screen waits only for the current scene; other scenes enter background queue to avoid remote resources blocking first-screen readiness.
   const { priorityImages, backgroundImages } = useMemo(
     () => collectScenePreloadPlan(scenes, preloadActiveSceneIndex, resolvedRootMode),
     [scenes, preloadActiveSceneIndex, resolvedRootMode]
   );
 
-  // 图片预加载
+  // Image preloading
   const [preloadState, preloadActions] = useImagePreloader({
     priorityUrls: priorityImages,
     backgroundUrls: backgroundImages,
@@ -931,12 +931,12 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     activateScene(0, firstSceneActivationKind);
   }, [activateScene, firstSceneActivationKind, firstSceneActivationToken, resolvedRootMode]);
 
-  // 初始化
+  // Initialization
   useEffect(() => {
     // Validates Requirement 26.5: Capture ref value before cleanup function
     const timersRef = cleanupTimersRef.current;
 
-    // 开始预加载
+    // Start preloading
     void preloadActions.startPreload();
 
     return (): void => {
@@ -947,7 +947,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
       timersRef.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ref]); // 只在组件挂载时执行一次
+  }, [ref]); // Execute only once on component mount
 
   useEffect(() => {
     if (!monitor) {
@@ -977,14 +977,14 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     }
   }, [priorityImages, backgroundImages, preloadActions, preloadState.isLoading]);
 
-  // 虚拟化渲染：仅渲染当前场景及前后各一个
+  // Virtualized rendering: only render current scene and one scene before/after
   const visibleSceneIndices = useMemo(() => {
     const indices = new Set<number>();
 
-    // 当前场景
+    // Current scene
     indices.add(currentScene);
 
-    // 在 drag 模式下保留相邻场景，兼容动画触发和虚拟化窗口切换。
+    // In drag mode, keep adjacent scenes to support animation trigger and virtualized window switching.
     if (resolvedRootMode === 'drag') {
       if (currentScene > 0) {
         indices.add(currentScene - 1);
@@ -1007,7 +1007,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     resolvedCallbacksRef,
   });
 
-  // 场景切换处理
+  // Scene switching handler
   const handleSceneChange = useCallback(
     (
       direction: 'forward' | 'backward',
@@ -1072,10 +1072,10 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     [sceneActions, currentScene, dragTimelineProgressMotion, resolvedRootMode]
   );
 
-  // 开发环境检查
+  // Development environment checks
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      // 检查是否有 Scene 子组件
+      // Check for Scene child components
       if (totalScenes === 0) {
         console.warn('[CineView] No Scene components found. Please add at least one Scene child.');
       }
@@ -1086,9 +1086,9 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
         );
       }
 
-      // 设计稿尺寸校验已并入 resolveDesignDimensions（兜底 750 并对显式非法值
-      // console.error），designSize <= 0 在此不可达；性能监控由上方专用 effect
-      // 负责 start/stop（此处曾有一个无 stop 的重复 start，已删）。
+      // Design dimensions validation is now integrated into resolveDesignDimensions (fallback to 750 and
+      // console.error for explicit invalid values). designSize <= 0 is unreachable here; performance
+      // monitoring is handled by the dedicated effect above (there was a duplicate start without stop here, now removed).
     }
   }, [hasLegacyDisplayNameScene, totalScenes]);
 
@@ -1128,7 +1128,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
   // by engines that ignore a bare aria-live on a non-landmark element.
   const sceneAnnouncement = totalScenes > 0 ? `${currentScene + 1} / ${totalScenes}` : '';
 
-  // 容器样式
+  // Container style
   const containerStyle: React.CSSProperties = {
     position: 'relative',
     width: '100%',
@@ -1236,20 +1236,22 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
 DragCineViewComponent.displayName = 'CineViewDrag';
 
 /**
- * drag 引擎根组件。导出是为了让 UMD 能按 mode 拆成单引擎产物
- * （见 task-flow `2026-08-04-umd-mode-split.md`：scroll 引擎独占 UMD 包的 20.3%，
- * 只用 drag 的 script-tag 消费者不该白背它）。
- * 不从 barrel 再导出：公共 API 仍只有 `CineView` + `mode` prop。
+ * Drag engine root component. Exported so UMD can split into single-engine builds by mode
+ * (see task-flow `2026-08-04-umd-mode-split.md`: scroll engine accounts for 20.3% of UMD bundle;
+ * script-tag consumers using only drag shouldn't carry it).
+ * Not re-exported from barrel: public API remains only `CineView` + `mode` prop.
  */
 export const CineViewDragEngine = DragCineViewComponent;
 
 /**
- * ⚠️ mode 派发器**不在本文件**，见 `CineViewDispatch.tsx`。
+ * ⚠️ Mode dispatcher is NOT in this file, see `CineViewDispatch.tsx`.
  *
- * 原本这里有个 5 行派发器同时静态 import 两套引擎，导致**任何到达本文件的路径都会拖进
- * 两套引擎**。UMD 必须单文件（Rollup 拒绝 UMD 代码拆分），于是只用 drag 的 script-tag
- * 消费者白背 scroll 引擎的 gzip 10437 字节（全包 20.3%），把包顶破 50 KB 门。
- * 把派发器移出后，本文件只含 drag 引擎，`entry-drag.ts` 才能真正不含 scroll。
- * 实测教训：只加入口文件、不搬派发器时，drag 产物是 51937 字节（比全量还大）。
- * 详见 task-flow `2026-08-04-umd-mode-split.md`。
+ * Originally there was a 5-line dispatcher here that statically imported both engines, causing
+ * ANY path reaching this file to pull in BOTH engines. UMD must be single-file (Rollup refuses
+ * UMD code splitting), so script-tag consumers using only drag carried the scroll engine's
+ * gzip 10437 bytes (20.3% of total bundle), pushing the package over 50 KB.
+ * After moving the dispatcher out, this file contains only the drag engine, allowing
+ * `entry-drag.ts` to truly exclude scroll. Real-world lesson: merely adding entry files
+ * without moving the dispatcher resulted in a drag build of 51937 bytes (larger than full bundle).
+ * See task-flow `2026-08-04-umd-mode-split.md` for details.
  */

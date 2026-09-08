@@ -1,9 +1,10 @@
 /**
- * render-prop 桥接:订阅 hook 暴露的 MotionValue 源,派生 AnimateRenderState 后调用函数
- * children。仅在 children 为函数时挂载,故非 render-prop 的 Animate 不承担订阅/重渲染成本。
+ * Render-prop bridge: subscribes to MotionValue sources exposed by hooks, derives AnimateRenderState,
+ * then calls the function children. Only mounts when children is a function, so non-render-prop Animate
+ * instances incur no subscription or re-render cost.
  *
- * scroll 源:signedVisual(visualMotion,0=初始/1=进入/-1=退出)+ phaseMotion(GatePhase)。
- * drag 源:visualState(DragVisualState,mode + localProgress)。
+ * Scroll sources: signedVisual (visualMotion, 0=initial/1=entering/-1=exiting) + phaseMotion (GatePhase).
+ * Drag source: visualState (DragVisualState, mode + localProgress).
  */
 import { useState } from 'react';
 import { MotionValue, useMotionValueEvent } from 'framer-motion';

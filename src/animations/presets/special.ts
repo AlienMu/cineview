@@ -1,6 +1,6 @@
 /**
- * Special 系列动画
- * 特殊效果：心跳、欢呼、波浪、滚动、铰链、盒子弹出
+ * Special animation presets
+ * Effects: heartbeat, cheer, wave, roll, hinge, jack-in-the-box
  */
 
 import type { Variant } from 'framer-motion';

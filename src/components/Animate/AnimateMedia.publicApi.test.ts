@@ -2,9 +2,9 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 /**
- * tsc fixture:证明 AnimateVideo 的公共 prop 面是最小集——合法最小用法
- * 编译通过;enterAnimation/stagger 等非法 prop 触发类型错误(excess property check)。
- * 对齐 Scene.publicApi.test 的编译夹具模式。
+ * tsc fixture: proves AnimateVideo's public prop surface is minimal.
+ * Legal minimal usage compiles; illegal props like enterAnimation/stagger trigger type errors (excess property check).
+ * Aligns with Scene.publicApi.test compilation fixture pattern.
  */
 describe('AnimateVideo public API typing', () => {
   const repoRoot = path.resolve(__dirname, '../../..');
@@ -38,6 +38,7 @@ describe('AnimateVideo public API typing', () => {
         '--allowSyntheticDefaultImports',
         '--skipLibCheck',
         fixturePath,
+        '--skipDefaultLibCheck',
       ],
       { cwd: repoRoot, encoding: 'utf8' }
     );

@@ -21,7 +21,9 @@
  */
 
 import { renderHook } from '@testing-library/react';
-import type { AnimationControls, MotionValue, PanInfo } from 'framer-motion';
+import { useAnimation, type MotionValue, type PanInfo } from 'framer-motion';
+
+type LegacyAnimationControls = ReturnType<typeof useAnimation>;
 
 interface AnimateCall {
   target: number;
@@ -82,13 +84,13 @@ function createMotionValueStub(initial: number) {
   } as unknown as MotionValue<number>;
 }
 
-function createControlsStub(): AnimationControls {
+function createControlsStub(): LegacyAnimationControls {
   return {
     set: jest.fn(),
     start: jest.fn(),
     stop: jest.fn(),
     mount: jest.fn(),
-  } as unknown as AnimationControls;
+  } as unknown as LegacyAnimationControls;
 }
 
 function panInfo(offset: number, velocity = 0, axis: 'x' | 'y' = 'x'): PanInfo {

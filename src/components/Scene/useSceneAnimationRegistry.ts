@@ -32,11 +32,7 @@ export interface ScenePreparationLease {
 }
 
 export type AfterInvalidReason =
-  | 'missing'
-  | 'cycle'
-  | 'duplicate'
-  | 'leader-unregistered'
-  | 'incompatible-lane';
+  'missing' | 'cycle' | 'duplicate' | 'leader-unregistered' | 'incompatible-lane';
 
 export type AfterOutcome =
   | { kind: 'pending'; leaderId: string; generation?: number }
@@ -163,8 +159,8 @@ function registrySnapshotsEqual(
 }
 
 /**
- * 把 registry 的问题对象展开成开发者可读的 Problem/Fallback/Fix 三段文案。
- * 只被 dev 守卫内的调用点使用，因此生产构建整体消除。
+ * Expands registry issue objects into developer-readable Problem/Fallback/Fix messages.
+ * Used only inside dev guards, so production builds eliminate this entirely.
  */
 function buildIssueDevWarning(issue: AnimationRegistryIssue, sceneIndex: number): string {
   if (issue.type === 'missing-dependency') {
@@ -268,10 +264,12 @@ export function useSceneAnimationRegistry({
 
         reportErrorRef.current?.({ code, message, context: { sceneIndex } });
 
-        // 诊断全文只在 dev 分支内构造：生产构建把 NODE_ENV 折叠成 'production' 后
-        // esbuild 整块消除，四段 Problem/Fallback/Fix 模板（1191 字节 raw）不再入包。
-        // 曾试过传 thunk —— 无效：thunk 赋给变量再跨模块传入 devWarn，esbuild 无法
-        // 证明其未被使用，整个闭包连同字面量一起存活（实测产物反而 +8 字节）。
+        // Diagnostic message is constructed only inside the dev branch: after esbuild
+        // folds NODE_ENV to 'production', the entire block is eliminated and the
+        // Problem/Fallback/Fix template (1191 bytes raw) is dropped from the bundle.
+        // Passing a thunk was tried but failed: assigning the thunk to a variable then
+        // passing it cross-module to devWarn prevents esbuild from proving it's unused,
+        // keeping the entire closure with its literals alive (measured +8 bytes).
         if (process.env.NODE_ENV === 'development') {
           devWarn(buildIssueDevWarning(issue, sceneIndex));
         }

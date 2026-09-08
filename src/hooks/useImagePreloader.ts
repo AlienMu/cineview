@@ -1,6 +1,6 @@
 /**
  * useImagePreloader Hook
- * 管理图片预加载队列和进度
+ * Manages image preload queue and progress tracking
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -39,9 +39,10 @@ export interface UseImagePreloaderActions {
   addUrls: (urls: string[], priority?: boolean) => void;
 }
 
-// 图片加载超时:对既不 onload 也不 onerror 的挂起请求,超时后按加载失败
-// {success:false} 结算。否则一张挂起的 priority 图会冻结 progress、阻塞
-// background 队列、让 priorityComplete 永不放行(首屏门卡死)。
+// Image load timeout: for hanging requests that neither load nor error,
+// settle as {success:false} after timeout. Without this, a single hanging
+// priority image would freeze progress, block the background queue, and
+// prevent priorityComplete from ever firing (deadlocked first-screen gate).
 const IMAGE_LOAD_TIMEOUT_MS = 15_000;
 
 function uniqueUrls(urls: string[]): string[] {
@@ -129,14 +130,16 @@ export const useImagePreloader = (
     }
   }, [priorityUrls, backgroundUrls, enqueueUrls]);
 
-  // 加载单个资源。video 走 mediaPreloadCache(blob buffer),普通图片走 Image()。
-  // 媒体资源经此路径进入同一优先级批次,故 priorityComplete 会等首屏 video buffer
-  // 完才 fire——首屏冷启动门控天然覆盖媒体,无需额外信号。
+  // Load a single resource. Videos go through mediaPreloadCache (blob buffer),
+  // regular images through Image(). Media resources enter the same priority batch,
+  // so priorityComplete waits for first-screen video buffers to complete before
+  // firing — first-screen cold-start gate naturally covers media without extra signals.
   // Validates Requirement 26.3: Cancel pending image loads on unmount
   const loadImage = useCallback((url: string, runId: number): Promise<ImageLoadResult> => {
     const mediaKind = inferMediaKind(url);
     if (mediaKind) {
-      // 媒体预加载不支持 AbortController;卸载时靠 run-id 守卫忽略结果(见 startPreload)。
+      // Media preload does not support AbortController; on unmount, run-id guard
+      // ignores stale results (see startPreload).
       return preloadMedia(url, mediaKind)
         .then((): ImageLoadResult => {
           markImageAsPreloaded(url);
@@ -158,8 +161,8 @@ export const useImagePreloader = (
       let settled = false;
       let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
-      // 单一结算出口:清理监听/定时器并 resolve,幂等(load/error/abort/timeout
-      // 竞争时只有第一个生效)。
+      // Single settlement point: clears listeners/timer and resolves, idempotent
+      // (when load/error/abort/timeout race, only the first takes effect).
       const settle = (result: ImageLoadResult): void => {
         if (settled) {
           return;
@@ -189,13 +192,13 @@ export const useImagePreloader = (
       // Validates Requirement 26.3: Support AbortController for cancellation
       // When abort is called, the image loading is cancelled immediately
       controller.signal.addEventListener('abort', (): void => {
-        // Clear the image src to stop loading
         img.src = '';
         settle({ url, success: false, error: new Error('Image load aborted') });
       });
 
-      // 挂起请求(既不 load 也不 error)超时:按加载失败结算并停止加载,
-      // 保证 progress / priorityComplete 不被一张挂起图永久卡死。
+      // Hanging request timeout (neither load nor error): settle as failure and
+      // stop loading to ensure progress / priorityComplete are not permanently
+      // deadlocked by a single hanging image.
       timeoutTimer = setTimeout(() => {
         timeoutTimer = null;
         img.onload = null;
@@ -212,7 +215,7 @@ export const useImagePreloader = (
     });
   }, []);
 
-  // 更新进度
+  // Update progress
   const updateProgress = useCallback((loaded: number, total: number) => {
     const safeTotal = Math.max(total, 0);
     const safeLoaded = safeTotal > 0 ? Math.min(Math.max(loaded, 0), safeTotal) : 0;
@@ -222,7 +225,7 @@ export const useImagePreloader = (
     onProgressRef.current?.(newProgress);
   }, []);
 
-  // 开始预加载
+  // Start preload
   const startPreload = useCallback((): Promise<void> => {
     if (loadingRef.current) {
       return currentRunPromiseRef.current ?? Promise.resolve();
@@ -318,9 +321,11 @@ export const useImagePreloader = (
           break;
         }
 
-        // Priority 批并发加载:priorityComplete 的等待时间取决于最慢一张,而非各图
-        // 之和(旧实现逐张串行 await)。逐张 settle 即 commit(保持进度递增与
-        // priorityComplete 尽早放行);runId 守卫防止被 reset/unmount 取代的 run 提交。
+        // Priority batch concurrent loading: priorityComplete wait time depends on
+        // the slowest image, not the sum of all (old implementation awaited serially).
+        // Each settlement commits immediately (maintains incremental progress and
+        // allows priorityComplete to fire as early as possible); runId guard prevents
+        // results from a run replaced by reset/unmount from committing.
         await Promise.all(
           priorityBatch.map(async (url) => {
             const result = await loadImage(url, runId);
@@ -368,11 +373,11 @@ export const useImagePreloader = (
     return currentRunPromiseRef.current;
   }, [loadImage, updateProgress]);
 
-  // 重置状态
+  // Reset state
   // Validates Requirement 26.3: Cancel pending image loads on unmount
   const reset = useCallback(() => {
     activeRunIdRef.current += 1;
-    // 取消所有正在加载的图片
+    // Cancel all loading images
     // This ensures that when the component unmounts or resets,
     // all pending image loads are cancelled to free up resources
     abortControllersRef.current.forEach((controller) => {
@@ -395,7 +400,7 @@ export const useImagePreloader = (
     currentRunPromiseRef.current = null;
   }, []);
 
-  // 添加新的 URL
+  // Add new URLs
   const addUrls = useCallback(
     (urls: string[], priority: boolean = false) => {
       enqueueUrls(urls, priority);
@@ -418,7 +423,7 @@ export const useImagePreloader = (
     [enqueueUrls]
   );
 
-  // 组件卸载时清理
+  // Cleanup on unmount
   useEffect(() => {
     const controllers = abortControllersRef.current;
     return (): void => {

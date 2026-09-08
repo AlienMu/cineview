@@ -5,9 +5,10 @@ import HomePage from './pages/HomePage';
 import DocsPage from './pages/DocsPage';
 import DragPage from './pages/DragPage';
 import VideoDragAcceptancePage from './pages/VideoDragAcceptancePage';
+import HorizontalScrollFixture from './pages/HorizontalScrollFixture';
 import DualClockFixturePage from './pages/DualClockFixture'; // TEMP review fixture
 
-export default function App(): JSX.Element {
+export default function App(): import('react').JSX.Element {
   // /drag mounts its own LangToggle INSIDE act 1's <Scene> (SceneRolling's
   // GatedLangToggle) so the button enters and exits on the drag timeline with the
   // rest of the act. The hidden acceptance route also owns the whole viewport and
@@ -15,8 +16,8 @@ export default function App(): JSX.Element {
   // CineView scene surface.
   const pathname = useLocation().pathname;
   const isDrag = pathname === '/drag';
-  const isAcceptance = pathname === '/__acceptance/video-drag';
-  // /docs 的切换器由 DocsShell 挂在应用栏里；这里必须排除，否则两个都渲染。
+  const isAcceptance = pathname.startsWith('/__acceptance/');
+  // The /docs toggle is mounted by DocsShell in the app bar; must exclude here, otherwise both would render.
   const isDocs = pathname === '/docs' || pathname.startsWith('/docs/');
 
   return (
@@ -27,6 +28,7 @@ export default function App(): JSX.Element {
         <Route path="/" element={<HomePage />} />
         <Route path="/drag" element={<DragPage />} />
         <Route path="/__acceptance/video-drag" element={<VideoDragAcceptancePage />} />
+        <Route path="/__acceptance/horizontal-scroll" element={<HorizontalScrollFixture />} />
         <Route path="/__review/dual-clock" element={<DualClockFixturePage />} /> {/* TEMP */}
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/docs/:slug" element={<DocsPage />} />

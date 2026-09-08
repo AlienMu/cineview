@@ -1,5 +1,5 @@
 /**
- * Container 组件单元测试
+ * Container component unit tests
  */
 
 import { render } from '@testing-library/react';
@@ -22,8 +22,8 @@ function renderWithCineView(
 }
 
 describe('Container', () => {
-  describe('基础功能', () => {
-    it('应该正确渲染子元素', () => {
+  describe('Basic functionality', () => {
+    it('should render children correctly', () => {
       const { getByText } = renderWithCineView(
         <Container>
           <div>Test Content</div>
@@ -33,20 +33,20 @@ describe('Container', () => {
       expect(getByText('Test Content')).toBeInTheDocument();
     });
 
-    it('应该应用自定义 className', () => {
+    it('should apply custom className', () => {
       const { container } = renderWithCineView(
         <Container className="custom-class">
           <div>Content</div>
         </Container>
       );
 
-      // CineViewProvider 包装了一层 div，Container 是第二层
+      // CineViewProvider wraps with a div, Container is the second layer
       const containerDiv = container.querySelector('.custom-class') as HTMLElement;
       expect(containerDiv).toBeInTheDocument();
       expect(containerDiv).toHaveClass('custom-class');
     });
 
-    it('应该合并自定义样式', () => {
+    it('should merge custom styles', () => {
       const customStyle = { backgroundColor: 'red', padding: '10px' };
       const { container } = renderWithCineView(
         <Container style={customStyle} className="test-container">
@@ -65,8 +65,8 @@ describe('Container', () => {
     });
   });
 
-  describe('响应式尺寸换算', () => {
-    it('应该在 px 单位模式下进行换算', () => {
+  describe('Responsive size conversion', () => {
+    it('should convert width in px unit mode', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -88,7 +88,7 @@ describe('Container', () => {
       expect(containerDiv).toHaveStyle({ width: '100px' });
     });
 
-    it('应该在 px 单位模式下换算高度', () => {
+    it('should convert height in px unit mode', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -110,7 +110,7 @@ describe('Container', () => {
       expect(containerDiv).toHaveStyle({ height: '200px' });
     });
 
-    it('应该同时换算宽度和高度', () => {
+    it('should convert both width and height', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -135,8 +135,8 @@ describe('Container', () => {
       });
     });
 
-    it('应该把 style 里的盒模型长度（padding/borderRadius/fontSize）按同一 scale 换算', () => {
-      // px2vw 单尺子：width 375 / design 750 → scale 0.5，所有长度量共用。
+    it('should convert box model lengths (padding/borderRadius/fontSize) with the same scale', () => {
+      // px2vw single scale: viewport width 375 / design 750 → scale 0.5, all length dimensions share this ratio.
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -159,7 +159,7 @@ describe('Container', () => {
       );
 
       const containerDiv = getByTestId('container');
-      // width 100→50、padding 40→20、borderRadius 20→10、fontSize 32→16（全乘 0.5）。
+      // width 100→50, padding 40→20, borderRadius 20→10, fontSize 32→16 (all multiplied by 0.5).
       expect(containerDiv).toHaveStyle({
         width: '50px',
         padding: '20px',
@@ -168,7 +168,7 @@ describe('Container', () => {
       });
     });
 
-    it('width/height 便捷 props 应该覆盖 style 中冲突的尺寸', () => {
+    it('width/height convenience props should override conflicting sizes in style', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -194,8 +194,8 @@ describe('Container', () => {
     });
   });
 
-  describe('可选参数', () => {
-    it('应该在未指定宽度时不设置 width 样式', () => {
+  describe('Optional parameters', () => {
+    it('should not set width style when unspecified', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -218,7 +218,7 @@ describe('Container', () => {
       expect(containerDiv).toHaveStyle({ height: '100px' });
     });
 
-    it('应该在未指定高度时不设置 height 样式', () => {
+    it('should not set height style when unspecified', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -241,7 +241,7 @@ describe('Container', () => {
       expect(containerDiv).toHaveStyle({ width: '100px' });
     });
 
-    it('应该在未指定宽高时只应用自定义样式', () => {
+    it('should apply only custom styles when width and height are unspecified', () => {
       const customStyle = { display: 'flex' };
       const { getByTestId } = renderWithCineView(
         <Container style={customStyle} data-testid="container">
@@ -256,12 +256,12 @@ describe('Container', () => {
     });
   });
 
-  describe('错误处理', () => {
-    it('应该在不在 CineView 下使用时抛出错误（开发环境）', () => {
+  describe('Error handling', () => {
+    it('should throw error when used outside CineView (development environment)', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      // 使用 console.error mock 来避免测试输出中的错误信息
+      // Mock console.error to avoid error output in test logs
       const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       expect(() => {
@@ -276,12 +276,12 @@ describe('Container', () => {
       process.env.NODE_ENV = originalEnv;
     });
 
-    it('应该在生产环境无 context 时静默透传原样 style（不换算、不抛错）', () => {
+    it('should silently pass through original style without conversion when context is missing in production (no throw)', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
 
-      // production 下 !context 不抛错，走 `return style` 分支：width/height 便捷属性
-      // 不换算（无 scale 可用），仅原样保留传入的 style。
+      // In production, missing context does not throw; takes `return style` branch: width/height
+      // convenience props are not converted (no scale available), only the passed-in style is preserved.
       const { getByTestId } = render(
         <Container width={200} style={{ padding: 10 }} data-testid="container">
           <div>Content</div>
@@ -289,7 +289,7 @@ describe('Container', () => {
       );
 
       const containerDiv = getByTestId('container');
-      // 无 context：不产生 width 换算值，padding 保持原始数字（React 补 px）。
+      // No context: no width conversion value generated, padding retains original number (React appends px).
       expect(containerDiv.style.width).toBe('');
       expect(containerDiv).toHaveStyle({ padding: '10px' });
 
@@ -297,8 +297,8 @@ describe('Container', () => {
     });
   });
 
-  describe('边界情况', () => {
-    it('应该处理宽度为 0 的情况', () => {
+  describe('Edge cases', () => {
+    it('should handle width of 0', () => {
       const { getByTestId } = renderWithCineView(
         <Container width={0} data-testid="container">
           <div>Content</div>
@@ -309,7 +309,7 @@ describe('Container', () => {
       expect(containerDiv).toHaveStyle({ width: '0px' });
     });
 
-    it('应该处理高度为 0 的情况', () => {
+    it('should handle height of 0', () => {
       const { getByTestId } = renderWithCineView(
         <Container height={0} data-testid="container">
           <div>Content</div>
@@ -320,7 +320,7 @@ describe('Container', () => {
       expect(containerDiv).toHaveStyle({ height: '0px' });
     });
 
-    it('应该处理非常大的尺寸值', () => {
+    it('should handle very large size values', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -346,8 +346,8 @@ describe('Container', () => {
     });
   });
 
-  describe('嵌套使用', () => {
-    it('应该支持嵌套 Container', () => {
+  describe('Nested usage', () => {
+    it('should support nested Containers', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,

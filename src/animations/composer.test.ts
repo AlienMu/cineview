@@ -255,8 +255,8 @@ describe('composer', () => {
           animations: ['fade', { animate: { scale: 1.2 } } as CustomAnimation],
         });
 
-        // fade 的 opacity 从 0s 开始,第二步的 scale 在 fade 结束(1s)后才开始:
-        // 普通 Object.assign 合并会让 transition last-wins,opacity 的 delay 0 丢失。
+        // fade's opacity starts at 0s, the second step's scale starts after fade ends (1s):
+        // plain Object.assign merge would cause transition last-wins, losing opacity's delay 0.
         expect(result?.animate).toEqual({
           opacity: 1,
           scale: 1.2,
@@ -305,7 +305,7 @@ describe('composer', () => {
         });
 
         const animate = result?.animate as { transition: Record<string, unknown> };
-        // fade 是作者书写的第 2 项 → 用 delays[1]=500ms;压缩下标会错取 delays[0]=999s。
+        // fade is the 2nd item as authored → uses delays[1]=500ms; compacted index would wrongly take delays[0]=999s.
         expect(animate.transition.opacity).toEqual({ duration: 1, delay: 0.5 });
       });
 
@@ -329,7 +329,7 @@ describe('composer', () => {
         });
 
         const animate = result?.animate as { transition: Record<string, unknown> };
-        // instant 的 duration=0 → 第二步从 0s 开始(旧的 `|| 1` 会把 0 当 1 累计)。
+        // instant's duration=0 → second step starts at 0s (old `|| 1` would treat 0 as 1 in accumulation).
         expect(animate.transition.scale).toEqual({ duration: 1, delay: 0 });
       });
 

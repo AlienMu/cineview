@@ -4,16 +4,16 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import './Scene5Cinema.css';
 
 /**
- * 手机 mockup：332×720 设计基准（19.5:9），CSS `max-height:75vh` 等比钳制。
+ * Phone mockup: 332×720 design baseline (19.5:9), CSS `max-height:75vh` proportional clamp.
  *
- * 呼吸 box-shadow（3s）与径向光晕（5s）按 CLAUDE.md 规则 6 走 loopAnimation
- * （禁 CSS `animation: … infinite`）：infinite-only lane 由 scene runtimeState 门控，
- * 场景离场自动 stop。lane 循环写 CSS 变量（--phone-breathe / --glow-pulse，沿用
- * film-pan `--film-perf-phase` 模式），阴影/光晕在 CSS 里 calc() 消费——变量落在
- * Animate 的包装 motion 元素上并继承给持有圆角的真实元素，避免方角阴影。
- * 3s/5s 异周期（LCM 15s）保证两层 beats 不同步叠加。
+ * Breathing box-shadow (3s) and radial glow (5s) follow CLAUDE.md rule 6 via loopAnimation
+ * (forbids CSS `animation: … infinite`): infinite-only lane gated by scene runtimeState,
+ * automatically stops on scene exit. Lane loops write CSS variables (--phone-breathe / --glow-pulse,
+ * reusing film-pan `--film-perf-phase` pattern), shadow/glow consumed via calc() in CSS — variables
+ * land on Animate's wrapper motion element and inherit to the actual rounded element, avoiding
+ * square-corner shadows. 3s/5s asynchronous periods (LCM 15s) ensure the two beats never stack in sync.
  */
-export function PhoneMockup({ children }: { children: ReactNode }): JSX.Element {
+export function PhoneMockup({ children }: { children: ReactNode }): import('react').JSX.Element {
   const reduced = usePrefersReducedMotion();
   const frame = (
     <div className="phone-mockup__frame">

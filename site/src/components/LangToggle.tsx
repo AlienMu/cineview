@@ -1,17 +1,19 @@
 import { useI18n } from '../i18n';
 
 /**
- * 浮动语言切换 — 一个地球图标 + 当前可切到的语言短码。
+ * Floating language toggle — a globe icon + the current switchable language code.
  *
- * 挂载点由**调用方**决定，本组件不再自己嗅探路由：
- * - 普通页面（Home / Demo）各自挂在页面右上角，用 `.lang-toggle` 默认定位；
- * - `/docs` 由 `DocsShell` 挂在应用栏内（`variant="shell"`：静态定位、跟随栏内布局），
- *   App 层已把 `/docs` 排除在全局挂载之外，否则会渲染两个切换器；
- * - `/drag` 由 act1 的 `<Scene>` 内部挂载并包一层 `<Animate>`（见 SceneRolling
- *   的 GatedLangToggle），因此它跟随拖拽时间轴进退场，而不是浮在五幕之上。
- *   该场景用 `.s01-lang-slot` 承担定位，`variant` 只负责配色。
+ * The mount point is determined by the **caller**, not by this component sniffing routes:
+ * - Regular pages (Home / Demo) each mount in the top-right corner, using `.lang-toggle` default positioning;
+ * - `/docs` is mounted by `DocsShell` inside the app bar (`variant="shell"`: static positioning, follows in-bar layout),
+ *   the App layer has excluded `/docs` from global mounting, otherwise two toggles would render;
+ * - `/drag` is mounted inside act1's `<Scene>` wrapped in an `<Animate>` (see SceneRolling's
+ *   GatedLangToggle), so it enters/exits following the drag timeline, rather than floating above all five acts.
+ *   That scene uses `.s01-lang-slot` for positioning, `variant` only handles coloring.
  */
-export function LangToggle({ variant }: { variant?: 'drag' | 'shell' } = {}): JSX.Element {
+export function LangToggle({
+  variant,
+}: { variant?: 'drag' | 'shell' } = {}): import('react').JSX.Element {
   const { t, lang, toggleLang } = useI18n();
 
   return (

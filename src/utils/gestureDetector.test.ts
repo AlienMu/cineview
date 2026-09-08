@@ -85,7 +85,7 @@ describe('GestureDetector', () => {
       const startEvent = new MouseEvent('mousedown', { clientX: 100, clientY: 100 });
       detector.handleStart(startEvent);
 
-      jest.advanceTimersByTime(400); // 超过默认的 300ms
+      jest.advanceTimersByTime(400); // exceeds default 300ms
 
       const endEvent = new MouseEvent('mouseup', { clientX: 100, clientY: 200 });
       const gesture = detector.handleEnd(endEvent);
@@ -190,7 +190,7 @@ describe('GestureDetector', () => {
       const moveEvent = new MouseEvent('mousemove', { clientX: 100, clientY: 600 });
       const progress = detector.getDragProgress(moveEvent, 400);
 
-      expect(progress).toBe(1); // 应该被限制在 1
+      expect(progress).toBe(1); // should be clamped to 1
     });
 
     it('should calculate progress in x direction', () => {
@@ -235,7 +235,7 @@ describe('createGestureDetector', () => {
 
 describe('isTouchDevice', () => {
   it('should detect touch device', () => {
-    // 模拟触摸设备
+    // simulate touch device
     Object.defineProperty(window, 'ontouchstart', {
       value: {},
       writable: true,
@@ -244,12 +244,12 @@ describe('isTouchDevice', () => {
 
     expect(isTouchDevice()).toBe(true);
 
-    // 清理
+    // cleanup
     delete (window as { ontouchstart?: unknown }).ontouchstart;
   });
 
   it('should detect non-touch device', () => {
-    // 确保没有触摸支持
+    // ensure no touch support
     delete (window as { ontouchstart?: unknown }).ontouchstart;
     Object.defineProperty(navigator, 'maxTouchPoints', {
       value: 0,

@@ -1,13 +1,14 @@
 /**
- * Scene helpers 纯函数直测：resolveSceneAnchor（全 anchor case）与
- * getSceneVisibilityProgress（全 phase case + 非 scroll 早退）。这两个是无副作用的
- * 布局/进度映射函数，直测比经组件间接覆盖更确定。
+ * Scene helpers pure function unit tests: resolveSceneAnchor (all anchor cases) and
+ * getSceneVisibilityProgress (all phase cases + non-scroll early return). These are
+ * side-effect-free layout/progress mapping functions; direct testing is more definitive
+ * than indirect coverage through components.
  */
 import { resolveSceneAnchor, getSceneVisibilityProgress } from './helpers';
 import type { SceneAnchor } from '../../types';
 
 describe('resolveSceneAnchor', () => {
-  it('九个 anchor 各自映射到正确的 top/left/right/bottom + transform', () => {
+  it('maps each of nine anchors to correct top/left/right/bottom + transform', () => {
     expect(resolveSceneAnchor('top-left')).toEqual({ top: 0, left: 0 });
     expect(resolveSceneAnchor('top-center')).toEqual({
       top: 0,
@@ -39,7 +40,7 @@ describe('resolveSceneAnchor', () => {
     expect(resolveSceneAnchor('bottom-right')).toEqual({ bottom: 0, right: 0 });
   });
 
-  it('未知 anchor 回退到 top-left（default 分支）', () => {
+  it('falls back to top-left for unknown anchor (default branch)', () => {
     expect(resolveSceneAnchor('nope' as SceneAnchor)).toEqual({ top: 0, left: 0 });
   });
 });
@@ -64,7 +65,7 @@ describe('getSceneVisibilityProgress', () => {
       Parameters<typeof getSceneVisibilityProgress>[0]['globalScrollTimelineState']
     >;
 
-  it('非 scroll 模式：isActive 决定 1/0', () => {
+  it('non-scroll mode: isActive determines 1/0', () => {
     expect(
       getSceneVisibilityProgress({
         effectiveMode: 'drag',
@@ -83,7 +84,7 @@ describe('getSceneVisibilityProgress', () => {
     ).toBe(0);
   });
 
-  it('scroll 模式但无 timelineState：isActive 决定 1/0', () => {
+  it('scroll mode but no timelineState: isActive determines 1/0', () => {
     expect(
       getSceneVisibilityProgress({
         effectiveMode: 'scroll',
@@ -94,7 +95,7 @@ describe('getSceneVisibilityProgress', () => {
     ).toBe(1);
   });
 
-  it('各 phase 映射：before=0 / enter=enterProgress / hold=1', () => {
+  it('phase mapping: before=0 / enter=enterProgress / hold=1', () => {
     expect(
       getSceneVisibilityProgress({
         effectiveMode: 'scroll',
@@ -121,7 +122,7 @@ describe('getSceneVisibilityProgress', () => {
     ).toBe(1);
   });
 
-  it('exit phase：有退场动画 → 1-exitProgress；无退场 → 保持 1', () => {
+  it('exit phase: with exit animation → 1-exitProgress; without → stays 1', () => {
     expect(
       getSceneVisibilityProgress({
         effectiveMode: 'scroll',
@@ -140,7 +141,7 @@ describe('getSceneVisibilityProgress', () => {
     ).toBe(1);
   });
 
-  it('after phase：有退场动画 → 0；无退场 → 1', () => {
+  it('after phase: with exit animation → 0; without → 1', () => {
     expect(
       getSceneVisibilityProgress({
         effectiveMode: 'scroll',

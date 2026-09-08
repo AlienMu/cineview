@@ -1,5 +1,5 @@
 /**
- * CineView 组件单元测试
+ * CineView Component Unit Tests
  */
 
 import { createRef, act } from 'react';
@@ -81,8 +81,8 @@ describe('CineView Component', () => {
     });
   });
 
-  describe('12.1 核心功能', () => {
-    it('应该创建响应式尺寸换算上下文', () => {
+  describe('12.1 Core Functionality', () => {
+    it('should create responsive size conversion context', () => {
       const { container } = render(
         <CineView designWidth={750}>
           <MockScene>Scene 1</MockScene>
@@ -92,7 +92,7 @@ describe('CineView Component', () => {
       expect(container.querySelector('.cineview-container')).toBeInTheDocument();
     });
 
-    it('应该注册所有 Scene 子组件并维护场景索引', async () => {
+    it('should register all Scene children and maintain scene index', async () => {
       const { container } = render(
         <CineView designWidth={750}>
           <MockScene>Scene 1</MockScene>
@@ -103,12 +103,12 @@ describe('CineView Component', () => {
 
       await waitFor(() => {
         const scenes = container.querySelectorAll('[data-scene-index]');
-        // 虚拟化渲染：仅渲染当前场景(0)及后一个场景(1)
+        // Virtualized rendering: only renders current scene (0) and next scene (1)
         expect(scenes.length).toBeGreaterThan(0);
       });
     });
 
-    it('应该初始化图片预加载系统', () => {
+    it('should initialize image preload system', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
@@ -122,7 +122,7 @@ describe('CineView Component', () => {
       expect(actions.startPreload).toHaveBeenCalled();
     });
 
-    it('不应该因为 onLoadProgress 回调身份变化而重新启动预加载', () => {
+    it('should not restart preload when onLoadProgress callback identity changes', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
 
@@ -157,7 +157,7 @@ describe('CineView Component', () => {
       expect(startPreload).toHaveBeenCalledTimes(1);
     });
 
-    it('应该兼容 grouped assets.preloadImages', () => {
+    it('should support grouped assets.preloadImages', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
@@ -172,7 +172,7 @@ describe('CineView Component', () => {
       expect(callArgs.backgroundUrls).toEqual(['grouped-second.jpg']);
     });
 
-    it('应该在首屏优先图片未完成时仍然展示场景视口', () => {
+    it('should still display scene viewport when priority images are incomplete', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       useImagePreloader.mockImplementation(() => [
@@ -201,7 +201,7 @@ describe('CineView Component', () => {
       expect(viewport).toHaveStyle({ opacity: '1', pointerEvents: 'auto' });
     });
 
-    it('应该实现虚拟化渲染（仅渲染当前场景及前后各一个）', async () => {
+    it('should implement virtualized rendering (only renders current scene plus one before and after)', async () => {
       const ref = createRef<CineViewRef>();
 
       const { container } = render(
@@ -215,12 +215,12 @@ describe('CineView Component', () => {
 
       await waitFor(() => {
         const scenes = container.querySelectorAll('[data-scene-index]');
-        // 当前场景索引为 0，应该渲染场景 0 和 1
+        // Current scene index is 0, should render scenes 0 and 1
         expect(scenes.length).toBeLessThanOrEqual(2);
       });
     });
 
-    it('应该使用 content-visibility CSS 优化非可见场景', async () => {
+    it('should use content-visibility CSS to optimize non-visible scenes', async () => {
       const ref = createRef<CineViewRef>();
 
       const { container } = render(
@@ -234,14 +234,14 @@ describe('CineView Component', () => {
         const scenes = container.querySelectorAll('[data-scene-index]');
         scenes.forEach((scene, index) => {
           if (index === 0) {
-            // 当前场景应该可见
+            // Current scene should be visible
             expect(scene).toHaveStyle({ visibility: 'visible' });
           }
         });
       });
     });
 
-    it('应该仅在 scroll screen sizing 下为 scene wrapper 注入视口主轴下限', async () => {
+    it('should only inject viewport main axis minimum for scroll screen sizing', async () => {
       const { container, rerender } = render(
         <CineView designWidth={750} mode="scroll" direction={'y'} sceneSizing={'content'}>
           <MockScene>Short Scene</MockScene>
@@ -269,7 +269,7 @@ describe('CineView Component', () => {
       });
     });
 
-    it('应该在根容器注册隐藏浏览器原生 scrollbar 的样式', () => {
+    it('should register styles to hide native browser scrollbar at root container', () => {
       render(
         <CineView
           designWidth={750}
@@ -289,8 +289,8 @@ describe('CineView Component', () => {
     });
   });
 
-  describe('12.2 事件系统', () => {
-    it('应该触发 onInit 回调', () => {
+  describe('12.2 Event System', () => {
+    it('should trigger onInit callback', () => {
       const onInit = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -304,7 +304,7 @@ describe('CineView Component', () => {
       expect(onInit).toHaveBeenCalled();
     });
 
-    it('使用 callback ref 时仍只触发一次 onReady 并返回同一 API', () => {
+    it('when using callback ref, should still only trigger onReady once and return the same API', () => {
       const onReady = jest.fn();
       const callbackRef = jest.fn<void, [CineViewRef | null]>();
 
@@ -320,7 +320,7 @@ describe('CineView Component', () => {
       expect(onReady).toHaveBeenCalledWith(exposedApi);
     });
 
-    it('切换 performance.monitor 不应重新触发 onReady 或破坏 ref 导航', async () => {
+    it('toggling performance.monitor should not re-trigger onReady or break ref navigation', async () => {
       const onReady = jest.fn();
       const ref = createRef<CineViewRef>();
       const { rerender } = render(
@@ -351,7 +351,7 @@ describe('CineView Component', () => {
       expect(onReady).toHaveBeenCalledTimes(1);
     });
 
-    it('应该触发 onBeforeSceneChange 回调', async () => {
+    it('should trigger onBeforeSceneChange callback', async () => {
       const onBeforeSceneChange = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -375,7 +375,7 @@ describe('CineView Component', () => {
       );
     });
 
-    it('应该触发 onAfterSceneChange 回调', async () => {
+    it('should trigger onAfterSceneChange callback', async () => {
       const onAfterSceneChange = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -391,7 +391,7 @@ describe('CineView Component', () => {
       });
 
       act(() => {
-        ref.current?.goToScene(1, false); // 不使用动画，立即触发 onAfterSceneChange
+        ref.current?.goToScene(1, false); // Without animation, immediately triggers onAfterSceneChange
       });
 
       await waitFor(() => {
@@ -401,7 +401,7 @@ describe('CineView Component', () => {
       });
     });
 
-    it('drag 模式下 ref.goToScene 补发 onDragEnd 一次（统一手势与程序化提交）', async () => {
+    it('in drag mode, ref.goToScene supplements onDragEnd once (unifying gesture and programmatic commit)', async () => {
       const onDragEnd = jest.fn();
       const ref = createRef<CineViewRef>();
 
@@ -432,7 +432,7 @@ describe('CineView Component', () => {
       );
     });
 
-    it('ref.goToScene 在 no-op（同索引/越界）时不发 onDragEnd', async () => {
+    it('ref.goToScene does not emit onDragEnd for no-op (same index/out of bounds)', async () => {
       const onDragEnd = jest.fn();
       const ref = createRef<CineViewRef>();
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -449,8 +449,8 @@ describe('CineView Component', () => {
       });
 
       act(() => {
-        ref.current?.goToScene(0); // 同索引
-        ref.current?.goToScene(5); // 越界
+        ref.current?.goToScene(0); // Same index
+        ref.current?.goToScene(5); // Out of bounds
       });
 
       expect(onDragEnd).not.toHaveBeenCalled();
@@ -458,7 +458,7 @@ describe('CineView Component', () => {
       warnSpy.mockRestore();
     });
 
-    it('应该触发 onLoadProgress 回调', () => {
+    it('should trigger onLoadProgress callback', () => {
       const onLoadProgress = jest.fn();
 
       render(
@@ -467,14 +467,14 @@ describe('CineView Component', () => {
         </CineView>
       );
 
-      // onLoadProgress 应该被调用（通过 useImagePreloader hook）
-      // 实际调用由 mock 的 hook 处理
+      // onLoadProgress should be called (via useImagePreloader hook)
+      // Actual calls are handled by the mocked hook
       expect(onLoadProgress).toBeDefined();
     });
   });
 
-  describe('12.3 API 方法', () => {
-    it('应该实现 goToScene 方法（支持 animated 参数）', async () => {
+  describe('12.3 API Methods', () => {
+    it('should implement goToScene method (supports animated parameter)', async () => {
       const ref = createRef<CineViewRef>();
 
       render(
@@ -496,7 +496,7 @@ describe('CineView Component', () => {
       expect(ref.current?.getCurrentIndex()).toBe(2);
     });
 
-    it('不应该通过 ref 暴露内部 runtime 快照', async () => {
+    it('should not expose internal runtime snapshot via ref', async () => {
       const ref = createRef<CineViewRef>();
 
       render(
@@ -513,7 +513,7 @@ describe('CineView Component', () => {
       expect('getState' in (ref.current as object)).toBe(false);
     });
 
-    it('应该实现 refreshLayout 和 preload 方法', async () => {
+    it('should implement refreshLayout and preload methods', async () => {
       const ref = createRef<CineViewRef>();
 
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
@@ -557,7 +557,7 @@ describe('CineView Component', () => {
       expect(startPreload).toHaveBeenCalledTimes(2);
     });
 
-    it('preload(targets) 只按场景索引和 sceneId 追加优先图片', async () => {
+    it('preload(targets) only appends priority images by scene index and sceneId', async () => {
       const ref = createRef<CineViewRef>();
       const startPreload = jest.fn().mockResolvedValue(undefined);
       const addUrls = jest.fn();
@@ -606,7 +606,7 @@ describe('CineView Component', () => {
       expect(startPreload).toHaveBeenCalled();
     });
 
-    it('应该实现 getCurrentIndex 方法', async () => {
+    it('should implement getCurrentIndex method', async () => {
       const ref = createRef<CineViewRef>();
 
       render(
@@ -629,7 +629,7 @@ describe('CineView Component', () => {
       expect(ref.current?.getCurrentIndex()).toBe(1);
     });
 
-    it('应该实现 getPerformanceMetrics 方法', async () => {
+    it('should implement getPerformanceMetrics method', async () => {
       const ref = createRef<CineViewRef>();
 
       render(
@@ -651,7 +651,7 @@ describe('CineView Component', () => {
       expect(metrics?.bundleSize).toBe(45);
     });
 
-    it('应该验证场景索引有效性', async () => {
+    it('should validate scene index validity', async () => {
       const ref = createRef<CineViewRef>();
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
@@ -666,24 +666,24 @@ describe('CineView Component', () => {
         expect(ref.current).not.toBeNull();
       });
 
-      // 尝试跳转到无效索引
+      // Attempt to navigate to invalid index
       act(() => {
         ref.current?.goToScene(10);
       });
 
-      // 应该输出警告
+      // Should output warning
       expect(consoleWarnSpy).toHaveBeenCalled();
 
-      // 场景索引应该保持不变
+      // Scene index should remain unchanged
       expect(ref.current?.getCurrentIndex()).toBe(0);
 
       consoleWarnSpy.mockRestore();
     });
   });
 
-  describe('12.4 性能优化', () => {
-    it('应该使用 WeakMap 存储组件引用', () => {
-      // WeakMap 是内部实现细节，通过不产生内存泄漏来验证
+  describe('12.4 Performance Optimization', () => {
+    it('should use WeakMap to store component references', () => {
+      // WeakMap is an internal implementation detail, verified by not causing memory leaks
       const { unmount } = render(
         <CineView designWidth={750}>
           <MockScene>Scene 1</MockScene>
@@ -691,11 +691,11 @@ describe('CineView Component', () => {
         </CineView>
       );
 
-      // 卸载组件不应该导致内存泄漏
+      // Unmounting component should not cause memory leaks
       expect(() => unmount()).not.toThrow();
     });
 
-    it('应该支持 performanceMode 开关', () => {
+    it('should support performanceMode toggle', () => {
       render(
         <CineView designWidth={750} monitor>
           <MockScene>Scene 1</MockScene>
@@ -705,7 +705,7 @@ describe('CineView Component', () => {
       expect(performanceMonitor.start).toHaveBeenCalled();
     });
 
-    it('应该在组件卸载时清理性能监控', () => {
+    it('should clean up performance monitoring on component unmount', () => {
       const { unmount } = render(
         <CineView designWidth={750} monitor>
           <MockScene>Scene 1</MockScene>
@@ -718,7 +718,7 @@ describe('CineView Component', () => {
     });
   });
 
-  describe('12.5 错误处理和开发者体验', () => {
+  describe('12.5 Error Handling and Developer Experience', () => {
     const originalEnv = process.env.NODE_ENV;
 
     beforeEach(() => {
@@ -729,7 +729,7 @@ describe('CineView Component', () => {
       process.env.NODE_ENV = originalEnv;
     });
 
-    it('应该在开发环境提供详细错误信息', () => {
+    it('should provide detailed error messages in development environment', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       render(
@@ -785,7 +785,7 @@ describe('CineView Component', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('应该在开发环境提供组件层级检查', () => {
+    it('should provide component hierarchy checks in development environment', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       render(
@@ -799,7 +799,7 @@ describe('CineView Component', () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it('应该提供性能调试模式', () => {
+    it('should provide performance debugging mode', () => {
       render(
         <CineView designWidth={750} monitor>
           <MockScene>Scene 1</MockScene>
@@ -810,8 +810,8 @@ describe('CineView Component', () => {
     });
   });
 
-  describe('虚拟化渲染边界情况', () => {
-    it('当前场景索引为 0 时，应该仅渲染场景 0 和场景 1', async () => {
+  describe('Virtualized Rendering Edge Cases', () => {
+    it('when current scene index is 0, should only render scenes 0 and 1', async () => {
       const ref = createRef<CineViewRef>();
 
       const { container } = render(
@@ -831,7 +831,7 @@ describe('CineView Component', () => {
       });
     });
 
-    it('当前场景索引为最后一个时，应该仅渲染最后一个场景和倒数第二个场景', async () => {
+    it('when current scene index is the last one, should only render the last scene and second-to-last scene', async () => {
       const ref = createRef<CineViewRef>();
 
       const { container } = render(
@@ -846,7 +846,7 @@ describe('CineView Component', () => {
         expect(ref.current).not.toBeNull();
       });
 
-      // 跳转到最后一个场景
+      // Navigate to last scene
       act(() => {
         ref.current?.goToScene(2, false);
       });
@@ -860,7 +860,7 @@ describe('CineView Component', () => {
       });
     });
 
-    it('当前场景索引在中间时，应该渲染当前场景及其前后各一个场景', async () => {
+    it('when current scene index is in the middle, should render current scene and one scene before and after', async () => {
       const ref = createRef<CineViewRef>();
 
       const { container } = render(
@@ -876,7 +876,7 @@ describe('CineView Component', () => {
         expect(ref.current).not.toBeNull();
       });
 
-      // 跳转到中间场景
+      // Navigate to middle scene
       act(() => {
         ref.current?.goToScene(2, false);
       });
@@ -892,8 +892,8 @@ describe('CineView Component', () => {
     });
   });
 
-  describe('图片预加载流程', () => {
-    it('应该只等待当前场景图片并将其余场景放入后台队列', () => {
+  describe('Image Preload Flow', () => {
+    it('should only wait for current scene images and queue remaining scenes in background', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
@@ -909,7 +909,7 @@ describe('CineView Component', () => {
       expect(callArgs.backgroundUrls).toEqual(['second1.jpg', 'third1.jpg']);
     });
 
-    it('应该在翻页后提升当前场景并继续后台预热其余场景图片', async () => {
+    it('should promote current scene after page flip and continue background preheating of remaining scene images', async () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
       const addUrls = jest.fn();
@@ -957,7 +957,7 @@ describe('CineView Component', () => {
       expect(startPreload).toHaveBeenCalled();
     });
 
-    it('应该在首屏图片加载完成后渲染首屏内容', async () => {
+    it('should render first screen content after initial scene images have loaded', async () => {
       const { container } = render(
         <CineView designWidth={750}>
           <MockScene>Scene 1</MockScene>

@@ -3,7 +3,7 @@ title: Zones and scroll budgets
 eyebrow: SCROLL / BUDGET
 ---
 
-A locked zone's travel distance comes from the cumulative animation durations of its child elements. The sections on this page define the budget, map timeline phase ranges, and describe zero-budget behavior.
+The latest child-animation end determines a locked zone's scroll budget. Durations, delays, and dependencies affect that endpoint.
 
 ## 1ms = 1px
 
@@ -22,13 +22,13 @@ Both `duration.enter` and `duration.exit` default to 600ms.
 
 ## Zero-budget fallback
 
-Only segments longer than 0.5px (`totalBudgetPx > 0.5`) participate in center-lock boundary clamping. A zero-budget zone produces no locked travel: the wrapper collapses to the visual box height, scroll displacement flows without interruption, `onZoneEnter` and `onZoneLeave` do not trigger, and `onZoneProgress` emits a single initial frame with `progress: 0`.
+A zero budget adds no animation travel. The Scene still occupies the larger of its visual span and one viewport. `onZoneEnter` and `onZoneLeave` do not fire; `onZoneProgress` reports its initial zero value. Only segments longer than 0.5px participate in anti-skip limiting.
 
-Only `Animate` nodes with explicit `enterAnimation` or `exitAnimation` declarations register timeline budget. If a Scene contains only `loopAnimation` elements, its total budget evaluates to 0 and the scene renders as a normal flow section.
+Scene-driven elements register budget when they have an entrance or exit animation. A Scene with only loop animations has no animation budget.
 
 ```tsx
 {
-  /* Declares a zone without entrance/exit durations; budget is 0, renders as normal section */
+  /* A loop-only zone has no animation travel. */
 }
 <Scene sceneId="loop" scroll={{ zoneId: 'loop' }}>
   <Animate animateId="pulse" loopAnimation="pulse">
@@ -57,29 +57,27 @@ Within scroll-driven zones, `after` dependencies collapse into cumulative delays
 follower.start = leader.phaseEndPx + follower.delay
 ```
 
-Connecting to entrance completion ensures that dependency graphs resolve deterministically. When using `phase`, setting `phase.end` to values with headroom (such as `0.95`) allows subsequent chained elements to resolve within finite budget bounds.
+An `after` follower begins at its leader's entrance endpoint. If a leader uses `phase`, leave room for followers by using an end fraction below 1, such as 0.95.
 
 ## Zone identity
 
-| Source          | Priority | Notes                                                                                    |
-| --------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `scroll.zoneId` | highest  | explicit declaration                                                                     |
-| `sceneId`       | next     | used directly as the zone id when `zoneId` is absent                                     |
-| auto id         | fallback | shaped `scene-zone-<instance id>`, per-instance, stable across renders but unpredictable |
+| Source          | Priority | Notes                                                          |
+| --------------- | -------- | -------------------------------------------------------------- |
+| `scroll.zoneId` | highest  | explicit declaration                                           |
+| `sceneId`       | next     | used directly as the zone id when `zoneId` is absent           |
+| auto id         | fallback | Generated for the Scene; declare an explicit id for navigation |
 
-When neither is declared, the zone receives an automatic id: it functions correctly, but cannot be targeted via `goToZone` or referenced in `timeline.zoneId`. Programmatic navigation and cross-Scene membership require an authored identity.
+Set `scroll.zoneId` or `sceneId` when using `goToZone` or explicitly binding an Animate to a zone.
 
-Duplicate `zoneId` declarations trigger automatic demotion. The root component evaluates scenes in document order; the first Scene declaring an identifier retains ownership, while subsequent scenes with identical IDs have their `scroll` properties stripped and render as standard flow scenes.
-
-Demotions emit an `INVALID_COMPONENT_HIERARCHY` error via `onError` (`reason: 'duplicate-scroll-zone'`), accompanied by diagnostic console warnings in development.
+If multiple Scenes declare the same zone id, the first keeps it. Later duplicates render as ordinary scenes and report `INVALID_COMPONENT_HIERARCHY` through `onError`; development builds also warn.
 
 ## Two sets of sizing rules
 
 `sceneSizing` accepts `'content'` (default) or `'screen'`, applying exclusively to standard flow scenes: `'screen'` enforces a one-viewport minimum height, while `'content'` derives height directly from content. Locked-zone scenes behave identically under both settings.
 
-Within locked zones, absolute pixel heights declared on `layout.height` are ignored and fall back to measured DOM dimensions. To define exact locked visual heights, use viewport-relative units (`vh` or `vw`).
+For a locked zone, viewport units such as `vh` or `vw` provide an explicit visual span. Other declared lengths fall back to the Scene's measured DOM size.
 
-Locked-zone visual shells enforce `maxHeight: 100vh` with `overflow: hidden`. Content exceeding viewport bounds is clipped rather than scrolled. Divide long-form content into consecutive scenes, or place it in standard flow scenes.
+The visual container clips content beyond the viewport. Put long reading content in ordinary scenes or divide it into several scenes.
 
 ## Related pages
 

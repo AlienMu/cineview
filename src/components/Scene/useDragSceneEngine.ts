@@ -1,9 +1,11 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
-import { animate, type AnimationControls, type MotionValue, type PanInfo } from 'framer-motion';
+import { animate, useAnimation, type MotionValue, type PanInfo } from 'framer-motion';
 import type { DragReleaseInput } from '../../hooks/useSceneManager';
 import type { DragThresholdConfig, ScrollMode } from '../../types';
 import type { DragRenderLane, DragTakeoverSnapshot, SceneState } from './types';
+
+type LegacyAnimationControls = ReturnType<typeof useAnimation>;
 
 function isVerboseDragDebug(): boolean {
   if (process.env.NODE_ENV !== 'development' || typeof window === 'undefined') {
@@ -70,7 +72,7 @@ interface UseDragSceneEngineParams {
   globalIsDragging: boolean;
   globalDragProgress: number;
   globalDragTimelineProgress: number;
-  controls: AnimationControls;
+  controls: LegacyAnimationControls;
   dragProgressMotion: MotionValue<number>;
   setSceneState: Dispatch<SetStateAction<SceneState>>;
   setIsAnimating: Dispatch<SetStateAction<boolean>>;
