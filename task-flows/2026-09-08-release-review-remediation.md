@@ -13,9 +13,9 @@ Baseline: main 30ae87f4a49b3047a2282bfacae21779fc8a92f1. Existing untracked and 
 - [x] Restore current architecture documentation and validate its links and anchors (F4).
 - [x] Update the separate site/example dependency sets and verify their audits and builds (F5).
 - [x] Repair the active-scene accessibility assertion and prove it detects injected failures (F6).
-- [ ] Record and publish unambiguous npm-to-source release correspondence without moving old tags or republishing the package (F7).
+- [x] Record and publish unambiguous npm-to-source release correspondence without moving old tags or republishing the package (F7).
 - [x] Run static gates, independent browser acceptance, and controlled profiling; review the final diff.
-- [ ] Commit and push to main, verify its CI, deploy Cloudflare Pages, and verify the public result.
+- [x] Commit and push to main, verify its CI, deploy Cloudflare Pages, and verify the public result.
 
 ## Acceptance
 
@@ -28,7 +28,7 @@ Use the documentation and UI skills for the affected surfaces. AGENT_SELF_REVIEW
 - F4: DESIGN.md was reconstructed from current source and ownership rules, replacing 117 broken TOC targets. The local-link checker covers architecture, README and contributor/release documents; deliberate missing-anchor input fails the static injection suite.
 - F5: site React Router 7 and Vite 8, example Vite 8 and Vitest 5, compatible configuration updates and refreshed locks. All four independent dependency audits report zero known vulnerabilities. CI and the release workflow audit all four projects.
 - F6: the shared assertion locates the announced current Scene, then checks itself and ancestors for inert/aria-hidden. Both deliberately hidden variants fail browser acceptance. The standalone accessibility probe passes 12/12 on the permitted production fixture URL /#/acceptance/drag.
-- F7: tarball integrity and SHA-256 verified; all 124 dist files match the rebuilt runtime, and metadata/license/both README files match ba0adf440c8a52be97db827b02f43089019b1750 byte for byte. releases/1.0.0.json and RELEASING.md explain the reconstructed correspondence and absent registry gitHead. Annotated npm/v1.0.0 prepared at that commit; old v1.0.0 remains unchanged. Publication of this correspondence awaits the main push.
+- F7: tarball integrity and SHA-256 verified; all 124 dist files match the rebuilt runtime, and metadata/license/both README files match ba0adf440c8a52be97db827b02f43089019b1750 byte for byte. releases/1.0.0.json and RELEASING.md explain the reconstructed correspondence and absent registry gitHead. Annotated npm/v1.0.0 prepared at that commit; old v1.0.0 remains unchanged. The correspondence tag and record were pushed with the implementation.
 
 Local Node 22.22.1 framework static gate passes: 118 suites / 1,582 framework tests, 24 example tests, 17 build checks, six deliberate static failures, formatting, types, lint and duplicate-code gate. Node 24.11.1 focused readiness tests pass 16/16. Site formatting/types, root types, 79 site contracts, documentation style (zero structural issues), 50 local documentation links, and all site/example production builds pass. Both production browser acceptance modes pass on permitted hash routes.
 
@@ -40,4 +40,16 @@ Evidence: review/release-remediation-2026-09-08/ and output/playwright/2026-09-0
 
 Runtime source is unchanged; the only src change is the semantic integration test. No new progress writer, per-frame React state, listener, or asset owner was introduced. UI changes remain in website CSS and one title class. User-owned ignored and untracked files remain intact. No npm publication or existing-tag rewrite occurs.
 
-F1 zoom gestures are explicitly outside this remediation. Standalone /drag and its hidden homepage preload/iframe requests were blocked throughout independent homepage review; the separate hash-based framework fixture was tested. Chrome desktop with touch/viewport emulation does not establish physical mobile-device, historical browser, or full assistive-technology support. Production deployment and exact-main CI results remain to be recorded after integration.
+F1 zoom gestures are explicitly outside this remediation. Standalone /drag and its hidden homepage preload/iframe requests were blocked throughout independent homepage review; the separate hash-based framework fixture was tested. Chrome desktop with touch/viewport emulation does not establish physical mobile-device, historical browser, or full assistive-technology support. Production deployment and exact-implementation CI results are recorded below.
+
+## Main integration and production result
+
+Implementation commit **73bacdfae2adf06af9e156c03989aba8cab6ad04** was pushed to main together with the annotated npm/v1.0.0 tag. The normal pre-push hook ran the complete framework static gate on Node 24.11.1 and passed. Existing v1.0.0 still resolves to 44809d955c53e251d3146b8920bae2e05a7f0431; npm 1.0.0 was not republished.
+
+Exact-implementation GitHub CI [34242374265](https://github.com/AlienMu/cineview/actions/runs/34242374265) completed successfully: Node 22.22.1, Node 24.x, and framework browser acceptance, including the new audits, documentation links, production profiling and deliberate-failure checks.
+
+Cloudflare Pages deployment **cc5fb73f** serves [cineview.pages.dev](https://cineview.pages.dev) and [its deployment URL](https://cc5fb73f.cineview.pages.dev). Public homepage, /docs and /docs/03-quickstart return the new entry. Main assets index-TsbidsfF.js and index-CDIEGSex.css match the independently accepted local build byte for byte. Video media is accessible. Wrangler's dirty-directory warning came from the preserved local untracked files; tracked implementation files were clean and only the verified site/dist directory was uploaded.
+
+Independent public-domain smoke passes: 390px settled Hero text and controls, 844×390 video without title/subtitle overlap, Quickstart direct navigation and Chinese switching. Title/subtitle gap is 37.59px in landscape; page and console errors are zero. Evidence is public-browser.md and public-http.json under review/release-remediation-2026-09-08/, plus the corresponding screenshots under output/playwright/. The same /drag and F1 exclusions apply.
+
+All scoped findings F2–F8 are closed by the recorded checks. This final task-flow update changes verification history only; the website and library artifacts remain those from the accepted implementation commit. The original adversarial verdict remains the historical result for its earlier baseline.
