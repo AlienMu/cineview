@@ -13,7 +13,7 @@ The initial worktree contains 287 modified, 137 deleted, and 71 untracked status
 - [x] Complete site types, contracts, documentation style, and production build.
 - [x] Inspect packed package; stage and review current changes before committing.
 - [x] Commit the reviewed release changes.
-- [ ] Publish to npm and verify registry metadata.
+- [x] Publish to npm and verify registry metadata.
 
 ## Evidence
 
@@ -36,9 +36,24 @@ The initial worktree contains 287 modified, 137 deleted, and 71 untracked status
 
 - The pre-commit hook also checks staged site source. It found three unused initial zero assignments in `DemoVideoScene.warmAt`; each variable is assigned on every branch before use. Removing only those initializers preserves output. File lint and site types passed after correction. The failed hook restored its temporary changes before this fix.
 
-## Git result and remaining publication step
+## Git result and authentication history
 
 - Release commit: `ba0adf4` (`feat: prepare CineView 1.0.0 for npm release`). The commit contains 475 reviewed changed/new/deleted files. The successful pre-commit hook left the staged tree identical to its pre-hook snapshot.
 - The tracked working tree was clean after committing. The 29 excluded local files remain on disk (some share directory-level status entries).
 - Pushing `codex/drag-release-dual-gate` to origin runs the repository's required framework static hook. The first attempt selected the shell's older Node 21 and failed before upload; the next attempt explicitly selects Node 22.22.1.
-- npm publication remains pending user authentication. `npm whoami --registry=https://registry.npmjs.org` still returns `ENEEDAUTH`. A browser login was requested; the user can also run `npm login --registry=https://registry.npmjs.org` locally, then resume publication. No npm publish success is claimed.
+- Initial publication was blocked by missing npm authentication. The user subsequently logged in as `alienmu`; the first publish request returned HTTP 403 because the account had no second factor configured. The registry still returned 404 for the unpublished package.
+
+## Publication continuation
+
+- Git commit `ce17868` was pushed to `origin/codex/drag-release-dual-gate`; local and remote revision checks matched.
+- The user enabled 2FA. npm now reports `auth-and-writes` with no pending enrollment. The prepared archive still matches its recorded SHA-512 integrity, current package metadata, LICENSE, and both READMEs.
+- The retry publishes the exact previously verified archive with public access and the `latest` tag. The user completed the registry's interactive browser challenge. The publish command exited 0 and reported `+ cineview@1.0.0`.
+
+## Completed release
+
+- npm package: https://www.npmjs.com/package/cineview/v/1.0.0
+- Published at `2026-09-08T08:30:56.847Z` by the authenticated `alienmu` account.
+- Registry version and `latest` both equal `1.0.0`. The registry SHA-512 integrity equals the prepublication archive's recorded integrity.
+- Downloading `cineview@1.0.0` from the public npm registry returned the exact prepared archive, compared byte for byte. SHA-256: `4dc8a2d1682c27339c71b61aaff42964685b53b7f99431228f25c61db1fc4915`.
+- Registry metadata and download evidence: `/tmp/cineview-release-registry-metadata.json`, `/tmp/cineview-release-registry-pack.json`, and `/tmp/cineview-release-registry-download/cineview-1.0.0.tgz`.
+- All release nodes are complete. Existing local backup/probe files and the older local `v1.0.0` Git tag remain unchanged.
