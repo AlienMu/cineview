@@ -13,8 +13,8 @@ Use the repository documentation skill and current public source/declarations fo
 - [x] Rewrite the paired READMEs and correct linked release-status evidence as needed.
 - [x] Verify every example, link, badge claim, and bilingual structural correspondence.
 - [x] Deploy the site to Cloudflare Pages and verify public routes, assets, and documentation.
-- [ ] Complete the repository checks required for the intended main integration.
-- [ ] Commit and push the verified result to main; verify the remote revision.
+- [x] Complete the repository checks required for the intended main integration.
+- [x] Commit and push the verified result to main; verify the remote revision.
 
 ## Initial findings
 
@@ -97,3 +97,12 @@ Useful patterns include immediate product positioning, a representative runnable
 - Fast-forwarded local main to the released source without removing the untracked test-results file that initially prevented checkout of the older main revision.
 - Only the reviewed README, contributor/verification guidance, hosting configuration, package homepage, ignore rule, and this task-flow are selected for the new commit.
 - The normal pre-push hook will run `pnpm verify:framework:static`. Record its result and the verified remote revision after the push completes.
+
+## Completed main integration
+
+- Committed the reviewed changes directly on main as `8ec0e791e5a9ed580bbf13e656c1f938f1c5a09d` (`docs: introduce CineView and publish the official website`).
+- The normal pre-push framework static gate passed: formatting; framework and consumer types; lint; 118 framework suites / 1,582 tests; 24 example tests; duplicate-code limits; all 17 build checks; and five static failure-injection checks.
+- Measured framework coverage: statements 94.85%, branches 90.22%, functions 95.15%, lines 96.27%. These are this run's results, not a promise about other revisions.
+- Pushed main successfully from `19ec1a4` to `8ec0e79`, preserving the 59 released-source commits and adding the documentation/deployment commit. `git ls-remote` confirms the full revision above, and the raw GitHub README matches the local file byte for byte.
+- GitHub Actions started automatically for that revision; local checks and public deployment verification above do not assert its eventual conclusion.
+- This follow-up entry records the completed push. Existing untracked local files remain untouched, and no new npm version was published.
