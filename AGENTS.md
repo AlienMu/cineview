@@ -49,7 +49,7 @@ pnpm type-check:site
 pnpm --dir site build
 ```
 
-Use `pnpm verify:framework:static` for the framework static gate. Use `pnpm verify:all` only when browser acceptance is available. The package is not published yet, so `pnpm pack --dry-run` and `npm view cineview` are release checks, not install prerequisites.
+Use `pnpm verify:framework:static` for the framework static gate. Use `pnpm verify:all` only when browser acceptance is available. `cineview` is published on npm. Use `pnpm pack --dry-run` and `npm view cineview` as release checks, not install prerequisites.
 
 ## Browser acceptance
 

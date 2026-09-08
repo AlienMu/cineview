@@ -30,6 +30,41 @@ Changes to drag or scroll behavior also require a real browser run against the
 example routes. Unit tests, type-checking, and a successful build do not replace
 that acceptance.
 
+## Running examples and the website
+
+After installing the dependencies listed in Local Checks, build the library and start a consumer:
+
+```bash
+pnpm build
+pnpm --dir examples/minimal dev
+```
+
+For the bilingual website and documentation:
+
+```bash
+pnpm --dir site dev
+```
+
+Use the address printed by Vite. The website serves the scroll demonstration at `/`, the drag demonstration at `/drag`, and documentation at `/docs`. Rebuild the root package after framework changes; both consumers use the built package.
+
+## Deploying the website
+
+The official site is hosted on Cloudflare Pages at [cineview.pages.dev](https://cineview.pages.dev). Its project name and build output directory are configured in [site/wrangler.jsonc](./site/wrangler.jsonc).
+
+From the repository root, build the library and website, verify Cloudflare authentication, and deploy:
+
+```bash
+pnpm --dir site build:cf
+npx wrangler@4.95.0 whoami
+npx wrangler@4.95.0 pages deploy --cwd site --branch main
+```
+
+If authentication is missing, run `npx wrangler@4.95.0 login` first. The deploy command uploads a local build to the production branch. Pushing a Git commit does not deploy the site automatically.
+
+The site uses [Cloudflare Pages' default SPA handling](https://developers.cloudflare.com/pages/configuration/serving-pages/). Keep the build free of a top-level `404.html` so direct visits to React Router paths receive the application entry page.
+
+Before deploying, run the site type check and documentation contracts. After deployment, verify the homepage, `/drag`, direct documentation links, and media requests on the public domain. Keep credentials in Wrangler's local login storage or the execution environment.
+
 ## Pull Requests
 
 Explain the user-visible behavior, ownership impact, and runtime cost of the

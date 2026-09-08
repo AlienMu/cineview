@@ -37,7 +37,9 @@ The independent Chrome matrix passed 2,206 checks: 80 localized pages, 68 legacy
 
 ## Distribution
 
-On September 8, 2026, the npm registry returned 404 for `cineview`. The GitHub repository exposed no configured homepage URL, deployments, or workflow runs. README badges therefore describe package metadata and the dated local test run. CI and release workflow files exist in this checkout.
+`cineview@1.0.0` was published to the public npm registry on September 8, 2026, at 08:30:56 UTC. The `latest` tag resolves to `1.0.0`. A fresh registry download matched the verified release archive byte for byte. The earlier 404 recorded during preparation preceded that publication.
+
+The README now links to the published package and uses live npm and GitHub Actions badges. The coverage figures in this document remain a dated local snapshot; they do not describe the result of another revision or CI run. See the [release record](./task-flows/2026-09-08-git-npm-release.md) for package integrity and publication evidence.
 
 ## Review sources
 

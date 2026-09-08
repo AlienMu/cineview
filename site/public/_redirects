@@ -1,3 +1,3 @@
-/* Cloudflare Pages SPA fallback — all routes serve index.html (200, not 301).
-   react-router BrowserRouter handles /demo, /docs/* client-side. */
-/*    /index.html   200
+# Cloudflare Pages provides SPA fallback when no top-level 404.html exists.
+# React Router handles /docs, /docs/*, and /drag without redirect rules.
+# https://developers.cloudflare.com/pages/configuration/serving-pages/

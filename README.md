@@ -2,85 +2,93 @@
 
 [简体中文](./README.zh-CN.md)
 
-![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-8A5B43?style=flat-square)
-[![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
-![TypeScript types included](https://img.shields.io/badge/TypeScript-types_included-3178C6?style=flat-square&logo=typescript&logoColor=white)
-[![Framework tests: 1582 passing](https://img.shields.io/badge/framework_tests-1582_passing-4F7562?style=flat-square)](#verification)
-[![Line coverage: 96.27 percent](https://img.shields.io/badge/line_coverage-96.27%25-4F7562?style=flat-square)](#verification)
-[![MIT license](https://img.shields.io/badge/license-MIT-625D54?style=flat-square)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/cineview?style=flat-square&color=8A5B43)](https://www.npmjs.com/package/cineview)
+[![CI](https://github.com/AlienMu/cineview/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AlienMu/cineview/actions/workflows/ci.yml)
+[![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
+[![MIT license](https://img.shields.io/npm/l/cineview?style=flat-square)](./LICENSE)
 
-CineView is a React framework for pages made of animated scenes. It handles dragging between scenes, animations that follow scrolling, and animation sequences within a scene. It also provides positioning in design coordinates, image preloading, and video controlled by animation progress.
+CineView is a React framework for building interactive product showcases, full-screen presentations, and scroll-driven pages. It combines scene navigation, animation sequencing, responsive positioning, and media playback in a component-based API.
 
-The test and coverage badges refer to the local run recorded in [Verification](#verification).
+A page is composed of `Scene` components. Each scene contains ordinary React content and declares its layout and animations. CineView connects those scenes to drag or scroll input, so page navigation and the animations within each scene work together.
 
-[Install](#install) · [Run an example](#run-an-example) · [How it works](#how-it-works) · [Website and documentation](#website-and-documentation) · [Contributing](#contributing)
+[Website](https://cineview.pages.dev) · [Documentation](https://cineview.pages.dev/docs) · [Drag demo](https://cineview.pages.dev/drag) · [npm](https://www.npmjs.com/package/cineview)
 
-## Install
+## Use cases
 
-Install CineView 1.0.0 and its peer dependencies in a React application:
+- Product and brand pages that introduce a subject through a sequence of animated sections.
+- Full-screen presentations and portfolios with vertical or horizontal drag navigation.
+- Editorial pages that combine normal reading flow with illustrations and video controlled by scrolling.
+
+CineView uses Framer Motion for animation and works with existing React components, CSS layouts, and custom graphics. Page structure and visual design remain part of the application.
+
+## Core capabilities
+
+- **Scenes and navigation.** Organize a page into sections, configure their size and transitions, and select drag or scroll navigation. Drag pages support pointer, touch, and keyboard interaction; scroll pages use a real scroll container.
+- **Animation sequencing.** Apply presets or custom property animations. Connect entrances with `timeline.after`, add delays, and compose parallel effects. Staggered reveals, loops, and exits cover different parts of a scene's presentation.
+- **Responsive positioning.** Combine CSS layouts with `Position` and `Container` for design-coordinate placement. `designWidth` scales numeric design lengths with viewport width, while CSS units and breakpoints remain available for layouts that reflow.
+- **Images and video.** Declare images for preloading and reuse the shared image cache. `AnimateVideo` connects video frames to animation progress or supports normal playback within a scene.
+- **Custom rendering.** `useAnimateTimeline` exposes progress as MotionValues for custom DOM, SVG, and Canvas components. Continuous updates can run without putting each frame into React state.
+- **Application controls.** Navigate through a ref, respond to scene and animation callbacks, and refresh layout after content changes. Optional tools in `cineview/dev` provide a performance panel and a metrics hook.
+
+## Installation
+
+In a React 19 application, install CineView and Framer Motion 13:
 
 ```bash
-npm install cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+npm install cineview framer-motion@13
 ```
 
 With pnpm:
 
 ```bash
-pnpm add cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+pnpm add cineview framer-motion@13
 ```
 
-Applications supply React `^19.0.0`, React DOM `^19.0.0`, and Framer Motion `^13.0.0`. TypeScript declarations are included.
+CineView 1.0.0 requires React `^19.0.0`, React DOM `^19.0.0`, and Framer Motion `^13.0.0`. The main package includes TypeScript declarations and supports ESM and CommonJS. See the [installation guide](https://cineview.pages.dev/docs/02-installation) for package entry points and development tools.
 
-## Run an example
+## Quick start
 
-Use Node.js 22.22.1 or a newer 22.x release, or Node.js 24+, with pnpm 10.22.0. These are the repository's development requirements.
+The examples are complete application components. Use either one as `App.tsx` in a React application. They use inline styles and require no additional stylesheet or media files.
 
-From this checkout:
+### Drag between scenes
 
-```bash
-pnpm install --frozen-lockfile
-pnpm build
-pnpm --dir examples/minimal install --frozen-lockfile
-pnpm --dir examples/minimal dev
-```
-
-Open the address printed by Vite. The [minimal example](./examples/minimal) has three scenes and a button that restarts the page in the other navigation mode.
-
-To test local package changes in another application, build and pack the checkout:
-
-```bash
-pnpm build
-pnpm pack
-```
-
-For an application next to the `cineview` checkout, install the generated archive and its peer dependencies:
-
-```bash
-pnpm add ../cineview/cineview-1.0.0.tgz react@19 react-dom@19 framer-motion@13
-```
-
-Adjust the archive path for your directories.
-
-## A page with two scenes
+This page presents two full-screen scenes. The first scene reveals a heading followed by its description; dragging moves to the second scene.
 
 ```tsx
+import type { CSSProperties } from 'react';
 import { Animate, CineView, Scene } from 'cineview';
+
+const panel: CSSProperties = {
+  boxSizing: 'border-box',
+  height: '100%',
+  display: 'grid',
+  placeContent: 'center',
+  padding: '2rem',
+  textAlign: 'center',
+};
 
 export default function App() {
   return (
-    <CineView mode="drag" designWidth={750} a11y={{ label: 'Product tour' }}>
-      <Scene sceneId="opening">
-        <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>
-          <Animate enterAnimation="fade-in" duration={{ enter: 600 }}>
-            <h1>Start here</h1>
+    <CineView mode="drag" designWidth={750} a11y={{ label: 'Product introduction' }}>
+      <Scene sceneId="introduction">
+        <div style={{ ...panel, background: '#f7f2ec' }}>
+          <Animate animateId="heading" enterAnimation="fade-in" duration={{ enter: 600 }}>
+            <h1>Meet the new collection</h1>
+          </Animate>
+          <Animate
+            enterAnimation="slide-up"
+            duration={{ enter: 400 }}
+            timeline={{ after: 'heading' }}
+          >
+            <p>Designed for everyday use.</p>
           </Animate>
         </div>
       </Scene>
 
       <Scene sceneId="details">
-        <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>
-          <Animate enterAnimation="slide-up" duration={{ enter: 800 }}>
-            <h2>Take a closer look</h2>
+        <div style={{ ...panel, background: '#e8edf0' }}>
+          <Animate enterAnimation="fade-in" duration={{ enter: 600 }}>
+            <h2>Explore the details</h2>
           </Animate>
         </div>
       </Scene>
@@ -89,196 +97,89 @@ export default function App() {
 }
 ```
 
-Drag vertically to change scenes. With the CineView container focused, the arrow keys, PageUp/PageDown, Home, and End also navigate. Buttons and inputs inside a scene keep their own keyboard handling.
+`CineView` controls navigation, `Scene` defines each section, and `Animate` defines an element's animation. `timeline.after` connects the description to the heading's entrance. Drag vertically to navigate; use `direction="x"` for a horizontal presentation. Keyboard navigation is available when the CineView container is focused.
 
-## How it works
+### Follow scroll progress
 
-`CineView` selects the navigation mode. `Scene` groups content and defines its layout. `Animate` applies an animation to that content.
-
-| Configuration                                                           | What controls the animation                                                   |
-| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `mode="drag"` with `timeline.driver: 'scene'`                           | The scene's element timeline follows the gesture and continues after release. |
-| `mode="drag"` with `timeline.driver: 'clock'`                           | The animation plays by time after the scene arrives.                          |
-| `mode="scroll"`, inside a `Scene.scroll` region, with `driver: 'scene'` | The region's real scroll position controls progress.                          |
-| `mode="scroll"` outside a scroll region, or with `driver: 'clock'`      | The animation plays by time when its element meets the visibility conditions. |
-
-The default mode is `drag` and the default driver is `scene`. Mode and driver answer different questions: how the page moves, and how an element's animation advances.
-
-A mode change starts a different engine. The [example](./examples/minimal/src/App.tsx) uses separate branches and a `key` to restart explicitly; it does not transfer progress between modes.
-
-### Animation that follows scrolling
-
-In scroll mode, scenes stay in document flow. Adding `Scene.scroll` creates a region that holds the scene in view while scrolling advances its animation:
+Scroll mode keeps content in document flow. A scene with `scroll` holds its position at the center of the viewport while scrolling advances the animation. The surrounding scenes continue to behave as page sections.
 
 ```tsx
+import type { CSSProperties } from 'react';
 import { Animate, CineView, Scene } from 'cineview';
 
-export default function ScrollPage() {
+const panel: CSSProperties = {
+  boxSizing: 'border-box',
+  height: '100%',
+  display: 'grid',
+  placeContent: 'center',
+  padding: '2rem',
+  textAlign: 'center',
+};
+
+export default function App() {
   return (
     <CineView mode="scroll" designWidth={750}>
-      <Scene sceneId="intro" layout={{ height: '100vh' }}>
-        <h1>A page that scrolls</h1>
+      <Scene sceneId="introduction" layout={{ height: '100vh' }}>
+        <div style={panel}>
+          <h1>Every detail has a story</h1>
+        </div>
       </Scene>
 
       <Scene
-        sceneId="detail"
+        sceneId="details"
         layout={{ height: '100vh' }}
-        scroll={{ zoneId: 'detail', trigger: 'center-lock' }}
+        scroll={{ zoneId: 'details', trigger: 'center-lock' }}
       >
-        <Animate
-          enterAnimation={{
-            initial: { opacity: 0, y: 60 },
-            animate: { opacity: 1, y: 0 },
-          }}
-          duration={{ enter: 1600, exit: 0 }}
-          timeline={{ driver: 'scene' }}
-        >
-          <h2>Scroll to reveal the detail</h2>
-        </Animate>
+        <div style={{ ...panel, background: '#f7f2ec' }}>
+          <Animate
+            enterAnimation={{
+              initial: { opacity: 0, y: 60 },
+              animate: { opacity: 1, y: 0 },
+            }}
+            duration={{ enter: 1600, exit: 0 }}
+            timeline={{ driver: 'scene' }}
+          >
+            <h2>Reveal it as the page scrolls</h2>
+          </Animate>
+        </div>
+      </Scene>
+
+      <Scene sceneId="closing" layout={{ height: '100vh' }}>
+        <div style={panel}>
+          <h2>Continue exploring</h2>
+        </div>
       </Scene>
     </CineView>
   );
 }
 ```
 
-One millisecond of authored region duration corresponds to one CSS pixel of scroll travel. In this example, the animation spans 1,600 pixels. Scroll back to reverse it. The scene's visible height is separate from that animation distance.
+The details animation spans 1,600 CSS pixels of scrolling: one millisecond of authored duration corresponds to one pixel of scroll distance. Scrolling back reverses the animation. The scene's visible height is configured separately from that distance.
 
-A large input can stop at a region boundary; the next input continues. Wheel, touch, keyboard, and scrollbar input use the same scroll position. [Scroll behavior](./site/src/content/docs/en/scroll/01-centerlock.md) explains the bounds and zero-duration cases.
+Scenes without `scroll` can still contain animations triggered by visibility. The [mode guide](https://cineview.pages.dev/docs/04-choosing-mode) and [scroll guide](https://cineview.pages.dev/docs/01-centerlock) explain when to use each behavior.
 
-### Sequencing and repetition
+## Learn more
 
-Use `timeline.after` to connect animations in the same Scene, and `timeline.delay` to add a pause. For example, `timeline={{ after: 'heading', delay: 120 }}` starts after the animation named `heading`, with another 120 ms of delay.
+| Topic                                      | Guide                                                                                                                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Page structure and navigation              | [CineView](https://cineview.pages.dev/docs/01-cineview) and [Scene](https://cineview.pages.dev/docs/02-scene)                                                                              |
+| Presets, custom animations, and sequencing | [Animate](https://cineview.pages.dev/docs/03-animate) and [Timelines](https://cineview.pages.dev/docs/02-timeline)                                                                         |
+| Layout and design coordinates              | [Responsive layout](https://cineview.pages.dev/docs/05-responsive), [Position](https://cineview.pages.dev/docs/05-position), and [Container](https://cineview.pages.dev/docs/07-container) |
+| Loading images and controlling video       | [Preloading](https://cineview.pages.dev/docs/02-preload) and [AnimateVideo](https://cineview.pages.dev/docs/04-animate-video)                                                              |
+| Extending animation progress               | [useAnimateTimeline](https://cineview.pages.dev/docs/09-use-animate-timeline)                                                                                                              |
 
-`stagger={{ each: 110 }}` starts a container's direct children at timed intervals. Use separate Animate elements when each item needs its own progress controlled by scrolling.
+The website includes English and Chinese documentation, a scroll-based homepage, and a separate drag demonstration. The [minimal example](./examples/minimal/src/App.tsx) shows both modes with the same scene content.
 
-`loopAnimation` repeats an effect while that animation is active. `exitAnimation` defines an optional exit. The [timeline guide](./site/src/content/docs/en/concepts/02-timeline.md) covers driver differences: drag animations with `driver: 'clock'` do not participate in `after` sequencing and ignore `exitAnimation`.
+## Accessibility
 
-### Responsive coordinates
-
-`designWidth` is the design's width in pixels; it defaults to `750`. Position coordinates and numeric Container lengths use:
-
-```text
-scale = viewport width / designWidth
-```
-
-Both axes use this scale. CSS strings retain their units, and unitless values such as opacity are not scaled. Viewport height does not introduce another conversion factor. Use CSS breakpoints for text and layout that need to reflow; design-coordinate scaling alone does not provide a mobile reading layout.
-
-## Components and extension points
-
-| API                  | Purpose                                                                                            |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| `CineView`           | Navigation mode, shared configuration, callbacks, and navigation ref                               |
-| `Scene`              | Scene content, layout, asset declarations, and optional scroll region                              |
-| `Animate`            | Presets, custom property changes, parallel or sequential composition, and timing                   |
-| `Position`           | Coordinates and centering relative to the containing block; `fixed` keeps content within its Scene |
-| `Container`          | Convert layout lengths from design pixels                                                          |
-| `Image`              | Load an image through the shared preload cache                                                     |
-| `AnimateVideo`       | Seek video frames from animation progress or use normal playback                                   |
-| `useAnimateTimeline` | Read the nearest Animate's progress as MotionValues for custom DOM, SVG, or Canvas work            |
-
-A custom component can read progress without putting each frame into React state:
-
-```tsx
-import { motion } from 'framer-motion';
-import { useAnimateTimeline } from 'cineview';
-
-export function ProgressLine() {
-  const { progress } = useAnimateTimeline();
-
-  return (
-    <motion.div
-      style={{
-        height: 4,
-        width: '100%',
-        background: '#d59273',
-        transformOrigin: 'left',
-        scaleX: progress,
-      }}
-    />
-  );
-}
-```
-
-Render `ProgressLine` inside an `Animate`. The hook reads that Animate's timeline. Render-prop children are also available, but their progress updates render React; use the MotionValue hook for continuous drawing.
-
-`ref.current.goToScene(index)` changes the scene. The ref also exposes `refreshLayout()`, `preload()`, `getCurrentIndex()`, and `getPerformanceMetrics()`. Scroll refs provide `goToZone()`. `onReady` supplies this API when it becomes available; use `preload()` to wait for declared asset loading.
-
-Scene fixed content is clipped to its Scene. Put persistent site navigation outside CineView. See the [component reference](./site/src/content/docs/en/components/01-cineview.md) for configuration and callbacks.
-
-## Package entry points
-
-| Entry                    | Supported use                                                              |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `cineview`               | Main ESM and CommonJS entry, including both navigation engines             |
-| `cineview/drag`          | CommonJS `require` and types for drag mode                                 |
-| `cineview/scroll`        | CommonJS `require` and types for scroll mode                               |
-| `cineview/dev`           | Optional ESM development tools, including `PerfPanel` and `usePerfMonitor` |
-| `cineview/dev/style.css` | Styles for the development panel                                           |
-
-Use `import { CineView } from 'cineview'` in an ESM application. The mode-specific subpaths have no ESM import condition. Browser script distributions are `cineview.umd.js`, `cineview-drag.umd.js`, and `cineview-scroll.umd.js`.
-
-React, React DOM, and Framer Motion remain external peer dependencies. Development tools and their CSS are opt-in.
-
-## Accessibility and motion preferences
-
-The drag container supports keyboard navigation, a configurable accessible label, and scene-position announcements. Inactive drag scenes use `inert` and `aria-hidden`. Native controls inside scenes retain their normal interaction.
-
-With `prefers-reduced-motion`, `loopAnimation` effects stop. Entrances and exits triggered by visibility changes jump to their final state. Animations controlled by dragging or scrolling still follow the input. Authored content still needs readable text, labels, and a usable focus order; a site's accessibility requires checking its complete content and interactions.
-
-## Verification
-
-Local framework run on **September 8, 2026**, using Node.js 22.22.1:
-
-| Measure               | Result       |
-| --------------------- | ------------ |
-| Framework test suites | 118 passed   |
-| Framework tests       | 1,582 passed |
-| Statement coverage    | 94.85%       |
-| Branch coverage       | 90.22%       |
-| Function coverage     | 95.15%       |
-| Line coverage         | 96.27%       |
-
-The figures come from `pnpm test:coverage:framework`, which excludes site tests. The configured coverage minimum is 90% for each metric. Regenerate the snapshot after framework changes and before a release.
-
-The [verification record](./VERIFICATION.md) records the commands, scope, and browser results. To run the checks:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm --dir site install --frozen-lockfile
-pnpm --dir examples/minimal install --frozen-lockfile
-pnpm --dir examples/performance-test install --frozen-lockfile
-
-pnpm verify:framework:static
-pnpm type-check
-pnpm type-check:site
-pnpm test:site-contracts
-pnpm docs:style:static
-pnpm --dir site build
-```
-
-With Chrome available, `pnpm test:browser` runs the framework's browser checks. Static checks and coverage do not establish drag or scroll behavior on their own. The [CI workflow](./.github/workflows/ci.yml) defines Node.js 22.22.1 and 24.x checks; the [release workflow](./.github/workflows/release.yml) requires browser acceptance before publishing.
-
-## Website and documentation
-
-A public site URL has not been configured in this repository. Run the bilingual site locally:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm --dir site install --frozen-lockfile
-pnpm build
-pnpm --dir site dev
-```
-
-The default address is [http://localhost:4000](http://localhost:4000); use the address printed by Vite if the port is occupied. The [documentation](http://localhost:4000/docs) and [drag demo](http://localhost:4000/drag) are routes on that site.
-
-Documentation source: [English](./site/src/content/docs/en) · [简体中文](./site/src/content/docs/zh). Both languages cover installation, concepts, drag and scroll behavior, components, and advanced use.
+Drag navigation includes keyboard controls, scene-position announcements, and inactive-scene focus handling. CineView also responds to reduced-motion preferences for loops and visibility-triggered animations; animations linked directly to dragging or scrolling continue to follow the input. See the [accessibility configuration](https://cineview.pages.dev/docs/01-cineview) for these behaviors and the page-level labels and focus order an application needs to provide.
 
 ## Contributing
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the development workflow and [AGENTS.md](./AGENTS.md) for repository rules. Runtime changes need browser evidence in addition to unit tests. Keep the English and Chinese documentation aligned.
+Development setup, local examples, and validation commands are in [CONTRIBUTING.md](./CONTRIBUTING.md). The [verification record](./VERIFICATION.md) documents test coverage and browser acceptance; framework coverage checks enforce a 90% minimum for statements, branches, functions, and lines.
 
-Report bugs through [GitHub issues](https://github.com/AlienMu/cineview/issues).
+Report bugs and propose improvements through [GitHub issues](https://github.com/AlienMu/cineview/issues). Release changes are recorded in the [changelog](./CHANGELOG.md).
 
 ## License
 
-[MIT](./LICENSE), copyright Alien.mu.
+[MIT](./LICENSE) © Alien.mu.
