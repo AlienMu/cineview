@@ -160,6 +160,34 @@ The details animation spans 1,600 CSS pixels of scrolling: one millisecond of au
 
 Scenes without `scroll` can still contain animations triggered by visibility. The [mode guide](https://cineview.pages.dev/docs/04-choosing-mode) and [scroll guide](https://cineview.pages.dev/docs/01-centerlock) explain when to use each behavior.
 
+## Examples
+
+### Quick Start Patterns
+
+New to Cineview? Start with copy-paste patterns in [`examples/minimal/src/patterns/`](./examples/minimal/src/patterns/):
+- **[01-hello.tsx](./examples/minimal/src/patterns/01-hello.tsx)** — Absolute minimum (44 lines)
+- **[02-sequencing.tsx](./examples/minimal/src/patterns/02-sequencing.tsx)** — Timeline chains (68 lines)
+- **[03-scroll-zone.tsx](./examples/minimal/src/patterns/03-scroll-zone.tsx)** — Scroll scrubbing (86 lines)
+- **[04-positioning.tsx](./examples/minimal/src/patterns/04-positioning.tsx)** — Design coordinates (105 lines)
+- **[05-video.tsx](./examples/minimal/src/patterns/05-video.tsx)** — Video scrubbing (89 lines)
+
+Each pattern demonstrates one concept in under 100 lines with teaching comments explaining why Cineview, not just how.
+
+[See full learning path →](./examples/minimal/README.md)
+
+### Minimal Complete App
+
+[`examples/minimal/src/App.tsx`](./examples/minimal/src/App.tsx) shows mode switching (drag ↔ scroll) with 50+ lines of inline teaching comments. Run it:
+
+```bash
+pnpm build                      # Build Cineview once
+pnpm --dir examples/minimal dev # Start dev server
+```
+
+### Full Demo
+
+The [official website](https://cineview.pages.dev) is built with Cineview itself. Source code in [`site/src/`](./site/src/) — production examples with film-quality design.
+
 ## Learn more
 
 | Topic                                      | Guide                                                                                                                                                                                      |
