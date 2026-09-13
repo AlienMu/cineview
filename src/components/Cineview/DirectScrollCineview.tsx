@@ -45,8 +45,8 @@ import { useScrollSceneSnapshots } from './useScrollSceneSnapshots';
 import { useScrollViewport } from './useScrollViewport';
 import { useScrollZoneRegistry } from './useScrollZoneRegistry';
 import {
-  CineViewRuntimeContext,
-  type CineViewRuntimeContextValue,
+  CineviewRuntimeContext,
+  type CineviewRuntimeContextValue,
 } from '../runtime/runtimeContext';
 import { SceneScrollRuntimeContext, SceneScrollTimelineContext } from '../Scene/sceneScrollRuntime';
 
@@ -93,6 +93,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     const updateSceneRenderSnapshotsRef = useRef<(nativeOffset: number) => void>(() => undefined);
     const activeSceneIndexRef = useRef(0);
     const scrollDirectionRef = useRef<ScrollInputDirection | null>(null);
+    const scenesRef = useRef<React.ReactElement<SceneAuthoringCompatProps>[]>([]);
     const [childrenArray, scenes, duplicateScrollZones, hasLegacyDisplayNameScene] = useMemo(() => {
       const owners = new Map<string, number>();
       const duplicates: Array<readonly [zoneId: string, ownerSceneIndex: number]> = [];
@@ -123,6 +124,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
 
       return [sanitizedChildren, sceneElements, duplicates, hasLegacyScene] as const;
     }, [children]);
+    scenesRef.current = scenes;
     const { viewportSize, viewportSizeRef, getViewportSpan, updateViewportMetrics } =
       useScrollViewport({ rootRef: containerRef, direction });
     const {
@@ -205,7 +207,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     const totalScenes = scenes.length;
     useEffect(() => {
       if (totalScenes === 0) {
-        emitRecoverableError('EMPTY_SCENES', 'CineView requires at least one Scene child.', {
+        emitRecoverableError('EMPTY_SCENES', 'Cineview requires at least one Scene child.', {
           mode: 'scroll',
         });
         if (process.env.NODE_ENV !== 'production') {
@@ -394,11 +396,12 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     const getRuntimeApi = useCallback(
       (): CineviewRef => ({
         goToScene: (index: number, animated = true): void => {
-          if (index < 0 || index >= scenes.length) {
+          const currentScenes = scenesRef.current;
+          if (index < 0 || index >= currentScenes.length) {
             // Mirror the drag side (useSceneManager) instead of a silent no-op.
             if (process.env.NODE_ENV !== 'production') {
               console.warn(
-                `[Cineview] Invalid scene index: ${index}. Must be between 0 and ${scenes.length - 1}`
+                `[Cineview] Invalid scene index: ${index}. Must be between 0 and ${currentScenes.length - 1}`
               );
             }
             return;
@@ -448,7 +451,6 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
         measureSceneLayouts,
         preloadActions,
         resolvedTargetPreloadImages,
-        scenes.length,
         sceneWrapperRefs,
         startPreload,
         syncNativeScrollState,
@@ -487,7 +489,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
       background: '#ffffff',
     };
 
-    const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
+    const runtimeContextValue = useMemo<CineviewRuntimeContextValue>(
       () => ({
         mode: 'scroll',
         scrollEnterMargin: enterMargin,
@@ -505,7 +507,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
 
     return (
       <CineviewProvider designSize={designSize}>
-        <CineViewRuntimeContext.Provider value={runtimeContextValue}>
+        <CineviewRuntimeContext.Provider value={runtimeContextValue}>
           <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
             <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
               {isScrollbarEnabled && <style>{createScrollbarCss()}</style>}
@@ -607,7 +609,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
               </div>
             </SceneScrollTimelineContext.Provider>
           </SceneScrollRuntimeContext.Provider>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       </CineviewProvider>
     );
   }

@@ -22,7 +22,7 @@ import {
   SceneScrollTakeoverContext,
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 
 jest.mock('framer-motion', () => {
   const actualMotion = jest.requireActual('framer-motion');
@@ -410,7 +410,7 @@ describe('Animate manual control (enterRef / exitRef)', () => {
     }
 
     render(
-      <CineViewRuntimeContext.Provider value={{ mode: 'scroll', reportError }}>
+      <CineviewRuntimeContext.Provider value={{ mode: 'scroll', reportError }}>
         <SceneContext.Provider value={createScrollSceneContext()}>
           <SceneScrollRuntimeContext.Provider value={zoneRuntime}>
             <SceneScrollTimelineContext.Provider value={{ zoneStates: { 'zone-1': zoneState } }}>
@@ -420,7 +420,7 @@ describe('Animate manual control (enterRef / exitRef)', () => {
             </SceneScrollTimelineContext.Provider>
           </SceneScrollRuntimeContext.Provider>
         </SceneContext.Provider>
-      </CineViewRuntimeContext.Provider>
+      </CineviewRuntimeContext.Provider>
     );
 
     await waitFor(() => {

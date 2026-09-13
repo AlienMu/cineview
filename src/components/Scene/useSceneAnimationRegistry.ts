@@ -10,13 +10,13 @@ import {
   type FrozenAnimationRegistrySnapshot,
 } from '../../animations/registry';
 import type { ParsedAnimationVariant } from '../../types';
-import type { CineViewRuntimeContextValue } from '../runtime/runtimeContext';
+import type { CineviewRuntimeContextValue } from '../runtime/runtimeContext';
 import { devWarn } from '../../utils/devLog';
 
 interface UseSceneAnimationRegistryParams {
   sceneIndex: number;
   baseDuration: number;
-  reportError?: CineViewRuntimeContextValue['reportError'];
+  reportError?: CineviewRuntimeContextValue['reportError'];
   onStableSnapshot?: (
     snapshot: FrozenAnimationRegistrySnapshot,
     revision: number,

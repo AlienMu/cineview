@@ -14,7 +14,7 @@ import {
   type SceneScrollTimelineState,
 } from '../Scene/sceneScrollRuntime';
 import { useAnimateScroll } from './useAnimateScroll';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 
 const animationControlsRegistry: Array<{
   start: jest.Mock;
@@ -1406,13 +1406,13 @@ describe('Animate Component', () => {
       const reportError = jest.fn();
 
       render(
-        <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
           <SceneContext.Provider value={mockContext}>
             <Animate animateId="exit-only-runtime" exitAnimation="fade-out">
               <div>Static exit-only content</div>
             </Animate>
           </SceneContext.Provider>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       await waitFor(() =>
@@ -1494,23 +1494,23 @@ describe('Animate Component', () => {
       );
 
       const { rerender } = render(
-        <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
           <SceneContext.Provider value={mockContext}>
             <Animate animateId="generation-failure" enterAnimation="slide-up">
               <div>Current generation</div>
             </Animate>
           </SceneContext.Provider>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       rerender(
-        <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
           <SceneContext.Provider value={mockContext}>
             <Animate animateId="generation-failure" enterAnimation="fade-in">
               <div>Current generation</div>
             </Animate>
           </SceneContext.Provider>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       await waitFor(() => expect(mockContext.registerAnimate).toHaveBeenCalledTimes(1));

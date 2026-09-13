@@ -6,7 +6,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { Position } from './Position';
 import { CineviewProvider } from '../../context/CineviewContext';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 import { SceneFixedLayerContext } from './Position';
 
 // Test helper function: create wrapper with Context
@@ -663,13 +663,13 @@ describe('Position Component', () => {
       const fixedHost = document.createElement('div');
       document.body.appendChild(fixedHost);
       const { container } = renderWithContext(
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <SceneFixedLayerContext.Provider value={fixedHost}>
             <Position x={100} y={200} fixed>
               <div data-testid="sticky-child">Content</div>
             </Position>
           </SceneFixedLayerContext.Provider>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       const child = screen.getByTestId('sticky-child');
@@ -688,13 +688,13 @@ describe('Position Component', () => {
 
     it('in scroll mode, should keep fixed layers without scene host as sticky', () => {
       renderWithContext(
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <section data-testid="ordinary-region">
             <Position x={64} y={128} fixed>
               <div data-testid="ordinary-sticky-child">Content</div>
             </Position>
           </section>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       const region = screen.getByTestId('ordinary-region');

@@ -31,7 +31,7 @@ interface UseCineViewImperativeApiParams {
   resolvedCallbacksRef: MutableRefObject<GroupedCallbacks>;
 }
 
-export function useCineViewImperativeApi({
+export function useCineviewImperativeApi({
   ref,
   currentSceneRef,
   scenesRef,

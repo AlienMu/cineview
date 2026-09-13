@@ -16,7 +16,7 @@ import {
 } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollAnimationRegistration } from '../Scene/sceneScrollBudget';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 import { useScrollZoneRegistry } from '../Cineview/useScrollZoneRegistry';
 import {
   useSceneAnimationRegistry,
@@ -953,7 +953,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     try {
       render(
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll', scrollEnterMargin: 300 }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'scroll', scrollEnterMargin: 300 }}>
           <main data-cineview-container="true">
             <Animate
               animateId="global-margin-probe"
@@ -963,7 +963,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               <article>Global margin content</article>
             </Animate>
           </main>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       await waitFor(() => {
@@ -999,7 +999,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
 
     try {
       const { container } = render(
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <main data-cineview-container="true">
             <Animate
               animateId="partial-doc-content"
@@ -1009,7 +1009,7 @@ describe('useAnimateScroll grouped timeline.phase', () => {
               <article>Partially visible content</article>
             </Animate>
           </main>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       await waitFor(() => {

@@ -694,7 +694,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('invalid drag config reports INVALID_DRAG_CONFIG deduped by Scene and field', async () => {
       const onError = jest.fn();
       const invalidRootProps = { unit: 'frames', scale: 3 } as unknown as Pick<
-        React.ComponentProps<typeof CineView>,
+        React.ComponentProps<typeof Cineview>,
         'unit' | 'scale'
       >;
       const invalidSceneProps = {

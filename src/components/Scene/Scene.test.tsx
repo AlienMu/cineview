@@ -9,7 +9,7 @@ import { SceneInternal as Scene } from './Scene';
 import { CineviewProvider } from '../../context/CineviewContext';
 import { SceneContext } from '../Animate/Animate';
 import type { SceneContextType } from '../Animate/Animate';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 import type { AnimationType } from '../../types';
 import type { DragRenderLane } from './types';
 
@@ -1308,11 +1308,11 @@ describe('Scene Component', () => {
 
       render(
         <CineviewProvider designSize={750}>
-          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene>
               <TestChild />
             </Scene>
-          </CineViewRuntimeContext.Provider>
+          </CineviewRuntimeContext.Provider>
         </CineviewProvider>
       );
 
@@ -1340,9 +1340,9 @@ describe('Scene Component', () => {
 
       render(
         <CineviewProvider designSize={750}>
-          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={2}>{null}</Scene>
-          </CineViewRuntimeContext.Provider>
+          </CineviewRuntimeContext.Provider>
         </CineviewProvider>
       );
 
@@ -1360,11 +1360,11 @@ describe('Scene Component', () => {
 
       render(
         <CineviewProvider designSize={750}>
-          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={0}>
               <div>content</div>
             </Scene>
-          </CineViewRuntimeContext.Provider>
+          </CineviewRuntimeContext.Provider>
         </CineviewProvider>
       );
 
@@ -1380,9 +1380,9 @@ describe('Scene Component', () => {
       // error stream — a stable dep array would not.
       const tree = (): React.JSX.Element => (
         <CineviewProvider designSize={750}>
-          <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
+          <CineviewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={1}>{[]}</Scene>
-          </CineViewRuntimeContext.Provider>
+          </CineviewRuntimeContext.Provider>
         </CineviewProvider>
       );
 

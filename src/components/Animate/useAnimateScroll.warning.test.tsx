@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
 import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollRuntimeContextValue } from '../Scene/sceneScrollRuntime';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 
 jest.mock('framer-motion', () => {
   const actualMotion = jest.requireActual('framer-motion');
@@ -168,13 +168,13 @@ describe('useAnimateScroll orphan warning', () => {
 
     try {
       render(
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <article>
             <Animate animateId="doc-animate" enterAnimation="fade-in">
               <div>Document animate</div>
             </Animate>
           </article>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       const host = await waitFor(() => {
@@ -253,13 +253,13 @@ describe('useAnimateScroll orphan warning', () => {
 
     try {
       const { container } = render(
-        <CineViewRuntimeContext.Provider value={{ mode: 'scroll' }}>
+        <CineviewRuntimeContext.Provider value={{ mode: 'scroll' }}>
           <main data-cineview-container="true">
             <Animate animateId="doc-scroll-animate" enterAnimation="fade-in">
               <div>Document scroll animate</div>
             </Animate>
           </main>
-        </CineViewRuntimeContext.Provider>
+        </CineviewRuntimeContext.Provider>
       );
 
       await waitFor(() => {

@@ -3,7 +3,7 @@ import { fireEvent, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { DirectScrollCineView } from './DirectScrollCineView';
 import type { CineviewRef } from '../../types';
-import { CineViewRuntimeContext } from '../runtime/runtimeContext';
+import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
@@ -163,7 +163,7 @@ function ZoneProgressProbe({ zoneId }: { zoneId: string }): React.JSX.Element {
 }
 
 function ReportErrorProbe(): React.JSX.Element {
-  const runtime = useContext(CineViewRuntimeContext);
+  const runtime = useContext(CineviewRuntimeContext);
   useEffect(() => {
     runtime?.reportError?.({ code: 'TEST', message: 'probe error' });
   }, [runtime]);

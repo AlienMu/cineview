@@ -20,7 +20,7 @@ import {
   type VariantRecord,
 } from './animateInterpolation';
 import { useAnimatedPropertyLanes } from './useAnimatedPropertyLanes';
-import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
+import { useCineviewRuntimeContext } from '../runtime/runtimeContext';
 import {
   scheduleVisibilityRecheck,
   subscribeVisibilityMeasurement,
@@ -209,7 +209,7 @@ export function useAnimateScroll({
   // motion the page decided to play (WCAG 2.3.3). Zeroing the duration lands the
   // tween on its end state on the first frame while keeping the phase sequence
   // (idle → entering → entered) intact, so `phase` consumers see no difference.
-  const reducedMotion = useCineViewRuntimeContext()?.prefersReducedMotion === true;
+  const reducedMotion = useCineviewRuntimeContext()?.prefersReducedMotion === true;
   const tweenEnterDuration = reducedMotion ? 0 : enterDuration;
   const tweenExitDuration = reducedMotion ? 0 : exitDuration;
   const delay = timeline.delay;

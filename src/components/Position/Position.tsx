@@ -13,7 +13,7 @@ import React, { useMemo, useContext, createContext, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCineviewContext } from '../../context/CineviewContext';
 import type { PositionProps } from '../../types';
-import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
+import { useCineviewRuntimeContext } from '../runtime/runtimeContext';
 
 interface PositionLegacyCompatProps {
   x?: number;
@@ -38,7 +38,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
   ref
 ) {
   const context = useCineviewContext();
-  const cineViewRuntime = useCineViewRuntimeContext();
+  const cineViewRuntime = useCineviewRuntimeContext();
   const parentPosition = useContext(PositionContext);
   const fixedLayer = useContext(SceneFixedLayerContext);
   const resolvedX = at?.x ?? x;

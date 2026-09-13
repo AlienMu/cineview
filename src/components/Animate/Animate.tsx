@@ -46,7 +46,7 @@ import { IDLE_RENDER_STATE } from './animateRenderState';
 import { AnimateTimelineProvider } from './animateTimeline';
 import { useAnimatePublicTimeline } from './useAnimatePublicTimeline';
 import type { AnimateRenderState } from '../../types';
-import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
+import { useCineviewRuntimeContext } from '../runtime/runtimeContext';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTimelineContext,
@@ -166,7 +166,7 @@ export const Animate = ({
   const id = componentId.current;
   const sceneContext = useContext(SceneContext);
 
-  const cineViewRuntime = useCineViewRuntimeContext();
+  const cineViewRuntime = useCineviewRuntimeContext();
   const reportRuntimeError = cineViewRuntime?.reportError;
   const prefersReducedMotion = cineViewRuntime?.prefersReducedMotion === true;
   const zoneRuntime = useContext(SceneScrollRuntimeContext);

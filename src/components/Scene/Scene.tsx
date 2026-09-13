@@ -18,7 +18,7 @@ import { useSceneRuntimeState } from './useSceneRuntimeState';
 import { useScrollSceneEngine } from './useScrollSceneEngine';
 import { useDragSceneEngine } from './useDragSceneEngine';
 import { useElementTrack } from './useElementTrack';
-import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
+import { useCineviewRuntimeContext } from '../runtime/runtimeContext';
 import { SceneFixedLayerContext } from '../Position/Position';
 import { SceneScrollTakeoverContext } from './sceneScrollRuntime';
 import { SceneFixedLayer } from './SceneFixedLayer';
@@ -167,7 +167,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
     const scrollFrameStore = props.scrollRuntime?.frameStore;
     const scrollFrameSceneIndex = props.scrollRuntime?.sceneIndex ?? sceneIndex;
     const cineViewContext = useCineviewContext();
-    const cineViewRuntime = useCineViewRuntimeContext();
+    const cineViewRuntime = useCineviewRuntimeContext();
     const reportRuntimeError = cineViewRuntime?.reportError;
     const controls = useAnimation();
 

@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { ScrollMode } from '../../types';
 
-export interface CineViewRuntimeContextValue {
+export interface CineviewRuntimeContextValue {
   mode: ScrollMode;
   // Routes framework-detected runtime issues (e.g. after chains, missing
   // dependencies, duplicate Animate ids) to the consumer's onError callback.
@@ -26,8 +26,8 @@ export interface CineViewRuntimeContextValue {
   prefersReducedMotion?: boolean;
 }
 
-export const CineViewRuntimeContext = createContext<CineViewRuntimeContextValue | null>(null);
+export const CineviewRuntimeContext = createContext<CineviewRuntimeContextValue | null>(null);
 
-export function useCineViewRuntimeContext(): CineViewRuntimeContextValue | null {
-  return useContext(CineViewRuntimeContext);
+export function useCineviewRuntimeContext(): CineviewRuntimeContextValue | null {
+  return useContext(CineviewRuntimeContext);
 }

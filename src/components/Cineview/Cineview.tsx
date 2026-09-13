@@ -40,10 +40,10 @@ import { getScenePreloadImages } from './preloadTargets';
 import { resolveDragTimelineConfig } from '../../utils/dragTimelineMapping';
 import { regroupCallbacks, type GroupedCallbacks } from './regroupCallbacks';
 import {
-  CineViewRuntimeContext,
-  type CineViewRuntimeContextValue,
+  CineviewRuntimeContext,
+  type CineviewRuntimeContextValue,
 } from '../runtime/runtimeContext';
-import { useCineViewImperativeApi } from './useCineViewImperativeApi';
+import { useCineviewImperativeApi } from './useCineviewImperativeApi';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import { DEFAULT_SLIDE_DURATION } from '../../types';
 import { devWarn } from '../../utils/devLog';
@@ -335,7 +335,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
 
   useEffect(() => {
     if (totalScenes === 0) {
-      emitError('EMPTY_SCENES', 'CineView requires at least one Scene child.', {
+      emitError('EMPTY_SCENES', 'Cineview requires at least one Scene child.', {
         mode: resolvedRootMode,
       });
     }
@@ -997,7 +997,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
     return indices;
   }, [resolvedRootMode, currentScene, totalScenes]);
 
-  useCineViewImperativeApi({
+  useCineviewImperativeApi({
     ref,
     currentSceneRef,
     scenesRef,
@@ -1144,7 +1144,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
     pointerEvents: 'auto',
   };
 
-  const runtimeContextValue = useMemo<CineViewRuntimeContextValue>(
+  const runtimeContextValue = useMemo<CineviewRuntimeContextValue>(
     () => ({
       mode: resolvedRootMode,
       scrollEnterMargin: undefined,
@@ -1159,7 +1159,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
 
   return (
     <CineviewProvider designSize={designSize}>
-      <CineViewRuntimeContext.Provider value={runtimeContextValue}>
+      <CineviewRuntimeContext.Provider value={runtimeContextValue}>
         <div
           ref={containerRef}
           style={containerStyle}
@@ -1228,12 +1228,12 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
             </div>
           ) : null}
         </div>
-      </CineViewRuntimeContext.Provider>
+      </CineviewRuntimeContext.Provider>
     </CineviewProvider>
   );
 });
 
-DragCineViewComponent.displayName = 'CineViewDrag';
+DragCineViewComponent.displayName = 'CineviewDrag';
 
 /**
  * Drag engine root component. Exported so UMD can split into single-engine builds by mode
