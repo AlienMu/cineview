@@ -21,8 +21,8 @@
 
 import { createRef, useState } from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CineView } from './CineViewDispatch';
-import type { CineViewRef } from '../../types';
+import { Cineview } from './CineviewDispatch';
+import type { CineviewRef } from '../../types';
 import type { MotionValue } from 'framer-motion';
 import { freezeAnimationRegistrySnapshot } from '../../animations/registry';
 import type { DragSceneTransaction, PreparedSceneSnapshot } from '../Scene/dragPreparedState';
@@ -207,12 +207,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
   describe('drag gesture runtime callback normalization', () => {
     it('callbacks.onReady fires only once even when parent re-renders with drag', async () => {
       const onReady = jest.fn();
-      const callbackRef = jest.fn<void, [CineViewRef | null]>();
+      const callbackRef = jest.fn<void, [CineviewRef | null]>();
 
       const Harness = (): React.JSX.Element => {
         const [, setRevision] = useState(0);
         return (
-          <CineView
+          <Cineview
             ref={(api) => callbackRef(api)}
             mode="drag"
             designWidth={750}
@@ -223,7 +223,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
           >
             <DriverScene>S1</DriverScene>
             <DriverScene>S2</DriverScene>
-          </CineView>
+          </Cineview>
         );
       };
 
@@ -246,10 +246,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       const onDragProgress = jest.fn();
 
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onDragProgress }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onDragProgress }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -272,10 +272,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       const onDragProgress = jest.fn();
 
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onDragProgress }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onDragProgress }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -298,14 +298,14 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       const onDragCancel = jest.fn();
 
       render(
-        <CineView
+        <Cineview
           mode="drag"
           designWidth={750}
           callbacks={{ onDragStart, onDragProgress, onDragCancel }}
         >
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -351,10 +351,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       const onDragEnd = jest.fn();
 
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onDragCancel, onDragEnd }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onDragCancel, onDragEnd }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -380,10 +380,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       const onDragCancel = jest.fn();
 
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onDragCancel }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onDragCancel }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -411,14 +411,14 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('same press: forward rejected then reverse acquired, onDragStart reflects only final direction', async () => {
       const onDragStart = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} mode="drag" designWidth={750} callbacks={{ onDragStart }}>
+        <Cineview ref={ref} mode="drag" designWidth={750} callbacks={{ onDragStart }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
           <DriverScene {...({ drag: { enabled: false } } as object)}>S3</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       act(() => ref.current?.goToScene(1, false));
@@ -440,10 +440,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('can establish reversible Candidate hold even when only element continuation is active', async () => {
       render(
-        <CineView mode="drag" designWidth={750}>
+        <Cineview mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(captured[1]).toBeDefined());
 
@@ -466,14 +466,14 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('onDragBlocked dedupes per direction within one press, reopens on next press', async () => {
       const onDragBlocked = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} mode="drag" designWidth={750} callbacks={{ onDragBlocked }}>
+        <Cineview ref={ref} mode="drag" designWidth={750} callbacks={{ onDragBlocked }}>
           <DriverScene {...({ drag: { enabled: false } } as object)}>S1</DriverScene>
           <DriverScene>S2</DriverScene>
           <DriverScene {...({ drag: { enabled: false } } as object)}>S3</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       act(() => ref.current?.goToScene(1, false));
@@ -503,10 +503,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('physical boundary only establishes render ownership, does not create out-of-bounds element transaction', async () => {
       const onDragStart = jest.fn();
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onDragStart }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onDragStart }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(captured[0]).toBeDefined());
       const runtime = captured[0].dragRuntime!;
@@ -524,10 +524,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('post-commit settle reverse retarget clears old join, old completion must not release new transaction', async () => {
       const onDragEnd = jest.fn();
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(captured[0]).toBeDefined());
 
@@ -571,14 +571,14 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('dragRuntime.onCommit supplements onDragEnd in both forward / backward with elapsedMs', async () => {
       const onDragEnd = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
+        <Cineview ref={ref} mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
           <DriverScene>S3</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -620,10 +620,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('renderProgress < 0 clamped to 0 on first screen (no negative displacement overflow)', async () => {
       const { container } = render(
-        <CineView mode="drag" designWidth={750}>
+        <Cineview mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -638,12 +638,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
 
     it('renderProgress > 0 clamped to 0 on last screen', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { container } = render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(ref.current).not.toBeNull());
@@ -663,10 +663,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('slideDirection=x uses horizontal axis transform for displacement', async () => {
       const { container } = render(
-        <CineView mode="drag" designWidth={750} direction={'x'}>
+        <Cineview mode="drag" designWidth={750} direction={'x'}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -677,10 +677,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('injects root mapping and Scene group override resolution into real dragRuntime', async () => {
       render(
-        <CineView mode="drag" designWidth={750} unit={'percent'} scale={0.5}>
+        <Cineview mode="drag" designWidth={750} unit={'percent'} scale={0.5}>
           <DriverScene>S-root</DriverScene>
           <DriverScene {...({ drag: { scale: 2 } } as object)}>S-scene</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[1]).toBeDefined());
@@ -701,10 +701,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
         drag: { scale: -5, enabled: 'yes' },
       } as object;
       const view = (
-        <CineView mode="drag" designWidth={750} {...invalidRootProps} callbacks={{ onError }}>
+        <Cineview mode="drag" designWidth={750} {...invalidRootProps} callbacks={{ onError }}>
           <DriverScene>S-root-invalid</DriverScene>
           <DriverScene {...invalidSceneProps}>S-scene-invalid</DriverScene>
-        </CineView>
+        </Cineview>
       );
       const { rerender } = render(view);
 
@@ -731,12 +731,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
 
     it('onActivationComplete in non-first-screen scene goes through completeDragTransition (no error)', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(ref.current).not.toBeNull());
@@ -757,9 +757,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('useImagePreloader.onProgress passes through to callbacks.onLoadProgress', async () => {
       const onLoadProgress = jest.fn();
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onLoadProgress }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onLoadProgress }}>
           <DriverScene>S1</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(preloaderOptions.onProgress).toBeDefined());
@@ -772,9 +772,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('useImagePreloader.onError normalizes to IMAGE_LOAD_FAILED error', async () => {
       const onError = jest.fn();
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onError }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onError }}>
           <DriverScene>S1</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(preloaderOptions.onError).toBeDefined());
@@ -793,9 +793,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('emits EMPTY_SCENES error when there are no Scenes', () => {
       const onError = jest.fn();
       render(
-        <CineView mode="drag" designWidth={750} callbacks={{ onError }}>
+        <Cineview mode="drag" designWidth={750} callbacks={{ onError }}>
           <div>not a scene</div>
-        </CineView>
+        </Cineview>
       );
 
       expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'EMPTY_SCENES' }));
@@ -818,9 +818,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
       try {
         render(
-          <CineView mode="drag" designWidth={750}>
+          <Cineview mode="drag" designWidth={750}>
             <DriverScene>S1</DriverScene>
-          </CineView>
+          </Cineview>
         );
 
         await waitFor(() => expect(captured[0]).toBeDefined());
@@ -845,7 +845,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     // even in drag mode it evaluates each Scene's layout.width/height.
     it('resolves number / px / vh / vw / auto / invalid size types without error', async () => {
       const { container } = render(
-        <CineView mode="drag" designWidth={750} direction={'y'}>
+        <Cineview mode="drag" designWidth={750} direction={'y'}>
           <DriverScene {...({ layout: { height: 500 } } as object)}>S-number</DriverScene>
           <DriverScene {...({ layout: { height: '600px' } } as object)}>S-px</DriverScene>
           <DriverScene {...({ layout: { height: '80vh' } } as object)}>S-vh</DriverScene>
@@ -855,7 +855,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
           <DriverScene {...({ layout: { height: '600em' } } as object)}>S-unitless</DriverScene>
           <DriverScene {...({ layout: { height: '0px' } } as object)}>S-zero</DriverScene>
           <DriverScene {...({ sceneHeight: 300 } as object)}>S-sceneHeight</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(captured[0]).toBeDefined());
@@ -865,11 +865,11 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
     it('direction=x resolves declared size by width (number / vw / empty string)', async () => {
       const { container } = render(
-        <CineView mode="drag" designWidth={750} direction={'x'}>
+        <Cineview mode="drag" designWidth={750} direction={'x'}>
           <DriverScene {...({ layout: { width: 400 } } as object)}>S1</DriverScene>
           <DriverScene {...({ layout: { width: '70vw' } } as object)}>S2</DriverScene>
           <DriverScene {...({ layout: { width: '  ' } } as object)}>S3</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(captured[0]).toBeDefined());
       expect(container.querySelector('[data-scene-index="0"]')).toBeInTheDocument();
@@ -878,12 +878,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
   describe('ref command methods (drag path)', () => {
     it('goToZone is no-op in drag mode (no error, does not change current scene)', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(ref.current).not.toBeNull());
@@ -896,9 +896,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
 
     it('preload() without args calls startPreload directly; with scene index/sceneId appends priority images', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene
             sceneRuntime={{ sceneIndex: 0 }}
             {...({ sceneId: 'a', assets: { preloadImages: ['a.jpg'] } } as object)}
@@ -911,7 +911,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
           >
             S2
           </DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => expect(ref.current).not.toBeNull());
@@ -924,11 +924,11 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
 
     it('refreshLayout re-measures without error', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(ref.current?.refreshLayout).toBeDefined());
       expect(() => {
@@ -939,11 +939,11 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
 
     it('getPerformanceMetrics passes through performanceMonitor metrics', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(ref.current).not.toBeNull());
       const metrics = ref.current?.getPerformanceMetrics();
@@ -955,12 +955,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     it('animated goToScene starts settle timer, cleaned up on unmount', async () => {
       jest.useFakeTimers();
       try {
-        const ref = createRef<CineViewRef>();
+        const ref = createRef<CineviewRef>();
         const { unmount } = render(
-          <CineView ref={ref} mode="drag" designWidth={750} transitionDuration={400}>
+          <Cineview ref={ref} mode="drag" designWidth={750} transitionDuration={400}>
             <DriverScene>S1</DriverScene>
             <DriverScene>S2</DriverScene>
-          </CineView>
+          </Cineview>
         );
 
         // ref ready immediately (synchronous imperative handle)
@@ -995,9 +995,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
         const onError = jest.fn();
         render(
-          <CineView mode="drag" designWidth={750} firstSceneTimeout={1000} callbacks={{ onError }}>
+          <Cineview mode="drag" designWidth={750} firstSceneTimeout={1000} callbacks={{ onError }}>
             <DriverScene>S1</DriverScene>
-          </CineView>
+          </Cineview>
         );
 
         act(() => {
@@ -1020,9 +1020,9 @@ describe('CineView drag-path modes / runtime callbacks', () => {
   describe('performance monitoring toggle', () => {
     it('performance.monitor enabled starts monitoring, stops on unmount', () => {
       const { unmount } = render(
-        <CineView mode="drag" designWidth={750} monitor>
+        <Cineview mode="drag" designWidth={750} monitor>
           <DriverScene>S1</DriverScene>
-        </CineView>
+        </Cineview>
       );
       expect(performanceMonitor.start).toHaveBeenCalled();
       unmount();
@@ -1035,12 +1035,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       jest.useFakeTimers();
       try {
         const onSceneLeave = jest.fn();
-        const ref = createRef<CineViewRef>();
+        const ref = createRef<CineviewRef>();
         render(
-          <CineView ref={ref} mode="drag" designWidth={750} callbacks={{ onSceneLeave }}>
+          <Cineview ref={ref} mode="drag" designWidth={750} callbacks={{ onSceneLeave }}>
             <DriverScene>S1</DriverScene>
             <DriverScene>S2</DriverScene>
-          </CineView>
+          </Cineview>
         );
 
         act(() => {
@@ -1073,13 +1073,13 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
   describe('dynamic children shrinkage (B2)', () => {
     it('removing active scene during render re-clamps index, viewport does not hang', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { rerender } = render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
           <DriverScene>S3</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       act(() => {
@@ -1089,10 +1089,10 @@ describe('CineView drag-path modes / runtime callbacks', () => {
 
       // Conditional rendering removed the currently active third scene.
       rerender(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -1110,12 +1110,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
   // zeroing renderProgressMotion / dragTimelineProgressMotion when nothing asked for it.
   describe('rejected commit must not leave render rebase flag armed (N2b / A15)', () => {
     it('out-of-bounds commit followed by normal scene change does not zero renderProgressMotion', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(captured[0]).toBeDefined());
 
@@ -1142,12 +1142,12 @@ describe('CineView drag-path modes / runtime callbacks', () => {
     });
 
     it('committed scene change still zeroes renderProgressMotion (not over-corrected)', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
-        <CineView ref={ref} mode="drag" designWidth={750}>
+        <Cineview ref={ref} mode="drag" designWidth={750}>
           <DriverScene>S1</DriverScene>
           <DriverScene>S2</DriverScene>
-        </CineView>
+        </Cineview>
       );
       await waitFor(() => expect(captured[0]).toBeDefined());
 

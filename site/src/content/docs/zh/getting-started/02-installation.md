@@ -3,7 +3,7 @@ title: 安装
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-在使用 React 19 和 Framer Motion 13 的 React 应用中安装 CineView 1.0.0。
+在使用 React 19 和 Framer Motion 13 的 React 应用中安装 Cineview 1.0.0。
 
 ## 在 React 应用中安装
 
@@ -30,7 +30,7 @@ pnpm --dir examples/minimal install --frozen-lockfile
 pnpm --dir examples/minimal dev
 ```
 
-要在其他应用中测试本地修改，先构建 CineView，再在仓库执行 `pnpm pack`，将生成的 `.tgz` 文件安装到目标应用。
+要在其他应用中测试本地修改，先构建 Cineview，再在仓库执行 `pnpm pack`，将生成的 `.tgz` 文件安装到目标应用。
 
 ## Peer 依赖
 
@@ -53,7 +53,7 @@ pnpm --dir examples/minimal dev
 | `cineview/scroll` | scroll 引擎                | CommonJS           |
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 ```
 
 ## 完整 ES 模块入口包含两套引擎
@@ -65,7 +65,7 @@ Vite、webpack 或 Rollup 应用使用 `cineview`。完整入口引用两套引�
 两个子路径提供 `types` 与 `require` 条件，没有 `import` 条件。TypeScript 可以解析其中的类型，但 ESM 应用无法通过这些子路径导入运行时对象。
 
 ```js
-const { CineView } = require('cineview/drag');
+const { Cineview } = require('cineview/drag');
 ```
 
 应用已提供 React、React DOM 和 Framer Motion 全局对象时，可通过脚本加载独立的 UMD 文件。这些文件不包含上述运行时。
@@ -89,7 +89,7 @@ drag 入口始终使用拖拽模式；JavaScript 调用方传入其他 `mode` �
 
 ## TypeScript 与开发工具
 
-类型定义随包提供。共享类型从 `cineview` 导入，`CineViewDragProps` 和 `CineViewScrollProps` 分别由对应的按模式子路径导出。
+类型定义随包提供。共享类型从 `cineview` 导入，`CineviewDragProps` 和 `CineviewScrollProps` 分别由对应的按模式子路径导出。
 
 按需导入性能面板和样式：
 
@@ -98,6 +98,6 @@ import { PerfPanel } from 'cineview/dev';
 import 'cineview/dev/style.css';
 ```
 
-在 CineView 上启用 `monitor`，将 `callbacks.onReady` 提供的引用传给面板的 `source` 属性。同一入口还导出 `usePerfMonitor`，用于自定义指标展示。可用指标见[性能](/docs/01-performance)。
+使用内置面板时，设置 `<Cineview debug>` 即可，无需单独导入面板或样式。需要自定义面板时，在 Cineview 上启用 `monitor`，将 `callbacks.onReady` 提供的引用传给面板的 `source` 属性。同一入口还导出 `usePerfMonitor`，用于自定义指标展示。可用指标见[性能](/docs/01-performance)。
 
 继续阅读[快速上手](/docs/03-quickstart)。

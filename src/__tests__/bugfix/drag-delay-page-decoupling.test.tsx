@@ -19,8 +19,8 @@ import React, { createRef } from 'react';
 import { act } from '@testing-library/react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 type AnimateCall = {
   kind: 'motion-value' | 'number';
@@ -153,10 +153,10 @@ jest.mock('framer-motion', () => {
 // timeline lane is driven by the OUTGOING (active) scene's timeline, so the big
 // delay belongs here to exercise symptom 1.
 function renderDragApp(onSceneLeave?: jest.Mock) {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={600}
@@ -186,9 +186,9 @@ function renderDragApp(onSceneLeave?: jest.Mock) {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return cineViewRef;
+  return cineviewRef;
 }
 
 async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
@@ -210,9 +210,9 @@ describe('drag delay / page-transition decoupling', () => {
   });
 
   it('keeps the page-slide (render lane) duration independent of the element delay', async () => {
-    const cineViewRef = renderDragApp();
+    const cineviewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -234,9 +234,9 @@ describe('drag delay / page-transition decoupling', () => {
 
   it('commits the scene change on the page-slide timescale, not after the full delayed timeline', async () => {
     const onSceneLeave = jest.fn();
-    const cineViewRef = renderDragApp(onSceneLeave);
+    const cineviewRef = renderDragApp(onSceneLeave);
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -253,7 +253,7 @@ describe('drag delay / page-transition decoupling', () => {
     });
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     });
   });
 });

@@ -3,7 +3,7 @@ title: Introduction
 eyebrow: GETTING STARTED / INTRODUCTION
 ---
 
-CineView is a React library for full-screen scene transitions and animations driven by drag or scroll input. Declare scenes, animation timing, and the design width; CineView handles navigation and scales numeric design lengths to the viewport.
+Cineview is a React library for full-screen scene transitions and animations driven by drag or scroll input. Declare scenes, animation timing, and the design width; Cineview handles navigation and scales numeric design lengths to the viewport.
 
 ## Two modes
 
@@ -25,11 +25,11 @@ Both modes share the same Scene / Animate / Position components. Their timeline 
 ## Two-scene example
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 
 export default function App() {
   return (
-    <CineView designWidth={750} mode="drag">
+    <Cineview designWidth={750} mode="drag">
       <Scene sceneId="hero">
         <Animate enterAnimation="fade-in" duration={{ enter: 800 }}>
           <h1>Act one</h1>
@@ -40,7 +40,7 @@ export default function App() {
           <h1>Curtain</h1>
         </Animate>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```

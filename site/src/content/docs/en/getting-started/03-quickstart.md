@@ -8,11 +8,11 @@ This example uses two scenes with drag navigation. Position places the titles, a
 ## Complete example
 
 ```tsx
-import { CineView, Scene, Animate, Position } from 'cineview';
+import { Cineview, Scene, Animate, Position } from 'cineview';
 
 export default function App() {
   return (
-    <CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
+    <Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
       <Scene
         sceneId="hero"
         layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
@@ -43,7 +43,7 @@ export default function App() {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```
@@ -66,6 +66,6 @@ Set `mode="scroll"`, remove the drag-only `transitionDuration` prop, and add `sc
 
 ## Next steps
 
-- [CineView reference](/docs/01-cineview): all root props and ref methods.
+- [Cineview reference](/docs/01-cineview): all root props and ref methods.
 - [Scene reference](/docs/02-scene): layout, transitions, and assets.
 - [Animate reference](/docs/03-animate): timeline inference, enterRef/exitRef, stagger.

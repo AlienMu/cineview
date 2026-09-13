@@ -7,11 +7,11 @@ eyebrow: SCROLL / TROUBLESHOOTING
 
 ## 1. 场景消失且没有报错
 
-当 `Scene` 不是 `CineView` 的直接子节点时，页面可能空白或缺少场景，控制台和 type-check 都没有提示。React 会展平数组，但不会展平 Fragment。自定义组件在 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。
+当 `Scene` 不是 `Cineview` 的直接子节点时，页面可能空白或缺少场景，控制台和 type-check 都没有提示。React 会展平数组，但不会展平 Fragment。自定义组件在 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。
 
 未被发现的 Scene 收不到运行时注入，会回落到 drag 模式，渲染为 `pointerEvents: 'none'` 的非活动绝对定位元素，子 `Animate` 停在初始帧。只有完全找不到有效 Scene 时才会出现 `EMPTY_SCENES`，因此直接子节点和 Fragment 混用可能静默失败。
 
-将 Scene 直接声明在 CineView 下。复用一组场景时，让函数返回 Scene 元素数组，并在 CineView 的 children 中调用。
+将 Scene 直接声明在 Cineview 下。复用一组场景时，让函数返回 Scene 元素数组，并在 Cineview 的 children 中调用。
 
 ## 2. 锁定区内 `phase` 保持 `idle`
 

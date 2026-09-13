@@ -1,6 +1,6 @@
-# CineView — Minimal Example
+# Cineview — Minimal Example
 
-教学级最小示例：一个 `CineView`、三个 `Scene`、三个 `Animate`（含一组 `timeline.after`
+教学级最小示例：一个 `Cineview`、三个 `Scene`、三个 `Animate`（含一组 `timeline.after`
 级联编排），顶栏按钮在 drag / scroll 双引擎间切换同一棵声明树。
 
 ## 启动

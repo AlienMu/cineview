@@ -3,34 +3,36 @@ title: Performance
 eyebrow: ADVANCED / PERFORMANCE
 ---
 
-Use MotionValues for continuously changing visuals, and inspect the browser when a page drops frames. CineView's monitor provides a page-level sample of frame timing.
+Use MotionValues for continuously changing visuals, and inspect the browser when a page drops frames. Cineview's monitor provides a page-level sample of frame timing.
 
 ## Runtime monitor
 
-Enable `monitor` and read the result through the CineView ref:
+Set `<Cineview debug>` to display the built-in performance panel in either mode. This starts sampling and exposes scroll layout diagnostics. The panel loads its own styles. Setting `debug={false}` removes it; sampling continues while an instance has `monitor` or `debug` enabled.
+
+Enable `monitor` and read the result through the Cineview ref:
 
 ```tsx
 import { useRef } from 'react';
-import { CineView, Scene, type CineViewRef } from 'cineview';
+import { Cineview, Scene, type CineviewRef } from 'cineview';
 
 export default function Demo() {
-  const ref = useRef<CineViewRef>(null);
+  const ref = useRef<CineviewRef>(null);
   return (
     <>
       <button onClick={() => console.table(ref.current?.getPerformanceMetrics())}>
         Log metrics
       </button>
-      <CineView monitor ref={ref}>
+      <Cineview monitor ref={ref}>
         <Scene sceneId="example">
           <h1>Example</h1>
         </Scene>
-      </CineView>
+      </Cineview>
     </>
   );
 }
 ```
 
-Reading metrics does not require `monitor`, but frame samples are collected only while at least one instance enables it. Before any samples exist, frame values are zero. Stopping the monitor retains its last samples.
+Reading metrics does not require active sampling. Frame samples are collected while at least one instance enables `monitor` or `debug`. Before any samples exist, frame values are zero. Stopping the monitor retains its last samples.
 
 ## Metric fields
 
@@ -43,13 +45,13 @@ Reading metrics does not require `monitor`, but frame samples are collected only
 
 The FPS cap does not reveal whether a high-refresh display is fully used. An average can hide individual stalls; use browser performance traces or a `PerformanceObserver` to inspect those.
 
-`bundleSize` includes application code and dependencies. It is sampled when monitoring starts and can be retried while zero. Use build output to measure CineView itself.
+`bundleSize` includes application code and dependencies. It is sampled when monitoring starts and can be retried while zero. Use build output to measure Cineview itself.
 
 ## Shared page readings
 
-All CineView instances share the page monitor. The first monitored instance starts sampling; the last one to release monitoring stops it.
+All Cineview instances share the page monitor. The first monitored instance starts sampling; the last one to release monitoring stops it.
 
-Two instances therefore return the same readings. The data does not attribute rendering cost to a particular Scene or CineView.
+Two instances therefore return the same readings. The data does not attribute rendering cost to a particular Scene or Cineview.
 
 ## Initial resource wait
 

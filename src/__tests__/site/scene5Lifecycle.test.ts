@@ -134,6 +134,19 @@ describe('Scene5 lifecycle seam', () => {
     expect(duplicateExit.effects).toEqual([]);
   });
 
+  it('dismisses the drag hint once per visit, including reentry before freeze completes', () => {
+    let state = createScene5LifecycleState();
+    state = transition(state, { type: 'drag-start' }).state;
+    expect(state.dragHintDismissed).toBe(true);
+    expect(transition(state, { type: 'drag-start' }).state).toBe(state);
+    state = transition(state, { type: 'visibility', visible: false, stageActive: true }).state;
+    expect(transition(state, { type: 'drag-start' }).state).toBe(state);
+    state = transition(state, { type: 'visibility', visible: true, stageActive: true }).state;
+    expect(state.dragHintDismissed).toBe(false);
+    state = transition(state, { type: 'drag-start' }).state;
+    expect(state.dragHintDismissed).toBe(true);
+  });
+
   it('reopens with a new replay generation instead of skipping the four beats', () => {
     let state = createScene5LifecycleState();
     state = transition(state, { type: 'finished', progress: 1 }).state;

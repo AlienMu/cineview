@@ -12,7 +12,7 @@
 
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate } from '../../index';
+import { Cineview, Scene, Animate } from '../../index';
 
 type MediaListener = () => void;
 
@@ -49,7 +49,7 @@ beforeEach(() => {
 
 function renderDragApp(props: Record<string, unknown> = {}): void {
   render(
-    <CineView mode="drag" designWidth={750} {...props}>
+    <Cineview mode="drag" designWidth={750} {...props}>
       <Scene>
         <Animate animateId="s0" enterAnimation="fade-in">
           <h1>Scene one</h1>
@@ -65,7 +65,7 @@ function renderDragApp(props: Record<string, unknown> = {}): void {
           <h1>Scene three</h1>
         </Animate>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 
@@ -155,14 +155,14 @@ describe('N7 · drag root is a keyboard-reachable, named region', () => {
 
   it('leaves keys alone when they originate inside a scene', async () => {
     render(
-      <CineView mode="drag" designWidth={750}>
+      <Cineview mode="drag" designWidth={750}>
         <Scene>
           <input aria-label="search" />
         </Scene>
         <Scene>
           <h1>Scene two</h1>
         </Scene>
-      </CineView>
+      </Cineview>
     );
     await waitFor(() => expect(screen.getByLabelText('search')).toBeInTheDocument());
 

@@ -10,7 +10,7 @@ import compression from 'vite-plugin-compression';
 // UMD 是单文件格式（Rollup 明确拒绝 UMD + code-splitting），而 `mode` 是运行时 prop，
 // 故全量 UMD 必须同时内联 drag 与 scroll 两套引擎 = 51536 字节 gzip，结构上塞不进
 // 50 KB 门（DESIGN.md:2449「任意构建输出 ≤ 50KB」）。实测 scroll 引擎单独占 10437
-// 字节 = 全包 20.3%，是最大单项，且框架本来就在 `CineViewDispatch` 处按 mode 派发
+// 字节 = 全包 20.3%，是最大单项，且框架本来就在 `CineviewDispatch` 处按 mode 派发
 // —— 拆分落在架构自身的缝上，不是人为切一刀。
 //
 // 产物集：
@@ -76,7 +76,7 @@ export default defineConfig(({ command }) => ({
   build: {
     lib: {
       entry: ENTRY,
-      name: 'CineView',
+      name: 'Cineview',
       cssFileName: OUT_BASE,
     },
     rollupOptions: {
@@ -125,7 +125,7 @@ export default defineConfig(({ command }) => ({
           ? [
               {
                 format: 'umd' as const,
-                name: 'CineView',
+                name: 'Cineview',
                 entryFileNames: `${OUT_BASE}.umd.js`,
                 inlineDynamicImports: true,
                 // UMD remains a single-file artifact for script-tag/CommonJS consumers.

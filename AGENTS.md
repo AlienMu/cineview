@@ -1,21 +1,21 @@
-# CineView agent instructions
+# Cineview agent instructions
 
 This file is the repository guide for coding agents. Read it before making code or documentation changes.
 
 ## Source of truth
 
 - Read [`DESIGN.md`](./DESIGN.md) before changing runtime behavior. It is the current architecture specification.
-- Create or update a task-flow file in [`task-flows`](./task-flows) before a multi-file change. Record the nodes and check them as they finish.
+- Create or update a local task-flow file in `task-flows/` before a multi-file change. Record the nodes and check them as they finish. This directory is ignored and must not be committed.
 - Treat the current TypeScript source and public type declarations as authoritative. Historical review notes describe past states and do not override code.
 - The site writing rules are in [`site/src/content/docs/WRITING.md`](./site/src/content/docs/WRITING.md).
 
 ## Repository map
 
-- `src/components/CineView`: mode entry points and scroll controller
+- `src/components/Cineview`: mode entry points and scroll controller
 - `src/components/Scene`: scene lifecycle, layout, and scroll-zone contexts
 - `src/components/Animate`: animation semantics and mode-specific drivers
 - `src/components/Position`, `src/components/Container`, `src/components/Image`: layout, sizing, and image loading
-- `src/context/CineViewContext.tsx`: width-based conversion values
+- `src/context/CineviewContext.tsx`: width-based conversion values
 - `src/types/index.ts`: public types
 - `site/src/content/docs`: bilingual documentation pages
 
@@ -26,7 +26,7 @@ This file is the repository guide for coding agents. Read it before making code 
 - In drag mode, `renderProgress` is written by the render path and each Scene owns its element elapsed MotionValue. Do not add a second writer or share mutable progress between Scenes.
 - In scroll mode, a valid `Scene.scroll` zone owns its zone progress. One millisecond of authored zone duration equals one pixel of real scroll distance.
 - Per-frame values use MotionValues or the existing external stores. Do not add per-frame React state updates, layout reads followed by writes, or memo dependencies that change every frame.
-- Fixed layers belong to their Scene. Cross-scene persistent UI belongs outside `CineView`.
+- Fixed layers belong to their Scene. Cross-scene persistent UI belongs outside `Cineview`.
 
 ## Documentation rules
 
@@ -58,6 +58,7 @@ Unit tests, type-checking, lint, and static builds do not prove drag or scroll b
 ## Files and cleanup
 
 - Keep framework and site tests. They provide regression coverage and release gates, and they are excluded from the npm tarball by `package.json.files`.
-- Do not delete `site/review`, `review`, `output`, or `task-flows` without explicit scope; they contain acceptance evidence or task history.
+- Keep review reports, task flows, screenshots, traces, generated measurements, and local agent tooling outside Git tracking. Store new investigation helpers under `review/` or `site/scripts/`. Keep reusable verification scripts and regression tests tracked.
+- Preserve local evidence unless cleanup is explicitly requested. Run `pnpm verify:repository` before committing; never force-add ignored files.
 - Generated or local-only directories such as `coverage`, `dist`, `.playwright-cli`, `.idea`, and `.DS_Store` can be cleaned when they are untracked or regenerated, but check `git status` first.
 - Never remove user changes or run destructive Git commands without explicit approval.

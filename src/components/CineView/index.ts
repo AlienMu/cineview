@@ -1,8 +1,8 @@
 /**
- * CineView component exports
+ * Cineview component exports
  */
 
-// `CineView` comes from the dispatcher (references both engines), not `./CineView` (now contains only the drag engine).
-// See CineViewDispatch.tsx comments: this isolation is required for UMD to split output by mode.
-export { CineView } from './CineViewDispatch';
-export type { CineViewPreloadTarget, CineViewProps, CineViewRef } from '../../types';
+// `Cineview` comes from the dispatcher (references both engines), not `./Cineview` (now contains only the drag engine).
+// See CineviewDispatch.tsx comments: this isolation is required for UMD to split output by mode.
+export { Cineview } from './CineviewDispatch';
+export type { CineviewPreloadTarget, CineviewProps, CineviewRef } from '../../types';

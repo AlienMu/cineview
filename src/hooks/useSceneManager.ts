@@ -99,6 +99,7 @@ export interface SceneManagerState {
 }
 
 export interface SceneManagerActions {
+  reconcileSceneList: (index: number) => void;
   goToScene: (index: number, animated?: boolean) => void;
   nextScene: () => void;
   prevScene: () => void;
@@ -159,7 +160,7 @@ export const useSceneManager = (
   const [renderProgress, setRenderProgress] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isScrolling, setIsScrolling] = useState<boolean>(false);
-  // KEEP: still reported up to CineView (harmless) so cold-start/registry growth
+  // KEEP: still reported up to Cineview (harmless) so cold-start/registry growth
   // diagnostics keep working. It is NOT the element timeline value anymore — each
   // Scene owns its own element track via useElementTrack.
   const [sharedTimelineDurationMs, setSharedTimelineDurationMs] = useState<number>(0);
@@ -199,7 +200,7 @@ export const useSceneManager = (
   const expectedSettleRef = useRef<boolean>(false);
   // In-flight PROGRAMMATIC animated goToScene bookkeeping (D-F6). Records the
   // true from-index (so setAnimating(false) — the settle-timer close — can pass
-  // it to onAfterChange instead of letting CineView fall back to the ALREADY
+  // it to onAfterChange instead of letting Cineview fall back to the ALREADY
   // UPDATED currentSceneRef, which produced fromIndex === toIndex) and the token
   // of the 'enter' directive this goToScene published (so the timer clears ONLY
   // its own directive — never a real gesture's release that superseded it while
@@ -211,7 +212,7 @@ export const useSceneManager = (
   currentSceneRef.current = currentScene;
 
   // B2: runtime children shrink (conditional rendering removing scenes) can
-  // leave the active index out of range — blank viewport — and CineView's
+  // leave the active index out of range — blank viewport — and Cineview's
   // settle effect early-returns on the missing scene so isAnimating would hang
   // forever. Re-clamp the active index and unhang the animation flag; no
   // onAfterChange is fabricated (nothing "completed", a scene was removed).
@@ -247,6 +248,17 @@ export const useSceneManager = (
     setDragRelease(null);
     setDirection(null);
   }, []);
+
+  const reconcileSceneList = useCallback((index: number): void => {
+    currentSceneRef.current = index;
+    setCurrentScene(index);
+    programmaticNavRef.current = null;
+    animatingRef.current = false;
+    setIsAnimating(false);
+    setIsDragging(false);
+    setRenderProgress(0);
+    cleanupAfterTransition();
+  }, [cleanupAfterTransition]);
 
   // Publishes the single read-only release directive. The token is injected here
   // (monotonic) so each release is uniquely identifiable and every scene's
@@ -284,7 +296,7 @@ export const useSceneManager = (
       });
 
       // Validate index
-      if (index < 0 || index >= totalScenes) {
+      if (!Number.isInteger(index) || index < 0 || index >= totalScenes) {
         warnSceneManager(`Invalid scene index: ${index}. Must be between 0 and ${totalScenes - 1}`);
         return;
       }
@@ -326,7 +338,7 @@ export const useSceneManager = (
         // the destination's useElementTrack replays 0->T. This deliberately does
         // NOT enter the gesture join (expectedSettleRef stays false for 'enter'),
         // so it cannot corrupt a later gesture commit; completion is still driven
-        // by CineView's animated-settle timer -> setAnimating(false).
+        // by Cineview's animated-settle timer -> setAnimating(false).
         if (mode === 'drag') {
           dragReleaseTokenRef.current += 1;
           programmaticNavRef.current.releaseToken = dragReleaseTokenRef.current;
@@ -338,11 +350,15 @@ export const useSceneManager = (
           });
         }
       } else {
+        setIsAnimating(false);
+        animatingRef.current = false;
+        programmaticNavRef.current = null;
+        cleanupAfterTransition();
         // Immediately trigger onAfterChange (with real from-index)
         onAfterChange?.(index, currentScene);
       }
     },
-    [currentScene, totalScenes, mode, onBeforeChange, onCommit, onAfterChange]
+    [currentScene, totalScenes, mode, onBeforeChange, onCommit, onAfterChange, cleanupAfterTransition]
   );
 
   // Next scene
@@ -384,7 +400,7 @@ export const useSceneManager = (
       animatingRef.current = animating;
 
       // Trigger onAfterChange when animation ends (D-F6: carry the real from-index
-      // recorded by goToScene, otherwise CineView falls back to the already updated
+      // recorded by goToScene, otherwise Cineview falls back to the already updated
       // currentSceneRef, producing from === to)
       if (!animating) {
         const programmaticNav = programmaticNavRef.current;
@@ -675,6 +691,7 @@ export const useSceneManager = (
   };
 
   const actions: SceneManagerActions = {
+    reconcileSceneList,
     goToScene,
     nextScene,
     prevScene,

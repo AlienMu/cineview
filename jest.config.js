@@ -28,6 +28,7 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   moduleNameMapper: {
+    '\\.css\\?inline$': '<rootDir>/src/__mocks__/inlineStyleMock.js',
     '\\.(css|less|scss|sass)$': '<rootDir>/src/__mocks__/styleMock.js',
   },
 };

@@ -4,6 +4,8 @@ import path from 'node:path';
 import type { ReactNode } from 'react';
 import { SceneCut } from '../../../site/src/components/temporal-drag/SceneCut';
 
+jest.mock('../../../site/node_modules/react', () => jest.requireActual('react'));
+
 interface CapturedAnimateProps {
   animateId?: string;
   duration?: { enter?: number; exit?: number };
@@ -18,6 +20,9 @@ const CSS_FILE = path.join(ROOT, 'site/src/styles/temporal-scenes-03-05.css');
 jest.mock(
   'cineview',
   () => ({
+    useAnimateTimeline: () => ({
+      frame: { get: () => ({ phase: 'entered' }), on: () => () => undefined },
+    }),
     Animate: (props: CapturedAnimateProps) => {
       captured.push(props);
       return <>{props.children}</>;
@@ -65,6 +70,15 @@ describe('/drag act 5 curtain-call contract', () => {
     expect(container.querySelector('.s05-house__wall')).toBeNull();
     expect(container.querySelector('.s05-house__row')).toBeNull();
     expect(container.querySelector('.s05-house__seat')).toBeNull();
+    const links = Array.from(container.querySelectorAll('.s05-actions a'));
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/docs/03-quickstart',
+      'https://github.com/AlienMu/cineview',
+    ]);
+    for (const link of links) {
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    }
   });
 
   it('removes auditorium geometry styles instead of hiding them', () => {

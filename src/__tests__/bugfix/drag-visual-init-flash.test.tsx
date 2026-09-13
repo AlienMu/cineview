@@ -13,7 +13,7 @@
  * WHY THE OLD ASSERTION IS NOW WRONG: under the first-screen cold-start enter
  * spec, the first scene (index 0) in drag mode no longer rests at terminal on
  * its first frame. It is held at its enter-INITIAL frame (opacity 0) until
- * priority assets settle, after which CineView drives the shared timeline once
+ * priority assets settle, after which Cineview drives the shared timeline once
  * to play a single enter. So "first frame must be terminal (~1)" is no longer
  * a valid premise for the first scene — opacity 0 there is the designed,
  * driver-gated start, not an accidental unseeded flash.
@@ -41,8 +41,8 @@
 import React, { createRef } from 'react';
 import { render, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 // Records the resolved opacity at the moment each Animate element renders, in
 // render order. The first entry for a given animate id is its first-frame
@@ -212,12 +212,12 @@ function lastOpacityFor(id: string): number | undefined {
 }
 
 function renderDragApp() {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   // No preloadImages: priority assets are vacuously complete, so the
   // first-scene driver is created immediately (priorityComplete is true).
   const utils = render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={800}
@@ -237,9 +237,9 @@ function renderDragApp() {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return { cineViewRef, ...utils };
+  return { cineviewRef, ...utils };
 }
 
 describe('drag visual init flash (D-P1-1, first-scene enter spec)', () => {
@@ -249,10 +249,10 @@ describe('drag visual init flash (D-P1-1, first-scene enter spec)', () => {
   });
 
   it('holds the first scene at a controlled enter-initial (0) on the first frame, then the driver reaches terminal — no seed/effect mismatch flash', async () => {
-    const { cineViewRef } = renderDragApp();
+    const { cineviewRef } = renderDragApp();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     // The active scene's fade-in element renders once the async variant parse
@@ -304,10 +304,10 @@ describe('drag visual init flash (D-P1-1, first-scene enter spec)', () => {
   });
 
   it('renders the rested first scene at terminal (no 0-flash) on every committed frame once the enter has completed', async () => {
-    const { cineViewRef } = renderDragApp();
+    const { cineviewRef } = renderDragApp();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
     await waitFor(() => {
       expect(driverControllers.length).toBeGreaterThan(0);
@@ -330,7 +330,7 @@ describe('drag visual init flash (D-P1-1, first-scene enter spec)', () => {
     const terminalStart = renderOpacityLog.length;
     act(() => {
       // A harmless state nudge that re-commits the scene tree.
-      cineViewRef.current?.refreshLayout?.();
+      cineviewRef.current?.refreshLayout?.();
     });
     await act(async () => {
       await Promise.resolve();

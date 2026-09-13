@@ -11,7 +11,7 @@
 
 import React, { useMemo, useContext, createContext, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useCineViewContext } from '../../context/CineViewContext';
+import { useCineviewContext } from '../../context/CineviewContext';
 import type { PositionProps } from '../../types';
 import { useCineViewRuntimeContext } from '../runtime/runtimeContext';
 
@@ -37,7 +37,7 @@ export const Position = forwardRef<HTMLDivElement, PositionInternalProps>(functi
   { at, x, y, offsetX, offsetY, fixed = false, children, style, className, ...restProps },
   ref
 ) {
-  const context = useCineViewContext();
+  const context = useCineviewContext();
   const cineViewRuntime = useCineViewRuntimeContext();
   const parentPosition = useContext(PositionContext);
   const fixedLayer = useContext(SceneFixedLayerContext);

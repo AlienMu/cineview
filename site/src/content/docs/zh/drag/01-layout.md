@@ -31,13 +31,13 @@ drag 场景按整屏位置导航。场景自身可以小于视窗，但这不会
 | 每个场景帧 | `z-index: 10`（当前场景）/ `1`（其余）                    | 跨场景层级由引擎调度管理                             |
 | Scene 自身 | `contain: 'layout style'`                                 | 建立层叠上下文，见 [DOM 契约](/docs/06-dom-contract) |
 
-CineView 没有 `className` 或 `style` 属性。外部 CSS 可使用 `.cineview-container` 或 `[data-cineview-container="true"]` 选择器；覆盖内联背景时使用 `!important`。自定义 CSS 的响应式长度可引用 `--cineview-unit`。
+Cineview 没有 `className` 或 `style` 属性。外部 CSS 可使用 `.cineview-container` 或 `[data-cineview-container="true"]` 选择器；覆盖内联背景时使用 `!important`。自定义 CSS 的响应式长度可引用 `--cineview-unit`。
 
 `Scene.layout.width` 与 `height` 决定整屏导航位置中的场景内容尺寸。
 
 ## 只渲染当前场景与相邻两屏
 
-当前 Scene 与相邻 Scene 保持挂载，更远的场景会卸载。返回时会重新创建本地状态、effect 与动画。需要跨导航保留的状态放在 CineView 外部。
+当前 Scene 与相邻 Scene 保持挂载，更远的场景会卸载。返回时会重新创建本地状态、effect 与动画。需要跨导航保留的状态放在 Cineview 外部。
 
 场景身份按数组位置确定，重排或条件插入场景可能改变每个位置对应的实例。
 
@@ -51,7 +51,7 @@ CineView 没有 `className` 或 `style` 属性。外部 CSS 可使用 `.cineview
 
 自绘滚动条仅在 scroll 模式中提供。drag 中的 `scrollbar` 对象仅注入隐藏原生滚动条的样式，宽度和颜色等选项不会产生可见的自绘滚动条。
 
-TypeScript 不允许 drag 使用 scroll 专属根属性，包括 `zoneTrigger`、`sceneSizing`、`enterMargin`、`exitMargin` 和 `debug`。`firstSceneTimeout` 为 drag 专属，scroll 的初始资源等待上限为 3000ms。详见[预加载](/docs/02-preload)。
+TypeScript 不允许 drag 使用 scroll 专属根属性，包括 `zoneTrigger`、`sceneSizing`、`enterMargin` 和 `exitMargin`。`debug` 在两种模式下均可使用。`firstSceneTimeout` 为 drag 专属，scroll 的初始资源等待上限为 3000ms。详见[预加载](/docs/02-preload)。
 
 ## 相关页面
 

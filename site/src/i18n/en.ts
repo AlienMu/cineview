@@ -10,7 +10,7 @@ export const en: Dict = {
   'nav.langLabel': 'Switch language',
 
   // Act 1 Hero
-  'hero.title': 'CineView',
+  'hero.title': 'Cineview',
   'hero.slogan': 'Direct every frame\nlike a filmmaker',
   'hero.intro':
     'Scroll becomes film, drag becomes frame.\nEvery motion, handed to time you direct.',
@@ -20,10 +20,10 @@ export const en: Dict = {
   'hero.scrollHint': 'Scroll down — the film starts rolling',
 
   // Act 2 Idea
-  'idea.eyebrow': 'Why CineView',
+  'idea.eyebrow': 'Why Cineview',
   'idea.title': 'Scroll should not be mere\ntranslation, but time on a timeline',
   'idea.body':
-    'On a normal page, scrolling just pushes content up. In CineView, scrolling advances the film — every bit of travel maps to a scene’s enter/exit timeline, and elements arrive in turn by delay and after, arranged on a timeline as precisely as a shot list.',
+    'On a normal page, scrolling just pushes content up. In Cineview, scrolling advances the film — every bit of travel maps to a scene’s enter/exit timeline, and elements arrive in turn by delay and after, arranged on a timeline as precisely as a shot list.',
 
   // Act 2 Capabilities (framework-as-demo · two shots + timecode capsule)
   // Title uses pipe separator: the part after the bar renders as italic Fraunces accent.
@@ -101,7 +101,7 @@ export const en: Dict = {
 
   // Phone drag demo: 4 scenes
   'demoDrag.s1.eyebrow': 'Shot one',
-  'demoDrag.s1.title': 'CineView',
+  'demoDrag.s1.title': 'Cineview',
   'demoDrag.s1.sub': 'Cinematic storytelling, within reach',
   'demoDrag.s2.eyebrow': 'Shot two · timeline',
   'demoDrag.s2.title': 'Elements arrive in turn',
@@ -117,10 +117,11 @@ export const en: Dict = {
   'demoDrag.s4.sub': 'fade / zoom / flip / blur, freely composed',
 
   // Homepage act 5: Cinema Entrance
-  'scene5.title': 'Two modes, one system',
+  'scene5.title': 'The demo ends here.',
   'scene5.subtitle':
-    'Drag it in the phone; scroll it on this page.\nSame timeline, same animation grammar.',
-  'scene5.frameTitle': 'CineView drag experience',
+    'This page uses scroll. The phone uses drag.\nBoth use the same scene components and animation timing API.',
+  'scene5.frameTitle': 'Cineview drag experience',
+  'scene5.dragHint': 'Try dragging',
 
   // ── Act 5 Capabilities ──
   'caps.eyebrow': 'Capabilities',
@@ -145,11 +146,12 @@ export const en: Dict = {
     'Fixed layers stay within their scene — no cross-scene drift. Mount straight from Position with clear, controllable stacking.',
 
   // ── Act 6 CTA / Footer ──
-  'cta.title': 'Now, shoot your first frame',
-  'cta.body': 'Install, write your first scene, and have a cinematic narrative running in minutes.',
-  'cta.start': 'Quick Start',
-  'cta.github': 'Star on GitHub',
-  'footer.tagline': 'Cinematic storytelling · React UI framework',
+  'cta.title': 'Build your first scene',
+  'cta.body':
+    'Bring your React content. Use Scene to organize it and Animate to sequence its entrances and exits.',
+  'cta.start': 'Read the docs',
+  'cta.github': 'View on GitHub',
+  'footer.tagline': 'Cineview · Scenes and animation for React',
   'footer.docs': 'Docs',
   'footer.license': 'MIT License',
 
@@ -235,19 +237,22 @@ export const en: Dict = {
   'dragTemporal.s05.actionsLabel': 'Final scene navigation',
   'dragTemporal.s05.btnHome': 'Back to home',
   'dragTemporal.s05.btnDocs': 'Read docs',
+  'dragTemporal.s05.btnGithub': 'GitHub',
+  'dragTemporal.s05.summary':
+    'Scenes, graphics, and video, composed with Cineview. The same components support drag and scroll.',
   'dragTemporal.s05.reelLabel': 'End of reel',
-  'dragTemporal.s05.creditsLabel': 'CineView curtain-call credits',
+  'dragTemporal.s05.creditsLabel': 'Built with Cineview',
   'dragTemporal.s05.title': 'The lights come down.',
-  'dragTemporal.s05.director': 'DIRECTOR',
-  'dragTemporal.s05.editor': 'EDITOR',
-  'dragTemporal.s05.cinematography': 'CINEMATOGRAPHY',
-  'dragTemporal.s05.performance': 'MOTION PERFORMANCE',
-  'dragTemporal.s05.starring': 'STARRING',
-  'dragTemporal.s05.sceneEngine': 'Scene Engine',
-  'dragTemporal.s05.timeline': 'Unified Timeline',
-  'dragTemporal.s05.scrollDrag': 'Scroll + Drag',
-  'dragTemporal.s05.motionRuntime': 'Reversible Motion Runtime',
-  'dragTemporal.s05.yourStory': 'Your Story',
+  'dragTemporal.s05.director': 'Scenes',
+  'dragTemporal.s05.editor': 'Animation',
+  'dragTemporal.s05.cinematography': 'Input',
+  'dragTemporal.s05.performance': 'Video',
+  'dragTemporal.s05.starring': 'Custom visuals',
+  'dragTemporal.s05.sceneEngine': 'Scene',
+  'dragTemporal.s05.timeline': 'Animate + timeline',
+  'dragTemporal.s05.scrollDrag': 'scroll / drag',
+  'dragTemporal.s05.motionRuntime': 'AnimateVideo',
+  'dragTemporal.s05.yourStory': 'React + Canvas',
   'dragTemporal.s05.salute1': 'FRAME PERFECT',
   'dragTemporal.s05.salute2': 'YOURS TO DIRECT',
   'dragTemporal.s05.salute3': 'ONE CONTINUOUS TAKE',

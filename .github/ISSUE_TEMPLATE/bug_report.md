@@ -27,7 +27,7 @@ labels: bug
 
 ## Minimal reproduction
 
-The smallest `<CineView>` tree that shows it. Paste code rather than a
+The smallest `<Cineview>` tree that shows it. Paste code rather than a
 screenshot — motion bugs usually hinge on a prop combination.
 
 ```tsx

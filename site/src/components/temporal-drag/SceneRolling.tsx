@@ -397,7 +397,7 @@ function GatedTitle(): import('react').JSX.Element {
       }}
       timeline={{ delay: timing.delay(ACT1_ENTER_DELAY_MS.title) }}
     >
-      <h1 className="s01-title">cineview</h1>
+      <h1 className="s01-title">Cineview</h1>
     </Animate>
   );
 }

@@ -3,23 +3,23 @@ title: "Horizontal direction: 'x'"
 eyebrow: ADVANCED / HORIZONTAL AXIS
 ---
 
-Set `direction="x"` on CineView for horizontal navigation in either mode. The default is `'y'`.
+Set `direction="x"` on Cineview for horizontal navigation in either mode. The default is `'y'`.
 
 ## Usage
 
 ```tsx
-<CineView mode="drag" designWidth={750} direction="x">
+<Cineview mode="drag" designWidth={750} direction="x">
   <Scene sceneId="reel-01">...</Scene>
   <Scene sceneId="reel-02">...</Scene>
-</CineView>
+</Cineview>
 ```
 
 ```tsx
-<CineView mode="scroll" designWidth={1440} direction="x">
+<Cineview mode="scroll" designWidth={1440} direction="x">
   <Scene sceneId="panorama" scroll={{ zoneId: 'panorama', trigger: 'center-lock' }}>
     ...
   </Scene>
-</CineView>
+</Cineview>
 ```
 
 ## What switches with the axis

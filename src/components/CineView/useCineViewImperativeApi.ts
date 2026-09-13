@@ -7,7 +7,7 @@ import {
   type ForwardedRef,
   type MutableRefObject,
 } from 'react';
-import type { CineViewPreloadTarget, CineViewRef, PerformanceMetrics } from '../../types';
+import type { CineviewPreloadTarget, CineviewRef, PerformanceMetrics } from '../../types';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 import { resolveScenePreloadTargetImages } from './preloadTargets';
 import type { GroupedCallbacks } from './regroupCallbacks';
@@ -22,7 +22,7 @@ interface PreloadActionsPort {
 }
 
 interface UseCineViewImperativeApiParams {
-  ref: ForwardedRef<CineViewRef>;
+  ref: ForwardedRef<CineviewRef>;
   currentSceneRef: MutableRefObject<number>;
   scenesRef: MutableRefObject<React.ReactElement[]>;
   sceneActionsRef: MutableRefObject<SceneActionsPort>;
@@ -39,7 +39,7 @@ export function useCineViewImperativeApi({
   preloadActionsRef,
   measureViewportRef,
   resolvedCallbacksRef,
-}: UseCineViewImperativeApiParams): CineViewRef {
+}: UseCineViewImperativeApiParams): CineviewRef {
   const goToScene = useCallback(
     (index: number, animated = true): void => {
       const activeSceneIndex = currentSceneRef.current;
@@ -65,7 +65,7 @@ export function useCineViewImperativeApi({
   }, [measureViewportRef]);
 
   const preload = useCallback(
-    async (targets?: CineViewPreloadTarget[]): Promise<void> => {
+    async (targets?: CineviewPreloadTarget[]): Promise<void> => {
       const targetImages = resolveScenePreloadTargetImages(
         scenesRef.current as Array<{
           props: {
@@ -93,7 +93,7 @@ export function useCineViewImperativeApi({
     (): PerformanceMetrics => performanceMonitor.getMetrics(),
     []
   );
-  const runtimeApi = useMemo<CineViewRef>(
+  const runtimeApi = useMemo<CineviewRef>(
     () => ({
       goToScene,
       refreshLayout,

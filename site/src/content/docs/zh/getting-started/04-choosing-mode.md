@@ -32,9 +32,9 @@ eyebrow: GETTING STARTED / CHOOSING A MODE
 ## drag 骨架
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 
-<CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
+<Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
   <Scene sceneId="beat-1">
     <Animate enterAnimation="fade-in">
       <h1>Beat 1</h1>
@@ -45,22 +45,22 @@ import { CineView, Scene, Animate } from 'cineview';
       <h1>Beat 2</h1>
     </Animate>
   </Scene>
-</CineView>;
+</Cineview>;
 ```
 
 ## scroll 骨架
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 
-<CineView designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
+<Cineview designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
   <Scene sceneId="intro">{/* 普通滚动内容 */}</Scene>
   <Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
     <Animate duration={{ enter: 1200 }} enterAnimation="fade-in">
       <h1>跟随滚动播放的标题</h1>
     </Animate>
   </Scene>
-</CineView>;
+</Cineview>;
 ```
 
 ## 入口与包体积

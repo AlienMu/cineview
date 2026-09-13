@@ -3,34 +3,36 @@ title: 性能
 eyebrow: ADVANCED / PERFORMANCE
 ---
 
-连续变化的视觉值使用 MotionValue，掉帧时结合浏览器性能工具检查。CineView 的监控提供页面级帧时间采样。
+连续变化的视觉值使用 MotionValue，掉帧时结合浏览器性能工具检查。Cineview 的监控提供页面级帧时间采样。
 
 ## 运行时监控
 
-启用 `monitor`，通过 CineView ref 读取结果：
+设置 `<Cineview debug>` 可在两种模式下显示内置性能面板，同时开启采样和 scroll 布局诊断。面板自动加载样式。设置 `debug={false}` 后面板消失；某个实例仍开启 `monitor` 或 `debug` 时，采样继续。
+
+启用 `monitor`，通过 Cineview ref 读取结果：
 
 ```tsx
 import { useRef } from 'react';
-import { CineView, Scene, type CineViewRef } from 'cineview';
+import { Cineview, Scene, type CineviewRef } from 'cineview';
 
 export default function Demo() {
-  const ref = useRef<CineViewRef>(null);
+  const ref = useRef<CineviewRef>(null);
   return (
     <>
       <button onClick={() => console.table(ref.current?.getPerformanceMetrics())}>
         输出性能数据
       </button>
-      <CineView monitor ref={ref}>
+      <Cineview monitor ref={ref}>
         <Scene sceneId="example">
           <h1>示例</h1>
         </Scene>
-      </CineView>
+      </Cineview>
     </>
   );
 }
 ```
 
-读取方法不要求开启 `monitor`，但至少一个实例开启后才会采集帧样本。尚无样本时帧数据为零，停止监控后保留最近的样本。
+读取方法不要求采样处于开启状态。至少一个实例开启 `monitor` 或 `debug` 后才会采集帧样本。尚无样本时帧数据为零，停止监控后保留最近的样本。
 
 ## 指标字段
 
@@ -43,13 +45,13 @@ export default function Demo() {
 
 FPS 上限无法反映高刷新率屏幕是否被充分利用。平均值可能掩盖单次停顿，具体停顿应通过浏览器性能记录或 `PerformanceObserver` 检查。
 
-`bundleSize` 包含应用代码与依赖，在监控开始时采样，结果为零时可再次读取。CineView 自身的体积应查看构建输出。
+`bundleSize` 包含应用代码与依赖，在监控开始时采样，结果为零时可再次读取。Cineview 自身的体积应查看构建输出。
 
 ## 页面共享的读数
 
-所有 CineView 实例共享页面监控。第一个开启监控的实例启动采样，最后一个释放监控的实例停止采样。
+所有 Cineview 实例共享页面监控。第一个开启监控的实例启动采样，最后一个释放监控的实例停止采样。
 
-因此两个实例返回相同读数，数据不会将渲染成本归属到某个 Scene 或 CineView。
+因此两个实例返回相同读数，数据不会将渲染成本归属到某个 Scene 或 Cineview。
 
 ## 初始资源等待
 

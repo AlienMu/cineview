@@ -1,8 +1,8 @@
-# CineView Requirements
+# Cineview Requirements
 
 ## Engine Semantics
 
-1. The root `CineView` declares either `drag` or `scroll`.
+1. The root `Cineview` declares either `drag` or `scroll`.
 2. Drag has one render-progress owner, one element-track owner per Scene and one
    release-instruction owner.
 3. Scroll uses native document flow and gives a Scene takeover zone one owner for

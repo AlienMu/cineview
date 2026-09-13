@@ -8,7 +8,7 @@ Set `designWidth` to the design's width (default 750). Numeric design lengths sc
 ## Conversion rules
 
 ```tsx
-<CineView designWidth={750}>   // design file is 750px wide
+<Cineview designWidth={750}>   // design file is 750px wide
 ```
 
 - At a 750px viewport, scale = 1: one design px is one screen px.

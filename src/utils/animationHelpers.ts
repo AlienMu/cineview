@@ -6,7 +6,7 @@
 import { parseAnimationWithComposition } from '../animations/composer';
 import { isPresetLoadError } from '../animations/presets';
 import type {
-  CineViewErrorCode,
+  CineviewErrorCode,
   ParsedAnimationVariant,
   CustomAnimation,
   ComposedAnimation,
@@ -14,7 +14,7 @@ import type {
 import type { PresetAnimation } from '../animations/presets';
 
 export interface AnimationParseFailure {
-  code: Extract<CineViewErrorCode, 'INVALID_ANIMATION' | 'ANIMATION_ASSET_LOAD_FAILED'>;
+  code: Extract<CineviewErrorCode, 'INVALID_ANIMATION' | 'ANIMATION_ASSET_LOAD_FAILED'>;
   message: string;
   context: Record<string, unknown>;
 }
@@ -42,7 +42,7 @@ export async function parseAnimationSafely(
     });
     if (process.env.NODE_ENV === 'development') {
       console.error(
-        `[CineView Error] ${message}\n\n` +
+        `[Cineview Error] ${message}\n\n` +
           `Problem: The ${animationType}Animation configuration is invalid or malformed.\n` +
           `Fix: Ensure your animation is one of:\n` +
           `  1. A valid preset animation name (e.g., 'fade-in', 'slide-up')\n` +
@@ -70,7 +70,7 @@ export async function parseAnimationSafely(
         };
     onFailure?.(failure);
     if (process.env.NODE_ENV === 'development') {
-      console.error(`[CineView Error] ${failure.message}`, error);
+      console.error(`[Cineview Error] ${failure.message}`, error);
     }
   }
 

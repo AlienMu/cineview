@@ -1,6 +1,6 @@
-# CineView architecture
+# Cineview architecture
 
-This document describes the current implementation of CineView 1.0.0 for contributors.
+This document describes the current implementation of Cineview 1.0.0 for contributors.
 Use the [public types](./src/types/index.ts) for exact property names and unions,
 and the [documentation](./site/src/content/docs/en/getting-started/01-introduction.md) for application examples.
 Historical reviews record earlier states; they do not override the current source.
@@ -22,13 +22,13 @@ Historical reviews record earlier states; they do not override the current sourc
 
 ## Component structure
 
-A `CineView` contains `Scene` elements. A Scene owns its layout, animation registry,
+A `Cineview` contains `Scene` elements. A Scene owns its layout, animation registry,
 asset lifecycle, and fixed elements. `Animate` controls an element's animation;
 `AnimateVideo` connects video playback or seeking to an animation timeline.
 `Position` places content, `Container` defines box dimensions and spacing, and
 `Image` integrates image loading with scene readiness.
 
-[CineViewDispatch](./src/components/CineView/CineViewDispatch.tsx) selects the drag or
+[CineviewDispatch](./src/components/Cineview/CineviewDispatch.tsx) selects the drag or
 scroll implementation from the `mode` discriminant. Mode-specific public types
 reject configuration that belongs to the other mode. The default mode is `drag`.
 Application callbacks are grouped under `callbacks`; scene layout and behavior
@@ -40,11 +40,11 @@ the same properties.
 
 | Responsibility                     | Implementation                                                                                                                                                  |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Drag entry and scene stack         | [CineView](./src/components/CineView/CineView.tsx), [DragSceneStack](./src/components/CineView/DragSceneStack.tsx)                                              |
-| Scroll entry and native offset     | [DirectScrollCineView](./src/components/CineView/DirectScrollCineView.tsx), [useNativeScrollController](./src/components/CineView/useNativeScrollController.ts) |
+| Drag entry and scene stack         | [Cineview](./src/components/Cineview/Cineview.tsx), [DragSceneStack](./src/components/Cineview/DragSceneStack.tsx)                                              |
+| Scroll entry and native offset     | [DirectScrollCineview](./src/components/Cineview/DirectScrollCineview.tsx), [useNativeScrollController](./src/components/Cineview/useNativeScrollController.ts) |
 | Scene lifecycle and mode selection | [Scene](./src/components/Scene/Scene.tsx)                                                                                                                       |
 | Animation semantics                | [animateSemantics](./src/components/Animate/animateSemantics.ts), [animateTimeline](./src/components/Animate/animateTimeline.tsx)                               |
-| Width-based conversion             | [CineViewContext](./src/context/CineViewContext.tsx)                                                                                                            |
+| Width-based conversion             | [CineviewContext](./src/context/CineviewContext.tsx)                                                                                                            |
 
 ## State ownership
 
@@ -108,9 +108,9 @@ the additional real scroll distance: one millisecond equals one CSS pixel.
 Viewport height and `designWidth` do not rescale that duration budget.
 
 [sceneScrollBudget](./src/components/Scene/sceneScrollBudget.ts) derives the budget
-from registered animations. [useScrollZoneRegistry](./src/components/CineView/useScrollZoneRegistry.ts)
-collects zones, while [useScrollSceneLayout](./src/components/CineView/useScrollSceneLayout.ts)
-and [useScrollSceneSnapshots](./src/components/CineView/useScrollSceneSnapshots.ts)
+from registered animations. [useScrollZoneRegistry](./src/components/Cineview/useScrollZoneRegistry.ts)
+collects zones, while [useScrollSceneLayout](./src/components/Cineview/useScrollSceneLayout.ts)
+and [useScrollSceneSnapshots](./src/components/Cineview/useScrollSceneSnapshots.ts)
 provide measured layout and scene state. Animations consume this published state.
 They must not each independently measure or write the root's scroll offset.
 
@@ -124,7 +124,7 @@ the shared navigation API; use an existing registered zone identifier.
 
 A `Position fixed` element belongs to its Scene and is clipped to that Scene's
 visible area. Place cross-scene navigation and persistent application controls
-outside `CineView`.
+outside `Cineview`.
 
 ## Animation timing
 
@@ -171,7 +171,7 @@ queries to set readable font sizes, wrap text, and reorganize controls while
 retaining the framework's numeric coordinate system.
 
 Do not add an independent conversion factor inside a component. Read conversion
-values from `CineViewContext`. Preserve consistent conversion between initial,
+values from `CineviewContext`. Preserve consistent conversion between initial,
 animated, and restored styles.
 
 ## Assets and readiness
@@ -230,6 +230,17 @@ supports ESM and CommonJS. The `cineview/drag` and `cineview/scroll` subpaths ex
 CommonJS entries in 1.0.0. `cineview/dev` exposes an ESM development panel, with
 its stylesheet imported separately from `cineview/dev/style.css`.
 
+The root `debug` prop displays that panel in either mode and starts the existing
+page-level performance sampler. The built-in panel loads on demand with its
+styles. Scroll mode also exposes layout diagnostics while `debug` is true.
+`monitor` enables sampling without displaying a panel. Both flags share the
+existing acquisition and cleanup rules.
+
+ESM keeps the panel in optional chunks. Single-file UMD includes the panel and its
+styles, adding a 4 KB allowance to the full and scroll entry gzip budgets (60 KB
+and 54 KB). The drag entry remains within its existing 50 KB budget. Build
+verification reads these limits from `scripts/build-all.mjs`.
+
 React, React DOM, and Framer Motion are peer dependencies. The library build
 keeps them external. Build verification checks declared entries, types, assets,
 and package contents. Tests and acceptance evidence remain in the repository and
@@ -268,11 +279,14 @@ verify behavior and metric shape; they do not measure browser rendering speed.
 
 ## Changing the architecture
 
-Create or update a task-flow before a multi-file change. Describe observable
+Create or update a local, Git-ignored task-flow before a multi-file change. Describe observable
 behavior, the state owner, and acceptance criteria. Update this document alongside
 any ownership or public behavior change, and keep its links valid.
 
 Use focused tests to reproduce a defect, then run the relevant static and browser
 gates. [AGENT_SELF_REVIEW.md](./AGENT_SELF_REVIEW.md) requires independent browser
 review for visual, interaction, accessibility, and runtime performance work.
-Record limitations explicitly. Preserve previous evidence and user-owned files.
+Record limitations explicitly. Review reports, task flows, screenshots, traces,
+and generated measurements remain local and must not be committed. Keep reusable
+verification scripts and regression tests in the repository. Preserve local
+evidence and user-owned files unless cleanup is explicitly requested.

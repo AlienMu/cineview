@@ -1,23 +1,24 @@
 ---
-title: CineView
+title: Cineview
 eyebrow: COMPONENTS / CINEVIEW
 ---
 
-CineView runs the page's scenes, selects drag or scroll behavior, and sets the design width used for responsive lengths. Its ref provides navigation, layout refresh, preloading, and performance readings.
+Cineview runs the page's scenes, selects drag or scroll behavior, and sets the design width used for responsive lengths. Its ref provides navigation, layout refresh, preloading, and performance readings.
 
 ## Props
 
-`CineViewProps` is a union discriminated on `mode`: omitting `mode` means `'drag'`, and the callbacks surface narrows with the mode.
+`CineviewProps` is a union discriminated on `mode`: omitting `mode` means `'drag'`, and the callbacks surface narrows with the mode.
 
-| prop          | type                       | default           | notes                                          |
-| ------------- | -------------------------- | ----------------- | ---------------------------------------------- |
-| `designWidth` | `number`                   | `750`             | Design width base, see the designWidth section |
-| `mode`        | `'drag' \| 'scroll'`       | `'drag'`          | Drag paging / scroll document flow             |
-| `scrollbar`   | `false \| ScrollbarConfig` | off               | Optional overlay in scroll mode                |
-| `monitor`     | `boolean`                  | `false`           | Enables performance sampling                   |
-| `a11y`        | `{ label?: string }`       | label: `'Scenes'` | Accessible name for the drag container         |
-| `callbacks`   | Depends on mode            | none              | Scene, input, and resource notifications       |
-| `children`    | `ReactNode`                | required          | Declare Scene nodes directly under CineView    |
+| prop          | type                       | default           | notes                                                           |
+| ------------- | -------------------------- | ----------------- | --------------------------------------------------------------- |
+| `designWidth` | `number`                   | `750`             | Design width base, see the designWidth section                  |
+| `mode`        | `'drag' \| 'scroll'`       | `'drag'`          | Drag paging / scroll document flow                              |
+| `scrollbar`   | `false \| ScrollbarConfig` | off               | Optional overlay in scroll mode                                 |
+| `monitor`     | `boolean`                  | `false`           | Enables performance sampling                                    |
+| `debug`       | `boolean`                  | `false`           | Shows the performance panel and enables sampling in either mode |
+| `a11y`        | `{ label?: string }`       | label: `'Scenes'` | Accessible name for the drag container                          |
+| `callbacks`   | Depends on mode            | none              | Scene, input, and resource notifications                        |
+| `children`    | `ReactNode`                | required          | Declare Scene nodes directly under Cineview                     |
 
 ### designWidth
 
@@ -47,7 +48,6 @@ Set it to the design's width. See [Responsive conversion](/docs/05-responsive).
 | `sceneSizing` | `'content' \| 'screen'` | `'content'`     | Size ordinary scenes by content or at least one viewport |
 | `enterMargin` | `number`                | `50`            | Default visibility entrance margin in design pixels      |
 | `exitMargin`  | `number`                | `50`            | Default visibility exit margin in design pixels          |
-| `debug`       | `boolean`               | `false`         | Enables scroll parameter and layout diagnostics          |
 
 ### scrollbar
 
@@ -56,7 +56,7 @@ The scrollbar overlay, an optional scroll-mode add-on. Pass an object to enable,
 | field             | type      | default                           | notes                                   |
 | ----------------- | --------- | --------------------------------- | --------------------------------------- |
 | `enabled`         | `boolean` | `true` when an object is supplied | Overlay on or off                       |
-| `ariaLabel`       | `string`  | `'CineView scroll position'`      | Accessible label                        |
+| `ariaLabel`       | `string`  | `'Cineview scroll position'`      | Accessible label                        |
 | `width`           | `number`  | `6`                               | Thickness (px), floored at 4            |
 | `radius`          | `number`  | `999`                             | Corner radius; fully rounded by default |
 | `inset`           | `number`  | `0`                               | Inset from container edges (px)         |
@@ -75,11 +75,11 @@ TypeScript checks `callbacks` against `mode`. For example, `onZoneProgress` is u
 
 | callback         | detail                | notes                                                                      |
 | ---------------- | --------------------- | -------------------------------------------------------------------------- |
-| `onReady`        | `api: CineViewRef`    | Ref API available after mount; does not wait for assets                    |
+| `onReady`        | `api: CineviewRef`    | Ref API available after mount; does not wait for assets                    |
 | `onLoadProgress` | `progress: number`    | Queued request completion, integer 0–100, including failed requests        |
 | `onSceneEnter`   | `SceneChangeDetail`   | Scene-change notification; gesture changes notify at commit                |
 | `onSceneLeave`   | `SceneChangeDetail`   | Companion scene-change notification; child animations may still be running |
-| `onError`        | `CineViewErrorDetail` | Error code, message, context, and optional fallback control                |
+| `onError`        | `CineviewErrorDetail` | Error code, message, context, and optional fallback control                |
 
 ### Drag-only
 
@@ -105,36 +105,36 @@ Callback patterns and `onError` handling: [Callbacks](/docs/03-callbacks).
 ## Ref methods
 
 ```tsx
-const ref = useRef<CineViewRef>(null);
-<CineView ref={ref} mode="scroll" designWidth={750}>
+const ref = useRef<CineviewRef>(null);
+<Cineview ref={ref} mode="scroll" designWidth={750}>
   ...
-</CineView>;
+</Cineview>;
 ```
 
 | method                  | signature                                              | notes                                                                                            |
 | ----------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
 | `goToScene`             | `(index: number, animated?: boolean) => void`          | Jump to a scene                                                                                  |
 | `refreshLayout`         | `() => void`                                           | Re-measure layout                                                                                |
-| `preload`               | `(targets?: CineViewPreloadTarget[]) => Promise<void>` | Preload. Targets are scene indexes (number) or `sceneId`; in scroll mode a `zoneId` also matches |
+| `preload`               | `(targets?: CineviewPreloadTarget[]) => Promise<void>` | Preload. Targets are scene indexes (number) or `sceneId`; in scroll mode a `zoneId` also matches |
 | `getCurrentIndex`       | `() => number`                                         | Current scene index                                                                              |
 | `getPerformanceMetrics` | `() => PerformanceMetrics`                             | `{ fps, avgFrameTime, memoryUsage?, bundleSize }`                                                |
 
 These methods exist in both modes. Guard `ref.current` until mount; the individual methods do not need optional calls.
 
-`goToZone(zoneId, { align?: 'center', animated?: boolean })` is scroll-only and optional on `CineViewRef` (drag has no zones). Scroll consumers can use `CineViewScrollRef`, where `goToZone` is required:
+`goToZone(zoneId, { align?: 'center', animated?: boolean })` is scroll-only and optional on `CineviewRef` (drag has no zones). Scroll consumers can use `CineviewScrollRef`, where `goToZone` is required:
 
 ```tsx
-const ref = useRef<CineViewScrollRef>(null);
+const ref = useRef<CineviewScrollRef>(null);
 ref.current?.goToZone('intro-seq', { align: 'center' });
 ```
 
 ## Error codes
 
-`onError` receives a `CineViewErrorCode` string union. Use a `never` check when exhaustive handling is needed. Some errors provide `preventDefault`; call `detail.preventDefault?.()` to suppress their default fallback and show application UI.
+`onError` receives a `CineviewErrorCode` string union. Use a `never` check when exhaustive handling is needed. Some errors provide `preventDefault`; call `detail.preventDefault?.()` to suppress their default fallback and show application UI.
 
 | code                          | fired when                                                             | recovery                                                                         |
 | ----------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `EMPTY_SCENES`                | CineView has no Scene children, or a Scene has no content              | Add the missing content                                                          |
+| `EMPTY_SCENES`                | Cineview has no Scene children, or a Scene has no content              | Add the missing content                                                          |
 | `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode                                  | Handle the asset failure                                                         |
 | `FIRST_SCENE_TIMEOUT`         | First-screen resource wait exceeded its limit                          | Optional `preventDefault`; otherwise show the first Scene at its completed state |
 | `INVALID_ANIMATION`           | Missing dependency, incompatible driver, or unsupported manual control | Correct the reported animation configuration                                     |

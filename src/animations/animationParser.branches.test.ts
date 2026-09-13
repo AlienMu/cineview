@@ -145,7 +145,7 @@ describe('animationParser branch coverage', () => {
 
       expect(result).toBeNull();
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[CineView]',
+        '[Cineview]',
         'Failed to parse custom animation:',
         expect.any(Error)
       );

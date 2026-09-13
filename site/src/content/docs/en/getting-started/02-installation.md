@@ -3,7 +3,7 @@ title: Installation
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-Install CineView 1.0.0 in a React application with React 19 and Framer Motion 13.
+Install Cineview 1.0.0 in a React application with React 19 and Framer Motion 13.
 
 ## Install in a React app
 
@@ -30,7 +30,7 @@ pnpm --dir examples/minimal install --frozen-lockfile
 pnpm --dir examples/minimal dev
 ```
 
-To test local package changes in another app, run `pnpm pack` in the CineView repository after building, then install the generated `.tgz` file in that app.
+To test local package changes in another app, run `pnpm pack` in the Cineview repository after building, then install the generated `.tgz` file in that app.
 
 ## Peer dependencies
 
@@ -53,7 +53,7 @@ Keep one copy of each runtime in the app bundle.
 | `cineview/scroll` | Scroll engine                    | CommonJS                |
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 ```
 
 ## The full ES module (ESM) entry includes both engines
@@ -65,7 +65,7 @@ Use `cineview` in Vite, webpack, or Rollup applications. The full entry referenc
 The mode subpaths have `types` and `require` export conditions, with no `import` condition. TypeScript can resolve their types, but an ESM application cannot import runtime exports through those subpaths.
 
 ```js
-const { CineView } = require('cineview/drag');
+const { Cineview } = require('cineview/drag');
 ```
 
 Separate Universal Module Definition (UMD) files support script loading when the application already provides the required React, React DOM, and Framer Motion globals. These files do not supply those runtimes.
@@ -89,7 +89,7 @@ The drag entry always runs drag mode. A JavaScript caller that passes another `m
 
 ## TypeScript and development tools
 
-Types ship with the package. Import shared types from `cineview`; `CineViewDragProps` and `CineViewScrollProps` are exported by their respective mode subpaths.
+Types ship with the package. Import shared types from `cineview`; `CineviewDragProps` and `CineviewScrollProps` are exported by their respective mode subpaths.
 
 Import the optional performance panel and its styles separately:
 
@@ -98,6 +98,6 @@ import { PerfPanel } from 'cineview/dev';
 import 'cineview/dev/style.css';
 ```
 
-Enable `monitor` on CineView and pass the ref from `callbacks.onReady` to the panel's `source` prop. The same entry exports `usePerfMonitor` for custom displays. See [Performance](/docs/01-performance) for the available metrics.
+For the built-in panel, set `<Cineview debug>`; no separate panel import or stylesheet is needed. To customize the panel, enable `monitor` on Cineview and pass the ref from `callbacks.onReady` to the panel's `source` prop. The same entry exports `usePerfMonitor` for custom displays. See [Performance](/docs/01-performance) for the available metrics.
 
 Continue with [Quickstart](/docs/03-quickstart).

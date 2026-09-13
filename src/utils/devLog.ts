@@ -6,10 +6,10 @@
  * dev builds and SSR scenarios that depend on the library source still log. This utility centralizes
  * the gate, aligning with existing guard patterns in context/Scene modules.
  *
- * Uniform prefix `[CineView]` for consistency with other developer-facing diagnostic messages.
+ * Uniform prefix `[Cineview]` for consistency with other developer-facing diagnostic messages.
  */
 
-const PREFIX = '[CineView]';
+const PREFIX = '[Cineview]';
 
 const onceKeys = new Set<string>();
 

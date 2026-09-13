@@ -3,7 +3,7 @@ title: Scene
 eyebrow: COMPONENTS / SCENE
 ---
 
-Scene groups content that shares layout, transitions, and preloaded assets. Declare Scenes directly inside CineView. In scroll mode, `scroll` adds a locked-zone declaration; a non-zero animation budget gives it locked travel.
+Scene groups content that shares layout, transitions, and preloaded assets. Declare Scenes directly inside Cineview. In scroll mode, `scroll` adds a locked-zone declaration; a non-zero animation budget gives it locked travel.
 
 ## Props
 
@@ -86,6 +86,6 @@ Use a unique `zoneId` for each zone. A duplicate reports `INVALID_COMPONENT_HIER
 
 ## Related pages
 
-- [CineView](/docs/01-cineview): root component and callbacks
+- [Cineview](/docs/01-cineview): root component and callbacks
 - [The two modes](/docs/01-modes): what a Scene means in drag vs scroll
 - [Preloading](/docs/02-preload): how `assets.preloadImages` is queued

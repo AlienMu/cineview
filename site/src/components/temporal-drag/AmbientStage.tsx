@@ -155,7 +155,7 @@ function AmbientDust(): import('react').JSX.Element {
   return <canvas ref={canvasRef} className="tp-ambient__dust" />;
 }
 
-/** Act 1's scene-owned ambient light. Every temporal property runs on CineView's lanes. */
+/** Act 1's scene-owned ambient light. Every temporal property runs on Cineview's lanes. */
 export const AmbientStage = memo(function AmbientStage(): import('react').JSX.Element {
   const timing = useTemporalMotion();
 

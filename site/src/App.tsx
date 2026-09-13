@@ -13,7 +13,7 @@ export default function App(): import('react').JSX.Element {
   // GatedLangToggle) so the button enters and exits on the drag timeline with the
   // rest of the act. The hidden acceptance route also owns the whole viewport and
   // deliberately excludes shell chrome so trusted CDP input always lands on its
-  // CineView scene surface.
+  // Cineview scene surface.
   const pathname = useLocation().pathname;
   const isDrag = pathname === '/drag';
   const isAcceptance = pathname.startsWith('/__acceptance/');

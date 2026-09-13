@@ -74,7 +74,7 @@ function SiteFixture(): React.JSX.Element {
           ref={setScrollMetrics}
         />
       ) : (
-        <main data-testid="docs-route">Documentation without CineView</main>
+        <main data-testid="docs-route">Documentation without Cineview</main>
       )}
     </div>
   );
@@ -94,7 +94,7 @@ afterEach(() => {
 });
 
 describe('BackgroundRibbon container ownership', () => {
-  it('reattaches to a same-route CineView replacement and detaches the old listener', async () => {
+  it('reattaches to a same-route Cineview replacement and detaches the old listener', async () => {
     renderSite();
     expect(screen.getByTestId('site-route')).toHaveAttribute('data-route', '/demo');
     const oldContainer = screen.getByTestId('cineview-container');
@@ -119,7 +119,7 @@ describe('BackgroundRibbon container ownership', () => {
     expectRootLut(0.75);
   });
 
-  it('clears root inline LUT values when leaving to a route without CineView', async () => {
+  it('clears root inline LUT values when leaving to a route without Cineview', async () => {
     renderSite();
     const container = screen.getByTestId('cineview-container');
     container.scrollTop = 900;

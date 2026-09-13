@@ -1,12 +1,12 @@
 /**
- * CineView Component Unit Tests
+ * Cineview Component Unit Tests
  */
 
 import { createRef, act } from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CineView } from './CineViewDispatch';
-import { resolveRootSceneStackMode } from './CineView';
-import type { CineViewRef } from '../../types';
+import { Cineview } from './CineviewDispatch';
+import { resolveRootSceneStackMode } from './Cineview';
+import type { CineviewRef } from '../../types';
 import { performanceMonitor } from '../../utils/performanceMonitor';
 
 // Mock Scene component
@@ -66,7 +66,7 @@ jest.mock('../../hooks/useImagePreloader', () => ({
   ]),
 }));
 
-describe('CineView Component', () => {
+describe('Cineview Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -84,9 +84,9 @@ describe('CineView Component', () => {
   describe('12.1 Core Functionality', () => {
     it('should create responsive size conversion context', () => {
       const { container } = render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(container.querySelector('.cineview-container')).toBeInTheDocument();
@@ -94,11 +94,11 @@ describe('CineView Component', () => {
 
     it('should register all Scene children and maintain scene index', async () => {
       const { container } = render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -112,10 +112,10 @@ describe('CineView Component', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene preloadImages={['image1.jpg', 'image2.jpg']}>Scene 1</MockScene>
           <MockScene preloadImages={['image3.jpg']}>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       const [, actions] = useImagePreloader.mock.results[0].value;
@@ -143,15 +143,15 @@ describe('CineView Component', () => {
       ]);
 
       const { rerender } = render(
-        <CineView designWidth={750} callbacks={{ onLoadProgress: () => {} }}>
+        <Cineview designWidth={750} callbacks={{ onLoadProgress: () => {} }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       rerender(
-        <CineView designWidth={750} callbacks={{ onLoadProgress: () => {} }}>
+        <Cineview designWidth={750} callbacks={{ onLoadProgress: () => {} }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(startPreload).toHaveBeenCalledTimes(1);
@@ -161,10 +161,10 @@ describe('CineView Component', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene assets={{ preloadImages: ['grouped-first.jpg'] }}>Scene 1</MockScene>
           <MockScene assets={{ preloadImages: ['grouped-second.jpg'] }}>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       const callArgs = useImagePreloader.mock.calls[0][0];
@@ -192,9 +192,9 @@ describe('CineView Component', () => {
       ]);
 
       const { container } = render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene assets={{ preloadImages: ['hero.jpg'] }}>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       const viewport = container.querySelector('.cineview-container > div');
@@ -202,15 +202,15 @@ describe('CineView Component', () => {
     });
 
     it('should implement virtualized rendering (only renders current scene plus one before and after)', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       const { container } = render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
           <MockScene>Scene 4</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -221,13 +221,13 @@ describe('CineView Component', () => {
     });
 
     it('should use content-visibility CSS to optimize non-visible scenes', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       const { container } = render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -243,9 +243,9 @@ describe('CineView Component', () => {
 
     it('should only inject viewport main axis minimum for scroll screen sizing', async () => {
       const { container, rerender } = render(
-        <CineView designWidth={750} mode="scroll" direction={'y'} sceneSizing={'content'}>
+        <Cineview designWidth={750} mode="scroll" direction={'y'} sceneSizing={'content'}>
           <MockScene>Short Scene</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -256,9 +256,9 @@ describe('CineView Component', () => {
       expect(contentSizedScene.style.minHeight).toBe('');
 
       rerender(
-        <CineView designWidth={750} mode="scroll" direction={'y'} sceneSizing={'screen'}>
+        <Cineview designWidth={750} mode="scroll" direction={'y'} sceneSizing={'screen'}>
           <MockScene>Short Scene</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -271,12 +271,12 @@ describe('CineView Component', () => {
 
     it('should register styles to hide native browser scrollbar at root container', () => {
       render(
-        <CineView
+        <Cineview
           designWidth={750}
           scrollbar={{ enabled: true, width: 10, thumbColor: 'rgba(1, 2, 3, 0.5)' }}
         >
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       const styleNode = document.getElementById('cineview-scrollbar-style');
@@ -292,12 +292,12 @@ describe('CineView Component', () => {
   describe('12.2 Event System', () => {
     it('should trigger onInit callback', () => {
       const onInit = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750} callbacks={{ onReady: onInit }}>
+        <Cineview ref={ref} designWidth={750} callbacks={{ onReady: onInit }}>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       // React StrictMode may cause double rendering in development
@@ -306,12 +306,12 @@ describe('CineView Component', () => {
 
     it('when using callback ref, should still only trigger onReady once and return the same API', () => {
       const onReady = jest.fn();
-      const callbackRef = jest.fn<void, [CineViewRef | null]>();
+      const callbackRef = jest.fn<void, [CineviewRef | null]>();
 
       render(
-        <CineView ref={callbackRef} designWidth={750} callbacks={{ onReady }}>
+        <Cineview ref={callbackRef} designWidth={750} callbacks={{ onReady }}>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       const exposedApi = callbackRef.mock.calls.find(([api]) => api !== null)?.[0];
@@ -322,21 +322,21 @@ describe('CineView Component', () => {
 
     it('toggling performance.monitor should not re-trigger onReady or break ref navigation', async () => {
       const onReady = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { rerender } = render(
-        <CineView ref={ref} designWidth={750} monitor={false} callbacks={{ onReady }}>
+        <Cineview ref={ref} designWidth={750} monitor={false} callbacks={{ onReady }}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(onReady).toHaveBeenCalledTimes(1);
 
       rerender(
-        <CineView ref={ref} designWidth={750} monitor callbacks={{ onReady }}>
+        <Cineview ref={ref} designWidth={750} monitor callbacks={{ onReady }}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(onReady).toHaveBeenCalledTimes(1);
@@ -353,13 +353,13 @@ describe('CineView Component', () => {
 
     it('should trigger onBeforeSceneChange callback', async () => {
       const onBeforeSceneChange = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750} callbacks={{ onSceneEnter: onBeforeSceneChange }}>
+        <Cineview ref={ref} designWidth={750} callbacks={{ onSceneEnter: onBeforeSceneChange }}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -377,13 +377,13 @@ describe('CineView Component', () => {
 
     it('should trigger onAfterSceneChange callback', async () => {
       const onAfterSceneChange = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750} callbacks={{ onSceneLeave: onAfterSceneChange }}>
+        <Cineview ref={ref} designWidth={750} callbacks={{ onSceneLeave: onAfterSceneChange }}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -403,14 +403,14 @@ describe('CineView Component', () => {
 
     it('in drag mode, ref.goToScene supplements onDragEnd once (unifying gesture and programmatic commit)', async () => {
       const onDragEnd = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
+        <Cineview ref={ref} mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -434,14 +434,14 @@ describe('CineView Component', () => {
 
     it('ref.goToScene does not emit onDragEnd for no-op (same index/out of bounds)', async () => {
       const onDragEnd = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       render(
-        <CineView ref={ref} mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
+        <Cineview ref={ref} mode="drag" designWidth={750} callbacks={{ onDragEnd }}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -462,9 +462,9 @@ describe('CineView Component', () => {
       const onLoadProgress = jest.fn();
 
       render(
-        <CineView designWidth={750} callbacks={{ onLoadProgress }}>
+        <Cineview designWidth={750} callbacks={{ onLoadProgress }}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       // onLoadProgress should be called (via useImagePreloader hook)
@@ -475,14 +475,14 @@ describe('CineView Component', () => {
 
   describe('12.3 API Methods', () => {
     it('should implement goToScene method (supports animated parameter)', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -497,13 +497,13 @@ describe('CineView Component', () => {
     });
 
     it('should not expose internal runtime snapshot via ref', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -514,7 +514,7 @@ describe('CineView Component', () => {
     });
 
     it('should implement refreshLayout and preload methods', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
@@ -536,9 +536,9 @@ describe('CineView Component', () => {
       ]);
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene preloadImages={['image1.jpg']}>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -558,7 +558,7 @@ describe('CineView Component', () => {
     });
 
     it('preload(targets) only appends priority images by scene index and sceneId', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const startPreload = jest.fn().mockResolvedValue(undefined);
       const addUrls = jest.fn();
 
@@ -581,7 +581,7 @@ describe('CineView Component', () => {
       ]);
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene sceneId="intro" assets={{ preloadImages: ['intro.jpg'] }}>
             Scene 1
           </MockScene>
@@ -591,7 +591,7 @@ describe('CineView Component', () => {
           <MockScene sceneId="cta" assets={{ preloadImages: ['cta.jpg'] }}>
             Scene 3
           </MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -607,13 +607,13 @@ describe('CineView Component', () => {
     });
 
     it('should implement getCurrentIndex method', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -630,12 +630,12 @@ describe('CineView Component', () => {
     });
 
     it('should implement getPerformanceMetrics method', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -652,14 +652,14 @@ describe('CineView Component', () => {
     });
 
     it('should validate scene index validity', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -685,10 +685,10 @@ describe('CineView Component', () => {
     it('should use WeakMap to store component references', () => {
       // WeakMap is an internal implementation detail, verified by not causing memory leaks
       const { unmount } = render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       // Unmounting component should not cause memory leaks
@@ -697,9 +697,9 @@ describe('CineView Component', () => {
 
     it('should support performanceMode toggle', () => {
       render(
-        <CineView designWidth={750} monitor>
+        <Cineview designWidth={750} monitor>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(performanceMonitor.start).toHaveBeenCalled();
@@ -707,9 +707,9 @@ describe('CineView Component', () => {
 
     it('should clean up performance monitoring on component unmount', () => {
       const { unmount } = render(
-        <CineView designWidth={750} monitor>
+        <Cineview designWidth={750} monitor>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       unmount();
@@ -733,9 +733,9 @@ describe('CineView Component', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <div>Not a Scene</div>
-        </CineView>
+        </Cineview>
       );
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -753,9 +753,9 @@ describe('CineView Component', () => {
       LegacyNamedScene.displayName = 'Scene';
 
       render(
-        <CineView mode="drag" designWidth={750}>
+        <Cineview mode="drag" designWidth={750}>
           <LegacyNamedScene>Legacy Scene</LegacyNamedScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('displayName="Scene"'));
@@ -772,9 +772,9 @@ describe('CineView Component', () => {
       LegacyNamedScene.displayName = 'Scene';
 
       render(
-        <CineView mode="scroll" designWidth={750}>
+        <Cineview mode="scroll" designWidth={750}>
           <LegacyNamedScene>Legacy Scene</LegacyNamedScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -789,9 +789,9 @@ describe('CineView Component', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       render(
-        <CineView designWidth={0}>
+        <Cineview designWidth={0}>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid designWidth'));
@@ -801,9 +801,9 @@ describe('CineView Component', () => {
 
     it('should provide performance debugging mode', () => {
       render(
-        <CineView designWidth={750} monitor>
+        <Cineview designWidth={750} monitor>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       expect(performanceMonitor.start).toHaveBeenCalled();
@@ -812,14 +812,14 @@ describe('CineView Component', () => {
 
   describe('Virtualized Rendering Edge Cases', () => {
     it('when current scene index is 0, should only render scenes 0 and 1', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       const { container } = render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -832,14 +832,14 @@ describe('CineView Component', () => {
     });
 
     it('when current scene index is the last one, should only render the last scene and second-to-last scene', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       const { container } = render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -861,15 +861,15 @@ describe('CineView Component', () => {
     });
 
     it('when current scene index is in the middle, should render current scene and one scene before and after', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       const { container } = render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene>Scene 1</MockScene>
           <MockScene>Scene 2</MockScene>
           <MockScene>Scene 3</MockScene>
           <MockScene>Scene 4</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -897,11 +897,11 @@ describe('CineView Component', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
 
       render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene assets={{ preloadImages: ['first1.jpg', 'first2.jpg'] }}>Scene 1</MockScene>
           <MockScene assets={{ preloadImages: ['second1.jpg'] }}>Scene 2</MockScene>
           <MockScene assets={{ preloadImages: ['third1.jpg'] }}>Scene 3</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       const callArgs = useImagePreloader.mock.calls[0][0];
@@ -913,7 +913,7 @@ describe('CineView Component', () => {
       const { useImagePreloader } = require('../../hooks/useImagePreloader');
       const startPreload = jest.fn();
       const addUrls = jest.fn();
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
 
       useImagePreloader.mockImplementation(() => [
         {
@@ -932,12 +932,12 @@ describe('CineView Component', () => {
       ]);
 
       render(
-        <CineView ref={ref} designWidth={750}>
+        <Cineview ref={ref} designWidth={750}>
           <MockScene assets={{ preloadImages: ['scene-1.jpg'] }}>Scene 1</MockScene>
           <MockScene assets={{ preloadImages: ['scene-2.jpg'] }}>Scene 2</MockScene>
           <MockScene assets={{ preloadImages: ['scene-3.jpg'] }}>Scene 3</MockScene>
           <MockScene assets={{ preloadImages: ['scene-4.jpg'] }}>Scene 4</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {
@@ -959,9 +959,9 @@ describe('CineView Component', () => {
 
     it('should render first screen content after initial scene images have loaded', async () => {
       const { container } = render(
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <MockScene>Scene 1</MockScene>
-        </CineView>
+        </Cineview>
       );
 
       await waitFor(() => {

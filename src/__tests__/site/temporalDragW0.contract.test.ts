@@ -62,25 +62,25 @@ function stripCssComments(css: string): string {
 describe('/drag W0 global baseline contract', () => {
   it('uses the framework default time scale without a local override', () => {
     const file = sourceFile(path.join(DRAG_DIR, 'TemporalDragExperience.tsx'));
-    const cineViews: ts.JsxOpeningLikeElement[] = [];
+    const cineviews: ts.JsxOpeningLikeElement[] = [];
 
     walk(file, (node) => {
       if (
         (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
-        jsxTagName(node.tagName) === 'CineView'
+        jsxTagName(node.tagName) === 'Cineview'
       ) {
-        cineViews.push(node);
+        cineviews.push(node);
       }
     });
 
-    expect(cineViews).toHaveLength(1);
+    expect(cineviews).toHaveLength(1);
     const attributes = new Map(
-      cineViews[0].attributes.properties
+      cineviews[0].attributes.properties
         .filter(ts.isJsxAttribute)
         .map((attribute) => [jsxAttributeName(attribute.name), attribute])
     );
-    expect(stringAttribute(cineViews[0].attributes, 'direction')).toBe('y');
-    expect(stringAttribute(cineViews[0].attributes, 'unit')).toBe('time');
+    expect(stringAttribute(cineviews[0].attributes, 'direction')).toBe('y');
+    expect(stringAttribute(cineviews[0].attributes, 'unit')).toBe('time');
     const transitionDuration = attributes.get('transitionDuration');
     expect(transitionDuration).toBeDefined();
     expect(attributes.has('scale')).toBe(false);

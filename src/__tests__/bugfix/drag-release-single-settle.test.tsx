@@ -15,8 +15,8 @@
 import React, { act, createRef } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 type PendingAnimation = {
   stop: () => void;
@@ -160,10 +160,10 @@ jest.mock('framer-motion', () => {
 }));
 
 function renderDragApp(onSceneLeave: jest.Mock) {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={800}
@@ -192,9 +192,9 @@ function renderDragApp(onSceneLeave: jest.Mock) {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return cineViewRef;
+  return cineviewRef;
 }
 
 async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
@@ -218,9 +218,9 @@ describe('drag release single settle (no double animation)', () => {
 
   it('commits at 100% after a partial release and fires onSceneLeave exactly once with no second settle pass', async () => {
     const onSceneLeave = jest.fn();
-    const cineViewRef = renderDragApp(onSceneLeave);
+    const cineviewRef = renderDragApp(onSceneLeave);
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -232,7 +232,7 @@ describe('drag release single settle (no double animation)', () => {
     await flushPendingObjectAnimations();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // Single-settle contract: the change callback fires immediately at commit

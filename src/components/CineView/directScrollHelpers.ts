@@ -2,7 +2,7 @@ import { isValidElement } from 'react';
 import type React from 'react';
 import type {
   AnimationType,
-  CineViewBaseProps,
+  CineviewBaseProps,
   ScrollTimelineState,
   SceneProps,
 } from '../../types';
@@ -336,7 +336,7 @@ export function isLegacyDisplayNameSceneElement(node: React.ReactNode): boolean 
 const warnedInvalidDesignSizes = new Set<unknown>();
 
 export function resolveDesignDimensions(
-  designWidth: CineViewBaseProps['designWidth'] | undefined
+  designWidth: CineviewBaseProps['designWidth'] | undefined
 ): { designSize: number } {
   const rawSize = designWidth;
   if (typeof rawSize === 'number' && Number.isFinite(rawSize) && rawSize > 0) {
@@ -347,7 +347,7 @@ export function resolveDesignDimensions(
     if (!warnedInvalidDesignSizes.has(rawSize)) {
       warnedInvalidDesignSizes.add(rawSize);
       console.error(
-        `[CineView] Invalid designWidth. It must be a finite positive number; received ${String(
+        `[Cineview] Invalid designWidth. It must be a finite positive number; received ${String(
           rawSize
         )}. Falling back to the default design width 750.`
       );

@@ -18,7 +18,7 @@ Container scales numeric dimensions and supported style lengths by `viewportWidt
 
 The forwarded `ref` points to the root div.
 
-Container only works under `<CineView>`: conversion depends on the context. Rendering it outside CineView throws in development builds.
+Container only works under `<Cineview>`: conversion depends on the context. Rendering it outside Cineview throws in development builds.
 
 ## Conversion behavior
 

@@ -3,7 +3,7 @@ title: 回调
 eyebrow: ADVANCED / CALLBACKS
 ---
 
-CineView 接收扁平的 `callbacks` 对象，TypeScript 按 `mode` 检查可用字段。两种模式都支持公共回调，drag 与 scroll 事件仅在对应模式可用。
+Cineview 接收扁平的 `callbacks` 对象，TypeScript 按 `mode` 检查可用字段。两种模式都支持公共回调，drag 与 scroll 事件仅在对应模式可用。
 
 ## 回调速查
 
@@ -11,11 +11,11 @@ CineView 接收扁平的 `callbacks` 对象，TypeScript 按 `mode` 检查可用
 
 | 回调             | detail / 参数                        | 说明                                       |
 | ---------------- | ------------------------------------ | ------------------------------------------ |
-| `onReady`        | `api: CineViewRef`                   | 挂载后 ref API 可用，不等待资源            |
+| `onReady`        | `api: CineviewRef`                   | 挂载后 ref API 可用，不等待资源            |
 | `onLoadProgress` | `progress: number`                   | 队列请求完成比例，整数 0–100，包含失败请求 |
 | `onSceneEnter`   | `{ fromIndex, toIndex, direction? }` | 场景切换通知，手势切换在提交时通知         |
 | `onSceneLeave`   | `{ fromIndex, toIndex, direction? }` | 场景切换的后续通知，不代表子动画已完成     |
-| `onError`        | `CineViewErrorDetail`                | 错误统一出口，见「onError 与错误码」小节   |
+| `onError`        | `CineviewErrorDetail`                | 错误统一出口，见「onError 与错误码」小节   |
 
 `direction` 为 `'forward'`、`'backward'` 或 `null`。手势与程序化导航的时机见 [drag 回调](/docs/05-callbacks)。
 
@@ -45,9 +45,9 @@ scroll 专属：
 示例中的回调不属于 drag 模式，因此产生类型错误：
 
 ```tsx
-<CineView mode="drag" callbacks={{ onZoneProgress: () => {} }}>
+<Cineview mode="drag" callbacks={{ onZoneProgress: () => {} }}>
   <Scene sceneId="example">内容</Scene>
-</CineView>
+</Cineview>
 ```
 
 先将回调对象保存到变量，也会受到同一检查。
@@ -55,7 +55,7 @@ scroll 专属：
 按模式正确拆开的写法：
 
 ```tsx
-<CineView
+<Cineview
   mode="scroll"
   callbacks={{
     onReady: (api) => api.preload(['intro']),
@@ -65,16 +65,16 @@ scroll 专属：
   <Scene sceneId="intro" assets={{ preloadImages: ['/intro.jpg'] }}>
     内容
   </Scene>
-</CineView>
+</Cineview>
 ```
 
 ## onError 与错误码
 
-`CineViewErrorDetail` 包含 `code`、`message` 及可选的 `context` 和 `preventDefault`。switch 需要穷尽处理时，可加入 `never` 检查。
+`CineviewErrorDetail` 包含 `code`、`message` 及可选的 `context` 和 `preventDefault`。switch 需要穷尽处理时，可加入 `never` 检查。
 
 | code                          | 含义                                    | 可恢复性       |
 | ----------------------------- | --------------------------------------- | -------------- |
-| `EMPTY_SCENES`                | CineView 没有 Scene，或 Scene 没有内容  | 添加内容       |
+| `EMPTY_SCENES`                | Cineview 没有 Scene，或 Scene 没有内容  | 添加内容       |
 | `IMAGE_LOAD_FAILED`           | drag 模式的队列资源失败                 | 处理资源错误   |
 | `FIRST_SCENE_TIMEOUT`         | 初始优先资源等待超时                    | 可控制默认处理 |
 | `INVALID_ANIMATION`           | 依赖缺失或不兼容，或不支持手动控制      | 修正报告的配置 |
@@ -86,9 +86,9 @@ scroll 专属：
 `FIRST_SCENE_TIMEOUT` 提供 `preventDefault`。应用提供其他等待或重试界面时才调用它；否则默认将首场景显示为完成态。
 
 ```tsx
-import type { CineViewErrorDetail } from 'cineview';
+import type { CineviewErrorDetail } from 'cineview';
 
-export function handleError(detail: CineViewErrorDetail) {
+export function handleError(detail: CineviewErrorDetail) {
   if (detail.code === 'FIRST_SCENE_TIMEOUT') {
     // 保留默认显示行为，并报告超时。
     console.warn(detail.message);

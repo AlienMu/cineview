@@ -7,7 +7,7 @@ Drag supports pointer gestures and keyboard navigation. Velocity and displacemen
 
 ## Pointer and keyboard input
 
-Focus the CineView container to use ArrowUp/ArrowDown in vertical mode, ArrowLeft/ArrowRight in horizontal mode, PageUp/PageDown, Home, and End. Controls inside the Scene keep their own keys. Mouse-wheel paging is not provided. Use `ref.goToScene(index, animated?)` for programmatic navigation.
+Focus the Cineview container to use ArrowUp/ArrowDown in vertical mode, ArrowLeft/ArrowRight in horizontal mode, PageUp/PageDown, Home, and End. Controls inside the Scene keep their own keys. Mouse-wheel paging is not provided. Use `ref.goToScene(index, animated?)` for programmatic navigation.
 
 `touch-action` on the scene is fixed per direction, releasing the cross axis and claiming the drag axis:
 
@@ -16,7 +16,7 @@ Focus the CineView container to use ArrowUp/ArrowDown in vertical mode, ArrowLef
 | `'y'` (default) | `pan-x pinch-zoom` |
 | `'x'`           | `pan-y pinch-zoom` |
 
-Scene touch handling reserves the drag axis and permits gestures on the other axis. An inner control can opt out of CineView's gesture handling, but that does not change an ancestor's CSS `touch-action` restrictions.
+Scene touch handling reserves the drag axis and permits gestures on the other axis. An inner control can opt out of Cineview's gesture handling, but that does not change an ancestor's CSS `touch-action` restrictions.
 
 ## The four pointerdown checks
 
@@ -71,7 +71,7 @@ Three engine constants are not part of `threshold`:
 
 - Direction-reversal veto at 600 px/s: if the displacement qualifies but the finger is flicking back quickly, the commit is vetoed.
 - Boundary bounce is a fixed 150 ms: that value applies at the first screen going back or the last screen going forward, whatever the drag distance. The ordinary bounce instead scales with displacement (ratio × 800, capped at 300 ms).
-- **A standalone Scene outside CineView uses a fixed threshold of 0.5**, and `threshold` config is ignored entirely in that case.
+- **A standalone Scene outside Cineview uses a fixed threshold of 0.5**, and `threshold` config is ignored entirely in that case.
 
 Gesture progress uses the executing window's `innerHeight` or `innerWidth`. A container that is smaller than that window can therefore require more movement than its own size suggests.
 
@@ -101,4 +101,4 @@ Setting `enabled: false` on Scene 3 prevents adjacent scenes from dragging into 
 - [Drag layout contract](/docs/01-layout): size defaults and engine-level fixed styles
 - [Starting and resuming a drag](/docs/04-ownership): starting and resuming a gesture
 - [Drag callback timing](/docs/05-callbacks): which callbacks fire, and when
-- [CineView](/docs/01-cineview): the full drag-mode props table
+- [Cineview](/docs/01-cineview): the full drag-mode props table

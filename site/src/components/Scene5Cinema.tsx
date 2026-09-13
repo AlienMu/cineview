@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { MoveVertical } from 'lucide-react';
 import { Animate, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
 import { PhoneMockup } from './PhoneMockup';
@@ -227,6 +227,7 @@ export function Scene5Cinema(): import('react').JSX.Element {
   const [interactive, setInteractive] = useState(false);
   /** Latest value mirror of zone progress (for reading current progress when message handler arrives). */
   const progressRef = useRef(0);
+  const previousLanguage = useRef(lang);
   const textColRef = useRef<HTMLDivElement>(null);
   /**
    * Scene5's discrete lifecycle has only one owner. Messages, progress, and
@@ -360,6 +361,26 @@ export function Scene5Cinema(): import('react').JSX.Element {
   const closingReplayKey = lifecycle.replayKey;
 
   useLayoutEffect(() => {
+    if (previousLanguage.current === lang) return;
+    previousLanguage.current = lang;
+    if (progressRef.current < CREATE_AT || lifecycleRef.current.visibility !== 'visible') return;
+    const remainingDistance = (1 - progressRef.current) * TOTAL_MS;
+    const scrollRoot = rootRef.current?.closest<HTMLElement>('[data-cineview-container]');
+    if (!scrollRoot) return;
+    // Translated sections can change height. Restore the final scene's progress after
+    // the framework's scheduled layout measurement, preserving the embedded document.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        scrollRoot.scrollTo({
+          top: scrollRoot.scrollHeight - scrollRoot.clientHeight - remainingDistance,
+          behavior: 'instant',
+        });
+      });
+    });
+    return (): void => cancelAnimationFrame(frame);
+  }, [lang]);
+
+  useLayoutEffect(() => {
     // `inert` covers future focusable descendants; explicit tabIndex on current links below also
     // closes the pre-layout-effect commit window and works in older engines without inert support.
     const textColumn = textColRef.current;
@@ -428,7 +449,12 @@ export function Scene5Cinema(): import('react').JSX.Element {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data === 'cineview-embed-ready') {
         embedReadyRef.current = true;
+        liveRef.current = false;
         if (stageRef.current === 'revealed') sendActivate();
+        return;
+      }
+      if (event.data === 'cineview-embed-drag-start') {
+        dispatchLifecycle({ type: 'drag-start' });
         return;
       }
       /* Fourth message (2026-08-06): child page reached final scene and commit completed ⇒ enter split state:
@@ -551,6 +577,22 @@ export function Scene5Cinema(): import('react').JSX.Element {
       <div className="scene5-cinema__stage">
         <div className={`scene5-cinema__phone-slot${split ? ' is-split' : ''}`}>
           <div className="scene5-cinema__phone-col">
+            <div className="scene5-cinema__hint-slot" aria-hidden="true">
+              <Animate
+                animateId="cinema-drag-hint"
+                enterAnimation="fade-in"
+                duration={{ enter: 480 }}
+                timeline={{ phase: { start: CREATE_AT, end: REVEAL_AT } }}
+              >
+                <div
+                  className="scene5-cinema__drag-hint"
+                  data-dismissed={lifecycle.dragHintDismissed || split}
+                >
+                  <MoveVertical size={28} strokeWidth={1.5} />
+                  <span>{t('scene5.dragHint')}</span>
+                </div>
+              </Animate>
+            </div>
             <Animate
               animateId="cinema-phone"
               enterAnimation={phoneVariant()}
@@ -622,18 +664,20 @@ export function Scene5Cinema(): import('react').JSX.Element {
                   <div className="scene5-cinema__cta">
                     <p className="scene5-cinema__cta-lead">{t('cta.title')}</p>
                     <div className="scene5-cinema__cta-buttons">
-                      <Link
+                      <a
                         className="scene5-cinema__btn scene5-cinema__btn--primary"
-                        to="/docs/03-quickstart"
+                        href="/docs/03-quickstart"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         tabIndex={scene5TabIndex(split)}
                       >
                         {t('cta.start')}
-                      </Link>
+                      </a>
                       <a
                         className="scene5-cinema__btn scene5-cinema__btn--ghost"
                         href={GITHUB_URL}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         tabIndex={scene5TabIndex(split)}
                       >
                         {t('cta.github')}
@@ -653,9 +697,14 @@ export function Scene5Cinema(): import('react').JSX.Element {
                   <div className="scene5-cinema__footer" aria-hidden={!split}>
                     <span className="scene5-cinema__footer-tagline">{t('footer.tagline')}</span>
                     <nav className="scene5-cinema__footer-links" aria-label={t('footer.tagline')}>
-                      <Link to="/docs" tabIndex={scene5TabIndex(split)}>
+                      <a
+                        href="/docs"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        tabIndex={scene5TabIndex(split)}
+                      >
                         {t('footer.docs')}
-                      </Link>
+                      </a>
                       <span className="scene5-cinema__footer-sep" aria-hidden="true" />
                       <span>{t('footer.license')}</span>
                     </nav>

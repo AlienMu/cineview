@@ -26,7 +26,7 @@ export function ExperienceHub(): import('react').JSX.Element {
             marginBottom: 22,
           }}
         >
-          CineView example / two authored motion studies
+          Cineview example / two authored motion studies
         </div>
         <h1 style={{ margin: 0, fontSize: 80, lineHeight: 0.94, fontWeight: 600 }}>Orbit S1</h1>
         <p

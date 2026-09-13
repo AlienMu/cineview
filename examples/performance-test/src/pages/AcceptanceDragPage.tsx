@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Animate, AnimateVideo, CineView, Scene, useAnimateTimeline } from 'cineview';
+import { Animate, AnimateVideo, Cineview, Scene, useAnimateTimeline } from 'cineview';
 
 interface AcceptanceCounts {
   starts: number;
@@ -82,7 +82,7 @@ export default function AcceptanceDragPage(): import('react').JSX.Element {
       data-authored-scenes="3"
       style={{ height: '100vh', overflow: 'hidden' }}
     >
-      <CineView
+      <Cineview
         callbacks={{
           onDragStart: () => increment('starts'),
           onDragBlocked: () => increment('blocked'),
@@ -136,7 +136,7 @@ export default function AcceptanceDragPage(): import('react').JSX.Element {
             </div>
           </Scene>
         ))}
-      </CineView>
+      </Cineview>
     </main>
   );
 }

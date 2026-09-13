@@ -25,7 +25,7 @@ import type {
 } from 'react';
 import type { MotionValue } from 'framer-motion';
 import type { AnimateTimelineFrame } from '../types';
-import { useCineViewContext } from '../context/CineViewContext';
+import { useCineviewContext } from '../context/CineviewContext';
 import { convertStyle } from '../utils/styleConvert';
 import {
   acquireVideoObjectUrl,
@@ -134,7 +134,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
     },
     forwardedRef
   ): React.JSX.Element {
-    const context = useCineViewContext();
+    const context = useCineviewContext();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [objectUrlState, setObjectUrlState] = useState<{ src: string; url: string | null }>(
       () => ({

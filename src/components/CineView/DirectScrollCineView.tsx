@@ -7,7 +7,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
@@ -15,10 +15,10 @@ import { acquirePerformanceMonitoring, performanceMonitor } from '../../utils/pe
 import { getScenePreloadImages, resolveScenePreloadTargetImages } from './preloadTargets';
 import { devError } from '../../utils/devLog';
 import type {
-  CineViewErrorCode,
-  CineViewPreloadTarget,
-  CineViewRef,
-  CineViewScrollModeProps,
+  CineviewErrorCode,
+  CineviewPreloadTarget,
+  CineviewRef,
+  CineviewScrollModeProps,
   PerformanceMetrics,
   ScrollModeConfig,
 } from '../../types';
@@ -51,9 +51,9 @@ import {
 import { SceneScrollRuntimeContext, SceneScrollTimelineContext } from '../Scene/sceneScrollRuntime';
 
 // mode is redundant on DirectScrollCineView (it is always the scroll root); tests/internal calls may omit it.
-type DirectScrollCineViewProps = Omit<CineViewScrollModeProps, 'mode'> & { mode?: 'scroll' };
+type DirectScrollCineViewProps = Omit<CineviewScrollModeProps, 'mode'> & { mode?: 'scroll' };
 
-export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineViewProps>(
+export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineViewProps>(
   function DirectScrollCineView(
     {
       children,
@@ -185,7 +185,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
       totalCount: preloadState.totalCount,
     };
     const emitRecoverableError = useCallback(
-      (code: CineViewErrorCode, message: string, context?: Record<string, unknown>): boolean => {
+      (code: CineviewErrorCode, message: string, context?: Record<string, unknown>): boolean => {
         let defaultPrevented = false;
         resolvedCallbacks.common?.onError?.({
           code,
@@ -210,7 +210,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
         });
         if (process.env.NODE_ENV !== 'production') {
           console.warn(
-            '[CineView] EMPTY_SCENES: the scroll root has no Scene children; nothing will render.'
+            '[Cineview] EMPTY_SCENES: the scroll root has no Scene children; nothing will render.'
           );
         }
       }
@@ -251,7 +251,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
       getPreloadCounts,
     });
     const resolvedTargetPreloadImages = useCallback(
-      (targets?: CineViewPreloadTarget[]): string[] =>
+      (targets?: CineviewPreloadTarget[]): string[] =>
         resolveScenePreloadTargetImages(scenes, targets, { includeZoneIds: true }),
       [scenes]
     );
@@ -387,18 +387,18 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
       }
 
       console.warn(
-        '[CineView] A child component uses displayName="Scene" but is not the exported CineView Scene. Scene discovery now uses the internal cineViewScene marker; import { Scene } from "cineview" or wrap the exported Scene instead of spoofing displayName.'
+        '[Cineview] A child component uses displayName="Scene" but is not the exported CineView Scene. Scene discovery now uses the internal cineViewScene marker; import { Scene } from "cineview" or wrap the exported Scene instead of spoofing displayName.'
       );
     }, [hasLegacyDisplayNameScene]);
 
     const getRuntimeApi = useCallback(
-      (): CineViewRef => ({
+      (): CineviewRef => ({
         goToScene: (index: number, animated = true): void => {
           if (index < 0 || index >= scenes.length) {
             // Mirror the drag side (useSceneManager) instead of a silent no-op.
             if (process.env.NODE_ENV !== 'production') {
               console.warn(
-                `[CineView] Invalid scene index: ${index}. Must be between 0 and ${scenes.length - 1}`
+                `[Cineview] Invalid scene index: ${index}. Must be between 0 and ${scenes.length - 1}`
               );
             }
             return;
@@ -430,7 +430,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
           measureSceneLayouts();
           syncNativeScrollState();
         },
-        preload: async (targets?: CineViewPreloadTarget[]): Promise<void> => {
+        preload: async (targets?: CineviewPreloadTarget[]): Promise<void> => {
           const targetImages = resolvedTargetPreloadImages(targets);
           if (targetImages.length > 0) {
             preloadActions.addUrls(targetImages, true);
@@ -496,7 +496,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
         reportError: (detail): void => {
           resolvedCallbacks.common?.onError?.({
             ...detail,
-            code: detail.code as CineViewErrorCode,
+            code: detail.code as CineviewErrorCode,
           });
         },
       }),
@@ -504,7 +504,7 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
     );
 
     return (
-      <CineViewProvider designSize={designSize}>
+      <CineviewProvider designSize={designSize}>
         <CineViewRuntimeContext.Provider value={runtimeContextValue}>
           <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
             <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
@@ -608,9 +608,11 @@ export const DirectScrollCineView = forwardRef<CineViewRef, DirectScrollCineView
             </SceneScrollTimelineContext.Provider>
           </SceneScrollRuntimeContext.Provider>
         </CineViewRuntimeContext.Provider>
-      </CineViewProvider>
+      </CineviewProvider>
     );
   }
 );
 
-DirectScrollCineView.displayName = 'DirectScrollCineView';
+DirectScrollCineView.displayName = 'DirectScrollCineview';
+
+export const DirectScrollCineview = DirectScrollCineView;

@@ -6,7 +6,7 @@ eyebrow: ADVANCED / TYPES
 共享类型从 `cineview` 导入，各组件页面说明自身 props。本页列出跨组件与回调使用的类型。
 
 ```tsx
-import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
+import type { SlideDirection, CineviewRef, CineviewErrorCode } from 'cineview';
 ```
 
 ## 基础枚举
@@ -33,11 +33,11 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 
 ## 错误码
 
-`CineViewErrorCode` 包含八个字符串值。switch 需要处理每个值时，可加入 `never` 检查。
+`CineviewErrorCode` 包含八个字符串值。switch 需要处理每个值时，可加入 `never` 检查。
 
 | 错误码                        | 触发条件                                                                      |
 | ----------------------------- | ----------------------------------------------------------------------------- |
-| `EMPTY_SCENES`                | CineView 没有 Scene，或 Scene 没有内容。                                      |
+| `EMPTY_SCENES`                | Cineview 没有 Scene，或 Scene 没有内容。                                      |
 | `IMAGE_LOAD_FAILED`           | drag 模式的队列资源加载失败。                                                 |
 | `FIRST_SCENE_TIMEOUT`         | 初始优先资源等待超时。应用提供自己的处理方式时，再调用 `preventDefault?.()`。 |
 | `INVALID_ANIMATION`           | 依赖缺失、不兼容，或不支持手动控制。                                          |
@@ -46,15 +46,15 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 | `INVALID_DRAG_CONFIG`         | drag 的 unit / scale / enabled 配置非法。可恢复。                             |
 | `ANIMATION_ASSET_LOAD_FAILED` | 动画预设资源加载失败。可重试。                                                |
 
-payload 类型是 `CineViewErrorDetail = { code, message, context?, preventDefault? }`；`preventDefault` 只在可恢复错误上存在。处理模式见[回调速查](/docs/03-callbacks)。
+payload 类型是 `CineviewErrorDetail = { code, message, context?, preventDefault? }`；`preventDefault` 只在可恢复错误上存在。处理模式见[回调速查](/docs/03-callbacks)。
 
 ## Ref 与预加载目标
 
 | 类型                    | 定义                                                                                                                                                                      |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CineViewRef`           | 五个必填方法（`goToScene` / `refreshLayout` / `preload` / `getCurrentIndex` / `getPerformanceMetrics`）+ scroll 专属可选的 `goToZone`。见 [CineView](/docs/01-cineview)。 |
-| `CineViewScrollRef`     | `CineViewRef` 的 scroll 视图，`goToZone` 必填。                                                                                                                           |
-| `CineViewPreloadTarget` | `number`（场景索引）`\| string`（sceneId；scroll 下也可匹配 zoneId）。                                                                                                    |
+| `CineviewRef`           | 五个必填方法（`goToScene` / `refreshLayout` / `preload` / `getCurrentIndex` / `getPerformanceMetrics`）+ scroll 专属可选的 `goToZone`。见 [Cineview](/docs/01-cineview)。 |
+| `CineviewScrollRef`     | `CineviewRef` 的 scroll 视图，`goToZone` 必填。                                                                                                                           |
+| `CineviewPreloadTarget` | `number`（场景索引）`\| string`（sceneId；scroll 下也可匹配 zoneId）。                                                                                                    |
 | `PerformanceMetrics`    | `{ fps, avgFrameTime, memoryUsage?, bundleSize }`；`avgFrameTime` 单位 ms，`bundleSize` 单位 KB，`memoryUsage` 单位 MB。                                                  |
 
 ## 回调 Detail 类型
@@ -69,7 +69,7 @@ payload 类型是 `CineViewErrorDetail = { code, message, context?, preventDefau
 | `ZoneDetail`            | onZoneEnter / onZoneLeave                                      | `zoneId`、`sceneIndex`                                                  |
 | `ZoneProgressDetail`    | onZoneProgress                                                 | `ZoneDetail` + `progress: number`                                       |
 | `SceneVisibilityDetail` | onSceneVisibilityChange / `Scene.callbacks.onVisibilityChange` | `sceneIndex?`、`visible`、`progress`                                    |
-| `CineViewErrorDetail`   | onError                                                        | 见「错误码」小节                                                        |
+| `CineviewErrorDetail`   | onError                                                        | 见「错误码」小节                                                        |
 
 ## 组件 Props 类型
 

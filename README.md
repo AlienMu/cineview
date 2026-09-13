@@ -1,4 +1,4 @@
-# CineView
+# Cineview
 
 [简体中文](./README.zh-CN.md)
 
@@ -7,9 +7,9 @@
 [![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
 [![MIT license](https://img.shields.io/npm/l/cineview?style=flat-square)](./LICENSE)
 
-CineView is a React framework for building interactive product showcases, full-screen presentations, and scroll-driven pages. It combines scene navigation, animation sequencing, responsive positioning, and media playback in a component-based API.
+Cineview is a React framework for building interactive product showcases, full-screen presentations, and scroll-driven pages. It combines scene navigation, animation sequencing, responsive positioning, and media playback in a component-based API.
 
-A page is composed of `Scene` components. Each scene contains ordinary React content and declares its layout and animations. CineView connects those scenes to drag or scroll input, so page navigation and the animations within each scene work together.
+A page is composed of `Scene` components. Each scene contains ordinary React content and declares its layout and animations. Cineview connects those scenes to drag or scroll input, so page navigation and the animations within each scene work together.
 
 [Website](https://cineview.pages.dev) · [Documentation](https://cineview.pages.dev/docs) · [Drag demo](https://cineview.pages.dev/drag) · [npm](https://www.npmjs.com/package/cineview)
 
@@ -19,7 +19,7 @@ A page is composed of `Scene` components. Each scene contains ordinary React con
 - Full-screen presentations and portfolios with vertical or horizontal drag navigation.
 - Editorial pages that combine normal reading flow with illustrations and video controlled by scrolling.
 
-CineView uses Framer Motion for animation and works with existing React components, CSS layouts, and custom graphics. Page structure and visual design remain part of the application.
+Cineview uses Framer Motion for animation and works with existing React components, CSS layouts, and custom graphics. Page structure and visual design remain part of the application.
 
 ## Core capabilities
 
@@ -28,11 +28,13 @@ CineView uses Framer Motion for animation and works with existing React componen
 - **Responsive positioning.** Combine CSS layouts with `Position` and `Container` for design-coordinate placement. `designWidth` scales numeric design lengths with viewport width, while CSS units and breakpoints remain available for layouts that reflow.
 - **Images and video.** Declare images for preloading and reuse the shared image cache. `AnimateVideo` connects video frames to animation progress or supports normal playback within a scene.
 - **Custom rendering.** `useAnimateTimeline` exposes progress as MotionValues for custom DOM, SVG, and Canvas components. Continuous updates can run without putting each frame into React state.
-- **Application controls.** Navigate through a ref, respond to scene and animation callbacks, and refresh layout after content changes. Optional tools in `cineview/dev` provide a performance panel and a metrics hook.
+- **Application controls.** Navigate through a ref, respond to scene and animation callbacks, and refresh layout after content changes. Set `<Cineview debug>` to display the performance panel in either mode. Tools in `cineview/dev` support custom performance displays.
 
 ## Installation
 
-In a React 19 application, install CineView and Framer Motion 13:
+The examples in this checkout use the unreleased `Cineview` export and built-in `debug` panel. See the [unreleased changes](./CHANGELOG.md#unreleased); npm 1.0.0 still exposes the previous API.
+
+In a React 19 application, install Cineview and Framer Motion 13:
 
 ```bash
 npm install cineview framer-motion@13
@@ -44,7 +46,7 @@ With pnpm:
 pnpm add cineview framer-motion@13
 ```
 
-CineView 1.0.0 requires React `^19.0.0`, React DOM `^19.0.0`, and Framer Motion `^13.0.0`. The main package includes TypeScript declarations and supports ESM and CommonJS. See the [installation guide](https://cineview.pages.dev/docs/02-installation) for package entry points and development tools.
+Cineview 1.0.0 requires React `^19.0.0`, React DOM `^19.0.0`, and Framer Motion `^13.0.0`. The main package includes TypeScript declarations and supports ESM and CommonJS. See the [installation guide](https://cineview.pages.dev/docs/02-installation) for package entry points and development tools.
 
 ## Quick start
 
@@ -56,7 +58,7 @@ This page presents two full-screen scenes. The first scene reveals a heading fol
 
 ```tsx
 import type { CSSProperties } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 const panel: CSSProperties = {
   boxSizing: 'border-box',
@@ -69,7 +71,7 @@ const panel: CSSProperties = {
 
 export default function App() {
   return (
-    <CineView mode="drag" designWidth={750} a11y={{ label: 'Product introduction' }}>
+    <Cineview mode="drag" designWidth={750} a11y={{ label: 'Product introduction' }}>
       <Scene sceneId="introduction">
         <div style={{ ...panel, background: '#f7f2ec' }}>
           <Animate animateId="heading" enterAnimation="fade-in" duration={{ enter: 600 }}>
@@ -92,12 +94,12 @@ export default function App() {
           </Animate>
         </div>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```
 
-`CineView` controls navigation, `Scene` defines each section, and `Animate` defines an element's animation. `timeline.after` connects the description to the heading's entrance. Drag vertically to navigate; use `direction="x"` for a horizontal presentation. Keyboard navigation is available when the CineView container is focused.
+`Cineview` controls navigation, `Scene` defines each section, and `Animate` defines an element's animation. `timeline.after` connects the description to the heading's entrance. Drag vertically to navigate; use `direction="x"` for a horizontal presentation. Keyboard navigation is available when the Cineview container is focused.
 
 ### Follow scroll progress
 
@@ -105,7 +107,7 @@ Scroll mode keeps content in document flow. A scene with `scroll` holds its posi
 
 ```tsx
 import type { CSSProperties } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 const panel: CSSProperties = {
   boxSizing: 'border-box',
@@ -118,7 +120,7 @@ const panel: CSSProperties = {
 
 export default function App() {
   return (
-    <CineView mode="scroll" designWidth={750}>
+    <Cineview mode="scroll" designWidth={750}>
       <Scene sceneId="introduction" layout={{ height: '100vh' }}>
         <div style={panel}>
           <h1>Every detail has a story</h1>
@@ -149,7 +151,7 @@ export default function App() {
           <h2>Continue exploring</h2>
         </div>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```
@@ -162,7 +164,7 @@ Scenes without `scroll` can still contain animations triggered by visibility. Th
 
 | Topic                                      | Guide                                                                                                                                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Page structure and navigation              | [CineView](https://cineview.pages.dev/docs/01-cineview) and [Scene](https://cineview.pages.dev/docs/02-scene)                                                                              |
+| Page structure and navigation              | [Cineview](https://cineview.pages.dev/docs/01-cineview) and [Scene](https://cineview.pages.dev/docs/02-scene)                                                                              |
 | Presets, custom animations, and sequencing | [Animate](https://cineview.pages.dev/docs/03-animate) and [Timelines](https://cineview.pages.dev/docs/02-timeline)                                                                         |
 | Layout and design coordinates              | [Responsive layout](https://cineview.pages.dev/docs/05-responsive), [Position](https://cineview.pages.dev/docs/05-position), and [Container](https://cineview.pages.dev/docs/07-container) |
 | Loading images and controlling video       | [Preloading](https://cineview.pages.dev/docs/02-preload) and [AnimateVideo](https://cineview.pages.dev/docs/04-animate-video)                                                              |
@@ -172,11 +174,13 @@ The website includes English and Chinese documentation, a scroll-based homepage,
 
 ## Accessibility
 
-Drag navigation includes keyboard controls, scene-position announcements, and inactive-scene focus handling. CineView also responds to reduced-motion preferences for loops and visibility-triggered animations; animations linked directly to dragging or scrolling continue to follow the input. See the [accessibility configuration](https://cineview.pages.dev/docs/01-cineview) for these behaviors and the page-level labels and focus order an application needs to provide.
+Drag navigation includes keyboard controls, scene-position announcements, and inactive-scene focus handling. Cineview also responds to reduced-motion preferences for loops and visibility-triggered animations; animations linked directly to dragging or scrolling continue to follow the input. See the [accessibility configuration](https://cineview.pages.dev/docs/01-cineview) for these behaviors and the page-level labels and focus order an application needs to provide.
 
 ## Contributing
 
-Development setup, local examples, and validation commands are in [CONTRIBUTING.md](./CONTRIBUTING.md). The [verification record](./VERIFICATION.md) documents test coverage and browser acceptance; framework coverage checks enforce a 90% minimum for statements, branches, functions, and lines.
+Development setup, local examples, and validation commands are in [CONTRIBUTING.md](./CONTRIBUTING.md). Framework coverage checks enforce a 90% minimum for statements, branches, functions, and lines.
+
+The repository keeps source, tests, current documentation, examples, and build scripts. Historical reports, task flows, screenshots, traces, generated results, and local agent tooling remain local and are ignored by Git. `pnpm verify:repository` checks this boundary before commits and in CI.
 
 Report bugs and propose improvements through [GitHub issues](https://github.com/AlienMu/cineview/issues). Release changes are recorded in the [changelog](./CHANGELOG.md).
 

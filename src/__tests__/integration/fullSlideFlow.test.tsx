@@ -7,8 +7,8 @@ import React from 'react';
 import { act } from '@testing-library/react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
@@ -113,10 +113,10 @@ mockIntersectionObserver.mockReturnValue({
 window.IntersectionObserver = mockIntersectionObserver as unknown as typeof IntersectionObserver;
 
 describe('Full slide flow integration test', () => {
-  let cineViewRef: React.RefObject<CineViewRef | null>;
+  let cineviewRef: React.RefObject<CineviewRef | null>;
 
   beforeEach(() => {
-    cineViewRef = React.createRef();
+    cineviewRef = React.createRef();
     jest.clearAllMocks();
   });
 
@@ -132,8 +132,8 @@ describe('Full slide flow integration test', () => {
 
     const TestApp = () => {
       return (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -163,7 +163,7 @@ describe('Full slide flow integration test', () => {
                 duration={{ enter: 400 }}
                 timeline={{ after: 'scene1-title' }}
               >
-                <p>欢迎来到 CineView</p>
+                <p>欢迎来到 Cineview</p>
               </Animate>
             </Position>
           </Scene>
@@ -181,7 +181,7 @@ describe('Full slide flow integration test', () => {
               <h1>场景 3</h1>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
@@ -194,12 +194,12 @@ describe('Full slide flow integration test', () => {
     await waitFor(() => {
       expect(screen.getByText('场景 1')).toBeInTheDocument();
     });
-    expect(screen.getByText('欢迎来到 CineView')).toBeInTheDocument();
+    expect(screen.getByText('欢迎来到 Cineview')).toBeInTheDocument();
 
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
 
     await act(async () => {
-      cineViewRef.current?.goToScene(1, true);
+      cineviewRef.current?.goToScene(1, true);
     });
 
     await waitFor(() => {
@@ -217,10 +217,10 @@ describe('Full slide flow integration test', () => {
 
     expect(screen.getByText('场景 2')).toBeInTheDocument();
 
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
 
     await act(async () => {
-      cineViewRef.current?.goToScene(2, true);
+      cineviewRef.current?.goToScene(2, true);
     });
 
     await waitFor(() => {
@@ -237,7 +237,7 @@ describe('Full slide flow integration test', () => {
     );
 
     expect(screen.getByText('场景 3')).toBeInTheDocument();
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(2);
 
     expect(onBeforeSceneChange).toHaveBeenCalledTimes(2);
     expect(onAfterSceneChange).toHaveBeenCalledTimes(2);
@@ -248,8 +248,8 @@ describe('Full slide flow integration test', () => {
 
     const TestApp = () => {
       return (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={800}
@@ -265,7 +265,7 @@ describe('Full slide flow integration test', () => {
           <Scene transition={{ enterAnimation: 'slide-up' }}>
             <h1>拖拽场景 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
@@ -276,12 +276,12 @@ describe('Full slide flow integration test', () => {
     });
 
     await act(async () => {
-      cineViewRef.current?.goToScene(1, false);
+      cineviewRef.current?.goToScene(1, false);
     });
 
     await waitFor(
       () => {
-        expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+        expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
       },
       { timeout: 2000 }
     );
@@ -296,7 +296,7 @@ describe('Full slide flow integration test', () => {
   test('Animation delay chaining mechanism: waitFor chain execution', async () => {
     const TestApp = () => {
       return (
-        <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
+        <Cineview mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene transition={{ enterAnimation: 'fade-in' }}>
             <Animate
               animateId="anim1"
@@ -325,7 +325,7 @@ describe('Full slide flow integration test', () => {
               <div>动画 3</div>
             </Animate>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
@@ -343,13 +343,13 @@ describe('Full slide flow integration test', () => {
   test('Responsive size conversion: window resize triggers recalculation', async () => {
     const TestApp = () => {
       return (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="positioned-element">居中元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
@@ -379,21 +379,21 @@ describe('Full slide flow integration test', () => {
   test('Performance metrics retrieval: getPerformanceMetrics', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
+        <Cineview ref={cineviewRef as React.RefObject<CineviewRef>} designWidth={750}>
           <Scene>
             <h1>性能测试场景</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
     render(<TestApp />);
 
     await waitFor(() => {
-      expect(cineViewRef.current).not.toBeNull();
+      expect(cineviewRef.current).not.toBeNull();
     });
 
-    const metrics = cineViewRef.current?.getPerformanceMetrics();
+    const metrics = cineviewRef.current?.getPerformanceMetrics();
 
     expect(metrics).toBeDefined();
     if (metrics) {
@@ -406,7 +406,7 @@ describe('Full slide flow integration test', () => {
   test('Virtualized rendering: only render current scene plus one before and after', async () => {
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
+        <Cineview ref={cineviewRef as React.RefObject<CineviewRef>} designWidth={750}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
@@ -422,7 +422,7 @@ describe('Full slide flow integration test', () => {
           <Scene>
             <h1>场景 4</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
@@ -433,11 +433,11 @@ describe('Full slide flow integration test', () => {
     expect(screen.queryByText('场景 2')).not.toBeInTheDocument();
 
     act(() => {
-      cineViewRef.current?.goToScene(2, false);
+      cineviewRef.current?.goToScene(2, false);
     });
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(2);
     });
 
     expect(screen.queryByText('场景 0')).not.toBeInTheDocument();
@@ -452,28 +452,28 @@ describe('Full slide flow integration test', () => {
 
     const TestApp = () => {
       return (
-        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
+        <Cineview ref={cineviewRef as React.RefObject<CineviewRef>} designWidth={750}>
           <Scene>
             <h1>场景 0</h1>
           </Scene>
           <Scene>
             <h1>场景 1</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
     };
 
     render(<TestApp />);
 
     await waitFor(() => {
-      expect(cineViewRef.current).not.toBeNull();
+      expect(cineviewRef.current).not.toBeNull();
     });
 
     act(() => {
-      cineViewRef.current?.goToScene(10, false);
+      cineviewRef.current?.goToScene(10, false);
     });
 
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
 
     expect(consoleWarnSpy).toHaveBeenCalled();
 

@@ -1,11 +1,14 @@
-# Contributing to CineView
+# Contributing to Cineview
 
 ## Before You Change Code
 
-Read `DESIGN.md` and create a task-flow entry in `task-flows/`. Record the
+Read `DESIGN.md` and create a local task-flow entry in `task-flows/`. Record the
 behavioral acceptance criteria before editing multiple files. Do not introduce
 a second writer for render progress, element elapsed time, drag release, or
 native scroll offset.
+
+Task flows and review evidence are ignored by Git. They belong to the local
+working copy and are not required to build or test a fresh checkout.
 
 ## Local Checks
 
@@ -74,8 +77,13 @@ See [Releasing](./RELEASING.md) for published artifact records and production br
 Explain the user-visible behavior, ownership impact, and runtime cost of the
 change. Include focused regression tests. Keep formatting, type-checking,
 linting, coverage, duplicate-code, package-build, and failure-injection checks
-green. Do not include generated coverage, browser screenshots, or local build
-artifacts unless the task explicitly requires them.
+green. Keep task flows, historical reports, generated coverage, screenshots,
+traces, local agent tooling, and build outputs out of commits. Reusable checks
+and regression tests remain part of the source repository.
+
+`pnpm verify:repository` rejects tracked files covered by `.gitignore`, including
+files staged with `git add -f`. It runs before commits and in the static CI gate.
+Save new one-off investigation scripts in `review/` or `site/scripts/`.
 
 ## Commit Scope
 

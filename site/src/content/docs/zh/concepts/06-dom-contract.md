@@ -39,7 +39,7 @@ div.cineview-responsive-container        ← 挂 --cineview-unit
 }
 ```
 
-普通 CSS 可通过 `--cineview-unit` 使用 CineView 的响应式比例。包装层是真实的 DOM 元素，编写直接子代选择器时需要包含这一层。
+普通 CSS 可通过 `--cineview-unit` 使用 Cineview 的响应式比例。包装层是真实的 DOM 元素，编写直接子代选择器时需要包含这一层。
 
 ## Scene 必须是直接子节点
 
@@ -47,13 +47,13 @@ div.cineview-responsive-container        ← 挂 --cineview-unit
 
 | 写法                                    | 能否被发现                  |
 | --------------------------------------- | --------------------------- |
-| `<CineView><Scene/><Scene/></CineView>` | 可以                        |
+| `<Cineview><Scene/><Scene/></Cineview>` | 可以                        |
 | `{list.map(s => <Scene key={s.id}/>)}`  | 可以（数组会被 React 展平） |
 | `<><Scene/><Scene/></>`                 | 不行（Fragment 不展平）     |
 | `memo(Scene)` / `forwardRef` 包装       | 可以（沿类型解包至六层）    |
 | `function My() { return <Scene/> }`     | 不行（框架看到的是 `My`）   |
 
-将 Scene 直接声明在 CineView 下。把包装组件的 `displayName` 设为 `Scene` 不会让它被识别。直接 Scene 与不可识别的嵌套 Scene 混用时，可能缺少部分内容而不报空场景错误；只有找不到任何有效 Scene 时才报告 `EMPTY_SCENES`。
+将 Scene 直接声明在 Cineview 下。把包装组件的 `displayName` 设为 `Scene` 不会让它被识别。直接 Scene 与不可识别的嵌套 Scene 混用时，可能缺少部分内容而不报空场景错误；只有找不到任何有效 Scene 时才报告 `EMPTY_SCENES`。
 
 ## 样式层叠与引擎覆盖规则
 
@@ -89,7 +89,7 @@ transform  userSelect  touchAction  zIndex  pointerEvents  + anchor 键
 
 ## 根容器背景色基准差异
 
-drag 默认背景为 `#0d1624`，scroll 为 `#ffffff`。CineView 没有 `className` 或 `style` 属性。外部 `.cineview-container` 样式可用 `!important` 覆盖内联背景，规则应限定到目标实例。
+drag 默认背景为 `#0d1624`，scroll 为 `#ffffff`。Cineview 没有 `className` 或 `style` 属性。外部 `.cineview-container` 样式可用 `!important` 覆盖内联背景，规则应限定到目标实例。
 
 ## 可靠的测试与样式选择器
 

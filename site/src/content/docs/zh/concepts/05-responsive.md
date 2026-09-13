@@ -8,7 +8,7 @@ eyebrow: CONCEPTS / RESPONSIVE
 ## 换算规则
 
 ```tsx
-<CineView designWidth={750}>   // 设计稿宽度 750px
+<Cineview designWidth={750}>   // 设计稿宽度 750px
 ```
 
 - 视窗宽度为 750px 时 scale=1，设计稿 1px 等于屏幕 1px。

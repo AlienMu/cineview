@@ -1,5 +1,5 @@
 /**
- * CineView minimal teaching example.
+ * Cineview minimal teaching example.
  *
  * Living source of truth for the framework README "Minimal Usage" snippet and
  * the getting-started doc page (task-flow 2026-08-23 M3): doc code blocks are
@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 import type { ScrollMode } from 'cineview';
 
 const stage: CSSProperties = {
@@ -56,7 +56,7 @@ export default function App(): import('react').JSX.Element {
           <Animate animateId="kicker" enterAnimation="fade-in" duration={{ enter: 600 }}>
             <p>Scene 01 — {mode} engine</p>
           </Animate>
-          <h1>CineView</h1>
+          <h1>Cineview</h1>
           <p>Drag vertically, or scroll, to move through the story.</p>
         </div>
       </Scene>
@@ -118,13 +118,13 @@ export default function App(): import('react').JSX.Element {
        * config fields and callbacks.
        */}
       {mode === 'drag' ? (
-        <CineView key={mode} designWidth={750} mode="drag">
+        <Cineview key={mode} designWidth={750} mode="drag">
           {scenes}
-        </CineView>
+        </Cineview>
       ) : (
-        <CineView key={mode} designWidth={750} mode="scroll">
+        <Cineview key={mode} designWidth={750} mode="scroll">
           {scenes}
-        </CineView>
+        </Cineview>
       )}
     </>
   );

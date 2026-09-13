@@ -12,7 +12,7 @@
  */
 
 import { forwardRef, useMemo } from 'react';
-import { useCineViewContext } from '../../context/CineViewContext';
+import { useCineviewContext } from '../../context/CineviewContext';
 import { convertStyle } from '../../utils/styleConvert';
 import type { ContainerProps } from '../../types';
 
@@ -20,13 +20,13 @@ export const Container = forwardRef<HTMLDivElement, ContainerProps>(function Con
   { width, height, children, style, className, ...restProps },
   ref
 ) {
-  const context = useCineViewContext();
+  const context = useCineviewContext();
 
   // Development check: must be used within CineView
   if (process.env.NODE_ENV === 'development' && !context) {
     throw new Error(
-      '[CineView] Container must be used within a CineView component. ' +
-        'Please wrap your Container with <CineView>.'
+      '[Cineview] Container must be used within a CineView component. ' +
+        'Please wrap your Container with <Cineview>.'
     );
   }
 

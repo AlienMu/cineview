@@ -8,7 +8,7 @@ interface RuntimeControlSceneProps {
   onVisibilityChange?: (visible: boolean) => void;
 }
 
-/** Display the existing CineView sampler only while this scene is visible. */
+/** Display the existing Cineview sampler only while this scene is visible. */
 export function RuntimeControlScene({
   source,
   onVisibilityChange,

@@ -73,7 +73,7 @@ function SequencePreview({
       <div className="sequence-demo__part">
         <span className="sequence-demo__part-label">01 / TITLE</span>
         <SequenceElement id="title" reduced={reduced}>
-          <h3 className="sequence-demo__preview-title">CineView</h3>
+          <h3 className="sequence-demo__preview-title">Cineview</h3>
         </SequenceElement>
       </div>
       <div className="sequence-demo__part">

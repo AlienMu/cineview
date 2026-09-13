@@ -25,8 +25,8 @@
 import React, { act, createRef } from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 interface AnimateCall {
   kind: 'motion-value' | 'number';
@@ -168,10 +168,10 @@ jest.mock('framer-motion', () => {
 // 2500ms; dragging it partway in puts its element track at a clearly non-zero,
 // non-terminal elapsed before the bounce.
 function renderDragApp() {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={600}
@@ -200,9 +200,9 @@ function renderDragApp() {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return cineViewRef;
+  return cineviewRef;
 }
 
 function drainColdStart(): void {
@@ -219,9 +219,9 @@ describe('drag two-track bounce return (I1)', () => {
   });
 
   it('returns the render track AND the incoming element track to 0 together on a sub-threshold bounce, with no scene change', async () => {
-    const cineViewRef = renderDragApp();
+    const cineviewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
     await act(async () => {
       drainColdStart();
@@ -242,7 +242,7 @@ describe('drag two-track bounce return (I1)', () => {
     fireEvent.mouseUp(s0, { clientX: 375, clientY: 512 });
 
     // No scene change: the bounce does not cross the threshold.
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
 
     // Both bounce lanes are motion-value animates toward 0; they are told apart
     // by fromValue. The RENDER track bounces dragProgressMotion (a drag fraction,

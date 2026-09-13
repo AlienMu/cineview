@@ -19,12 +19,14 @@ export interface Scene5LifecycleState {
   exitPending: boolean;
   /** React key for the finite four-beat CSS entrance sequence. */
   replayKey: number;
+  dragHintDismissed: boolean;
 }
 
 export type Scene5LifecycleEvent =
   | { type: 'visibility'; visible: boolean; stageActive: boolean }
   | { type: 'finished'; progress: number }
   | { type: 'unfinished' }
+  | { type: 'drag-start' }
   | { type: 'progress'; value: number }
   | { type: 'freeze-collapse'; generation: number }
   | { type: 'freeze-complete'; generation: number }
@@ -52,6 +54,7 @@ export function createScene5LifecycleState(): Scene5LifecycleState {
     split: false,
     exitPending: false,
     replayKey: 0,
+    dragHintDismissed: false,
   };
 }
 
@@ -76,6 +79,7 @@ export function reduceScene5Lifecycle(
           state: {
             ...state,
             visibility: 'visible',
+            dragHintDismissed: false,
             freezePending: false,
             exitPending: false,
             generation: state.generation + 1,
@@ -111,6 +115,11 @@ export function reduceScene5Lifecycle(
           { type: 'start-freeze', generation: nextGeneration },
         ],
       };
+    }
+
+    case 'drag-start': {
+      if (state.visibility === 'offscreen' || state.dragHintDismissed) return unchanged(state);
+      return { state: { ...state, dragHintDismissed: true }, effects: [] };
     }
 
     case 'finished': {

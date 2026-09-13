@@ -49,7 +49,7 @@ A zone's time budget corresponds directly to physical scroll distance: **1ms = 1
 `enterMargin` and `exitMargin` set viewport margins for visibility-triggered animation. Override them on an Animate through `visibility.enterMargin` and `visibility.exitMargin`. The exact conditions, including tall elements, are in [Visibility conditions](/docs/03-visibility-conditions).
 
 ```tsx
-<CineView mode="scroll" designWidth={750} direction="y" sceneSizing="content">
+<Cineview mode="scroll" designWidth={750} direction="y" sceneSizing="content">
   <Scene sceneId="intro">
     <article>Ordinary scrolling content.</article>
   </Scene>
@@ -58,5 +58,5 @@ A zone's time budget corresponds directly to physical scroll distance: **1ms = 1
       <h1>Sequence</h1>
     </Animate>
   </Scene>
-</CineView>
+</Cineview>
 ```

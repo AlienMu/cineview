@@ -18,7 +18,7 @@ Container 按 `viewportWidth / designWidth` 换算数值宽高与受支持的样
 
 转发的 `ref` 指向根 div。
 
-Container 只能在 `<CineView>` 下使用：换算依赖上下文。脱离 CineView 渲染时，开发构建直接抛错。
+Container 只能在 `<Cineview>` 下使用：换算依赖上下文。脱离 Cineview 渲染时，开发构建直接抛错。
 
 ## 换算行为
 

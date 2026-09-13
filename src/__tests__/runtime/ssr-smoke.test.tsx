@@ -14,7 +14,7 @@
 
 import { renderToString } from 'react-dom/server';
 
-import { Animate, CineView, Position, Scene } from '../../index';
+import { Animate, Cineview, Position, Scene } from '../../index';
 
 describe('SSR smoke (node environment, no DOM)', () => {
   it('confirms current environment truly lacks DOM — otherwise all assertions in this file are false positives', () => {
@@ -24,13 +24,13 @@ describe('SSR smoke (node environment, no DOM)', () => {
 
   it('scroll mode first render is server-renderable, and child content actually appears in HTML', () => {
     const html = renderToString(
-      <CineView mode="scroll" designWidth={750}>
+      <Cineview mode="scroll" designWidth={750}>
         <Scene sceneId="hero" scroll={{ zoneId: 'z1', trigger: 'center-lock' }}>
           <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
             <h1>SSR title</h1>
           </Animate>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     expect(html).toContain('SSR title');
@@ -39,7 +39,7 @@ describe('SSR smoke (node environment, no DOM)', () => {
 
   it('drag mode first render is server-renderable', () => {
     const html = renderToString(
-      <CineView mode="drag" designWidth={750}>
+      <Cineview mode="drag" designWidth={750}>
         <Scene sceneId="s1">
           <Animate animateId="a1" enterAnimation="slide-up">
             <p>drag body</p>
@@ -48,7 +48,7 @@ describe('SSR smoke (node environment, no DOM)', () => {
         <Scene sceneId="s2">
           <p>second</p>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     expect(html).toContain('drag body');
@@ -56,11 +56,11 @@ describe('SSR smoke (node environment, no DOM)', () => {
 
   it('minimal zero-props usage is also server-renderable (defaults do not depend on DOM measurements)', () => {
     const html = renderToString(
-      <CineView>
+      <Cineview>
         <Scene>
           <div>minimal</div>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     expect(html).toContain('minimal');
@@ -68,13 +68,13 @@ describe('SSR smoke (node environment, no DOM)', () => {
 
   it('Position design-pixel conversion does not throw when viewport is absent', () => {
     const html = renderToString(
-      <CineView mode="scroll" designWidth={750}>
+      <Cineview mode="scroll" designWidth={750}>
         <Scene sceneId="s1">
           <Position at={{ x: 0, y: -100, anchor: 'center' }}>
             <span>positioned</span>
           </Position>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     expect(html).toContain('positioned');

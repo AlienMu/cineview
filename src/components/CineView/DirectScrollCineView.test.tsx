@@ -5,7 +5,7 @@ import { DirectScrollCineView } from './DirectScrollCineView';
 import { Animate, SceneContext } from '../Animate/Animate';
 import { Scene } from '../Scene/Scene';
 import { Position } from '../Position/Position';
-import type { CineViewRef } from '../../types';
+import type { CineviewRef } from '../../types';
 import {
   SceneScrollRuntimeContext,
   SceneScrollTakeoverContext,
@@ -861,7 +861,7 @@ describe('DirectScrollCineView', () => {
   });
 
   it('preload(targets) prioritizes requested scroll scenes by index, sceneId, and zoneId', async () => {
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
     const startPreload = jest.fn().mockResolvedValue(undefined);
     const addUrls = jest.fn();
 
@@ -1123,7 +1123,7 @@ describe('DirectScrollCineView', () => {
     });
 
     expect(onReady).toHaveBeenCalledTimes(1);
-    const readyApi = onReady.mock.calls[0]?.[0] as CineViewRef;
+    const readyApi = onReady.mock.calls[0]?.[0] as CineviewRef;
 
     // Drive the active scene forward; each change used to re-fire onReady.
     act(() => {
@@ -3313,7 +3313,7 @@ describe('DirectScrollCineView', () => {
   });
 
   it('does not leave a viewport-sized virtual gap after a small takeover scene exhausts its budget', async () => {
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
 
     const { container } = render(
       <DirectScrollCineView ref={ref} designWidth={750}>
@@ -3475,7 +3475,7 @@ describe('DirectScrollCineView', () => {
   });
 
   it('updates the active scene from the current native offset without waiting for another tick', async () => {
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
 
     const { container } = render(
       <DirectScrollCineView ref={ref} designWidth={750}>
@@ -6043,7 +6043,7 @@ describe('DirectScrollCineView', () => {
   });
 
   it('rearms a completed takeover when goToZone returns to its anchor', async () => {
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
 
     const { container } = render(
       <DirectScrollCineView ref={ref} designWidth={750}>
@@ -6348,13 +6348,13 @@ describe('DirectScrollCineView', () => {
     // (segment 1000..1400, flow 1400), scene-2 takeover zone-target budget 100
     // (top 2400, segment 2400..2500). scrollHeight 3500, max offset 2500.
     async function renderSmoothScrollPage(): Promise<{
-      ref: React.RefObject<CineViewRef | null>;
+      ref: React.RefObject<CineviewRef | null>;
       container: HTMLElement;
       root: HTMLDivElement;
       midSegment: { start: number; end: number; distance: number };
       targetSegment: { start: number; end: number; distance: number };
     }> {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { container } = render(
         <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>

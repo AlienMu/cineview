@@ -15,4 +15,4 @@
  */
 
 export * from './public-api';
-export { CineView } from './components/CineView';
+export { Cineview } from './components/Cineview';

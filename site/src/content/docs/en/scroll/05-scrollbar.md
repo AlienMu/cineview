@@ -35,7 +35,7 @@ The overlay uses these defaults and limits:
 | `thumbColor`      | `string`  | `'rgba(255, 255, 255, 0.28)'` | none           | the thumb's `background`                                 |
 | `thumbHoverColor` | `string`  | `'rgba(255, 255, 255, 0.42)'` | none           | a 1px ring around the thumb (box-shadow), always present |
 | `autoHide`        | `boolean` | `true`                        | none           | fade out when idle, see "autoHide timing"                |
-| `ariaLabel`       | `string`  | `'CineView scroll position'`  | none           | accessible name of the rail                              |
+| `ariaLabel`       | `string`  | `'Cineview scroll position'`  | none           | accessible name of the rail                              |
 
 `thumbHoverColor` colors the thumb's one-pixel border in every state. It does not change only on hover.
 
@@ -54,7 +54,7 @@ A gesture starting on the thumb becomes a drag; a press on empty rail is a singl
 Color options accept CSS colors and custom-property references. For example, `thumbColor: 'var(--accent)'` follows the current value of `--accent`.
 
 ```tsx
-<CineView
+<Cineview
   mode="scroll"
   designWidth={1440}
   scrollbar={{
@@ -67,7 +67,7 @@ Color options accept CSS colors and custom-property references. For example, `th
   }}
 >
   <Scene sceneId="content">Scrollable content</Scene>
-</CineView>
+</Cineview>
 ```
 
 ## autoHide timing
@@ -79,5 +79,5 @@ Keyboard focus keeps it visible. These timings are not configurable.
 ## Related pages
 
 - [The four input paths](/docs/03-inputs): the clamp shared by scrollbar drag and every other input
-- [CineView reference](/docs/01-cineview): where `scrollbar` sits among the root props
+- [Cineview reference](/docs/01-cineview): where `scrollbar` sits among the root props
 - [Horizontal direction: 'x'](/docs/04-direction-x): the rail hugs the bottom rather than the right edge

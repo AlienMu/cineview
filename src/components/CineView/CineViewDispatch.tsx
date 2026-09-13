@@ -1,18 +1,18 @@
 import { forwardRef } from 'react';
-import { CineViewDragEngine, resolveRootMode } from './CineView';
-import { DirectScrollCineView } from './DirectScrollCineView';
+import { CineviewDragEngine, resolveRootMode } from './Cineview';
+import { DirectScrollCineview } from './DirectScrollCineview';
 import type {
-  CineViewDragModeProps,
-  CineViewProps,
-  CineViewRef,
-  CineViewScrollModeProps,
+  CineviewDragModeProps,
+  CineviewProps,
+  CineviewRef,
+  CineviewScrollModeProps,
 } from '../../types';
 
 /**
- * `mode` dispatcher — the full-featured `CineView` entry point for ES / bundler consumers.
+ * `mode` dispatcher — the full-featured `Cineview` entry point for ES / bundler consumers.
  *
  * Why this is a separate file: it is the **only place that statically imports both engines**.
- * Originally this was at the bottom of `CineView.tsx`, causing any import path reaching that
+ * Originally this was at the bottom of `Cineview.tsx`, causing any import path reaching that
  * file to pull in both engines. UMD requires a single file (Rollup refuses UMD code splitting),
  * so consumers using only drag would pay for the scroll engine — 10437 gzip bytes (20.3% of
  * the full bundle), pushing the package over the 50 KB threshold.
@@ -23,13 +23,13 @@ import type {
  *   each importing only its own engine.
  * See task-flow `2026-08-04-umd-mode-split.md`.
  */
-const CineViewComponent = forwardRef<CineViewRef, CineViewProps>((props, ref) => {
+const CineviewComponent = forwardRef<CineviewRef, CineviewProps>((props, ref) => {
   if (resolveRootMode(props.mode) === 'scroll') {
-    return <DirectScrollCineView {...(props as CineViewScrollModeProps)} ref={ref} />;
+    return <DirectScrollCineview {...(props as CineviewScrollModeProps)} ref={ref} />;
   }
-  return <CineViewDragEngine {...(props as CineViewDragModeProps)} ref={ref} />;
+  return <CineviewDragEngine {...(props as CineviewDragModeProps)} ref={ref} />;
 });
 
-CineViewComponent.displayName = 'CineView';
+CineviewComponent.displayName = 'Cineview';
 
-export const CineView = CineViewComponent;
+export const Cineview = CineviewComponent;

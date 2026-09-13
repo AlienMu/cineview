@@ -33,8 +33,8 @@
 import React, { createRef } from 'react';
 import { render, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef, CineViewErrorDetail } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef, CineviewErrorDetail } from '../../types';
 import { resetPreloadedImageCache } from '../../hooks/imagePreloadCache';
 
 // ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ function fireImageLoads(predicate: (src: string) => boolean): void {
 // framer-motion mock. The drag/scene hooks recompute resolved styles at render
 // time, so applying resolved values to real DOM style lets us read the
 // committed opacity per animate id. animate() (used only by the first-scene
-// driver in CineView) is captured so the test drives the timeline.
+// driver in Cineview) is captured so the test drives the timeline.
 // ---------------------------------------------------------------------------
 interface DriverController {
   target: number;
@@ -252,15 +252,15 @@ afterEach(() => {
 function renderDragFirstScene(
   options: {
     firstSceneTimeout?: number;
-    onError?: (d: CineViewErrorDetail) => void;
+    onError?: (d: CineviewErrorDetail) => void;
     transitionDuration?: number;
     extraAnimate?: boolean;
   } = {}
 ) {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   const utils = render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={options.transitionDuration ?? 800}
@@ -301,9 +301,9 @@ function renderDragFirstScene(
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return { cineViewRef, ...utils };
+  return { cineviewRef, ...utils };
 }
 
 describe('drag first-scene cold-start enter (acceptance lane)', () => {
@@ -348,10 +348,10 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   // then snapped to terminal when firstSceneEnterActive flipped off — "delay
   // elapses then the element just appears instead of animating in".
   it('drives the cold-start timeline to the full registry duration (delay + duration), not just transitionDuration', async () => {
-    const cineViewRef = createRef<CineViewRef>();
+    const cineviewRef = createRef<CineviewRef>();
     render(
-      <CineView
-        ref={cineViewRef}
+      <Cineview
+        ref={cineviewRef}
         mode="drag"
         direction={'y'}
         transitionDuration={800}
@@ -376,7 +376,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
             </Animate>
           </Position>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     await waitFor(() => {
@@ -417,10 +417,10 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   // — "delay elapses, element just appears instead of animating in". The driver
   // must resolve the full registry duration regardless of registration timing.
   it('drives the full registry duration under the warm-cache ordering (asset settles before registration)', async () => {
-    const cineViewRef = createRef<CineViewRef>();
+    const cineviewRef = createRef<CineviewRef>();
     render(
-      <CineView
-        ref={cineViewRef}
+      <Cineview
+        ref={cineviewRef}
         mode="drag"
         direction={'y'}
         transitionDuration={800}
@@ -445,7 +445,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
             </Animate>
           </Position>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     // Fire the priority asset IMMEDIATELY — before awaiting the async variant
@@ -483,7 +483,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   it('waits for the first non-empty prepared snapshot when scene 0 has no assets', async () => {
     render(
       <React.StrictMode>
-        <CineView mode="drag" direction={'y'} transitionDuration={680} designWidth={390}>
+        <Cineview mode="drag" direction={'y'} transitionDuration={680} designWidth={390}>
           <Scene>
             <Animate animateId="copy" enterAnimation="fade-in" duration={{ enter: 640 }}>
               <h1>Copy</h1>
@@ -502,7 +502,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
               <h1>Next</h1>
             </Animate>
           </Scene>
-        </CineView>
+        </Cineview>
       </React.StrictMode>
     );
 
@@ -534,8 +534,8 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
 
   // --- Spec 2: timeout + preventDefault() called --------------------------
   it('emits FIRST_SCENE_TIMEOUT with preventDefault(); when called, scene stays at initial', async () => {
-    let captured: CineViewErrorDetail | null = null;
-    const onError = jest.fn((detail: CineViewErrorDetail) => {
+    let captured: CineviewErrorDetail | null = null;
+    const onError = jest.fn((detail: CineviewErrorDetail) => {
       captured = detail;
       // Consumer takes over recovery.
       detail.preventDefault?.();
@@ -555,7 +555,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
     );
 
     expect(captured).not.toBeNull();
-    const detail = captured as unknown as CineViewErrorDetail;
+    const detail = captured as unknown as CineviewErrorDetail;
     expect(detail.code).toBe('FIRST_SCENE_TIMEOUT');
     expect(typeof detail.preventDefault).toBe('function');
 
@@ -580,7 +580,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       { timeout: 1000 }
     );
 
-    const detail = onError.mock.calls[0][0] as CineViewErrorDetail;
+    const detail = onError.mock.calls[0][0] as CineviewErrorDetail;
     expect(detail.code).toBe('FIRST_SCENE_TIMEOUT');
 
     // Default fallback: the first scene is statically placed at its terminal
@@ -655,7 +655,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
   it('never triggers the first-scene driver in scroll mode', async () => {
     const onError = jest.fn();
     render(
-      <CineView mode="scroll" direction={'y'} designWidth={750} callbacks={{ onError }}>
+      <Cineview mode="scroll" direction={'y'} designWidth={750} callbacks={{ onError }}>
         <Scene scroll={{ zoneId: 'z0' }} assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
             <Animate animateId="s-title" enterAnimation="fade-in" duration={{ enter: 600 }}>
@@ -670,7 +670,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
             </Animate>
           </Position>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     // Settle assets; in scroll mode the first-scene driver must not run. The
@@ -683,7 +683,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
 
     expect(driverControllers).toHaveLength(0);
     const firstSceneTimeoutErrors = onError.mock.calls.filter(
-      (call) => (call[0] as CineViewErrorDetail).code === 'FIRST_SCENE_TIMEOUT'
+      (call) => (call[0] as CineviewErrorDetail).code === 'FIRST_SCENE_TIMEOUT'
     );
     expect(firstSceneTimeoutErrors).toHaveLength(0);
   });
@@ -711,7 +711,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
       await Promise.resolve();
     });
     rerender(
-      <CineView mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
+      <Cineview mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
         <Scene assets={{ preloadImages: ['/hero.jpg'] }}>
           <Position at={{ x: 375, y: 220 }}>
             <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
@@ -726,7 +726,7 @@ describe('drag first-scene cold-start enter (acceptance lane)', () => {
             </Animate>
           </Position>
         </Scene>
-      </CineView>
+      </Cineview>
     );
     await act(async () => {
       await Promise.resolve();

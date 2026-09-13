@@ -1,4 +1,4 @@
-# CineView
+# Cineview
 
 [English](./README.md)
 
@@ -7,9 +7,9 @@
 [![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
 [![MIT 许可证](https://img.shields.io/npm/l/cineview?style=flat-square)](./LICENSE)
 
-CineView 是用于构建交互式产品展示、全屏演示和滚动叙事页面的 React 框架。它通过组件 API 组织场景导航、动画编排、响应式定位和媒体播放。
+Cineview 是用于构建交互式产品展示、全屏演示和滚动叙事页面的 React 框架。它通过组件 API 组织场景导航、动画编排、响应式定位和媒体播放。
 
-页面由多个 `Scene` 组件组成。每个场景承载普通 React 内容，并声明布局和动画。CineView 将这些场景与拖动或滚动操作关联，让页面导航与场景内的动画协同工作。
+页面由多个 `Scene` 组件组成。每个场景承载普通 React 内容，并声明布局和动画。Cineview 将这些场景与拖动或滚动操作关联，让页面导航与场景内的动画协同工作。
 
 [官网](https://cineview.pages.dev) · [文档](https://cineview.pages.dev/docs) · [拖动演示](https://cineview.pages.dev/drag) · [npm](https://www.npmjs.com/package/cineview)
 
@@ -19,7 +19,7 @@ CineView 是用于构建交互式产品展示、全屏演示和滚动叙事页�
 - 使用纵向或横向拖动导航的全屏演示与作品集。
 - 在正常阅读内容中加入滚动控制的插画、图形和视频的叙事页面。
 
-CineView 使用 Framer Motion 实现动画，可配合已有的 React 组件、CSS 布局和自定义图形使用。页面内容结构和视觉设计由应用决定。
+Cineview 使用 Framer Motion 实现动画，可配合已有的 React 组件、CSS 布局和自定义图形使用。页面内容结构和视觉设计由应用决定。
 
 ## 核心能力
 
@@ -28,11 +28,13 @@ CineView 使用 Framer Motion 实现动画，可配合已有的 React 组件、C
 - **响应式定位。** 在 CSS 布局中配合 `Position` 和 `Container`，按设计坐标放置内容。`designWidth` 让数值型设计长度随视口宽度缩放，需要重新排版的内容仍可使用 CSS 单位和断点。
 - **图片与视频。** 声明需要预加载的图片，复用共享图片缓存。`AnimateVideo` 可以让视频帧跟随动画进度，也支持场景内的普通视频播放。
 - **自定义绘制。** `useAnimateTimeline` 以 MotionValue 提供动画进度，用于自定义 DOM、SVG 和 Canvas 组件。连续更新无需把每一帧写入 React state。
-- **应用控制。** 通过 ref 导航、响应场景与动画回调，并在内容变化后刷新布局。`cineview/dev` 提供可选的性能面板和指标 Hook。
+- **应用控制。** 通过 ref 导航、响应场景与动画回调，并在内容变化后刷新布局。设置 `<Cineview debug>` 可在两种模式下显示性能面板。`cineview/dev` 提供自定义性能展示工具。
 
 ## 安装
 
-在 React 19 项目中安装 CineView 和 Framer Motion 13：
+当前示例使用尚未发布的 `Cineview` 导出和内置 `debug` 面板。变更见[更新日志](./CHANGELOG.md#unreleased)；npm 1.0.0 仍提供此前的 API。
+
+在 React 19 项目中安装 Cineview 和 Framer Motion 13：
 
 ```bash
 npm install cineview framer-motion@13
@@ -44,7 +46,7 @@ npm install cineview framer-motion@13
 pnpm add cineview framer-motion@13
 ```
 
-CineView 1.0.0 要求 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^13.0.0`。主包提供 TypeScript 类型声明，支持 ESM 和 CommonJS。包入口和开发工具的用法见[安装指南](https://cineview.pages.dev/docs/02-installation)。
+Cineview 1.0.0 要求 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^13.0.0`。主包提供 TypeScript 类型声明，支持 ESM 和 CommonJS。包入口和开发工具的用法见[安装指南](https://cineview.pages.dev/docs/02-installation)。
 
 ## 快速开始
 
@@ -56,7 +58,7 @@ CineView 1.0.0 要求 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^
 
 ```tsx
 import type { CSSProperties } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 const panel: CSSProperties = {
   boxSizing: 'border-box',
@@ -69,7 +71,7 @@ const panel: CSSProperties = {
 
 export default function App() {
   return (
-    <CineView mode="drag" designWidth={750} a11y={{ label: 'Product introduction' }}>
+    <Cineview mode="drag" designWidth={750} a11y={{ label: 'Product introduction' }}>
       <Scene sceneId="introduction">
         <div style={{ ...panel, background: '#f7f2ec' }}>
           <Animate animateId="heading" enterAnimation="fade-in" duration={{ enter: 600 }}>
@@ -92,12 +94,12 @@ export default function App() {
           </Animate>
         </div>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```
 
-`CineView` 控制导航，`Scene` 定义页面章节，`Animate` 定义元素动画。`timeline.after` 让说明文字在标题入场后出现。默认沿纵向拖动，设置 `direction="x"` 可改为横向展示。CineView 容器获得焦点后，也可使用键盘导航。
+`Cineview` 控制导航，`Scene` 定义页面章节，`Animate` 定义元素动画。`timeline.after` 让说明文字在标题入场后出现。默认沿纵向拖动，设置 `direction="x"` 可改为横向展示。Cineview 容器获得焦点后，也可使用键盘导航。
 
 ### 跟随滚动进度
 
@@ -105,7 +107,7 @@ export default function App() {
 
 ```tsx
 import type { CSSProperties } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 const panel: CSSProperties = {
   boxSizing: 'border-box',
@@ -118,7 +120,7 @@ const panel: CSSProperties = {
 
 export default function App() {
   return (
-    <CineView mode="scroll" designWidth={750}>
+    <Cineview mode="scroll" designWidth={750}>
       <Scene sceneId="introduction" layout={{ height: '100vh' }}>
         <div style={panel}>
           <h1>Every detail has a story</h1>
@@ -149,7 +151,7 @@ export default function App() {
           <h2>Continue exploring</h2>
         </div>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```
@@ -162,7 +164,7 @@ export default function App() {
 
 | 主题                   | 指南                                                                                                                                                                              |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 页面结构与导航         | [CineView](https://cineview.pages.dev/docs/01-cineview) 和 [Scene](https://cineview.pages.dev/docs/02-scene)                                                                      |
+| 页面结构与导航         | [Cineview](https://cineview.pages.dev/docs/01-cineview) 和 [Scene](https://cineview.pages.dev/docs/02-scene)                                                                      |
 | 预设、自定义动画与编排 | [Animate](https://cineview.pages.dev/docs/03-animate) 和[时间线](https://cineview.pages.dev/docs/02-timeline)                                                                     |
 | 布局与设计坐标         | [响应式布局](https://cineview.pages.dev/docs/05-responsive)、[Position](https://cineview.pages.dev/docs/05-position) 和 [Container](https://cineview.pages.dev/docs/07-container) |
 | 图片加载与视频控制     | [预加载](https://cineview.pages.dev/docs/02-preload)和 [AnimateVideo](https://cineview.pages.dev/docs/04-animate-video)                                                           |
@@ -172,11 +174,13 @@ export default function App() {
 
 ## 无障碍支持
 
-拖动导航包含键盘操作、场景位置播报和非活动场景的焦点处理。CineView 也会根据减少动态效果的系统偏好调整循环动画和由可见性触发的动画；直接跟随拖动或滚动的动画仍由输入控制。相关行为，以及应用需要提供的标签和焦点顺序，见[无障碍配置](https://cineview.pages.dev/docs/01-cineview)。
+拖动导航包含键盘操作、场景位置播报和非活动场景的焦点处理。Cineview 也会根据减少动态效果的系统偏好调整循环动画和由可见性触发的动画；直接跟随拖动或滚动的动画仍由输入控制。相关行为，以及应用需要提供的标签和焦点顺序，见[无障碍配置](https://cineview.pages.dev/docs/01-cineview)。
 
 ## 参与贡献
 
-开发环境、本地示例和验证命令见 [CONTRIBUTING.md](./CONTRIBUTING.md)。[验证记录](./VERIFICATION.md)保存了测试覆盖率和浏览器验收结果；框架覆盖率检查对语句、分支、函数和行均设置了 90% 的最低要求。
+开发环境、本地示例和验证命令见 [CONTRIBUTING.md](./CONTRIBUTING.md)。框架覆盖率检查对语句、分支、函数和行均设置了 90% 的最低要求。
+
+仓库保留源码、测试、现行文档、示例和构建脚本。历史报告、task-flow、截图、录屏、生成的验收数据和本地代理工具只留在本地，由 Git 忽略。`pnpm verify:repository` 在提交前和 CI 中检查这一范围。
 
 通过 [GitHub issues](https://github.com/AlienMu/cineview/issues)报告问题或提出改进建议，版本变化见[更新日志](./CHANGELOG.md)。
 

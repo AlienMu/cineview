@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo } from 'react';
 import type { CSSProperties, ImgHTMLAttributes } from 'react';
-import { useCineViewContext } from '../../context/CineViewContext';
+import { useCineviewContext } from '../../context/CineviewContext';
 import { isImagePreloaded, markImageAsPreloaded } from '../../hooks/imagePreloadCache';
 import { convertStyle } from '../../utils/styleConvert';
 
@@ -22,7 +22,7 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
   { src, alt, width, height, style, loading, preload, ...imgProps },
   ref
 ): React.JSX.Element {
-  const cineViewContext = useCineViewContext();
+  const cineViewContext = useCineviewContext();
 
   const resolvedWidth = useMemo(() => {
     if (typeof width !== 'number') {

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
-import { Animate, CineView, Position, Scene } from 'cineview';
-import type { CineViewScrollRef, ZoneProgressDetail } from 'cineview';
+import { Animate, Cineview, Position, Scene } from 'cineview';
+import type { CineviewScrollRef, ZoneProgressDetail } from 'cineview';
 
 const CONCURRENT_ANIMATION_COUNT = 8;
 
@@ -70,7 +70,7 @@ function renderAcceptanceTakeoverScene(zoneId: string, label: string): import('r
 
 export default function AcceptanceScrollPage(): import('react').JSX.Element {
   const rootRef = useRef<HTMLElement>(null);
-  const cineViewRef = useRef<CineViewScrollRef>(null);
+  const cineviewRef = useRef<CineviewScrollRef>(null);
   const progressHistoryRef = useRef<Array<{ zoneId: string; progress: number; scrollTop: number }>>(
     []
   );
@@ -114,10 +114,10 @@ export default function AcceptanceScrollPage(): import('react').JSX.Element {
         hidden
         type="button"
         data-acceptance-action="go-zone-a"
-        onClick={() => cineViewRef.current?.goToZone('acceptance-zone-a', { animated: false })}
+        onClick={() => cineviewRef.current?.goToZone('acceptance-zone-a', { animated: false })}
       />
-      <CineView
-        ref={cineViewRef}
+      <Cineview
+        ref={cineviewRef}
         callbacks={{
           onReady: () => {
             if (rootRef.current) rootRef.current.dataset.ready = 'true';
@@ -190,7 +190,7 @@ export default function AcceptanceScrollPage(): import('react').JSX.Element {
             Native document tail
           </div>
         </Scene>
-      </CineView>
+      </Cineview>
     </main>
   );
 }

@@ -1097,9 +1097,9 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: clamp(5px, 1.4cqw, 8px);
+  gap: 16px;
   overflow: hidden;
-  padding: clamp(24px, 8cqw, 80px);
+  padding: 24px;
   text-align: center;
   pointer-events: none;
 }
@@ -1128,15 +1128,15 @@
 .drag-temporal .s05-credit > span {
   color: rgba(234, 193, 141, 0.64);
   font-family: var(--tp-font-mono);
-  font-size: clamp(10px, 2.6cqw, 14px);
-  letter-spacing: 0.12em;
+  font-size: 12px;
+  letter-spacing: 0;
   text-align: right;
   text-transform: uppercase;
 }
 
 .drag-temporal .s05-credit > strong {
   font-family: var(--tp-font-display);
-  font-size: clamp(16px, 4.2cqw, 22px);
+  font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
 }
@@ -1145,9 +1145,83 @@
   margin-top: clamp(6px, 1.6cqw, 10px);
   color: #f3e7d5;
   font-family: var(--tp-font-mono);
-  font-size: clamp(12px, 3.2cqw, 17px);
-  letter-spacing: 0.32em;
+  font-size: 16px;
+  letter-spacing: 0;
   text-shadow: 0 0 20px rgba(225, 164, 91, 0.35);
+}
+
+.drag-temporal .s05-closing {
+  max-width: 38ch;
+  color: #e2e2e0;
+  font: 14px/1.6 var(--tp-font-mono);
+  letter-spacing: 0;
+}
+
+.drag-temporal .s05-closing > p {
+  margin: 0 0 16px;
+}
+
+.drag-temporal .s05-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.drag-temporal .s05-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  color: #f5f5f4;
+  border: 1px solid #626260;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.drag-temporal .s05-actions a:first-child {
+  color: #181818;
+  background: #f5f5f4;
+  border-color: #f5f5f4;
+}
+
+.drag-temporal .s05-actions a:focus-visible {
+  outline: 2px solid #8ec8d5;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .drag-temporal .s05-credit > strong {
+    font-size: 16px;
+  }
+  .drag-temporal .s05-curtain-call {
+    padding: 16px;
+  }
+}
+
+/* The completed homepage phone becomes a compact navigation preview. */
+@media (max-width: 230px) {
+  .drag-temporal[data-embed='deferred-live'] .s05-credits,
+  .drag-temporal[data-embed='deferred-live'] .s05-closing > p {
+    display: none;
+  }
+
+  .drag-temporal[data-embed='deferred-live'] .s05-curtain-call {
+    padding: 8px;
+    gap: 10px;
+  }
+
+  .drag-temporal[data-embed='deferred-live'] .s05-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .drag-temporal[data-embed='deferred-live'] .s05-actions a {
+    font-size: 12px;
+    padding-inline: 10px;
+  }
 }
 
 @media (max-height: 720px) {

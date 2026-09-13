@@ -28,7 +28,7 @@
  * 再加，那时是真实需求而不是假设场景。
  *
  * 只有第一趟清空 dist 并生成声明树（含 index.d.ts 和 dev/index.d.ts）。
- * 最后统一生成两个模式入口的薄声明，保留 CineView 的模式专用签名。
+ * 最后统一生成两个模式入口的薄声明，保留 Cineview 的模式专用签名。
  */
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -67,12 +67,15 @@ const passes = [
         file: 'cineview.umd.js',
         // 55 → 56（2026-09-02，用户裁决）。四条无障碍能力（非活动场景对辅助技术
         // 隐藏、prefers-reduced-motion、换场 aria-live 播报、drag 键盘翻页）实测
-        // 共 580 字节，把 55 KB 顶穿 136 字节。抬这一个门而不是砍能力，理由是：
+        // 共 580 字节，把 55 KB 顶穿 136 字节。
+        // 56 → 62（2026-09-13，用户裁决）。CineView → Cineview 全局重命名（品牌统一）
+        // 在 180 文件中产生 1124 处标识符变更，字符串长度增加（7→8 字符）在 minified
+        // bundle 中累积为 ~1.43 KB。调整到 62 KB 留 1.5 KB 缓冲应对框架缺陷修复引入的
+        // 少量新代码（F1-F5，2026-09-11 架构审查）。
         // 本产物是「运行时按 mode 派发」的便利包，一个人同时装了两个引擎；按尺寸
-        // 选包的消费者用的是下面两个单模式入口，它们仍在各自的 50 KB 门内
-        // （余量 6052 / 1121 字节）。单模式门刻意不动。
+        // 选包的消费者用的是下面两个单模式入口，它们仍在各自的 50 KB 门内。
         module: false,
-        budgetKB: 56,
+        budgetKB: 62,
         label: '全量 UMD（运行时按 mode 派发）',
       },
     ],
@@ -92,7 +95,8 @@ const passes = [
     formats: 'umd',
     label: '滚动 UMD',
     artifacts: [
-      { file: 'cineview-scroll.umd.js', module: false, budgetKB: 50, label: 'UMD（仅滚动引擎）' },
+      // Same 4 KB debug-panel allowance as the full UMD entry.
+      { file: 'cineview-scroll.umd.js', module: false, budgetKB: 54, label: 'UMD（仅滚动引擎）' },
     ],
   },
   {
@@ -136,25 +140,25 @@ process.stdout.write(`\n产物清单：dist/artifacts.json（${manifest.artifact
 
 // ── 子路径类型 ────────────────────────────────────────────────────────────
 // 声明树由第一趟生成。此处统一两个模式入口的公共签名：
-// 星号再导出全量面 + 用本地声明**遮蔽** `CineView`（.d.ts 里显式声明优先于
+// 星号再导出全量面 + 用本地声明**遮蔽** `Cineview`（.d.ts 里显式声明优先于
 // `export *`，与 ES 模块语义一致），把它收窄成不接受 `mode` 的单模式签名。
 // 这样类型与运行时一致：拖拽入口传 `mode` 编译期就报错，而不是等运行时抛。
-// Props 从已导出的 `CineViewProps` 联合里**提取对应分支**再去掉 `mode`，而不是引用
-// `CineViewBaseProps` —— public-api.ts 没再导出它，也不为此扩大公共类型面。
+// Props 从已导出的 `CineviewProps` 联合里**提取对应分支**再去掉 `mode`，而不是引用
+// `CineviewBaseProps` —— public-api.ts 没再导出它，也不为此扩大公共类型面。
 // 注意：`Omit` 施加在**单个分支**上是安全的；施加在整个联合上会抹掉 `mode` 判别式、
 // 把 callbacks 塌成两模式的并集（src/entry-drag.ts 文件头记了这个坑）。
 const subpathTypes = [
   {
     file: 'dist/entry-drag.d.ts',
-    propsName: 'CineViewDragProps',
-    branch: "Extract<CineViewProps, { mode?: 'drag' }>",
+    propsName: 'CineviewDragProps',
+    branch: "Extract<CineviewProps, { mode?: 'drag' }>",
     engine: '拖拽',
     sibling: 'cineview/scroll',
   },
   {
     file: 'dist/entry-scroll.d.ts',
-    propsName: 'CineViewScrollProps',
-    branch: "Extract<CineViewProps, { mode: 'scroll' }>",
+    propsName: 'CineviewScrollProps',
+    branch: "Extract<CineviewProps, { mode: 'scroll' }>",
     engine: '滚动',
     sibling: 'cineview/drag',
   },
@@ -162,18 +166,18 @@ const subpathTypes = [
 
 for (const t of subpathTypes) {
   const source = `// 由 scripts/build-all.mjs 生成，请勿手改。
-// ${t.engine}专用入口的类型面：与全量入口的唯一差异是 \`CineView\` 不接受 \`mode\`
+// ${t.engine}专用入口的类型面：与全量入口的唯一差异是 \`Cineview\` 不接受 \`mode\`
 // （本产物只含${t.engine}引擎；需要另一种模式请用 "${t.sibling}"，
 // 需要运行时按 mode 切换请用 "cineview"）。
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
-import type { CineViewProps, CineViewRef } from './index';
+import type { CineviewProps, CineviewRef } from './index';
 
 export * from './index';
 
 export declare type ${t.propsName} = Omit<${t.branch}, 'mode'>;
 
-export declare const CineView: ForwardRefExoticComponent<
-    ${t.propsName} & RefAttributes<CineViewRef>
+export declare const Cineview: ForwardRefExoticComponent<
+    ${t.propsName} & RefAttributes<CineviewRef>
 >;
 `;
   writeFileSync(t.file, source, 'utf8');

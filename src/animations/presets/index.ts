@@ -2,7 +2,7 @@
  * Preset animation loading coordinator.
  *
  * Successful modules, permanent preset failures, and in-flight category promises
- * are shared across every CineView instance. Transient chunk/network failures are
+ * are shared across every Cineview instance. Transient chunk/network failures are
  * reported to each consumer but are never permanently cached, so a later request
  * may retry.
  */
@@ -201,7 +201,7 @@ function normalizeCategoryError(category: string, error: unknown): PresetLoadErr
   );
 }
 
-/** Load one category, coalescing concurrent requests across all CineView roots. */
+/** Load one category, coalescing concurrent requests across all Cineview roots. */
 export function loadAnimationModule(category: string): Promise<AnimationModule> {
   const cached = animationCache.get(category);
   if (cached) return Promise.resolve(cached);

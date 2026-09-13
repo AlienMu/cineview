@@ -1,5 +1,5 @@
 import type {
-  CineViewErrorCode,
+  CineviewErrorCode,
   DragBlockedDetail,
   DragEndDetail,
   DragStartDetail,
@@ -18,7 +18,7 @@ describe('drag public types', () => {
   });
 
   it('exports the new public error codes', () => {
-    const codes: CineViewErrorCode[] = ['INVALID_DRAG_CONFIG', 'ANIMATION_ASSET_LOAD_FAILED'];
+    const codes: CineviewErrorCode[] = ['INVALID_DRAG_CONFIG', 'ANIMATION_ASSET_LOAD_FAILED'];
 
     expect(codes).toEqual(['INVALID_DRAG_CONFIG', 'ANIMATION_ASSET_LOAD_FAILED']);
   });

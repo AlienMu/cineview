@@ -332,7 +332,7 @@ describe('useAnimateDrag', () => {
 
     expect(warningSpy).toHaveBeenCalledTimes(1);
     expect(warningSpy).toHaveBeenCalledWith(
-      '[CineView]',
+      '[Cineview]',
       expect.stringContaining('remains frozen')
     );
     warningSpy.mockRestore();
@@ -392,7 +392,7 @@ describe('useAnimateDrag', () => {
     rerender({ transaction: store.beginTransaction(1, 'settling', 0.6) });
 
     expect(warningSpy).toHaveBeenCalledTimes(1);
-    expect(warningSpy).toHaveBeenCalledWith('[CineView]', expect.stringContaining('mounted after'));
+    expect(warningSpy).toHaveBeenCalledWith('[Cineview]', expect.stringContaining('mounted after'));
     warningSpy.mockRestore();
   });
 });

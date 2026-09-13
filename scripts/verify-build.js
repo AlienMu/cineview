@@ -111,7 +111,7 @@ function hasPublicApiShape(mod) {
   return Boolean(
     mod &&
     typeof mod === 'object' &&
-    mod.CineView &&
+    mod.Cineview &&
     mod.Scene &&
     mod.Animate &&
     mod.AnimateVideo &&
@@ -422,15 +422,15 @@ function checkPackedTarballConsumer() {
     const consumerScript = [
       "const assert = require('node:assert');",
       "const cjs = require('cineview');",
-      "for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(cjs[name], name);",
-      "for (const mode of ['drag', 'scroll']) assert.ok(require('cineview/' + mode).CineView, mode);",
+      "for (const name of ['Cineview', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(cjs[name], name);",
+      "for (const mode of ['drag', 'scroll']) assert.ok(require('cineview/' + mode).Cineview, mode);",
       "const React = require('react');",
       "const { renderToStaticMarkup } = require('react-dom/server');",
       "Promise.all([import('cineview'), import('cineview/dev')]).then(([esm, dev]) => {",
-      "  for (const name of ['CineView', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(esm[name], name);",
+      "  for (const name of ['Cineview', 'Scene', 'Animate', 'Position', 'Container', 'Image']) assert.ok(esm[name], name);",
       "  assert.equal(typeof dev.PerfPanel, 'function');",
       "  assert.equal(typeof dev.usePerfMonitor, 'function');",
-      '  assert.match(renderToStaticMarkup(React.createElement(dev.PerfPanel)), /CineView Performance/);',
+      '  assert.match(renderToStaticMarkup(React.createElement(dev.PerfPanel)), /Cineview Performance/);',
       '}).catch((error) => { console.error(error); process.exit(1); });',
     ].join('\n');
     execFileSync(process.execPath, ['-e', consumerScript], {
@@ -442,8 +442,8 @@ function checkPackedTarballConsumer() {
       typeConsumer,
       [
         "import { PerfPanel, usePerfMonitor, type PerfPanelProps, type PerformanceSource } from 'cineview/dev';",
-        "import type { CineViewRef } from 'cineview';",
-        'declare const source: CineViewRef;',
+        "import type { CineviewRef } from 'cineview';",
+        'declare const source: CineviewRef;',
         'const monitor: PerformanceSource = source;',
         'const props: PerfPanelProps = { source: monitor, enabled: true };',
         'export const panel = <PerfPanel {...props} />;',
@@ -505,7 +505,7 @@ function checkPackedTarballConsumer() {
 }
 
 async function main() {
-  log('\n=== CineView 构建验证 ===\n', 'blue');
+  log('\n=== Cineview 构建验证 ===\n', 'blue');
 
   let hasErrors = false;
 

@@ -3,7 +3,7 @@ title: Callbacks
 eyebrow: ADVANCED / CALLBACKS
 ---
 
-Pass a flat `callbacks` object to CineView. TypeScript checks its keys against `mode`: both modes accept common callbacks, with drag and scroll events available only in their corresponding mode.
+Pass a flat `callbacks` object to Cineview. TypeScript checks its keys against `mode`: both modes accept common callbacks, with drag and scroll events available only in their corresponding mode.
 
 ## Callback table
 
@@ -11,11 +11,11 @@ Common callbacks (available in both modes):
 
 | Callback         | detail / argument                    | Fires                                                                          |
 | ---------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
-| `onReady`        | `api: CineViewRef`                   | Ref API available after mount; does not wait for resources                     |
+| `onReady`        | `api: CineviewRef`                   | Ref API available after mount; does not wait for resources                     |
 | `onLoadProgress` | `progress: number`                   | Queued request completion, integer 0–100, including failures                   |
 | `onSceneEnter`   | `{ fromIndex, toIndex, direction? }` | Scene-change notification; gesture changes notify at commit                    |
 | `onSceneLeave`   | `{ fromIndex, toIndex, direction? }` | Companion scene-change notification, independent of child animation completion |
-| `onError`        | `CineViewErrorDetail`                | Single error outlet, see "onError and error codes"                             |
+| `onError`        | `CineviewErrorDetail`                | Single error outlet, see "onError and error codes"                             |
 
 `direction` is `'forward'`, `'backward'`, or `null`. Gesture and programmatic timing are described in [Drag callbacks](/docs/05-callbacks).
 
@@ -45,9 +45,9 @@ Passing a scroll callback with `mode="drag"` (or vice versa) is a type error:
 The unsupported callback in this example produces a type error:
 
 ```tsx
-<CineView mode="drag" callbacks={{ onZoneProgress: () => {} }}>
+<Cineview mode="drag" callbacks={{ onZoneProgress: () => {} }}>
   <Scene sceneId="example">Content</Scene>
-</CineView>
+</Cineview>
 ```
 
 The same check applies when the callback object is stored in a variable.
@@ -55,7 +55,7 @@ The same check applies when the callback object is stored in a variable.
 Correctly split per mode:
 
 ```tsx
-<CineView
+<Cineview
   mode="scroll"
   callbacks={{
     onReady: (api) => api.preload(['intro']),
@@ -65,16 +65,16 @@ Correctly split per mode:
   <Scene sceneId="intro" assets={{ preloadImages: ['/intro.jpg'] }}>
     Content
   </Scene>
-</CineView>
+</Cineview>
 ```
 
 ## onError and error codes
 
-`CineViewErrorDetail` contains `code`, `message`, optional `context`, and optional `preventDefault`. Use a `never` check when a switch needs exhaustive handling.
+`CineviewErrorDetail` contains `code`, `message`, optional `context`, and optional `preventDefault`. Use a `never` check when a switch needs exhaustive handling.
 
 | code                          | Meaning                                                           | Recoverability                     |
 | ----------------------------- | ----------------------------------------------------------------- | ---------------------------------- |
-| `EMPTY_SCENES`                | CineView has no Scene children, or a Scene has no content         | Add content                        |
+| `EMPTY_SCENES`                | Cineview has no Scene children, or a Scene has no content         | Add content                        |
 | `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode                             | Handle the resource error          |
 | `FIRST_SCENE_TIMEOUT`         | Initial priority resource wait timed out                          | Optional fallback control          |
 | `INVALID_ANIMATION`           | Missing or incompatible dependency, or unsupported manual control | Correct the reported configuration |
@@ -86,9 +86,9 @@ Correctly split per mode:
 A `FIRST_SCENE_TIMEOUT` supplies `preventDefault`. Call it only when the application provides another wait or retry interface; otherwise the default displays the first Scene at its completed state.
 
 ```tsx
-import type { CineViewErrorDetail } from 'cineview';
+import type { CineviewErrorDetail } from 'cineview';
 
-export function handleError(detail: CineViewErrorDetail) {
+export function handleError(detail: CineviewErrorDetail) {
   if (detail.code === 'FIRST_SCENE_TIMEOUT') {
     // Keep the default display behavior and report the timeout.
     console.warn(detail.message);

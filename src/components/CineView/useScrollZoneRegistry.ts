@@ -164,7 +164,7 @@ export function useScrollZoneRegistry({
         ) {
           warnedDuplicateZoneIdsRef.current.add(zoneId);
           console.warn(
-            `[CineView] Duplicate scroll zone id "${zoneId}": scene ${config.sceneIndex} was rejected because scene ${existing.sceneIndex} already owns it. Give each Scene a unique sceneId or scroll.zoneId.`
+            `[Cineview] Duplicate scroll zone id "${zoneId}": scene ${config.sceneIndex} was rejected because scene ${existing.sceneIndex} already owns it. Give each Scene a unique sceneId or scroll.zoneId.`
           );
         }
         return;

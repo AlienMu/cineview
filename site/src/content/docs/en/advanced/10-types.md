@@ -6,7 +6,7 @@ eyebrow: ADVANCED / TYPES
 Import shared types from `cineview`. Component pages describe their individual props; this page lists the types used across components and callbacks.
 
 ```tsx
-import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
+import type { SlideDirection, CineviewRef, CineviewErrorCode } from 'cineview';
 ```
 
 ## Basic enums
@@ -33,11 +33,11 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 
 ## Error codes
 
-`CineViewErrorCode` contains eight string values. Use a `never` check when a switch needs to handle every value.
+`CineviewErrorCode` contains eight string values. Use a `never` check when a switch needs to handle every value.
 
 | Code                          | Triggered when                                                                                                   |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `EMPTY_SCENES`                | CineView has no Scene children, or a Scene has no content.                                                       |
+| `EMPTY_SCENES`                | Cineview has no Scene children, or a Scene has no content.                                                       |
 | `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode.                                                                           |
 | `FIRST_SCENE_TIMEOUT`         | Initial priority resource wait timed out. Call `preventDefault?.()` only when providing an application fallback. |
 | `INVALID_ANIMATION`           | A dependency is missing or incompatible, or manual control is unsupported.                                       |
@@ -46,15 +46,15 @@ import type { SlideDirection, CineViewRef, CineViewErrorCode } from 'cineview';
 | `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config. Recoverable.                                                         |
 | `ANIMATION_ASSET_LOAD_FAILED` | A preset animation asset failed to load. Retryable.                                                              |
 
-The payload type is `CineViewErrorDetail = { code, message, context?, preventDefault? }`; `preventDefault` exists only on recoverable errors. Handling patterns: [Callbacks](/docs/03-callbacks).
+The payload type is `CineviewErrorDetail = { code, message, context?, preventDefault? }`; `preventDefault` exists only on recoverable errors. Handling patterns: [Callbacks](/docs/03-callbacks).
 
 ## Refs and preload targets
 
 | Type                    | Definition                                                                                                                                                                                   |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CineViewRef`           | Five required methods (`goToScene` / `refreshLayout` / `preload` / `getCurrentIndex` / `getPerformanceMetrics`) plus the scroll-only optional `goToZone`. See [CineView](/docs/01-cineview). |
-| `CineViewScrollRef`     | The scroll view of `CineViewRef`, with `goToZone` required.                                                                                                                                  |
-| `CineViewPreloadTarget` | `number` (scene index) `\| string` (sceneId; under scroll it may also match a zoneId).                                                                                                       |
+| `CineviewRef`           | Five required methods (`goToScene` / `refreshLayout` / `preload` / `getCurrentIndex` / `getPerformanceMetrics`) plus the scroll-only optional `goToZone`. See [Cineview](/docs/01-cineview). |
+| `CineviewScrollRef`     | The scroll view of `CineviewRef`, with `goToZone` required.                                                                                                                                  |
+| `CineviewPreloadTarget` | `number` (scene index) `\| string` (sceneId; under scroll it may also match a zoneId).                                                                                                       |
 | `PerformanceMetrics`    | `{ fps, avgFrameTime, memoryUsage?, bundleSize }`; `avgFrameTime` in ms, `bundleSize` in KB, `memoryUsage` in MB.                                                                            |
 
 ## Callback detail types
@@ -69,7 +69,7 @@ The payload type is `CineViewErrorDetail = { code, message, context?, preventDef
 | `ZoneDetail`            | onZoneEnter / onZoneLeave                                         | `zoneId`, `sceneIndex`                                                             |
 | `ZoneProgressDetail`    | onZoneProgress                                                    | `ZoneDetail` + `progress: number`                                                  |
 | `SceneVisibilityDetail` | onSceneVisibilityChange / `Scene.callbacks.onVisibilityChange`    | `sceneIndex?`, `visible`, `progress`                                               |
-| `CineViewErrorDetail`   | onError                                                           | See "Error codes"                                                                  |
+| `CineviewErrorDetail`   | onError                                                           | See "Error codes"                                                                  |
 
 ## Component prop types
 

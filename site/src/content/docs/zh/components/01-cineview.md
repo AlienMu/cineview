@@ -1,13 +1,13 @@
 ---
-title: CineView
+title: Cineview
 eyebrow: COMPONENTS / CINEVIEW
 ---
 
-CineView 管理页面中的场景，选择 drag 或 scroll 行为，并设置响应式长度使用的设计稿宽度。通过 ref 可执行导航、刷新布局、预加载资源和读取性能数据。
+Cineview 管理页面中的场景，选择 drag 或 scroll 行为，并设置响应式长度使用的设计稿宽度。通过 ref 可执行导航、刷新布局、预加载资源和读取性能数据。
 
 ## Props
 
-`CineViewProps` 是按 `mode` 判别的联合类型：`mode` 缺省即 `'drag'`，callbacks 面随 mode 收窄。
+`CineviewProps` 是按 `mode` 判别的联合类型：`mode` 缺省即 `'drag'`，callbacks 面随 mode 收窄。
 
 | prop          | 类型                       | 默认              | 说明                                |
 | ------------- | -------------------------- | ----------------- | ----------------------------------- |
@@ -15,9 +15,10 @@ CineView 管理页面中的场景，选择 drag 或 scroll 行为，并设置响
 | `mode`        | `'drag' \| 'scroll'`       | `'drag'`          | drag 分页 / scroll 真实文档流接管   |
 | `scrollbar`   | `false \| ScrollbarConfig` | 关闭              | scroll 模式的自绘滚动条             |
 | `monitor`     | `boolean`                  | `false`           | 开启性能采样                        |
+| `debug`       | `boolean`                  | `false`           | 在两种模式下显示性能面板并开启采样  |
 | `a11y`        | `{ label?: string }`       | label：`'Scenes'` | drag 容器的无障碍名称               |
 | `callbacks`   | 随模式确定                 | 无                | 场景、输入与资源通知                |
-| `children`    | `ReactNode`                | 必填              | 将 Scene 直接声明在 CineView 下     |
+| `children`    | `ReactNode`                | 必填              | 将 Scene 直接声明在 Cineview 下     |
 
 ### designWidth
 
@@ -47,7 +48,6 @@ CineView 管理页面中的场景，选择 drag 或 scroll 行为，并设置响
 | `sceneSizing` | `'content' \| 'screen'` | `'content'`     | 普通场景按内容确定尺寸，或至少占一个视窗 |
 | `enterMargin` | `number`                | `50`            | 可见性入场的默认边距，单位为设计像素     |
 | `exitMargin`  | `number`                | `50`            | 可见性退场的默认边距，单位为设计像素     |
-| `debug`       | `boolean`               | `false`         | 开启 scroll 参数与布局诊断               |
 
 ### scrollbar
 
@@ -56,7 +56,7 @@ CineView 管理页面中的场景，选择 drag 或 scroll 行为，并设置响
 | 字段              | 类型      | 默认                         | 说明                         |
 | ----------------- | --------- | ---------------------------- | ---------------------------- |
 | `enabled`         | `boolean` | 传入对象时为 `true`          | 开启或关闭自绘滚动条         |
-| `ariaLabel`       | `string`  | `'CineView scroll position'` | 无障碍标签                   |
+| `ariaLabel`       | `string`  | `'Cineview scroll position'` | 无障碍标签                   |
 | `width`           | `number`  | `6`                          | 厚度（px），最小按 4 计      |
 | `radius`          | `number`  | `999`                        | 圆角，默认全圆头             |
 | `inset`           | `number`  | `0`                          | 距边缘内缩（px）             |
@@ -75,11 +75,11 @@ TypeScript 按 `mode` 检查 `callbacks`。例如 drag 不能使用 `onZoneProgr
 
 | 回调             | detail                | 说明                                           |
 | ---------------- | --------------------- | ---------------------------------------------- |
-| `onReady`        | `api: CineViewRef`    | 挂载后 ref API 可用，不等待资源                |
+| `onReady`        | `api: CineviewRef`    | 挂载后 ref API 可用，不等待资源                |
 | `onLoadProgress` | `progress: number`    | 队列请求完成比例，整数 0–100，包含失败的请求   |
 | `onSceneEnter`   | `SceneChangeDetail`   | 场景切换通知，手势切换在提交时通知             |
 | `onSceneLeave`   | `SceneChangeDetail`   | 场景切换的后续通知，子元素动画此时可能仍在播放 |
-| `onError`        | `CineViewErrorDetail` | 错误码、消息、上下文与可选的默认处理控制       |
+| `onError`        | `CineviewErrorDetail` | 错误码、消息、上下文与可选的默认处理控制       |
 
 ### drag 专属
 
@@ -105,36 +105,36 @@ TypeScript 按 `mode` 检查 `callbacks`。例如 drag 不能使用 `onZoneProgr
 ## Ref 方法
 
 ```tsx
-const ref = useRef<CineViewRef>(null);
-<CineView ref={ref} mode="scroll" designWidth={750}>
+const ref = useRef<CineviewRef>(null);
+<Cineview ref={ref} mode="scroll" designWidth={750}>
   ...
-</CineView>;
+</Cineview>;
 ```
 
 | 方法                    | 签名                                                   | 说明                                                                        |
 | ----------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------- |
 | `goToScene`             | `(index: number, animated?: boolean) => void`          | 跳到指定场景                                                                |
 | `refreshLayout`         | `() => void`                                           | 重新测量布局                                                                |
-| `preload`               | `(targets?: CineViewPreloadTarget[]) => Promise<void>` | 预加载。target 为场景索引（number）或 `sceneId`；scroll 下也可匹配 `zoneId` |
+| `preload`               | `(targets?: CineviewPreloadTarget[]) => Promise<void>` | 预加载。target 为场景索引（number）或 `sceneId`；scroll 下也可匹配 `zoneId` |
 | `getCurrentIndex`       | `() => number`                                         | 当前场景索引                                                                |
 | `getPerformanceMetrics` | `() => PerformanceMetrics`                             | `{ fps, avgFrameTime, memoryUsage?, bundleSize }`                           |
 
 这些方法在两种模式中都存在。挂载前需对 `ref.current` 判空，各个方法本身无需可选调用。
 
-`goToZone(zoneId, { align?: 'center', animated?: boolean })` 是 scroll 专属方法，在通用 ref 类型中为可选字段。scroll 应用可以使用 `CineViewScrollRef`，其中 `goToZone` 为必填字段：
+`goToZone(zoneId, { align?: 'center', animated?: boolean })` 是 scroll 专属方法，在通用 ref 类型中为可选字段。scroll 应用可以使用 `CineviewScrollRef`，其中 `goToZone` 为必填字段：
 
 ```tsx
-const ref = useRef<CineViewScrollRef>(null);
+const ref = useRef<CineviewScrollRef>(null);
 ref.current?.goToZone('intro-seq', { align: 'center' });
 ```
 
 ## 错误码
 
-`onError` 接收 `CineViewErrorCode` 字符串联合类型。需要穷尽处理时，使用 `never` 检查。部分错误提供 `preventDefault`，可调用 `detail.preventDefault?.()` 取消默认处理，并显示应用自己的界面。
+`onError` 接收 `CineviewErrorCode` 字符串联合类型。需要穷尽处理时，使用 `never` 检查。部分错误提供 `preventDefault`，可调用 `detail.preventDefault?.()` 取消默认处理，并显示应用自己的界面。
 
 | code                          | 触发                                          | 恢复机制                                          |
 | ----------------------------- | --------------------------------------------- | ------------------------------------------------- |
-| `EMPTY_SCENES`                | CineView 中没有 Scene，或 Scene 没有内容      | 添加所需内容                                      |
+| `EMPTY_SCENES`                | Cineview 中没有 Scene，或 Scene 没有内容      | 添加所需内容                                      |
 | `IMAGE_LOAD_FAILED`           | drag 模式中的队列资源加载失败                 | 处理资源失败                                      |
 | `FIRST_SCENE_TIMEOUT`         | 首屏资源等待超时                              | 可调用 `preventDefault`；否则将首场景显示为完成态 |
 | `INVALID_ANIMATION`           | 依赖目标缺失、驱动不兼容，或手动控制不受支持  | 修正报告的动画配置                                |

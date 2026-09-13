@@ -1,4 +1,4 @@
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { SceneCut } from './SceneCut';
 import { SceneFlux } from './SceneFlux';
@@ -46,11 +46,11 @@ function SceneTexture({ id }: { id: string }): import('react').JSX.Element {
 
 type TemporalDragExperienceProps = {
   /** Preload shell: only lets the hidden iframe pull this page's HTML/JS/CSS into cache
-   *  and evaluate modules, without mounting CineView—zero animation, zero rAF; the iframe's
+   *  and evaluate modules, without mounting Cineview—zero animation, zero rAF; the iframe's
    *  onLoad completes its mission. */
   preload?: boolean;
   /** Deferred start (embedded in Homepage scene5): first renders a dark shell and announces
-   *  'cineview-embed-ready' to the parent window; only mounts the full CineView on receiving
+   *  'cineview-embed-ready' to the parent window; only mounts the full Cineview on receiving
    *  'cineview-activate' (cold start—the first act's entrance chain plays from zero at the
    *  reveal moment); 'cineview-freeze' unmounts back to shell.
    *  Shell state consumes zero CPU and doesn't compete with outer scroll for the main thread
@@ -69,6 +69,12 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
 }: TemporalDragExperienceProps): import('react').JSX.Element {
   const [stage, setStage] = useState<'frozen' | 'live'>(deferred ? 'frozen' : 'live');
   const reduced = usePrefersReducedMotion();
+
+  const notifyDragStart = useCallback((): void => {
+    if (deferred) {
+      window.parent.postMessage('cineview-embed-drag-start', window.location.origin);
+    }
+  }, [deferred]);
 
   /* Fourth message: `cineview-embed-finished` / `cineview-embed-unfinished` (2026-08-06;
    * 2026-08-09 added reverse direction—user interview verdict: "exit = complete reverse choreography").
@@ -126,7 +132,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
 
   const applyBlack = useCallback(
     (opacity: number, mode: 'gesture' | 'settle' | 'snap', settleMs?: number): void => {
-      // freeze/activate shell switching unmounts and remounts CineView (blackRef is auto-remounted by React),
+      // freeze/activate shell switching unmounts and remounts Cineview (blackRef is auto-remounted by React),
       // manually cached textureRef will point to old nodes detached from the document—isConnected validates and re-parses
       // (resisting acceptance criteria T4 actual test: stale reference caused texture to freeze at 1).
       if (!textureRef.current?.isConnected) {
@@ -196,7 +202,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
     if (!deferred) return;
     const origin = window.location.origin;
     const handleMessage = (event: MessageEvent): void => {
-      if (event.origin !== origin) return;
+      if (event.origin !== origin || event.source !== window.parent) return;
       if (event.data === 'cineview-activate') {
         setStage('live');
       } else if (event.data === 'cineview-freeze') {
@@ -215,11 +221,11 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
 
   return (
     <div className="drag-temporal" data-embed={deferred ? 'deferred-live' : undefined}>
-      {/* Fifth act black curtain root-level layer: must come before CineView (DOM order) + z-index 1,
+      {/* Fifth act black curtain root-level layer: must come before Cineview (DOM order) + z-index 1,
           above container background, below all scene frames (see temporal-drag.css .tp-act5-black). */}
       <div ref={blackRef} className="tp-act5-black" aria-hidden="true" />
       <TemporalMotionProvider>
-        <CineView
+        <Cineview
           designWidth={390}
           mode="drag"
           direction="y"
@@ -232,6 +238,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
             maxRatio: 0.32,
           }}
           callbacks={{
+            onDragStart: notifyDragStart,
             onSceneLeave: handleSceneSettled,
             onDragProgress: handleBlackOpacity,
             onDragCancel: handleBlackSessionEnd,
@@ -277,7 +284,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
             <SceneCut />
             <SceneTexture id="s05-texture" />
           </Scene>
-        </CineView>
+        </Cineview>
       </TemporalMotionProvider>
     </div>
   );

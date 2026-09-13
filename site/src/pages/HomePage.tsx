@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { CineView, Scene, type CineViewRef } from 'cineview';
-import { PerfPanel } from 'cineview/dev';
-import 'cineview/dev/style.css';
-import { useI18n } from '../i18n';
+import { useCallback, useEffect, useState } from 'react';
+import { Cineview, Scene } from 'cineview';
 import { HeroScene } from '../components/HeroScene';
 import { CapabilityFilmStripScene } from '../components/CapabilityScene';
 import { AboutScenesScene } from '../components/AboutScenesScene';
@@ -14,7 +11,7 @@ import { Scene5Cinema } from '../components/Scene5Cinema';
 import '../components/HomeDemoControls.css';
 
 /**
- * Preload /drag experience: After CineView onReady, create a hidden iframe to fetch
+ * Preload /drag experience: After Cineview onReady, create a hidden iframe to fetch
  * /drag's HTML/JS/CSS into cache (preload=true renders only the shell with zero animations
  * and zero rAF), then remove it onLoad. Non-blocking for home page render, no visual or
  * interaction side effects.
@@ -46,34 +43,17 @@ function DragExperiencePreloader({ active }: { active: boolean }): null {
  * Natural sections alternate with locally owned film, Canvas, video, and Cinema zones.
  */
 export default function HomePage(): import('react').JSX.Element {
-  const { lang } = useI18n();
   const [dragPreloadArmed, setDragPreloadArmed] = useState(false);
-  const [cineViewSource, setCineViewSource] = useState<CineViewRef | null>(null);
-  const [debugEnabled, setDebugEnabled] = useState(false);
-  const cineViewRef = useRef<CineViewRef>(null);
-  const armDragPreload = useCallback((api: CineViewRef): void => {
-    cineViewRef.current = api;
-    setCineViewSource(api);
+  const armDragPreload = useCallback((): void => {
     setDragPreloadArmed(true);
   }, []);
   return (
     <div className="home-page">
-      <label className="home-debug-toggle">
-        <input
-          type="checkbox"
-          checked={debugEnabled}
-          onChange={(event) => setDebugEnabled(event.target.checked)}
-        />
-        <span>{lang === 'zh' ? '参数调试' : 'Parameter debug'}</span>
-      </label>
       {/* Site-wide background ribbon = App-level <BackgroundRibbon /> (original mechanism restored, 2026-08-13),
           no longer mounted from this page (see task-flow 2026-08-13 追加轮). */}
-      <CineView
-        ref={cineViewRef}
+      <Cineview
         designWidth={1440}
         mode="scroll"
-        monitor={debugEnabled}
-        debug={debugEnabled}
         scrollbar={{
           enabled: true,
           width: 8,
@@ -157,17 +137,7 @@ export default function HomePage(): import('react').JSX.Element {
         >
           <Scene5Cinema />
         </Scene>
-      </CineView>
-      {debugEnabled ? (
-        <PerfPanel
-          source={cineViewSource}
-          position="top-right"
-          defaultExpanded={false}
-          draggable
-          enabled={debugEnabled}
-          lang={lang}
-        />
-      ) : null}
+      </Cineview>
       <DragExperiencePreloader active={dragPreloadArmed} />
     </div>
   );

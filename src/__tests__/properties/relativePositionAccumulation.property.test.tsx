@@ -11,7 +11,7 @@ import * as fc from 'fast-check';
 import React from 'react';
 import { render } from '@testing-library/react';
 import { Position } from '../../components/Position/Position';
-import { CineViewContext, type CineViewContextValue } from '../../context/CineViewContext';
+import { CineviewContext, type CineviewContextValue } from '../../context/CineviewContext';
 
 interface PositionConfig {
   x?: number;
@@ -20,7 +20,7 @@ interface PositionConfig {
 
 describe('Property: Relative Position Accumulation', () => {
   // Create test context
-  const createTestContext = (designSize: number, viewportWidth: number): CineViewContextValue => {
+  const createTestContext = (designSize: number, viewportWidth: number): CineviewContextValue => {
     const scale = viewportWidth / designSize;
     return {
       scale,
@@ -85,9 +85,9 @@ describe('Property: Relative Position Accumulation', () => {
       };
 
       const { container } = render(
-        <CineViewContext.Provider value={context}>
+        <CineviewContext.Provider value={context}>
           <div style={{ width: `${vw}px`, position: 'relative' }}>{renderNestedPositions(pos)}</div>
-        </CineViewContext.Provider>
+        </CineviewContext.Provider>
       );
 
       // Verify actual position of each element
@@ -161,9 +161,9 @@ describe('Property: Relative Position Accumulation', () => {
       };
 
       const { container } = render(
-        <CineViewContext.Provider value={context}>
+        <CineviewContext.Provider value={context}>
           <div style={{ width: `${vw}px`, position: 'relative' }}>{renderNestedPositions()}</div>
-        </CineViewContext.Provider>
+        </CineviewContext.Provider>
       );
 
       // Verify positions
@@ -218,9 +218,9 @@ describe('Property: Relative Position Accumulation', () => {
       };
 
       const { container } = render(
-        <CineViewContext.Provider value={context}>
+        <CineviewContext.Provider value={context}>
           {renderNestedPositions(offs)}
-        </CineViewContext.Provider>
+        </CineviewContext.Provider>
       );
 
       // Verify accumulation
@@ -252,13 +252,13 @@ describe('Property: Relative Position Accumulation', () => {
       const context = createTestContext(ds, vw);
 
       const { container } = render(
-        <CineViewContext.Provider value={context}>
+        <CineviewContext.Provider value={context}>
           <div style={{ width: `${vw}px`, position: 'relative' }}>
             <Position x={xPos}>
               <div data-testid="element-0">Element</div>
             </Position>
           </div>
-        </CineViewContext.Provider>
+        </CineviewContext.Provider>
       );
 
       const element = container.querySelector('[data-testid="element-0"]')?.parentElement;
@@ -289,13 +289,13 @@ describe('Property: Relative Position Accumulation', () => {
       const context = createTestContext(ds, vw);
 
       const { container } = render(
-        <CineViewContext.Provider value={context}>
+        <CineviewContext.Provider value={context}>
           <div style={{ width: `${vw}px`, position: 'relative' }}>
             <Position x={xPos} offsetX={offX}>
               <div data-testid="element-0">Element</div>
             </Position>
           </div>
-        </CineViewContext.Provider>
+        </CineviewContext.Provider>
       );
 
       const element = container.querySelector('[data-testid="element-0"]')?.parentElement;

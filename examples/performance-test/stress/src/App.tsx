@@ -4,7 +4,7 @@
  * hash 路由：#/drag（drag 模式 3 幕）| #/scroll（scroll 模式 2 个 takeover zone）。
  */
 import type { CSSProperties } from 'react';
-import { Animate, AnimateVideo, CineView, Scene } from 'cineview';
+import { Animate, AnimateVideo, Cineview, Scene } from 'cineview';
 
 const VIDEO_A = new URL('../../../../site/public/video.mp4', import.meta.url).href;
 const VIDEO_B = new URL('../../../../site/public/act3-edit.mp4', import.meta.url).href;
@@ -73,7 +73,7 @@ function HeavyStack({ idPrefix }: { idPrefix: string }): JSX.Element {
 function DragStressPage(): JSX.Element {
   return (
     <main data-page="stress-drag" style={{ height: '100vh', overflow: 'hidden' }}>
-      <CineView designWidth={390} mode="drag" direction="y" transitionDuration={600}>
+      <Cineview designWidth={390} mode="drag" direction="y" transitionDuration={600}>
         <Scene
           sceneId="stress-drag-0"
           layout={{ width: '100%', height: '100vh', overflow: 'hidden' }}
@@ -112,7 +112,7 @@ function DragStressPage(): JSX.Element {
             <HeavyStack idPrefix="d2" />
           </div>
         </Scene>
-      </CineView>
+      </Cineview>
     </main>
   );
 }
@@ -120,7 +120,7 @@ function DragStressPage(): JSX.Element {
 function ScrollStressPage(): JSX.Element {
   return (
     <main data-page="stress-scroll">
-      <CineView designWidth={390} mode="scroll" direction="y" zoneTrigger="center-lock">
+      <Cineview designWidth={390} mode="scroll" direction="y" zoneTrigger="center-lock">
         <section
           style={{
             height: '100vh',
@@ -202,7 +202,7 @@ function ScrollStressPage(): JSX.Element {
         >
           footer
         </section>
-      </CineView>
+      </Cineview>
     </main>
   );
 }

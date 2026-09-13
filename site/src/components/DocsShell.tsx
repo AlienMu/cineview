@@ -193,12 +193,12 @@ export function DocsShell({
           <Link
             to="/"
             className="docs-shell__brand"
-            aria-label={zh ? 'CineView 首页' : 'CineView home'}
+            aria-label={zh ? 'Cineview 首页' : 'Cineview home'}
           >
             <span className="docs-shell__mark" aria-hidden="true">
               C
             </span>
-            <span>CineView</span>
+            <span>Cineview</span>
           </Link>
           <Link className="docs-shell__section" to="/docs">
             {t('docs.title')}
@@ -226,10 +226,6 @@ export function DocsShell({
               <span>{zh ? '搜索文档' : 'Search documentation'}</span>
               <kbd>⌘ K</kbd>
             </button>
-            <Link className="docs-shell__demo" to="/drag">
-              {zh ? '体验演示' : 'View demo'}
-              <span aria-hidden="true">↗</span>
-            </Link>
             <LangToggle variant="shell" />
           </div>
         </div>

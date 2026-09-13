@@ -9,11 +9,11 @@
  * Predicted fixed point: T = 6600 / 0.7 ≈ 9428.57 px; title window
  * [471.43, 2828.57]; subline [2828.57, 3428.57]; tail [3428.57, 9428.57].
  */
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 export default function DualClockFixturePage(): import('react').JSX.Element {
   return (
-    <CineView designWidth={1440} mode="scroll">
+    <Cineview designWidth={1440} mode="scroll">
       <Scene sceneId="dual-intro" layout={{ width: '100%', height: '80vh' }}>
         <div style={{ padding: '10vh 8vw' }}>
           <h2>Intro (document flow)</h2>
@@ -56,6 +56,6 @@ export default function DualClockFixturePage(): import('react').JSX.Element {
           <h2>Outro (document flow)</h2>
         </div>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }

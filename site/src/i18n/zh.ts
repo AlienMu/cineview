@@ -11,7 +11,7 @@ export const zh = {
 
   // ── Act 1 Hero ──
   // Three rows: title (center) / slogan (largest, shimmer) / intro (small)
-  'hero.title': 'CineView',
+  'hero.title': 'Cineview',
   'hero.slogan': '像导演一样\n控制每一帧',
   'hero.intro': '滚动是胶片,拖拽是分镜。\n把每一次位移,都交给时间线。',
   'hero.ctaStart': '开始使用',
@@ -20,10 +20,10 @@ export const zh = {
   'hero.scrollHint': '向下滚动,胶片开始走动',
 
   // ── Act 2 Philosophy ──
-  'idea.eyebrow': '为什么是 CineView',
+  'idea.eyebrow': '为什么是 Cineview',
   'idea.title': '滚动不该只是位移,\n而是被排好的时间线',
   'idea.body':
-    '传统页面里,滚动只是把内容往上推。在 CineView 里,滚动是胶片推进——每一段位移都映射到场景的进退场时间轴,元素按 delay 与 after 依次入场,像分镜表一样被精确排进时间线。',
+    '传统页面里,滚动只是把内容往上推。在 Cineview 里,滚动是胶片推进——每一段位移都映射到场景的进退场时间轴,元素按 delay 与 after 依次入场,像分镜表一样被精确排进时间线。',
 
   // ── Act 2 Capability showcase (framework as demo · two shots + through-line timecode capsule) ──
   // Title uses "|" separator: the right-hand segment renders as Fraunces italic terracotta emphasis (language-agnostic).
@@ -103,7 +103,7 @@ export const zh = {
 
   // Phone interior drag demo 4 screens
   'demoDrag.s1.eyebrow': '第一镜',
-  'demoDrag.s1.title': 'CineView',
+  'demoDrag.s1.title': 'Cineview',
   'demoDrag.s1.sub': '影院级叙事,触手可及',
   'demoDrag.s2.eyebrow': '第二镜 · 时间线',
   'demoDrag.s2.title': '元素依次入场',
@@ -124,9 +124,11 @@ export const zh = {
      watching both modes running the same framework — the copy reveals it directly. First subtitle line uses "it" to refer back
      to the title's "unified system"; second line lands on verifiable framework facts (timeline semantics / animation declarations share the same source).
      Deliberately not written as marketing copy: the site's tone is "show you by demonstration", not "tell you it's great". */
-  'scene5.title': '两种模式，一套体系',
-  'scene5.subtitle': '指尖拖拽的是它，这一页滚动的也是它。\n同一套时间轴，同一种动画声明。',
-  'scene5.frameTitle': 'CineView 拖拽体验',
+  'scene5.title': '演示到这里。',
+  'scene5.subtitle':
+    '这一页使用 scroll，手机内使用 drag。\n两种交互，共用同一套场景组件和动画时序声明。',
+  'scene5.frameTitle': 'Cineview 拖拽体验',
+  'scene5.dragHint': '拖拽试试',
 
   // ── Act 5 Capability matrix ──
   'caps.eyebrow': '能力',
@@ -146,11 +148,11 @@ export const zh = {
   'caps.6.desc': '固定层限定在场景内,跨场景不漂浮,Position 直接挂载,层级清晰可控。',
 
   // ── Act 6 CTA / Footer ──
-  'cta.title': '现在,开始你的第一镜',
-  'cta.body': '安装、写下第一个场景,几分钟就能跑起一段电影感叙事。',
-  'cta.start': '快速开始',
-  'cta.github': 'Star on GitHub',
-  'footer.tagline': '影院级叙事 · React UI 框架',
+  'cta.title': '接下来，写第一个场景',
+  'cta.body': '接入已有的 React 内容，用 Scene 组织页面，用 Animate 编排入场、退场与先后顺序。',
+  'cta.start': '阅读文档',
+  'cta.github': '查看 GitHub',
+  'footer.tagline': 'Cineview · React 场景与动画框架',
   'footer.docs': '文档',
   'footer.license': 'MIT 协议',
 
@@ -229,19 +231,22 @@ export const zh = {
   'dragTemporal.s05.actionsLabel': '尾场导航',
   'dragTemporal.s05.btnHome': '返回首页',
   'dragTemporal.s05.btnDocs': '阅读文档',
+  'dragTemporal.s05.btnGithub': 'GitHub',
+  'dragTemporal.s05.summary':
+    '场景、图形与视频，以上效果都由 Cineview 编排。同一套组件，支持拖拽与滚动。',
   'dragTemporal.s05.reelLabel': '胶片尾段',
-  'dragTemporal.s05.creditsLabel': 'CineView 谢幕演职员表',
+  'dragTemporal.s05.creditsLabel': '本次演示使用的 Cineview 组件',
   'dragTemporal.s05.title': '灯光落下，戏散场。',
-  'dragTemporal.s05.director': '导演',
-  'dragTemporal.s05.editor': '剪辑',
-  'dragTemporal.s05.cinematography': '摄影',
-  'dragTemporal.s05.performance': '动态演出',
-  'dragTemporal.s05.starring': '领衔主演',
-  'dragTemporal.s05.sceneEngine': '场景调度引擎',
-  'dragTemporal.s05.timeline': '统一时间线',
-  'dragTemporal.s05.scrollDrag': '滚动与拖拽',
-  'dragTemporal.s05.motionRuntime': '可逆动效运行时',
-  'dragTemporal.s05.yourStory': '你的叙事',
+  'dragTemporal.s05.director': '场景',
+  'dragTemporal.s05.editor': '动画编排',
+  'dragTemporal.s05.cinematography': '交互',
+  'dragTemporal.s05.performance': '视频',
+  'dragTemporal.s05.starring': '自定义画面',
+  'dragTemporal.s05.sceneEngine': 'Scene',
+  'dragTemporal.s05.timeline': 'Animate + timeline',
+  'dragTemporal.s05.scrollDrag': 'scroll / drag',
+  'dragTemporal.s05.motionRuntime': 'AnimateVideo',
+  'dragTemporal.s05.yourStory': 'React + Canvas',
   'dragTemporal.s05.salute1': '封神',
   'dragTemporal.s05.salute2': '帧听你的',
   'dragTemporal.s05.salute3': '一镜到底',

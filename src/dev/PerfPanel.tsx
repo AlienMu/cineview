@@ -14,7 +14,7 @@ export interface PerfPanelProps {
   position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   /** 是否默认展开 */
   defaultExpanded?: boolean;
-  /** Public CineView ref (usually captured from callbacks.onReady). */
+  /** Public Cineview ref (usually captured from callbacks.onReady). */
   source?: PerformanceSource | null;
   /** Disable polling while the panel is hidden. */
   enabled?: boolean;
@@ -58,9 +58,9 @@ export function PerfPanel({
   const copy =
     lang === 'zh'
       ? {
-          expand: '展开 CineView 性能面板',
-          collapse: '收起 CineView 性能面板',
-          title: 'CineView 性能',
+          expand: '展开 Cineview 性能面板',
+          collapse: '收起 Cineview 性能面板',
+          title: 'Cineview 性能',
           fps: '帧率',
           frame: '平均帧时',
           loaded: '已加载代码',
@@ -68,16 +68,16 @@ export function PerfPanel({
           memory: '内存',
           samples: '采样数',
           monitor: '监视器',
-          waiting: '等待 CineView 引用',
+          waiting: '等待 Cineview 引用',
           warning: '性能警告',
           issue: '性能问题',
           details: (value: string): string => `平均帧时：${value}（目标 <16.67ms）`,
           loadedTitle: '根据 Resource Timing 估算的页面 JavaScript 和 CSS，不是包 gzip 大小。',
         }
       : {
-          expand: 'Expand CineView performance panel',
-          collapse: 'Collapse CineView performance panel',
-          title: 'CineView Performance',
+          expand: 'Expand Cineview performance panel',
+          collapse: 'Collapse Cineview performance panel',
+          title: 'Cineview Performance',
           fps: 'FPS',
           frame: 'Avg Frame',
           loaded: 'Loaded code',
@@ -85,7 +85,7 @@ export function PerfPanel({
           memory: 'Memory',
           samples: 'Samples',
           monitor: 'Monitor',
-          waiting: 'Waiting for CineView ref',
+          waiting: 'Waiting for Cineview ref',
           warning: 'Performance warning',
           issue: 'Performance issue',
           details: (value: string): string => `Average frame time: ${value} (target <16.67ms)`,

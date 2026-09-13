@@ -20,7 +20,7 @@ describe('development tools without a DOM', () => {
 
     try {
       expect(renderToString(<Snapshot />)).toContain('pending');
-      expect(renderToString(<PerfPanel source={source} />)).toContain('Waiting for CineView ref');
+      expect(renderToString(<PerfPanel source={source} />)).toContain('Waiting for Cineview ref');
       expect(source.getPerformanceMetrics).not.toHaveBeenCalled();
       expect(interval).not.toHaveBeenCalled();
     } finally {

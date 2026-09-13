@@ -1,5 +1,5 @@
 import type { ScrollTimelineState } from '../../types';
-import type { ScrollInputDirection } from '../CineView/directScrollHelpers';
+import type { ScrollInputDirection } from '../Cineview/directScrollHelpers';
 
 /**
  * Continuous values for one scroll Scene. This channel is deliberately

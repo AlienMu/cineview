@@ -7,7 +7,7 @@ drag 支持指针手势和键盘导航。指针手势是否提交场景切换，
 
 ## 指针与键盘输入
 
-聚焦 CineView 容器后，竖向模式使用上下方向键，横向模式使用左右方向键，也可使用 PageUp、PageDown、Home 和 End。Scene 内的控件保留自己的按键处理。drag 不提供滚轮翻页，程序化导航使用 `ref.goToScene(index, animated?)`。
+聚焦 Cineview 容器后，竖向模式使用上下方向键，横向模式使用左右方向键，也可使用 PageUp、PageDown、Home 和 End。Scene 内的控件保留自己的按键处理。drag 不提供滚轮翻页，程序化导航使用 `ref.goToScene(index, animated?)`。
 
 场景上的 `touch-action` 按方向预设，交出交叉轴、占用拖拽轴：
 
@@ -16,7 +16,7 @@ drag 支持指针手势和键盘导航。指针手势是否提交场景切换，
 | `'y'`（默认） | `pan-x pinch-zoom` |
 | `'x'`         | `pan-y pinch-zoom` |
 
-Scene 的触控处理保留拖拽轴，并允许另一轴上的浏览器手势。内层控件可以退出 CineView 手势处理，但这不会改变祖先元素的 CSS `touch-action` 限制。
+Scene 的触控处理保留拖拽轴，并允许另一轴上的浏览器手势。内层控件可以退出 Cineview 手势处理，但这不会改变祖先元素的 CSS `touch-action` 限制。
 
 ## pointerdown 的四项检查
 
@@ -71,7 +71,7 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 
 - 方向反转否决速度 600 px/s：位移够了但手指在快速回甩时，提交被否决。
 - 边界回弹固定 150 ms：首屏往前、末屏往后时用这个值，不随拖了多远变化；普通回弹按位移比例 × 800 计算，上限 300 ms。
-- **脱离 CineView 的独立 Scene 阈值固定为 0.5**，此时 `threshold` 配置整体被忽略。
+- **脱离 Cineview 的独立 Scene 阈值固定为 0.5**，此时 `threshold` 配置整体被忽略。
 
 手势进度使用当前执行窗口的 `innerHeight` 或 `innerWidth` 计算。容器小于该窗口时，完成手势可能需要超过容器尺寸的移动距离。
 
@@ -101,4 +101,4 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 - [drag 布局契约](/docs/01-layout)：默认尺寸与引擎内置固定样式
 - [拖拽的开始与继续](/docs/04-ownership)：手势开始与中途继续
 - [drag 回调时序](/docs/05-callbacks)：手势会发出哪些回调、在什么时刻
-- [CineView 参考](/docs/01-cineview)：drag 模式全表
+- [Cineview 参考](/docs/01-cineview)：drag 模式全表

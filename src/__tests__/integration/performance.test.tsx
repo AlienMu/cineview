@@ -9,8 +9,8 @@ import React from 'react';
 import { act } from '@testing-library/react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
@@ -126,13 +126,13 @@ Object.defineProperty(performance, 'memory', {
 });
 
 describe('Performance Tests', () => {
-  let cineViewRef: React.RefObject<CineViewRef | null>;
+  let cineviewRef: React.RefObject<CineviewRef | null>;
   let cleanup: (() => void) | undefined;
 
   jest.setTimeout(10000);
 
   beforeEach(() => {
-    cineViewRef = React.createRef();
+    cineviewRef = React.createRef();
     jest.clearAllMocks();
   });
 
@@ -161,15 +161,15 @@ describe('Performance Tests', () => {
       ));
 
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
           designWidth={750}
         >
           {scenes}
-        </CineView>
+        </Cineview>
       );
 
       const { container, unmount } = render(<TestApp />);
@@ -182,7 +182,7 @@ describe('Performance Tests', () => {
         { timeout: 3000 }
       );
 
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
 
       expect(screen.getByText('Scene 1')).toBeInTheDocument();
 
@@ -199,15 +199,15 @@ describe('Performance Tests', () => {
       ));
 
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
           designWidth={750}
         >
           {scenes}
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -215,7 +215,7 @@ describe('Performance Tests', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current).not.toBeNull();
+          expect(cineviewRef.current).not.toBeNull();
         },
         { timeout: 3000 }
       );
@@ -225,12 +225,12 @@ describe('Performance Tests', () => {
       expect(screen.queryByTestId('scene-2')).not.toBeInTheDocument();
 
       act(() => {
-        cineViewRef.current?.goToScene(27, false);
+        cineviewRef.current?.goToScene(27, false);
       });
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentIndex()).toBe(27);
+          expect(cineviewRef.current?.getCurrentIndex()).toBe(27);
         },
         { timeout: 2000 }
       );
@@ -242,12 +242,12 @@ describe('Performance Tests', () => {
       expect(screen.queryByTestId('scene-29')).not.toBeInTheDocument();
 
       act(() => {
-        cineViewRef.current?.goToScene(54, false);
+        cineviewRef.current?.goToScene(54, false);
       });
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentIndex()).toBe(54);
+          expect(cineviewRef.current?.getCurrentIndex()).toBe(54);
         },
         { timeout: 2000 }
       );
@@ -269,15 +269,15 @@ describe('Performance Tests', () => {
       ));
 
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={50}
           designWidth={750}
         >
           {scenes}
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -285,7 +285,7 @@ describe('Performance Tests', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current).not.toBeNull();
+          expect(cineviewRef.current).not.toBeNull();
         },
         { timeout: 3000 }
       );
@@ -294,18 +294,18 @@ describe('Performance Tests', () => {
 
       for (const targetScene of targetScenes) {
         act(() => {
-          cineViewRef.current?.goToScene(targetScene, false);
+          cineviewRef.current?.goToScene(targetScene, false);
         });
 
         await waitFor(
           () => {
-            expect(cineViewRef.current?.getCurrentIndex()).toBe(targetScene);
+            expect(cineviewRef.current?.getCurrentIndex()).toBe(targetScene);
           },
           { timeout: 1000 }
         );
       }
 
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(10);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(10);
 
       unmount();
       cleanup = undefined;
@@ -321,7 +321,7 @@ describe('Performance Tests', () => {
       );
 
       const TestApp = () => (
-        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750}>
+        <Cineview ref={cineviewRef as React.RefObject<CineviewRef>} designWidth={750}>
           <Scene assets={{ preloadImages: images.slice(0, 12) }}>
             <h1>First Scene</h1>
           </Scene>
@@ -331,7 +331,7 @@ describe('Performance Tests', () => {
           <Scene assets={{ preloadImages: images.slice(24, 36) }}>
             <h1>Scene 3</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount, container } = render(<TestApp />);
@@ -339,7 +339,7 @@ describe('Performance Tests', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current).not.toBeNull();
+          expect(cineviewRef.current).not.toBeNull();
           expect(container.querySelector('.cineview-container')).toBeInTheDocument();
         },
         { timeout: 3000 }
@@ -382,14 +382,14 @@ describe('Performance Tests', () => {
       } as unknown as typeof Image;
 
       const TestApp = (): React.JSX.Element => (
-        <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
+        <Cineview mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene assets={{ preloadImages: ['https://example.com/priority1.jpg'] }}>
             <h1>First Screen</h1>
           </Scene>
           <Scene assets={{ preloadImages: ['https://example.com/background1.jpg'] }}>
             <h1>Scene 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -415,7 +415,7 @@ describe('Performance Tests', () => {
       const onLoadProgress = jest.fn();
 
       const TestApp = () => (
-        <CineView designWidth={750} callbacks={{ onLoadProgress }}>
+        <Cineview designWidth={750} callbacks={{ onLoadProgress }}>
           <Scene
             assets={{
               preloadImages: ['https://example.com/valid.jpg', 'https://invalid-url/image.jpg'],
@@ -423,7 +423,7 @@ describe('Performance Tests', () => {
           >
             <h1>Test Scene</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount, container } = render(<TestApp />);
@@ -473,11 +473,11 @@ describe('Performance Tests', () => {
       ));
 
       const TestApp = () => (
-        <CineView mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
+        <Cineview mode="drag" direction={'y'} transitionDuration={500} designWidth={750}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -511,11 +511,11 @@ describe('Performance Tests', () => {
       ));
 
       const TestApp = () => (
-        <CineView mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
+        <Cineview mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>{animations}</Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -536,11 +536,11 @@ describe('Performance Tests', () => {
 
     test('should enable performance monitoring in monitor mode', async () => {
       const TestApp = () => (
-        <CineView ref={cineViewRef as React.RefObject<CineViewRef>} designWidth={750} monitor>
+        <Cineview ref={cineviewRef as React.RefObject<CineviewRef>} designWidth={750} monitor>
           <Scene>
             <h1>Performance Monitoring Test</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -548,12 +548,12 @@ describe('Performance Tests', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current).not.toBeNull();
+          expect(cineviewRef.current).not.toBeNull();
         },
         { timeout: 2000 }
       );
 
-      const metrics = cineViewRef.current?.getPerformanceMetrics();
+      const metrics = cineviewRef.current?.getPerformanceMetrics();
 
       expect(metrics).toBeDefined();
       const resolvedMetrics = metrics!;
@@ -575,7 +575,7 @@ describe('Performance Tests', () => {
       const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Animate enterAnimation="fade-in" exitAnimation="fade-out">
               <h1>Drag Performance Test</h1>
@@ -584,7 +584,7 @@ describe('Performance Tests', () => {
           <Scene>
             <h1>Next Scene</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -605,7 +605,7 @@ describe('Performance Tests', () => {
 
     test('should handle animation delay chains without blocking main thread', async () => {
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Animate
               animateId="anim1"
@@ -632,7 +632,7 @@ describe('Performance Tests', () => {
               <div>Animation 3</div>
             </Animate>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const startTime = performance.now();
@@ -663,8 +663,8 @@ describe('Performance Tests', () => {
       const removeEventListenerSpy = jest.spyOn(HTMLDivElement.prototype, 'removeEventListener');
 
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -679,7 +679,7 @@ describe('Performance Tests', () => {
           <Scene>
             <h1>Scene 3</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -687,29 +687,29 @@ describe('Performance Tests', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current).not.toBeNull();
+          expect(cineviewRef.current).not.toBeNull();
         },
         { timeout: 2000 }
       );
 
       act(() => {
-        cineViewRef.current?.goToScene(1, false);
+        cineviewRef.current?.goToScene(1, false);
       });
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+          expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
         },
         { timeout: 1000 }
       );
 
       act(() => {
-        cineViewRef.current?.goToScene(2, false);
+        cineviewRef.current?.goToScene(2, false);
       });
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
+          expect(cineviewRef.current?.getCurrentIndex()).toBe(2);
         },
         { timeout: 1000 }
       );
@@ -722,11 +722,11 @@ describe('Performance Tests', () => {
 
     test('should clean up all resources on component unmount', async () => {
       const TestApp = () => (
-        <CineView designWidth={750} monitor>
+        <Cineview designWidth={750} monitor>
           <Scene>
             <h1>Test Scene</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -756,9 +756,9 @@ describe('Performance Tests', () => {
       ));
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>{animations}</Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -785,10 +785,10 @@ describe('Performance Tests', () => {
   // time or real display frame rate. Production timing is measured by profile:browser.
   describe('Runtime readiness and metric contracts', () => {
     test('should expose first-screen content and a usable API when ready', async () => {
-      const onReady = jest.fn<void, [CineViewRef]>();
+      const onReady = jest.fn<void, [CineviewRef]>();
 
       const TestApp = () => (
-        <CineView designWidth={750} callbacks={{ onReady }}>
+        <Cineview designWidth={750} callbacks={{ onReady }}>
           <Scene>
             <Position at={{ x: 100, y: 100 }}>
               <Animate enterAnimation="fade-in">
@@ -797,7 +797,7 @@ describe('Performance Tests', () => {
             </Position>
           </Scene>
           <Scene>Next Screen Content</Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -823,8 +823,8 @@ describe('Performance Tests', () => {
 
     test('should report finite monitoring metrics after navigation', async () => {
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={300}
@@ -837,7 +837,7 @@ describe('Performance Tests', () => {
           <Scene>
             <h1>Scene 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<TestApp />);
@@ -845,23 +845,23 @@ describe('Performance Tests', () => {
 
       await waitFor(
         () => {
-          expect(cineViewRef.current).not.toBeNull();
+          expect(cineviewRef.current).not.toBeNull();
         },
         { timeout: 2000 }
       );
 
       act(() => {
-        cineViewRef.current?.goToScene(1, true);
+        cineviewRef.current?.goToScene(1, true);
       });
 
       await waitFor(
         () => {
-          expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+          expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
         },
         { timeout: 1000 }
       );
 
-      const metrics = cineViewRef.current?.getPerformanceMetrics();
+      const metrics = cineviewRef.current?.getPerformanceMetrics();
 
       expect(metrics).toBeDefined();
       const resolvedMetrics = metrics!;

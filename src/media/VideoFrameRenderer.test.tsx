@@ -6,7 +6,7 @@ import { createRef, Suspense, startTransition, useState } from 'react';
 import { render, act, fireEvent } from '@testing-library/react';
 import { motionValue } from 'framer-motion';
 import type { AnimateTimelineFrame } from '../types';
-import { CineViewProvider } from '../context/CineViewContext';
+import { CineviewProvider } from '../context/CineviewContext';
 import { VideoFrameRenderer } from './VideoFrameRenderer';
 import type { VideoFrameRendererControl } from './VideoFrameRenderer';
 import * as cache from '../hooks/mediaPreloadCache';
@@ -197,9 +197,9 @@ describe('VideoFrameRenderer', () => {
     stubVideoTiming(5, 1);
     // viewport 750 / design 750 → scale 1; height also uses width ruler (width-based, not height-based).
     const { container } = render(
-      <CineViewProvider designSize={750}>
+      <CineviewProvider designSize={750}>
         <VideoFrameRenderer src="/d.mp4" progress={0} width={375} height={667} />
-      </CineViewProvider>
+      </CineviewProvider>
     );
     const video = container.querySelector('video') as HTMLVideoElement;
     expect(video.getAttribute('width')).toBe('375');
@@ -211,9 +211,9 @@ describe('VideoFrameRenderer', () => {
     stubVideoTiming(5, 1);
     Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 375 });
     const { container } = render(
-      <CineViewProvider designSize={750}>
+      <CineviewProvider designSize={750}>
         <VideoFrameRenderer src="/h.mp4" progress={0} width={200} height={200} />
-      </CineViewProvider>
+      </CineviewProvider>
     );
     const video = container.querySelector('video') as HTMLVideoElement;
     // scale = 375/750 = 0.5; square 200×200 → 100×100 (no distortion).

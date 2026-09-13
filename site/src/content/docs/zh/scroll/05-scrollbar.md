@@ -35,7 +35,7 @@ eyebrow: SCROLL / SCROLLBAR
 | `thumbColor`      | `string`  | `'rgba(255, 255, 255, 0.28)'` | 无       | 滑块的 `background`                   |
 | `thumbHoverColor` | `string`  | `'rgba(255, 255, 255, 0.42)'` | 无       | 滑块四周的 1px 描边，所有状态下均显示 |
 | `autoHide`        | `boolean` | `true`                        | 无       | 空闲时淡出，见「autoHide 时序」       |
-| `ariaLabel`       | `string`  | `'CineView scroll position'`  | 无       | 轨道的无障碍名称                      |
+| `ariaLabel`       | `string`  | `'Cineview scroll position'`  | 无       | 轨道的无障碍名称                      |
 
 `thumbHoverColor` 设置滑块在所有状态下的一像素描边颜色，并非仅用于悬停。
 
@@ -54,7 +54,7 @@ eyebrow: SCROLL / SCROLLBAR
 颜色选项接受 CSS 颜色与自定义属性引用。例如 `thumbColor: 'var(--accent)'` 会使用 `--accent` 的当前值。
 
 ```tsx
-<CineView
+<Cineview
   mode="scroll"
   designWidth={1440}
   scrollbar={{
@@ -67,7 +67,7 @@ eyebrow: SCROLL / SCROLLBAR
   }}
 >
   <Scene sceneId="content">可滚动内容</Scene>
-</CineView>
+</Cineview>
 ```
 
 ## autoHide 时序
@@ -79,5 +79,5 @@ eyebrow: SCROLL / SCROLLBAR
 ## 相关页面
 
 - [四条输入路径](/docs/03-inputs)：拖滚动条与其他输入的边界约束机制
-- [CineView 参考](/docs/01-cineview)：`scrollbar` 在根 props 里的位置
+- [Cineview 参考](/docs/01-cineview)：`scrollbar` 在根 props 里的位置
 - [横向 direction: 'x'](/docs/04-direction-x)：横向模式下，滚动条显示在容器底部

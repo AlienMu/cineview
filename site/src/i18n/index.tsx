@@ -34,6 +34,16 @@ export function I18nProvider({ children }: { children: ReactNode }): import('rea
   const [lang, setLangState] = useState<Lang>(guessDefaultLang);
 
   useEffect(() => {
+    const syncLanguage = (event: StorageEvent): void => {
+      if (event.key === STORAGE_KEY && (event.newValue === 'zh' || event.newValue === 'en')) {
+        setLangState(event.newValue);
+      }
+    };
+    window.addEventListener('storage', syncLanguage);
+    return (): void => window.removeEventListener('storage', syncLanguage);
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, lang);
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   }, [lang]);

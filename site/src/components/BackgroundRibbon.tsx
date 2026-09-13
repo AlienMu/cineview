@@ -11,7 +11,7 @@ import { lutAt } from '../design/lut';
  * The C1 approach (600vh ribbon + luminance scrim in HomeBackdrop) was retired wholesale due to reported issues:
  * gray-pink alternating flicker, 30MB layer promotion, no accent flow, etc.
  *
- * Consumes the scrollTop of the CineView internal scroll container (A1/A2 decision: scroll-mode scroll source is the
+ * Consumes the scrollTop of the Cineview internal scroll container (A1/A2 decision: scroll-mode scroll source is the
  * internal container, not window/document), interpolates top/bottom gradient endpoints + current scene accent color
  * between LUT anchors, writes them into :root CSS variables:
  *   --bg-grad-top / --bg-grad-bot — fixed fullscreen gradient layer endpoints

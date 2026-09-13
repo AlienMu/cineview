@@ -1,9 +1,9 @@
 /* ============================================================================
- * CineView 官网全局样式 — 组件层
+ * Cineview 官网全局样式 — 组件层
  * 依赖 tokens.css 的 CSS 变量。导入顺序:tokens.css → global.css(见 main.tsx)
  * ========================================================================== */
 
-/* CineView scroll 容器保持透明；每个首页 Scene 自己拥有静态 palette。 */
+/* Cineview scroll 容器保持透明；每个首页 Scene 自己拥有静态 palette。 */
 .cineview-container {
   background: transparent !important;
 }
@@ -32,45 +32,6 @@
  * 本处只需保证滚动容器**透明**，让背景层透上来。 */
 .home-page .cineview-container {
   background: transparent !important;
-}
-
-.home-debug-toggle {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  z-index: 1000000;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2rem;
-  padding: 0.35rem 0.6rem;
-  color: var(--ink-soft);
-  background: color-mix(in srgb, var(--film-white) 82%, transparent);
-  border: 1px solid var(--frame-line);
-  border-radius: 4px;
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(12px);
-  font: 0.6875rem/1.2 var(--font-mono);
-  cursor: pointer;
-}
-
-.home-debug-toggle input {
-  width: 0.9rem;
-  height: 0.9rem;
-  margin: 0;
-  accent-color: var(--accent-ink);
-}
-
-.home-debug-toggle:focus-within {
-  outline: 2px solid var(--accent-ink);
-  outline-offset: 3px;
-}
-
-.home-page .cineview-perf-panel--top-right {
-  top: 4rem;
-  max-width: min(320px, calc(100vw - 32px));
-  max-height: calc(100svh - 5rem);
-  overflow: auto;
 }
 
 .home-page .hero__title {
@@ -156,7 +117,7 @@
 }
 
 /* 滚动条「未滚动时隐藏、滚动时淡入」现由框架 autoHide 原生接管
- * (DirectScrollCineView overlay opacity 由 isScrolling 驱动,见 task-flow A6/A7),
+ * (DirectScrollCineview overlay opacity 由 isScrolling 驱动,见 task-flow A6/A7),
  * site 侧不再需要 useScrollbarAutoHide hook + body.is-scrolling CSS。 */
 
 /* ── 右上角浮动语言切换(地球图标)──────────────────────────────────

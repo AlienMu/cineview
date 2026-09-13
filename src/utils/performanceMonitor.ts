@@ -217,7 +217,7 @@ let globalMonitorLeaseCount = 0;
 export const performanceMonitor = globalMonitor;
 
 /**
- * Acquire page-level performance monitoring for a mounted CineView instance.
+ * Acquire page-level performance monitoring for a mounted Cineview instance.
  * First lease starts monitoring, stops only after last lease is released; release is idempotent.
  */
 export const acquirePerformanceMonitoring = (): (() => void) => {

@@ -22,8 +22,8 @@
 import React, { act, createRef } from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 interface AnimateCall {
   kind: 'motion-value' | 'number';
@@ -169,10 +169,10 @@ jest.mock('framer-motion', () => {
 // into scene 1 at a partial release, its continuation runs toward ~2500ms and is
 // still well below terminal when we re-grab it.
 function renderDragApp() {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={600}
@@ -217,9 +217,9 @@ function renderDragApp() {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return cineViewRef;
+  return cineviewRef;
 }
 
 async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
@@ -250,9 +250,9 @@ describe('drag two-track re-drag mid-settle (RED4)', () => {
   });
 
   it('stops the old incoming track in place on a new drag — does NOT jump it to terminal T', async () => {
-    const cineViewRef = renderDragApp();
+    const cineviewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
     await act(async () => {
       drainColdStart();
@@ -273,7 +273,7 @@ describe('drag two-track re-drag mid-settle (RED4)', () => {
       renderLane!.complete();
     });
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // The scene-1 element continuation: in flight, toward T ≈ 2500, NOT yet done.

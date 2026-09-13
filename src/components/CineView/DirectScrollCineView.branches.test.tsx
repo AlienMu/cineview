@@ -2,7 +2,7 @@ import React, { act, useCallback, useContext, useEffect, createRef } from 'react
 import { fireEvent, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { DirectScrollCineView } from './DirectScrollCineView';
-import type { CineViewRef } from '../../types';
+import type { CineviewRef } from '../../types';
 import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import {
   SceneScrollRuntimeContext,
@@ -1002,7 +1002,7 @@ describe('DirectScrollCineView — branch coverage', () => {
 
   describe('imperative ref API', () => {
     it('exposes goToScene, refreshLayout, getCurrentIndex and getPerformanceMetrics', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { container } = render(
         <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
@@ -1056,7 +1056,7 @@ describe('DirectScrollCineView — branch coverage', () => {
       // B11: the out-of-range no-op now emits a dev warning (asserted in the
       // dedicated regression test below); spy it so the console guard stays quiet.
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { container } = render(
         <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
@@ -1082,7 +1082,7 @@ describe('DirectScrollCineView — branch coverage', () => {
     });
 
     it('moves to a registered scroll zone via goToZone and no-ops for an unknown zone', async () => {
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       const { container } = render(
         <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" sceneHeight={1000}>
@@ -1141,7 +1141,7 @@ describe('DirectScrollCineView — branch coverage', () => {
         { startPreload, reset: jest.fn(), addUrls },
       ]);
 
-      const ref = createRef<CineViewRef>();
+      const ref = createRef<CineviewRef>();
       render(
         <DirectScrollCineView ref={ref} designWidth={750}>
           <TestScene sceneId="scene-0" assets={{ preloadImages: ['target.jpg'] }}>
@@ -1273,7 +1273,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   // flow interleaved between scenes) must resolve to the NEAREST scene, not
   // fall back to the last one.
   it('resolves the nearest scene when the viewport center sits in a gap between scenes', async () => {
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
     const { container } = render(
       <DirectScrollCineView ref={ref} designWidth={750}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>
@@ -1385,7 +1385,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   // S-F13: programmatic syncs (mount / resize / refreshLayout) must not enter
   // the scrolling state — the autoHide scrollbar used to flash for 120ms.
   it('does not flash the autoHide scrollbar overlay on programmatic refreshLayout', async () => {
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
     const { container } = render(
       <DirectScrollCineView
         ref={ref}
@@ -1450,7 +1450,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
     process.env.NODE_ENV = 'development';
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     const onError = jest.fn();
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
     const { container } = render(
       <DirectScrollCineView ref={ref} designWidth={750} mode="scroll" callbacks={{ onError }}>
         <TestScene sceneId="first" scroll={{ zoneId: 'duplicate-zone' }}>
@@ -1475,7 +1475,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
         }),
       })
     );
-    expect(errorSpy).toHaveBeenCalledWith('[CineView]', expect.stringContaining('duplicate-zone'));
+    expect(errorSpy).toHaveBeenCalledWith('[Cineview]', expect.stringContaining('duplicate-zone'));
     expect(container.querySelectorAll('[data-cineview-takeover-shell]')).toHaveLength(1);
     expect(
       container.querySelector('[data-scene-index="1"] [data-cineview-scroll-zone]')
@@ -1501,7 +1501,7 @@ describe('DirectScrollCineView — review remediation regressions', () => {
   // (mirrors useSceneManager on the drag side).
   it('warns on an out-of-range goToScene index instead of silently no-oping', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const ref = createRef<CineViewRef>();
+    const ref = createRef<CineviewRef>();
     const { container } = render(
       <DirectScrollCineView ref={ref} designWidth={750}>
         <TestScene sceneId="scene-0" sceneHeight={1000}>

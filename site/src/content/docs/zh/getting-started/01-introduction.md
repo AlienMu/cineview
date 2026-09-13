@@ -3,7 +3,7 @@ title: 介绍
 eyebrow: GETTING STARTED / INTRODUCTION
 ---
 
-CineView 是用于全屏场景切换的 React 库，支持由拖拽或滚动驱动动画。声明场景、动画时序与设计稿宽度后，CineView 负责导航，并按视窗宽度换算数值型设计长度。
+Cineview 是用于全屏场景切换的 React 库，支持由拖拽或滚动驱动动画。声明场景、动画时序与设计稿宽度后，Cineview 负责导航，并按视窗宽度换算数值型设计长度。
 
 ## 两种模式
 
@@ -25,11 +25,11 @@ CineView 是用于全屏场景切换的 React 库，支持由拖拽或滚动驱�
 ## 两个场景的示例
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 
 export default function App() {
   return (
-    <CineView designWidth={750} mode="drag">
+    <Cineview designWidth={750} mode="drag">
       <Scene sceneId="hero">
         <Animate enterAnimation="fade-in" duration={{ enter: 800 }}>
           <h1>第一幕</h1>
@@ -40,7 +40,7 @@ export default function App() {
           <h1>谢幕</h1>
         </Animate>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```

@@ -72,8 +72,6 @@ export interface ScrollModeConfig {
   direction?: SlideDirection;
   zoneTrigger?: 'center-lock';
   sceneSizing?: 'content' | 'screen';
-  /** Enable runtime parameter diagnostics for scroll layout and zone geometry. */
-  debug?: boolean;
   // Global default enter/exit gate margins (design px) for visibility-driven
   // Animate elements in scroll mode. Per-Animate `visibility.enterMargin` /
   // `exitMargin` override these. Both default to 50.
@@ -93,7 +91,7 @@ export interface ScrollModeConfig {
 export interface A11yConfig {
   /**
    * Accessible name for the drag root container (`aria-label`). Defaults to `'Scenes'`.
-   * When multiple CineView instances exist on one page, each must have a unique label
+   * When multiple Cineview instances exist on one page, each must have a unique label
    * so they can be distinguished in screen reader landmark lists.
    */
   label?: string;
@@ -121,7 +119,7 @@ export interface SceneChangeDetail {
  * Error codes emitted by the framework at runtime. Consumers can switch on `code`
  * in `onError` to get autocomplete and exhaustiveness checking (no longer a bare string).
  *
- * - `EMPTY_SCENES`: CineView has no Scene children (`context.scope` is default),
+ * - `EMPTY_SCENES`: Cineview has no Scene children (`context.scope` is default),
  *   or a Scene has no children (`context.scope === 'scene'`, includes `sceneIndex`).
  * - `IMAGE_LOAD_FAILED`: Image preload failed.
  * - `FIRST_SCENE_TIMEOUT`: First-screen priority resource wait timed out (recoverable, includes preventDefault).
@@ -131,7 +129,7 @@ export interface SceneChangeDetail {
  * - `INVALID_DRAG_CONFIG`: Drag unit / scale / enabled config is invalid (recoverable).
  * - `ANIMATION_ASSET_LOAD_FAILED`: Animation preset asset load failed (retryable).
  */
-export type CineViewErrorCode =
+export type CineviewErrorCode =
   | 'EMPTY_SCENES'
   | 'IMAGE_LOAD_FAILED'
   | 'FIRST_SCENE_TIMEOUT'
@@ -141,8 +139,8 @@ export type CineViewErrorCode =
   | 'INVALID_DRAG_CONFIG'
   | 'ANIMATION_ASSET_LOAD_FAILED';
 
-export interface CineViewErrorDetail {
-  code: CineViewErrorCode;
+export interface CineviewErrorDetail {
+  code: CineviewErrorCode;
   message: string;
   context?: Record<string, unknown>;
   // Present on recoverable errors that have a default framework fallback
@@ -192,18 +190,18 @@ export interface SceneVisibilityDetail {
 // Flat, mode-aware callback surface. The callbacks a consumer may pass are
 // determined by `mode`: drag mode exposes common + drag callbacks, scroll mode
 // exposes common + scroll callbacks. The three building blocks below are merged
-// into the two per-mode flat types, and CineViewProps is a discriminated union
+// into the two per-mode flat types, and CineviewProps is a discriminated union
 // on `mode` so writing a scroll callback in drag mode (or vice versa) is a type
 // error. Internally these are regrouped back into { common, drag, scroll }.
-export interface CineViewCommonCallbacks {
-  onReady?: (api: CineViewRef) => void;
+export interface CineviewCommonCallbacks {
+  onReady?: (api: CineviewRef) => void;
   onLoadProgress?: (progress: number) => void;
   onSceneEnter?: (detail: SceneChangeDetail) => void;
   onSceneLeave?: (detail: SceneChangeDetail) => void;
-  onError?: (detail: CineViewErrorDetail) => void;
+  onError?: (detail: CineviewErrorDetail) => void;
 }
 
-export interface CineViewDragCallbacks {
+export interface CineviewDragCallbacks {
   /** Fires only after the first direction-qualified move acquires drag ownership. */
   onDragStart?: (detail: DragStartDetail) => void;
   onDragProgress?: (detail: DragDetail) => void;
@@ -212,7 +210,7 @@ export interface CineViewDragCallbacks {
   onDragCancel?: (detail: DragDetail) => void;
 }
 
-export interface CineViewScrollCallbacks {
+export interface CineviewScrollCallbacks {
   onZoneEnter?: (detail: ZoneDetail) => void;
   onZoneLeave?: (detail: ZoneDetail) => void;
   onZoneProgress?: (detail: ZoneProgressDetail) => void;
@@ -222,7 +220,7 @@ export interface CineViewScrollCallbacks {
 /**
  * Flat callbacks accepted in drag mode (mode="drag" or omitted).
  *
- * The `[K in keyof CineViewScrollCallbacks]?: never` cross-exclusion closes a
+ * The `[K in keyof CineviewScrollCallbacks]?: never` cross-exclusion closes a
  * discrimination hole: without it, TS's excess-property check only rejects
  * wrong-mode callbacks written as an INLINE object literal. A caller who first
  * extracts callbacks into a variable that mixes a valid drag callback with a
@@ -232,11 +230,11 @@ export interface CineViewScrollCallbacks {
  * key as optional-`never` makes assigning a real function to it a type error on
  * both the inline and the extracted-variable paths.
  */
-export type DragModeCallbacks = CineViewCommonCallbacks &
-  CineViewDragCallbacks & { [K in keyof CineViewScrollCallbacks]?: never };
+export type DragModeCallbacks = CineviewCommonCallbacks &
+  CineviewDragCallbacks & { [K in keyof CineviewScrollCallbacks]?: never };
 /** Flat callbacks accepted in scroll mode (mode="scroll"). Mirror cross-exclusion of drag-only keys — see DragModeCallbacks. */
-export type ScrollModeCallbacks = CineViewCommonCallbacks &
-  CineViewScrollCallbacks & { [K in keyof CineViewDragCallbacks]?: never };
+export type ScrollModeCallbacks = CineviewCommonCallbacks &
+  CineviewScrollCallbacks & { [K in keyof CineviewDragCallbacks]?: never };
 
 /**
  * Back-compat alias. The shape changed from the old nested
@@ -244,7 +242,7 @@ export type ScrollModeCallbacks = CineViewCommonCallbacks &
  * change at the value level, but the NAME is preserved to avoid breaking
  * type-only imports.
  */
-export type CineViewCallbacks = DragModeCallbacks | ScrollModeCallbacks;
+export type CineviewCallbacks = DragModeCallbacks | ScrollModeCallbacks;
 
 // ============================================================================
 // Animation Types
@@ -320,12 +318,12 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
 // ============================================================================
 
 /**
- * Shared CineView props, independent of `mode`. Mode-specific fields are added
+ * Shared Cineview props, independent of `mode`. Mode-specific fields are added
  * by the per-mode branches below; the `mode`/`callbacks` pair closes the
  * discriminated union so both the callback surface and the mode-specific config
  * fields are constrained by the active mode.
  */
-export interface CineViewBaseProps {
+export interface CineviewBaseProps {
   /**
    * Design viewport width baseline (design px). The single site-wide conversion
    * ruler: `scale = viewportWidth / designWidth`. All design lengths (Position
@@ -342,44 +340,46 @@ export interface CineViewBaseProps {
   designWidth?: number;
   scrollbar?: false | ScrollbarConfig;
   monitor?: boolean;
+  /** Show the performance panel and collect samples. Also exposes scroll layout diagnostics. */
+  debug?: boolean;
   a11y?: A11yConfig;
   children: ReactNode;
 }
 
 /** Drag-branch-only config keys cannot appear on scroll root (and vice versa) — same cross-exclusion as callbacks. */
-type ScrollOnlyConfigKeys = 'zoneTrigger' | 'sceneSizing' | 'enterMargin' | 'exitMargin' | 'debug';
+type ScrollOnlyConfigKeys = 'zoneTrigger' | 'sceneSizing' | 'enterMargin' | 'exitMargin';
 type DragOnlyConfigKeys =
   'transitionDuration' | 'threshold' | 'unit' | 'scale' | 'firstSceneTimeout';
 
 /**
- * CineView drag branch Props: `mode` defaults to drag. Mode-specific fields are
+ * Cineview drag branch Props: `mode` defaults to drag. Mode-specific fields are
  * flattened at root level (no `modes.drag` wrapper); scroll-specific fields are
  * excluded as `never`.
  */
-export type CineViewDragModeProps = CineViewBaseProps &
+export type CineviewDragModeProps = CineviewBaseProps &
   DragModeConfig & {
     mode?: 'drag';
     callbacks?: DragModeCallbacks;
   } & { [K in ScrollOnlyConfigKeys]?: never };
 
 /**
- * CineView scroll branch Props: scroll-specific fields are flattened at root
+ * Cineview scroll branch Props: scroll-specific fields are flattened at root
  * level (no `modes.scroll` wrapper); drag-specific fields are excluded as `never`.
  */
-export type CineViewScrollModeProps = CineViewBaseProps &
+export type CineviewScrollModeProps = CineviewBaseProps &
   ScrollModeConfig & {
     mode: 'scroll';
     callbacks?: ScrollModeCallbacks;
   } & { [K in DragOnlyConfigKeys]?: never };
 
 /**
- * CineView component Props — discriminated on `mode`. Drag mode (the default when
+ * Cineview component Props — discriminated on `mode`. Drag mode (the default when
  * `mode` is omitted) accepts common + drag callbacks and flat drag config
  * fields; scroll mode accepts common + scroll callbacks and flat scroll config
  * fields. Passing a callback or config field from the wrong mode is a type
  * error (TS excess-property check on the flat objects).
  */
-export type CineViewProps = CineViewDragModeProps | CineViewScrollModeProps;
+export type CineviewProps = CineviewDragModeProps | CineviewScrollModeProps;
 
 /**
  * Performance metrics for monitoring runtime behavior.
@@ -396,20 +396,20 @@ export interface PerformanceMetrics {
  * - number: zero-based scene index
  * - string: Scene.sceneId; in scroll mode it can also match Scene.scroll.zoneId
  */
-export type CineViewPreloadTarget = number | string;
+export type CineviewPreloadTarget = number | string;
 
 /**
- * CineView Ref methods.
+ * Cineview Ref methods.
  *
  * These 5 methods exist in both drag and scroll modes, so they are required —
  * call sites no longer need `ref.current?.refreshLayout?.()` per-method null checks.
  * `goToZone` is scroll-mode-only (drag mode has no zone concept), so it remains optional;
- * scroll consumers can switch to {@link CineViewScrollRef} for a view with `goToZone` required.
+ * scroll consumers can switch to {@link CineviewScrollRef} for a view with `goToZone` required.
  */
-export interface CineViewRef {
+export interface CineviewRef {
   goToScene: (index: number, animated?: boolean) => void;
   refreshLayout: () => void;
-  preload: (targets?: CineViewPreloadTarget[]) => Promise<void>;
+  preload: (targets?: CineviewPreloadTarget[]) => Promise<void>;
   getCurrentIndex: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
   /** Scroll mode only: jump to specified zone. Not available in drag mode. */
@@ -417,10 +417,10 @@ export interface CineViewRef {
 }
 
 /**
- * CineView Ref in scroll mode — `goToZone` is required here.
- * Usage: `const ref = useRef<CineViewScrollRef>(null)`, with `mode="scroll"`.
+ * Cineview Ref in scroll mode — `goToZone` is required here.
+ * Usage: `const ref = useRef<CineviewScrollRef>(null)`, with `mode="scroll"`.
  */
-export interface CineViewScrollRef extends CineViewRef {
+export interface CineviewScrollRef extends CineviewRef {
   goToZone: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
 }
 
@@ -503,7 +503,7 @@ interface AnimateBaseProps {
     // bottom edge by `enterMargin`; exit fires when its top reaches within
     // `exitMargin` of the top edge. Oversized elements (taller than
     // viewport - enterMargin) fall back to a center/70% rule. Both are design
-    // px (run through the single-ruler scale) and default to the CineView-level
+    // px (run through the single-ruler scale) and default to the Cineview-level
     // scroll-branch `enterMargin` / `exitMargin`, which default to 50.
     enterMargin?: number;
     exitMargin?: number;

@@ -13,7 +13,7 @@ import React, {
   Children,
 } from 'react';
 import { useMotionValue } from 'framer-motion';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 import { useSceneManager, type DragReleaseInput } from '../../hooks/useSceneManager';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { useFirstSceneEnter } from '../../hooks/useFirstSceneEnter';
@@ -49,9 +49,9 @@ import { DEFAULT_SLIDE_DURATION } from '../../types';
 import { devWarn } from '../../utils/devLog';
 import type {
   AnimationType,
-  CineViewDragModeProps,
-  CineViewErrorCode,
-  CineViewRef,
+  CineviewDragModeProps,
+  CineviewErrorCode,
+  CineviewRef,
   DragModeConfig,
   SceneChangeDetail,
   SceneProps,
@@ -187,7 +187,7 @@ const VISUALLY_HIDDEN_STYLE: React.CSSProperties = {
   border: 0,
 };
 
-const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((props, ref) => {
+const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((props, ref) => {
   const {
     designWidth,
     mode,
@@ -300,7 +300,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
   }, [resolvedCallbacks]);
 
   const emitError = useCallback(
-    (code: CineViewErrorCode, message: string, context?: Record<string, unknown>): void => {
+    (code: CineviewErrorCode, message: string, context?: Record<string, unknown>): void => {
       resolvedCallbacksRef.current.common?.onError?.({
         code,
         message,
@@ -314,7 +314,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
   // the consumer called it (i.e. took over handling), so the caller can skip
   // its default fallback. Used by the first-scene timeout path.
   const emitRecoverableError = useCallback(
-    (code: CineViewErrorCode, message: string, context?: Record<string, unknown>): boolean => {
+    (code: CineviewErrorCode, message: string, context?: Record<string, unknown>): boolean => {
       let defaultPrevented = false;
       resolvedCallbacksRef.current.common?.onError?.({
         code,
@@ -1077,12 +1077,12 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
     if (process.env.NODE_ENV === 'development') {
       // Check for Scene child components
       if (totalScenes === 0) {
-        console.warn('[CineView] No Scene components found. Please add at least one Scene child.');
+        console.warn('[Cineview] No Scene components found. Please add at least one Scene child.');
       }
 
       if (hasLegacyDisplayNameScene) {
         console.warn(
-          '[CineView] A child component uses displayName="Scene" but is not the exported CineView Scene. Scene discovery now uses the internal cineViewScene marker; import { Scene } from "cineview" or wrap the exported Scene instead of spoofing displayName.'
+          '[Cineview] A child component uses displayName="Scene" but is not the exported CineView Scene. Scene discovery now uses the internal cineViewScene marker; import { Scene } from "cineview" or wrap the exported Scene instead of spoofing displayName.'
         );
       }
 
@@ -1151,14 +1151,14 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
       scrollExitMargin: undefined,
       prefersReducedMotion,
       reportError: (detail): void => {
-        emitError(detail.code as CineViewErrorCode, detail.message, detail.context);
+        emitError(detail.code as CineviewErrorCode, detail.message, detail.context);
       },
     }),
     [resolvedRootMode, emitError, prefersReducedMotion]
   );
 
   return (
-    <CineViewProvider designSize={designSize}>
+    <CineviewProvider designSize={designSize}>
       <CineViewRuntimeContext.Provider value={runtimeContextValue}>
         <div
           ref={containerRef}
@@ -1229,7 +1229,7 @@ const DragCineViewComponent = forwardRef<CineViewRef, CineViewDragModeProps>((pr
           ) : null}
         </div>
       </CineViewRuntimeContext.Provider>
-    </CineViewProvider>
+    </CineviewProvider>
   );
 });
 
@@ -1241,7 +1241,7 @@ DragCineViewComponent.displayName = 'CineViewDrag';
  * script-tag consumers using only drag shouldn't carry it).
  * Not re-exported from barrel: public API remains only `CineView` + `mode` prop.
  */
-export const CineViewDragEngine = DragCineViewComponent;
+export const CineviewDragEngine = DragCineViewComponent;
 
 /**
  * ⚠️ Mode dispatcher is NOT in this file, see `CineViewDispatch.tsx`.

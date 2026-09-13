@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { SceneChangeDetail } from 'cineview';
-import { AnimateVideo, CineView, Scene } from 'cineview';
+import { AnimateVideo, Cineview, Scene } from 'cineview';
 
 const SCENES = [
   { id: 'video-accept-0', label: 'ALPHA', background: '#111827', dragEnabled: true },
@@ -42,7 +42,8 @@ export default function VideoDragAcceptancePage(): import('react').JSX.Element {
       data-drag-commits={dragCounters.commits}
       style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#05070b' }}
     >
-      <CineView
+      <Cineview
+        debug={new URLSearchParams(window.location.search).get('debug') === 'true'}
         designWidth={430}
         mode="drag"
         direction="y"
@@ -109,7 +110,7 @@ export default function VideoDragAcceptancePage(): import('react').JSX.Element {
             </section>
           </Scene>
         ))}
-      </CineView>
+      </Cineview>
       <output
         data-acceptance-status
         style={{

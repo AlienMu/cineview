@@ -2,9 +2,9 @@ import React, { createRef, useContext } from 'react';
 import { act } from '@testing-library/react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene } from '../../index';
+import { Cineview, Scene } from '../../index';
 import { SceneContext } from '../../components/Animate/Animate';
-import type { CineViewRef } from '../../types';
+import type { CineviewRef } from '../../types';
 
 jest.mock('framer-motion', () => {
   const React = require('react');
@@ -158,12 +158,12 @@ describe('drag mode live-release regression', () => {
   });
 
   it('settles an upward mouse drag from Scene 1 into Scene 2 without dropping the active scene', async () => {
-    const cineViewRef = createRef<CineViewRef>();
+    const cineviewRef = createRef<CineviewRef>();
     const onSceneLeave = jest.fn();
 
     render(
-      <CineView
-        ref={cineViewRef}
+      <Cineview
+        ref={cineviewRef}
         mode="drag"
         direction={'y'}
         transitionDuration={800}
@@ -177,11 +177,11 @@ describe('drag mode live-release regression', () => {
         <Scene transition={{ exitDuration: 800 }}>
           <h1>Drag Scene 2</h1>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
       expect(screen.getByText('Drag Scene 1')).toBeInTheDocument();
     });
     await act(async () => {
@@ -206,7 +206,7 @@ describe('drag mode live-release regression', () => {
       expect(onSceneLeave).toHaveBeenCalledWith(
         expect.objectContaining({ fromIndex: 0, toIndex: 1, direction: 'forward' })
       );
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
   });
@@ -221,14 +221,14 @@ describe('drag mode live-release regression', () => {
     };
 
     render(
-      <CineView mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
+      <Cineview mode="drag" direction={'y'} transitionDuration={800} designWidth={750}>
         <Scene>
           <RenderProbe sceneIndex={0} />
         </Scene>
         <Scene>
           <RenderProbe sceneIndex={1} />
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     await screen.findByText('hot-path-scene-0');
@@ -254,15 +254,15 @@ describe('drag mode live-release regression', () => {
   });
 
   it('latches a business-disabled target for one press without starting a drag session', async () => {
-    const cineViewRef = createRef<CineViewRef>();
+    const cineviewRef = createRef<CineviewRef>();
     const onDragBlocked = jest.fn();
     const onDragStart = jest.fn();
     const onDragCancel = jest.fn();
     const onDragEnd = jest.fn();
 
     render(
-      <CineView
-        ref={cineViewRef}
+      <Cineview
+        ref={cineviewRef}
         mode="drag"
         direction={'y'}
         transitionDuration={800}
@@ -275,11 +275,11 @@ describe('drag mode live-release regression', () => {
         <Scene drag={{ enabled: false }}>
           <div>Disabled target</div>
         </Scene>
-      </CineView>
+      </Cineview>
     );
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
       expect(screen.getByText('Enabled source')).toBeInTheDocument();
     });
 
@@ -301,6 +301,6 @@ describe('drag mode live-release regression', () => {
     expect(onDragStart).not.toHaveBeenCalled();
     expect(onDragCancel).not.toHaveBeenCalled();
     expect(onDragEnd).not.toHaveBeenCalled();
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
   });
 });

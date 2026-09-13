@@ -1,6 +1,6 @@
-# CineView Two-Mode Performance Example
+# Cineview Two-Mode Performance Example
 
-This example replaces the old generator-driven performance playground with one authored product narrative shown through two independent CineView modes:
+This example replaces the old generator-driven performance playground with one authored product narrative shown through two independent Cineview modes:
 
 - `#/drag`
 - `#/scroll`

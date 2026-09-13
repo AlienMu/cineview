@@ -1,17 +1,18 @@
 import { useRef } from 'react';
-import { Animate, CineView, Position, Scene, type CineViewScrollRef } from 'cineview';
+import { Animate, Cineview, Position, Scene, type CineviewScrollRef } from 'cineview';
 
 /** Browser acceptance fixture for horizontal document flow and scene-owned zones. */
 export default function HorizontalScrollFixture(): React.JSX.Element {
   const rootRef = useRef<HTMLElement>(null);
-  const apiRef = useRef<CineViewScrollRef>(null);
+  const apiRef = useRef<CineviewScrollRef>(null);
   const params = new URLSearchParams(window.location.search);
   const screenSizing = params.get('sizing') === 'screen';
   const zoneWidth = params.get('zone') === 'narrow' ? '50vw' : '100vw';
 
   return (
     <main ref={rootRef} data-horizontal-fixture style={{ height: '100vh', color: '#fff' }}>
-      <CineView
+      <Cineview
+        debug={new URLSearchParams(window.location.search).get('debug') === 'true'}
         ref={apiRef}
         mode="scroll"
         direction="x"
@@ -90,7 +91,7 @@ export default function HorizontalScrollFixture(): React.JSX.Element {
         >
           <h2>Final scene</h2>
         </Scene>
-      </CineView>
+      </Cineview>
     </main>
   );
 }

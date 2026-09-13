@@ -6,7 +6,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { act } from '@testing-library/react';
 import { SceneInternal as Scene } from './Scene';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 import { SceneContext } from '../Animate/Animate';
 import type { SceneContextType } from '../Animate/Animate';
 import { CineViewRuntimeContext } from '../runtime/runtimeContext';
@@ -151,9 +151,9 @@ jest.mock('framer-motion', () => {
   };
 });
 
-// Helper to wrap Scene in CineViewProvider
+// Helper to wrap Scene in CineviewProvider
 const renderScene = (ui: React.ReactElement): ReturnType<typeof render> => {
-  return render(<CineViewProvider designSize={750}>{ui}</CineViewProvider>);
+  return render(<CineviewProvider designSize={750}>{ui}</CineviewProvider>);
 };
 
 const flushAnimationParsing = async (): Promise<void> => {
@@ -435,7 +435,7 @@ describe('Scene Component', () => {
         exitLength: 100,
       };
       const renderWithCallback = (onVisibilityChange: typeof firstVisibilityChange) => (
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene
             runtimeMode="scroll"
             isActive={true}
@@ -445,7 +445,7 @@ describe('Scene Component', () => {
           >
             <div>Stable Visibility Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       const { rerender } = render(renderWithCallback(firstVisibilityChange));
@@ -805,10 +805,10 @@ describe('Scene Component', () => {
         expect.stringContaining('Problem: Scene component at index 2 is not wrapped by CineView')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Fix: Wrap your Scene components inside a <CineView> component')
+        expect.stringContaining('Fix: Wrap your Scene components inside a <Cineview> component')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('<CineView mode="drag" designWidth={750}>')
+        expect.stringContaining('<Cineview mode="drag" designWidth={750}>')
       );
 
       consoleSpy.mockRestore();
@@ -1273,7 +1273,7 @@ describe('Scene Component', () => {
 
       // Should warn about non-existent waitFor reference
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[CineView]',
+        '[Cineview]',
         expect.stringContaining('references non-existent component')
       );
 
@@ -1307,13 +1307,13 @@ describe('Scene Component', () => {
       };
 
       render(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene>
               <TestChild />
             </Scene>
           </CineViewRuntimeContext.Provider>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       await waitFor(() => {
@@ -1339,11 +1339,11 @@ describe('Scene Component', () => {
       const reportError = jest.fn();
 
       render(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={2}>{null}</Scene>
           </CineViewRuntimeContext.Provider>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(reportError).toHaveBeenCalledWith({
@@ -1359,13 +1359,13 @@ describe('Scene Component', () => {
       const reportError = jest.fn();
 
       render(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={0}>
               <div>content</div>
             </Scene>
           </CineViewRuntimeContext.Provider>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(
@@ -1379,11 +1379,11 @@ describe('Scene Component', () => {
       // effect re-runs. Only the dedupe ref keeps this from becoming a per-render
       // error stream — a stable dep array would not.
       const tree = (): React.JSX.Element => (
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <CineViewRuntimeContext.Provider value={{ mode: 'drag', reportError }}>
             <Scene sceneIndex={1}>{[]}</Scene>
           </CineViewRuntimeContext.Provider>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       const { rerender } = render(tree());
@@ -1590,11 +1590,11 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene isActive={false}>
             <TestChild />
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       // Registry should be cleared (we can't directly test this, but the effect should run)
@@ -1615,18 +1615,18 @@ describe('Scene Component', () => {
       );
 
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene mode="drag" sceneIndex={2} enterAnimation="fade-in" exitAnimation="fade-out">
             <div>Ignored drag transitions</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
       await flushAnimationParsing();
 
       expect(parseSpy).not.toHaveBeenCalled();
       expect(warningSpy).toHaveBeenCalledTimes(1);
       expect(warningSpy).toHaveBeenCalledWith(
-        '[CineView]',
+        '[Cineview]',
         expect.stringContaining('ignores enterAnimation and exitAnimation in drag mode')
       );
 
@@ -1848,11 +1848,11 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       // Exit animation should play
@@ -1875,11 +1875,11 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       // Enter animation should play
@@ -1899,11 +1899,11 @@ describe('Scene Component', () => {
 
       // Make scene active
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene isActive={true} enterAnimation="fade-in" mode="drag">
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       await flushAnimationParsing();
@@ -1923,11 +1923,11 @@ describe('Scene Component', () => {
 
       // Make scene inactive
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Scene isActive={false} exitAnimation="fade-out" mode="drag">
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       await flushAnimationParsing();
@@ -2717,11 +2717,11 @@ describe('Error Handling Coverage', () => {
 describe('Animation Variant Coverage', () => {
   it('should handle scene without enterAnimation', () => {
     const { container } = render(
-      <CineViewProvider>
+      <CineviewProvider>
         <Scene isActive={true} sceneIndex={0}>
           <div>Test</div>
         </Scene>
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     expect(container.querySelector('div')).toBeInTheDocument();
@@ -2729,11 +2729,11 @@ describe('Animation Variant Coverage', () => {
 
   it('should handle scene without exitAnimation', () => {
     const { container } = render(
-      <CineViewProvider>
+      <CineviewProvider>
         <Scene isActive={false} sceneIndex={0}>
           <div>Test</div>
         </Scene>
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     expect(container.querySelector('div')).toBeInTheDocument();
@@ -2741,11 +2741,11 @@ describe('Animation Variant Coverage', () => {
 
   it('should use default initial variant when enterVariant is null', () => {
     const { container } = render(
-      <CineViewProvider>
+      <CineviewProvider>
         <Scene isActive={true} sceneIndex={0}>
           <div>Test</div>
         </Scene>
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     // Should render with default opacity: 1
@@ -2756,7 +2756,7 @@ describe('Animation Variant Coverage', () => {
 describe('Interpolation Function Coverage', () => {
   it('should handle interpolation with default opacity value', async () => {
     const { container } = render(
-      <CineViewProvider>
+      <CineviewProvider>
         <Scene
           mode="drag"
           exitAnimation={{
@@ -2767,7 +2767,7 @@ describe('Interpolation Function Coverage', () => {
         >
           <div>Test</div>
         </Scene>
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     // Simulate drag
@@ -2787,7 +2787,7 @@ describe('Interpolation Function Coverage', () => {
 
   it('should handle interpolation with non-numeric values', async () => {
     const { container } = render(
-      <CineViewProvider>
+      <CineviewProvider>
         <Scene
           mode="drag"
           exitAnimation={{
@@ -2798,7 +2798,7 @@ describe('Interpolation Function Coverage', () => {
         >
           <div>Test</div>
         </Scene>
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     const sceneElement = container.querySelector('[style*="width: 100vw"]');
@@ -2817,7 +2817,7 @@ describe('Interpolation Function Coverage', () => {
 
   it('should handle interpolation with pixel string values', async () => {
     const { container } = render(
-      <CineViewProvider>
+      <CineviewProvider>
         <Scene
           mode="drag"
           exitAnimation={{
@@ -2828,7 +2828,7 @@ describe('Interpolation Function Coverage', () => {
         >
           <div>Test</div>
         </Scene>
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     const sceneElement = container.querySelector('[style*="width: 100vw"]');

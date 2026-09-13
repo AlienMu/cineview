@@ -156,10 +156,39 @@
 /* 手机列：居中态占满可用宽度并居中；分栏态收到左侧。
  * flex-shrink:0 —— 手机是等比 90vh，绝不允许被压扁（用户要求「等宽」= 等比不形变）。 */
 .scene5-cinema__phone-col {
+  position: relative;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.scene5-cinema__hint-slot {
+  position: absolute;
+  right: calc(100% + 32px);
+  top: 45%;
+  width: 112px;
+  pointer-events: none;
+}
+
+.scene5-cinema__drag-hint {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  color: #f5f5f4;
+  font: 500 16px/1.5 var(--font-body);
+  letter-spacing: 0;
+  text-align: center;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 220ms var(--ease-out);
+}
+
+.scene5-cinema__drag-hint[data-dismissed='true'] {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 /* 文本列：居中态 width:0 完全不占位（否则手机不可能真正居中）；分栏态展开。
@@ -273,7 +302,7 @@
   /* 窄屏纵向布局:列宽放开到 min(88vw,46ch),桌面那套「字号随列宽缩」的
    * 约束不再成立;clamp 下限回调 20px,避免 390px 下还扛 26px 挤断行 */
   .scene5-cinema__title-text {
-    font-size: clamp(20px, 3.75vw, 46px);
+    font-size: 28px;
   }
 }
 
@@ -306,12 +335,12 @@
    * 布局余量(grid 验收矩阵):phone+gap+title 在 1280/1440/1920/2560 的
    * 视口内分别余 +317/+428/+809/+1268px,宽屏随 vw 增长更宽松。
    * clamp 下限 26px 保窄屏可读;nowrap 钉死单行,折行永远不再发生。 */
-  font-size: clamp(26px, 3.75vw, 46px);
+  font-size: 40px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   line-height: 1.18;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
   color: rgba(250, 248, 244, 0.96);
   /* ⚠️ nowrap 只对 zh 成立；en 见下方 [data-lang='en'] 覆写（C10）。 */
   /* 2026-08-14(审计 act5-2):第一层光晕 18px/0.26→14px/0.20——分栏态手机 glow
@@ -366,12 +395,12 @@
    * (手机 glow、标题光晕、竖线)互相抬亮度;竖线是「系成一组」的编排记号不是强调面。 */
   border-left: 2px solid rgba(225, 164, 91, 0.4);
   font-family: var(--font-mono);
-  font-size: max(calc(17 * var(--cineview-unit)), 12px);
+  font-size: 17px;
   font-weight: 400;
-  letter-spacing: 0.08em;
-  line-height: 1.85;
+  letter-spacing: 0;
+  line-height: 1.65;
   text-align: left;
-  color: rgba(250, 248, 244, 0.62);
+  color: rgba(250, 248, 244, 0.8);
   /* 文案里的 `\n` 是**有意的断行点**（两行各是一个完整意群），故必须 pre-line。
      不写死 <br>：i18n 文案是纯字符串，中英断行位置不同，交给 CSS 更干净。 */
   white-space: pre-line;
@@ -382,7 +411,7 @@
 /* ── 收尾层一次性入场动画（2026-08-15 scrub 语义）────────────────────────
  * 串行入场：挂载（finished latch）即播，`both` 保证 delay 期停在首帧
  *（opacity:0 + visibility:hidden，无半成品闪现）。滚动路径的透明度由外层
- * CineView Animate scrub lane 写入；unfinished 事件只在子节点的独立
+ * Cineview Animate scrub lane 写入；unfinished 事件只在子节点的独立
  * `--scene5-manual-opacity` 通道上做一次性退场，两者相乘但不互相覆盖。
  * keyframe 同时负责 transform/visibility/opacity：opacity 0→1 让挂载后
  * 有可感知淡入（2026-08-19 修复「突然出现」——之前只有 visibility 硬切，
@@ -502,9 +531,9 @@
 .scene5-cinema__cta-lead {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: max(calc(13 * var(--cineview-unit)), 11px);
+  font-size: 15px;
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: rgba(250, 248, 244, 0.72);
 }
 
@@ -516,9 +545,9 @@
 
 .scene5-cinema__cta-body {
   margin: 0;
-  font-size: max(calc(14 * var(--cineview-unit)), 12px);
+  font-size: 16px;
   line-height: 1.7;
-  color: rgba(250, 248, 244, 0.55);
+  color: rgba(250, 248, 244, 0.72);
   max-width: 34ch;
 }
 
@@ -539,12 +568,13 @@
   justify-content: center;
   gap: 8px;
   font-family: var(--font-body);
-  font-size: max(calc(14 * var(--cineview-unit)), 13px);
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  padding: min(calc(11 * var(--cineview-unit)), 12px) min(calc(22 * var(--cineview-unit)), 24px);
-  border-radius: 999px;
+  letter-spacing: 0;
+  line-height: 1.4;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 4px;
   border: 1px solid transparent;
   text-decoration: none;
   cursor: pointer;
@@ -593,8 +623,8 @@
   padding-top: min(calc(14 * var(--cineview-unit)), 16px);
   border-top: 1px solid rgba(250, 248, 244, 0.14);
   font-family: var(--font-mono);
-  font-size: max(calc(12 * var(--cineview-unit)), 11px);
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  letter-spacing: 0;
   color: rgba(250, 248, 244, 0.5);
   margin-bottom: min(calc(4 * var(--cineview-unit)), 6px);
 }
@@ -724,4 +754,92 @@
   height: 100%;
   border: 0;
   background: #060507;
+}
+
+@media (max-width: 900px) {
+  .scene5-cinema__phone-slot:not(.is-split) .phone-mockup {
+    height: min(88svh, calc((100vw - 136px) * 720 / 332));
+  }
+
+  .scene5-cinema__phone-slot:not(.is-split) .scene5-cinema__phone-col {
+    transform: translateX(20px);
+  }
+
+  .scene5-cinema__hint-slot {
+    right: calc(100% + 12px);
+    width: 64px;
+  }
+
+  .scene5-cinema__drag-hint {
+    font-size: 14px;
+  }
+
+  .scene5-cinema__phone-slot.is-split {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .scene5-cinema__phone-slot.is-split .phone-mockup {
+    height: min(34svh, 320px);
+  }
+
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
+    width: 100%;
+    padding-top: 0;
+    flex-shrink: 0;
+  }
+
+  .scene5-cinema__title-text {
+    font-size: 28px;
+  }
+
+  .scene5-cinema__subtitle-text,
+  .scene5-cinema__cta-body {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .scene5-cinema__cta {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .scene5-cinema__text-col > [data-cineview-animate-host='cinema-footer'] {
+    margin-top: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene5-cinema__drag-hint {
+    transition: opacity 120ms linear;
+  }
+  .scene5-cinema__drag-hint[data-dismissed='true'] {
+    transform: none;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 900px) and (max-height: 540px) {
+  .scene5-cinema__phone-slot.is-split {
+    flex-direction: row;
+    gap: 28px;
+  }
+
+  .scene5-cinema__phone-slot.is-split .phone-mockup {
+    height: 84svh;
+  }
+
+  .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
+    width: 58%;
+    flex-shrink: 1;
+  }
+
+  .scene5-cinema__phone-slot.is-split
+    .scene5-cinema__text-col
+    > [data-cineview-animate-host='cinema-split-cta'] {
+    margin-top: 14px;
+  }
+
+  .scene5-cinema__text-col > [data-cineview-animate-host='cinema-footer'] {
+    margin-top: 12px;
+  }
 }

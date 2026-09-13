@@ -2,7 +2,7 @@
 
 ## Our Standard
 
-We want CineView discussions and contributions to be welcoming, technically
+We want Cineview discussions and contributions to be welcoming, technically
 rigorous, and free from harassment. Participants should assume good faith,
 give actionable feedback, respect different experience levels, and keep debate
 focused on the work.

@@ -26,8 +26,8 @@
 import React, { createRef } from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 interface AnimateCall {
   kind: 'motion-value' | 'number';
@@ -168,10 +168,10 @@ jest.mock('framer-motion', () => {
 // The render (page-slide) lane must stay bounded by the slide (~600ms); the
 // element track must continue toward ~2500ms at natural rate.
 function renderDragApp() {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={600}
@@ -202,9 +202,9 @@ function renderDragApp() {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return cineViewRef;
+  return cineviewRef;
 }
 
 async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
@@ -226,9 +226,9 @@ describe('drag two-track parallel release (RED1)', () => {
   });
 
   it('starts the render track and the element-track continuation as parallel independent clocks at release', async () => {
-    const cineViewRef = renderDragApp();
+    const cineviewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -269,9 +269,9 @@ describe('drag two-track continuity across commit (RED2)', () => {
   });
 
   it('continues the element track from the release elapsed across commit — no replay from 0, no second pass', async () => {
-    const cineViewRef = renderDragApp();
+    const cineviewRef = renderDragApp();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -303,7 +303,7 @@ describe('drag two-track continuity across commit (RED2)', () => {
       renderLane!.onComplete?.();
     });
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // No second element-track pass is created at/after commit. The SAME in-flight

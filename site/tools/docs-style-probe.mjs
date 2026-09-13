@@ -469,7 +469,7 @@ for (const lang of ['zh', 'en']) {
         );
       // 标题 sentence-case：首词之后不该有大写词（专有名词/代码标识符/缩写除外）
       const ALLOW_CAPS = new Set([
-        'CineView',
+        'Cineview',
         'Scene',
         "Scene's",
         'Animate',

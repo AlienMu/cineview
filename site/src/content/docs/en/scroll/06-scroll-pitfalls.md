@@ -7,11 +7,11 @@ These eight issues are specific to scroll mode. For issues shared by both modes,
 
 ## 1. Scenes disappear without an error
 
-The page is blank or missing scenes, the console is clean, and type-checking passes when `Scene` is not a direct child of `CineView`. Arrays are flattened by React, but Fragments are not. A custom wrapper that returns `Scene` from its render body also hides the nested node. `memo` and `forwardRef` wrappers are unwrapped up to six levels.
+The page is blank or missing scenes, the console is clean, and type-checking passes when `Scene` is not a direct child of `Cineview`. Arrays are flattened by React, but Fragments are not. A custom wrapper that returns `Scene` from its render body also hides the nested node. `memo` and `forwardRef` wrappers are unwrapped up to six levels.
 
 An undiscovered Scene receives no runtime injection. It falls back to drag mode, renders as an inactive absolute-positioned element with `pointerEvents: 'none'`, and holds child `Animate` elements at their initial frame. The `EMPTY_SCENES` warning appears only when no valid Scene is found, so a mixture of direct and Fragment-wrapped children can fail silently.
 
-Declare Scene nodes directly under CineView. For reusable groups, return an array of Scene elements from a function and call it in CineView's children.
+Declare Scene nodes directly under Cineview. For reusable groups, return an array of Scene elements from a function and call it in Cineview's children.
 
 ## 2. `phase` stays at `idle` inside a locked zone
 

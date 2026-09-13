@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CineViewErrorCode } from '../types';
+import type { CineviewErrorCode } from '../types';
 
 /**
  * Global first-screen cold-start gate. Mode-agnostic: owns the two decoupled
  * booleans that govern when the first mounted scene is allowed to play its
  * one-shot enter pass, plus the priority-asset / timeout / preventDefault /
- * static-reveal coordination that used to live inline in CineView.
+ * static-reveal coordination that used to live inline in Cineview.
  *
  * Two-boolean model (intentionally NOT a 3-state enum — see project memory):
  * - `firstSceneEnterActive` — the WINDOW flag. While true, the first scene is
@@ -44,7 +44,7 @@ export interface UseFirstSceneEnterParams {
    * at its initial visual for consumer-driven recovery instead of static reveal.
    */
   emitRecoverableError: (
-    code: CineViewErrorCode,
+    code: CineviewErrorCode,
     message: string,
     context?: Record<string, unknown>
   ) => boolean;

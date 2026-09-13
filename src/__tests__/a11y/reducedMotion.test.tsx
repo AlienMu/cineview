@@ -38,7 +38,7 @@ jest.mock('framer-motion', () => {
 
 // Imported after jest.mock on purpose: the factory is hoisted above imports, so the
 // module graph below already sees the wrapped useAnimation.
-import { CineView, Scene, Animate } from '../../index';
+import { Cineview, Scene, Animate } from '../../index';
 
 let reduceMotionMatches = false;
 
@@ -72,7 +72,7 @@ beforeEach(() => {
 
 function renderLoop(): void {
   render(
-    <CineView mode="drag" designWidth={750}>
+    <Cineview mode="drag" designWidth={750}>
       <Scene>
         <Animate animateId="looper" loopAnimation="pulse">
           <h1>Looping</h1>
@@ -81,7 +81,7 @@ function renderLoop(): void {
       <Scene>
         <h1>Second</h1>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 

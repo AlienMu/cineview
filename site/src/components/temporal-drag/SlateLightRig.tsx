@@ -11,7 +11,7 @@ import { useTemporalMotion } from './TemporalMotion';
 // was also completely static (no continuous motion) and everything in it sat in the
 // same focal plane (1px hairlines, crisp type), so the frame had no depth.
 //
-// Framework first (AGENTS.md rule 6). Everything temporal here belongs to CineView:
+// Framework first (AGENTS.md rule 6). Everything temporal here belongs to Cineview:
 //   - enter / exit are `<Animate>` variants, so each layer is drag-scrubbed, plays out
 //     its remainder on release and reverses on a backward drag;
 //   - settled light is intentionally static. A real-browser profile showed that continuously

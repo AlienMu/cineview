@@ -8,11 +8,11 @@ eyebrow: GETTING STARTED / QUICKSTART
 ## 完整示例
 
 ```tsx
-import { CineView, Scene, Animate, Position } from 'cineview';
+import { Cineview, Scene, Animate, Position } from 'cineview';
 
 export default function App() {
   return (
-    <CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
+    <Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
       <Scene
         sceneId="hero"
         layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
@@ -43,7 +43,7 @@ export default function App() {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```
@@ -66,6 +66,6 @@ export default function App() {
 
 ## 下一步
 
-- [CineView 参考](/docs/01-cineview)：根组件全部 props 与 ref 方法。
+- [Cineview 参考](/docs/01-cineview)：根组件全部 props 与 ref 方法。
 - [Scene 参考](/docs/02-scene)：布局、转场与资源配置。
 - [Animate 参考](/docs/03-animate)：时间轴推断、enterRef/exitRef、stagger。

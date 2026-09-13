@@ -21,7 +21,7 @@ The `fixed` prop on `Position` operates through a three-layer DOM structure:
 
 The frame offset computes as `clamp(viewport offset - sceneStart, 0, scene span - frame span)`. The frame uses `position: absolute` with this offset to track scroll position, achieving screen-relative visual pinning without triggering transform containing block restrictions.
 
-The fixed layer is visible only within its Scene's scroll range. Put navigation or other UI that must remain across scene changes outside CineView.
+The fixed layer is visible only within its Scene's scroll range. Put navigation or other UI that must remain across scene changes outside Cineview.
 
 ## Pointer event handling
 

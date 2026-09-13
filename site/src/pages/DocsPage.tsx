@@ -204,7 +204,7 @@ export default function DocsPage(): React.JSX.Element {
   useEffect(() => {
     const previous = document.title;
     document.title =
-      (mdPage?.title ?? (zh ? '没有找到这一页' : 'Page not found')) + ' · CineView Docs';
+      (mdPage?.title ?? (zh ? '没有找到这一页' : 'Page not found')) + ' · Cineview Docs';
     return (): void => {
       document.title = previous;
     };
@@ -305,7 +305,7 @@ export default function DocsPage(): React.JSX.Element {
               </div>
               <DocsPager activeSlug={resolvedSlug} />
               <footer className="docs-article__footer">
-                <span>CineView / {t('docs.title')}</span>
+                <span>Cineview / {t('docs.title')}</span>
                 <a
                   href="https://github.com/AlienMu/cineview/issues"
                   target="_blank"
@@ -338,11 +338,6 @@ export default function DocsPage(): React.JSX.Element {
               {toc}
             </>
           )}
-          <div className="docs-toc__end">
-            <span aria-hidden="true" className="docs-toc__mark" />
-            <p>{zh ? '在实际页面中查看效果。' : 'See the motion in a working page.'}</p>
-            <Link to="/">{zh ? '打开演示' : 'Open the demo'} ↗</Link>
-          </div>
         </aside>
       </div>
 

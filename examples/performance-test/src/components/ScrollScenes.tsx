@@ -144,7 +144,7 @@ function AcceptanceFixtures(): import('react').JSX.Element {
         >
           {[
             'The inner panel should consume wheel/touch deltas while it can still scroll.',
-            'CineView should receive ownership only when this panel reaches its boundary.',
+            'Cineview should receive ownership only when this panel reaches its boundary.',
             'This fixture exists so browser acceptance can verify nested scrolling directly.',
             'Line four adds enough overflow to make scrollHeight larger than clientHeight.',
             'Line five gives the test a stable lower boundary.',

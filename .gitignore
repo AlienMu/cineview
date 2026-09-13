@@ -40,6 +40,8 @@ pnpm-debug.log*
 
 # Tooling / local agent config
 .claude
+.agents/
+/skills-lock.json
 
 # Bundle analysis output
 stats.html
@@ -56,9 +58,39 @@ examples/performance-test/dist-acceptance
 shot*.cjs
 examples/performance-test/profile-browser.mjs
 
-# 验收探针产物：截图是一次性的（每轮重跑即得），不进版本管理；
-# 只有被代码注释引用的量化数据（review/**/*.json）保留。
+# Review evidence and task history remain local, including quantitative data.
 /review/
+task-flows/
+site/review/
+site/scripts/
+site/n9-shots/
+site/stress-test-results/
+test-results/
+n9-shots/
+playwright-report/
+blob-report/
 site/.v1-acceptance/
-site/review/**/*.png
-site/review/**/*.jpg
+/examples/performance-test/stress/stress-fps.json
+
+# Historical reports and plans, retained only in existing working copies.
+/.workflow-execution-plan.md
+/COVERAGE_REPORT.md
+/HERO_REDESIGN_*.md
+/PERFORMANCE_REPORT.md
+/REACT_19_MIGRATION_COMPLETE.md
+/SHOT5_REDESIGN_PLAN.md
+/VERIFICATION.md
+/docs/upgrade-plans/
+/site/HERO_ACCEPTANCE_REPORT.md
+/site/summary-act5-fixes.md
+
+# One-off investigation and translation helpers.
+*.backup
+/translate*.py
+/translate*.sh
+/translation-task.md
+/scripts/debug-*.mjs
+/scripts/quick-check-*.mjs
+/site/check-*.mjs
+/site/act5-scroll-drive-probe.mjs
+/site/scene5-*.mjs

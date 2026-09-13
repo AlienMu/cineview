@@ -33,13 +33,13 @@ Use `driver: 'scene'` when the element needs gesture-driven exit motion or `afte
 
 Drag mode keeps only the current scene and its immediate neighbors mounted. A scene more than one position away unmounts. Returning to it mounts a new instance, so effects restart, component state resets, and timeline cursors return to zero.
 
-Store state that must survive scene changes outside `CineView`, such as in parent state, Context, or an external store. Keep scene effects limited to presentation work. Scene identity follows array position, so structural reordering changes which instance occupies a slot.
+Store state that must survive scene changes outside `Cineview`, such as in parent state, Context, or an external store. Keep scene effects limited to presentation work. Scene identity follows array position, so structural reordering changes which instance occupies a slot.
 
 ## 6. Wrapped `Scene` elements disappear
 
-`Scene` discovery checks direct children of `CineView`. React arrays are flattened, so `{list.map(...)}` works. Fragments are not flattened, and a custom component that returns `Scene` from its render body hides the nested node. `memo` and `forwardRef` wrappers are unwrapped up to six levels. Mixed direct and Fragment-wrapped children therefore discover only the direct scenes, without an empty-scene warning.
+`Scene` discovery checks direct children of `Cineview`. React arrays are flattened, so `{list.map(...)}` works. Fragments are not flattened, and a custom component that returns `Scene` from its render body hides the nested node. `memo` and `forwardRef` wrappers are unwrapped up to six levels. Mixed direct and Fragment-wrapped children therefore discover only the direct scenes, without an empty-scene warning.
 
-Declare Scene nodes directly under CineView. A reusable factory can return an array of Scene elements; call it in CineView's children rather than wrapping the Scenes in another component.
+Declare Scene nodes directly under Cineview. A reusable factory can return an array of Scene elements; call it in Cineview's children rather than wrapping the Scenes in another component.
 
 ## Related pages
 

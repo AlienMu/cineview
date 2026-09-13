@@ -55,13 +55,13 @@ In scroll mode, `fixed` places content in the Scene's fixed layer. It keeps a sc
 
 A transformed ancestor changes the containing block for native `position: fixed`. Use the `fixed` prop inside a Scene; see [Fixed elements](/docs/04-fixed-layer).
 
-Place UI that must persist across Scenes outside CineView.
+Place UI that must persist across Scenes outside Cineview.
 
 ## Common mistakes
 
 - Use Position for design-coordinate placement and Container for dimensions and spacing.
 - Use `at.anchor` for centering so custom transforms compose with it.
-- Put persistent navigation outside CineView.
+- Put persistent navigation outside Cineview.
 
 ---
 

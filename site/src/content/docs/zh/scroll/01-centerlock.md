@@ -29,13 +29,13 @@ flowSpan = max(visualSpan, viewportSpan) + timelineDistancePx
 `timelineDistancePx` 为按 `1ms = 1px` 换算的动画时长预算。预算为零时没有动画行程，但外层仍占据视觉跨度与视窗跨度中的较大值。详见[锁定区与时长预算](/docs/02-zones-budget)。
 
 ```tsx
-<CineView designWidth={750} mode="scroll" direction="y">
+<Cineview designWidth={750} mode="scroll" direction="y">
   <Scene sceneId="hero-seq" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
     <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 800 }}>
       <h1>锁定段内随滚动进场</h1>
     </Animate>
   </Scene>
-</CineView>
+</Cineview>
 ```
 
 这段 JSX 的锁定区占用 800px 滚动距离，对应标题动画从 0 到 1 的完整进度。
@@ -72,11 +72,11 @@ progressPx = clamp(nativeOffset - segmentStart, 0, totalBudgetPx)
 `goToZone` 是 scroll 专属的 ref 方法：
 
 ```tsx
-const ref = useRef<CineViewScrollRef>(null);
+const ref = useRef<CineviewScrollRef>(null);
 
-<CineView mode="scroll" ref={ref}>
+<Cineview mode="scroll" ref={ref}>
   {/* ... */}
-</CineView>;
+</Cineview>;
 
 ref.current?.goToZone('hero-seq', { animated: true });
 ```

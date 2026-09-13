@@ -32,9 +32,9 @@ Use drag for full-screen pages with discrete scene changes. Use scroll for a con
 ## drag skeleton
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 
-<CineView designWidth={750} mode="drag" direction="y" transitionDuration={800}>
+<Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
   <Scene sceneId="beat-1">
     <Animate enterAnimation="fade-in">
       <h1>Beat 1</h1>
@@ -45,22 +45,22 @@ import { CineView, Scene, Animate } from 'cineview';
       <h1>Beat 2</h1>
     </Animate>
   </Scene>
-</CineView>;
+</Cineview>;
 ```
 
 ## scroll skeleton
 
 ```tsx
-import { CineView, Scene, Animate } from 'cineview';
+import { Cineview, Scene, Animate } from 'cineview';
 
-<CineView designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
+<Cineview designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
   <Scene sceneId="intro">{/* plain scrolling content */}</Scene>
   <Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
     <Animate duration={{ enter: 1200 }} enterAnimation="fade-in">
       <h1>A headline that plays with scrolling</h1>
     </Animate>
   </Scene>
-</CineView>;
+</Cineview>;
 ```
 
 ## Entry points and bundle size

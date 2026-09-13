@@ -64,7 +64,7 @@ In drag mode, a forward exit uses `exitAnimation`, while moving back toward the 
 
 ## When loopAnimation runs
 
-Use `loopAnimation` when a repeating effect needs to stop with the element or Scene. CSS animations do not automatically follow CineView's visibility and lifecycle conditions.
+Use `loopAnimation` when a repeating effect needs to stop with the element or Scene. CSS animations do not automatically follow Cineview's visibility and lifecycle conditions.
 
 A loop can follow `enterAnimation`, or run alone. For a loop-only element, omit `enterAnimation`.
 
@@ -109,7 +109,7 @@ This example displays response text as soon as it arrives, with a delay fallback
 
 ```tsx
 import { useEffect, useRef, useState } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 function Message() {
   const [message, setMessage] = useState('');
@@ -152,11 +152,11 @@ function Message() {
 
 export default function App() {
   return (
-    <CineView mode="scroll">
+    <Cineview mode="scroll">
       <Scene sceneId="message">
         <Message />
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```

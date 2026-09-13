@@ -1,1 +1,1 @@
-pnpm lint-staged
+pnpm verify:repository && pnpm lint-staged

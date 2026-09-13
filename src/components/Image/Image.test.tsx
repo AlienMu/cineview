@@ -1,6 +1,6 @@
 import { createRef } from 'react';
 import { fireEvent, render } from '@testing-library/react';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 import { Image } from './Image';
 import { isImagePreloaded, resetPreloadedImageCache } from '../../hooks/imagePreloadCache';
 
@@ -157,9 +157,9 @@ describe('Image', () => {
     setViewport(500, 400);
 
     const { getByAltText } = render(
-      <CineViewProvider designSize={1000}>
+      <CineviewProvider designSize={1000}>
         <Image src="hero.jpg" alt="Hero" width={200} height={160} />
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     const img = getByAltText('Hero') as HTMLImageElement;
@@ -171,7 +171,7 @@ describe('Image', () => {
     setViewport(500, 400);
 
     const { getByAltText } = render(
-      <CineViewProvider designSize={1000}>
+      <CineviewProvider designSize={1000}>
         <Image
           src="hero.jpg"
           alt="Hero"
@@ -187,7 +187,7 @@ describe('Image', () => {
             zIndex: 2,
           }}
         />
-      </CineViewProvider>
+      </CineviewProvider>
     );
 
     expect(getByAltText('Hero')).toHaveStyle({

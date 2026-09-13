@@ -9,8 +9,8 @@ import React from 'react';
 import { act } from '@testing-library/react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 type MockMotionDivProps = React.HTMLAttributes<HTMLDivElement> & {
   animate?: unknown;
@@ -130,10 +130,10 @@ mockIntersectionObserver.mockReturnValue({
 window.IntersectionObserver = mockIntersectionObserver as unknown as typeof IntersectionObserver;
 
 describe('Cross-platform compatibility tests', () => {
-  let cineViewRef: React.RefObject<CineViewRef | null>;
+  let cineviewRef: React.RefObject<CineviewRef | null>;
 
   beforeEach(() => {
-    cineViewRef = React.createRef();
+    cineviewRef = React.createRef();
     jest.clearAllMocks();
   });
 
@@ -144,8 +144,8 @@ describe('Cross-platform compatibility tests', () => {
   describe('Event listener registration tests (Requirements 21.1, 21.2, 21.3)', () => {
     test('should render correctly in drag mode and be ready to handle touch and mouse events', async () => {
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -157,7 +157,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>场景 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -174,8 +174,8 @@ describe('Cross-platform compatibility tests', () => {
 
     test('should render correctly in drag mode and be ready to handle drag events', async () => {
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={800}
@@ -187,7 +187,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>下一场景</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -204,8 +204,8 @@ describe('Cross-platform compatibility tests', () => {
 
     test('should support both horizontal and vertical swipe directions', async () => {
       const HorizontalApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'x'}
           transitionDuration={500}
@@ -217,11 +217,11 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>横向场景 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
       const VerticalApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -233,7 +233,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>纵向场景 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       const { unmount } = render(<HorizontalApp />);
@@ -256,8 +256,8 @@ describe('Cross-platform compatibility tests', () => {
       const onAfterSceneChange = jest.fn();
 
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -273,7 +273,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>场景 3</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -284,11 +284,11 @@ describe('Cross-platform compatibility tests', () => {
 
       // Switch to scene 2
       act(() => {
-        cineViewRef.current?.goToScene(1, false);
+        cineviewRef.current?.goToScene(1, false);
       });
 
       await waitFor(() => {
-        expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+        expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
       });
 
       expect(onAfterSceneChange).toHaveBeenCalledWith(
@@ -297,11 +297,11 @@ describe('Cross-platform compatibility tests', () => {
 
       // Switch to scene 3
       act(() => {
-        cineViewRef.current?.goToScene(2, false);
+        cineviewRef.current?.goToScene(2, false);
       });
 
       await waitFor(() => {
-        expect(cineViewRef.current?.getCurrentIndex()).toBe(2);
+        expect(cineviewRef.current?.getCurrentIndex()).toBe(2);
       });
 
       expect(onAfterSceneChange).toHaveBeenCalledWith(
@@ -310,11 +310,11 @@ describe('Cross-platform compatibility tests', () => {
 
       // Switch back to scene 1
       act(() => {
-        cineViewRef.current?.goToScene(0, false);
+        cineviewRef.current?.goToScene(0, false);
       });
 
       await waitFor(() => {
-        expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+        expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
       });
 
       expect(onAfterSceneChange).toHaveBeenCalledWith(
@@ -333,13 +333,13 @@ describe('Cross-platform compatibility tests', () => {
       });
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 750, y: 100 }}>
               <div data-testid="positioned-element">右边缘元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -368,13 +368,13 @@ describe('Cross-platform compatibility tests', () => {
       });
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="centered-element">居中元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -402,13 +402,13 @@ describe('Cross-platform compatibility tests', () => {
       });
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="desktop-element">桌面元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -436,13 +436,13 @@ describe('Cross-platform compatibility tests', () => {
       });
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="responsive-element">响应式元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -484,13 +484,13 @@ describe('Cross-platform compatibility tests', () => {
       });
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="rem-element">rem 单位元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -511,13 +511,13 @@ describe('Cross-platform compatibility tests', () => {
       });
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <Position at={{ x: 375, y: 100 }}>
               <div data-testid="vw-element">vw 单位元素</div>
             </Position>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -539,11 +539,11 @@ describe('Cross-platform compatibility tests', () => {
       delete window.IntersectionObserver;
 
       const TestApp = () => (
-        <CineView designWidth={750}>
+        <Cineview designWidth={750}>
           <Scene>
             <h1>测试场景</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -558,8 +558,8 @@ describe('Cross-platform compatibility tests', () => {
 
     test('should support both touch and mouse events', async () => {
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -571,7 +571,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>场景 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -592,8 +592,8 @@ describe('Cross-platform compatibility tests', () => {
       const onAfterSceneChange = jest.fn();
 
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={500}
@@ -606,7 +606,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>Drag 场景 2</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);
@@ -617,7 +617,7 @@ describe('Cross-platform compatibility tests', () => {
 
       // Use API to switch scenes
       act(() => {
-        cineViewRef.current?.goToScene(1, false);
+        cineviewRef.current?.goToScene(1, false);
       });
 
       await waitFor(() => {
@@ -629,8 +629,8 @@ describe('Cross-platform compatibility tests', () => {
 
     test('should support dragging in drag mode', async () => {
       const TestApp = () => (
-        <CineView
-          ref={cineViewRef as React.RefObject<CineViewRef>}
+        <Cineview
+          ref={cineviewRef as React.RefObject<CineviewRef>}
           mode="drag"
           direction={'y'}
           transitionDuration={800}
@@ -644,7 +644,7 @@ describe('Cross-platform compatibility tests', () => {
           <Scene>
             <h1>下一场景</h1>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       render(<TestApp />);

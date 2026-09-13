@@ -5,7 +5,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import { SceneInternal as Scene } from './Scene';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 import { animate, useMotionValue } from 'framer-motion';
 import { resolveDragTouchAction } from './helpers';
 import { calculateThreshold } from './useDragSceneEngine';
@@ -95,7 +95,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Task 20.1: dragProgress MotionValue and Scene State Machine', () => {
     it('should create dragProgress MotionValue on mount', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             isActive={true}
@@ -106,7 +106,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(useMotionValue).toHaveBeenCalledWith(0);
@@ -114,11 +114,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should initialize scene state as initial', () => {
       const { container } = render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={false} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(container.firstChild).toBeInTheDocument();
@@ -126,19 +126,19 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should transition to active state when scene becomes active', async () => {
       const { rerender } = render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={false} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       rerender(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       await waitFor(() => {
@@ -150,7 +150,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Task 20.2: motion.div Drag Configuration', () => {
     it('keeps text selection available while idle on drag scenes', () => {
       const { container } = render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             slideDirection="y"
@@ -161,7 +161,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Selectable Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       const sceneRoot = getRenderedSceneRoot(container);
@@ -176,7 +176,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('disables text selection only while a drag gesture is active', () => {
       const { container } = render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             slideDirection="y"
@@ -188,7 +188,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(getRenderedSceneRoot(container)).toHaveStyle({ userSelect: 'none' });
@@ -196,7 +196,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should configure drag="y" for vertical sliding', () => {
       const { container } = render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             slideDirection="y"
@@ -207,7 +207,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(container.firstChild).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should configure drag="x" for horizontal sliding', () => {
       const { container } = render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             slideDirection="x"
@@ -226,7 +226,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(container.firstChild).toBeInTheDocument();
@@ -261,7 +261,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Task 20.7: Bidirectional Drag Support', () => {
     it('should support forward drag (current → next)', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             isActive={true}
@@ -272,7 +272,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -280,7 +280,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should support backward drag (current → previous)', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             isActive={true}
@@ -291,7 +291,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -301,11 +301,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Task 20.8: Boundary Bounce Limits', () => {
     it('should limit backward drag on first scene to 20%', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -313,11 +313,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should limit forward drag on last scene to 20%', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={2} totalScenes={3} currentSceneIndex={2}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -327,11 +327,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Task 20.9: animateRegistry Management', () => {
     it('should provide registerAnimate function through context', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -339,11 +339,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should provide unregisterAnimate function through context', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -351,11 +351,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should provide getCalculatedDelay function through context', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -365,11 +365,11 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Task 20.10: sceneTransitionDuration Prop', () => {
     it('should use default sceneTransitionDuration of 800ms', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene mode="drag" isActive={true} sceneIndex={0} totalScenes={3} currentSceneIndex={0}>
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -377,7 +377,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should accept custom sceneTransitionDuration', () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             sceneTransitionDuration={1000}
@@ -388,7 +388,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -398,7 +398,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   describe('Integration: Complete Drag Flow', () => {
     it('should handle complete drag-to-switch flow', async () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             isActive={true}
@@ -412,7 +412,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();
@@ -420,7 +420,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
 
     it('should handle complete drag-to-bounce flow', async () => {
       render(
-        <CineViewProvider designSize={mockConfig.designSize}>
+        <CineviewProvider designSize={mockConfig.designSize}>
           <Scene
             mode="drag"
             isActive={true}
@@ -434,7 +434,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
           >
             <div>Test Content</div>
           </Scene>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       expect(screen.getByText('Test Content')).toBeInTheDocument();

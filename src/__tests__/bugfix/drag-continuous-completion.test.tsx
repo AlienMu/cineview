@@ -31,8 +31,8 @@
 import React, { act, createRef } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 interface AnimateCall {
   kind: 'motion-value' | 'number';
@@ -166,10 +166,10 @@ jest.mock('framer-motion', () => {
 // outgoing commit; scene 1's matching timeline gives the activation-settle a
 // remaining window to continue at natural rate.
 function renderDragApp(onSceneLeave?: jest.Mock) {
-  const cineViewRef = createRef<CineViewRef>();
+  const cineviewRef = createRef<CineviewRef>();
   render(
-    <CineView
-      ref={cineViewRef}
+    <Cineview
+      ref={cineviewRef}
       mode="drag"
       direction={'y'}
       transitionDuration={600}
@@ -206,9 +206,9 @@ function renderDragApp(onSceneLeave?: jest.Mock) {
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
-  return cineViewRef;
+  return cineviewRef;
 }
 
 async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
@@ -236,9 +236,9 @@ describe('drag continuous cross-commit completion', () => {
 
   it('commits on the page-slide lane alone and fires onSceneLeave AT commit; the element continuation runs on independently', async () => {
     const onSceneLeave = jest.fn();
-    const cineViewRef = renderDragApp(onSceneLeave);
+    const cineviewRef = renderDragApp(onSceneLeave);
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const surface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -255,7 +255,7 @@ describe('drag continuous cross-commit completion', () => {
 
     // Page-slide completion alone commits the scene change.
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // The scene switch is COMPLETE at the render commit, so onSceneLeave has

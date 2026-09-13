@@ -39,7 +39,7 @@ The outermost wrapper carries a length-typed CSS variable equal to one design px
 }
 ```
 
-Use `--cineview-unit` in ordinary CSS to share CineView's responsive scale. The wrapper is a real DOM element, so include it when writing direct-child selectors.
+Use `--cineview-unit` in ordinary CSS to share Cineview's responsive scale. The wrapper is a real DOM element, so include it when writing direct-child selectors.
 
 ## Scene must be a direct child
 
@@ -47,13 +47,13 @@ The framework walks exactly one level of children to discover scenes:
 
 | Form                                    | Discovered                                   |
 | --------------------------------------- | -------------------------------------------- |
-| `<CineView><Scene/><Scene/></CineView>` | Yes                                          |
+| `<Cineview><Scene/><Scene/></Cineview>` | Yes                                          |
 | `{list.map(s => <Scene key={s.id}/>)}`  | Yes (React flattens arrays)                  |
 | `<><Scene/><Scene/></>`                 | No (Fragments are not flattened)             |
 | `memo(Scene)` / `forwardRef` wrappers   | Yes (the type is unwrapped up to six levels) |
 | `function My() { return <Scene/> }`     | No (the framework sees `My`)                 |
 
-Declare Scene nodes directly under CineView. Setting a wrapper's `displayName` to `Scene` does not make it discoverable. A mix of direct Scenes and hidden nested Scenes can leave content missing without an empty-scene error; `EMPTY_SCENES` reports when no valid Scene is found.
+Declare Scene nodes directly under Cineview. Setting a wrapper's `displayName` to `Scene` does not make it discoverable. A mix of direct Scenes and hidden nested Scenes can leave content missing without an empty-scene error; `EMPTY_SCENES` reports when no valid Scene is found.
 
 ## Style cascading and engine overrides
 
@@ -89,7 +89,7 @@ Two standard approaches resolve this: pass the `fixed` prop to `Position` to mou
 
 ## Default root background colors by mode
 
-Drag defaults to `#0d1624` and scroll to `#ffffff`. CineView has no `className` or `style` prop. An external `.cineview-container` rule can override the inline background with `!important`; scope that rule to the intended instance.
+Drag defaults to `#0d1624` and scroll to `#ffffff`. Cineview has no `className` or `style` prop. An external `.cineview-container` rule can override the inline background with `!important`; scope that rule to the intended instance.
 
 ## Stable attribute selectors
 

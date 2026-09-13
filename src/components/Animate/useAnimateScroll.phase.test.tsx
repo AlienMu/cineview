@@ -17,7 +17,7 @@ import {
 import type { SceneScrollZoneRuntime, SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import type { SceneScrollAnimationRegistration } from '../Scene/sceneScrollBudget';
 import { CineViewRuntimeContext } from '../runtime/runtimeContext';
-import { useScrollZoneRegistry } from '../CineView/useScrollZoneRegistry';
+import { useScrollZoneRegistry } from '../Cineview/useScrollZoneRegistry';
 import {
   useSceneAnimationRegistry,
   type SceneAnimationRegistrationLease,

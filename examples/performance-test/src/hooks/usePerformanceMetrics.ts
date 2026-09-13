@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
-import type { CineViewRef, PerformanceMetrics } from 'cineview';
+import type { CineviewRef, PerformanceMetrics } from 'cineview';
 
 export function usePerformanceMetrics(
-  ref: RefObject<CineViewRef | null>,
+  ref: RefObject<CineviewRef | null>,
   enabled: boolean
 ): PerformanceMetrics | null {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);

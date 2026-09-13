@@ -3,7 +3,7 @@ title: Preset animations
 eyebrow: ADVANCED / PRESETS
 ---
 
-CineView provides 43 presets in 11 groups. Pass a name such as `enterAnimation="fade-in"`; the `PresetAnimation` type checks the spelling.
+Cineview provides 43 presets in 11 groups. Pass a name such as `enterAnimation="fade-in"`; the `PresetAnimation` type checks the spelling.
 
 ## The catalog
 

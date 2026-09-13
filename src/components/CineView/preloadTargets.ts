@@ -1,4 +1,4 @@
-import type { CineViewPreloadTarget } from '../../types';
+import type { CineviewPreloadTarget } from '../../types';
 
 interface ScenePreloadTargetProps {
   sceneId?: string;
@@ -20,7 +20,7 @@ export function getScenePreloadImages(sceneProps: ScenePreloadTargetProps): stri
 
 export function resolveScenePreloadTargetImages(
   scenes: ScenePreloadSceneLike[],
-  targets?: CineViewPreloadTarget[],
+  targets?: CineviewPreloadTarget[],
   options: { includeZoneIds?: boolean } = {}
 ): string[] {
   if (!targets || targets.length === 0) {

@@ -3,23 +3,23 @@ title: 横向 direction: 'x'
 eyebrow: ADVANCED / HORIZONTAL AXIS
 ---
 
-在 CineView 上设置 `direction="x"`，即可在两种模式中使用横向导航。默认方向为 `'y'`。
+在 Cineview 上设置 `direction="x"`，即可在两种模式中使用横向导航。默认方向为 `'y'`。
 
 ## 用法
 
 ```tsx
-<CineView mode="drag" designWidth={750} direction="x">
+<Cineview mode="drag" designWidth={750} direction="x">
   <Scene sceneId="reel-01">...</Scene>
   <Scene sceneId="reel-02">...</Scene>
-</CineView>
+</Cineview>
 ```
 
 ```tsx
-<CineView mode="scroll" designWidth={1440} direction="x">
+<Cineview mode="scroll" designWidth={1440} direction="x">
   <Scene sceneId="panorama" scroll={{ zoneId: 'panorama', trigger: 'center-lock' }}>
     ...
   </Scene>
-</CineView>
+</Cineview>
 ```
 
 ## 随轴切换的环节

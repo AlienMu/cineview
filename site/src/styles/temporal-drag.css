@@ -600,6 +600,32 @@
   letter-spacing: 0;
 }
 
+@media (max-width: 320px) {
+  .drag-temporal .s01-title {
+    font-size: 48px;
+  }
+  .drag-temporal .s01-eyebrow {
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+}
+
+@media (max-width: 230px) {
+  .drag-temporal .s01-title {
+    font-size: 28px;
+  }
+  .drag-temporal .s01-eyebrow {
+    font-size: 8px;
+    max-width: 120px;
+  }
+  .drag-temporal .s01-actions .tp-btn {
+    font-size: 11px;
+    letter-spacing: 0;
+    padding-inline: 8px;
+    line-height: 1.4;
+  }
+}
+
 .drag-temporal .s01-date {
   position: absolute;
   /* 2026-08-16 用户指令「月份和天数的时间能贴近数字一点」：距中心小时数字的
@@ -967,7 +993,7 @@
 
 /* Scene 04 — 日全食. The background timecode columns scroll on the framework infinite
  * lane (see TimeStreams); the eclipse arc, its limb glow and the headline digits all
- * consume CineView-owned MotionValues. Geometry and layout live here; every act-04
+ * consume Cineview-owned MotionValues. Geometry and layout live here; every act-04
  * COLOUR lives in temporal-scenes-03-05.css, which is the act's single palette owner —
  * the two files used to declare `.tp-scene--04` twice and the values drifted apart. */
 .drag-temporal .s04-stage {
@@ -1254,7 +1280,7 @@
 }
 
 /* ── Texture layer (v3 §3): film grain + scanlines + vignette. Sits above the
- * CineView scenes as a pointer-events:none overlay inside .drag-temporal.
+ * Cineview scenes as a pointer-events:none overlay inside .drag-temporal.
  * Strength = "明显" (grain 0.11, deeper vignette, stronger scanline). */
 /* ── Ambient light layer (2026 rework). Sits ABOVE the opaque scenes but below
  * the grain texture, mix-blend-mode:screen so it only ADDS light — dark pixels

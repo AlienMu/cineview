@@ -28,7 +28,7 @@ function subscribe(listener: () => void): () => void {
  * `false`: SSR has no media query, and rendering the reduced variant into HTML that
  * a full-motion client then hydrates would be the wrong default.
  *
- * Read this once at the CineView root and pass it down the runtime context — one
+ * Read this once at the Cineview root and pass it down the runtime context — one
  * matchMedia subscription per root, not one per Animate.
  */
 export function usePrefersReducedMotion(): boolean {

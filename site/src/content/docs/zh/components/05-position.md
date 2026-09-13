@@ -55,13 +55,13 @@ scroll 模式的 `fixed` 将内容放入 Scene 固定层。该 Scene 可见期�
 
 带 transform 的祖先会改变原生 `position: fixed` 的定位包含块。在 Scene 内使用 `fixed` 属性，详见[固定元素](/docs/04-fixed-layer)。
 
-需要跨场景持续显示的 UI 放在 CineView 外部。
+需要跨场景持续显示的 UI 放在 Cineview 外部。
 
 ## 常见误用
 
 - 用 Position 设置设计坐标，用 Container 设置宽高与间距。
 - 用 `at.anchor` 居中，使自定义变换与居中变换组合。
-- 常驻导航放在 CineView 外部。
+- 常驻导航放在 Cineview 外部。
 
 ---
 

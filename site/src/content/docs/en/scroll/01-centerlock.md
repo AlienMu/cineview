@@ -29,13 +29,13 @@ flowSpan = max(visualSpan, viewportSpan) + timelineDistancePx
 `timelineDistancePx` is the animation budget at `1ms = 1px`. With a zero budget, there is no animation travel, but the wrapper still occupies the larger of the visual span and the viewport span. See [Zones and scroll budgets](/docs/02-zones-budget).
 
 ```tsx
-<CineView designWidth={750} mode="scroll" direction="y">
+<Cineview designWidth={750} mode="scroll" direction="y">
   <Scene sceneId="hero-seq" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
     <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 800 }}>
       <h1>Enters with scroll inside the locked segment</h1>
     </Animate>
   </Scene>
-</CineView>
+</Cineview>
 ```
 
 That JSX has an 800px zone budget: scrolling 800 physical pixels advances the title entrance from 0 to 1.
@@ -72,11 +72,11 @@ Only segments longer than 0.5px take part in the clamp. Programmatic scrolls (`g
 `goToZone` is the scroll-only ref method:
 
 ```tsx
-const ref = useRef<CineViewScrollRef>(null);
+const ref = useRef<CineviewScrollRef>(null);
 
-<CineView mode="scroll" ref={ref}>
+<Cineview mode="scroll" ref={ref}>
   {/* ... */}
-</CineView>;
+</Cineview>;
 
 ref.current?.goToZone('hero-seq', { animated: true });
 ```

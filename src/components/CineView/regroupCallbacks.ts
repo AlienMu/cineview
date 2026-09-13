@@ -1,25 +1,25 @@
 import type {
-  CineViewCommonCallbacks,
-  CineViewDragCallbacks,
-  CineViewScrollCallbacks,
+  CineviewCommonCallbacks,
+  CineviewDragCallbacks,
+  CineviewScrollCallbacks,
 } from '../../types';
 
-// The public callback surface is flat + mode-aware (see CineViewProps). Internally
+// The public callback surface is flat + mode-aware (see CineviewProps). Internally
 // the consumers still read by group (`resolvedCallbacks.common?.X` /
 // `.drag?.X` / `.scroll?.X`), so regroupCallbacks splits the flat object back into
 // the nested shape. Keeping the internal read points grouped means the ~30 call
 // sites across CineView/DirectScroll do not change when the public API flattens.
 
 /** Superset of every flat callback key a consumer might pass (any mode). */
-export type FlatCallbacks = CineViewCommonCallbacks &
-  CineViewDragCallbacks &
-  CineViewScrollCallbacks;
+export type FlatCallbacks = CineviewCommonCallbacks &
+  CineviewDragCallbacks &
+  CineviewScrollCallbacks;
 
 /** Internal grouped shape the runtime reads from. */
 export interface GroupedCallbacks {
-  common?: CineViewCommonCallbacks;
-  drag?: CineViewDragCallbacks;
-  scroll?: CineViewScrollCallbacks;
+  common?: CineviewCommonCallbacks;
+  drag?: CineviewDragCallbacks;
+  scroll?: CineviewScrollCallbacks;
 }
 
 export function regroupCallbacks(flat: FlatCallbacks | undefined): GroupedCallbacks {

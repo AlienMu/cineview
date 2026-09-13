@@ -2,7 +2,7 @@ import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { animate, MotionValue, useMotionValue } from 'framer-motion';
 import type { ParsedAnimationVariant } from '../../types';
-import { useCineViewContext } from '../../context/CineViewContext';
+import { useCineviewContext } from '../../context/CineviewContext';
 import type { SceneContextType } from './Animate';
 import type { ResolvedAnimateTimeline, NormalizedAnimateVisibility } from './animateSemantics';
 import type { SceneScrollTimelineState, SceneScrollZoneRuntime } from '../Scene/sceneScrollRuntime';
@@ -223,7 +223,7 @@ export function useAnimateScroll({
   // getBoundingClientRect, which is in physical px). Under the px2vw single-scale
   // model the margin scales by the same width-scale as every other length.
   // `scale` falls back to 1 when no CineViewContext (e.g. isolated tests).
-  const cineViewContext = useCineViewContext();
+  const cineViewContext = useCineviewContext();
   const gateScale = cineViewContext?.scale ?? 1;
   const enterMarginDesignPx = visibility.enterMargin ?? globalEnterMargin ?? DEFAULT_GATE_MARGIN_PX;
   const exitMarginDesignPx = visibility.exitMargin ?? globalExitMargin ?? DEFAULT_GATE_MARGIN_PX;

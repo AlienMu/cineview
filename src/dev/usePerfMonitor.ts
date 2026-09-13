@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import type { CineViewRef, PerformanceMetrics } from '../types';
+import type { CineviewRef, PerformanceMetrics } from '../types';
 
-/** Public CineView ref methods consumed by development tools. */
-export type PerformanceSource = Pick<CineViewRef, 'getPerformanceMetrics'>;
+/** Public Cineview ref methods consumed by development tools. */
+export type PerformanceSource = Pick<CineviewRef, 'getPerformanceMetrics'>;
 
 export interface PerfStats {
   current: PerformanceMetrics;
@@ -69,7 +69,7 @@ function getStore(source: PerformanceSource): SnapshotStore {
 const emptySnapshot = (): null => null;
 const subscribeToNothing = (): (() => void) => () => undefined;
 
-/** Subscribe to shared, 500ms snapshots from a CineView ref with `monitor` enabled. */
+/** Subscribe to shared, 500ms snapshots from a Cineview ref with `monitor` enabled. */
 export function usePerfMonitor(
   source: PerformanceSource | null | undefined,
   enabled = true

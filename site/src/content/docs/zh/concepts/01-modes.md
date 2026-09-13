@@ -49,7 +49,7 @@ eyebrow: CONCEPTS / MODES
 `enterMargin` 和 `exitMargin` 设置可见性动画的视窗边距，单个 Animate 可通过 `visibility.enterMargin` 和 `visibility.exitMargin` 覆盖。具体判定及超高元素的规则见[可见性条件](/docs/03-visibility-conditions)。
 
 ```tsx
-<CineView mode="scroll" designWidth={750} direction="y" sceneSizing="content">
+<Cineview mode="scroll" designWidth={750} direction="y" sceneSizing="content">
   <Scene sceneId="intro">
     <article>普通滚动内容。</article>
   </Scene>
@@ -58,5 +58,5 @@ eyebrow: CONCEPTS / MODES
       <h1>动画片段</h1>
     </Animate>
   </Scene>
-</CineView>
+</Cineview>
 ```

@@ -64,7 +64,7 @@ drag 正向退场使用 `exitAnimation`，返回前一个场景时则反向播�
 
 ## loopAnimation 何时运行
 
-重复动效需要随元素或 Scene 停止时，使用 `loopAnimation`。CSS 动画不会自动跟随 CineView 的可见性与生命周期条件。
+重复动效需要随元素或 Scene 停止时，使用 `loopAnimation`。CSS 动画不会自动跟随 Cineview 的可见性与生命周期条件。
 
 循环可以在 `enterAnimation` 完成后运行，也可以单独使用。仅需要循环的元素省略 `enterAnimation`。
 
@@ -109,7 +109,7 @@ stagger 使用 Framer Motion 的子元素动画能力，支持 `clipPath`、`wid
 
 ```tsx
 import { useEffect, useRef, useState } from 'react';
-import { Animate, CineView, Scene } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 function Message() {
   const [message, setMessage] = useState('');
@@ -152,11 +152,11 @@ function Message() {
 
 export default function App() {
   return (
-    <CineView mode="scroll">
+    <Cineview mode="scroll">
       <Scene sceneId="message">
         <Message />
       </Scene>
-    </CineView>
+    </Cineview>
   );
 }
 ```

@@ -465,9 +465,9 @@ describe('useSceneManager', () => {
 
   describe('drag release state (two-track model)', () => {
     // N2b / A15: the return value is the caller's only signal that the move was
-    // refused. CineView arms a render rebase around this call and disarms it on
+    // refused. Cineview arms a render rebase around this call and disarms it on
     // `false`; without the signal the flag latches onto the next unrelated scene
-    // change. Behavioural killer lives in CineView.modes.test.tsx.
+    // change. Behavioural killer lives in Cineview.modes.test.tsx.
     it('reports whether the commit actually moved the scene index', () => {
       const { result } = renderHook(() =>
         useSceneManager({ totalScenes: 2, initialScene: 0, mode: 'drag' })
@@ -571,7 +571,7 @@ describe('useSceneManager', () => {
     });
 
     it('fires onAfterChange once at commit even when the element settle arm arrives first (order-independent cleanup join)', () => {
-      // Regression: in the CineView path the page-slide (render lane) runs on a
+      // Regression: in the Cineview path the page-slide (render lane) runs on a
       // fixed slideDuration (~800ms) while the incoming scene's element settle
       // runs on its own T_self. When T_self < slideDuration the element track
       // reaches T — and fires completeDragTransition — BEFORE the render lane
@@ -688,7 +688,7 @@ describe('useSceneManager', () => {
       });
       expect(onAfterChange).not.toHaveBeenCalled();
 
-      // CineView's animated-settle timer closes the programmatic nav, clearing the
+      // Cineview's animated-settle timer closes the programmatic nav, clearing the
       // directive and firing onAfterChange exactly once.
       act(() => {
         const [, actions] = result.current;
@@ -885,7 +885,7 @@ describe('useSceneManager', () => {
         result.current[1].setAnimating(false);
       });
 
-      // Previously onAfterChange fired with only (1): CineView then fell back to
+      // Previously onAfterChange fired with only (1): Cineview then fell back to
       // its already-updated currentSceneRef and emitted fromIndex === toIndex.
       expect(onAfterChange).toHaveBeenCalledTimes(1);
       expect(onAfterChange).toHaveBeenCalledWith(1, 0);
@@ -967,7 +967,7 @@ describe('useSceneManager', () => {
       expect(result.current[0].currentScene).toBe(2);
 
       // The active scene disappears: without the re-clamp effect the index stays
-      // out of range (blank viewport) and CineView's settle effect early-returns
+      // out of range (blank viewport) and Cineview's settle effect early-returns
       // on the missing scene, so isAnimating hangs forever.
       rerender({ totalScenes: 2 });
       expect(result.current[0].currentScene).toBe(1);

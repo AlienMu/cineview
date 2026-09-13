@@ -4,7 +4,7 @@ import { Container } from 'cineview';
 /**
  * Unified design canvas for the home page.
  *
- * CineView's `config.size=1440` is the sole conversion ruler; here we use Container to declare a 1440×900
+ * Cineview's `config.size=1440` is the sole conversion ruler; here we use Container to declare a 1440×900
  * design box model, for relative layout roots like Capability / DemoVideo that consume `width/height:100%`.
  * Container does not establish a new positioned containing block: Position continues to uniquely own coordinates, and Hero's
  * viewport-center semantics remain unchanged. Scene is still actual viewport height, does not alter takeover measurement.

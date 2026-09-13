@@ -9,7 +9,7 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { CineView } from '../../components/CineView/CineViewDispatch';
+import { Cineview } from '../../components/Cineview/CineviewDispatch';
 import { Scene } from '../../components/Scene/Scene';
 import { Animate } from '../../components/Animate/Animate';
 
@@ -23,7 +23,7 @@ describe('Animation Trigger Bug Fixes', () => {
       const onAfterSceneChange = jest.fn();
 
       const { container } = render(
-        <CineView
+        <Cineview
           designWidth={750}
           mode="drag"
           transitionDuration={500}
@@ -39,7 +39,7 @@ describe('Animation Trigger Bug Fixes', () => {
               <div data-testid="content-2">Second Scene Content</div>
             </Animate>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       // Wait for first scene to render
@@ -58,13 +58,13 @@ describe('Animation Trigger Bug Fixes', () => {
 
     it('should render first scene immediately without waiting for image load', async () => {
       const { container } = render(
-        <CineView designWidth={750} mode="drag" transitionDuration={500}>
+        <Cineview designWidth={750} mode="drag" transitionDuration={500}>
           <Scene assets={{ preloadImages: ['https://example.com/image.jpg'] }}>
             <Animate enterAnimation="fade-in" duration={{ enter: 300 }}>
               <div data-testid="first-scene">First Scene</div>
             </Animate>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       // First scene should render immediately
@@ -86,7 +86,7 @@ describe('Animation Trigger Bug Fixes', () => {
             <button onClick={() => {}} data-testid="next-button">
               Next
             </button>
-            <CineView designWidth={750} mode="drag" transitionDuration={500}>
+            <Cineview designWidth={750} mode="drag" transitionDuration={500}>
               <Scene>
                 <Animate
                   enterAnimation="fade-in"
@@ -105,7 +105,7 @@ describe('Animation Trigger Bug Fixes', () => {
                   <div data-testid="scene-1">Scene 1</div>
                 </Animate>
               </Scene>
-            </CineView>
+            </Cineview>
           </>
         );
       };
@@ -142,7 +142,7 @@ describe('Animation Trigger Bug Fixes', () => {
             <button onClick={() => {}} data-testid="go-to-0">
               Go to Scene 0
             </button>
-            <CineView designWidth={750} mode="drag" transitionDuration={500}>
+            <Cineview designWidth={750} mode="drag" transitionDuration={500}>
               <Scene>
                 <Animate
                   enterAnimation="fade-in"
@@ -161,7 +161,7 @@ describe('Animation Trigger Bug Fixes', () => {
                   <div data-testid="scene-1-content">Scene 1 Content</div>
                 </Animate>
               </Scene>
-            </CineView>
+            </Cineview>
           </>
         );
       };
@@ -197,7 +197,7 @@ describe('Animation Trigger Bug Fixes', () => {
   describe('Issue 3: Animation delay chain', () => {
     it('should correctly handle waitFor animation chains on scene change', async () => {
       const { container } = render(
-        <CineView designWidth={750} mode="drag" transitionDuration={500}>
+        <Cineview designWidth={750} mode="drag" transitionDuration={500}>
           <Scene>
             <Animate
               enterAnimation="fade-in"
@@ -224,7 +224,7 @@ describe('Animation Trigger Bug Fixes', () => {
               <div data-testid="third">Third</div>
             </Animate>
           </Scene>
-        </CineView>
+        </Cineview>
       );
 
       // All elements should eventually be visible

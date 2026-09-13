@@ -1,10 +1,19 @@
 # Changelog
 
-All notable changes to CineView are documented here.
+All notable changes to Cineview are documented here.
+
+## Unreleased
+
+- Standardize component exports, public type names, and documentation on `Cineview`.
+  This is a breaking spelling change; imports must use the new names.
+- Add a shared `debug` prop that displays the performance panel in both modes.
+- Preserve animated content and embedded documents when callbacks update.
+- Synchronize the website language across the homepage and its embedded drag page.
+- Add closing navigation and a dismissible drag hint; remove documentation demo buttons.
 
 ## 1.0.0 — 2026-09-08
 
-Initial npm release of CineView. The migration table lists API renames from the
+Initial npm release of Cineview. The migration table lists API renames from the
 pre-1.0 development versions.
 
 ### BREAKING — renames from pre-1.0
@@ -34,7 +43,7 @@ a migration surfaces at build time rather than at runtime.
 - Added `useAnimateTimeline` to read animation progress through read-only
   MotionValues without per-frame React rendering.
 - Added the optional `cineview/dev` ESM entry with `PerfPanel` and
-  `usePerfMonitor`. The panel accepts a public CineView ref through `source`,
+  `usePerfMonitor`. The panel accepts a public Cineview ref through `source`,
   supports English and Chinese labels, and loads styles from
   `cineview/dev/style.css`.
 - Split drag/scroll scene rendering, pointer input, fixed layers, animation

@@ -3,12 +3,12 @@
  *
  * Why a separate file: Three entry points (index.ts full dispatch / entry-drag.ts / entry-scroll.ts)
  * need to export the same set of Animate/Position/Container/Scene/Image/AnimateVideo + all types.
- * The only difference is which engine CineView points to. If mode entries used `export * from './index'`,
+ * The only difference is which engine Cineview points to. If mode entries used `export * from './index'`,
  * they would pull in the dispatcher statically imported by index.ts (along with both engines) — in practice,
  * the UMD bundle grew from 51391 to 51937 bytes. So we place the mode-agnostic surface here, and each
- * entry only adds its own CineView.
+ * entry only adds its own Cineview.
  *
- * ⚠️ This file MUST NOT export any of CineView / CineViewDragEngine / DirectScrollCineView,
+ * ⚠️ This file MUST NOT export any of Cineview / CineviewDragEngine / DirectScrollCineview,
  * otherwise mode entries would pull in both engines simultaneously, defeating the split.
  */
 
@@ -49,8 +49,8 @@ export type {
   ScrollbarConfig,
   A11yConfig,
   SceneChangeDetail,
-  CineViewErrorCode,
-  CineViewErrorDetail,
+  CineviewErrorCode,
+  CineviewErrorDetail,
   DragDetail,
   DragStartDetail,
   DragBlockedDetail,
@@ -58,24 +58,24 @@ export type {
   ZoneDetail,
   ZoneProgressDetail,
   SceneVisibilityDetail,
-  CineViewCommonCallbacks,
-  CineViewDragCallbacks,
-  CineViewScrollCallbacks,
+  CineviewCommonCallbacks,
+  CineviewDragCallbacks,
+  CineviewScrollCallbacks,
   DragModeCallbacks,
   ScrollModeCallbacks,
-  CineViewCallbacks,
+  CineviewCallbacks,
   PresetAnimation,
   CustomAnimation,
   ComposedAnimation,
   AnimationType,
-  CineViewBaseProps,
-  CineViewDragModeProps,
-  CineViewScrollModeProps,
-  CineViewProps,
+  CineviewBaseProps,
+  CineviewDragModeProps,
+  CineviewScrollModeProps,
+  CineviewProps,
   PerformanceMetrics,
-  CineViewRef,
-  CineViewScrollRef,
-  CineViewPreloadTarget,
+  CineviewRef,
+  CineviewScrollRef,
+  CineviewPreloadTarget,
   AnimateProps,
   AnimateStaggerConfig,
   AnimateRenderState,

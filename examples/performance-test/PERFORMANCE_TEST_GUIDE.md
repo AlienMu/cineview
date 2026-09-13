@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers the authored performance example in `examples/performance-test`. The example compares two CineView modes against the same six-chapter product narrative so motion, pacing, and runtime behavior can be judged on equal content.
+This guide covers the authored performance example in `examples/performance-test`. The example compares two Cineview modes against the same six-chapter product narrative so motion, pacing, and runtime behavior can be judged on equal content.
 
 ## Experience model
 

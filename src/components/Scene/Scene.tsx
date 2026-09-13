@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { motion, useAnimation, useMotionValue } from 'framer-motion';
 import { SceneContext, type SceneContextType } from '../Animate/Animate';
-import { useCineViewContext } from '../../context/CineViewContext';
+import { useCineviewContext } from '../../context/CineviewContext';
 import type { PresetAnimation } from '../../animations/presets';
 import type { FrozenAnimationRegistrySnapshot } from '../../animations/registry';
 import type { ParsedAnimationVariant } from '../../types';
@@ -166,7 +166,7 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
     } = normalizeSceneProps(props);
     const scrollFrameStore = props.scrollRuntime?.frameStore;
     const scrollFrameSceneIndex = props.scrollRuntime?.sceneIndex ?? sceneIndex;
-    const cineViewContext = useCineViewContext();
+    const cineViewContext = useCineviewContext();
     const cineViewRuntime = useCineViewRuntimeContext();
     const reportRuntimeError = cineViewRuntime?.reportError;
     const controls = useAnimation();
@@ -409,10 +409,10 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
         console.error(
           `[CineView Error] Scene component must be used within a CineView component.\n\n` +
             `Problem: Scene component at index ${sceneIndex} is not wrapped by CineView.\n` +
-            `Fix: Wrap your Scene components inside a <CineView> component:\n\n` +
-            `  <CineView mode="drag" designWidth={750}>\n` +
+            `Fix: Wrap your Scene components inside a <Cineview> component:\n\n` +
+            `  <Cineview mode="drag" designWidth={750}>\n` +
             `    <Scene>...</Scene>\n` +
-            `  </CineView>\n`
+            `  </Cineview>\n`
         );
       }
     }, [cineViewContext, sceneIndex]);

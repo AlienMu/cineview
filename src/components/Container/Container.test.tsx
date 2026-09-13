@@ -4,7 +4,7 @@
 
 import { render } from '@testing-library/react';
 import { Container } from './Container';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 
 const defaultProviderProps = {
   designSize: 750,
@@ -15,9 +15,9 @@ function renderWithCineView(
   providerProps?: Partial<typeof defaultProviderProps>
 ) {
   return render(
-    <CineViewProvider {...defaultProviderProps} {...providerProps}>
+    <CineviewProvider {...defaultProviderProps} {...providerProps}>
       {ui}
-    </CineViewProvider>
+    </CineviewProvider>
   );
 }
 
@@ -40,7 +40,7 @@ describe('Container', () => {
         </Container>
       );
 
-      // CineViewProvider wraps with a div, Container is the second layer
+      // CineviewProvider wraps with a div, Container is the second layer
       const containerDiv = container.querySelector('.custom-class') as HTMLElement;
       expect(containerDiv).toBeInTheDocument();
       expect(containerDiv).toHaveClass('custom-class');
@@ -270,7 +270,7 @@ describe('Container', () => {
             <div>Content</div>
           </Container>
         );
-      }).toThrow('[CineView] Container must be used within a CineView component');
+      }).toThrow('[Cineview] Container must be used within a CineView component');
 
       consoleError.mockRestore();
       process.env.NODE_ENV = originalEnv;

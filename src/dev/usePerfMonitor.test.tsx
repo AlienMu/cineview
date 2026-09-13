@@ -117,15 +117,15 @@ describe('shared performance snapshots', () => {
   it('keeps collapsed controls operable before and after a runtime ref becomes ready', () => {
     const panel = render(<PerfPanel defaultExpanded={false} />);
     expect(
-      screen.getByRole('button', { name: 'Expand CineView performance panel' })
+      screen.getByRole('button', { name: 'Expand Cineview performance panel' })
     ).toHaveTextContent('--');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand CineView performance panel' }));
-    expect(screen.getByText('Waiting for CineView ref')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Cineview performance panel' }));
+    expect(screen.getByText('Waiting for Cineview ref')).toBeInTheDocument();
     panel.rerender(<PerfPanel source={createSource()} position="bottom-left" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse CineView performance panel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Cineview performance panel' }));
     expect(
-      screen.getByRole('button', { name: 'Expand CineView performance panel' })
+      screen.getByRole('button', { name: 'Expand Cineview performance panel' })
     ).toHaveTextContent('60');
   });
 

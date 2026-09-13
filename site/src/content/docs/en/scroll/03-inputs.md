@@ -15,11 +15,11 @@ Movements of at most 0.5px can leave the position unchanged. A scrollbar drag ca
 
 ## When input is consumed
 
-When CineView applies a movement, it prevents the cancelable event's browser default. If the event produces no effective movement, the default remains available.
+When Cineview applies a movement, it prevents the cancelable event's browser default. If the event produces no effective movement, the default remains available.
 
 An input that crosses a locked segment can stop at its endpoint. The next input continues into the following content. A segment endpoint does not always produce zero movement; the container's scroll limit does.
 
-Pointer input outside CineView and events already marked `defaultPrevented` are ignored. The keyboard focus rules are described in [Keyboard event listeners](#Keyboard-event-listeners).
+Pointer input outside Cineview and events already marked `defaultPrevented` are ignored. The keyboard focus rules are described in [Keyboard event listeners](#Keyboard-event-listeners).
 
 ## What differs per path
 
@@ -60,7 +60,7 @@ See [Horizontal direction: 'x'](/docs/04-direction-x).
 
 ## Nested scrollables take precedence
 
-If a nested scrollable can move in the input direction, CineView lets it handle the event. The check uses the active axis, a scrollable overflow style, and remaining travel greater than one pixel.
+If a nested scrollable can move in the input direction, Cineview lets it handle the event. The check uses the active axis, a scrollable overflow style, and remaining travel greater than one pixel.
 
 This applies to wheel, touch, and keyboard events handled inside the container.
 

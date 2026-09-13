@@ -5,7 +5,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { Position } from './Position';
-import { CineViewProvider } from '../../context/CineViewContext';
+import { CineviewProvider } from '../../context/CineviewContext';
 import { CineViewRuntimeContext } from '../runtime/runtimeContext';
 import { SceneFixedLayerContext } from './Position';
 
@@ -17,7 +17,7 @@ const renderWithContext = (
   } = {}
 ): ReturnType<typeof render> => {
   const designSize = options.designSize ?? 750;
-  return render(<CineViewProvider designSize={designSize}>{ui}</CineViewProvider>);
+  return render(<CineviewProvider designSize={designSize}>{ui}</CineviewProvider>);
 };
 
 describe('Position Component', () => {
@@ -493,11 +493,11 @@ describe('Position Component', () => {
 
       // Re-render to simulate Context update
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Position x={100} y={200}>
             <div data-testid="child">Content</div>
           </Position>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       // Position should remain consistent (because design size hasn't changed)
@@ -726,7 +726,7 @@ describe('Position Component', () => {
       });
     });
 
-    it('should render normally without CineViewProvider (silent failure)', () => {
+    it('should render normally without CineviewProvider (silent failure)', () => {
       // Position component should fail silently when there is no context, using default convertSize
       const { container } = render(
         <Position x={100} y={200}>
@@ -756,11 +756,11 @@ describe('Position Component', () => {
 
       // Re-render but props unchanged
       rerender(
-        <CineViewProvider designSize={750}>
+        <CineviewProvider designSize={750}>
           <Position x={100} y={200}>
             <div data-testid="child">Content</div>
           </Position>
-        </CineViewProvider>
+        </CineviewProvider>
       );
 
       // Style object should remain consistent (due to useMemo)

@@ -3,7 +3,7 @@ title: 预设动画总览
 eyebrow: ADVANCED / PRESETS
 ---
 
-CineView 提供 43 个预设，分为 11 组。传入 `enterAnimation="fade-in"` 等名称，`PresetAnimation` 类型会检查拼写。
+Cineview 提供 43 个预设，分为 11 组。传入 `enterAnimation="fade-in"` 等名称，`PresetAnimation` 类型会检查拼写。
 
 ## 预设目录
 

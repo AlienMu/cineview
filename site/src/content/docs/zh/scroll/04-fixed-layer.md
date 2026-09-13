@@ -21,7 +21,7 @@ scroll 模式下，Scene 的 transform 使其成为原生 `position: fixed` 后�
 
 frame 的偏移量计算公式为 `clamp(视窗滚动偏移 - sceneStart, 0, 场景跨度 - frame 跨度)`。frame 采用 `position: absolute` 并根据该偏移跟随滚动同步位移，在视觉上呈现贴合视窗的效果，同时规避了 transform 对 fixed 定位参照上下文的影响。
 
-固定层仅在所属 Scene 的滚动范围内可见。导航等需要跨场景持续显示的 UI 放在 CineView 外部。
+固定层仅在所属 Scene 的滚动范围内可见。导航等需要跨场景持续显示的 UI 放在 Cineview 外部。
 
 ## 指针事件处理
 

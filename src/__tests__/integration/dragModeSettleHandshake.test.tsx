@@ -1,8 +1,8 @@
 import React, { createRef } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { CineView, Scene, Animate, Position } from '../../index';
-import type { CineViewRef } from '../../types';
+import { Cineview, Scene, Animate, Position } from '../../index';
+import type { CineviewRef } from '../../types';
 
 type PendingAnimation = {
   stop: () => void;
@@ -217,12 +217,12 @@ mockIntersectionObserver.mockReturnValue({
 });
 window.IntersectionObserver = mockIntersectionObserver as unknown as typeof IntersectionObserver;
 
-function renderDragApp(onSceneLeave: jest.Mock): React.RefObject<CineViewRef | null> {
-  const cineViewRef = createRef<CineViewRef>();
+function renderDragApp(onSceneLeave: jest.Mock): React.RefObject<CineviewRef | null> {
+  const cineviewRef = createRef<CineviewRef>();
 
   render(
-    <CineView
-      ref={cineViewRef as React.RefObject<CineViewRef>}
+    <Cineview
+      ref={cineviewRef as React.RefObject<CineviewRef>}
       mode="drag"
       direction={'y'}
       transitionDuration={800}
@@ -264,10 +264,10 @@ function renderDragApp(onSceneLeave: jest.Mock): React.RefObject<CineViewRef | n
           </Animate>
         </Position>
       </Scene>
-    </CineView>
+    </Cineview>
   );
 
-  return cineViewRef;
+  return cineviewRef;
 }
 
 async function dragUp(surface: HTMLElement, fromY: number, toY: number): Promise<void> {
@@ -300,10 +300,10 @@ describe('drag mode settle handshake', () => {
   // 2026-06-24-drag-delay-page-decoupling.
   it('commits the scene change when the page-slide (render) lane completes', async () => {
     const onSceneLeave = jest.fn();
-    const cineViewRef = renderDragApp(onSceneLeave);
+    const cineviewRef = renderDragApp(onSceneLeave);
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
       expect(screen.getByText('Drag Scene 1')).toBeInTheDocument();
     });
 
@@ -311,23 +311,23 @@ describe('drag mode settle handshake', () => {
     await dragUp(activeSceneSurface, 620, 120);
 
     // Before the page-slide finishes, the scene has not changed.
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
 
     // Completing the render (page-slide) lane alone commits the scene change.
     await flushPendingNumberAnimations();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
   });
 
   it('fires onSceneLeave at the render commit; the element continuation runs on independently', async () => {
     const onSceneLeave = jest.fn();
-    const cineViewRef = renderDragApp(onSceneLeave);
+    const cineviewRef = renderDragApp(onSceneLeave);
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     const activeSceneSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
@@ -336,7 +336,7 @@ describe('drag mode settle handshake', () => {
     // Page-slide completes -> scene index advances at the partial release ratio.
     await flushPendingNumberAnimations();
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     });
 
     // The scene switch is COMPLETE at the render commit, so onSceneLeave has
@@ -357,10 +357,10 @@ describe('drag mode settle handshake', () => {
 
   it('takes a pending release over on a new drag start, then commits once when that gesture releases', async () => {
     const onSceneLeave = jest.fn();
-    const cineViewRef = renderDragApp(onSceneLeave);
+    const cineviewRef = renderDragApp(onSceneLeave);
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     });
 
     // Drain the spec-mandated first-screen cold-start enter (a SEPARATE lane —
@@ -375,7 +375,7 @@ describe('drag mode settle handshake', () => {
     await dragUp(firstSceneSurface, 620, 120);
 
     // Release in flight: page-slide not yet complete, scene unchanged.
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
 
     // D-F7: starting a new drag before the page-slide finishes TAKES THE LANE
     // OVER — it does not flush-commit. A flush would advance the index and
@@ -386,7 +386,7 @@ describe('drag mode settle handshake', () => {
     const pendingSurface = document.querySelector('[data-scene-index="0"] > *') as HTMLElement;
     fireEvent.mouseDown(pendingSurface, { clientX: 375, clientY: 620 });
 
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(0);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(0);
     expect(onSceneLeave).not.toHaveBeenCalled();
 
     // Releasing the takeover gesture: the frozen progress is far past the
@@ -395,7 +395,7 @@ describe('drag mode settle handshake', () => {
     await flushPendingNumberAnimations();
 
     await waitFor(() => {
-      expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+      expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
       expect(screen.getByText('Drag Scene 2')).toBeInTheDocument();
     });
 
@@ -403,7 +403,7 @@ describe('drag mode settle handshake', () => {
     await flushPendingObjectAnimations();
     await flushPendingNumberAnimations();
 
-    expect(cineViewRef.current?.getCurrentIndex()).toBe(1);
+    expect(cineviewRef.current?.getCurrentIndex()).toBe(1);
     await waitFor(() => {
       expect(onSceneLeave).toHaveBeenCalledTimes(1);
     });

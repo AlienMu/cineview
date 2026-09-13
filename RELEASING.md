@@ -2,7 +2,7 @@
 
 ## Published 1.0.0
 
-[CineView 1.0.0](https://www.npmjs.com/package/cineview/v/1.0.0) was published on
+[Cineview 1.0.0](https://www.npmjs.com/package/cineview/v/1.0.0) was published on
 2026-09-08. The registry did not record a `gitHead` for that publication.
 [releases/1.0.0.json](./releases/1.0.0.json) records its tarball URL, integrity,
 SHA-256, and the verified source correspondence.

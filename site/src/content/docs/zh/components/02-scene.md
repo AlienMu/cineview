@@ -3,7 +3,7 @@ title: Scene
 eyebrow: COMPONENTS / SCENE
 ---
 
-Scene 组织共享布局、转场与预加载资源的内容，需直接声明在 CineView 内。scroll 模式下，`scroll` 声明锁定区；动画时长预算大于零时，才会增加锁定期间的滚动距离。
+Scene 组织共享布局、转场与预加载资源的内容，需直接声明在 Cineview 内。scroll 模式下，`scroll` 声明锁定区；动画时长预算大于零时，才会增加锁定期间的滚动距离。
 
 ## Props
 
@@ -86,6 +86,6 @@ Scene 转场作用于整个场景。drag 模式忽略 Scene 的入退场动画�
 
 ## 相关页面
 
-- [CineView](/docs/01-cineview)：根组件与回调
+- [Cineview](/docs/01-cineview)：根组件与回调
 - [双模式引擎](/docs/01-modes)：drag / scroll 下 Scene 的语义差异
 - [预加载](/docs/02-preload)：`assets.preloadImages` 排队机制

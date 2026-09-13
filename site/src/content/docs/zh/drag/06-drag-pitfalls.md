@@ -33,13 +33,13 @@ drag 模式下，`timeline.driver: 'clock'` 会在 Scene 到场后按真实时�
 
 drag 模式只保持当前场景和相邻场景挂载。距离当前位置超过一屏的场景会卸载，返回时重新挂载实例，因此 effect 会重新执行，组件 state 会重置，时间线游标会回到零。
 
-需要跨场景保留的状态放到 `CineView` 外部，例如父组件 state、Context 或外部 Store。场景内部的 effect 只处理当前呈现逻辑。场景身份由数组位置决定，结构重排会改变每个位置对应的实例。
+需要跨场景保留的状态放到 `Cineview` 外部，例如父组件 state、Context 或外部 Store。场景内部的 effect 只处理当前呈现逻辑。场景身份由数组位置决定，结构重排会改变每个位置对应的实例。
 
 ## 6. 包裹后的 `Scene` 不显示
 
-`CineView` 只检查直接子节点来发现 `Scene`。React 会展平数组，因此 `{list.map(...)}` 可以使用。Fragment 不会展平，在自定义组件的 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。直接子节点和 Fragment 混用时，框架只发现直接子节点中的场景，也不会发出空场景警告。
+`Cineview` 只检查直接子节点来发现 `Scene`。React 会展平数组，因此 `{list.map(...)}` 可以使用。Fragment 不会展平，在自定义组件的 render 函数内返回 `Scene` 也会隐藏内部节点。`memo` 和 `forwardRef` 包装最多向内解包六层。直接子节点和 Fragment 混用时，框架只发现直接子节点中的场景，也不会发出空场景警告。
 
-将 Scene 直接声明在 CineView 下。复用一组场景时，可让函数返回 Scene 元素数组，在 CineView 的 children 中调用；不要再用组件包裹这些 Scene。
+将 Scene 直接声明在 Cineview 下。复用一组场景时，可让函数返回 Scene 元素数组，在 Cineview 的 children 中调用；不要再用组件包裹这些 Scene。
 
 ## 相关页面
 

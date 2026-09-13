@@ -31,13 +31,13 @@ These styles are supplied by the engine:
 | Each scene frame | `z-index: 10` (current) / `1` (others)                    | Cross-scene layering is managed by the engine                             |
 | Scene itself     | `contain: 'layout style'`                                 | Establishes a stacking context, see [DOM contract](/docs/06-dom-contract) |
 
-CineView has no `className` or `style` prop. External CSS can target `.cineview-container` or `[data-cineview-container="true"]`; use `!important` when overriding an inline background. `--cineview-unit` provides responsive lengths for authored CSS.
+Cineview has no `className` or `style` prop. External CSS can target `.cineview-container` or `[data-cineview-container="true"]`; use `!important` when overriding an inline background. `--cineview-unit` provides responsive lengths for authored CSS.
 
 `Scene.layout.width` and `height` size the Scene's content area within its full-screen navigation position.
 
 ## Only the current scene and its two neighbors render
 
-The current Scene and its immediate neighbors stay mounted. Scenes farther away unmount, so returning recreates their local state, effects, and animations. Store state that must survive navigation outside CineView.
+The current Scene and its immediate neighbors stay mounted. Scenes farther away unmount, so returning recreates their local state, effects, and animations. Store state that must survive navigation outside Cineview.
 
 Scene identity follows array position. Reordering or conditionally inserting scenes can change which instance occupies a position.
 
@@ -51,7 +51,7 @@ Scene identity follows array position. Reordering or conditionally inserting sce
 
 The custom scrollbar overlay is available only in scroll mode. In drag, a `scrollbar` object only injects native-scrollbar hiding styles; its width and color options have no visible overlay to style.
 
-TypeScript excludes scroll-only root fields in drag, including `zoneTrigger`, `sceneSizing`, `enterMargin`, `exitMargin`, and `debug`. `firstSceneTimeout` is drag-only; scroll uses a 3000ms initial resource wait. See [Preloading](/docs/02-preload).
+TypeScript excludes scroll-only root fields in drag, including `zoneTrigger`, `sceneSizing`, `enterMargin`, and `exitMargin`. `debug` is available in both modes. `firstSceneTimeout` is drag-only; scroll uses a 3000ms initial resource wait. See [Preloading](/docs/02-preload).
 
 ## Related pages
 
