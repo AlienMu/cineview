@@ -108,7 +108,7 @@
 
 .drag-temporal .s03-preview__subtitles > span {
   grid-area: 1 / 1;
-  max-width: min(82vw, 760px);
+  max-width: min(82cqw, 760px);
   color: #fff;
   font-family: var(--tp-font-mono);
   font-size: clamp(16px, 4.4cqw, 34px);
@@ -1112,7 +1112,7 @@
 .drag-temporal .s05-credits {
   display: grid;
   gap: clamp(9px, 2.4cqw, 14px);
-  width: min(82vw, 620px);
+  width: min(82cqw, 620px);
   max-width: 100%;
 }
 

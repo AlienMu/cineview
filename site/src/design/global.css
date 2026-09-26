@@ -83,6 +83,11 @@
   overscroll-behavior-y: none;
 }
 
+.drag-page > .drag-temporal {
+  max-width: 750px;
+  margin-inline: auto;
+}
+
 /* 首页画布内所有盒模型长度与 Position 共用框架正式 `--cineview-unit`。
  * `--cv-u` 仅保留为 site 内部兼容别名，不再自行计算 viewport / size。 */
 .home-scene-canvas {

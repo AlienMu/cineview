@@ -29,12 +29,24 @@
   <a href="#ai-read-this">AI, read this</a>
 </p>
 
-AI-generated landing pages often feel scattered to me. The content and animations are there, but the page lacks a clear order and rhythm. I want a landing page to unfold like a film, one scene at a time.
+I want landing pages to be easier to maintain and AI assistants to spend less effort repeating the same work. Scene transitions, animation sequencing, and responsive layout can be reused across projects. Cineview organizes these features around scenes and timelines, so common page sections can become React components used on more than one page.
 
-- **Timeline sequencing:** Arrange animations in order; dependent animations follow when durations change.
-- **Two interaction modes:** Scroll through content or drag between full-screen scenes.
-- **Video control:** Advance video frames with scroll or drag progress.
-- **Responsive layout:** Scale design dimensions to the viewport width.
+For a new page, combine existing scenes, assets, and animations. For an update, find the relevant component and adjust its content or timeline. The AI guides follow the same approach: read the index, then load the guides and code needed for the change. Reusing components and reading by task can reduce the tokens spent regenerating code and reconstructing how an entire page works, leaving more context for the actual request.
+
+## Features
+
+| Capability                                                                               | How to use it                                                                                                                               |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reusable scenes and components                                                           | Divide content into Scenes and package common sections as React components for product pages, campaigns, or interactive presentations.      |
+| Timeline sequencing                                                                      | Declare durations, delays, and dependencies. Dependent animations adjust when a predecessor's entrance duration changes.                    |
+| Drag and scroll modes                                                                    | Drag between full-screen scenes or scroll through a page. Connect animations to scroll progress where content needs to unfold gradually.    |
+| [Animation presets](https://cineview.pages.dev/docs/08-presets)                          | Start with fades, slides, zooms, rotations, flips, bounces, blurs, and other built-in effects.                                              |
+| [Composition and custom animations](https://cineview.pages.dev/docs/05-custom-animation) | Combine presets and custom properties on one element, define finer changes with keyframes, and use timelines to sequence separate elements. |
+| Entrances, loops, and stagger                                                            | Configure entrance, loop, and exit effects where needed. Reveal children at intervals to sequence headings, cards, or lists.                |
+| [Video control](https://cineview.pages.dev/docs/11-video-timeline)                       | Use AnimateVideo to advance video frames through dragging or scrolling, select a video interval, and coordinate it with text animations.    |
+| [Custom drawing and extensions](https://cineview.pages.dev/docs/09-use-animate-timeline) | Read animation progress with useAnimateTimeline and connect Canvas, SVG, WebGL, or your own components to the existing progress controls.   |
+| [Responsive layout](https://cineview.pages.dev/docs/05-responsive)                       | Scale dimensions from a design width, position and size content with Position and Container, and adapt layouts with CSS.                    |
+| [Resource preloading](https://cineview.pages.dev/docs/02-preload)                        | Prepare scene images in advance and handle initial loading, progress, and failures to reduce waiting for assets during scene changes.       |
 
 ## Try it
 
