@@ -1,0 +1,36 @@
+# Cineview
+
+> React animation framework centered on scene timelines, with drag and scroll modes. Organize content into Scenes, declare animation durations and dependencies, and advance them through gestures, scrolling, or elapsed time.
+
+These guides target cineview@0.0.1-beta, React 19, and Framer Motion 13. Import `Cineview` with this capitalization. The earlier cineview@1.0.0 uses a different API; do not combine examples from those versions. In a different checkout, confirm package.json and public types before applying these guides.
+
+## Read by task
+
+- [Quick start](docs/ai/quickstart.md): installation, core concepts, a complete drag App, and local development.
+- [Timelines](docs/ai/timeline.md): durations, delays, after dependencies, drivers, and timing calculations.
+- [Modes](docs/ai/modes.md): drag versus scroll, fixed drag navigation height, scroll zones, and mode-specific parameters.
+- [Recipes](docs/ai/recipes.md): complete scroll narrative and video Apps, asset requirements, and expected behavior.
+
+Read quick start first. Add modes when selecting an interaction, timeline when sequencing elements, and recipes for complete implementations. Detailed references can be read only when the task needs them.
+
+## Essential rules
+
+- Each Scene owns its element timeline; there is no page-wide after sequence.
+- `timeline.after` references an `animateId` in the same Scene and waits for its entrance to finish, then adds the follower's delay.
+- `mode` is `drag` or `scroll`. `timeline.driver` is `scene` or `clock`; a driver is not another page mode.
+- Drag navigation stays one viewport high. `Scene.layout.height` sizes inner content only.
+- In a scroll zone, 1ms of authored scene-driven duration equals 1px of real scroll distance.
+- Use `Scene.scroll={{ zoneId: 'film' }}`. Omit removed fields: root zoneTrigger, Scene.scroll.trigger, Animate.timeline.zoneId, and goToZone align.
+- AnimateVideo has its own smaller API; its timeline accepts delay and after, not driver or phase.
+- Keep the root dist directory while repository development consumers run. Their dev commands build the linked package before starting Vite.
+
+## Authoritative references
+
+- [Package and version](package.json): dependency versions and published exports.
+- [Public types](src/types/index.ts): exact configuration names and mode restrictions.
+- [AnimateVideo types](src/components/Animate/AnimateVideo.tsx): supported video properties.
+- [Architecture](DESIGN.md): implementation ownership and framework contribution rules.
+- [English documentation source](site/src/content/docs/en/getting-started/01-introduction.md): detailed Markdown documentation; sibling folders contain component and concept references.
+- [Chinese documentation source](site/src/content/docs/zh/getting-started/01-introduction.md): aligned Chinese reference.
+- [Interactive documentation](https://cineview.pages.dev/docs): browser examples and guides.
+- [Contributing](CONTRIBUTING.md): development commands, checks, and cleanup requirements.

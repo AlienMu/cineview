@@ -7,9 +7,11 @@
 [![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
 [![MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](./LICENSE)
 
-Cineview 是用于制作拖拽和滚动交互页面的 React 框架。为元素声明动画时长和先后顺序，再让手势或滚动位置推进这段时间线。
+我总觉得，不少 AI 做的落地页有点散：内容有了，动画也加了，但整页看下来，还是缺少顺序和节奏，不太优雅。我想让落地页像电影院里播放的电影一样，一幕一幕地展开。
 
-每个 `Scene` 管理自己的内容和元素时间。`Animate` 描述淡入、位移等变化，`after` 等前序元素入场完成，再加上当前元素的延迟后开始。普通按时间播放的入场动画也可以与这些交互共存。
+这就是 Cineview 的出发点：一个**以时间线为核心、支持拖拽和滚动双模式**的 React 动画框架。用场景组织内容，用时间线安排出场顺序，再让滚动和拖拽推进画面。
+
+每个 `Scene` 管理自己的元素时间线。`Animate` 声明效果和时长，`after` 等前一个入场完成，再加上当前元素的延迟后开始。视频可以跟随同一进度，普通入场动画也可以独立按时间播放。
 
 [快速上手与交互案例](https://cineview.pages.dev/docs/03-quickstart) · [文档](https://cineview.pages.dev/docs) · [官网](https://cineview.pages.dev)
 
@@ -22,6 +24,21 @@ npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
 npm 的 `beta` 标签对应这套 API。`latest` 标签保留在 `1.0.0`，该版本使用早期的 `CineView` API。
+
+## 使用 AI 开发
+
+从 [llms.txt](./llms.txt) 开始，按任务读取精简的 Markdown 指南：[快速开始](./docs/ai/quickstart.md)、[时间线](./docs/ai/timeline.md)、[模式选择](./docs/ai/modes.md)和[完整案例](./docs/ai/recipes.md)。这套英文指南对应当前 beta API，并链接到详细文档和公开类型。
+
+让 AI 访问本仓库，再复制这段提示词：
+
+```text
+先阅读 llms.txt，再按本次任务读取必要的指南。
+使用指南指定版本的 Cineview API 实现页面。
+用 Scene 组织内容，说明动画时间线的安排。
+解释选择 drag 或 scroll 模式的理由。
+使用受支持的参数，给出可运行的 React 代码、所需素材和验证步骤。
+遇到不确定的参数时，核对当前类型定义。
+```
 
 ## 运行本地示例
 

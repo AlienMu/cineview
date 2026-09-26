@@ -7,9 +7,11 @@
 [![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
 [![MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](./LICENSE)
 
-Cineview is a React framework for pages controlled by dragging and scrolling. Define animation durations and dependencies, then let gestures or scroll position advance that timeline.
+AI-generated landing pages often feel scattered to me: the content and animations are there, but the page lacks a clear order and rhythm. I want a landing page to unfold like a film, one scene at a time.
 
-Each `Scene` owns its content and element time. `Animate` describes effects such as fading and movement; `after` starts an element when its predecessor finishes entering, then adds the follower’s delay. Ordinary entrances that play over time can coexist with these interactions.
+That is the idea behind Cineview, a React animation framework built around **timelines, with drag and scroll modes**. Scenes organize the content, timelines arrange its entrances, and dragging or scrolling advances the presentation.
+
+Each `Scene` owns its element timeline. `Animate` defines effects and durations; `after` starts an element when its predecessor finishes entering, then adds the follower's delay. Video can follow the same progress, and ordinary entrances can play independently over time.
 
 [Quick start and interactive examples](https://cineview.pages.dev/docs/03-quickstart) · [Documentation](https://cineview.pages.dev/docs) · [Website](https://cineview.pages.dev)
 
@@ -22,6 +24,21 @@ npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
 The npm `beta` channel tracks this API. The `latest` channel remains on `1.0.0`, which uses the earlier `CineView` API.
+
+## Build with AI
+
+Start with [llms.txt](./llms.txt). It indexes concise Markdown guides for [quick start](./docs/ai/quickstart.md), [timelines](./docs/ai/timeline.md), [mode selection](./docs/ai/modes.md), and [complete recipes](./docs/ai/recipes.md). These English guides target the current beta API and link to the detailed documentation and public types.
+
+Give an assistant access to this repository and use this prompt:
+
+```text
+Read llms.txt first, then read the guides needed for this task.
+Build a Cineview page using the API version specified there.
+Organize the content into Scenes and describe the animation timeline.
+Explain why drag or scroll fits the requested interaction.
+Use the supported properties and provide runnable React code, required assets,
+and verification steps. Check the current types when a property is unclear.
+```
 
 ## Run the local example
 

@@ -4,7 +4,18 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const files = process.argv.slice(2);
 if (!files.length)
-  files.push('DESIGN.md', 'README.md', 'README.zh-CN.md', 'CONTRIBUTING.md', 'RELEASING.md');
+  files.push(
+    'DESIGN.md',
+    'README.md',
+    'README.zh-CN.md',
+    'CONTRIBUTING.md',
+    'RELEASING.md',
+    'llms.txt',
+    'docs/ai/quickstart.md',
+    'docs/ai/timeline.md',
+    'docs/ai/modes.md',
+    'docs/ai/recipes.md'
+  );
 const stripCode = (text) => text.replace(/^(```|~~~)[\s\S]*?^\1[^\n]*$/gm, '');
 function anchors(text) {
   const found = new Set();
