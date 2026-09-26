@@ -352,8 +352,7 @@ const DragSceneSlot = React.memo(function DragSceneSlot({
       onSceneChange,
     });
   }, [
-    scene.type,
-    scene.key,
+    scene,
     mode,
     slideDirection,
     isCurrent,

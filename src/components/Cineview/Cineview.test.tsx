@@ -3,7 +3,7 @@
  */
 
 import { createRef, act } from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { Cineview } from './CineviewDispatch';
 import { resolveRootSceneStackMode } from './Cineview';
 import type { CineviewRef } from '../../types';
@@ -82,6 +82,26 @@ describe('Cineview Component', () => {
   });
 
   describe('12.1 Core Functionality', () => {
+    it('updates keyed scene content without remounting its local controls', () => {
+      const page = (title: string) => (
+        <Cineview mode="drag">
+          <MockScene key="intro" sceneId="intro">
+            <h1>{title}</h1>
+            <input aria-label="Scene note" defaultValue="" />
+          </MockScene>
+        </Cineview>
+      );
+      const { getByRole, rerender } = render(page('Original title'));
+      const input = getByRole('textbox', { name: 'Scene note' });
+      fireEvent.change(input, { target: { value: 'Keep this note' } });
+
+      rerender(page('Updated title'));
+
+      expect(getByRole('heading')).toHaveTextContent('Updated title');
+      expect(getByRole('textbox', { name: 'Scene note' })).toBe(input);
+      expect(input).toHaveValue('Keep this note');
+    });
+
     it('should create responsive size conversion context', () => {
       const { container } = render(
         <Cineview designWidth={750}>

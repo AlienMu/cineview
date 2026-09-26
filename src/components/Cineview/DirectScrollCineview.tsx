@@ -19,6 +19,7 @@ import type {
   CineviewPreloadTarget,
   CineviewRef,
   CineviewScrollModeProps,
+  PerformanceMetrics,
 } from '../../types';
 import {
   createScrollbarCss,
@@ -70,31 +71,42 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     const { designSize } = resolveDesignDimensions(designWidth);
     // Public callbacks are flat + mode-aware; regroup back into { common, drag,
     // scroll } so the read sites below stay grouped (mirrors CineView.tsx).
-    const resolvedCallbacks = useMemo<GroupedCallbacks>(() => {
-      const grouped = regroupCallbacks(callbacks);
-      // Memoize individual callback groups to prevent unnecessary rerenders when
-      // the callbacks container object changes but individual callbacks don't
-      return {
-        common: grouped.common,
-        drag: grouped.drag,
-        scroll: grouped.scroll,
-      };
-    }, [
-      callbacks?.onReady,
-      callbacks?.onLoadProgress,
-      callbacks?.onSceneEnter,
-      callbacks?.onSceneLeave,
-      callbacks?.onError,
-      callbacks?.onDragStart,
-      callbacks?.onDragProgress,
-      callbacks?.onDragBlocked,
-      callbacks?.onDragEnd,
-      callbacks?.onDragCancel,
-      callbacks?.onZoneEnter,
-      callbacks?.onZoneLeave,
-      callbacks?.onZoneProgress,
-      callbacks?.onSceneVisibilityChange,
-    ]);
+    // Reuse groups when only the callbacks container changes identity.
+    const resolvedCallbacks = useMemo<GroupedCallbacks>(
+      () =>
+        regroupCallbacks({
+          onReady: callbacks?.onReady,
+          onLoadProgress: callbacks?.onLoadProgress,
+          onSceneEnter: callbacks?.onSceneEnter,
+          onSceneLeave: callbacks?.onSceneLeave,
+          onError: callbacks?.onError,
+          onDragStart: callbacks?.onDragStart,
+          onDragProgress: callbacks?.onDragProgress,
+          onDragBlocked: callbacks?.onDragBlocked,
+          onDragEnd: callbacks?.onDragEnd,
+          onDragCancel: callbacks?.onDragCancel,
+          onZoneEnter: callbacks?.onZoneEnter,
+          onZoneLeave: callbacks?.onZoneLeave,
+          onZoneProgress: callbacks?.onZoneProgress,
+          onSceneVisibilityChange: callbacks?.onSceneVisibilityChange,
+        }),
+      [
+        callbacks?.onReady,
+        callbacks?.onLoadProgress,
+        callbacks?.onSceneEnter,
+        callbacks?.onSceneLeave,
+        callbacks?.onError,
+        callbacks?.onDragStart,
+        callbacks?.onDragProgress,
+        callbacks?.onDragBlocked,
+        callbacks?.onDragEnd,
+        callbacks?.onDragCancel,
+        callbacks?.onZoneEnter,
+        callbacks?.onZoneLeave,
+        callbacks?.onZoneProgress,
+        callbacks?.onSceneVisibilityChange,
+      ]
+    );
     const direction = directionProp ?? 'y';
     const containerRef = useRef<HTMLDivElement | null>(null);
     const scrollOffsetRef = useRef(0);
@@ -462,12 +474,12 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
 
     if (!stableApiRef.current) {
       stableApiRef.current = {
-        goToScene: (index: number, animated = true) => goToSceneImpl(index, animated),
-        goToZone: (zoneId: string, options) => goToScrollZone(zoneId, options),
-        refreshLayout: () => refreshLayoutImpl(),
-        preload: (targets) => preloadImpl(targets),
-        getCurrentIndex: () => activeSceneIndexRef.current,
-        getPerformanceMetrics: () => performanceMonitor.getMetrics(),
+        goToScene: (index: number, animated = true): void => goToSceneImpl(index, animated),
+        goToZone: (zoneId: string, options): void => goToScrollZone(zoneId, options),
+        refreshLayout: (): void => refreshLayoutImpl(),
+        preload: (targets): Promise<void> => preloadImpl(targets),
+        getCurrentIndex: (): number => activeSceneIndexRef.current,
+        getPerformanceMetrics: (): PerformanceMetrics => performanceMonitor.getMetrics(),
       };
     }
 

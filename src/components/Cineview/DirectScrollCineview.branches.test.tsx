@@ -1441,6 +1441,37 @@ describe('DirectScrollCineView — review remediation regressions', () => {
     warnSpy.mockRestore();
   });
 
+  it('reuses unchanged callbacks and applies replacements when the parent rerenders', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const initialError = jest.fn();
+    const replacementError = jest.fn();
+    const page = (onError?: typeof initialError) => (
+      <DirectScrollCineView mode="scroll" callbacks={{ onError }}>
+        <div>not a scene</div>
+      </DirectScrollCineView>
+    );
+
+    try {
+      const { rerender } = render(page(initialError));
+      expect(initialError).toHaveBeenCalledTimes(1);
+
+      rerender(page(initialError));
+      expect(initialError).toHaveBeenCalledTimes(1);
+
+      rerender(page(replacementError));
+      expect(initialError).toHaveBeenCalledTimes(1);
+      expect(replacementError).toHaveBeenCalledTimes(1);
+      expect(replacementError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'EMPTY_SCENES' })
+      );
+
+      rerender(page());
+      expect(replacementError).toHaveBeenCalledTimes(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('rejects duplicate authored zone ids and keeps only the first takeover shell', () => {
     // The duplicate-zone console.error is mirrored via devError (development only).
     // This test verifies that dev mirror, so NODE_ENV must be explicitly set to development.

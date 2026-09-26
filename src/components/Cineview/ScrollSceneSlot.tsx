@@ -216,7 +216,7 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
       get onVisibilityChange() {
         const userCallback = callbacksRef.current?.onVisibilityChange;
         const rootCallback = scrollCallbacks?.onSceneVisibilityChange;
-        return (detail: { visible: boolean; progress: number; sceneIndex?: number }) => {
+        return (detail: { visible: boolean; progress: number; sceneIndex?: number }): void => {
           userCallback?.(detail);
           rootCallback?.(detail);
         };

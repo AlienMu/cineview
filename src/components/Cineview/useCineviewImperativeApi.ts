@@ -96,11 +96,11 @@ export function useCineviewImperativeApi({
   const runtimeApiRef = useRef<CineviewRef | null>(null);
   if (!runtimeApiRef.current) {
     runtimeApiRef.current = {
-      goToScene: (index: number, animated = true) => goToScene(index, animated),
-      refreshLayout: () => refreshLayout(),
-      preload: (targets) => preload(targets),
-      getCurrentIndex: () => getCurrentIndex(),
-      getPerformanceMetrics: () => getPerformanceMetrics(),
+      goToScene: (index: number, animated = true): void => goToScene(index, animated),
+      refreshLayout: (): void => refreshLayout(),
+      preload: (targets): Promise<void> => preload(targets),
+      getCurrentIndex: (): number => getCurrentIndex(),
+      getPerformanceMetrics: (): PerformanceMetrics => getPerformanceMetrics(),
     };
   }
 
