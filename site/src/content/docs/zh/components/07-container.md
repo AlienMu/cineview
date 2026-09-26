@@ -7,24 +7,24 @@ Container 按 `viewportWidth / designWidth` 换算数值宽高与受支持的样
 
 ## Props
 
-| prop        | 类型                                          | 说明                                 |
-| ----------- | --------------------------------------------- | ------------------------------------ |
-| `width`     | number                                        | 容器宽度（设计 px）                  |
-| `height`    | number                                        | 容器高度（设计 px）                  |
-| `style`     | CSSProperties                                 | 整块样式；数值型长度量按设计 px 换算 |
-| `className` | string                                        | 根 div 类名                          |
-| `children`  | ReactNode                                     | 必填                                 |
-| 其余        | HTMLAttributes（除 children/style/className） | 透传根 div                           |
+| prop        | 类型                                          | 说明                                     |
+| ----------- | --------------------------------------------- | ---------------------------------------- |
+| `width`     | number                                        | 容器宽度（设计 px）                      |
+| `height`    | number                                        | 容器高度（设计 px）                      |
+| `style`     | CSSProperties                                 | 附加样式；受支持的数值长度按设计像素换算 |
+| `className` | string                                        | 根 div 类名                              |
+| `children`  | ReactNode                                     | 必填                                     |
+| 其余        | HTMLAttributes（除 children/style/className） | 透传根 div                               |
 
 转发的 `ref` 指向根 div。
 
-Container 只能在 `<Cineview>` 下使用：换算依赖上下文。脱离 Cineview 渲染时，开发构建直接抛错。
+将 Container 放在 `<Cineview>` 内，以读取设计稿宽度。开发构建会在 Cineview 外使用它时抛出错误。
 
 ## 换算行为
 
 `scale = viewportWidth / designWidth`（`designWidth` 默认 750）。`width={520}` 在 375px 屏幕宽度下（scale 0.5）渲染为 260px。
 
-`style` 里的数值按键名许可清单换算，覆盖：
+`style` 中以下属性的数值会按设计像素换算：
 
 - 尺寸：`width` / `height` / `minWidth` / `maxWidth` / `minHeight` / `maxHeight`
 - 定位与 inset：`top` / `right` / `bottom` / `left` / `inset*`
@@ -40,7 +40,7 @@ Container 只能在 `<Cineview>` 下使用：换算依赖上下文。脱离 Cine
 </Container>
 ```
 
-## 常见误用
+## 使用建议
 
 - 按设计坐标放置内容时使用 [Position](/docs/05-position)。Container 不设置定位方式。
 - 数值 `fontSize: 28` 会按设计比例换算，字符串 `'28px'` 则保持为 28 CSS 像素。

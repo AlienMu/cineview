@@ -124,48 +124,6 @@ export function areScrollSceneRenderSnapshotsEqual(
   );
 }
 
-function arePropsEqual(
-  prev: ScrollSceneSlotProps,
-  next: ScrollSceneSlotProps
-): boolean {
-  // Check non-child props first
-  if (
-    prev.store !== next.store ||
-    prev.frameStore !== next.frameStore ||
-    prev.sceneIndex !== next.sceneIndex ||
-    prev.setWrapperRef !== next.setWrapperRef ||
-    prev.scrollCallbacks !== next.scrollCallbacks
-  ) {
-    return false;
-  }
-
-  const prevChild = prev.child;
-  const nextChild = next.child;
-
-  // Must be same component type and key
-  if (prevChild.type !== nextChild.type || prevChild.key !== nextChild.key) {
-    return false;
-  }
-
-  const prevProps = prevChild.props;
-  const nextProps = nextChild.props;
-
-  // Only compare Scene's own props, not its children
-  // This allows children to update without causing ScrollSceneSlot to re-render
-  const allKeys = new Set([...Object.keys(prevProps), ...Object.keys(nextProps)]);
-  for (const key of allKeys) {
-    if (key === 'children') {
-      // Skip children comparison - let React handle reconciliation of children
-      continue;
-    }
-    if (prevProps[key] !== nextProps[key]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   child,
   store,
@@ -250,98 +208,115 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
     [sceneIndex, setWrapperRef]
   );
 
-  const cloned = React.useMemo(() => {
-    return React.cloneElement(
-      child as unknown as React.ReactElement<Record<string, unknown>>,
-      {
-        layout:
-          isTakeoverScene && takeoverSceneSpan !== null
-            ? {
-                ...child.props.layout,
-                ...(direction === 'x' ? { width: takeoverSceneSpan } : { height: takeoverSceneSpan }),
-              }
-            : direction === 'x' && !isTakeoverScene
-              ? {
-                  ...child.props.layout,
-                  width: authoredHorizontalWidth === 'auto' ? 'auto' : '100%',
-                }
-              : child.props.layout,
-        callbacks: {
-          ...child.props.callbacks,
-          onVisibilityChange: (detail: {
-            visible: boolean;
-            progress: number;
-            sceneIndex?: number;
-          }) => {
-            child.props.callbacks?.onVisibilityChange?.(detail);
-            scrollCallbacks?.onSceneVisibilityChange?.(detail);
-          },
-        },
-        sceneRuntime: {
-          mode: 'scroll',
-          direction,
-          isActive: isCurrent,
-          sceneIndex,
-          totalScenes: sceneCount,
-          currentSceneIndex: activeSceneIndex,
-          transitionDirection: scrollDirection,
-          isSceneAnimating: isScrolling,
-          sharedElapsedMs: 0,
-          sharedTimelineDurationMs: 0,
-          viewportWidth,
-          viewportHeight,
-          firstSceneEnterGateKnown,
-          firstSceneEnterActive,
-          firstSceneEnterReady,
-        },
-        scrollRuntime: {
-          progress: sceneTimelineState?.sceneProgress ?? 0,
-          isScrolling,
-          direction: scrollDirection,
-          transitionSnapshot: null,
-          backdropActive: isBackdropActive,
-          timelineState: sceneTimelineState,
-          activeSceneIndex,
-          viewportOffset: visualViewportOffset,
-          onProgressChange: undefined,
-          onDirectionChange: undefined,
-          onScrollingChange: undefined,
-          onCommit: undefined,
-          onReset: undefined,
-          frameStore,
-          sceneIndex,
-        },
-      }
-    );
-  }, [
-    child.type,
-    child.key,
-    child.props.layout,
-    child.props.callbacks,
-    child.props.scroll,
-    child.props.sceneId,
-    child.props.sceneWidth,
-    isTakeoverScene,
-    takeoverSceneSpan,
-    direction,
-    authoredHorizontalWidth,
-    scrollCallbacks,
-    isCurrent,
-    sceneIndex,
-    sceneCount,
-    activeSceneIndex,
-    scrollDirection,
-    isScrolling,
-    viewportWidth,
-    viewportHeight,
-    firstSceneEnterGateKnown,
-    firstSceneEnterActive,
-    firstSceneEnterReady,
-    sceneTimelineState,
-    isBackdropActive,
-    visualViewportOffset,
-    frameStore,
-  ]);
+  const callbacksRef = React.useRef(child.props.callbacks);
+  callbacksRef.current = child.props.callbacks;
+
+  const wrappedCallbacks = React.useMemo(() => {
+    return {
+      get onVisibilityChange() {
+        const userCallback = callbacksRef.current?.onVisibilityChange;
+        const rootCallback = scrollCallbacks?.onSceneVisibilityChange;
+        return (detail: { visible: boolean; progress: number; sceneIndex?: number }) => {
+          userCallback?.(detail);
+          rootCallback?.(detail);
+        };
+      },
+    };
+  }, [scrollCallbacks?.onSceneVisibilityChange]);
+
+  const childLayoutRef = React.useRef(child.props.layout);
+  childLayoutRef.current = child.props.layout;
+
+  const clonedLayout = React.useMemo(() => {
+    const layout = childLayoutRef.current;
+    if (isTakeoverScene && takeoverSceneSpan !== null) {
+      return {
+        ...layout,
+        ...(direction === 'x' ? { width: takeoverSceneSpan } : { height: takeoverSceneSpan }),
+      };
+    }
+    if (direction === 'x' && !isTakeoverScene) {
+      return {
+        ...layout,
+        width: authoredHorizontalWidth === 'auto' ? 'auto' : '100%',
+      };
+    }
+    return layout;
+  }, [isTakeoverScene, takeoverSceneSpan, direction, authoredHorizontalWidth]);
+
+  const sceneRuntime = React.useMemo(
+    () => ({
+      mode: 'scroll' as const,
+      direction,
+      isActive: isCurrent,
+      sceneIndex,
+      totalScenes: sceneCount,
+      currentSceneIndex: activeSceneIndex,
+      transitionDirection: scrollDirection,
+      isSceneAnimating: isScrolling,
+      sharedElapsedMs: 0,
+      sharedTimelineDurationMs: 0,
+      viewportWidth,
+      viewportHeight,
+      firstSceneEnterGateKnown,
+      firstSceneEnterActive,
+      firstSceneEnterReady,
+    }),
+    [
+      direction,
+      isCurrent,
+      sceneIndex,
+      sceneCount,
+      activeSceneIndex,
+      scrollDirection,
+      isScrolling,
+      viewportWidth,
+      viewportHeight,
+      firstSceneEnterGateKnown,
+      firstSceneEnterActive,
+      firstSceneEnterReady,
+    ]
+  );
+
+  const scrollRuntime = React.useMemo(
+    () => ({
+      progress: sceneTimelineState?.sceneProgress ?? 0,
+      isScrolling,
+      direction: scrollDirection,
+      transitionSnapshot: null,
+      backdropActive: isBackdropActive,
+      timelineState: sceneTimelineState,
+      activeSceneIndex,
+      viewportOffset: visualViewportOffset,
+      onProgressChange: undefined,
+      onDirectionChange: undefined,
+      onScrollingChange: undefined,
+      onCommit: undefined,
+      onReset: undefined,
+      frameStore,
+      sceneIndex,
+    }),
+    [
+      sceneTimelineState,
+      isScrolling,
+      scrollDirection,
+      isBackdropActive,
+      activeSceneIndex,
+      visualViewportOffset,
+      frameStore,
+      sceneIndex,
+    ]
+  );
+
+  const cloned = React.cloneElement(
+    child as unknown as React.ReactElement<Record<string, unknown>>,
+    {
+      layout: clonedLayout,
+      callbacks: wrappedCallbacks,
+      sceneRuntime,
+      scrollRuntime,
+    }
+  );
 
   return (
     <div
@@ -429,4 +404,4 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
       )}
     </div>
   );
-}, arePropsEqual);
+});

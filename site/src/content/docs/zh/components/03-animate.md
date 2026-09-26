@@ -13,23 +13,22 @@ Animate 为内容添加入场、退场和循环动画。默认进度跟随 Scene
 
 ## Props
 
-| 属性                                    | 类型                       | 默认值           | 行为                                          |
-| --------------------------------------- | -------------------------- | ---------------- | --------------------------------------------- |
-| `animateId`                             | string                     | 每个实例自动生成 | 被其他 Animate 的 `after` 引用时需要声明      |
-| `enterAnimation`                        | AnimationType              | 无               | 与 `loopAnimation` 至少提供一个，也可同时提供 |
-| `exitAnimation`                         | AnimationType              | 无               | 退场效果，drag 独立计时元素忽略该配置         |
-| `loopAnimation`                         | AnimationType              | 无               | 元素处于可播放阶段且可见时循环                |
-| `duration.enter` / `duration.exit`      | number，ms                 | 600              | 动画时长；锁定区内跟随场景的动画对应滚动像素  |
-| `timeline.driver`                       | `'scene' \| 'clock'`       | `'scene'`        | 进度来源                                      |
-| `timeline.delay`                        | number，ms                 | 0                | 入场延迟                                      |
-| `timeline.after`                        | string                     | 无               | 等待另一个 `animateId` 入场                   |
-| `timeline.zoneId`                       | string                     | 继承所在锁定区   | 显式绑定锁定区                                |
-| `timeline.phase.start` / `end`          | number                     | 完整区间         | 占锁定区总时长预算的比例区间                  |
-| `visibility.replay`                     | boolean                    | true             | 退场后再次可见时重播                          |
-| `visibility.enterMargin` / `exitMargin` | number，设计 px            | 根配置，其次 50  | 可见性边距                                    |
-| `stagger`                               | `{ each?, from? }`         | 无               | 按间隔显示直接子元素                          |
-| `enterRef` / `exitRef`                  | 保存函数或 null 的可变 ref | 无               | 在支持的驱动方式上手动触发                    |
-| `children`                              | ReactNode 或渲染函数       | 必填             | 使用 stagger 时为单个 ReactElement            |
+| 属性                                    | 类型                       | 默认值           | 行为                                              |
+| --------------------------------------- | -------------------------- | ---------------- | ------------------------------------------------- |
+| `animateId`                             | string                     | 每个实例自动生成 | 被其他 Animate 的 `after` 引用时需要声明          |
+| `enterAnimation`                        | AnimationType              | 无               | 与 `loopAnimation` 至少提供一个，也可同时提供     |
+| `exitAnimation`                         | AnimationType              | 无               | 退场效果，drag 独立计时元素忽略该配置             |
+| `loopAnimation`                         | AnimationType              | 无               | 元素处于可播放阶段且可见时循环                    |
+| `duration.enter` / `duration.exit`      | number，ms                 | 600              | 动画时长；锁定区内跟随场景的动画对应滚动像素      |
+| `timeline.driver`                       | `'scene' \| 'clock'`       | `'scene'`        | 进度来源                                          |
+| `timeline.delay`                        | number，ms                 | 0                | 入场延迟                                          |
+| `timeline.after`                        | string                     | 无               | 等另一个 `animateId` 入场完成，再加上自身 `delay` |
+| `timeline.phase.start` / `end`          | number                     | 完整区间         | 占锁定区总时长预算的比例区间                      |
+| `visibility.replay`                     | boolean                    | `true`           | 退场后再次可见时重播                              |
+| `visibility.enterMargin` / `exitMargin` | number，设计 px            | 根配置，其次 50  | 可见性边距                                        |
+| `stagger`                               | `{ each?, from? }`         | 无               | 按间隔显示直接子元素                              |
+| `enterRef` / `exitRef`                  | 保存函数或 null 的可变 ref | 无               | 在支持的驱动方式上手动触发                        |
+| `children`                              | ReactNode 或渲染函数       | 必填             | 使用 stagger 时为单个 ReactElement                |
 
 重复标识报告 `INVALID_COMPONENT_HIERARCHY`，缺失或不兼容的 `after` 目标报告 `INVALID_ANIMATION`，循环依赖报告 `CIRCULAR_DEPENDENCY`。
 
@@ -40,6 +39,8 @@ Animate 为内容添加入场、退场和循环动画。默认进度跟随 Scene
 - `PresetAnimation`：43 个[预设名称](/docs/08-presets)之一。
 - `CustomAnimation`：`{ initial?, animate?, exit? }`。普通入退场支持十个映射属性，涵盖透明度、位移、缩放、旋转、倾斜与滤镜，完整列表见[自定义动画](/docs/05-custom-animation)。
 - `ComposedAnimation`：`{ animations, mode: 'sequential' | 'parallel', delays? }`。
+
+普通入退场（包括可见性与 clock 播放）使用整体时长。组合步骤的时间配置由 `loopAnimation` 和 `stagger` 使用。支持的属性与时间设置见[自定义动画](/docs/05-custom-animation)。
 
 ```tsx
 <Animate
@@ -66,7 +67,7 @@ drag 正向退场使用 `exitAnimation`，返回前一个场景时则反向播�
 
 重复动效需要随元素或 Scene 停止时，使用 `loopAnimation`。CSS 动画不会自动跟随 Cineview 的可见性与生命周期条件。
 
-循环可以在 `enterAnimation` 完成后运行，也可以单独使用。仅需要循环的元素省略 `enterAnimation`。
+循环可以在 `enterAnimation` 完成后运行，也可以单独使用。仅需要循环的元素省略 `enterAnimation`。组合入场、循环和退场的示例见[预设动画](/docs/08-presets)。
 
 ## 子元素依次显示
 
@@ -163,4 +164,8 @@ export default function App() {
 
 ## 入场与退场顺序
 
-`after` 只设置入场顺序，`duration.exit` 改变退场时长，不决定开始时间。需要有序退场时，使用当前驱动方式支持的控制方法。详见[时间线](/docs/04-orchestration)。
+`after` 决定当前元素何时入场，不定义整组元素的退场顺序。
+
+所有受支持的 `after` 依赖都等待目标入场完成，再加上自身 `timeline.delay`，不计入退场时长。锁定区中，`timeline.phase` 决定目标实际的入场区间。
+
+`duration.exit` 控制退场时长。需要整组元素按顺序退场时，使用所选驱动方式支持的时间轴区间或手动控制，详见[时间线](/docs/04-orchestration)。

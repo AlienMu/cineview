@@ -65,7 +65,7 @@ export default function HorizontalScrollFixture(): React.JSX.Element {
         <Scene
           sceneId="zone"
           layout={{ width: zoneWidth, height: '100vh' }}
-          scroll={{ zoneId: 'horizontal-zone', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'horizontal-zone' }}
           style={{ background: '#262947' }}
         >
           <Position fixed at={{ x: 24, y: 24 }}>

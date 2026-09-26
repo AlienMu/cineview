@@ -7,6 +7,9 @@ import DragPage from './pages/DragPage';
 import VideoDragAcceptancePage from './pages/VideoDragAcceptancePage';
 import HorizontalScrollFixture from './pages/HorizontalScrollFixture';
 import DualClockFixturePage from './pages/DualClockFixture'; // TEMP review fixture
+import ScrollBasicsPreviewPage from './pages/ScrollBasicsPreviewPage';
+import DragBasicsPreviewPage from './pages/DragBasicsPreviewPage';
+import VideoTimelinePreviewPage from './pages/VideoTimelinePreviewPage';
 
 export default function App(): import('react').JSX.Element {
   // /drag mounts its own LangToggle INSIDE act 1's <Scene> (SceneRolling's
@@ -19,11 +22,12 @@ export default function App(): import('react').JSX.Element {
   const isAcceptance = pathname.startsWith('/__acceptance/');
   // The /docs toggle is mounted by DocsShell in the app bar; must exclude here, otherwise both would render.
   const isDocs = pathname === '/docs' || pathname.startsWith('/docs/');
+  const isDocsPreview = pathname.startsWith('/__docs/');
 
   return (
     <>
       <BackgroundRibbon />
-      {isDrag || isAcceptance || isDocs ? null : <LangToggle />}
+      {isDrag || isAcceptance || isDocs || isDocsPreview ? null : <LangToggle />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/drag" element={<DragPage />} />
@@ -32,6 +36,9 @@ export default function App(): import('react').JSX.Element {
         <Route path="/__review/dual-clock" element={<DualClockFixturePage />} /> {/* TEMP */}
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/docs/:slug" element={<DocsPage />} />
+        <Route path="/__docs/scroll-basics" element={<ScrollBasicsPreviewPage />} />
+        <Route path="/__docs/drag-basics" element={<DragBasicsPreviewPage />} />
+        <Route path="/__docs/video-timeline" element={<VideoTimelinePreviewPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
     </>

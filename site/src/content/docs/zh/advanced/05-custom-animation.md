@@ -22,18 +22,20 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 </Animate>
 ```
 
-动画解析规则：
+配置时注意：
 
-- 字符串按预设名解析，对象按自定义动画配置解析；解析器按类型分派。
+- 预设使用字符串名称，自定义动画使用对象。
 - `transformOrigin` 字符串会归一化为百分比对（`'top left'` → `'0% 0%'`、`'center'` → `'50% 50%'`）。
-- 普通 Animate 通过 `duration` 和 `timeline.delay` 配置时序。动画对象内的 transition 时间参数用于 stagger、循环等 Framer 原生播放，不改变随位置推进的动画距离。`transition.times` 仍用于设置关键帧位置。
+- 通过 `duration` 和 `timeline.delay` 配置 Animate 的入退场时序。对象内的 `transition.duration` 和 `transition.delay` 用于 stagger、循环等 Framer Motion 播放，不改变随拖拽或滚动变化的距离。`transition.times` 设置关键帧位置。
 
 ## 关键帧与 times
 
-任何属性值都可以写成数组，即一段完整的关键帧序列。关键帧位置来自 `transition.times`：优先取逐属性形态（`transition: { opacity: { times: [0, 0.3, 0.9, 1] } }`），否则取同长度的顶层 `transition.times`；都没有时按等分排布（`index / (count - 1)`）。
+受支持的动画属性可以写成关键帧数组。通过 `transition.times` 指定每帧在 0–1 进度中的位置，数组长度应与关键帧数量相同。
+
+单个属性的 `times` 优先于顶层 `transition.times`。未提供匹配的时间数组时，关键帧均匀分布。
 
 ```tsx
-// A background that fades in, holds, and fades out across one enter span.
+// 在一段入场时长内淡入、保持可见，再淡出。
 <Animate
   animateId="backdrop"
   enterAnimation={{
@@ -59,7 +61,7 @@ eyebrow: ADVANCED / CUSTOM ANIMATION
 
 ## 关键帧如何随滚动进度求值
 
-用一个属性走一遍求值过程。设 `opacity: [0, 1, 1, 0]`、`times: [0, 0.3, 0.9, 1]`：
+以透明度为例，设置 `opacity: [0, 1, 1, 0]`、`times: [0, 0.3, 0.9, 1]`：
 
 | progress | 所处分段                           | 结果                                              |
 | -------- | ---------------------------------- | ------------------------------------------------- |
@@ -95,7 +97,7 @@ export function riseVariant(amplitude: string) {
 
 ## 退场动画配置
 
-`exitAnimation` 接受同样的形态，但真正起作用的是 `exit` 记录，`initial`/`animate` 只为对称存在，通常保持静止：
+在 `exitAnimation` 对象的 `exit` 字段中声明目标值，无需填写 `initial` 或 `animate`：
 
 ```tsx
 <Animate
@@ -123,18 +125,17 @@ enter/exit 可动画的属性一共十个：
 
 属性列表适用于普通 Animate 的入退场。stagger 使用 Framer 子元素动画，还支持 `clipPath` 和 `width` 等属性。
 
-canvas 等自绘内容可直接读取时间轴 MotionValue，绘制所需画面。
+画布、SVG 或 WebGL 等自绘内容可订阅时间轴并更新画面，完整示例见 [useAnimateTimeline](/docs/09-use-animate-timeline)。
 
 ## 组合动画
 
-`ComposedAnimation` 将多个步骤（预设名、自定义动画配置或两者混用）组合为一个完整动画：
+`ComposedAnimation` 可将预设与自定义属性组合在同一个元素上。示例同时淡入和缩放：
 
 ```tsx
 <Animate
   enterAnimation={{
-    animations: ['fade-in', { animate: { scale: [0.9, 1], transition: { duration: 0.4 } } }],
-    mode: 'sequential',
-    delays: [0, 200],
+    animations: ['fade-in', { initial: { scale: 0.9 }, animate: { scale: 1 } }],
+    mode: 'parallel',
   }}
   duration={{ enter: 1600 }}
 >
@@ -142,7 +143,9 @@ canvas 等自绘内容可直接读取时间轴 MotionValue，绘制所需画面�
 </Animate>
 ```
 
-组合配置字段：
+普通 Animate 入场（包括可见性与 clock 播放）使用 `duration.enter` 作为整体时长，组合中的延迟不会将其分成先后步骤。同一属性需要多次变化时，使用[关键帧与 times](#关键帧与-times)。
+
+组合配置字段。`loopAnimation` 与 `stagger` 会使用组合后的逐属性 transition 时间。普通 Animate 入退场及 Scene 转场使用合并属性，不使用这些步骤延迟：
 
 | 字段         | 含义                                                                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
@@ -152,6 +155,6 @@ canvas 等自绘内容可直接读取时间轴 MotionValue，绘制所需画面�
 
 - `sequential` 模式在前一步的时长与延迟之后开始后续步骤。步骤未声明 `transition.duration` 时，计算采用 1s。`initial` 取第一步，`exit` 取最后一步。
 - `parallel` 模式保留各步骤的延迟，合并初始与退场属性，同名属性采用后面的值。
-- 动画目标及逐属性 transition 按同一方式合并。多个步骤修改同一属性时，最后一步提供目标值；需要同一属性多次变化时，使用关键帧数组。随位置推进的动画读取映射值和关键帧时间，不使用 transition 延迟。
+- 动画目标及逐属性 transition 按同一方式合并。多个步骤修改同一属性时，最后一步提供目标值；需要同一属性多次变化时，使用关键帧数组。普通 Animate 入退场读取映射值和关键帧时间，不使用 transition 延迟。
 
-要排的是**元素之间**的先后而非单元素内部的步骤时，用 `after` 级联，见 [时间线](/docs/04-orchestration)。
+多个元素需要按顺序入场时，使用 `timeline.after`，见[时间线](/docs/04-orchestration)。入场、循环与退场搭配使用的示例见[预设动画](/docs/08-presets)。

@@ -33,6 +33,8 @@ export interface ResolvedSceneScrollSequence {
   budgets: Record<string, SceneScrollAnimationBudget>;
   totalDurationMs: number;
   totalBudgetPx: number;
+  /** Phase declarations ignored because their dependency timing has no finite solution. */
+  invalidPhaseIds?: string[];
 }
 
 const SCROLL_PX_PER_MS = 1;
@@ -138,7 +140,7 @@ function resolveTiming(
       // splits the ms/px clocks and starts the follower while the leader is
       // still mid-window (T1.8 acceptance trace; task-flow 2026-08-23-scene-
       // scroll-budget-dual-clock).
-      predecessorEnd = phaseChainEndEstimates.get(registration.after) ?? predecessor.totalEndMs;
+      predecessorEnd = phaseChainEndEstimates.get(registration.after) ?? predecessor.enterEndMs;
     }
   }
   const startMs = predecessorEnd + clampToNonNegative(registration.delay);
@@ -166,33 +168,102 @@ function resolveTiming(
   return resolved;
 }
 
-/**
- * Chain anchor for a phase-authored element, mirroring what the px assembly
- * computes as its enter-window close (`phaseEndPx`) — the documented after
- * semantics is "wait for the leader's ENTER completion". Authored exits are
- * deliberately NOT chain anchors: the assembly pins them to the zone end, and
- * waiting for "the last thing in the zone" has no fixed point (review PROBE1:
- * the zone ballooned ~600,000px under that anchor). A phase+exit leader's
- * followers therefore start at its enter-window close, overlapping its
- * zone-end exit — defined, bounded composition.
- *
- * Mirrors the assembly exactly (px ≡ ms numerically): the start floor
- * `phaseStartPx + 1` included.
- */
-function resolvePhaseChainEndEstimateMs(
-  registration: SceneScrollAnimationRegistration,
-  resolved: SceneScrollAnimationTiming,
-  totalDurationMs: number
-): number {
-  const estimateStartMs =
-    registration.phase?.start !== undefined
-      ? clamp(registration.phase.start, 0, 1) * totalDurationMs
-      : resolved.startMs;
-  const estimateEndMs =
-    registration.phase?.end !== undefined
-      ? clamp(registration.phase.end, 0, 1) * totalDurationMs
-      : Math.max(resolved.enterEndMs, resolved.startMs + 1);
-  return Math.max(estimateEndMs, estimateStartMs + 1);
+interface DurationTerm {
+  fraction: number;
+  offset: number;
+  phaseId?: string;
+}
+
+// An effective enter end is max(fraction * totalDuration + offset). Every after
+// edge adds its delay/duration. Solve total >= each term directly instead of
+// repeatedly expanding the zone until an iteration limit happens to be reached.
+function resolvePhaseTimings(
+  registrations: Map<string, SceneScrollAnimationRegistration>,
+  circularFollowers: Set<string>
+): { enterEnds: Map<string, number>; totalDurationMs: number; invalidPhaseIds: Set<string> } {
+  const invalidPhaseIds = new Set<string>();
+  registrations.forEach((registration, id) => {
+    if (
+      [registration.phase?.start, registration.phase?.end].some(
+        (value) => value !== undefined && !Number.isFinite(value)
+      )
+    )
+      invalidPhaseIds.add(id);
+  });
+
+  const shift = (terms: DurationTerm[], offset: number): DurationTerm[] =>
+    terms.map((term) => ({ ...term, offset: term.offset + offset }));
+  const maximum = (...groups: DurationTerm[][]): DurationTerm[] => {
+    const terms = new Map<number, DurationTerm>();
+    groups.flat().forEach((term) => {
+      if (!terms.has(term.fraction) || terms.get(term.fraction)!.offset < term.offset) {
+        terms.set(term.fraction, term);
+      }
+    });
+    return [...terms.values()];
+  };
+
+  // Each unsuccessful pass removes at least one invalid phase declaration.
+  // Ordinary after relationships remain intact and use the authored durations.
+  for (;;) {
+    const completions = new Map<string, DurationTerm[]>();
+    const extents: DurationTerm[] = [];
+    const resolve = (id: string): DurationTerm[] => {
+      const cached = completions.get(id);
+      if (cached) return cached;
+      const registration = registrations.get(id);
+      if (!registration) return [{ fraction: 0, offset: 0 }];
+      const follows = Boolean(registration.after) && !circularFollowers.has(id);
+      const predecessor = follows ? resolve(registration.after!) : [{ fraction: 0, offset: 0 }];
+      const start = shift(predecessor, clampToNonNegative(registration.delay));
+      const enterEnd = shift(start, Math.max(clampToNonNegative(registration.enterDuration), 1));
+      extents.push(...shift(enterEnd, clampToNonNegative(registration.exitDuration)));
+      const phase = invalidPhaseIds.has(id) ? undefined : registration.phase;
+      let completion = enterEnd;
+      if (phase?.start !== undefined || phase?.end !== undefined) {
+        const phaseStart =
+          phase.start === undefined
+            ? start
+            : maximum(
+                [{ fraction: clamp(phase.start, 0, 1), offset: 0, phaseId: id }],
+                follows ? start : []
+              );
+        completion = maximum(
+          phase.end === undefined
+            ? enterEnd
+            : [{ fraction: clamp(phase.end, 0, 1), offset: 0, phaseId: id }],
+          shift(phaseStart, 1)
+        );
+        // Every authored entrance must be reachable, including leaf nodes.
+        // A phased exit also needs at least one pixel after entrance completion.
+        extents.push(...shift(completion, registration.exitDuration > 0 ? 1 : 0));
+      }
+      completions.set(id, completion);
+      return completion;
+    };
+    registrations.forEach((_, id) => resolve(id));
+
+    let total = 0;
+    const previousInvalidCount = invalidPhaseIds.size;
+    extents.forEach((term) => {
+      const required =
+        term.fraction < 1 ? term.offset / (1 - term.fraction) : term.offset === 0 ? 0 : Infinity;
+      if (!Number.isFinite(required) && term.phaseId) {
+        invalidPhaseIds.add(term.phaseId);
+      } else {
+        total = Math.max(total, required);
+      }
+    });
+    if (invalidPhaseIds.size !== previousInvalidCount) continue;
+    const enterEnds = new Map<string, number>();
+    completions.forEach((terms, id) => {
+      enterEnds.set(
+        id,
+        terms.reduce((end, term) => Math.max(end, term.fraction * total + term.offset), 0)
+      );
+    });
+    return { enterEnds, totalDurationMs: total, invalidPhaseIds };
+  }
 }
 
 export function resolveSceneScrollAnimationBudgets(
@@ -200,18 +271,17 @@ export function resolveSceneScrollAnimationBudgets(
 ): ResolvedSceneScrollSequence {
   const cache = new Map<string, SceneScrollAnimationTiming>();
   const circularFollowers = new Set<string>();
-  const phaseChainEndEstimates = new Map<string, number>();
-
+  let phaseChainEndEstimates = new Map<string, number>();
+  let effectiveRegistrations = registrations;
   const hasPhaseAuthored = [...registrations.values()].some(
     (registration) =>
       registration.phase?.start !== undefined || registration.phase?.end !== undefined
   );
-
   const resolveAll = (): void => {
-    registrations.forEach((_, animateId) => {
+    effectiveRegistrations.forEach((_, animateId) => {
       resolveTiming(
         animateId,
-        registrations,
+        effectiveRegistrations,
         cache,
         new Set<string>(),
         circularFollowers,
@@ -220,54 +290,25 @@ export function resolveSceneScrollAnimationBudgets(
     });
   };
 
+  resolveAll();
+  let invalidPhaseIds: Set<string> | undefined;
+  let totalDurationMs = 0;
   if (hasPhaseAuthored) {
-    // Phase windows reference the zone total; chained followers reference phase
-    // ends; chain extents feed the zone total — a fixed-point system. With
-    // phase.end < 1 the update is a contraction (T = f·T + rest, f < 1) and
-    // converges geometrically; the generous cap only bounds degenerate
-    // phase.end → 1 chains, where followers pile past the zone end (defined,
-    // never-entering state) instead of looping forever. For f = 0.999 the
-    // residual after the cap is f^100000 ≈ e^-100 — far below any visible px;
-    // the cap only bites for pathological near-1 fractions, where recompute
-    // cost is mount-time (registration changes), never per frame.
-    const maxIterations = 100000;
-    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
-      cache.clear();
-      circularFollowers.clear();
-      resolveAll();
-
-      let totalMs = 0;
-      cache.forEach((resolvedBudget) => {
-        totalMs = Math.max(totalMs, resolvedBudget.totalEndMs);
+    const phaseTiming = resolvePhaseTimings(registrations, circularFollowers);
+    totalDurationMs = phaseTiming.totalDurationMs;
+    phaseChainEndEstimates = phaseTiming.enterEnds;
+    invalidPhaseIds = phaseTiming.invalidPhaseIds;
+    if (invalidPhaseIds.size > 0) {
+      effectiveRegistrations = new Map(registrations);
+      invalidPhaseIds.forEach((id) => {
+        effectiveRegistrations.set(id, { ...registrations.get(id)!, phase: undefined });
       });
-
-      let stable = true;
-      registrations.forEach((registration, animateId) => {
-        const authored =
-          registration.phase?.start !== undefined || registration.phase?.end !== undefined;
-        if (!authored) return;
-        const resolved = cache.get(animateId);
-        if (!resolved) return;
-        const effectiveEndMs = resolvePhaseChainEndEstimateMs(registration, resolved, totalMs);
-        const previous = phaseChainEndEstimates.get(animateId);
-        if (previous === undefined || Math.abs(previous - effectiveEndMs) > 1e-9) {
-          stable = false;
-        }
-        phaseChainEndEstimates.set(animateId, effectiveEndMs);
-      });
-
-      if (stable) break;
     }
+    cache.clear();
+    circularFollowers.clear();
+    resolveAll();
   }
 
-  // Final pass with the (converged or empty) estimates — for phase-free zone
-  // registrations the estimates map stays empty and this is byte-identical to
-  // the pre-fix single-pass resolution.
-  cache.clear();
-  circularFollowers.clear();
-  resolveAll();
-
-  let totalDurationMs = 0;
   cache.forEach((resolvedBudget) => {
     totalDurationMs = Math.max(totalDurationMs, resolvedBudget.totalEndMs);
   });
@@ -277,7 +318,7 @@ export function resolveSceneScrollAnimationBudgets(
 
   const budgets: Record<string, SceneScrollAnimationBudget> = {};
   cache.forEach((resolvedBudget, animateId) => {
-    const registration = registrations.get(animateId);
+    const registration = effectiveRegistrations.get(animateId);
     const hasAuthoredPhase =
       registration?.phase?.start !== undefined || registration?.phase?.end !== undefined;
     const baseBudget: SceneScrollAnimationBudget = {
@@ -297,11 +338,14 @@ export function resolveSceneScrollAnimationBudgets(
     const fallbackEndPx = Math.max(baseBudget.enterEndPx, fallbackStartPx + 1);
     const phaseWindowStartPx = hasAuthoredPhase ? 0 : fallbackStartPx;
     const phaseWindowEndPx = hasAuthoredPhase ? totalBudgetPx : fallbackEndPx;
-    const phaseStartPx = resolvePhaseBoundaryPx(
-      registration?.phase?.start,
-      fallbackStartPx,
-      phaseWindowStartPx,
-      phaseWindowEndPx
+    const phaseStartPx = Math.max(
+      resolvePhaseBoundaryPx(
+        registration?.phase?.start,
+        fallbackStartPx,
+        phaseWindowStartPx,
+        phaseWindowEndPx
+      ),
+      registration?.after && !circularFollowers.has(animateId) ? fallbackStartPx : 0
     );
     const phaseEndPx = Math.max(
       resolvePhaseBoundaryPx(
@@ -338,6 +382,7 @@ export function resolveSceneScrollAnimationBudgets(
     budgets,
     totalDurationMs,
     totalBudgetPx,
+    ...(invalidPhaseIds?.size ? { invalidPhaseIds: [...invalidPhaseIds] } : {}),
   };
 }
 
@@ -371,7 +416,8 @@ export function areResolvedSceneScrollSequencesEqual(
 ): boolean {
   if (
     left.totalDurationMs !== right.totalDurationMs ||
-    left.totalBudgetPx !== right.totalBudgetPx
+    left.totalBudgetPx !== right.totalBudgetPx ||
+    (left.invalidPhaseIds ?? []).join('\0') !== (right.invalidPhaseIds ?? []).join('\0')
   ) {
     return false;
   }

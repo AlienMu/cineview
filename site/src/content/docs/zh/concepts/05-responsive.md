@@ -13,7 +13,7 @@ eyebrow: CONCEPTS / RESPONSIVE
 
 - 视窗宽度为 750px 时 scale=1，设计稿 1px 等于屏幕 1px。
 - 视窗宽度为 1500px 时 scale=2，数值型设计长度扩大为两倍。
-- 高度也使用由视窗宽度计算出的比例。
+- `Position`、`Container`、`Image` 的纵向设计数值也使用由视窗宽度计算出的比例；`Scene.layout.height` 不参与换算。
 
 ## 哪些值参与换算
 
@@ -27,9 +27,11 @@ eyebrow: CONCEPTS / RESPONSIVE
 </Position>
 ```
 
-`Image` 的 width/height 数字同样按这个基准换算。数字=设计稿 px；想写百分比、auto 或 CSS 函数就直接写在 style 里，原样透传。
+`Image` 的数值型 width/height 也按设计稿像素缩放。百分比、`auto` 和 CSS 函数可以写在 `style` 中；这些字符串值保持原样。
 
-## 内容高于视窗时
+`Scene.layout.width` 和 `layout.height` 与上述组件不同：数值直接作为 CSS px，字符串按 CSS 原样使用。drag 的 `layout.height` 改变幕内内容盒，不改变整屏切幕距离。
+
+## 内容高度超过视窗时
 
 按宽度换算不保证内容能在垂直方向全部显示。长内容适合普通滚动场景，全屏展示也可拆为多个场景。根据需要配置场景高度与溢出行为。
 

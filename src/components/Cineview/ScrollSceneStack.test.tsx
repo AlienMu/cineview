@@ -153,7 +153,7 @@ describe('ScrollSceneStack subscriptions', () => {
       { cineViewScene: true as const }
     );
     const child = (
-      <CountingScene key="active" scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}>
+      <CountingScene key="active" scroll={{ zoneId: 'zone-0' }}>
         probe
       </CountingScene>
     );
@@ -319,7 +319,7 @@ describe('ScrollSceneStack subscriptions', () => {
     const { container } = render(
       <ScrollSceneStack
         childrenArray={[
-          <CountingScene key="active" scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}>
+          <CountingScene key="active" scroll={{ zoneId: 'zone-0' }}>
             probe
           </CountingScene>,
         ]}

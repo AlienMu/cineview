@@ -3,52 +3,39 @@ title: Introduction
 eyebrow: GETTING STARTED / INTRODUCTION
 ---
 
-Cineview is a React library for full-screen scene transitions and animations driven by drag or scroll input. Declare scenes, animation timing, and the design width; Cineview handles navigation and scales numeric design lengths to the viewport.
+Use Cineview's React components to build pages that respond to dragging or scrolling. A scene can contain ordinary content, video, and custom drawings. Select the interaction, then set the animations for each scene.
 
-## Two modes
+## Two ways to move through a page
 
-Select the interaction with the root component's `mode` prop:
+Drag mode suits full-screen presentations. Drag toward the next screen to preview it, or drag back to revisit the previous one. On release, the page completes the change or returns to its starting position.
 
-- **drag**: full-screen paging through pointer gestures, keyboard navigation, or ref methods.
-- **scroll**: content moves in a native scroll container. A scene with a locked zone stays in place while scrolling advances its animations.
+Scroll mode keeps the page's normal reading order. Add a locked zone where an animation should follow scrolling: the scene stays in view while scroll distance determines progress. Scrolling back reverses the animation.
 
-Both modes share the same Scene / Animate / Position components. Their timeline semantics differ, and state is not shared across modes. See [Modes](/docs/01-modes) and [Choosing a mode](/docs/04-choosing-mode).
+Both modes use `Scene` to organize content. See [Choosing a mode](/docs/04-choosing-mode) to decide which interaction fits the page.
 
-## Core concepts
+## Control video by dragging or scrolling
 
-**Responsive lengths.** Set `designWidth` to the design's width (default 750). Numeric design lengths use `scale = viewportWidth / designWidth` on both axes. See [Responsive conversion](/docs/05-responsive).
+With `AnimateVideo`, moving forward shows later video frames and moving back shows earlier ones. Stopping inside the selected range holds the current frame. If source video remains after the range endpoint, reaching that endpoint starts playback of the remaining video. After a drag commits a scene change, unfinished animation continues from the release point.
 
-**Scenes and timelines.** `Scene` groups content with shared layout and transition behavior. `Animate` sets an element's animation and timing. In drag mode, page movement can finish before its elements finish entering.
+[Quickstart](/docs/03-quickstart) includes complete drag and scroll video examples. [AnimateVideo](/docs/04-animate-video) covers video ranges, playback after the range, and encoding for seeking.
 
-**1ms = 1px.** Inside a locked zone, one millisecond of authored animation duration corresponds to one pixel of scroll distance. Reverse scrolling moves the animation back through the same range. See [Center-lock](/docs/01-centerlock).
+## Combine presets and draw custom content
 
-## Two-scene example
+A heading can fade and scale at the same time, while a caption starts after it appears. During a drag, these elements read the same elapsed time and begin only at their own start points. [Quickstart](/docs/03-quickstart) follows a title delayed by 100ms and a caption starting at 800ms; [Animation composition and sequencing](/docs/04-orchestration) covers the configuration.
 
-```tsx
-import { Cineview, Scene, Animate } from 'cineview';
+Canvas, SVG, or WebGL drawings can respond to the same drag or scroll progress. A custom component reads progress with `useAnimateTimeline()` and updates its drawing without rendering React on every frame. See the [custom drawing example](/docs/09-use-animate-timeline).
 
-export default function App() {
-  return (
-    <Cineview designWidth={750} mode="drag">
-      <Scene sceneId="hero">
-        <Animate enterAnimation="fade-in" duration={{ enter: 800 }}>
-          <h1>Act one</h1>
-        </Animate>
-      </Scene>
-      <Scene sceneId="closing">
-        <Animate enterAnimation="slide-up" duration={{ enter: 800 }}>
-          <h1>Curtain</h1>
-        </Animate>
-      </Scene>
-    </Cineview>
-  );
-}
-```
+A scene can also contain a slider or canvas with its own drag interaction. Add `data-cineview-ignore-drag` to that control so dragging it does not change scenes. See [Gestures and thresholds](/docs/02-gestures).
 
-`designWidth={750}` sets the design width. Each `Scene` contains a title with a preset entrance animation. A drag gesture or keyboard navigation moves between the two scenes.
+## Prepare assets before they appear
+
+The first scene can wait for its images or video before entering. List their URLs in `Scene.assets.preloadImages` to include them in first-screen loading; assets declared by other scenes download automatically too. Use `ref.preload()` when an action must wait for resources. See [Preloading](/docs/02-preload).
+
+## Position content from a design
+
+`Position` places elements, while `Container` sets dimensions and spacing. Set `designWidth` to the design's width; numeric dimensions scale with viewport width. See [Responsive scaling](/docs/05-responsive).
 
 ## Next steps
 
-- [Installation](/docs/02-installation): packages, peer dependencies, and per-mode entry points.
-- [Quickstart](/docs/03-quickstart): a two-scene example with positioning and ordered animations.
-- [Selecting a mode](/docs/04-choosing-mode): compare drag and scroll behavior.
+- [Installation](/docs/02-installation): dependencies and entry points.
+- [Quickstart](/docs/03-quickstart): run drag and scroll video examples.

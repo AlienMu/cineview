@@ -1,61 +1,139 @@
 ---
-title: Drag layout contract
+title: Drag scene layout
 eyebrow: DRAG / LAYOUT
 ---
 
-Drag scenes occupy full-screen navigation positions. Scene dimensions can be smaller than the viewport, but they do not change the distance between page positions.
+In drag mode, each Scene's navigation height is fixed at one viewport (`100vh`). There is no per-Scene navigation-height option. `Scene.layout.height` cannot change that height or the distance between Scenes. Content inside the Scene can be sized separately.
+
+Drag up to move the current Scene out as the next one enters. Hold halfway to see both Scenes on screen. Release to complete the change or return to the first Scene. Try the transition in [Quick start](/docs/03-quickstart).
+
+The example shows drag distance and the result of pausing before release. Try 20%, pause, and release to restore the page. Then drag past 30%, pause, and release to change Scenes. A fast release can commit between 15% and 30%; a fast reversal cancels. Drag down from the second page to return. The title moves and fades in while a square rotates and scales. The time readout shows their shared progress.
+
+## Hold between two Scenes
+
+The same gesture moves the Scenes and advances elements inside the target Scene. This example declares only two `Scene` components: Cineview moves them, while `Animate` sets when the second Scene's title and detail appear.
+
+```tsx
+import { Animate, Cineview, Scene } from 'cineview';
+
+export function DragTransitionExample() {
+  return (
+    <Cineview mode="drag" direction="y" designWidth={750} unit="percent" scale={1}>
+      <Scene sceneId="intro">
+        <section style={{ minHeight: '100vh', background: '#f5e8d8' }}>
+          <h1>Drag up to the next Scene</h1>
+        </section>
+      </Scene>
+      <Scene sceneId="details">
+        <section style={{ minHeight: '100vh', background: '#172626', color: '#fff' }}>
+          <Animate
+            animateId="title"
+            enterAnimation={{ initial: { opacity: 0, y: 45 }, animate: { opacity: 1, y: 0 } }}
+            duration={{ enter: 600 }}
+            timeline={{ delay: 100 }}
+          >
+            <h1>The title appears first</h1>
+          </Animate>
+          <Animate
+            enterAnimation={{ initial: { opacity: 0, x: 35 }, animate: { opacity: 1, x: 0 } }}
+            duration={{ enter: 400 }}
+            timeline={{ after: 'title', delay: 100 }}
+          >
+            <p>The detail follows the title.</p>
+          </Animate>
+        </section>
+      </Scene>
+    </Cineview>
+  );
+}
+```
+
+Halfway through the gesture, the current and target Scenes each occupy part of the screen. Their adjacent positions create this transition; there is no separate split-screen setting.
+
+The target Scene's element timeline lasts 1200ms. The title starts at 100ms and runs for 600ms. The detail waits for the title and another 100ms, then starts at 800ms. `unit="percent"` and `scale={1}` map drag distance to that timeline's percentage. At half distance, element time is about 600ms: the title is still fading in, and the detail has not started. If release commits the Scene change, unfinished animation continues. If the change is canceled, the target Scene returns to its initial frame.
+
+`Scene.layout` controls the size and alignment of content inside a Scene. The transition between Scenes still uses full-screen navigation frames.
 
 ## Scene size defaults
 
-| Field             | drag default | scroll default | Notes                              |
-| ----------------- | ------------ | -------------- | ---------------------------------- |
-| `layout.width`    | `'100vw'`    | `'100vw'`      | Same in both modes                 |
-| `layout.height`   | `'100vh'`    | `'auto'`       | The one default that forks by mode |
-| `layout.anchor`   | `'top-left'` | `'top-left'`   | Nine-grid anchor                   |
-| `layout.overflow` | `'hidden'`   | `'hidden'`     | Overflowing content is clipped     |
+| Field             | drag default | scroll default | Notes                                           |
+| ----------------- | ------------ | -------------- | ----------------------------------------------- |
+| `layout.width`    | `'100vw'`    | `'100vw'`      | Same in both modes                              |
+| `layout.height`   | `'100vh'`    | `'auto'`       | Full viewport in drag, content height in scroll |
+| `layout.anchor`   | `'top-left'` | `'top-left'`   | Content alignment                               |
+| `layout.overflow` | `'hidden'`   | `'hidden'`     | Clips content outside the Scene                 |
 
-The `height` row is where the same JSX encounters layout differences across modes: a drag scene defaults to full viewport height, while a scroll scene takes its height from content. Porting a drag page to scroll collapses scenes that relied on `100vh`.
+Each navigation frame has a fixed height of `100vh`; `layout.height` cannot turn it into a half-screen or long page. That field affects only the Scene's inner content box and does not create native vertical scrolling. Keep the Scene at its default size and set dimensions on content inside it:
 
-Nine-grid anchors resolve to absolute positioning in drag (`top`/`left`/`right`/`bottom`, with a `translate` added on centered axes). In scroll the nine values collapse to three horizontal margin pairs and the vertical half is dropped entirely, see [Scene](/docs/02-scene).
+```tsx
+import { Cineview, Scene } from 'cineview';
 
-## Engine-level fixed styles
+export function DragContentLayout() {
+  return (
+    <Cineview mode="drag">
+      <Scene sceneId="compact">
+        <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>
+          <section style={{ height: '60vh' }}>
+            <h1>Short content inside the Scene</h1>
+          </section>
+        </div>
+      </Scene>
+      <Scene sceneId="next">
+        <h1>Next scene</h1>
+      </Scene>
+    </Cineview>
+  );
+}
+```
 
-These styles are supplied by the engine:
+For long content that needs native vertical scrolling, use scroll mode. For a full-screen sequence, divide the content into more Scenes. A numeric `layout.height` is CSS px and does not scale with `designWidth`.
 
-| Where            | Style                                                     | Consequence                                                               |
-| ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Root container   | `height: 100vh; min-height: 100vh`                        | The page is always one screen tall                                        |
-| Root container   | `overflow-x: hidden; overflow-y: hidden`                  | The root never scrolls                                                    |
-| Root container   | `background: '#0d1624'`                                   | Default inline background; scroll defaults to white                       |
-| Each scene frame | `position: absolute; inset: 0; width: 100%; height: 100%` | Scenes are positioned inside a full-screen cell                           |
-| Each scene frame | `z-index: 10` (current) / `1` (others)                    | Cross-scene layering is managed by the engine                             |
-| Scene itself     | `contain: 'layout style'`                                 | Establishes a stacking context, see [DOM contract](/docs/06-dom-contract) |
+`layout.overflow` defaults to `hidden`. Images, videos, and animations that extend beyond the Scene dimensions are clipped.
 
-Cineview has no `className` or `style` prop. External CSS can target `.cineview-container` or `[data-cineview-container="true"]`; use `!important` when overriding an inline background. `--cineview-unit` provides responsive lengths for authored CSS.
+Drag supports nine alignment positions, including center and bottom alignment. Scroll uses only their left, center, and right horizontal alignment. See [Scene](/docs/02-scene) for all options.
 
-`Scene.layout.width` and `height` size the Scene's content area within its full-screen navigation position.
+## Container and Scene styles
 
-## Only the current scene and its two neighbors render
+The framework supplies these styles:
+
+| Where            | Style                                                     | Effect                                        |
+| ---------------- | --------------------------------------------------------- | --------------------------------------------- |
+| Root container   | `height: 100vh; min-height: 100vh`                        | The page is one screen tall                   |
+| Root container   | `overflow-x: hidden; overflow-y: hidden`                  | The root does not scroll                      |
+| Root container   | `background: '#0d1624'`                                   | Default background color                      |
+| Each scene frame | `position: absolute; inset: 0; width: 100%; height: 100%` | Provides the full-screen navigation position  |
+| Each scene frame | `z-index: 10` (current) / `1` (others)                    | The current Scene appears above its neighbors |
+| Scene itself     | `contain: 'layout style'`                                 | Establishes a stacking context                |
+
+To style the root container, target `.cineview-container` or `[data-cineview-container="true"]` in CSS. Cineview accepts neither `className` nor `style`.
+
+Overriding the inline background requires `!important`. Use `--cineview-unit` for responsive lengths in custom CSS. See [DOM and layout contract](/docs/06-dom-contract) for element stacking.
+
+## The current Scene and its neighbors stay mounted
 
 The current Scene and its immediate neighbors stay mounted. Scenes farther away unmount, so returning recreates their local state, effects, and animations. Store state that must survive navigation outside Cineview.
 
-Scene identity follows array position. Reordering or conditionally inserting scenes can change which instance occupies a position.
+Navigation order follows Scene declaration order. Use stable React `key` values for a dynamic list; reordering still changes navigation indexes.
 
-## Props that are ignored
+## Configure page movement and element animation separately
 
-**`transition.enterAnimation` and `transition.exitAnimation` do nothing in drag**, with a one-time development warning. Scene-level transitions are a scroll concept: drag page movement follows the finger directly, and element animation belongs to child `Animate` components.
+Page movement follows the drag gesture. Use child `Animate` components for title and image effects, and `AnimateVideo` for video scrubbing. See [Page movement and element time](/docs/03-two-track).
 
-`transition.exitDuration` still affects the scaling of child exit progress in drag. At the same page position, a larger value advances an element farther through its exit animation.
+`Scene.transition.enterAnimation` and `exitAnimation` apply only in scroll mode. Configuring them in drag produces a development warning.
 
-`layout.overlap` does not change drag behavior. `layout.zIndex` orders content within a scene frame; the engine controls ordering between frames.
+`transition.exitDuration` still affects child exit progress. At the same page position, a larger value advances an element farther through its exit animation.
 
-The custom scrollbar overlay is available only in scroll mode. In drag, a `scrollbar` object only injects native-scrollbar hiding styles; its width and color options have no visible overlay to style.
+`layout.overlap` does not change drag behavior. `layout.zIndex` orders content within a scene frame; the framework controls ordering between frames.
 
-TypeScript excludes scroll-only root fields in drag, including `zoneTrigger`, `sceneSizing`, `enterMargin`, and `exitMargin`. `debug` is available in both modes. `firstSceneTimeout` is drag-only; scroll uses a 3000ms initial resource wait. See [Preloading](/docs/02-preload).
+The custom scrollbar appears only in scroll mode. In drag, a `scrollbar` object only hides the native scrollbar; width and color options have no visible effect.
+
+`sceneSizing`, `enterMargin`, and `exitMargin` are scroll-only root fields. TypeScript rejects them in drag. `debug` only exposes layout diagnostics in scroll mode; use `monitor` and `PerfPanel` for performance readings.
+
+`firstSceneTimeout` limits the wait for first-screen priority resources. See [Preloading](/docs/02-preload) for resource declarations, failure handling, and video loading.
 
 ## Related pages
 
-- [Gestures and thresholds](/docs/02-gestures): input checks, the threshold formula, mapping units
-- [Page movement and element time](/docs/03-two-track): how the two quantities divide the work
-- [DOM and layout contract](/docs/06-dom-contract): the real DOM hierarchy and the z-index host
-- [Scene](/docs/02-scene): the full `layout` / `transition` tables
+- [Gestures and thresholds](/docs/02-gestures): input checks and drag-distance conversion
+- [Page movement and element time](/docs/03-two-track): how dragging advances animation and video
+- [DOM and layout contract](/docs/06-dom-contract): element stacking and style restrictions
+- [Scene](/docs/02-scene): layout and transition options

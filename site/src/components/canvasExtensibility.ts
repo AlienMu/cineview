@@ -4,18 +4,18 @@ export const CANVAS_STOPS = [0, 0.2, 0.4, 0.6, 0.8, 1] as const;
 
 export const CANVAS_COPY = {
   zh: [
-    ['从内置动画', '到自定义呈现'],
-    ['接入组件', '延续你的设计'],
-    ['用画布', '绘制独特效果'],
-    ['共用动画进度', '同步自定义画面'],
-    ['扩展表现', '统一编排'],
+    ['自定义画面', '跟随滚动变化'],
+    ['读取动画进度', '绘制每一帧'],
+    ['Canvas、SVG、WebGL', '接入同一条时间线'],
+    ['向前滚动，向后回看', '画面连续变化'],
+    ['自由扩展画面', '共用动画时序'],
   ],
   en: [
-    ['Beyond presets', 'Build your own'],
-    ['Your components', 'Your design'],
-    ['Draw custom', 'canvas effects'],
-    ['Share progress', 'Keep visuals in sync'],
-    ['Extend the visuals', 'Keep the timing'],
+    ['Custom visuals', 'driven by scrolling'],
+    ['Read the progress', 'draw each frame'],
+    ['Canvas, SVG, WebGL', 'on the same timeline'],
+    ['Scroll forward or back', 'the picture follows'],
+    ['Extend the visuals', 'share the timing'],
   ],
 } as const;
 
@@ -141,7 +141,9 @@ export function drawCanvasTargets(
 ): void {
   const { width, height, stages, layouts, particleCount, particleRadius } = targets;
   const stage = resolveCanvasStage(progress);
-  const travel = clamp((stage.progress - 0.64) / 0.36);
+  // Hold both endpoints so the first phrase and reverse traversal have reading
+  // time too. Interpolate continuously between the holds; never snap to a stop.
+  const travel = clamp((stage.progress - 0.25) / 0.5);
   const amount = travel * travel * (3 - 2 * travel);
   const source = layouts[stage.from];
   const target = layouts[stage.to];
@@ -186,11 +188,11 @@ export function drawCanvasTargets(
   const trackWidth = Math.min(240, width - 64);
   const trackX = (width - trackWidth) / 2;
   const trackY = Math.min(height - 56, bottom + (width < 600 ? 72 : 104));
-  for (let index = 0; index < 5; index += 1) {
-    const active = clamp(progress) >= index * 0.2;
-    context.globalAlpha = active ? 0.9 : 0.22;
-    context.fillStyle = options.accent;
-    context.fillRect(trackX + (index * trackWidth) / 5, trackY, trackWidth / 5 - 8, active ? 2 : 1);
-  }
+  // Continuous progress bar: the filled length is the scroll progress itself.
+  context.globalAlpha = 0.22;
+  context.fillStyle = options.accent;
+  context.fillRect(trackX, trackY, trackWidth, 1);
+  context.globalAlpha = 0.9;
+  context.fillRect(trackX, trackY, trackWidth * clamp(progress), 2);
   context.globalAlpha = 1;
 }

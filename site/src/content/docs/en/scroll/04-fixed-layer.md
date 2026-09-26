@@ -5,49 +5,41 @@ eyebrow: SCROLL / FIXED LAYER
 
 Use `Position fixed` for an action bar, indicator, or other element that stays aligned to the screen while its Scene is visible.
 
-## Layer stacking and containing block constraints
+## Keep an element aligned with the screen
 
-In scroll mode, a Scene's transform makes it the containing block for native `position: fixed` descendants. Use the framework's fixed layer when alignment needs to follow the viewport.
+Add `fixed` to a `Position` inside the Scene. It stays aligned with the screen while that Scene is in view, then leaves with the Scene. Put navigation that must remain across multiple Scenes outside Cineview.
 
-## Fixed layer architecture
-
-The `fixed` prop on `Position` operates through a three-layer DOM structure:
-
-| Layer | data attribute                  | Size                                                       | Role                                                       |
-| ----- | ------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
-| clip  | `data-scene-fixed-role="clip"`  | spans the whole scene scroll range with `overflow: hidden` | boundary: hides the layer when the scene leaves the screen |
-| frame | `data-scene-fixed-role="frame"` | occupies one viewport span, slides inside clip by offset   | maintains fixed visual alignment                           |
-| host  | `data-scene-fixed-role="host"`  | fills frame                                                | the portal target                                          |
-
-The frame offset computes as `clamp(viewport offset - sceneStart, 0, scene span - frame span)`. The frame uses `position: absolute` with this offset to track scroll position, achieving screen-relative visual pinning without triggering transform containing block restrictions.
-
-The fixed layer is visible only within its Scene's scroll range. Put navigation or other UI that must remain across scene changes outside Cineview.
-
-## Pointer event handling
-
-Outer wrapper elements enforce `pointerEvents: 'none'` to prevent intercepting pointer input over underlying content. Portaled `Position` nodes default to `pointerEvents: 'auto'` (unless overridden in `style`), allowing fixed elements to receive interactions while empty regions remain transparent to clicks.
-
-## Usage
+## Example
 
 ```tsx
-<Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
-  {/* Content belonging to this Scene */}
-  <Position at={{ x: 40, y: 200 }}>
-    <h1>Title</h1>
-  </Position>
+import { Animate, Cineview, Position, Scene } from 'cineview';
 
-  {/* Pinned element, scoped to this scene */}
-  <Position at={{ anchor: 'center-x', y: 600 }} fixed>
-    <div>Scroll to continue</div>
-  </Position>
-</Scene>
+export default function App() {
+  return (
+    <Cineview mode="scroll" designWidth={750}>
+      <Scene sceneId="hero" layout={{ height: '100vh' }} scroll={{ zoneId: 'hero-seq' }}>
+        <Animate enterAnimation="fade-in" duration={{ enter: 800 }} timeline={{ driver: 'scene' }}>
+          <h1>Title</h1>
+        </Animate>
+        <Position at={{ anchor: 'center' }} fixed>
+          <div>Scroll to continue</div>
+        </Position>
+      </Scene>
+      <Scene sceneId="next" layout={{ height: '100vh' }}><h2>Next scene</h2></Scene>
+    </Cineview>
+  );
+}
 ```
 
-`at` coordinates continue to represent design-space pixels scaled through the responsive model, referencing the fixed-layer host as their coordinate origin.
+The animation gives the locked zone 800px of scroll distance. The indicator stays centered on screen through that distance and disappears after the Scene leaves. Fixed elements are clipped to their Scene's visible area. A numeric `at.y` scales with `designWidth`; a large design coordinate can place an element outside the screen.
+
+## Why native fixed positioning differs
+
+Scroll Scenes use a transform. This makes a native `position: fixed` child align to the transformed Scene instead of the browser viewport. `Position fixed` uses a Scene-owned layer to keep the element screen-aligned. Its empty area does not intercept pointer input; the positioned element can receive input.
 
 ## Behavior in drag mode
 
-In drag mode, scenes do not establish fixed layer hosts. The `fixed` prop applies `pointerEvents: 'auto'`, with elements positioned using standard `position: absolute` within the scene.
+In drag mode, `fixed` positions the element inside its Scene with `position: absolute`. Drag Scenes do not use the scroll fixed layer.
 
 ## Related pages
 

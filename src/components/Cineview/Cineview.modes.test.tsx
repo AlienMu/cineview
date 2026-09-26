@@ -889,7 +889,7 @@ describe('CineView drag-path modes / runtime callbacks', () => {
       await waitFor(() => expect(ref.current).not.toBeNull());
       expect(() => {
         act(() => {
-          ref.current?.goToZone?.('any-zone', { align: 'center', animated: true });
+          ref.current?.goToZone?.('any-zone', { animated: true });
         });
       }).not.toThrow();
       expect(ref.current?.getCurrentIndex()).toBe(0);

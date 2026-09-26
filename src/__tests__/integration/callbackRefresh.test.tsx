@@ -6,7 +6,11 @@ it('preserves an embedded document when a scroll root receives a new callback', 
   const page = (label: string) => (
     <Cineview mode="scroll" callbacks={{ onError }}>
       <Scene key="phone" sceneId="phone">
-        <Animate key="breathe" animateId="phone-breathe" loopAnimation={{ animate: { opacity: [1, 0.9, 1] } }}>
+        <Animate
+          key="breathe"
+          animateId="phone-breathe"
+          loopAnimation={{ animate: { opacity: [1, 0.9, 1] } }}
+        >
           <iframe key="iframe" title={label} />
         </Animate>
       </Scene>
@@ -19,17 +23,22 @@ it('preserves an embedded document when a scroll root receives a new callback', 
     ).not.toBeNull()
   );
   const iframe = view.getByTitle('Drag experience');
-  const sceneBefore = view.container.querySelector('[data-cineview-scene-id="phone"]');
+  const sceneBefore = view.container.querySelector('[data-cineview-scroll-zone="phone"]');
+  const animateBefore = view.container.querySelector('[data-cineview-animate-id="phone-breathe"]');
   console.log('Scene DOM node before:', sceneBefore);
+  console.log('Animate DOM node before:', animateBefore);
   console.log('iframe DOM node before:', iframe);
 
   await act(async () => view.rerender(page('Experience translated')));
 
-  const sceneAfter = view.container.querySelector('[data-cineview-scene-id="phone"]');
+  const sceneAfter = view.container.querySelector('[data-cineview-scroll-zone="phone"]');
+  const animateAfter = view.container.querySelector('[data-cineview-animate-id="phone-breathe"]');
   const iframeAfter = view.container.querySelector('iframe');
   console.log('Scene DOM node after:', sceneAfter);
+  console.log('Animate DOM node after:', animateAfter);
   console.log('iframe DOM node after:', iframeAfter);
   console.log('Scene preserved?', sceneBefore === sceneAfter);
+  console.log('Animate preserved?', animateBefore === animateAfter);
   console.log('iframe preserved?', iframe === iframeAfter);
 
   // The iframe should be the same DOM node with an updated title attribute

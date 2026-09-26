@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { MoveVertical } from 'lucide-react';
 import { Animate, useAnimateTimeline } from 'cineview';
 import { useI18n } from '../i18n';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { PhoneMockup } from './PhoneMockup';
 import { createLastWinsTimerSequence, type LastWinsTimerSequence } from './lastWinsTimerSequence';
 import {
@@ -50,37 +50,24 @@ const LIGHTS_OFF_MAX = 0.94;
 // swallowed by semi-transparent iframe, unable to advance outer reveal; reverse-scrolling away from segment end then withdraws interaction (with hysteresis debounce).
 const INTERACT_AT = 0.98;
 const INTERACT_OFF_BELOW = 0.92;
+// The final scroll offset can resolve a fraction of a pixel before progress 1.
+// At this threshold the reveal is visually complete, even on fractional viewports.
+const HINT_READY_AT = 0.9995;
 
-/* ── Closing layer exit semantics: scrub (2026-08-15 user decision, replaces 2026-08-14 manual control track) ──
- * Old approach (enterRef/exitRef manual control track + SPLIT_ENTER / SPLIT_EXIT timer
- * choreography) entirely deleted: event-driven exit doesn't follow finger — user scrolling up text/CTA doesn't move,
- * waits for message/timer to exit. New semantics three things:
- *   1. Text/CTA/footer **opacity = pure function of zone progress**, scrub window
- *      0.85→1 (SPLIT_SCRUB_* below): scrolling up follows finger fade-out, scroll back returns as-is.
- *   2. Element **mount gating on finished latch** (only latch renders): under framework track system
- *      same lane cannot "manual entry + scrub exit" (scrub track manual write gets overwritten next frame
- *      by scroll), so sequential entry changed to child element's **one-time CSS transform/visibility animation**
- *      (`animation: … both` + delay 0/0.25s/0.6s/0.9s, see Scene5Cinema.css;
- *      CLAUDE.md rule 6 allows one-time interpolation, forbids infinite). Scroll opacity written by outer scrub owner;
- *      unfinished enables independent manual-opacity channel.
- *   3. Column collapse threshold 0.85: progress < 0.85 → collapse columns (phone returns center, CSS 1.1s displacement segment as usual);
- *      progress rises back to 0.95 to reopen, and increments replay generation to re-walk four beats, avoiding
- *      0.85 critical threshold back-and-forth jitter and skipping entry during hidden period.
- * unfinished message first drives one-time manual-opacity in sequence, then same-generation sequence collapses columns;
- * manual-opacity only handles message timing, doesn't also write framework progress. */
+/* Closing copy is mounted after the embedded drag experience finishes. Each Animate
+ * wrapper follows zone progress for reverse scrolling. Child CSS animates the first
+ * entrance; the unfinished event fades each child before collapsing the column. */
 const SPLIT_SCRUB_END = 1;
-/* ── Strict sequential timing (2026-08-16 user directive, returns to 08-09 ruling semantics) ───────────────
- * Entry: phone displacement 1.1s (CSS gap/basis/width transition) **completes then** title starts
- * (1.1s), subtitle 1.35s, CTA 1.7s, footer 2.0s — CSS animation delay aligned.
- * unfinished path exit: **first** drive child nodes' manual-opacity channel in sequence (footer 0 /
- * cta 0.15 / subtitle 0.35 / title 0.55s), **then** collapse columns (phone displacement) — outer scrub
- * still monopolizes scroll opacity, JS only choreographs one-time event timing (not per-frame; scroll wheel path unaffected). */
-const SPLIT_EXIT_DONE_MS = 1050;
+/* The phone completes its 1.1s move before the title appears. The lead, mode
+ * comparison, capability line, CTA, and footer follow. The unfinished event exits in reverse. */
+const SPLIT_EXIT_DONE_MS = 1250;
 const SPLIT_EXIT_DELAYS_MS: Array<[className: string, delay: number]> = [
   ['scene5-cinema__footer', 0],
   ['scene5-cinema__cta', 150],
-  ['scene5-cinema__subtitle-text', 350],
-  ['scene5-cinema__title-text', 550],
+  ['scene5-cinema__ruler', 250],
+  ['scene5-cinema__story', 350],
+  ['scene5-cinema__subtitle-text', 450],
+  ['scene5-cinema__title-text', 650],
 ];
 /** freeze path's two-level sequential (final cleanup outside viewport, semantics preserved): t=700ms collapse columns
  * (at this point progress≈0, text opacity already zeroed by scrub, collapse just layout reset),
@@ -216,15 +203,18 @@ function CinemaLatchProjection({ onProgress }: { onProgress: (value: number) => 
 
 export function Scene5Cinema(): import('react').JSX.Element {
   const { t, lang } = useI18n();
+  const reduced = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<CinemaStage>('idle');
   const embedReadyRef = useRef(false);
   const liveRef = useRef(false);
   const interactiveRef = useRef(false);
+  const hintReadyRef = useRef(false);
   const [stage, setStage] = useState<CinemaStage>('idle');
   const [live, setLive] = useState(false);
   const [interactive, setInteractive] = useState(false);
+  const [hintReady, setHintReady] = useState(false);
   /** Latest value mirror of zone progress (for reading current progress when message handler arrives). */
   const progressRef = useRef(0);
   const previousLanguage = useRef(lang);
@@ -318,7 +308,7 @@ export function Scene5Cinema(): import('react').JSX.Element {
           );
           return;
         case 'replay-closing':
-          // The keyed Fragment below remounts the four beats. Clear imperative residue from the
+          // The keyed Fragment below remounts the closing elements. Clear imperative residue from the
           // old DOM before React commits the new generation, so a cancelled exit cannot leak in.
           resetClosingElementStyles();
           return;
@@ -328,9 +318,11 @@ export function Scene5Cinema(): import('react').JSX.Element {
           embedReadyRef.current = false;
           liveRef.current = false;
           interactiveRef.current = false;
+          hintReadyRef.current = false;
           setStage('idle');
           setLive(false);
           setInteractive(false);
+          setHintReady(false);
           resetClosingElementStyles();
           return;
         case 'exit-reset':
@@ -413,6 +405,11 @@ export function Scene5Cinema(): import('react').JSX.Element {
   const handleProgress = useCallback(
     (value: number): void => {
       progressRef.current = value;
+      const nextHintReady = value >= HINT_READY_AT;
+      if (hintReadyRef.current !== nextHintReady) {
+        hintReadyRef.current = nextHintReady;
+        setHintReady(nextHintReady);
+      }
       if (value >= REVEAL_AT) {
         if (stageRef.current !== 'revealed') {
           stageRef.current = 'revealed';
@@ -488,7 +485,7 @@ export function Scene5Cinema(): import('react').JSX.Element {
   //   t=1400ms Unmount iframe + reset latch/stage
   // Scrolling back within <1.4s after scrolling out (adversarial review R6-1 scenario): cancel timers —latch still holds,
   // closing layer still mounted, opacity returns as-is with scrub window when scrolling back to segment end; when progress
-  // reaches 0.95, lifecycle replay generation re-walks the four beats.
+  // reaches 0.95, lifecycle replay generation replays the closing entrance.
   useEffect(() => {
     const node = rootRef.current;
     if (node === null || typeof IntersectionObserver === 'undefined') return;
@@ -578,18 +575,36 @@ export function Scene5Cinema(): import('react').JSX.Element {
         <div className={`scene5-cinema__phone-slot${split ? ' is-split' : ''}`}>
           <div className="scene5-cinema__phone-col">
             <div className="scene5-cinema__hint-slot" aria-hidden="true">
+              {/* The hint waits for the phone reveal to finish. Its inner group enters,
+                  moves and pulses together, then exits on the first drag or split. */}
               <Animate
                 animateId="cinema-drag-hint"
-                enterAnimation="fade-in"
+                enterAnimation={{
+                  initial: { opacity: 0, y: 18, filter: 'blur(6px)' },
+                  animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0 } },
+                }}
                 duration={{ enter: 480 }}
                 timeline={{ phase: { start: CREATE_AT, end: REVEAL_AT } }}
+                loopAnimation={
+                  reduced || lifecycle.dragHintDismissed || split
+                    ? undefined
+                    : {
+                        animate: {
+                          '--scene5-hint-y': ['0px', '-5px', '0px', '5px', '0px'],
+                          '--scene5-hint-alpha': [0.7, 1, 0.7, 1, 0.7],
+                          transition: { duration: 3.4, ease: 'easeInOut', repeat: Infinity },
+                        },
+                      }
+                }
               >
                 <div
                   className="scene5-cinema__drag-hint"
+                  data-ready={hintReady}
                   data-dismissed={lifecycle.dragHintDismissed || split}
                 >
-                  <MoveVertical size={28} strokeWidth={1.5} />
-                  <span>{t('scene5.dragHint')}</span>
+                  <span className="scene5-cinema__drag-hint-motion">
+                    <span className="scene5-cinema__drag-hint-text">{t('scene5.dragHint')}</span>
+                  </span>
                 </div>
               </Animate>
             </div>
@@ -623,16 +638,9 @@ export function Scene5Cinema(): import('react').JSX.Element {
             </Animate>
           </div>
 
-          {/* Right column closing layer: title + subtitle + CTA + footer (2026-08-15 scrub semantics).
-              - Mount gating on finished latch (closing): only renders when latched, sequential entrance
-                carried by child element one-time CSS animation (delay 0/0.25s/0.6s/0.9s,
-                Scene5Cinema.css `scene5-closing-*`, rule 6 allows one-time interpolation).
-              - Each element one scrub lane: timeline.phase window 0.85→1 (driver defaults to 'scene',
-                binds this zone's takeover timeline)— wrapper layer opacity is pure function of progress,
-                scrolling up follows finger fade-out, scrolling back returns as-is, no messages/timers participate.
-              - FOUC: when latch mounts progress is already 1, wrapper layer opacity immediately
-                resolved to 1 by scrub, child element CSS animation `both` stops at opacity 0 during delay—
-                both layers won't flash half-finished product. */}
+          {/* The closing column appears after the embedded drag experience finishes.
+              Its Animate wrappers follow reverse scroll progress; child CSS handles
+              the initial sequence from title through footer. */}
           <div ref={textColRef} className="scene5-cinema__text-col" aria-hidden={!split}>
             {closing ? (
               <Fragment key={closingReplayKey}>
@@ -651,6 +659,61 @@ export function Scene5Cinema(): import('react').JSX.Element {
                   timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
                 >
                   <p className="scene5-cinema__subtitle-text">{t('scene5.subtitle')}</p>
+                </Animate>
+                <Animate
+                  animateId="cinema-split-story"
+                  enterAnimation={closingFadeVariant}
+                  duration={{ enter: 480 }}
+                  timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
+                >
+                  <div className="scene5-cinema__story">
+                    <p>{t('scene5.dragLead')}</p>
+                    <p>{t('scene5.timelineDetail')}</p>
+                    <p>{t('scene5.releaseDetail')}</p>
+                  </div>
+                </Animate>
+                <Animate
+                  animateId="cinema-split-ruler"
+                  enterAnimation={closingFadeVariant}
+                  duration={{ enter: 480 }}
+                  timeline={{ phase: { start: SCENE5_SPLIT_SCRUB_START, end: SPLIT_SCRUB_END } }}
+                >
+                  <div className="scene5-cinema__ruler" aria-hidden="true">
+                    <div className="scene5-cinema__ruler-ticks">
+                      {Array.from({ length: 13 }, (_, index) => (
+                        <span key={index} />
+                      ))}
+                    </div>
+                    <span className="scene5-cinema__ruler-label scene5-cinema__ruler-label--start">
+                      {t('scene5.rulerTitle')}
+                    </span>
+                    <span className="scene5-cinema__ruler-label scene5-cinema__ruler-label--end">
+                      {t('scene5.rulerDetail')}
+                    </span>
+                    <div className="scene5-cinema__ruler-track">
+                      {reduced ? (
+                        <span className="scene5-cinema__ruler-cursor scene5-cinema__ruler-cursor--static" />
+                      ) : (
+                        <Animate
+                          animateId="cinema-ruler-cursor"
+                          loopAnimation={{
+                            animate: {
+                              x: ['-100%', '0%'],
+                              opacity: [0, 1, 1, 0],
+                              transition: {
+                                duration: 4.8,
+                                ease: 'linear',
+                                times: [0, 0.08, 0.9, 1],
+                                repeat: Infinity,
+                              },
+                            },
+                          }}
+                        >
+                          <span className="scene5-cinema__ruler-cursor" />
+                        </Animate>
+                      )}
+                    </div>
+                  </div>
                 </Animate>
                 {/* Closing CTA (third beat). Button uses this act's scoped class (black scene cinema context:
                     light text/solid bone-white primary button + outline secondary button, no box-shadow— column container
@@ -683,11 +746,9 @@ export function Scene5Cinema(): import('react').JSX.Element {
                         {t('cta.github')}
                       </a>
                     </div>
-                    <p className="scene5-cinema__cta-body">{t('cta.body')}</p>
                   </div>
                 </Animate>
-                {/* footer (fourth beat): moved from viewport bottom absolute into right column on 2026-08-15,
-                    positioned below cta.body— same column context, same scrub window. */}
+                {/* Footer stays in the same right column and scrub window. */}
                 <Animate
                   animateId="cinema-footer"
                   enterAnimation={closingFadeVariant}

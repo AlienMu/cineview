@@ -2,187 +2,100 @@
 
 [English](./README.md)
 
-[![npm 版本](https://img.shields.io/npm/v/cineview?style=flat-square&color=8A5B43)](https://www.npmjs.com/package/cineview)
-[![CI](https://github.com/AlienMu/cineview/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AlienMu/cineview/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/cineview/beta?style=flat-square&color=8A5B43)](https://www.npmjs.com/package/cineview)
+[![Tests](https://github.com/AlienMu/cineview/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AlienMu/cineview/actions/workflows/ci.yml)
+[![Framework line coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fcineview.pages.dev%2Fcoverage.json&style=flat-square)](https://cineview.pages.dev/coverage.json)
 [![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
-[![MIT 许可证](https://img.shields.io/npm/l/cineview?style=flat-square)](./LICENSE)
+[![MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](./LICENSE)
 
-Cineview 是用于构建交互式产品展示、全屏演示和滚动叙事页面的 React 框架。它通过组件 API 组织场景导航、动画编排、响应式定位和媒体播放。
+Cineview 是用于制作拖拽和滚动交互页面的 React 框架。为元素声明动画时长和先后顺序，再让手势或滚动位置推进这段时间线。
 
-页面由多个 `Scene` 组件组成。每个场景承载普通 React 内容，并声明布局和动画。Cineview 将这些场景与拖动或滚动操作关联，让页面导航与场景内的动画协同工作。
+每个 `Scene` 管理自己的内容和元素时间。`Animate` 描述淡入、位移等变化，`after` 等前序元素入场完成，再加上当前元素的延迟后开始。普通按时间播放的入场动画也可以与这些交互共存。
 
-[官网](https://cineview.pages.dev) · [文档](https://cineview.pages.dev/docs) · [拖动演示](https://cineview.pages.dev/drag) · [npm](https://www.npmjs.com/package/cineview)
+[快速上手与交互案例](https://cineview.pages.dev/docs/03-quickstart) · [文档](https://cineview.pages.dev/docs) · [官网](https://cineview.pages.dev)
 
-## 适用场景
+## 安装 beta
 
-- 通过多个动画章节介绍内容的产品页和品牌官网。
-- 使用纵向或横向拖动导航的全屏演示与作品集。
-- 在正常阅读内容中加入滚动控制的插画、图形和视频的叙事页面。
-
-Cineview 使用 Framer Motion 实现动画，可配合已有的 React 组件、CSS 布局和自定义图形使用。页面内容结构和视觉设计由应用决定。
-
-## 核心能力
-
-- **场景与导航。** 将页面组织为多个章节，配置各自的尺寸和转场，选择拖动或滚动导航。拖动页面支持鼠标、触摸和键盘操作；滚动页面使用真实的滚动容器。
-- **动画编排。** 使用预设或自定义属性动画，通过 `timeline.after` 连接入场顺序、设置延迟、组合并行动画。逐项入场、循环和退场效果分别用于场景展示的不同阶段。
-- **响应式定位。** 在 CSS 布局中配合 `Position` 和 `Container`，按设计坐标放置内容。`designWidth` 让数值型设计长度随视口宽度缩放，需要重新排版的内容仍可使用 CSS 单位和断点。
-- **图片与视频。** 声明需要预加载的图片，复用共享图片缓存。`AnimateVideo` 可以让视频帧跟随动画进度，也支持场景内的普通视频播放。
-- **自定义绘制。** `useAnimateTimeline` 以 MotionValue 提供动画进度，用于自定义 DOM、SVG 和 Canvas 组件。连续更新无需把每一帧写入 React state。
-- **应用控制。** 通过 ref 导航、响应场景与动画回调，并在内容变化后刷新布局。设置 `<Cineview debug>` 可在两种模式下显示性能面板。`cineview/dev` 提供自定义性能展示工具。
-
-## 安装
-
-当前示例使用尚未发布的 `Cineview` 导出和内置 `debug` 面板。变更见[更新日志](./CHANGELOG.md#unreleased)；npm 1.0.0 仍提供此前的 API。
-
-在 React 19 项目中安装 Cineview 和 Framer Motion 13：
+下方示例对应 `cineview@0.0.1-beta` 的 `Cineview` API。安装指定的 beta 版本：
 
 ```bash
-npm install cineview framer-motion@13
+npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
-使用 pnpm：
+npm 的 `beta` 标签对应这套 API。`latest` 标签保留在 `1.0.0`，该版本使用早期的 `CineView` API。
+
+## 运行本地示例
+
+修改源码并在附带的示例中验证：
 
 ```bash
-pnpm add cineview framer-motion@13
+pnpm install --frozen-lockfile
+pnpm --dir examples/minimal install --frozen-lockfile
+pnpm build
+pnpm --dir examples/minimal dev
 ```
 
-Cineview 1.0.0 要求 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^13.0.0`。主包提供 TypeScript 类型声明，支持 ESM 和 CommonJS。包入口和开发工具的用法见[安装指南](https://cineview.pages.dev/docs/02-installation)。
+当前包需要 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^13.0.0`。迁移说明见 [Changelog](./CHANGELOG.md)。
 
-## 快速开始
+## 第一个拖拽页面
 
-以下两个示例都是完整的应用组件，可任选一个作为 React 项目的 `App.tsx`。示例使用内联样式，无需额外的样式表或媒体文件。
-
-### 拖动切换场景
-
-这个页面包含两个全屏场景。第一个场景依次展示标题和说明，拖动后进入第二个场景。
+将以下内容用作 `App.tsx`，不需要媒体素材：
 
 ```tsx
-import type { CSSProperties } from 'react';
 import { Animate, Cineview, Scene } from 'cineview';
-
-const panel: CSSProperties = {
-  boxSizing: 'border-box',
-  height: '100%',
-  display: 'grid',
-  placeContent: 'center',
-  padding: '2rem',
-  textAlign: 'center',
-};
 
 export default function App() {
   return (
-    <Cineview mode="drag" designWidth={750} a11y={{ label: 'Product introduction' }}>
-      <Scene sceneId="introduction">
-        <div style={{ ...panel, background: '#f7f2ec' }}>
-          <Animate animateId="heading" enterAnimation="fade-in" duration={{ enter: 600 }}>
-            <h1>Meet the new collection</h1>
-          </Animate>
-          <Animate
-            enterAnimation="slide-up"
-            duration={{ enter: 400 }}
-            timeline={{ after: 'heading' }}
-          >
-            <p>Designed for everyday use.</p>
-          </Animate>
-        </div>
+    <Cineview mode="drag" unit="percent" scale={1}>
+      <Scene sceneId="intro" style={{ background: '#f5e8d8', padding: 40 }}>
+        <h1>向上拖动，查看下一个场景</h1>
       </Scene>
-
-      <Scene sceneId="details">
-        <div style={{ ...panel, background: '#e8edf0' }}>
-          <Animate enterAnimation="fade-in" duration={{ enter: 600 }}>
-            <h2>Explore the details</h2>
-          </Animate>
-        </div>
+      <Scene sceneId="details" style={{ background: '#e8edf0', padding: 40 }}>
+        <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
+          <h2>标题先出现</h2>
+        </Animate>
+        <Animate
+          enterAnimation="slide-up"
+          duration={{ enter: 400 }}
+          timeline={{ after: 'title', delay: 100 }}
+        >
+          <p>说明在标题之后出现。</p>
+        </Animate>
       </Scene>
     </Cineview>
   );
 }
 ```
 
-`Cineview` 控制导航，`Scene` 定义页面章节，`Animate` 定义元素动画。`timeline.after` 让说明文字在标题入场后出现。默认沿纵向拖动，设置 `direction="x"` 可改为横向展示。Cineview 容器获得焦点后，也可使用键盘导航。
+第二个场景的标题用 600ms 入场，等待 100ms 后，说明用 400ms 入场，总时长为 1100ms。把标题时长改成 900ms，说明会自动后移，不必修改它的延迟。
 
-### 跟随滚动进度
+这个例子将拖拽比例映射到时间线比例。拖到一半，元素时间是 550ms。确认切换后，未完成的动画继续播放；取消时还原。聚焦 Cineview 容器后也可使用方向键导航。
 
-滚动模式让内容保留在文档流中。配置了 `scroll` 的场景会停留在视口中央，由滚动推进动画；前后的场景继续作为普通页面章节显示。
+## 两种交互如何推进动画
 
-```tsx
-import type { CSSProperties } from 'react';
-import { Animate, Cineview, Scene } from 'cineview';
+| 模式     | 使用方式                                                                  | 停止输入后的行为                               |
+| -------- | ------------------------------------------------------------------------- | ---------------------------------------------- |
+| drag     | 拖拽切换 Scene，同时预览目标场景的元素动画                                | 松手时根据位移与速度决定继续切换或还原         |
+| scroll   | 普通内容连续滚动；给 Scene 声明 `scroll`，让其动画按 `1ms = 1px` 跟随滚动 | 区间内停止滚动，动画停在当前帧；反向滚动会倒退 |
+| 独立入场 | `timeline={{ driver: 'clock' }}`                                          | 满足启动条件后按时间播放，不因停止滚动而暂停   |
 
-const panel: CSSProperties = {
-  boxSizing: 'border-box',
-  height: '100%',
-  display: 'grid',
-  placeContent: 'center',
-  padding: '2rem',
-  textAlign: 'center',
-};
+[快速上手](https://cineview.pages.dev/docs/03-quickstart)提供两种可操作案例和基础代码。[模式说明](https://cineview.pages.dev/docs/01-modes)解释场景移动与元素时间的关系。
 
-export default function App() {
-  return (
-    <Cineview mode="scroll" designWidth={750}>
-      <Scene sceneId="introduction" layout={{ height: '100vh' }}>
-        <div style={panel}>
-          <h1>Every detail has a story</h1>
-        </div>
-      </Scene>
+## 进一步使用
 
-      <Scene
-        sceneId="details"
-        layout={{ height: '100vh' }}
-        scroll={{ zoneId: 'details', trigger: 'center-lock' }}
-      >
-        <div style={{ ...panel, background: '#f7f2ec' }}>
-          <Animate
-            enterAnimation={{
-              initial: { opacity: 0, y: 60 },
-              animate: { opacity: 1, y: 0 },
-            }}
-            duration={{ enter: 1600, exit: 0 }}
-            timeline={{ driver: 'scene' }}
-          >
-            <h2>Reveal it as the page scrolls</h2>
-          </Animate>
-        </div>
-      </Scene>
+- [动画顺序](https://cineview.pages.dev/docs/04-orchestration)：`after`、延迟、组合与子元素入场。
+- [视频控制](https://cineview.pages.dev/docs/11-video-timeline)：将拖拽和滚动进度用于视频帧。
+- [自定义绘制](https://cineview.pages.dev/docs/09-use-animate-timeline)：用 MotionValue 驱动 Canvas、SVG 或 WebGL。
+- [布局换算](https://cineview.pages.dev/docs/05-responsive)：使用 `designWidth`、Position 和 Container。
+- [资源预加载](https://cineview.pages.dev/docs/02-preload)：准备场景资源与处理首屏等待。
 
-      <Scene sceneId="closing" layout={{ height: '100vh' }}>
-        <div style={panel}>
-          <h2>Continue exploring</h2>
-        </div>
-      </Scene>
-    </Cineview>
-  );
-}
-```
+为需要独立处理手势的控件添加 `data-cineview-ignore-drag`。跨场景的导航或持久状态放在 Cineview 外部。
 
-详情动画对应 1,600 个 CSS 像素的滚动距离：声明时长的每 1 毫秒对应 1 像素滚动距离。反向滚动会反向播放动画。场景的可见高度与这段距离分别配置。
+## 验证与开发
 
-未配置 `scroll` 的场景仍可包含根据可见性触发的动画。[模式选择](https://cineview.pages.dev/docs/04-choosing-mode)和[滚动指南](https://cineview.pages.dev/docs/01-centerlock)介绍了不同交互的适用方式。
+测试徽章显示 GitHub CI 状态。覆盖率徽章读取网站发布时成功运行框架测试生成的行覆盖率，不代表所有浏览器交互都已覆盖；拖拽与滚动另有浏览器验收。
 
-## 深入了解
-
-| 主题                   | 指南                                                                                                                                                                              |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 页面结构与导航         | [Cineview](https://cineview.pages.dev/docs/01-cineview) 和 [Scene](https://cineview.pages.dev/docs/02-scene)                                                                      |
-| 预设、自定义动画与编排 | [Animate](https://cineview.pages.dev/docs/03-animate) 和[时间线](https://cineview.pages.dev/docs/02-timeline)                                                                     |
-| 布局与设计坐标         | [响应式布局](https://cineview.pages.dev/docs/05-responsive)、[Position](https://cineview.pages.dev/docs/05-position) 和 [Container](https://cineview.pages.dev/docs/07-container) |
-| 图片加载与视频控制     | [预加载](https://cineview.pages.dev/docs/02-preload)和 [AnimateVideo](https://cineview.pages.dev/docs/04-animate-video)                                                           |
-| 扩展动画进度           | [useAnimateTimeline](https://cineview.pages.dev/docs/09-use-animate-timeline)                                                                                                     |
-
-官网包含中英文文档、采用滚动交互的首页和独立的拖动演示。[最小示例](./examples/minimal/src/App.tsx)展示了同一组场景内容在两种模式下的使用方式。
-
-## 无障碍支持
-
-拖动导航包含键盘操作、场景位置播报和非活动场景的焦点处理。Cineview 也会根据减少动态效果的系统偏好调整循环动画和由可见性触发的动画；直接跟随拖动或滚动的动画仍由输入控制。相关行为，以及应用需要提供的标签和焦点顺序，见[无障碍配置](https://cineview.pages.dev/docs/01-cineview)。
-
-## 参与贡献
-
-开发环境、本地示例和验证命令见 [CONTRIBUTING.md](./CONTRIBUTING.md)。框架覆盖率检查对语句、分支、函数和行均设置了 90% 的最低要求。
-
-仓库保留源码、测试、现行文档、示例和构建脚本。历史报告、task-flow、截图、录屏、生成的验收数据和本地代理工具只留在本地，由 Git 忽略。`pnpm verify:repository` 在提交前和 CI 中检查这一范围。
-
-通过 [GitHub issues](https://github.com/AlienMu/cineview/issues)报告问题或提出改进建议，版本变化见[更新日志](./CHANGELOG.md)。
+完整开发环境、测试与发布命令见 [Contributing](./CONTRIBUTING.md) 和[发布说明](./RELEASING.md)。[最小示例](./examples/minimal/README.md)可在两种模式间切换。
 
 ## 许可证
 

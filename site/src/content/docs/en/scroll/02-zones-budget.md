@@ -3,85 +3,90 @@ title: Zones and scroll budgets
 eyebrow: SCROLL / BUDGET
 ---
 
-The latest child-animation end determines a locked zone's scroll budget. Durations, delays, and dependencies affect that endpoint.
+The latest child-animation end determines a locked zone's scroll distance. Animation durations, delays, and `after` dependencies all contribute to this scroll budget.
 
 ## 1ms = 1px
 
-The conversion rate between animation duration and physical scroll distance is fixed at 1 (1ms = 1px). For example, `duration={{ enter: 2000 }}` requires 2000 physical pixels of scroll displacement to complete an entrance animation.
+`duration={{ enter: 2000 }}` corresponds to 2000 px of real scrolling. Neither `designWidth` nor viewport size scales this distance.
 
-The total zone budget matches the maximum timeline end offset across all registered elements:
+| Setting | Calculation |
+| --- | --- |
+| `duration.enter` | Defaults to 600 ms; occupies at least 1 px, even when explicitly set to 0 |
+| `duration.exit` | Defaults to 600 ms; counts only with an `exitAnimation` |
+| Element end | Start delay + entrance duration + exit duration |
+| Total zone budget | Latest end among participating elements |
 
-| Quantity        | Rule                                                            |
-| --------------- | --------------------------------------------------------------- |
-| `enterDuration` | minimum of 1ms/1px. `duration: { enter: 0 }` still occupies 1px |
-| `exitDuration`  | defaults to 0 without an `exitAnimation`, occupying no budget   |
-| element end     | `delay` (including accumulated `after` chain) + enter + exit    |
-| `totalBudgetPx` | the maximum element end, at least 1px when `> 0`                |
+Only scene-driven entrances and exits count toward the budget. `timeline.driver: 'clock'` and loop animations add no locked scroll distance.
 
-Both `duration.enter` and `duration.exit` default to 600ms.
-
-## Zero-budget fallback
-
-A zero budget adds no animation travel. The Scene still occupies the larger of its visual span and one viewport. `onZoneEnter` and `onZoneLeave` do not fire; `onZoneProgress` reports its initial zero value. Only segments longer than 0.5px participate in anti-skip limiting.
-
-Scene-driven elements register budget when they have an entrance or exit animation. A Scene with only loop animations has no animation budget.
+## Sequence presets with after
 
 ```tsx
-{
-  /* A loop-only zone has no animation travel. */
-}
-<Scene sceneId="loop" scroll={{ zoneId: 'loop' }}>
-  <Animate animateId="pulse" loopAnimation="pulse">
-    <div className="dot" />
+<Scene sceneId="details" scroll={{ zoneId: 'details' }}>
+  <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
+    <h2>Product details</h2>
   </Animate>
-</Scene>;
+  <Animate
+    animateId="description"
+    enterAnimation="slide-up"
+    duration={{ enter: 400 }}
+    timeline={{ after: 'title', delay: 100 }}
+  >
+    <p>The description appears after the title.</p>
+  </Animate>
+  <AnimateVideo
+    src="/product.mp4"
+    duration={{ enter: 2000 }}
+    timeline={{ after: 'description' }}
+    aria-label="Product demonstration"
+  />
+</Scene>
 ```
 
-To enable scroll locking, configure at least one child element with `enterAnimation` and `duration.enter`.
+The title occupies 600 px, followed by a 100 px delay, a 400 px description entrance, and 2000 px of video scrubbing. The total budget is 3100 px.
 
-## timeline.phase mapping rules
+**A follower starts when the leader finishes entering, plus its own delay.** If the leader enters for 600ms and exits for 400ms, a follower without delay starts at 600px. With `phase`, the follower uses the end of the leader's actual entrance interval. Exits still contribute to the total zone budget.
 
-`timeline.phase: { start, end }` maps an element's animation progress to a normalized fraction of the total zone budget.
+Keep `phase.end` below 1 when the element has followers or an exit, so there is scroll distance left for them. See [Timeline](/docs/04-orchestration) for dependencies, or [Animation presets](/docs/08-presets) to combine several presets on one element.
 
-When `phase` is specified, start and end fractions apply relative to the entire zone budget (`[0, totalBudgetPx]`), rather than the element's standalone duration. For example, `phase: { start: 0.5 }` begins the entrance animation when the zone reaches 50% of its cumulative budget.
+## Set an entrance interval with phase
 
-Elements declaring `phase` align their exit animations to the trailing edge of the zone (`exitEndPx = totalBudgetPx`, `exitStartPx = max(phaseEndPx, totalBudgetPx - exitDurationPx)`). To position an exit animation within the middle of a zone, omit `phase` and use standard `delay` and `duration` sequencing instead.
+`timeline.phase: { start, end }` sets an entrance interval relative to total zone progress. For example, `{ start: 0.5, end: 0.8 }` plays the entrance from 50% to 80% through the zone.
 
-The computed window end is bounded such that `phaseEndPx` is always at least `phaseStartPx + 1`.
+An element with `phase` ends its exit at the end of the zone. To exit in the middle, omit `phase` and set the timing with `delay` and `duration`.
 
-## Connection references for after chains
+The resulting entrance interval is at least 1 px long. Explicit `phase` fractions refer to the whole zone; an omitted endpoint retains the element's original timing. When combined with `after`, the interval cannot start before the predecessor finishes entering plus the follower's delay.
 
-Within scroll-driven zones, `after` dependencies collapse into cumulative delays at compile time. Sequences connect to the leader element's entrance completion point:
+The budget also leaves at least 1 px for a declared exit. If a phase cannot fit in any finite budget, Cineview reports `INVALID_ANIMATION` and ignores that phase, while keeping `duration`, `delay`, and `after`. For example, `phase.end: 1` leaves no space for a follower or exit; `phase.start: 1` leaves no space for the entrance itself.
 
-```text
-follower.start = leader.phaseEndPx + follower.delay
-```
+## Loop-only Scenes add no locked distance
 
-An `after` follower begins at its leader's entrance endpoint. If a leader uses `phase`, leave room for followers by using an end fraction below 1, such as 0.95.
+A Scene containing only loop animations has a zero budget. It still occupies the larger of its visible size and one viewport, but adds no animation distance.
 
-## Zone identity
+`onZoneProgress` then reports its initial zero value, while `onZoneEnter` and `onZoneLeave` do not fire. Add an entrance or exit animation to at least one child to animate with scrolling.
 
-| Source          | Priority | Notes                                                          |
-| --------------- | -------- | -------------------------------------------------------------- |
-| `scroll.zoneId` | highest  | explicit declaration                                           |
-| `sceneId`       | next     | used directly as the zone id when `zoneId` is absent           |
-| auto id         | fallback | Generated for the Scene; declare an explicit id for navigation |
+## Name the locked zone
 
-Set `scroll.zoneId` or `sceneId` when using `goToZone` or explicitly binding an Animate to a zone.
+| Source | Priority | Notes |
+| --- | --- | --- |
+| `scroll.zoneId` | Highest | Explicit zone identifier |
+| `sceneId` | Next | Used when `zoneId` is absent |
+| Automatic identifier | Last | Generated by the Scene |
 
-If multiple Scenes declare the same zone id, the first keeps it. Later duplicates render as ordinary scenes and report `INVALID_COMPONENT_HIERARCHY` through `onError`; development builds also warn.
+Set `scroll.zoneId` or `sceneId` explicitly when using `goToZone`. Child animations use their owning Scene's zone.
 
-## Two sets of sizing rules
+If several Scenes use the same identifier, the first keeps the locked zone. Later duplicates render as ordinary scenes and report `INVALID_COMPONENT_HIERARCHY` through `onError`. Development builds also warn.
 
-`sceneSizing` accepts `'content'` (default) or `'screen'`, applying exclusively to standard flow scenes: `'screen'` enforces a one-viewport minimum height, while `'content'` derives height directly from content. Locked-zone scenes behave identically under both settings.
+## Size ordinary scenes and locked zones
 
-For a locked zone, viewport units such as `vh` or `vw` provide an explicit visual span. Other declared lengths fall back to the Scene's measured DOM size.
+`sceneSizing` affects only ordinary scenes without `scroll`. The default `'content'` uses content size; `'screen'` sets a minimum of one viewport along the scroll direction.
 
-The visual container clips content beyond the viewport. Put long reading content in ordinary scenes or divide it into several scenes.
+For a locked zone, `vh` or `vw` defines its visible size. Other lengths use the Scene's measured DOM size. `sceneSizing` does not change these rules.
+
+Locked zones clip content beyond the viewport. Put long reading content in ordinary scenes, or split it across several scenes.
 
 ## Related pages
 
-- [Center-lock scrolling](/docs/01-centerlock): segment geometry and the anti-skip mechanism
-- [Timeline](/docs/04-orchestration): the full rules for both `after` forms
-- [Animate timeline](/docs/02-timeline): what each `timeline.*` field means
-- [Scroll troubleshooting](/docs/06-scroll-pitfalls): the common failures for zero budget and phase
+- [Center-lock scrolling](/docs/01-centerlock): scroll position and progress
+- [Timeline](/docs/04-orchestration): dependency rules for different drivers
+- [Animate timeline](/docs/02-timeline): timing and progress intervals
+- [Scroll troubleshooting](/docs/06-scroll-pitfalls): missing locking or progress updates

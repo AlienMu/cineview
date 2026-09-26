@@ -1,7 +1,7 @@
 import React, { act, useCallback, useEffect, useContext, createRef } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { DirectScrollCineView } from './DirectScrollCineView';
+import { DirectScrollCineView } from './DirectScrollCineview';
 import { Animate, SceneContext } from '../Animate/Animate';
 import { Scene } from '../Scene/Scene';
 import { Position } from '../Position/Position';
@@ -343,7 +343,6 @@ interface TestSceneProps {
   sceneHeight?: number | string;
   scroll?: {
     zoneId?: string;
-    trigger?: 'center-lock';
   };
   sceneRuntime?: {
     sceneIndex: number;
@@ -367,7 +366,6 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
 
     runtime.registerZone(zoneId, {
       sceneIndex,
-      trigger: scroll.trigger ?? 'center-lock',
     });
 
     return () => {
@@ -889,7 +887,7 @@ describe('DirectScrollCineView', () => {
         </TestScene>
         <TestScene
           sceneId="scene-1"
-          scroll={{ zoneId: 'hero-zone', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'hero-zone' }}
           assets={{ preloadImages: ['second.jpg', 'shared.jpg'] }}
         >
           <div>Scene 1</div>
@@ -1022,7 +1020,7 @@ describe('DirectScrollCineView', () => {
       <DirectScrollCineView designWidth={750}>
         <TestScene
           sceneId="scene-0"
-          scroll={{ zoneId: 'hero-zone', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'hero-zone' }}
           assets={{ preloadImages: ['first.jpg'] }}
         >
           <div>Scene 0</div>
@@ -1355,18 +1353,19 @@ describe('DirectScrollCineView', () => {
 
     expect(rail.style.background).toBe('rgb(12, 34, 56)');
     expect(thumb.style.background).toBe('rgb(1, 2, 3)');
-    expect(thumb.style.boxShadow).toContain('rgb(98, 76, 54)');
+    expect(rail.style.boxShadow).not.toContain('0 0 0 1px');
+    expect(thumb.style.boxShadow).not.toContain('0 0 0 1px');
+    fireEvent.pointerEnter(thumb);
+    expect(thumb.style.background).toBe('rgb(98, 76, 54)');
+    fireEvent.pointerLeave(thumb);
+    expect(thumb.style.background).toBe('rgb(1, 2, 3)');
     expect(style?.textContent).not.toContain('rgb(1, 2, 3)');
   });
 
   it('shrinks the overlay thumb to account for takeover budget beyond native scrollHeight', async () => {
     const { container } = render(
       <DirectScrollCineView designWidth={750} scrollbar={{ enabled: true }}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={1000} scroll={{ zoneId: 'zone-0' }}>
           <div>Takeover scene</div>
         </TestScene>
         <TestScene sceneId="scene-1" sceneHeight={1000}>
@@ -1407,7 +1406,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -1468,7 +1467,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -1559,7 +1558,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneProgressProbe zoneId="zone-1" />
@@ -1636,7 +1635,6 @@ describe('DirectScrollCineView', () => {
             layout={{ height: 1200 }}
             scroll={{
               zoneId: 'specs-takeover',
-              trigger: 'center-lock',
             }}
           >
             <ZoneActiveProbe zoneId="specs-takeover" />
@@ -1671,7 +1669,6 @@ describe('DirectScrollCineView', () => {
             layout={{ height: 1200 }}
             scroll={{
               zoneId: 'scenarios-takeover',
-              trigger: 'center-lock',
             }}
           >
             <ZoneActiveProbe zoneId="scenarios-takeover" />
@@ -1798,7 +1795,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -1868,7 +1864,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -1955,7 +1950,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2018,7 +2012,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2089,7 +2082,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2165,7 +2157,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2189,7 +2180,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-3',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 3 }}
           >
@@ -2269,7 +2259,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2337,7 +2326,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2450,7 +2438,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2539,7 +2526,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2661,7 +2647,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2774,7 +2759,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2859,7 +2843,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -2944,7 +2927,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
@@ -3227,11 +3209,7 @@ describe('DirectScrollCineView', () => {
         <Scene sceneId="scene-0" sceneHeight={900}>
           <div>Prelude scene</div>
         </Scene>
-        <Scene
-          sceneId="scene-1"
-          sceneHeight={240}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
-        >
+        <Scene sceneId="scene-1" sceneHeight={240} scroll={{ zoneId: 'zone-1' }}>
           <ScrollBudgetProbe animateId="anim-1" />
           <ZoneProgressProbe zoneId="zone-1" />
           <div>Compact takeover</div>
@@ -3274,11 +3252,7 @@ describe('DirectScrollCineView', () => {
         <Scene sceneId="scene-0" sceneHeight={1000}>
           <div>Prelude scene</div>
         </Scene>
-        <Scene
-          sceneId="scene-1"
-          sceneHeight={1200}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
-        >
+        <Scene sceneId="scene-1" sceneHeight={1200} scroll={{ zoneId: 'zone-1' }}>
           <ScrollBudgetProbe animateId="oversized-center-lock" />
           <div>Oversized takeover</div>
         </Scene>
@@ -3320,11 +3294,7 @@ describe('DirectScrollCineView', () => {
         <Scene sceneId="scene-0" sceneHeight={900}>
           <div>Scene 0</div>
         </Scene>
-        <Scene
-          sceneId="scene-1"
-          sceneHeight={240}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
-        >
+        <Scene sceneId="scene-1" sceneHeight={240} scroll={{ zoneId: 'zone-1' }}>
           <ZoneProgressProbe zoneId="zone-1" />
           <div>Small takeover scene</div>
         </Scene>
@@ -3376,11 +3346,7 @@ describe('DirectScrollCineView', () => {
         <Scene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </Scene>
-        <Scene
-          sceneId="scene-1"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
-        >
+        <Scene sceneId="scene-1" sceneHeight={1000} scroll={{ zoneId: 'zone-1' }}>
           <ZoneProgressProbe zoneId="zone-1" />
           <Animate
             animateId="sticky-hero"
@@ -3510,27 +3476,15 @@ describe('DirectScrollCineView', () => {
 
     const { container } = render(
       <DirectScrollCineView designWidth={750} mode="scroll" callbacks={{ onZoneEnter }}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={535}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={535} scroll={{ zoneId: 'zone-0' }}>
           <ScrollBudgetProbe animateId="anim-0" />
           <div>Scene 0</div>
         </TestScene>
-        <TestScene
-          sceneId="scene-1"
-          sceneHeight={70}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-1" sceneHeight={70} scroll={{ zoneId: 'zone-1' }}>
           <ScrollBudgetProbe animateId="anim-1" />
           <div>Scene 1</div>
         </TestScene>
-        <TestScene
-          sceneId="scene-2"
-          sceneHeight={70}
-          scroll={{ zoneId: 'zone-2', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-2" sceneHeight={70} scroll={{ zoneId: 'zone-2' }}>
           <ScrollBudgetProbe animateId="anim-2" />
           <div>Scene 2</div>
         </TestScene>
@@ -3579,7 +3533,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -3630,7 +3584,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -3679,7 +3633,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -3728,7 +3682,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -3817,7 +3771,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -3903,7 +3857,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -4000,7 +3953,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
         >
           <Animate
@@ -4121,7 +4073,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -4208,7 +4159,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -4300,7 +4250,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -4390,7 +4339,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1200}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -4466,7 +4414,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -4485,7 +4433,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-3"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-3', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-3' }}
           sceneRuntime={{ sceneIndex: 3 }}
         >
           <ZoneActiveProbe zoneId="zone-3" />
@@ -4597,7 +4545,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -4665,7 +4613,7 @@ describe('DirectScrollCineView', () => {
         <Scene layout={{ height: 1000 }}>
           <div>Scene 0</div>
         </Scene>
-        <Scene layout={{ height: 1000 }} scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}>
+        <Scene layout={{ height: 1000 }} scroll={{ zoneId: 'zone-1' }}>
           <ZoneActiveProbe zoneId="zone-1" />
           <ZoneProgressProbe zoneId="zone-1" />
           <Position fixed at={{ x: 0, y: 0 }}>
@@ -4745,7 +4693,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -4873,7 +4820,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -4961,7 +4908,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -5053,7 +4999,6 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           scroll={{
             zoneId: 'zone-1',
-            trigger: 'center-lock',
           }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
@@ -5140,7 +5085,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -5243,7 +5188,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneProgressProbe zoneId="zone-1" />
@@ -5349,7 +5294,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -5368,7 +5313,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-3"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-3', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-3' }}
           sceneRuntime={{ sceneIndex: 3 }}
         >
           <ZoneActiveProbe zoneId="zone-3" />
@@ -5446,7 +5391,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneBudgetKeysProbe zoneId="zone-1" />
@@ -5494,11 +5439,7 @@ describe('DirectScrollCineView', () => {
 
     const { container } = render(
       <DirectScrollCineView designWidth={750} mode="scroll" callbacks={{ onZoneProgress }}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={1000} scroll={{ zoneId: 'zone-0' }}>
           <ScrollBudgetProbe animateId="anim-0" />
           <div>Scene 0</div>
         </TestScene>
@@ -5537,11 +5478,7 @@ describe('DirectScrollCineView', () => {
 
     const { container } = render(
       <DirectScrollCineView designWidth={750} mode="scroll" callbacks={{ onZoneProgress }}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={1000} scroll={{ zoneId: 'zone-0' }}>
           <ScrollBudgetProbe animateId="anim-0" />
           <ZoneProgressProbe zoneId="zone-0" />
           <div>Scene 0</div>
@@ -5589,11 +5526,7 @@ describe('DirectScrollCineView', () => {
 
     const { container } = render(
       <DirectScrollCineView designWidth={750} mode="scroll" callbacks={{ onZoneProgress }}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={1000} scroll={{ zoneId: 'zone-0' }}>
           <ScrollBudgetProbe animateId="anim-0" />
           <div>Scene 0</div>
         </TestScene>
@@ -5635,11 +5568,7 @@ describe('DirectScrollCineView', () => {
         <TestScene sceneId="scene-0" sceneHeight={1000}>
           <div>Scene 0</div>
         </TestScene>
-        <TestScene
-          sceneId="scene-1"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-1" sceneHeight={1000} scroll={{ zoneId: 'zone-1' }}>
           <ScrollBudgetProbe animateId="anim-1" />
           <div>Scene 1</div>
         </TestScene>
@@ -5680,7 +5609,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-1',
-              trigger: 'center-lock',
             }}
           >
             <ScrollBudgetProbe animateId="anim-1" />
@@ -5723,7 +5651,6 @@ describe('DirectScrollCineView', () => {
             sceneHeight={1000}
             scroll={{
               zoneId: 'zone-0',
-              trigger: 'center-lock',
             }}
           >
             <ScrollBudgetProbe animateId="anim-0" />
@@ -5751,11 +5678,7 @@ describe('DirectScrollCineView', () => {
   it('publishes takeover progress through context to scroll-driven descendants', async () => {
     const { container } = render(
       <DirectScrollCineView designWidth={750}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={1000} scroll={{ zoneId: 'zone-0' }}>
           <ScrollBudgetProbe animateId="anim-0" />
           <ZoneProgressProbe zoneId="zone-0" />
         </TestScene>
@@ -5802,7 +5725,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -5840,11 +5763,7 @@ describe('DirectScrollCineView', () => {
   it('releases the active takeover state when native scroll moves the real container away from the anchor', async () => {
     const { container } = render(
       <DirectScrollCineView designWidth={750}>
-        <TestScene
-          sceneId="scene-0"
-          sceneHeight={1000}
-          scroll={{ zoneId: 'zone-0', trigger: 'center-lock' }}
-        >
+        <TestScene sceneId="scene-0" sceneHeight={1000} scroll={{ zoneId: 'zone-0' }}>
           <ScrollBudgetProbe animateId="anim-0" />
           <ZoneActiveProbe zoneId="zone-0" />
           <ZoneProgressProbe zoneId="zone-0" />
@@ -5894,7 +5813,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -5940,7 +5859,7 @@ describe('DirectScrollCineView', () => {
           sceneHeight={1000}
           layout={{ overlap: 'cover' }}
           transition={{ enterAnimation: 'fade-in' }}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
         >
           <SceneRuntimeProbe sceneId="scene-1" />
           <Animate animateId="scene-1-hero" enterAnimation="fade-in">
@@ -5979,7 +5898,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="anim-1" />
@@ -6053,7 +5972,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-1' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ZoneActiveProbe zoneId="zone-1" />
@@ -6146,7 +6065,6 @@ describe('DirectScrollCineView', () => {
             sceneId="scene-0"
             scroll={{
               zoneId: 'zone-0',
-              trigger: 'center-lock',
             }}
           >
             <ScrollBudgetProbe animateId="anim-0" />
@@ -6183,7 +6101,7 @@ describe('DirectScrollCineView', () => {
         <TestScene
           sceneId="scene-1"
           sceneHeight={1000}
-          scroll={{ zoneId: 'zone-slow', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'zone-slow' }}
           sceneRuntime={{ sceneIndex: 1 }}
         >
           <ScrollBudgetProbe animateId="slow-anim" enterDuration={240} />
@@ -6363,7 +6281,7 @@ describe('DirectScrollCineView', () => {
           <TestScene
             sceneId="scene-1"
             sceneHeight={1000}
-            scroll={{ zoneId: 'zone-mid', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'zone-mid' }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
             <ScrollBudgetProbe animateId="mid-anim" enterDuration={400} />
@@ -6373,7 +6291,7 @@ describe('DirectScrollCineView', () => {
           <TestScene
             sceneId="scene-2"
             sceneHeight={1000}
-            scroll={{ zoneId: 'zone-target', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'zone-target' }}
             sceneRuntime={{ sceneIndex: 2 }}
           >
             <ScrollBudgetProbe animateId="target-anim" enterDuration={100} />
@@ -6537,7 +6455,7 @@ describe('DirectScrollCineView', () => {
           <TestScene
             sceneId="scene-1"
             sceneHeight={1000}
-            scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'zone-1' }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
             <ScrollBudgetProbe animateId="resize-anim" enterDuration={100} />

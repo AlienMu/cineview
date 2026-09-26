@@ -1,6 +1,6 @@
 # Cineview architecture
 
-This document describes the current implementation of Cineview 1.0.0 for contributors.
+This document describes the current implementation of Cineview 0.0.1-beta for contributors.
 Use the [public types](./src/types/index.ts) for exact property names and unions,
 and the [documentation](./site/src/content/docs/en/getting-started/01-introduction.md) for application examples.
 Historical reviews record earlier states; they do not override the current source.
@@ -70,7 +70,9 @@ snapshot for consumers.
 ## Drag mode
 
 Users move between scenes with pointer gestures, supported keyboard input, or
-`goToScene`. Scene transition progress and element animation elapsed time are
+`goToScene`. Each navigation frame remains one viewport high. `Scene.layout.height`
+only sizes the inner content box; it cannot change the full-screen navigation
+height or add native vertical scrolling. Scene transition progress and element animation elapsed time are
 related but distinct. A scene can have no element animation and still transition;
 an element's authored duration must not become the scene transition duration.
 
@@ -91,6 +93,19 @@ Check normalization in the implementation rather than inferring a unit from a
 number. Callback ordering follows official scene arrival and departure; a
 candidate preview must not be reported as a committed scene change.
 
+Release decisions use recent pointer velocity, not acceleration. A native pointer
+sample older than 100ms is treated as stationary at release, so a held gesture
+does not retain a previous flick or reversal. This matches Motion's velocity
+window. With default thresholds, a stationary release needs more than 30% of the
+viewport length; a release at 1000px/s or faster needs more than 15%.
+
+When children are reordered, explicit React keys identify their Scenes; `sceneId`
+is the fallback identity, followed by position for unlabelled Scenes. Reconcile
+the active index before committing the virtualized neighbor window so a retained
+Scene keeps its local content. Programmatic navigation completion uses its
+configured duration and current callbacks; unrelated parent renders do not
+restart the completion timer.
+
 Only the active scene should expose interactive content to assistive technology.
 Neighboring scenes may remain mounted for smooth movement and preloading. Their
 presence in the DOM does not make them active.
@@ -102,10 +117,15 @@ so wheel, keyboard, touch, scrollbar, and imperative navigation must produce
 consistent scene and zone state. Scroll mode does not reuse drag thresholds or
 drag release state.
 
-A Scene with a valid `scroll={{ zoneId, trigger: 'center-lock' }}` declaration
+A Scene with a valid `scroll={{ zoneId }}` declaration
 adds a local animation interval. Its authored scene-driven duration determines
 the additional real scroll distance: one millisecond equals one CSS pixel.
 Viewport height and `designWidth` do not rescale that duration budget.
+
+Declaring `scroll` enables the single center-lock behavior. There is no root
+`zoneTrigger` or Scene `trigger` option. `goToZone` targets the start of the zone;
+its only navigation option is `animated`. Child Animate elements always inherit
+the owning Scene's zone; there is no element-level zone override.
 
 [sceneScrollBudget](./src/components/Scene/sceneScrollBudget.ts) derives the budget
 from registered animations. [useScrollZoneRegistry](./src/components/Cineview/useScrollZoneRegistry.ts)
@@ -123,8 +143,10 @@ when application content changes dimensions. The scroll ref adds `goToZone` to
 the shared navigation API; use an existing registered zone identifier.
 
 A `Position fixed` element belongs to its Scene and is clipped to that Scene's
-visible area. Place cross-scene navigation and persistent application controls
-outside `Cineview`.
+visible area. In a locked zone, the Scene shell supplies sticky positioning;
+fixed children keep the center-lock coordinate when zone activity ends. Scene
+transition timing continues to use its own scroll offset. Place cross-scene
+navigation and persistent application controls outside `Cineview`.
 
 ## Animation timing
 
@@ -135,7 +157,18 @@ create two writers for one property.
 
 Animation duration and delay contribute to the scene-driven timing bounds.
 Dependency references are resolved through the Scene animation registry. Cycles
-are invalid. Preserve initial frames while authored variants are still pending;
+are invalid. `after` waits for the predecessor's entrance completion, then adds
+the follower's delay; it does not wait for an exit or loop. For a phased scroll
+animation, the effective entrance interval determines this completion.
+
+Scroll phase fractions and dependency offsets are solved together for a finite
+zone budget. Every entrance must have a reachable interval of at least 1px; a
+phased exit also needs at least 1px after its entrance. A follower's phase cannot
+start before its dependency and delay. If a phase makes these constraints
+impossible, report `INVALID_ANIMATION` and ignore that phase while retaining
+duration, delay, and dependencies. Compute this only when registrations change.
+
+Preserve initial frames while authored variants are still pending;
 an unresolved declaration is not an instruction to display the final frame.
 
 Manual animation controls and automatic triggers share the existing control
@@ -227,18 +260,16 @@ verify the resulting state as well as whether cleanup functions were called.
 
 [package.json](./package.json) defines the published surface. The root entry
 supports ESM and CommonJS. The `cineview/drag` and `cineview/scroll` subpaths expose
-CommonJS entries in 1.0.0. `cineview/dev` exposes an ESM development panel, with
+CommonJS entries. `cineview/dev` exposes an ESM development panel, with
 its stylesheet imported separately from `cineview/dev/style.css`.
 
-The root `debug` prop displays that panel in either mode and starts the existing
-page-level performance sampler. The built-in panel loads on demand with its
-styles. Scroll mode also exposes layout diagnostics while `debug` is true.
-`monitor` enables sampling without displaying a panel. Both flags share the
-existing acquisition and cleanup rules.
+`monitor` starts the page-level performance sampler. Applications can render
+`PerfPanel` from `cineview/dev` and import its stylesheet when they need an
+on-page display. Scroll mode exposes layout diagnostics while `debug` is true;
+`debug` does not start sampling or render the panel.
 
-ESM keeps the panel in optional chunks. Single-file UMD includes the panel and its
-styles, adding a 4 KB allowance to the full and scroll entry gzip budgets (60 KB
-and 54 KB). The drag entry remains within its existing 50 KB budget. Build
+The development panel has a separate ESM entry. The full and scroll UMD entries
+have gzip budgets of 62 KB and 54 KB; the drag entry has a 50 KB budget. Build
 verification reads these limits from `scripts/build-all.mjs`.
 
 React, React DOM, and Framer Motion are peer dependencies. The library build
@@ -246,8 +277,9 @@ keeps them external. Build verification checks declared entries, types, assets,
 and package contents. Tests and acceptance evidence remain in the repository and
 are excluded from the npm package by the files allowlist.
 
-The root, site, minimal example, and performance example have separate lockfiles.
-Install and audit all four. A clean root audit says nothing about vulnerabilities
+The root, site, and minimal example have separate lockfiles.
+Install and audit all three. Production browser fixtures live in `site/src/acceptance`
+and have an independent build entry that imports `dist/cineview.es.mjs`. A clean root audit says nothing about vulnerabilities
 in another project's lockfile. See [Contributing](./CONTRIBUTING.md) for development
 versions and deployment commands, and [release records](./RELEASING.md) for artifact
 correspondence.

@@ -47,6 +47,48 @@ describe('useNativePointerDrag', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
+  it.each([
+    ['x', 10, 1],
+    ['x', 250, 1],
+    ['x', 10, -1],
+    ['x', 250, -1],
+    ['y', 10, 1],
+    ['y', 250, 1],
+    ['y', 10, -1],
+    ['y', 250, -1],
+  ] as const)('expires held release velocity on %s after %ims (sign %i)', (axis, pauseMs, sign) => {
+    let timestamp = 0;
+    const performanceNow = jest.spyOn(performance, 'now').mockImplementation(() => timestamp);
+    const onEnd = jest.fn();
+    const { getByTestId } = render(
+      <Harness axis={axis} onStart={() => true} onPan={jest.fn()} onEnd={onEnd} />
+    );
+    const surface = getByTestId('surface');
+    const pointer = (type: 'pointerDown' | 'pointerMove' | 'pointerUp', position: number): void => {
+      const event = createEvent[type](surface);
+      Object.entries({
+        pointerId: 72,
+        button: 0,
+        isPrimary: true,
+        clientX: axis === 'x' ? position : 100,
+        clientY: axis === 'y' ? position : 100,
+      }).forEach(([key, value]) => Object.defineProperty(event, key, { value }));
+      fireEvent(surface, event);
+    };
+    try {
+      pointer('pointerDown', 100);
+      timestamp = 10;
+      pointer('pointerMove', 100 + sign * 2);
+      timestamp = 20;
+      pointer('pointerMove', 100 + sign * 22);
+      timestamp += pauseMs;
+      pointer('pointerUp', 100 + sign * 22);
+      expect(onEnd).toHaveBeenCalledTimes(1);
+      expect(onEnd.mock.calls[0][1].velocity[axis]).toBe(pauseMs === 250 ? 0 : sign * 2000);
+    } finally {
+      performanceNow.mockRestore();
+    }
+  });
   it('does not resume when candidate suspension reports no in-flight continuation', () => {
     const onCandidateStart = jest.fn(() => false);
     const onCandidateEnd = jest.fn();

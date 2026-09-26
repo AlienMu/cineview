@@ -155,12 +155,12 @@ try {
       assert.equal(await frame.locator('[role="status"]').textContent(), '1 / 5');
       await frame.locator('[data-cineview-container]').focus();
       await frame.locator('[data-cineview-container]').press('End');
-      await painted(frame.locator('.s05-actions'));
+      await painted(frame.locator('.s05-the-end'));
       await painted(page.locator('.scene5-cinema__cta'));
       assert.equal(await frame.locator('[role="status"]').textContent(), '5 / 5');
       for (const locator of [
         page.locator('.scene5-cinema__text-col'),
-        frame.locator('.s05-actions'),
+        frame.locator('.s05-the-end'),
       ]) {
         const geometry = await fits(locator);
         assert(geometry.fits, JSON.stringify(geometry));
@@ -172,10 +172,10 @@ try {
       await frame.waitForFunction(() => document.documentElement.lang === 'en');
       assert(await frame.evaluate(() => window.acceptanceDocument === document));
       assert.equal(await frame.locator('[role="status"]').textContent(), '5 / 5');
-      await painted(frame.locator('.s05-actions'));
+      await painted(frame.locator('.s05-the-end'));
       for (const locator of [
         page.locator('.scene5-cinema__text-col'),
-        frame.locator('.s05-actions'),
+        frame.locator('.s05-the-end'),
       ]) {
         const geometry = await fits(locator);
         assert(geometry.fits, JSON.stringify(geometry));
@@ -183,12 +183,7 @@ try {
       await page.screenshot({
         path: new URL(`closing-en-${width}x${height}.png`, output).pathname,
       });
-      await newWindow(page, frame.locator('.s05-actions a').first(), /\/docs\/03-quickstart$/);
-      await newWindow(
-        page,
-        frame.locator('.s05-actions a').last(),
-        'https://github.com/AlienMu/cineview'
-      );
+      assert.equal(await frame.locator('.s05-curtain-call a, .s05-curtain-call button').count(), 0);
       await newWindow(page, page.locator('.scene5-cinema__btn--primary'), /\/docs\/03-quickstart$/);
       assert(await frame.evaluate(() => window.acceptanceDocument === document));
       await page.mouse.move(12, 200);
@@ -242,7 +237,7 @@ try {
   await painted(page.locator('.s01-title'));
   await page.locator('[data-cineview-container]').focus();
   await page.locator('[data-cineview-container]').press('End');
-  await painted(page.locator('.s05-actions'));
+  await painted(page.locator('.s05-the-end'));
   assert.equal(await page.locator('[role="status"]').textContent(), '5 / 5');
   await page.screenshot({ path: new URL('standalone-drag-closing.png', output).pathname });
   for (const fixture of ['horizontal-scroll', 'video-drag']) {

@@ -1,71 +1,93 @@
 ---
-title: Quickstart
+title: Quick start
 eyebrow: GETTING STARTED / QUICKSTART
 ---
 
-This example uses two scenes with drag navigation. Position places the titles, and `timeline.after` starts the subtitle after the main title.
+After [installation](/docs/02-installation), use either example as your application's `App.tsx`. Both use text and basic animations, with no image or video assets.
 
-## Complete example
+`Cineview` selects the interaction mode, `Scene` divides the content, and `Animate` defines how an element appears. Try both modes, then change their durations and order in the code.
+
+## Drag between scenes
+
+Drag upward in the example. The panel shows drag distance, the second scene's element time, and what happens if you pause before releasing. Pause at 20% and release to restore the page. Pause past 30% and release to change scenes. Drag down from the second scene to return.
+
+<!-- preview:drag -->
 
 ```tsx
-import { Cineview, Scene, Animate, Position } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 export default function App() {
   return (
-    <Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
-      <Scene
-        sceneId="hero"
-        layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
-      >
-        <Position at={{ x: 60, y: 200 }}>
-          <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 800 }}>
-            <h1>Act one</h1>
-          </Animate>
-        </Position>
-        <Position at={{ x: 60, y: 320 }}>
-          <Animate
-            animateId="subtitle"
-            enterAnimation="slide-up"
-            duration={{ enter: 600 }}
-            timeline={{ after: 'title' }}
-          >
-            <p>A subtitle that follows the title in</p>
-          </Animate>
-        </Position>
+    <Cineview mode="drag" unit="percent" scale={1}>
+      <Scene sceneId="intro" style={{ background: '#f5e8d8', padding: 40 }}>
+        <h1>Drag up to the next scene</h1>
       </Scene>
-      <Scene
-        sceneId="closing"
-        layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
-      >
-        <Position at={{ x: 60, y: 200 }}>
-          <Animate animateId="end-title" enterAnimation="fade-in" duration={{ enter: 800 }}>
-            <h1>Curtain</h1>
-          </Animate>
-        </Position>
+      <Scene sceneId="details" style={{ background: '#e8edf0', padding: 40 }}>
+        <Animate animateId="title" enterAnimation="fade-in"
+          duration={{ enter: 600 }} timeline={{ delay: 100 }}>
+          <h2>The title appears first</h2>
+        </Animate>
+        <Animate enterAnimation="slide-up" duration={{ enter: 400 }}
+          timeline={{ after: 'title', delay: 100 }}>
+          <p>The detail follows the title.</p>
+        </Animate>
       </Scene>
     </Cineview>
   );
 }
 ```
 
-## Key property reference
+The target title starts at 100ms and runs for 600ms. The detail uses `after: 'title'` with another 100ms delay, so it starts at 800ms and runs for 400ms. Total duration is 1200ms.
 
-- `designWidth={750}`: numeric design lengths scale by `viewportWidth / 750`. The default design width is 750.
-- `mode="drag"`: enables drag navigation, the default mode.
-- `direction="y"`: vertical gestures. Use `"x"` for horizontal gestures.
-- `transitionDuration={800}`: configures programmatic navigation with `ref.goToScene()`. Gesture timing uses the framework's separate timing rules.
-- `sceneId`: identifies a scene for `ref.preload()` and provides a fallback locked-zone identifier.
-- `layout.anchor: 'top-center'`: aligns the scene content. `overflow: 'hidden'` clips content outside its bounds.
-- `at={{ x: 60, y: 200 }}`: design-px coordinates, converted through `designWidth`.
-- `animateId` / `timeline.after: 'title'`: the subtitle begins after `title` enters. A missing target reports `INVALID_ANIMATION`; a cycle reports `CIRCULAR_DEPENDENCY`.
-- `duration={{ enter: 800 }}`: 800ms entrance.
+`unit="percent" scale={1}` maps drag distance to that timeline's percentage. At half distance, element time is 600ms: the title is still entering and the detail has not started. A committed release continues unfinished animation from this point; cancellation restores it.
 
-## Switching to scroll mode
+A fast release reduces the distance needed to change scenes, while a fast reversal cancels. See [Gestures and thresholds](/docs/02-gestures) for the complete decision rules.
 
-Set `mode="scroll"`, remove the drag-only `transitionDuration` prop, and add `scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}` to the target scene. Its animations then follow scroll distance at `1ms = 1px`. Add `scrollbar={{}}` to display the optional scrollbar in scroll mode. See [Selecting a mode](/docs/04-choosing-mode) and [Center-lock](/docs/01-centerlock).
+## Advance animations by scrolling
 
-## Next steps
+The first and last scenes contain ordinary page content; the middle scene declares `scroll`. The first title fades in over time even without scrolling. The middle animations follow scroll position: stop to hold the frame, or scroll up to reverse.
 
-- [Cineview reference](/docs/01-cineview): all root props and ref methods.
-- [Scene reference](/docs/02-scene): layout, transitions, and assets.
-- [Animate reference](/docs/03-animate): timeline inference, enterRef/exitRef, stagger.
+<!-- preview:scroll -->
+
+```tsx
+import { Animate, Cineview, Scene } from 'cineview';
+
+export default function App() {
+  return (
+    <Cineview mode="scroll">
+      <Scene sceneId="intro" layout={{ height: '100vh' }}
+        style={{ background: '#f5e8d8', padding: 40 }}>
+        <Animate enterAnimation="fade-in" duration={{ enter: 1400 }}
+          timeline={{ driver: 'clock' }}>
+          <h1>The title fades in without scrolling</h1>
+        </Animate>
+      </Scene>
+      <Scene sceneId="details" scroll={{}}
+        layout={{ height: '100vh' }} style={{ background: '#e8edf0', padding: 40 }}>
+        <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
+          <h2>Keep scrolling to reveal the title</h2>
+        </Animate>
+        <Animate enterAnimation="slide-up" duration={{ enter: 400 }}
+          timeline={{ after: 'title', delay: 100 }}>
+          <p>Scroll farther to reveal the detail.</p>
+        </Animate>
+      </Scene>
+      <Scene sceneId="outro" layout={{ height: '100vh' }}
+        style={{ background: '#f5e8d8', padding: 40 }}>
+        <h2>Keep reading</h2>
+      </Scene>
+    </Cineview>
+  );
+}
+```
+
+`scroll={{}}` creates a locked zone using the Scene's identifier. The title takes 600px of scrolling, followed by a 100px delay and the detail's 400px entrance: 1100px in total. One millisecond corresponds to one pixel of real scroll distance.
+
+`driver: 'clock'` makes the first title play independently over time. It can be omitted in an ordinary Scene; writing it explicitly distinguishes the two playback behaviors. Clock animations do not add to the locked zone's scroll distance.
+
+## Continue learning
+
+- [Modes and animation progress](/docs/01-modes): how dragging, scrolling, and time advance the same animation.
+- [Animation composition and sequencing](/docs/04-orchestration): arrange elements through `after` dependencies.
+- [Control video with drag and scroll](/docs/11-video-timeline): add video in an advanced example.
+- [Cineview reference](/docs/01-cineview): look up configuration and event notifications.

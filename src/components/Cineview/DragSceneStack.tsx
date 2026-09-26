@@ -15,6 +15,7 @@ import type {
   PreparedSceneSnapshot,
 } from '../Scene/dragPreparedState';
 import { useIsomorphicLayoutEffect } from '../../utils/useIsomorphicLayoutEffect';
+import { getSceneIdentity } from './directScrollHelpers';
 
 type DragSceneAuthoringCompatProps = SceneProps & {
   slideDirection?: 'x' | 'y';
@@ -126,6 +127,303 @@ function DragSceneFrame({
   );
 }
 
+interface DragSceneSlotProps {
+  scene: React.ReactElement;
+  index: number;
+  currentScene: number;
+  totalScenes: number;
+  mode: ScrollMode;
+  dragConfig?: DragModeConfig;
+  dragProgress: number;
+  dragTimelineProgress: number;
+  renderProgress: number;
+  renderProgressMotion: MotionValue<number>;
+  timelineProgressMotion: MotionValue<number>;
+  isDragging: boolean;
+  sharedTimelineDurationMs: number;
+  dragRelease: DragRelease | null;
+  sceneActivations: ReadonlyMap<number, SceneActivationRecord>;
+  firstSceneEnterActive: boolean;
+  firstSceneEnterReady: boolean;
+  direction: 'forward' | 'backward' | null;
+  isAnimating: boolean;
+  viewportWidth: number;
+  viewportHeight: number;
+  sceneActions: SceneManagerActions;
+  sceneWrapperRefs: MutableRefObject<Array<HTMLDivElement | null>>;
+  renderLaneRef: MutableRefObject<DragRenderLane | null>;
+  takeoverSnapshot: MutableRefObject<DragTakeoverSnapshot | null>;
+  candidateSuspended: boolean;
+  onCandidateSuspensionChange: (suspended: boolean) => boolean;
+  onElementContinuationChange: (sceneIndex: number, active: boolean) => void;
+  onPointerSessionStart: () => void;
+  dragTransaction: DragSceneTransaction | null;
+  onPrepared: (snapshot: PreparedSceneSnapshot) => void;
+  onPreparedInvalidated: (invalidation: PreparedSceneInvalidation) => void;
+  onOwnershipRequest: (direction: 'forward' | 'backward') => boolean;
+  onSceneChange: (
+    direction: 'forward' | 'backward',
+    progressRatio?: number,
+    committedElapsedMs?: number,
+    timelineDuration?: number
+  ) => void;
+  onDragProgressChange: (progress: number) => void;
+  onRenderProgressChange?: (progress: number) => void;
+  onDragTimelineProgressChange: (progress: number) => void;
+  onDraggingChange: (dragging: boolean) => void;
+  onSharedTimelineDurationChange: (duration: number) => void;
+  onDragRelease: (release: DragReleaseInput | null) => void;
+  onDragReset: () => void;
+  onTransactionComplete: (transactionId: symbol) => void;
+  onFirstSceneEnterComplete: () => void;
+}
+
+const DragSceneSlot = React.memo(function DragSceneSlot({
+  scene,
+  index,
+  currentScene,
+  totalScenes,
+  mode,
+  dragConfig,
+  dragProgress,
+  dragTimelineProgress,
+  renderProgress,
+  renderProgressMotion,
+  timelineProgressMotion,
+  isDragging,
+  sharedTimelineDurationMs,
+  dragRelease,
+  sceneActivations,
+  firstSceneEnterActive,
+  firstSceneEnterReady,
+  direction,
+  isAnimating,
+  viewportWidth,
+  viewportHeight,
+  sceneActions,
+  sceneWrapperRefs,
+  renderLaneRef,
+  takeoverSnapshot,
+  candidateSuspended,
+  onCandidateSuspensionChange,
+  onElementContinuationChange,
+  onPointerSessionStart,
+  dragTransaction,
+  onPrepared,
+  onPreparedInvalidated,
+  onOwnershipRequest,
+  onSceneChange,
+  onDragProgressChange,
+  onRenderProgressChange,
+  onDragTimelineProgressChange,
+  onDraggingChange,
+  onSharedTimelineDurationChange,
+  onDragRelease,
+  onDragReset,
+  onTransactionComplete,
+  onFirstSceneEnterComplete,
+}: DragSceneSlotProps): React.ReactElement | null {
+  const isCurrent = index === currentScene;
+  const sceneProps = scene.props as DragSceneAuthoringCompatProps;
+  const slideDirection = dragConfig?.direction ?? sceneProps.slideDirection ?? 'y';
+  const dragMappingConfig = resolveDragTimelineConfig(dragConfig, sceneProps.drag);
+  const scenePosition: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+  };
+
+  if (mode === 'drag') {
+    scenePosition.visibility = 'visible';
+    scenePosition.opacity = 1;
+    const isTransitionInFlight = isDragging || isAnimating || dragTransaction !== null;
+    scenePosition.pointerEvents = isCurrent || isTransitionInFlight ? 'auto' : 'none';
+    scenePosition.contentVisibility = 'visible';
+    scenePosition.transition = 'none';
+    scenePosition.zIndex = isCurrent ? 10 : 1;
+  } else {
+    const backwardReveal =
+      isAnimating &&
+      direction === 'backward' &&
+      (index === currentScene || index === currentScene + 1);
+    const forwardStack =
+      isAnimating &&
+      direction === 'forward' &&
+      (index === currentScene || index === currentScene - 1);
+    const shouldShow = isCurrent || backwardReveal || forwardStack;
+    scenePosition.visibility = shouldShow ? 'visible' : 'hidden';
+    scenePosition.contentVisibility = shouldShow ? 'visible' : 'hidden';
+    scenePosition.zIndex = isAnimating
+      ? direction === 'backward'
+        ? index === currentScene + 1
+          ? 2
+          : index === currentScene
+            ? 1
+            : 0
+        : index === currentScene
+          ? 2
+          : index === currentScene - 1
+            ? 1
+            : 0
+      : isCurrent
+        ? 1
+        : 0;
+  }
+
+  const sceneTransaction = dragTransaction?.targetSceneIndex === index ? dragTransaction : null;
+
+  const handleActivationComplete = React.useCallback((): void => {
+    if (index === 0 && firstSceneEnterActive) {
+      onFirstSceneEnterComplete();
+    } else {
+      sceneActions.completeDragTransition();
+    }
+    if (sceneTransaction?.phase === 'settling') {
+      onTransactionComplete(sceneTransaction.transactionId);
+    }
+  }, [
+    firstSceneEnterActive,
+    index,
+    onFirstSceneEnterComplete,
+    onTransactionComplete,
+    sceneActions,
+    sceneTransaction,
+  ]);
+
+  const handleElementContinuationChange = React.useCallback(
+    (active: boolean): void => {
+      onElementContinuationChange(index, active);
+    },
+    [index, onElementContinuationChange]
+  );
+
+  const clonedScene = React.useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return React.cloneElement<any>(scene, {
+      sceneRuntime: {
+        mode,
+        direction: slideDirection,
+        isActive: isCurrent,
+        sceneIndex: index,
+        totalScenes,
+        currentSceneIndex: currentScene,
+        transitionDirection: direction,
+        isSceneAnimating: isAnimating,
+        sharedTimelineDurationMs,
+        activationToken: sceneActivations.get(index)?.token ?? 0,
+        activationKind: sceneActivations.get(index)?.kind ?? null,
+        viewportWidth,
+        viewportHeight,
+        firstSceneEnterActive: firstSceneEnterActive && index === 0,
+        firstSceneEnterReady: firstSceneEnterReady && index === 0,
+      },
+      dragRuntime: {
+        progress: dragProgress,
+        renderProgress,
+        timelineProgress: dragTimelineProgress,
+        renderProgressMotion,
+        timelineProgressMotion,
+        isDragging,
+        release: dragRelease,
+        threshold: dragConfig?.threshold,
+        dragMappingConfig,
+        transaction: sceneTransaction,
+        onPrepared,
+        onPreparedInvalidated,
+        onOwnershipRequest,
+        candidateSuspended,
+        onCandidateSuspensionChange,
+        takeoverSnapshot,
+        onElementContinuationChange: handleElementContinuationChange,
+        onPointerSessionStart,
+        renderLane: renderLaneRef,
+        onCommit: onSceneChange,
+        onReset: onDragReset,
+        onActivationComplete: handleActivationComplete,
+        onTransactionComplete,
+        onProgressChange: onDragProgressChange,
+        onRenderProgressChange,
+        onTimelineProgressChange: onDragTimelineProgressChange,
+        onDraggingChange,
+        onRelease: onDragRelease,
+        onSharedTimelineDurationChange,
+      },
+      onSceneChange,
+    });
+  }, [
+    scene.type,
+    scene.key,
+    mode,
+    slideDirection,
+    isCurrent,
+    index,
+    totalScenes,
+    currentScene,
+    direction,
+    isAnimating,
+    sharedTimelineDurationMs,
+    sceneActivations,
+    viewportWidth,
+    viewportHeight,
+    firstSceneEnterActive,
+    firstSceneEnterReady,
+    dragProgress,
+    renderProgress,
+    dragTimelineProgress,
+    renderProgressMotion,
+    timelineProgressMotion,
+    isDragging,
+    dragRelease,
+    dragConfig,
+    dragMappingConfig,
+    sceneTransaction,
+    onPrepared,
+    onPreparedInvalidated,
+    onOwnershipRequest,
+    candidateSuspended,
+    onCandidateSuspensionChange,
+    takeoverSnapshot,
+    handleElementContinuationChange,
+    onPointerSessionStart,
+    renderLaneRef,
+    onSceneChange,
+    onDragReset,
+    handleActivationComplete,
+    onTransactionComplete,
+    onDragProgressChange,
+    onRenderProgressChange,
+    onDragTimelineProgressChange,
+    onDraggingChange,
+    onDragRelease,
+    onSharedTimelineDurationChange,
+  ]);
+
+  return mode === 'drag' ? (
+    <DragSceneFrame
+      index={index}
+      currentScene={currentScene}
+      totalScenes={totalScenes}
+      direction={slideDirection}
+      renderProgressMotion={renderProgressMotion}
+      style={scenePosition}
+      sceneWrapperRefs={sceneWrapperRefs}
+    >
+      {clonedScene}
+    </DragSceneFrame>
+  ) : (
+    <div
+      ref={(node) => {
+        sceneWrapperRefs.current[index] = node;
+      }}
+      style={scenePosition}
+      data-scene-index={index}
+    >
+      {clonedScene}
+    </div>
+  );
+});
+
 export function DragSceneStack({
   scenes,
   visibleSceneIndices,
@@ -176,148 +474,53 @@ export function DragSceneStack({
       {scenes.map((scene, index) => {
         if (!visibleSceneIndices.has(index)) return null;
 
-        const isCurrent = index === currentScene;
-        const sceneProps = scene.props as DragSceneAuthoringCompatProps;
-        const slideDirection = dragConfig?.direction ?? sceneProps.slideDirection ?? 'y';
-        const dragMappingConfig = resolveDragTimelineConfig(dragConfig, sceneProps.drag);
-        const scenePosition: React.CSSProperties = {
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-        };
-
-        if (mode === 'drag') {
-          scenePosition.visibility = 'visible';
-          scenePosition.opacity = 1;
-          // D-F7 rush re-grab: while a transition is in flight the page is
-          // mid-slide, so the touch point usually falls on the INCOMING scene.
-          const isTransitionInFlight = isDragging || isAnimating || dragTransaction !== null;
-          scenePosition.pointerEvents = isCurrent || isTransitionInFlight ? 'auto' : 'none';
-          scenePosition.contentVisibility = 'visible';
-          scenePosition.transition = 'none';
-          scenePosition.zIndex = isCurrent ? 10 : 1;
-        } else {
-          const backwardReveal =
-            isAnimating &&
-            direction === 'backward' &&
-            (index === currentScene || index === currentScene + 1);
-          const forwardStack =
-            isAnimating &&
-            direction === 'forward' &&
-            (index === currentScene || index === currentScene - 1);
-          const shouldShow = isCurrent || backwardReveal || forwardStack;
-          scenePosition.visibility = shouldShow ? 'visible' : 'hidden';
-          scenePosition.contentVisibility = shouldShow ? 'visible' : 'hidden';
-          scenePosition.zIndex = isAnimating
-            ? direction === 'backward'
-              ? index === currentScene + 1
-                ? 2
-                : index === currentScene
-                  ? 1
-                  : 0
-              : index === currentScene
-                ? 2
-                : index === currentScene - 1
-                  ? 1
-                  : 0
-            : isCurrent
-              ? 1
-              : 0;
-        }
-
-        const sceneTransaction =
-          dragTransaction?.targetSceneIndex === index ? dragTransaction : null;
-        const handleActivationComplete = (): void => {
-          if (index === 0 && firstSceneEnterActive) {
-            onFirstSceneEnterComplete();
-          } else {
-            sceneActions.completeDragTransition();
-          }
-          if (sceneTransaction?.phase === 'settling') {
-            onTransactionComplete(sceneTransaction.transactionId);
-          }
-        };
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const clonedScene = React.cloneElement<any>(scene, {
-          sceneRuntime: {
-            mode,
-            direction: slideDirection,
-            isActive: isCurrent,
-            sceneIndex: index,
-            totalScenes: scenes.length,
-            currentSceneIndex: currentScene,
-            transitionDirection: direction,
-            isSceneAnimating: isAnimating,
-            sharedTimelineDurationMs,
-            activationToken: sceneActivations.get(index)?.token ?? 0,
-            activationKind: sceneActivations.get(index)?.kind ?? null,
-            viewportWidth,
-            viewportHeight,
-            firstSceneEnterActive: firstSceneEnterActive && index === 0,
-            firstSceneEnterReady: firstSceneEnterReady && index === 0,
-          },
-          dragRuntime: {
-            progress: dragProgress,
-            renderProgress,
-            timelineProgress: dragTimelineProgress,
-            renderProgressMotion,
-            timelineProgressMotion,
-            isDragging,
-            release: dragRelease,
-            threshold: dragConfig?.threshold,
-            dragMappingConfig,
-            transaction: sceneTransaction,
-            onPrepared,
-            onPreparedInvalidated,
-            onOwnershipRequest,
-            candidateSuspended,
-            onCandidateSuspensionChange,
-            takeoverSnapshot,
-            onElementContinuationChange: (active: boolean): void => {
-              onElementContinuationChange(index, active);
-            },
-            onPointerSessionStart,
-            renderLane: renderLaneRef,
-            onCommit: onSceneChange,
-            onReset: onDragReset,
-            onActivationComplete: handleActivationComplete,
-            onTransactionComplete,
-            onProgressChange: onDragProgressChange,
-            onRenderProgressChange,
-            onTimelineProgressChange: onDragTimelineProgressChange,
-            onDraggingChange,
-            onRelease: onDragRelease,
-            onSharedTimelineDurationChange,
-          },
-          onSceneChange,
-        });
-
-        return mode === 'drag' ? (
-          <DragSceneFrame
-            key={index}
+        return (
+          <DragSceneSlot
+            key={getSceneIdentity(scene, index)}
+            scene={scene}
             index={index}
             currentScene={currentScene}
             totalScenes={totalScenes}
-            direction={slideDirection}
+            mode={mode}
+            dragConfig={dragConfig}
+            dragProgress={dragProgress}
+            dragTimelineProgress={dragTimelineProgress}
+            renderProgress={renderProgress}
             renderProgressMotion={renderProgressMotion}
-            style={scenePosition}
+            timelineProgressMotion={timelineProgressMotion}
+            isDragging={isDragging}
+            sharedTimelineDurationMs={sharedTimelineDurationMs}
+            dragRelease={dragRelease}
+            sceneActivations={sceneActivations}
+            firstSceneEnterActive={firstSceneEnterActive}
+            firstSceneEnterReady={firstSceneEnterReady}
+            direction={direction}
+            isAnimating={isAnimating}
+            viewportWidth={viewportWidth}
+            viewportHeight={viewportHeight}
+            sceneActions={sceneActions}
             sceneWrapperRefs={sceneWrapperRefs}
-          >
-            {clonedScene}
-          </DragSceneFrame>
-        ) : (
-          <div
-            key={index}
-            ref={(node) => {
-              sceneWrapperRefs.current[index] = node;
-            }}
-            style={scenePosition}
-            data-scene-index={index}
-          >
-            {clonedScene}
-          </div>
+            renderLaneRef={renderLaneRef}
+            takeoverSnapshot={takeoverSnapshot}
+            candidateSuspended={candidateSuspended}
+            onCandidateSuspensionChange={onCandidateSuspensionChange}
+            onElementContinuationChange={onElementContinuationChange}
+            onPointerSessionStart={onPointerSessionStart}
+            dragTransaction={dragTransaction}
+            onPrepared={onPrepared}
+            onPreparedInvalidated={onPreparedInvalidated}
+            onOwnershipRequest={onOwnershipRequest}
+            onSceneChange={onSceneChange}
+            onDragProgressChange={onDragProgressChange}
+            onRenderProgressChange={onRenderProgressChange}
+            onDragTimelineProgressChange={onDragTimelineProgressChange}
+            onDraggingChange={onDraggingChange}
+            onSharedTimelineDurationChange={onSharedTimelineDurationChange}
+            onDragRelease={onDragRelease}
+            onDragReset={onDragReset}
+            onTransactionComplete={onTransactionComplete}
+            onFirstSceneEnterComplete={onFirstSceneEnterComplete}
+          />
         );
       })}
     </>

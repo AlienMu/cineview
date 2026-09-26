@@ -212,12 +212,17 @@ export function useScrollSceneSnapshots({
         const isTakeoverScene = Boolean(scene.props.scroll);
         const isCurrent = sceneIndex === currentIndex || Boolean(sceneZoneState?.active);
         const isBackdropActive = scrollBackdropSceneIndex === sceneIndex;
-        const visualViewportOffset =
+        const sceneTimelineOffset =
           isTakeoverScene && sceneZoneState?.active && sceneLayout
             ? sceneLayout.centerLockOffset
             : nativeOffset;
+        // The locked Scene's shell already supplies sticky positioning. Its
+        // fixed children stay in that local frame when zone activity ends;
+        // switching them to nativeOffset would apply the zone distance again.
+        const visualViewportOffset =
+          isTakeoverScene && sceneLayout ? sceneLayout.centerLockOffset : nativeOffset;
         const sceneTimelineState = sceneLayout
-          ? buildSceneTimelineState(sceneLayout, visualViewportOffset, viewportSpan)
+          ? buildSceneTimelineState(sceneLayout, sceneTimelineOffset, viewportSpan)
           : null;
         const rawTakeoverSpan =
           direction === 'x'

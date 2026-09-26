@@ -128,12 +128,38 @@ function CodeBlock({ children }: { children?: ReactNode }): React.JSX.Element {
 
 function MarkdownTable({ children }: { children?: ReactNode }): React.JSX.Element {
   const { lang } = useI18n();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const update = (): void => setHasOverflow(container.scrollWidth > container.clientWidth + 1);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    const table = container.querySelector('table');
+    if (table) observer.observe(table);
+    return (): void => observer.disconnect();
+  }, []);
+
   return (
     <div
+      ref={containerRef}
       className="docs-table"
+      data-overflow={hasOverflow}
       role="region"
-      aria-label={lang === 'zh' ? '数据表格，可横向滚动' : 'Data table, scroll horizontally'}
-      tabIndex={0}
+      aria-label={
+        lang === 'zh'
+          ? hasOverflow
+            ? '数据表格，可横向滚动'
+            : '数据表格'
+          : hasOverflow
+            ? 'Data table, scroll horizontally'
+            : 'Data table'
+      }
+      tabIndex={hasOverflow ? 0 : -1}
     >
       <table>{children}</table>
     </div>
@@ -167,6 +193,26 @@ const markdownComponents = {
 } as const;
 
 const DEFAULT_SLUG = '01-introduction';
+const PREVIEWS = {
+  drag: {
+    path: 'drag-basics',
+    label: 'Drag',
+    zh: '拖拽与元素时间线案例',
+    en: 'Drag and element timeline example',
+  },
+  scroll: {
+    path: 'scroll-basics',
+    label: 'Scroll',
+    zh: '常规入场与滚动时间线案例',
+    en: 'Clock entrance and scroll timeline example',
+  },
+  video: {
+    path: 'video-timeline',
+    label: 'AnimateVideo',
+    zh: '拖拽视频与文字编排案例',
+    en: 'Video and text timeline example',
+  },
+} as const;
 
 export default function DocsPage(): React.JSX.Element {
   const { slug } = useParams<{ slug?: string }>();
@@ -176,6 +222,7 @@ export default function DocsPage(): React.JSX.Element {
   const zh = lang === 'zh';
   const resolvedSlug = slug ?? DEFAULT_SLUG;
   const mdPage = getDocsPage(resolvedSlug, lang);
+  const contentParts = mdPage?.markdown.split(/<!-- preview:(drag|scroll|video) -->/) ?? [];
   const legacyTarget = !mdPage ? LEGACY_SLUG_MAP[resolvedSlug] : undefined;
   const headings = useMemo(() => (mdPage ? getDocHeadings(mdPage.markdown) : []), [mdPage]);
   const navigationDialog = useRef<HTMLDialogElement>(null);
@@ -295,13 +342,30 @@ export default function DocsPage(): React.JSX.Element {
                 </details>
               )}
               <div className="docs-article__markdown">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={markdownComponents}
-                >
-                  {mdPage.markdown}
-                </ReactMarkdown>
+                {contentParts.map((part, index) =>
+                  index % 2 === 1 ? (
+                    <div className="docs-interactive-preview" key={index}>
+                      <div className="docs-interactive-preview__header">
+                        <span>{zh ? '可操作案例' : 'Interactive example'}</span>
+                        <span>{PREVIEWS[part as keyof typeof PREVIEWS].label}</span>
+                      </div>
+                      <iframe
+                        src={`/__docs/${PREVIEWS[part as keyof typeof PREVIEWS].path}?lang=${lang}`}
+                        title={PREVIEWS[part as keyof typeof PREVIEWS][lang]}
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <ReactMarkdown
+                      key={index}
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={markdownComponents}
+                    >
+                      {part}
+                    </ReactMarkdown>
+                  )
+                )}
               </div>
               <DocsPager activeSlug={resolvedSlug} />
               <footer className="docs-article__footer">

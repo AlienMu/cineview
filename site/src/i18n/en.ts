@@ -17,7 +17,6 @@ export const en: Dict = {
   'hero.ctaStart': 'Get Started',
   'hero.ctaApi': 'API Reference',
   'hero.ctaGithub': 'GitHub',
-  'hero.scrollHint': 'Scroll down — the film starts rolling',
 
   // Act 2 Idea
   'idea.eyebrow': 'Why Cineview',
@@ -31,9 +30,9 @@ export const en: Dict = {
   'cap.tc.rec': 'REC',
 
   'cap.shot1.slate': 'SCENE TIMELINE',
-  'cap.shot1.title': 'Pick an entrance|like picking a shot',
+  'cap.shot1.title': 'Pick an entrance|try it in motion',
   'cap.shot1.intro':
-    'Forty-odd entrance presets built in — from fade to shake, swap with a single prop, never hand-writing a motion curve.',
+    'Fade, slide, or zoom with a preset. Add delays and set the order to reveal elements in sequence.',
   'cap.shot1.preset.fadeIn.title': 'Fade into view',
   'cap.shot1.preset.fadeIn.name': 'fade-in',
   'cap.shot1.preset.fadeIn.desc': 'Opacity rises from 0 to 1 — the simplest enter semantic.',
@@ -116,12 +115,18 @@ export const en: Dict = {
   'demoDrag.s4.title': '40+ animation presets',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur, freely composed',
 
-  // Homepage act 5: Cinema Entrance
-  'scene5.title': 'The demo ends here.',
-  'scene5.subtitle':
-    'This page uses scroll. The phone uses drag.\nBoth use the same scene components and animation timing API.',
+  // Homepage closing copy, outside the embedded /drag experience.
+  'scene5.title': 'There is another way to move through a scene',
+  'scene5.subtitle': 'Designed for mobile',
+  'scene5.dragLead': 'Drag toward the next scene. Its visuals and animations follow your gesture.',
+  'scene5.timelineDetail':
+    'Every element has a start point on the same timeline: the title begins at 100ms and runs for 600ms. The detail follows the title, waits another 100ms, and begins at 800ms.',
+  'scene5.releaseDetail':
+    'Commit the scene change, and the animation continues from where you let go. Drag past 800ms and the detail appears before release.',
+  'scene5.rulerTitle': '100ms · TITLE',
+  'scene5.rulerDetail': '800ms · DETAIL',
   'scene5.frameTitle': 'Cineview drag experience',
-  'scene5.dragHint': 'Try dragging',
+  'scene5.dragHint': 'DRAG',
 
   // ── Act 5 Capabilities ──
   'caps.eyebrow': 'Capabilities',
@@ -145,11 +150,9 @@ export const en: Dict = {
   'caps.6.desc':
     'Fixed layers stay within their scene — no cross-scene drift. Mount straight from Position with clear, controllable stacking.',
 
-  // ── Act 6 CTA / Footer ──
+  // Homepage closing action and footer.
   'cta.title': 'Build your first scene',
-  'cta.body':
-    'Bring your React content. Use Scene to organize it and Animate to sequence its entrances and exits.',
-  'cta.start': 'Read the docs',
+  'cta.start': 'Open the quickstart',
   'cta.github': 'View on GitHub',
   'footer.tagline': 'Cineview · Scenes and animation for React',
   'footer.docs': 'Docs',
@@ -171,7 +174,7 @@ export const en: Dict = {
   'demoVideo.intro':
     'From frame-by-frame,\nto a scroll of light and shadow —\nevery motion shares one rhythm;\nunlock the frame, and let the story play freely.',
   'demoVideo.code':
-    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
+    '<Scene scroll={{ zoneId: "hero-video" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc':
     'Scroll is the timeline: progress 0→1 maps to first frame→last, and scrolling back plays it in reverse.',
 
@@ -231,28 +234,23 @@ export const en: Dict = {
   'dragTemporal.s03.sub3': 'CONTROL',
   'dragTemporal.s03.sub4': 'PACE',
   'dragTemporal.s03.sub5': 'TIMING',
+  'dragTemporal.s04.title': 'The frame focuses on you',
   'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
   'dragTemporal.s04.footerHint': 'Drag distance becomes time',
   'dragTemporal.s04.rulerLabel': 'Drag progress ruler',
-  'dragTemporal.s05.actionsLabel': 'Final scene navigation',
-  'dragTemporal.s05.btnHome': 'Back to home',
-  'dragTemporal.s05.btnDocs': 'Read docs',
-  'dragTemporal.s05.btnGithub': 'GitHub',
-  'dragTemporal.s05.summary':
-    'Scenes, graphics, and video, composed with Cineview. The same components support drag and scroll.',
   'dragTemporal.s05.reelLabel': 'End of reel',
-  'dragTemporal.s05.creditsLabel': 'Built with Cineview',
+  'dragTemporal.s05.creditsLabel': 'Cineview curtain-call credits',
   'dragTemporal.s05.title': 'The lights come down.',
-  'dragTemporal.s05.director': 'Scenes',
-  'dragTemporal.s05.editor': 'Animation',
-  'dragTemporal.s05.cinematography': 'Input',
-  'dragTemporal.s05.performance': 'Video',
-  'dragTemporal.s05.starring': 'Custom visuals',
-  'dragTemporal.s05.sceneEngine': 'Scene',
-  'dragTemporal.s05.timeline': 'Animate + timeline',
-  'dragTemporal.s05.scrollDrag': 'scroll / drag',
-  'dragTemporal.s05.motionRuntime': 'AnimateVideo',
-  'dragTemporal.s05.yourStory': 'React + Canvas',
+  'dragTemporal.s05.director': 'DIRECTOR',
+  'dragTemporal.s05.editor': 'EDITOR',
+  'dragTemporal.s05.cinematography': 'CINEMATOGRAPHY',
+  'dragTemporal.s05.performance': 'MOTION PERFORMANCE',
+  'dragTemporal.s05.starring': 'STARRING',
+  'dragTemporal.s05.sceneEngine': 'Scene Engine',
+  'dragTemporal.s05.timeline': 'Unified Timeline',
+  'dragTemporal.s05.scrollDrag': 'Scroll + Drag',
+  'dragTemporal.s05.motionRuntime': 'Reversible Motion Runtime',
+  'dragTemporal.s05.yourStory': 'Your Story',
   'dragTemporal.s05.salute1': 'FRAME PERFECT',
   'dragTemporal.s05.salute2': 'YOURS TO DIRECT',
   'dragTemporal.s05.salute3': 'ONE CONTINUOUS TAKE',

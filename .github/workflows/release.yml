@@ -1,15 +1,4 @@
-# 发布专线 —— 由 `v*` tag 触发。
-#
-# 为什么浏览器验收在这里、而不在 `prepublishOnly` 里：
-# `prepublishOnly` 曾链到 `verify → verify:all → verify:framework → test:browser`，
-# 而 `examples/performance-test/acceptance-{drag,scroll}.mjs` 回落
-# `chromium.launch({ channel: 'chrome' })`，依赖是 `playwright-core`（不下载浏览器）。
-# 于是任何无 Chrome 的机器——包括所有 CI runner——都发不出这个包。
-# 现在 `prepublishOnly` 只跑无头安全的 `verify:framework:static`，
-# 真浏览器验收由本文件的 `browser-acceptance` job 在发布前门禁。
-#
-# 顺序是门禁关系：`browser-acceptance` 不过，`publish` 不跑。
-
+# Browser acceptance must pass before the npm publication job.
 name: Release
 
 on:
@@ -40,12 +29,10 @@ jobs:
             pnpm-lock.yaml
             site/pnpm-lock.yaml
             examples/minimal/pnpm-lock.yaml
-            examples/performance-test/pnpm-lock.yaml
       # These projects have separate lockfiles and are not a pnpm workspace.
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir site install --frozen-lockfile
       - run: pnpm --dir examples/minimal install --frozen-lockfile
-      - run: pnpm --dir examples/performance-test install --frozen-lockfile
       - run: pnpm docs:links
       - run: pnpm audit:all
       - id: chrome
@@ -58,7 +45,7 @@ jobs:
       - run: pnpm verify:browser-failure-injection
         env:
           CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
-      - run: pnpm --dir examples/performance-test profile:browser
+      - run: pnpm profile:browser
         env:
           CINEVIEW_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
 
@@ -82,13 +69,14 @@ jobs:
             pnpm-lock.yaml
             site/pnpm-lock.yaml
             examples/minimal/pnpm-lock.yaml
-            examples/performance-test/pnpm-lock.yaml
-          registry-url: https://registry.npmjs.org
       # These projects have separate lockfiles and are not a pnpm workspace.
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir site install --frozen-lockfile
       - run: pnpm --dir examples/minimal install --frozen-lockfile
-      - run: pnpm --dir examples/performance-test install --frozen-lockfile
+
+      # npm OIDC authentication requires npm >= 11.5.1. Keep the CLI version
+      # explicit instead of relying on the version bundled with Node.
+      - run: npm install --global npm@11.15.0
 
       # tag 与 package.json 必须一致，否则发出去的版本号与 tag 不符。
       - name: Assert tag matches package version
@@ -110,6 +98,7 @@ jobs:
           echo "CHANGELOG 已记录 $PKG"
 
       # `--provenance` 让 npm 记录该产物由哪次 workflow 构建。
-      - run: pnpm publish --no-git-checks --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish the selected release channel
+        run: |
+          RELEASE_CHANNEL=$(node -p "require('./package.json').version.includes('-') ? 'beta' : 'latest'")
+          npm publish --provenance --access public --tag "$RELEASE_CHANNEL" --registry https://registry.npmjs.org

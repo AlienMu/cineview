@@ -3,69 +3,91 @@ title: 快速上手
 eyebrow: GETTING STARTED / QUICKSTART
 ---
 
-这个示例用两个场景演示拖拽翻页。Position 放置标题，`timeline.after` 让副标题在主标题入场后开始。
+完成[安装](/docs/02-installation)后，将任一示例用作应用的 `App.tsx`。两个例子只使用文字和基础动画，不需要图片或视频素材。
 
-## 完整示例
+`Cineview` 选择交互模式，`Scene` 划分页面内容，`Animate` 描述元素怎样出现。先体验两种模式，再对照代码修改时长和顺序。
+
+## 拖拽切换场景
+
+在案例中向上拖动。底部显示拖拽比例、第二个场景的元素时间，以及停住后松手的结果。拖到 20% 后停住再松手会还原；超过 30% 后停住再松手会切换。到达第二个场景后，向下拖动可返回。
+
+<!-- preview:drag -->
 
 ```tsx
-import { Cineview, Scene, Animate, Position } from 'cineview';
+import { Animate, Cineview, Scene } from 'cineview';
 
 export default function App() {
   return (
-    <Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
-      <Scene
-        sceneId="hero"
-        layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
-      >
-        <Position at={{ x: 60, y: 200 }}>
-          <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 800 }}>
-            <h1>第一幕</h1>
-          </Animate>
-        </Position>
-        <Position at={{ x: 60, y: 320 }}>
-          <Animate
-            animateId="subtitle"
-            enterAnimation="slide-up"
-            duration={{ enter: 600 }}
-            timeline={{ after: 'title' }}
-          >
-            <p>跟着标题入场的副标题</p>
-          </Animate>
-        </Position>
+    <Cineview mode="drag" unit="percent" scale={1}>
+      <Scene sceneId="intro" style={{ background: '#f5e8d8', padding: 40 }}>
+        <h1>向上拖动，进入下一个场景</h1>
       </Scene>
-      <Scene
-        sceneId="closing"
-        layout={{ width: '100%', height: '100vh', anchor: 'top-center', overflow: 'hidden' }}
-      >
-        <Position at={{ x: 60, y: 200 }}>
-          <Animate animateId="end-title" enterAnimation="fade-in" duration={{ enter: 800 }}>
-            <h1>谢幕</h1>
-          </Animate>
-        </Position>
+      <Scene sceneId="details" style={{ background: '#e8edf0', padding: 40 }}>
+        <Animate animateId="title" enterAnimation="fade-in"
+          duration={{ enter: 600 }} timeline={{ delay: 100 }}>
+          <h2>标题先出现</h2>
+        </Animate>
+        <Animate enterAnimation="slide-up" duration={{ enter: 400 }}
+          timeline={{ after: 'title', delay: 100 }}>
+          <p>说明接在标题之后。</p>
+        </Animate>
       </Scene>
     </Cineview>
   );
 }
 ```
 
-## 核心参数解析
+目标场景的标题从 100ms 开始，持续 600ms。说明通过 `after: 'title'` 接在标题后，再延迟 100ms，从 800ms 开始，持续 400ms。总时长为 1200ms。
 
-- `designWidth={750}`：数值型设计长度按 `viewportWidth / 750` 换算，默认设计稿宽度为 750。
-- `mode="drag"`：启用拖拽导航，也是默认模式。
-- `direction="y"`：竖向手势；横向手势使用 `"x"`。
-- `transitionDuration={800}`：配置 `ref.goToScene()` 的程序化导航时序，手势时序由框架单独处理。
-- `sceneId`：供 `ref.preload()` 定位场景，也可作为锁定区标识的默认值。
-- `layout.anchor: 'top-center'`：对齐场景内容。`overflow: 'hidden'` 裁切超出边界的内容。
-- `at={{ x: 60, y: 200 }}`：设计稿坐标，单位 px，按 `designWidth` 换算。
-- `animateId` / `timeline.after: 'title'`：副标题在 `title` 入场后开始。目标不存在时报告 `INVALID_ANIMATION`，依赖成环时报告 `CIRCULAR_DEPENDENCY`。
-- `duration={{ enter: 800 }}`：入场 800ms。
+`unit="percent" scale={1}` 让拖拽比例对应这段时间线的比例。拖到一半时，元素时间是 600ms：标题还在入场，说明尚未开始。确认切换后，未完成的动画从这里继续；取消切换时还原。
 
-## 换成 scroll 模式
+快速释放能降低切换所需的位移，快速反向释放会取消。完整判定见[手势与阈值](/docs/02-gestures)。
 
-将 `mode` 设为 `"scroll"`，删除 drag 专属的 `transitionDuration` 属性，并为目标场景添加 `scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}`。内部动画随后按 `1ms = 1px` 跟随滚动距离。scroll 模式可添加 `scrollbar={{}}` 显示自绘滚动条。详见[选择模式](/docs/04-choosing-mode)与 [center-lock](/docs/01-centerlock)。
+## 随滚动推进动画
 
-## 下一步
+首尾是普通页面内容，中间一幕声明 `scroll`。首幕标题按时间淡入，即使不滚动也会继续；中间的动画跟随滚动，停止滚动就停在当前帧，向上滚动则倒退。
 
-- [Cineview 参考](/docs/01-cineview)：根组件全部 props 与 ref 方法。
-- [Scene 参考](/docs/02-scene)：布局、转场与资源配置。
-- [Animate 参考](/docs/03-animate)：时间轴推断、enterRef/exitRef、stagger。
+<!-- preview:scroll -->
+
+```tsx
+import { Animate, Cineview, Scene } from 'cineview';
+
+export default function App() {
+  return (
+    <Cineview mode="scroll">
+      <Scene sceneId="intro" layout={{ height: '100vh' }}
+        style={{ background: '#f5e8d8', padding: 40 }}>
+        <Animate enterAnimation="fade-in" duration={{ enter: 1400 }}
+          timeline={{ driver: 'clock' }}>
+          <h1>标题自行淡入，不需要滚动</h1>
+        </Animate>
+      </Scene>
+      <Scene sceneId="details" scroll={{}}
+        layout={{ height: '100vh' }} style={{ background: '#e8edf0', padding: 40 }}>
+        <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
+          <h2>继续滚动，标题才会出现</h2>
+        </Animate>
+        <Animate enterAnimation="slide-up" duration={{ enter: 400 }}
+          timeline={{ after: 'title', delay: 100 }}>
+          <p>再滚动一段，说明出现。</p>
+        </Animate>
+      </Scene>
+      <Scene sceneId="outro" layout={{ height: '100vh' }}
+        style={{ background: '#f5e8d8', padding: 40 }}>
+        <h2>继续阅读</h2>
+      </Scene>
+    </Cineview>
+  );
+}
+```
+
+`scroll={{}}` 使用所在 Scene 的标识，创建锁定区。标题占 600px 的滚动距离，随后等待 100px，说明再占 400px，总共 1100px。这里 1ms 对应 1px 真实滚动距离。
+
+`driver: 'clock'` 让首幕标题独立按时间播放。在普通 Scene 中也可以省略它；明确填写有助于区分两种播放方式。clock 动画不增加锁定区的滚动距离。
+
+## 继续学习
+
+- [模式与动画进度](/docs/01-modes)：理解拖拽、滚动和时间怎样推进同一段动画。
+- [动画组合与顺序](/docs/04-orchestration)：调整 `after` 依赖和多个元素的播放顺序。
+- [用拖拽和滚动控制视频](/docs/11-video-timeline)：在进阶示例中加入视频。
+- [Cineview 参考](/docs/01-cineview)：需要调整配置或接收通知时查阅。

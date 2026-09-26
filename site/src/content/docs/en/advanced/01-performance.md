@@ -7,32 +7,32 @@ Use MotionValues for continuously changing visuals, and inspect the browser when
 
 ## Runtime monitor
 
-Set `<Cineview debug>` to display the built-in performance panel in either mode. This starts sampling and exposes scroll layout diagnostics. The panel loads its own styles. Setting `debug={false}` removes it; sampling continues while an instance has `monitor` or `debug` enabled.
+Set `monitor` to collect frame metrics. To show them on the page, render `PerfPanel` from `cineview/dev` and import its stylesheet. In scroll mode, `debug` adds layout diagnostics to the DOM; it does not start sampling or display a panel.
 
 Enable `monitor` and read the result through the Cineview ref:
 
 ```tsx
-import { useRef } from 'react';
+import { useState } from 'react';
 import { Cineview, Scene, type CineviewRef } from 'cineview';
+import { PerfPanel } from 'cineview/dev';
+import 'cineview/dev/style.css';
 
 export default function Demo() {
-  const ref = useRef<CineviewRef>(null);
+  const [source, setSource] = useState<CineviewRef | null>(null);
   return (
     <>
-      <button onClick={() => console.table(ref.current?.getPerformanceMetrics())}>
-        Log metrics
-      </button>
-      <Cineview monitor ref={ref}>
+      <Cineview monitor callbacks={{ onReady: setSource }}>
         <Scene sceneId="example">
           <h1>Example</h1>
         </Scene>
       </Cineview>
+      <PerfPanel source={source} />
     </>
   );
 }
 ```
 
-Reading metrics does not require active sampling. Frame samples are collected while at least one instance enables `monitor` or `debug`. Before any samples exist, frame values are zero. Stopping the monitor retains its last samples.
+For a custom display, call `source?.getPerformanceMetrics()` or use `usePerfMonitor` from `cineview/dev`. Reading metrics does not require active sampling. Frame samples are collected while at least one instance enables `monitor`. Before any samples exist, frame values are zero. Stopping the monitor retains its last samples.
 
 ## Metric fields
 

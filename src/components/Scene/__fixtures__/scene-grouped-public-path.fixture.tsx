@@ -2,7 +2,7 @@ import { Cineview, Scene, Animate, Position } from '../../../index';
 
 export function GroupedPublicPathFixture(): React.JSX.Element {
   return (
-    <Cineview designWidth={1440} mode="scroll" direction={'y'} zoneTrigger={'center-lock'}>
+    <Cineview designWidth={1440} mode="scroll" direction={'y'}>
       <Scene
         sceneId="intro"
         layout={{
@@ -15,7 +15,6 @@ export function GroupedPublicPathFixture(): React.JSX.Element {
         }}
         scroll={{
           zoneId: 'hero-sequence',
-          trigger: 'center-lock',
         }}
         transition={{ enterAnimation: 'fade-in', exitAnimation: 'fade-out' }}
         assets={{ preloadImages: ['/hero.png'] }}

@@ -3,54 +3,98 @@ title: Page movement and element time
 eyebrow: DRAG / TIMELINES
 ---
 
-In drag mode, page movement and element animations can finish at different times. The scene switch commits when page movement completes; elements can continue entering afterward.
+Dragging can change scenes while advancing preset animations, video frames, and custom drawing. The scene change completes when the page reaches its destination. Unfinished element entrances continue playing.
 
-## Page movement and element progress
+To see two Scenes on screen while the target title follows your gesture, try the interactive example in [Drag scene layout](/docs/01-layout).
 
-| Value            | What it describes                                        |
-| ---------------- | -------------------------------------------------------- |
-| Page movement    | How far the scene has moved toward its next position     |
-| Element progress | How far an individual entrance or exit has played        |
-| Release outcome  | Whether movement continues to the destination or returns |
+## Control video frames with dragging
 
-Each Scene's element timing is independent. Moving into another Scene does not replace the outgoing Scene's element timeline.
+`AnimateVideo` follows element progress. Set `unit="percent"` and `scale={1}` to map the drag percentage to the destination Scene's timeline percentage:
 
-## Calculate the Scene's element duration
+```tsx
+<Cineview mode="drag" designWidth={750} unit="percent" scale={1}>
+  <Scene sceneId="intro">
+    <h1>Drag up to explore the product</h1>
+  </Scene>
+  <Scene sceneId="product">
+    <AnimateVideo
+      src="/product.mp4"
+      duration={{ enter: 2000 }}
+      aria-label="Product demonstration"
+    />
+  </Scene>
+</Cineview>
+```
 
-The total comes from the latest end time among scene-driven child animations:
+With only this video animation in the destination Scene, dragging halfway seeks to the middle of the video. Reversing the gesture moves the video backward. [Gesture thresholds](/docs/02-gestures) determine whether the scene change continues after release.
+
+`duration.enter` sets element-timeline duration. The media file determines video duration. Use `scrubRange`, in seconds, to select a video interval; see [AnimateVideo](/docs/04-animate-video) for playback after that interval ends.
+
+## The latest child entrance determines Scene duration
+
+Scene-driven child animations determine the total timeline duration:
 
 ```text
 scene element duration = max(accumulated delay + enter duration)
 ```
 
-`after` adds the leader's entrance to the follower's starting delay. With no scene-driven Animate children, the element duration is zero: there is no element animation to continue after release. Page movement still completes independently.
+`timeline.after` waits for another element's entrance to finish. Combine it with `duration` and `timeline.delay` to play different presets in sequence:
 
-Configure the sequence through each Animate's `duration`, `timeline.delay`, and `timeline.after`.
+```tsx
+<Scene sceneId="details">
+  <Animate
+    animateId="title"
+    enterAnimation="fade-in"
+    duration={{ enter: 600 }}
+    timeline={{ delay: 100 }}
+  >
+    <h2>Product details</h2>
+  </Animate>
+  <Animate
+    enterAnimation="slide-up"
+    duration={{ enter: 400 }}
+    timeline={{ after: 'title', delay: 100 }}
+  >
+    <p>The description appears after the title.</p>
+  </Animate>
+</Scene>
+```
 
-## Map drag distance to time
+This Scene has an 1200 ms element timeline. With no scene-driven child animations, the duration is zero and page navigation still works. See [Animation presets](/docs/08-presets) to combine several presets on one element.
 
-With the default `unit: 'time'` and `scale: 10`, every 1% of drag advances 10ms of element time. A full-screen drag advances 1000ms.
+## Hold at several positions to inspect the timeline
 
-For a 6.5-second timeline, that reaches about 15% before release; the remaining animation continues at real-time speed. Use `unit: 'percent'` when drag percentage needs to map to the same timeline percentage.
+With `unit="percent" scale={1}`, drag distance maps to the target Scene's timeline:
 
-Elements with shorter durations can finish while a longer element is still entering. See [Gestures and thresholds](/docs/02-gestures).
+| Drag distance | Element time | Target Scene frame                                                   |
+| ------------- | ------------ | -------------------------------------------------------------------- |
+| 25%           | 300ms        | Title has played 200ms since its 100ms start; detail has not started |
+| 50%           | 600ms        | Title has played 500ms; detail has not started                       |
+| 75%           | 900ms        | Title is complete; detail has played 100ms since its 800ms start     |
+| 100%          | 1200ms       | Both elements are complete                                           |
+
+Hold at 50% to keep the frame at 600ms. Drag back to 25% to return to 300ms. A committed release at 50% continues element playback from 600ms, leaving 600ms to play, while the page finishes its own transition. A fast release affects the commit decision; distance still determines element time during the gesture.
+
+## Adjust how drag distance advances animation
+
+`unit` and `scale` map drag distance to element time. The defaults advance in milliseconds; `percent` advances by a percentage of the Scene timeline. See [Gestures and thresholds](/docs/02-gestures) for formulas and Scene overrides.
+
+Each Scene has an independent element timeline. Short animations can finish while longer ones continue.
 
 ## During a scene change
 
-The incoming Scene holds each delayed element at its initial frame until its start time. On a committed release, its animations continue from their current positions; on a canceled release, they return toward their initial states.
+The incoming Scene holds each delayed element at its initial frame until its start time. On a committed release, animations continue from their current positions. On cancellation, they return to their initial states.
 
-The outgoing Scene's visuals follow page movement. Reversing the gesture reverses that movement. Committing the page change does not stop the incoming elements that are still playing.
+The outgoing Scene's visuals follow page movement. Reversing the gesture reverses that movement. Completing the page change does not stop elements that are still entering.
 
-## Read the drag callbacks
+## Connect custom drawing to animation
 
-| Callback         | Meaning                                                  |
-| ---------------- | -------------------------------------------------------- |
-| `onDragStart`    | A direction-qualified gesture starts                     |
-| `onDragProgress` | Progress while dragging or returning after cancellation  |
-| `onDragBlocked`  | Application configuration prevents entry into the target |
-| `onDragEnd`      | A scene change commits, with target and element timing   |
-| `onDragCancel`   | An accepted gesture returns without committing           |
+Call `useAnimateTimeline()` in a child of `Animate` to read the element's progress MotionValue. A canvas can draw once, then redraw through `progress.on('change', draw)`. Remove the subscription on unmount. See [useAnimateTimeline](/docs/09-use-animate-timeline) for the complete example.
 
-`onDragEnd` includes `elapsedMs` and `timelineDurationMs`. They describe the target Scene's element timeline at commit and indicate how much entrance remains at that moment. They do not update afterward.
+Add `data-cineview-ignore-drag` to a canvas or slider that handles its own dragging. Presses within that control then leave scene navigation unchanged. See [Gestures and thresholds](/docs/02-gestures) for input rules.
 
-Timing details are in [Drag callbacks](/docs/05-callbacks). For scroll-driven timing, see [Center-lock](/docs/01-centerlock).
+## Read the remaining animation time at commit
+
+`onDragEnd` provides the destination Scene's `elapsedMs` and `timelineDurationMs` at commit. Subtract elapsed time from total duration to get the remaining entrance time at that moment. Subscribe through `useAnimateTimeline()` for later progress.
+
+See [Drag callback timing](/docs/05-callbacks) for callback order, or [Center-lock scrolling](/docs/01-centerlock) for scroll-driven animation.

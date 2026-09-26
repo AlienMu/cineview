@@ -3,66 +3,63 @@ title: 选择模式
 eyebrow: GETTING STARTED / CHOOSING A MODE
 ---
 
-全屏分页、逐场景切换的页面使用 drag。以连续内容为主、局部动画需要随滚动距离变化的页面使用 scroll。
+全屏分页、逐场景切换的页面使用 drag。连续阅读、穿插动画片段的页面使用 scroll。
 
-## drag 何时用
+## 按交互需求选择
 
-- 通过指针手势、键盘或 ref 方法导航。
-- 松手后，页面完成切换或返回当前场景。
-- 跟随场景的元素时间线随手势推进。默认 `unit: 'time'`、`scale: 10` 时，每拖动 1% 推进 10ms。
+| 页面需求                     | 建议模式 | 原因                                                 |
+| ---------------------------- | -------- | ---------------------------------------------------- |
+| 全屏产品演示或分幕故事       | drag     | 松手后完成翻页或返回当前场景                         |
+| 长文章中插入动画片段         | scroll   | 普通内容和锁定区可以连续排列                         |
+| 拖动时控制视频或 Canvas      | drag     | 自定义画面可跟随元素动画进度                         |
+| 在视频片段内随时停下查看画面 | scroll   | 锁定区进度由滚动位置决定；片段终点后的素材可继续播放 |
+| 页面内嵌滑块或独立拖拽画布   | 两者均可 | 可让局部控件自行处理指针输入                         |
 
-## scroll 何时用
+`AnimateVideo` 和 `useAnimateTimeline()` 都支持两种模式。选择取决于页面如何导航，视频或绘制组件不要求单独一种模式。
 
-- 内容在原生滚动容器中移动，支持滚轮、触控、键盘和滚动条输入。
-- 个别场景声明 `scroll={{ zoneId, trigger: 'center-lock' }}`，形成锁定区（locked zone）。进入后，场景内的 Animate 随滚动位置推进。每 1 毫秒的时长预算对应 1 像素滚动距离；反向滚动时，动画进度随之回退。
-- 没有声明锁定区的场景就是普通滚动内容，可以夹在锁定区之间。
+## drag 的手势与松手行为
 
-## 对比表
+drag 每幕的导航高度固定为一屏，不能通过 `Scene.layout.height` 编辑或改变。该字段只调整内部内容盒。需要不同高度的页面或连续阅读时，使用 scroll。详见[drag 场景布局](/docs/01-layout)。
 
-|               | drag                                                   | scroll                                         |
-| ------------- | ------------------------------------------------------ | ---------------------------------------------- |
-| 交互模型      | 手势翻页，一屏一幕                                     | 真实文档流 + 局部锁定区                        |
-| 时间轴驱动    | 手势进度 + 切换转场                                    | 锁定区内滚动位置（1ms=1px）                    |
-| 场景间内容    | 场景即整屏                                             | 普通内容可与锁定区场景混排                     |
-| 切换时长      | `transitionDuration` 配置 ref 导航，手势时序随位移计算 | 锁定区时长对应滚动距离                         |
-| 回调          | `onDragStart`、`onDragEnd`、`onDragCancel`             | `onZoneEnter`、`onZoneProgress`、`onZoneLeave` |
-| CommonJS 入口 | `cineview/drag`                                        | `cineview/scroll`                              |
-| 默认性        | 默认模式                                               | `mode="scroll"` 显式开启                       |
+拖动时，页面和场景内的动画一起变化。默认配置下，拖动视窗长度的 1% 会推进 10ms 的元素动画。松手速度和位移决定是否切换场景。
 
-## drag 骨架
+场景到达后，尚未完成的元素入场可以继续播放。适合让短手势启动一段较长的演示，详见[页面位移与元素时间线](/docs/03-two-track)。
+
+键盘及 `ref.goToScene()` 也能切换场景。嵌套控件的指针操作见[手势](/docs/02-gestures)。
+
+## scroll 的连续内容与锁定区
+
+普通 Scene 随内容滚动。需要视频逐帧定位或动画随滚动变化时，在对应 Scene 上声明锁定区（locked zone）。其他 Scene 继续用于普通内容。
 
 ```tsx
-import { Cineview, Scene, Animate } from 'cineview';
+import { AnimateVideo, Cineview, Scene } from 'cineview';
 
-<Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
-  <Scene sceneId="beat-1">
-    <Animate enterAnimation="fade-in">
-      <h1>Beat 1</h1>
-    </Animate>
+<Cineview mode="scroll" designWidth={750}>
+  <Scene sceneId="intro" layout={{ height: '100vh' }}>
+    <h1>产品介绍</h1>
   </Scene>
-  <Scene sceneId="beat-2">
-    <Animate enterAnimation="fade-in">
-      <h1>Beat 2</h1>
-    </Animate>
+  <Scene sceneId="details" layout={{ height: '100vh' }} scroll={{ zoneId: 'details' }}>
+    <AnimateVideo
+      src="/clip.mp4"
+      aria-label="产品细节展示"
+      scrubRange={[0, 6]}
+      duration={{ enter: 2400 }}
+      width="100%"
+    />
   </Scene>
 </Cineview>;
 ```
 
-## scroll 骨架
+示例需要一个至少 6 秒的 `/clip.mp4`。锁定区的动画时长决定滚动距离，详见 [center-lock](/docs/01-centerlock)。滚轮、触控、键盘和滚动条都可以改变进度。
 
-```tsx
-import { Cineview, Scene, Animate } from 'cineview';
+## 配置差异
 
-<Cineview designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
-  <Scene sceneId="intro">{/* 普通滚动内容 */}</Scene>
-  <Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
-    <Animate duration={{ enter: 1200 }} enterAnimation="fade-in">
-      <h1>跟随滚动播放的标题</h1>
-    </Animate>
-  </Scene>
-</Cineview>;
-```
+| 配置或行为   | drag                                       | scroll                                           |
+| ------------ | ------------------------------------------ | ------------------------------------------------ |
+| 默认值       | 省略 `mode` 时启用                         | 显式设置 `mode="scroll"`                         |
+| 场景尺寸     | 导航高度固定一屏，不能按 Scene 修改        | 可按内容或视窗设置                               |
+| 导航时长     | `transitionDuration` 设置 ref 导航时长     | 锁定区时长决定滚动距离                           |
+| 输入回调     | `onDragStart`、`onDragEnd`、`onDragCancel` | `onZoneEnter`、`onZoneProgress`、`onZoneLeave`   |
+| 元素独立播放 | `timeline.driver: 'clock'`，场景到达后播放 | `timeline.driver: 'clock'`，满足可见性条件后播放 |
 
-## 入口与包体积
-
-ES 模块打包器使用 `cineview`，其中包含两套引擎，由 `mode` 选择。按模式子路径支持 CommonJS；应用提供 peer 运行时后，也可通过浏览器脚本加载独立的 UMD 文件。详见[安装](/docs/02-installation)与[性能](/docs/01-performance)。
+两种模式都可使用动画组合、资源预加载和响应式定位。配置细节见[模式与动画进度](/docs/01-modes)，包入口选择见[安装](/docs/02-installation)。

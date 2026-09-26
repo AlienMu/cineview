@@ -3,23 +3,43 @@ title: Installation
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-Install Cineview 1.0.0 in a React application with React 19 and Framer Motion 13.
+These guides target `cineview@0.0.1-beta` and its `Cineview` API. Use the exact version below to run the examples.
 
-## Install in a React app
+## Install the beta and its dependencies
 
 ```bash
-npm install cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
 With pnpm:
 
 ```bash
-pnpm add cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+pnpm add cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
-## Run the local example
+The `beta` channel tracks this API. The `latest` channel remains on 1.0.0, which exports `CineView` and has a different API.
 
-The repository uses pnpm 10.22.0 and Node.js `^22.22.1 || >=24.0.0`.
+The application supplies React, React DOM, and Framer Motion and shares them with Cineview. Installing a second React instance can cause Hook errors.
+
+| Package | Required version |
+| --- | --- |
+| `react` | `^19.0.0` |
+| `react-dom` | `^19.0.0` |
+| `framer-motion` | `^13.0.0` |
+
+## Import components
+
+Import components from the main entry:
+
+```tsx
+import { Animate, AnimateVideo, Cineview, Scene } from 'cineview';
+```
+
+The main entry supports drag and scroll mode. Continue with [Quickstart](/docs/03-quickstart), or run the local example below to change the framework source.
+
+## Run the repository example
+
+Repository development uses pnpm 10.22.0 and Node.js `^22.22.1 || >=24.0.0`. The npm package declares Node.js 18 as its minimum; an application's build tools may require a newer version.
 
 ```bash
 git clone https://github.com/AlienMu/cineview.git
@@ -30,74 +50,44 @@ pnpm --dir examples/minimal install --frozen-lockfile
 pnpm --dir examples/minimal dev
 ```
 
-To test local package changes in another app, run `pnpm pack` in the Cineview repository after building, then install the generated `.tgz` file in that app.
+To test local changes in another app, build Cineview and run `pnpm pack`. Install the resulting `.tgz` file in that app.
 
-## Peer dependencies
+## Other package entries
 
-The application supplies these three runtimes:
+The main entry supports ECMAScript modules (ESM) and CommonJS and includes both modes. Setting `mode` selects which mode runs; it does not remove the other mode from the bundle.
 
-| Package         | Required version |
-| --------------- | ---------------- |
-| `react`         | `^19.0.0`        |
-| `react-dom`     | `^19.0.0`        |
-| `framer-motion` | `^13.0.0`        |
+| Application setup | Entry or file | Included modes |
+| --- | --- | --- |
+| ES modules or CommonJS | `cineview` | drag and scroll |
+| CommonJS | `cineview/drag` | drag |
+| CommonJS | `cineview/scroll` | scroll |
+| Browser script | `cineview-drag.umd.js` | drag |
+| Browser script | `cineview-scroll.umd.js` | scroll |
+| Browser script | `cineview.umd.js` | drag and scroll |
 
-Keep one copy of each runtime in the app bundle.
-
-## Three runtime entries
-
-| Entry             | Contents                         | Module support          |
-| ----------------- | -------------------------------- | ----------------------- |
-| `cineview`        | Both engines, selected by `mode` | ES modules and CommonJS |
-| `cineview/drag`   | Drag engine                      | CommonJS                |
-| `cineview/scroll` | Scroll engine                    | CommonJS                |
-
-```tsx
-import { Cineview, Scene, Animate } from 'cineview';
-```
-
-## The full ES module (ESM) entry includes both engines
-
-Use `cineview` in Vite, webpack, or Rollup applications. The full entry references both engines, so selecting a single `mode` does not remove the other engine from the bundle.
-
-## Mode subpaths support CommonJS
-
-The mode subpaths have `types` and `require` export conditions, with no `import` condition. TypeScript can resolve their types, but an ESM application cannot import runtime exports through those subpaths.
+CommonJS applications can choose a mode entry to include less engine code:
 
 ```js
 const { Cineview } = require('cineview/drag');
 ```
 
-Separate Universal Module Definition (UMD) files support script loading when the application already provides the required React, React DOM, and Framer Motion globals. These files do not supply those runtimes.
+**The two mode subpaths do not provide ES module runtime entries.** TypeScript can resolve their types, but ESM applications must import runtime exports from `cineview`.
 
-## Select an entry
+`cineview/drag` always runs drag mode and throws if passed a different `mode`. `cineview/scroll` always runs scroll mode. Use the main entry to select modes at runtime.
 
-| Application setup           | Entry or file            |
-| --------------------------- | ------------------------ |
-| ESM bundler                 | `cineview`               |
-| CommonJS, drag only         | `cineview/drag`          |
-| CommonJS, scroll only       | `cineview/scroll`        |
-| Browser script, drag only   | `cineview-drag.umd.js`   |
-| Browser script, scroll only | `cineview-scroll.umd.js` |
-| Browser script, both modes  | `cineview.umd.js`        |
+Universal Module Definition (UMD) files support browser script loading. The page must first supply the React, React DOM, and Framer Motion globals.
 
-A UMD file contains its selected engine code in one bundle.
+## Types and the performance panel
 
-## Single-mode behavior
+Type declarations ship with the package. Import shared types from `cineview`. Import `CineviewDragProps` and `CineviewScrollProps` from their respective mode subpaths.
 
-The drag entry always runs drag mode. A JavaScript caller that passes another `mode` value receives an error. The scroll entry always runs scroll mode and does not use a supplied `mode` value. For runtime mode selection, use the full `cineview` entry.
-
-## TypeScript and development tools
-
-Types ship with the package. Import shared types from `cineview`; `CineviewDragProps` and `CineviewScrollProps` are exported by their respective mode subpaths.
-
-Import the optional performance panel and its styles separately:
+Set `monitor` on Cineview to collect frame metrics. To display a panel, import `PerfPanel` from `cineview/dev` and import its stylesheet separately:
 
 ```tsx
 import { PerfPanel } from 'cineview/dev';
 import 'cineview/dev/style.css';
 ```
 
-For the built-in panel, set `<Cineview debug>`; no separate panel import or stylesheet is needed. To customize the panel, enable `monitor` on Cineview and pass the ref from `callbacks.onReady` to the panel's `source` prop. The same entry exports `usePerfMonitor` for custom displays. See [Performance](/docs/01-performance) for the available metrics.
+Receive the Cineview ref in `callbacks.onReady` and pass it to `<PerfPanel source={ref} />`. In scroll mode, `debug` only writes locked-zone layout diagnostics to the DOM; it does not display a panel. The same entry provides `usePerfMonitor` for custom metric displays. See [Performance](/docs/01-performance) for a complete example.
 
 Continue with [Quickstart](/docs/03-quickstart).

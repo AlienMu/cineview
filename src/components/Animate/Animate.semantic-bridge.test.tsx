@@ -1,6 +1,7 @@
 import { render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Animate, SceneContext, type SceneContextType } from './Animate';
+import { SceneScrollRuntimeContext, SceneScrollTakeoverContext } from '../Scene/sceneScrollRuntime';
 
 jest.mock('framer-motion', () => {
   const actualMotion = jest.requireActual('framer-motion');
@@ -68,6 +69,46 @@ function createSceneContext(overrides?: Partial<SceneContextType>): SceneContext
 }
 
 describe('Animate grouped semantics', () => {
+  it('registers and cleans up in its owning Scene even if JavaScript supplies a stale zone override', async () => {
+    const sceneContext = createSceneContext({ mode: 'scroll' });
+    const runtime = {
+      registerZone: jest.fn(),
+      unregisterZone: jest.fn(),
+      setZoneElement: jest.fn(),
+      registerZoneAnimation: jest.fn((_zone, registration) => registration),
+      unregisterZoneAnimation: jest.fn(),
+    };
+    const staleTimeline = { delay: 10, zoneId: 'foreign-zone' };
+    const { unmount } = render(
+      <SceneContext.Provider value={sceneContext}>
+        <SceneScrollRuntimeContext.Provider value={runtime}>
+          <SceneScrollTakeoverContext.Provider value="owning-zone">
+            <Animate animateId="owned" enterAnimation="fade-in" timeline={staleTimeline}>
+              <div>Owned animation</div>
+            </Animate>
+          </SceneScrollTakeoverContext.Provider>
+        </SceneScrollRuntimeContext.Provider>
+      </SceneContext.Provider>
+    );
+    await waitFor(() =>
+      expect(runtime.registerZoneAnimation).toHaveBeenCalledWith(
+        'owning-zone',
+        expect.objectContaining({ animateId: 'owned', delay: 10 })
+      )
+    );
+    expect(runtime.registerZoneAnimation.mock.calls.every(([zone]) => zone === 'owning-zone')).toBe(
+      true
+    );
+    const results = runtime.registerZoneAnimation.mock.results;
+    const registration = results[results.length - 1]?.value;
+    unmount();
+    expect(runtime.unregisterZoneAnimation).toHaveBeenCalledWith(
+      'owning-zone',
+      'owned',
+      registration
+    );
+  });
+
   it('registers grouped duration and timeline props in drag mode', async () => {
     const sceneContext = createSceneContext({ mode: 'drag' });
 

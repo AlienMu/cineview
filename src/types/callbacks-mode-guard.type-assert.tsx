@@ -11,7 +11,38 @@
  * *.test/*.spec, so it never runs as a test.
  */
 import { Cineview, Scene } from '../index';
-import type { CineviewProps, DragModeCallbacks, ScrollModeCallbacks } from '../index';
+import { Cineview as DragCineview } from '../entry-drag';
+import { Cineview as ScrollCineview } from '../entry-scroll';
+import type {
+  CineviewProps,
+  CineviewScrollRef,
+  DragModeCallbacks,
+  ScrollModeCallbacks,
+} from '../index';
+
+export function ModeEntryConfiguration(): React.JSX.Element {
+  return (
+    <>
+      <DragCineview
+        direction="x"
+        unit="percent"
+        scale={1}
+        transitionDuration={400}
+        threshold={{ minRatio: 0.2 }}
+        firstSceneTimeout={2000}
+      >
+        {null}
+      </DragCineview>
+      <ScrollCineview direction="x" sceneSizing="screen" enterMargin={20} exitMargin={30}>
+        {null}
+      </ScrollCineview>
+      {/* @ts-expect-error the drag-only entry rejects scroll configuration */}
+      <DragCineview sceneSizing="screen">{null}</DragCineview>
+      {/* @ts-expect-error the scroll-only entry rejects drag configuration */}
+      <ScrollCineview unit="percent">{null}</ScrollCineview>
+    </>
+  );
+}
 
 // --- Positive: the per-mode flat callbacks are accepted ---------------------
 const dragOk: DragModeCallbacks = {
@@ -67,10 +98,32 @@ const scrollWithDragCb: CineviewProps = {
 // --- Negative: mode-specific config keys on the wrong branch -----------------
 const dragWithScrollConfig: CineviewProps = {
   mode: 'drag',
-  // @ts-expect-error zoneTrigger is a scroll-mode config key
+  // @ts-expect-error sceneSizing is a scroll-mode config key
+  sceneSizing: 'screen',
+  children: null,
+};
+
+// Single-value options no longer appear in the public API.
+const removedZoneTrigger: CineviewProps = {
+  mode: 'scroll',
+  // @ts-expect-error locked zones no longer expose a trigger choice
   zoneTrigger: 'center-lock',
   children: null,
 };
+
+export function RemovedSceneTrigger(): React.JSX.Element {
+  return (
+    // @ts-expect-error declaring scroll is sufficient to create a locked zone
+    <Scene scroll={{ zoneId: 'film', trigger: 'center-lock' }}>video</Scene>
+  );
+}
+
+export function ZoneNavigation(ref: CineviewScrollRef): void {
+  ref.goToZone('film', { animated: false });
+  // @ts-expect-error zone navigation always targets the start
+  ref.goToZone('film', { align: 'center' });
+}
+void removedZoneTrigger;
 // @ts-expect-error firstSceneTimeout is a drag-mode config key
 const scrollWithDragConfig: CineviewProps = {
   mode: 'scroll',

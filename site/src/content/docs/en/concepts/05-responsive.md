@@ -13,7 +13,7 @@ Set `designWidth` to the design's width (default 750). Numeric design lengths sc
 
 - At a 750px viewport, scale = 1: one design px is one screen px.
 - At a 1500px viewport, scale = 2: numeric design lengths double.
-- Height uses the same width-derived ratio.
+- Vertical design values in `Position`, `Container`, and `Image` use the same width-derived ratio. `Scene.layout.height` does not.
 
 ## Which values convert
 
@@ -28,6 +28,8 @@ Set `designWidth` to the design's width (default 750). Numeric design lengths sc
 ```
 
 `Image`'s numeric width/height goes through the same base. A number means design px; write percentages, `auto`, or CSS functions in style and they pass through untouched.
+
+`Scene.layout.width` and `layout.height` differ from those components: numbers are CSS px, and CSS strings pass through unchanged. In drag mode, `layout.height` changes the content box without changing the full-screen navigation distance.
 
 ## Content taller than the viewport
 

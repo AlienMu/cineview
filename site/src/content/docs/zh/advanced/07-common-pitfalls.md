@@ -9,7 +9,7 @@ eyebrow: ADVANCED / TROUBLESHOOTING
 
 CSS `animation: ... infinite` 不会自动随 Scene 停止，元素离开后仍可能运行。
 
-将常驻动效放到 `Animate` 的 `loopAnimation` 属性中。元素离开活动阶段或移出视窗时，循环会停止。`loopAnimation` 可以和 `enterAnimation` 共存；仅做循环时省略 `enterAnimation`，因为它的类型是 `enterAnimation?: never`。详见[Animate](/docs/03-animate)。
+将常驻动效放到 `Animate` 的 `loopAnimation` 属性中。元素离开活动阶段或移出视窗时，循环会停止。`loopAnimation` 可以和 `enterAnimation` 共存；仅做循环时省略 `enterAnimation`。详见[Animate](/docs/03-animate)。
 
 ## 2. 设置 `exitRef` 后元素不再自动退场
 

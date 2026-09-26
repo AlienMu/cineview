@@ -9,7 +9,6 @@ interface SceneScrollTakeoverConfig {
   mode: ScrollMode;
   scroll?: {
     zoneId?: string;
-    trigger?: 'center-lock';
   };
   elementRef: RefObject<HTMLElement | null>;
 }
@@ -28,7 +27,6 @@ export function useSceneScrollTakeover({
   const unregisterZone = runtime?.unregisterZone;
   const setZoneElement = runtime?.setZoneElement;
   const hasScrollTakeover = Boolean(scroll);
-  const trigger = scroll?.trigger ?? 'center-lock';
 
   useEffect(() => {
     if (mode !== 'scroll' || !hasScrollTakeover || !registerZone || !unregisterZone) {
@@ -37,13 +35,12 @@ export function useSceneScrollTakeover({
 
     registerZone(zoneId, {
       sceneIndex,
-      trigger,
     });
 
     return (): void => {
       unregisterZone(zoneId, sceneIndex);
     };
-  }, [mode, hasScrollTakeover, registerZone, unregisterZone, zoneId, sceneIndex, trigger]);
+  }, [mode, hasScrollTakeover, registerZone, unregisterZone, zoneId, sceneIndex]);
 
   useEffect(() => {
     if (mode !== 'scroll' || !hasScrollTakeover || !setZoneElement) {

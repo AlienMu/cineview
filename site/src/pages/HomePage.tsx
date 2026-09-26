@@ -60,7 +60,6 @@ export default function HomePage(): import('react').JSX.Element {
           autoHide: true,
           trackColor: 'rgba(26, 24, 20, 0.06)',
           thumbColor: 'var(--accent)',
-          thumbHoverColor: 'rgba(255, 255, 255, 0.9)',
         }}
         callbacks={{ onReady: armDragPreload }}
       >
@@ -79,7 +78,7 @@ export default function HomePage(): import('react').JSX.Element {
           sceneId="cap-film"
           className="home-scene home-scene--film"
           layout={{ width: '100%', height: '100vh' }}
-          scroll={{ zoneId: 'cap-film-zone', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'cap-film-zone' }}
         >
           <HomeSceneCanvas>
             <CapabilityFilmStripScene />
@@ -101,7 +100,7 @@ export default function HomePage(): import('react').JSX.Element {
           sceneId="canvas-extensibility"
           className="home-scene home-scene--canvas-extensibility"
           layout={{ width: '100%', height: '100vh' }}
-          scroll={{ zoneId: 'canvas-extensibility-zone', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'canvas-extensibility-zone' }}
         >
           <CanvasExtensibilityScene />
         </Scene>
@@ -120,7 +119,7 @@ export default function HomePage(): import('react').JSX.Element {
           sceneId="demo-video"
           className="home-scene home-scene--demo"
           layout={{ width: '100%', height: '100vh' }}
-          scroll={{ zoneId: 'demo-video-zone', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'demo-video-zone' }}
           assets={{ preloadImages: ['/video.mp4'] }}
         >
           <HomeSceneCanvas>
@@ -133,7 +132,7 @@ export default function HomePage(): import('react').JSX.Element {
           sceneId="cinema-entrance"
           className="home-scene home-scene--cinema"
           layout={{ width: '100%', height: '100vh' }}
-          scroll={{ zoneId: 'cinema-entrance', trigger: 'center-lock' }}
+          scroll={{ zoneId: 'cinema-entrance' }}
         >
           <Scene5Cinema />
         </Scene>

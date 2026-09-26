@@ -56,6 +56,10 @@ function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
+// Match the 100ms velocity window used by Motion's pan gestures. Holding still
+// must not preserve a previous flick or direction reversal at release.
+const RELEASE_VELOCITY_WINDOW_MS = 100;
+
 function updatePanInfo(sample: PointerSample, x: number, y: number): PanInfo {
   const info =
     sample.panInfo ??
@@ -137,6 +141,10 @@ export function useNativePointerDrag({
       clearEndListeners();
       sampleRef.current = null;
       if (sample.ownsGesture) {
+        if (now() - sample.lastTime > RELEASE_VELOCITY_WINDOW_MS) {
+          sample.velocityX = 0;
+          sample.velocityY = 0;
+        }
         target.releasePointerCapture?.(sample.pointerId);
         onEndRef.current(event, updatePanInfo(sample, event.clientX, event.clientY));
       } else if (sample.candidateSuspended) {

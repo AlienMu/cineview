@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 let failed = false;
-for (const directory of ['.', 'site', 'examples/minimal', 'examples/performance-test']) {
+for (const directory of ['.', 'site', 'examples/minimal']) {
   console.log(`Auditing ${directory}`);
   const result = spawnSync('pnpm', ['--dir', directory, 'audit', '--audit-level=low'], {
     cwd: root,

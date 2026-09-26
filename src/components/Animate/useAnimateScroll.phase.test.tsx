@@ -329,7 +329,7 @@ function ProductionZoneOwnerHarness({
 
   useLayoutEffect(() => {
     const runtime = zoneRuntimeValue;
-    runtime.registerZone('owner-zone', { sceneIndex: 0, trigger: 'center-lock' });
+    runtime.registerZone('owner-zone', { sceneIndex: 0 });
     ownerARef.current = runtime.registerZoneAnimation('owner-zone', {
       animateId: 'shared-zone-leader',
       delay: 0,

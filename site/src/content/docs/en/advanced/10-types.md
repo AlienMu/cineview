@@ -21,15 +21,17 @@ import type { SlideDirection, CineviewRef, CineviewErrorCode } from 'cineview';
 | `AnimatePhase`        | `'idle' \| 'waiting' \| 'entering' \| 'entered' \| 'exiting' \| 'exited'`                                                                                   |
 | `AnimateTimelineLane` | `'drag' \| 'scroll' \| 'visibility'`                                                                                                                        |
 
-## The three layers of AnimationType
+## The three forms of AnimationType
 
 `AnimationType = PresetAnimation | CustomAnimation | ComposedAnimation`. Animate's animation props accept it. Scene transitions and AnimateVideo also accept it for their supported entrance and exit fields.
 
-| Layer               | Definition                                                                                                     |
+| Type                | Definition                                                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `PresetAnimation`   | A string union of 43 preset names; full table in [presets](/docs/08-presets).                                  |
 | `CustomAnimation`   | A Framer variant subset: `{ initial?, animate?, exit? }`, each field `Record<string, unknown>`.                |
 | `ComposedAnimation` | `{ animations: (PresetAnimation \| CustomAnimation)[], mode: 'sequential' \| 'parallel', delays?: number[] }`. |
+
+Accepting the same type does not imply identical playback: ordinary Animate entrances and exits support ten animated properties, while loop and stagger playback consume per-property transition timing. See [Custom animations](/docs/05-custom-animation).
 
 ## Error codes
 
@@ -40,9 +42,9 @@ import type { SlideDirection, CineviewRef, CineviewErrorCode } from 'cineview';
 | `EMPTY_SCENES`                | Cineview has no Scene children, or a Scene has no content.                                                       |
 | `IMAGE_LOAD_FAILED`           | A queued resource failed in drag mode.                                                                           |
 | `FIRST_SCENE_TIMEOUT`         | Initial priority resource wait timed out. Call `preventDefault?.()` only when providing an application fallback. |
-| `INVALID_ANIMATION`           | A dependency is missing or incompatible, or manual control is unsupported.                                       |
+| `INVALID_ANIMATION`           | A dependency is missing or incompatible, manual control is unsupported, or a phase cannot fit in a finite zone budget.                                       |
 | `CIRCULAR_DEPENDENCY`         | The `after` chain contains a cycle.                                                                              |
-| `INVALID_COMPONENT_HIERARCHY` | A duplicate animateId or duplicate zone identity in the component tree.                                          |
+| `INVALID_COMPONENT_HIERARCHY` | Duplicate `animateId` or locked-zone identifier.                                                                 |
 | `INVALID_DRAG_CONFIG`         | Illegal drag unit / scale / enabled config. Recoverable.                                                         |
 | `ANIMATION_ASSET_LOAD_FAILED` | A preset animation asset failed to load. Retryable.                                                              |
 
@@ -59,27 +61,27 @@ The payload type is `CineviewErrorDetail = { code, message, context?, preventDef
 
 ## Callback detail types
 
-| Type                    | Used by                                                           | Fields                                                                             |
-| ----------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `SceneChangeDetail`     | onSceneEnter / onSceneLeave                                       | `fromIndex`, `toIndex`, `direction?: 'forward' \| 'backward' \| null`              |
-| `DragDetail`            | onDragProgress / onDragCancel                                     | `sceneIndex`, `progress`, `direction?: 'forward' \| 'backward' \| null`            |
-| `DragStartDetail`       | onDragStart (fires only after the first direction-qualified move) | Same as `DragDetail`, but `direction: 'forward' \| 'backward'` (settled, required) |
-| `DragBlockedDetail`     | onDragBlocked                                                     | `fromIndex`, `targetSceneIndex`, `direction: 'forward' \| 'backward'`              |
-| `DragEndDetail`         | onDragEnd                                                         | `DragDetail` + `targetSceneIndex`, `elapsedMs`, `timelineDurationMs`               |
-| `ZoneDetail`            | onZoneEnter / onZoneLeave                                         | `zoneId`, `sceneIndex`                                                             |
-| `ZoneProgressDetail`    | onZoneProgress                                                    | `ZoneDetail` + `progress: number`                                                  |
-| `SceneVisibilityDetail` | onSceneVisibilityChange / `Scene.callbacks.onVisibilityChange`    | `sceneIndex?`, `visible`, `progress`                                               |
-| `CineviewErrorDetail`   | onError                                                           | See "Error codes"                                                                  |
+| Type                    | Used by                                                           | Fields                                                                    |
+| ----------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `SceneChangeDetail`     | onSceneEnter / onSceneLeave                                       | `fromIndex`, `toIndex`, `direction?: 'forward' \| 'backward' \| null`     |
+| `DragDetail`            | onDragProgress / onDragCancel                                     | `sceneIndex`, `progress`, `direction?: 'forward' \| 'backward' \| null`   |
+| `DragStartDetail`       | onDragStart (fires only after the first direction-qualified move) | Same as `DragDetail`, but `direction: 'forward' \| 'backward'` (required) |
+| `DragBlockedDetail`     | onDragBlocked                                                     | `fromIndex`, `targetSceneIndex`, `direction: 'forward' \| 'backward'`     |
+| `DragEndDetail`         | onDragEnd                                                         | `DragDetail` + `targetSceneIndex`, `elapsedMs`, `timelineDurationMs`      |
+| `ZoneDetail`            | onZoneEnter / onZoneLeave                                         | `zoneId`, `sceneIndex`                                                    |
+| `ZoneProgressDetail`    | onZoneProgress                                                    | `ZoneDetail` + `progress: number`                                         |
+| `SceneVisibilityDetail` | onSceneVisibilityChange / `Scene.callbacks.onVisibilityChange`    | `sceneIndex?`, `visible`, `progress`                                      |
+| `CineviewErrorDetail`   | onError                                                           | See "Error codes"                                                         |
 
 ## Component prop types
 
 Props types are exported from `cineview`. Their field references are [AnimateVideo](/docs/04-animate-video), [Image](/docs/06-image), and [Container](/docs/07-container).
 
-| Type                | Extends                                                                  | Own fields                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AnimateVideoProps` | Native events: `onEnded`, `onPlay`, `onPause`, `onTimeUpdate`, `onError` | `src`, `poster`, `width`, `height`, `style`, `preload`, `playbackRate`, `scrubRange`, `animateId`, `duration`, `enterAnimation`, `exitAnimation`, `timeline`, `visibility`, `releaseOnLeave` |
-| `ImageProps`        | `img` attributes minus `src` / `alt` / `width` / `height` / `style`      | `src` (required), `alt` (required), `width`, `height`, `style`, `preload`                                                                                                                    |
-| `ContainerProps`    | `div` attributes minus `children` / `style` / `className`                | `width`, `height`, `children` (required), `style`, `className`                                                                                                                               |
+| Type                | Extends                                                                  | Own fields                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimateVideoProps` | Native events: `onEnded`, `onPlay`, `onPause`, `onTimeUpdate`, `onError` | `src`, `aria-label`, `poster`, `width`, `height`, `style`, `preload`, `playbackRate`, `scrubRange`, `animateId`, `duration`, `enterAnimation`, `exitAnimation`, `timeline`, `visibility`, `releaseOnLeave` |
+| `ImageProps`        | `img` attributes minus `src` / `alt` / `width` / `height` / `style`      | `src` (required), `alt` (required), `width`, `height`, `style`, `preload`                                                                                                                                  |
+| `ContainerProps`    | `div` attributes minus `children` / `style` / `className`                | `width`, `height`, `children` (required), `style`, `className`                                                                                                                                             |
 
 Numeric dimensions and supported numeric style lengths use `designWidth` conversion. `scrubRange` is a readonly `[fromSeconds, toSeconds]` pair and can run in reverse. `releaseOnLeave` applies only inside scroll locked zones; see [AnimateVideo](/docs/04-animate-video).
 

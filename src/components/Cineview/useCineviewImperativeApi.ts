@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   type ForwardedRef,
   type MutableRefObject,
@@ -93,16 +92,19 @@ export function useCineviewImperativeApi({
     (): PerformanceMetrics => performanceMonitor.getMetrics(),
     []
   );
-  const runtimeApi = useMemo<CineviewRef>(
-    () => ({
-      goToScene,
-      refreshLayout,
-      preload,
-      getCurrentIndex,
-      getPerformanceMetrics,
-    }),
-    [getCurrentIndex, getPerformanceMetrics, goToScene, preload, refreshLayout]
-  );
+
+  const runtimeApiRef = useRef<CineviewRef | null>(null);
+  if (!runtimeApiRef.current) {
+    runtimeApiRef.current = {
+      goToScene: (index: number, animated = true) => goToScene(index, animated),
+      refreshLayout: () => refreshLayout(),
+      preload: (targets) => preload(targets),
+      getCurrentIndex: () => getCurrentIndex(),
+      getPerformanceMetrics: () => getPerformanceMetrics(),
+    };
+  }
+
+  const runtimeApi = runtimeApiRef.current;
 
   useImperativeHandle(ref, () => runtimeApi, [runtimeApi]);
 

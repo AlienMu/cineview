@@ -1,0 +1,99 @@
+.scroll-basics-preview {
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  color: #22221f;
+}
+
+.scroll-basics-preview__scene {
+  box-sizing: border-box;
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(24px, 7vw, 68px);
+}
+
+.scroll-basics-preview__scene--reading {
+  background: #f0e8dd;
+  background-image: linear-gradient(145deg, #f7efe4, #e8dfd3);
+}
+
+.scroll-basics-preview__scene--end {
+  background-image: linear-gradient(145deg, #e7ded0, #f5ede2);
+}
+
+.scroll-basics-preview__scene--locked {
+  color: #f6f0e6;
+  background: radial-gradient(circle at 75% 25%, #334543, #182928 56%, #142120);
+}
+
+.scroll-basics-preview__content {
+  max-width: 640px;
+}
+
+.scroll-basics-preview__label,
+.scroll-basics-preview__hint {
+  margin: 0;
+  font-size: clamp(10px, 1.6vw, 12px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.scroll-basics-preview__label {
+  position: absolute;
+  top: clamp(24px, 7vw, 56px);
+  left: clamp(24px, 7vw, 68px);
+  color: #8e7059;
+}
+
+.scroll-basics-preview__scene--locked .scroll-basics-preview__label {
+  color: #d4bc95;
+}
+
+.scroll-basics-preview h1 {
+  margin: 0;
+  color: inherit;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(30px, 5vw, 54px);
+  font-weight: 400;
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+}
+
+.scroll-basics-preview__body {
+  max-width: 44ch;
+  margin: 22px 0 0;
+  font-size: clamp(14px, 2vw, 18px);
+  line-height: 1.65;
+}
+
+.scroll-basics-preview__scene--locked .scroll-basics-preview__body {
+  color: #dfdcd4;
+}
+
+.scroll-basics-preview__hint {
+  position: absolute;
+  bottom: clamp(24px, 6vw, 48px);
+  color: #9a745d;
+}
+
+.scroll-basics-preview__scene--locked .scroll-basics-preview__hint {
+  color: #c7af8c;
+}
+
+@media (max-width: 480px) {
+  .scroll-basics-preview__scene {
+    padding: 26px;
+  }
+
+  .scroll-basics-preview__label {
+    left: 26px;
+    top: 26px;
+  }
+
+  .scroll-basics-preview__body {
+    margin-top: 18px;
+  }
+}

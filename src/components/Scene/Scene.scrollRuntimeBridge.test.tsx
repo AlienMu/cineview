@@ -189,7 +189,6 @@ describe('Scene scroll runtime bridge', () => {
           currentSceneIndex={0}
           scroll={{
             zoneId: 'hero-sequence',
-            trigger: 'center-lock',
           }}
         >
           <div>Hero</div>
@@ -199,7 +198,6 @@ describe('Scene scroll runtime bridge', () => {
 
     expect(zoneRuntime.registerZone).toHaveBeenCalledWith('hero-sequence', {
       sceneIndex: 0,
-      trigger: 'center-lock',
     });
     expect(zoneRuntime.setZoneElement).toHaveBeenCalledWith(
       'hero-sequence',

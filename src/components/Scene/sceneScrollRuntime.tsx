@@ -57,7 +57,6 @@ export interface SceneScrollRuntimeContextValue {
     zoneId: string,
     config: {
       sceneIndex: number;
-      trigger: 'center-lock';
     }
   ) => void;
   unregisterZone: (zoneId: string, sceneIndex: number) => void;

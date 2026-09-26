@@ -9,7 +9,7 @@ Check the animation's mode and driver first. These settings determine its timing
 
 An effect written as CSS `animation: ... infinite` does not automatically stop with its Scene. It can keep running after the element leaves.
 
-Put persistent motion in `Animate`'s `loopAnimation` prop. The loop stops when the element leaves its active phase or the viewport. `loopAnimation` can coexist with `enterAnimation`; for a loop-only element, omit `enterAnimation` because its type is `enterAnimation?: never`. See [Animate](/docs/03-animate).
+Put persistent motion in `Animate`'s `loopAnimation` prop. The loop stops when the element leaves its active phase or the viewport. `loopAnimation` can coexist with `enterAnimation`; for a loop-only element, omit `enterAnimation`. See [Animate](/docs/03-animate).
 
 ## 2. An element never exits after `exitRef` is set
 

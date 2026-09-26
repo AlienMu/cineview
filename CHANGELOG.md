@@ -2,14 +2,42 @@
 
 All notable changes to Cineview are documented here.
 
-## Unreleased
+## 0.0.1-beta — 2026-09-27
 
-- Standardize component exports, public type names, and documentation on `Cineview`.
-  This is a breaking spelling change; imports must use the new names.
-- Add a shared `debug` prop that displays the performance panel in both modes.
-- Preserve animated content and embedded documents when callbacks update.
-- Synchronize the website language across the homepage and its embedded drag page.
-- Add closing navigation and a dismissible drag hint; remove documentation demo buttons.
+First beta of the current API on the npm `beta` channel. The `latest` channel
+remains on 1.0.0 and its earlier API.
+
+- Standardize public component and type names on `Cineview`. This differs from
+  the `CineView` spelling in the published 1.0.0 package.
+- Provide separate drag and scroll input behavior, Scene-owned element timelines,
+  `after` dependencies, and independent clock entrances.
+- Add beginner drag and scroll examples to Quick start and move video control to
+  an advanced tutorial.
+- Show drag distance, element time, and paused-release guidance in the drag example.
+- Ignore stale pointer velocity after a hold so short drags restore as described.
+- Explain callback types and JSX composition separately from configuration tables.
+- Generate the website coverage badge from successful framework test coverage.
+- Keep performance sampling under `monitor`; `debug` exposes scroll layout data.
+- Remove the single-value `zoneTrigger`, `Scene.scroll.trigger`, and `goToZone`
+  `align` options. Declare zones with `scroll={{ zoneId: 'film' }}` and navigate
+  with `goToZone('film', { animated: false })`; lock positioning is unchanged.
+- Make `after` consistently wait for entrance completion, excluding exit duration.
+  Resolve phase-based scroll timing directly and report unreachable phases through
+  `INVALID_ANIMATION`, falling back to duration, delay, and dependencies.
+- Remove `Animate.timeline.zoneId`; place animations inside their owning Scene.
+  Retain `Scene.scroll.zoneId` for zone identity and navigation.
+- Include all mode-specific configuration in the `cineview/drag` and
+  `cineview/scroll` entry types. Clarify composition timing across ordinary
+  animations, loops, staggered children, and Scene transitions.
+- Add an interactive AnimateVideo tutorial, remove the final `/drag` scene's
+  navigation buttons, and add a title above the fourth scene's timecode.
+- Keep fixed layers in their locked Scene when scrolling reaches the zone end,
+  without changing Scene transition timing.
+- Preserve active Scene DOM and input values when keyed scenes are reordered,
+  and let navigation finish while parent components continue rendering.
+- Move production browser acceptance and profiling into the site project, retain
+  failure-injection coverage, and remove references to the retired performance
+  example from installation, auditing, CI, and release commands.
 
 ## 1.0.0 — 2026-09-08
 

@@ -5,49 +5,41 @@ eyebrow: SCROLL / FIXED LAYER
 
 操作栏、指示器等元素需要在 Scene 可见期间保持相对于屏幕的位置时，使用 `Position fixed`。
 
-## 原生 fixed 的层叠上下文限制
+## 让元素随场景保持屏幕对齐
 
-scroll 模式下，Scene 的 transform 使其成为原生 `position: fixed` 后代的定位包含块。需要跟随视窗对齐时，使用框架提供的固定层。
+在 Scene 内的 `Position` 上设置 `fixed`。场景可见时，元素保持相对于屏幕的位置；场景离开后，元素也会离开。需要跨多个场景持续显示的导航应放在 Cineview 外。
 
-## 固定层渲染架构
-
-`Position` 的 `fixed` 属性基于三层结构实现：
-
-| 层    | data 属性                       | 尺寸                                          | 作用                             |
-| ----- | ------------------------------- | --------------------------------------------- | -------------------------------- |
-| clip  | `data-scene-fixed-role="clip"`  | 覆盖整个场景滚动区间并配置 `overflow: hidden` | 边界约束：场景移出视野时整层隐藏 |
-| frame | `data-scene-fixed-role="frame"` | 占据一个视窗高度，按该偏移在 clip 内位移      | 保持视觉固定                     |
-| host  | `data-scene-fixed-role="host"`  | 铺满 frame                                    | portal 挂载点                    |
-
-frame 的偏移量计算公式为 `clamp(视窗滚动偏移 - sceneStart, 0, 场景跨度 - frame 跨度)`。frame 采用 `position: absolute` 并根据该偏移跟随滚动同步位移，在视觉上呈现贴合视窗的效果，同时规避了 transform 对 fixed 定位参照上下文的影响。
-
-固定层仅在所属 Scene 的滚动范围内可见。导航等需要跨场景持续显示的 UI 放在 Cineview 外部。
-
-## 指针事件处理
-
-固定层外层容器的 `pointerEvents` 均设为 `none`，避免遮挡场景内的正常交互内容。通过 portal 挂载进入的 `Position` 节点默认恢复 `pointerEvents: 'auto'`（以元素显式声明的 style 优先），使固定元素自身可正常响应指针事件，而其余固定层空白区域保持点击穿透。
-
-## 用法
+## 示例
 
 ```tsx
-<Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
-  {/* 属于这个 Scene 的内容 */}
-  <Position at={{ x: 40, y: 200 }}>
-    <h1>标题</h1>
-  </Position>
+import { Animate, Cineview, Position, Scene } from 'cineview';
 
-  {/* 固定元素，作用域限定于当前场景 */}
-  <Position at={{ anchor: 'center-x', y: 600 }} fixed>
-    <div>向下滚动继续</div>
-  </Position>
-</Scene>
+export default function App() {
+  return (
+    <Cineview mode="scroll" designWidth={750}>
+      <Scene sceneId="hero" layout={{ height: '100vh' }} scroll={{ zoneId: 'hero-seq' }}>
+        <Animate enterAnimation="fade-in" duration={{ enter: 800 }} timeline={{ driver: 'scene' }}>
+          <h1>标题</h1>
+        </Animate>
+        <Position at={{ anchor: 'center' }} fixed>
+          <div>向下滚动继续</div>
+        </Position>
+      </Scene>
+      <Scene sceneId="next" layout={{ height: '100vh' }}><h2>下一个场景</h2></Scene>
+    </Cineview>
+  );
+}
 ```
 
-`at` 坐标属性语义保持一致：仍以设计稿 px 为基准并按响应式比例换算，定位参照系对齐至固定层宿主。
+动画给锁定区提供 800px 的滚动距离。指示文字在这段距离内保持屏幕居中，场景离开后消失。固定元素仍受所属 Scene 的可见区域裁切。若使用 `at.y` 数值定位，它会按 `designWidth` 换算；较大的设计坐标可能让元素移出屏幕。
+
+## 原生 fixed 为何会偏移
+
+scroll 场景使用 transform。原生 `position: fixed` 子元素会相对变换后的 Scene 定位，而不是相对浏览器视窗。`Position fixed` 使用场景自己的固定层保持屏幕对齐。固定层的空白区域不拦截指针事件，定位的元素仍可接收输入。
 
 ## drag 模式下的行为
 
-在 drag 模式下，Scene 内部不设固定层宿主。`fixed` 属性在 drag 模式下仅将 `pointerEvents` 设为 `'auto'`，元素依旧按 `position: absolute` 在场景内绝对定位。
+drag 模式下，`fixed` 仍在所属 Scene 内使用 `position: absolute` 定位，不使用 scroll 固定层。
 
 ## 相关页面
 

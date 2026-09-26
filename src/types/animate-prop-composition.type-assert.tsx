@@ -1,6 +1,15 @@
 import type { ReactNode } from 'react';
 import { Animate } from '../index';
 
+export function InvalidCrossSceneZoneBinding(): React.JSX.Element {
+  return (
+    // @ts-expect-error animation time belongs to the containing Scene
+    <Animate enterAnimation="fade-in" timeline={{ zoneId: 'another-scene' }}>
+      <div />
+    </Animate>
+  );
+}
+
 export function ValidStaggerComposition(): React.JSX.Element {
   return (
     <Animate enterAnimation="fade-in" stagger={{ each: 80 }}>

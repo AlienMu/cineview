@@ -4,6 +4,32 @@ import { ScrollbarOverlay } from './ScrollbarOverlay';
 import { createScrollExternalStore } from '../runtime/scrollExternalStore';
 
 describe('ScrollbarOverlay', () => {
+  it('renders the default rail and thumb without a border in both directions', () => {
+    const props = {
+      viewportSpan: 100,
+      scrollContentSpan: 300,
+      scrollOffset: 0,
+      isScrolling: false,
+      config: { autoHide: false },
+      onScrollToOffset: jest.fn(),
+    };
+    const { container, rerender } = render(<ScrollbarOverlay {...props} direction="y" />);
+
+    for (const direction of ['y', 'x'] as const) {
+      rerender(<ScrollbarOverlay {...props} direction={direction} />);
+      const rail = container.querySelector(
+        '[data-cineview-scrollbar-rail="true"]'
+      ) as HTMLDivElement;
+      const thumb = container.querySelector(
+        '[data-cineview-scrollbar-thumb="true"]'
+      ) as HTMLDivElement;
+      expect(rail.style.border).toBe('');
+      expect(thumb.style.border).toBe('');
+      expect(rail.style.boxShadow).not.toContain('0 0 0 1px');
+      expect(thumb.style.boxShadow).not.toContain('0 0 0 1px');
+    }
+  });
+
   it('exposes scrollbar semantics and updates through keyboard input', () => {
     const onScrollToOffset = jest.fn();
 

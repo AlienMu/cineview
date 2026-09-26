@@ -38,11 +38,9 @@ scroll 专属：
 | `onZoneProgress`          | `{ zoneId, sceneIndex, progress }`   | 锁定区进度，详见 [center-lock](/docs/01-centerlock) |
 | `onSceneVisibilityChange` | `{ sceneIndex?, visible, progress }` | 场景可见性变化                                      |
 
-## 判别联合：写错模式编不过
+## 按模式选择回调
 
-`mode="drag"` 时传 scroll 回调（或反之）是类型错误：
-
-示例中的回调不属于 drag 模式，因此产生类型错误：
+TypeScript 根据 `mode` 检查回调。示例中的 `onZoneProgress` 仅用于 scroll，在 drag 模式下会产生类型错误：
 
 ```tsx
 <Cineview mode="drag" callbacks={{ onZoneProgress: () => {} }}>
@@ -52,7 +50,7 @@ scroll 专属：
 
 先将回调对象保存到变量，也会受到同一检查。
 
-按模式正确拆开的写法：
+scroll 模式的配置示例：
 
 ```tsx
 <Cineview
@@ -100,7 +98,7 @@ export function handleError(detail: CineviewErrorDetail) {
 
 应用自行处理时，在显示界面前调用 `detail.preventDefault?.()`。公共错误类型不会根据 code 收窄此方法，因此需要可选调用。
 
-## 两条行为须知
+## 手势通知与性能
 
-- `onDragStart` 只在**首次方向确认**的拖拽手势上触发，轻微触碰不算。
-- 回调里读值没问题，把每帧回调（`onDragProgress`、`onZoneProgress`）的值写进 React state 才是性能问题，见[性能](/docs/01-performance)。
+- 每次手势确认方向并开始拖拽时，`onDragStart` 触发一次。未形成拖拽的轻触不会触发。
+- `onDragProgress` 和 `onZoneProgress` 会频繁调用。需要连续更新画面时使用 MotionValue，避免每次通知都更新 React state。见[性能](/docs/01-performance)。

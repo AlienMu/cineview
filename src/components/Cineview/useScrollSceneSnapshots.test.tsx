@@ -4,6 +4,7 @@ import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
 import type { SceneAuthoringCompatProps, SceneLayoutInfo } from './directScrollHelpers';
 import { useScrollSceneSnapshots } from './useScrollSceneSnapshots';
+import { getFixedLayerMetrics } from '../Scene/helpers';
 
 function createLayout(sceneIndex: number): SceneLayoutInfo {
   const sceneStart = sceneIndex * 100;
@@ -50,12 +51,81 @@ function createTakeoverScene(
   return React.cloneElement(scene, {
     sceneId,
     layout: { width, height },
-    scroll: { zoneId: sceneId, trigger: 'center-lock' },
+    scroll: { zoneId: sceneId },
     children: null,
   });
 }
 
 describe('useScrollSceneSnapshots', () => {
+  it.each(['x', 'y'] as const)(
+    'keeps fixed children in the sticky Scene at both zone boundaries (%s)',
+    (direction) => {
+      const scenes = [createTakeoverScene('locked', '100vw', '100vh')];
+      const sceneLayoutsRef = {
+        current: [
+          {
+            ...createLayout(0),
+            sceneStart: 100,
+            sceneEnd: 400,
+            centerLockOffset: 100,
+            flowSpan: 300,
+            timelineDistancePx: 200,
+            segmentStart: 100,
+            segmentEnd: 300,
+          },
+        ],
+      };
+      const timelineStore = createKeyedScrollExternalStore<
+        Record<string, SceneScrollTimelineState>,
+        string,
+        SceneScrollTimelineState
+      >({}, (snapshot, zoneId) => snapshot[zoneId]);
+      const { result } = renderHook(() =>
+        useScrollSceneSnapshots({
+          scenes,
+          sceneLayoutsRef,
+          timelineStoreRef: { current: timelineStore },
+          viewportSizeRef: { current: { width: 100, height: 100 } },
+          activeSceneIndexRef: { current: 0 },
+          scrollDirectionRef: { current: 'forward' },
+          isScrollingStateRef: { current: true },
+          direction,
+          sceneSizing: 'content',
+          firstSceneEnterActive: false,
+          firstSceneEnterReady: true,
+          exposeTakeoverDebugData: false,
+          scrollOffsetRef: { current: 0 },
+          updateSceneRenderSnapshotsRef: { current: () => undefined },
+        })
+      );
+
+      for (const offset of [99, 100, 101, 299, 300, 301, 400, 301, 300, 299, 100, 99]) {
+        act(() => {
+          timelineStore.setSnapshot({
+            locked: {
+              ...createZoneState('locked', 0, Math.min(200, Math.max(offset - 100, 0))),
+              totalBudgetPx: 200,
+              active: offset > 100 && offset < 300,
+            },
+          });
+          result.current.updateSceneRenderSnapshots(offset);
+        });
+        const frame = result.current.frameStore.getKeySnapshot(0)!;
+        const metrics = getFixedLayerMetrics({
+          effectiveMode: 'scroll',
+          effectiveDirection: direction,
+          globalScrollTimelineState: frame.timelineState,
+          globalScrollViewportOffset: frame.visualViewportOffset,
+          globalViewportWidth: 100,
+          globalViewportHeight: 100,
+        });
+        expect(metrics.hostOffset).toBe(0);
+        // Scene transitions still reach their departure state in native coordinates.
+        if (offset === 400) expect(frame.timelineState?.phase).toBe('after');
+      }
+    }
+  );
+
   it('reads only dirty scenes during a 1000-scene scroll frame', () => {
     const authoredScenes = Array.from({ length: 1000 }, (_, sceneIndex) =>
       React.createElement('section', { key: sceneIndex })

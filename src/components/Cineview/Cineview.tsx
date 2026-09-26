@@ -35,6 +35,7 @@ import {
   resolveDesignDimensions,
   isLegacyDisplayNameSceneElement,
   isSceneElement,
+  getSceneIdentity,
 } from './directScrollHelpers';
 import { getScenePreloadImages } from './preloadTargets';
 import { resolveDragTimelineConfig } from '../../utils/dragTimelineMapping';
@@ -437,6 +438,28 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
     sharedTimelineDurationMs,
     dragRelease,
   } = sceneState;
+  const sceneKeys = useMemo(() => scenes.map(getSceneIdentity), [scenes]);
+  const [previousSceneKeys, setPreviousSceneKeys] = useState(sceneKeys);
+  if (
+    previousSceneKeys.length !== sceneKeys.length ||
+    previousSceneKeys.some((key, index) => key !== sceneKeys[index])
+  ) {
+    // Reconcile before React commits the virtualized children. An effect would
+    // first unmount an active Scene that moved outside its old neighbor window.
+    const retainedIndex = sceneKeys.indexOf(previousSceneKeys[currentScene]);
+    const nextIndex =
+      retainedIndex >= 0 ? retainedIndex : clamp(currentScene, 0, Math.max(0, totalScenes - 1));
+    setPreviousSceneKeys(sceneKeys);
+    sceneActions.reconcileSceneList(nextIndex);
+    setSceneActivations((current) => {
+      const next = new Map<number, SceneActivationRecord>();
+      for (const [index, activation] of current) {
+        const nextIndex = sceneKeys.indexOf(previousSceneKeys[index]);
+        if (nextIndex >= 0) next.set(nextIndex, activation);
+      }
+      return next;
+    });
+  }
   const renderProgressMotion = useMotionValue(0);
   const dragTimelineProgressMotion = useMotionValue(0);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -452,21 +475,24 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
     dragTimelineProgressMotion.set(0);
   }, [currentScene, dragTimelineProgressMotion, renderProgressMotion]);
 
-  // Monitor scene switching; call setAnimating(false) after animation completes
+  const currentSceneElement = scenes[currentScene];
+  const sceneSettleDuration = currentSceneElement
+    ? getSceneSettleDuration(
+        currentSceneElement.props as SceneAuthoringCompatProps,
+        resolvedRootMode,
+        transitionDuration
+      )
+    : 0;
+
+  // Parent renders may replace JSX and callbacks without starting a new navigation.
+  // Only the destination and its authored duration determine this timer's lifetime.
   useEffect(() => {
-    if (!isAnimating) return;
-
-    // Get current scene's animation duration
-    const currentSceneElement = scenes[currentScene];
-    if (!currentSceneElement) return;
-
-    const sceneProps = currentSceneElement.props as SceneAuthoringCompatProps;
-    const duration = getSceneSettleDuration(sceneProps, resolvedRootMode, transitionDuration);
+    if (!isAnimating || !scenesRef.current[currentScene]) return;
 
     // Wait for animation to complete, then notify scene manager
     const timer = setTimeout(() => {
-      sceneActions.setAnimating(false);
-    }, duration);
+      sceneActionsRef.current.setAnimating(false);
+    }, sceneSettleDuration);
 
     // Track timer for cleanup
     const timersRef = cleanupTimersRef.current;
@@ -476,7 +502,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
       clearTimeout(timer);
       timersRef.delete(timer);
     };
-  }, [isAnimating, currentScene, scenes, sceneActions, resolvedRootMode, transitionDuration]);
+  }, [isAnimating, currentScene, sceneSettleDuration]);
 
   useEffect(() => {
     if (resolvedRootMode === 'drag') return;

@@ -16,23 +16,24 @@ Use pnpm 10.22.0 and Node.js `^22.22.1 || >=24.0.0` for repository development.
 The published library declares Node.js `>=18.0.0` support; the build and lint
 tools require the development versions above.
 
-Each project has its own lockfile. Install dependencies in all four directories
+Each project has its own lockfile. Install dependencies in all three directories
 before running the checks:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm --dir site install --frozen-lockfile
 pnpm --dir examples/minimal install --frozen-lockfile
-pnpm --dir examples/performance-test install --frozen-lockfile
 pnpm verify:framework:static
 pnpm docs:links
 pnpm audit:all
 pnpm --dir site build
-pnpm --dir examples/performance-test build
+pnpm --dir examples/minimal build
+pnpm --dir site build:acceptance
 ```
 
 Changes to drag or scroll behavior also require a real browser run against the
-example routes. Unit tests, type-checking, and a successful build do not replace
+production acceptance routes. Run `pnpm test:browser`,
+`pnpm verify:browser-failure-injection`, and `pnpm profile:browser`. Unit tests, type-checking, and a successful build do not replace
 that acceptance.
 
 ## Running examples and the website

@@ -43,7 +43,7 @@ function IconGithub(): import('react').JSX.Element {
 
 // Enter timing constants (ms). Aligned with Animate's after collapse formula:
 //   title (chain head) → slogan (after title) → intro typewriter (stagger per-char, duration occupies time span)
-//   → buttons (after intro) → hint (after btn-2).
+//   → buttons (after intro).
 const TITLE_DELAY = 160;
 const TITLE_DUR = 720;
 const SLOGAN_DUR = 880;
@@ -53,7 +53,6 @@ const SLOGAN_OVERLAP = 580;
 const CHAR_INTERVAL = 32; // Per-character stagger interval, fed to stagger.each
 const CHAR_DUR = 460; // Single character reveal duration (variant transition.duration)
 const BTN_DUR = 560;
-const HINT_DUR = 640;
 const BEAM_TIMES = [0, 0.14, 0.25, 0.39, 0.5, 0.65, 0.75, 0.9, 1];
 
 function heldVariant(): {
@@ -127,12 +126,12 @@ function buildIntroItems(intro: string): import('react').JSX.Element[] {
 
 /**
  * Act 1 Hero. Framework positioning and animation timing:
- *   - Layout: Position centers the main flex column; the scroll hint uses the Scene bottom to avoid width-based vertical overlap.
+ *   - Layout: Position centers the main flex column.
  *   - Timing: <Animate> enterAnimation + duration + timeline.after declaratively chains,
  *     title → slogan (two-row slide-right/left parallax) → intro (Tier 2 stagger per-char reveal)
- *     → buttons (slide-up stagger, after='hero-intro') → hint.
+ *     → buttons (slide-up stagger, after='hero-intro').
  *
- * intro typewriter uses framework Tier 2 stagger. slogan beam and scroll hint use loopAnimation,
+ * intro typewriter uses framework Tier 2 stagger. slogan beam uses loopAnimation,
  * gated by framework phase; beam projects to background-position via inherited CSS variables.
  *
  * reduced-motion: all Animate duration/delay zeroed (instant arrival), stagger each=0 unfolds at once;
@@ -293,35 +292,6 @@ export function HeroScene(): import('react').JSX.Element {
           </div>
         </div>
       </Position>
-
-      <div className="hero__hint-position">
-        <Animate
-          animateId="hero-hint"
-          enterAnimation="fade-in"
-          duration={{ enter: dur(HINT_DUR) }}
-          timeline={{ after: 'hero-btn-2', delay: 0 }}
-          loopAnimation={
-            reduced
-              ? undefined
-              : {
-                  animate: {
-                    y: [0, 6, 0],
-                    /* 2026-08-14 (audit act1-3): valley 0.5→0.65 — milky peach first screen bottom
-                     * 0.5 contrast ~2.1:1, valley instant approaches unreadable; hint is functional indicator
-                     * not atmospheric piece. 6px displacement kept. */
-                    opacity: [0.65, 1, 0.65],
-                    transition: { duration: 2, ease: 'easeInOut', repeat: Infinity },
-                  },
-                }
-          }
-        >
-          {/* data-lang for global.css's zh letter-spacing override (audit act1-3: 0.16em is catastrophic edge for CJK full-width
-              chars, zh compressed to 0.10em; review R2-1 once became dead code due to missing span marker). */}
-          <span className="hero__scroll-hint mono" data-lang={lang} aria-hidden="true">
-            {t('hero.scrollHint')}
-          </span>
-        </Animate>
-      </div>
     </>
   );
 }

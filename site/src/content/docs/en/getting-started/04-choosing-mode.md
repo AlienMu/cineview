@@ -3,66 +3,63 @@ title: Choosing a mode
 eyebrow: GETTING STARTED / CHOOSING A MODE
 ---
 
-Use drag for full-screen pages with discrete scene changes. Use scroll for a continuous document that includes sections whose animations follow scroll distance.
+Use drag for full-screen pages with discrete scene changes. Use scroll for continuous reading with animated sections along the way.
 
-## When to use drag
+## Choose by interaction
 
-- Navigate by pointer gesture, keyboard, or ref method.
-- After release, page movement completes the switch or returns to the current scene.
-- Scene-driven element timelines follow the gesture. With the default `unit: 'time'` and `scale: 10`, each 1% of drag advances 10ms.
+| Page requirement                                  | Suggested mode | Reason                                                                                         |
+| ------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| Full-screen product demo or scene-based story     | drag           | Release completes the move or returns to the current scene                                     |
+| Animated sections within a long article           | scroll         | Plain content and locked zones can follow one another                                          |
+| Video or Canvas controlled during a drag          | drag           | Custom visuals can follow element animation progress                                           |
+| Pause within a video range to inspect a frame     | scroll         | Scroll position determines locked-zone progress; source video after the range can keep playing |
+| Embedded slider or independently draggable canvas | Either         | Local controls can handle their own pointer input                                              |
 
-## When to use scroll
+`AnimateVideo` and `useAnimateTimeline()` work in both modes. Choose based on page navigation; video and custom drawing do not require a particular mode.
 
-- Content moves in a native scroll container, with wheel, touch, keyboard, and scrollbar input.
-- Scenes declaring `scroll={{ zoneId, trigger: 'center-lock' }}` become locked zones. Inside a locked zone, scrolling drives the in-scene Animate timelines. The budget is 1ms=1px of real scroll distance, and scrolling back moves progress from 100% to 0%.
-- Scenes without a locked zone are plain scrolling content and can sit between locked zones.
+## Dragging and releasing
 
-## Comparison
+Each drag Scene's navigation height is fixed at one viewport and cannot be edited through `Scene.layout.height`. That field only sizes the inner content box. Use scroll for pages of different heights or continuous reading. See [Drag scene layout](/docs/01-layout).
 
-|                     | drag                                                                               | scroll                                         |
-| ------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Interaction model   | Gesture paging, one screen per act                                                 | Real document flow + local locked zones        |
-| Timeline driver     | Gesture progress + transition                                                      | Scroll position inside a zone (1ms=1px)        |
-| Between scenes      | A scene is a whole screen                                                          | Plain content mixes with zone scenes           |
-| Transition duration | `transitionDuration` configures ref navigation; gesture timing depends on movement | Zone duration maps to scroll distance          |
-| Callbacks           | `onDragStart`, `onDragEnd`, `onDragCancel`                                         | `onZoneEnter`, `onZoneProgress`, `onZoneLeave` |
-| CommonJS entry      | `cineview/drag`                                                                    | `cineview/scroll`                              |
-| Default             | The default mode                                                                   | Enabled explicitly with `mode="scroll"`        |
+During a drag, the page and its element animations move together. By default, dragging 1% of the viewport length advances element animation by 10ms. Release velocity and distance determine whether the scene changes.
 
-## drag skeleton
+Once a scene arrives, unfinished element entrances can continue playing. This allows a short gesture to start a longer presentation. See [Page movement and element time](/docs/03-two-track).
+
+Keyboard input and `ref.goToScene()` also change scenes. See [Gestures](/docs/02-gestures) for pointer input in nested controls.
+
+## Continuous scrolling and locked zones
+
+An ordinary Scene scrolls with the content. Declare a locked zone on a Scene when video frames or animation need to follow scroll position. Other Scenes remain ordinary content.
 
 ```tsx
-import { Cineview, Scene, Animate } from 'cineview';
+import { AnimateVideo, Cineview, Scene } from 'cineview';
 
-<Cineview designWidth={750} mode="drag" direction="y" transitionDuration={800}>
-  <Scene sceneId="beat-1">
-    <Animate enterAnimation="fade-in">
-      <h1>Beat 1</h1>
-    </Animate>
+<Cineview mode="scroll" designWidth={750}>
+  <Scene sceneId="intro" layout={{ height: '100vh' }}>
+    <h1>Product overview</h1>
   </Scene>
-  <Scene sceneId="beat-2">
-    <Animate enterAnimation="fade-in">
-      <h1>Beat 2</h1>
-    </Animate>
+  <Scene sceneId="details" layout={{ height: '100vh' }} scroll={{ zoneId: 'details' }}>
+    <AnimateVideo
+      src="/clip.mp4"
+      aria-label="Product details"
+      scrubRange={[0, 6]}
+      duration={{ enter: 2400 }}
+      width="100%"
+    />
   </Scene>
 </Cineview>;
 ```
 
-## scroll skeleton
+The example needs a `/clip.mp4` at least six seconds long. The zone's animation duration determines its scrolling distance; see [Center-lock](/docs/01-centerlock). Wheel, touch, keyboard, and scrollbar input can all change progress.
 
-```tsx
-import { Cineview, Scene, Animate } from 'cineview';
+## Configuration differences
 
-<Cineview designWidth={750} mode="scroll" direction="y" zoneTrigger="center-lock">
-  <Scene sceneId="intro">{/* plain scrolling content */}</Scene>
-  <Scene sceneId="hero" scroll={{ zoneId: 'hero-seq', trigger: 'center-lock' }}>
-    <Animate duration={{ enter: 1200 }} enterAnimation="fade-in">
-      <h1>A headline that plays with scrolling</h1>
-    </Animate>
-  </Scene>
-</Cineview>;
-```
+| Configuration or behavior    | drag                                                             | scroll                                                      |
+| ---------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| Default                      | Used when `mode` is omitted                                      | Set `mode="scroll"` explicitly                              |
+| Scene size                   | Navigation height fixed at one viewport; no per-Scene adjustment | Can follow content or viewport size                         |
+| Navigation duration          | `transitionDuration` sets ref navigation duration                | Zone duration determines scrolling distance                 |
+| Input callbacks              | `onDragStart`, `onDragEnd`, `onDragCancel`                       | `onZoneEnter`, `onZoneProgress`, `onZoneLeave`              |
+| Independent element playback | `timeline.driver: 'clock'`, after scene arrival                  | `timeline.driver: 'clock'`, when visibility conditions hold |
 
-## Entry points and bundle size
-
-Use `cineview` with ES module (ESM) bundlers. It includes both engines and selects one through `mode`. Mode subpaths support CommonJS; separate Universal Module Definition (UMD) files support browser script loading with supplied peer runtimes. See [Installation](/docs/02-installation) and [Performance](/docs/01-performance).
+Both modes support composed animations, preloading, and responsive positioning. See [Modes and animation progress](/docs/01-modes) for configuration details and [Installation](/docs/02-installation) for package entries.

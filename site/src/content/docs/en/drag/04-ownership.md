@@ -1,9 +1,9 @@
 ---
 title: Starting and resuming a drag
-eyebrow: DRAG / OWNERSHIP
+eyebrow: DRAG / SESSIONS
 ---
 
-A press starts a possible drag. The framework waits for a direction-qualified movement before starting a drag session. Pressing during a transition pauses its movement so dragging can continue from that position.
+A drag starts when movement establishes its direction. Pressing during a transition pauses its movement so dragging can continue from that position.
 
 ## Press before movement
 
@@ -13,15 +13,15 @@ The first movement that meets the direction check attempts to start the gesture.
 
 ## Conditions for starting
 
-A gesture can start when no other session prevents it, the target Scene allows dragging, and the target's animations are ready.
+Starting a gesture requires three conditions: no competing drag, a target Scene that allows dragging, and ready target animations.
 
 If `Scene.drag.enabled` is false on the target, `onDragBlocked` fires at most once per direction per press. If its animations are still being prepared, development builds warn and the attempt does not start.
 
 ## Initial readiness
 
-Mounting does not mean every target Scene is immediately ready to drag. Preset loading and animation registration can still be pending.
+A target Scene becomes available for dragging when its animations are ready. Preset animations can still be loading just after mount.
 
-There is no public callback for this specific readiness condition. `onReady` exposes the ref API, while `onLoadProgress` describes queued resources. Neither a resource percentage nor an arbitrary delay guarantees drag readiness. Keep the initial Scene content available while its adjacent Scene is being prepared.
+`onReady` exposes the ref API, while `onLoadProgress` reports preload-queue progress. Drag readiness has no separate callback, and a fixed delay cannot guarantee that a target is ready. Keep the initial Scene content visible while its neighbor prepares. See [Preloading](/docs/02-preload) for resource configuration.
 
 ## Configuration during a transition
 
@@ -29,7 +29,7 @@ A drag uses the animation configuration captured when it starts. Changes to dela
 
 An Animate added during that transition does not join the current sequence. It appears at its resting state and joins the next activation. Development builds warn about these changes.
 
-Keep variant objects stable when their meaning is unchanged, including objects passed from a parent render.
+Keep configuration object references stable while their values are unchanged. This also applies to objects passed by a parent.
 
 ## Continue a transition with another drag
 

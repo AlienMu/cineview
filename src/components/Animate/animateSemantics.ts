@@ -24,7 +24,6 @@ export interface NormalizedAnimateTimeline {
   driver: 'scene' | 'clock';
   delay: number;
   after?: string;
-  zoneId?: string;
   phase?: {
     start?: number;
     end?: number;
@@ -70,7 +69,6 @@ export function normalizeAnimateSemantics({
       driver: timeline?.driver ?? 'scene',
       delay: timeline?.delay ?? 0,
       after: timeline?.after,
-      zoneId: timeline?.zoneId,
       phase: {
         start: timeline?.phase?.start,
         end: timeline?.phase?.end,

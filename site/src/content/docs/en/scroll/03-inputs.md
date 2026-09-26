@@ -19,15 +19,15 @@ When Cineview applies a movement, it prevents the cancelable event's browser def
 
 An input that crosses a locked segment can stop at its endpoint. The next input continues into the following content. A segment endpoint does not always produce zero movement; the container's scroll limit does.
 
-Pointer input outside Cineview and events already marked `defaultPrevented` are ignored. The keyboard focus rules are described in [Keyboard event listeners](#Keyboard-event-listeners).
+Pointer input outside Cineview and events already marked `defaultPrevented` are ignored. See [Keyboard focus](#Keyboard-focus) for focus rules.
 
 ## What differs per path
 
 | Path      | Delta source                                       | Normalization                                                                           | Notable                                                    |
 | --------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| wheel     | `deltaY` with `direction:'y'`, `deltaX` with `'x'` | `deltaMode:1` (lines) ×18; `deltaMode:2` (pages) × viewport span; `0` (pixels) verbatim | bound in the capture phase with `passive: false`           |
+| wheel     | `deltaY` with `direction:'y'`, `deltaX` with `'x'` | `deltaMode:1` (lines) ×18; `deltaMode:2` (pages) × viewport span; `0` (pixels) verbatim | —                                                        |
 | touch     | Difference from the preceding touch position       | Main-axis pixels                                                                        | Updates the baseline after each move                       |
-| keyboard  | keys map to fixed steps                            | see the keyboard step table                                                             | two handlers with different semantics                      |
+| keyboard  | keys map to fixed steps                            | see the keyboard step table                                                             | nested scrollable controls take priority                   |
 | scrollbar | drag or track click computes a target offset       | converted to a delta, same clamp                                                        | arrow keys with the rail focused share the same step table |
 
 Keyboard step sizes are fixed:
@@ -39,15 +39,11 @@ Keyboard step sizes are fixed:
 | `ArrowDown` / `ArrowUp` | ± 80px                            |
 | `Home` / `End`          | ∓ Infinity (bounded to endpoints) |
 
-## Keyboard event listeners
+## Keyboard focus
 
-Key input binds at two levels:
+When no page element has focus, the page keys can move Cineview. When focus is inside Cineview, a nested scrollable gets the keys first if it can move in that direction.
 
-Window level (capture phase): active only when `document.activeElement` is `body` or `documentElement` (no specific page element holds focus).
-
-Container level (`onKeyDownCapture`): active when focus resides within the container, deferring to nested scrollables where present.
-
-Both levels share input exemptions: all keys yield to `input`, `textarea`, `select`, and `contentEditable` elements, while the Space key yields additionally to buttons, summaries, and anchor links.
+Inputs, textareas, selects, and editable content keep their keys. Space also stays with buttons, summaries, and links.
 
 ## Keys do not rotate under horizontal mode
 

@@ -38,11 +38,9 @@ Scroll-only:
 | `onZoneProgress`          | `{ zoneId, sceneIndex, progress }`   | Zone progress (zone semantics in [center-lock](/docs/01-centerlock)) |
 | `onSceneVisibilityChange` | `{ sceneIndex?, visible, progress }` | Scene visibility changes                                             |
 
-## Discriminated union: the wrong mode won't compile
+## Select callbacks for the mode
 
-Passing a scroll callback with `mode="drag"` (or vice versa) is a type error:
-
-The unsupported callback in this example produces a type error:
+TypeScript checks callbacks against `mode`. This example produces a type error because `onZoneProgress` is only available in scroll mode:
 
 ```tsx
 <Cineview mode="drag" callbacks={{ onZoneProgress: () => {} }}>
@@ -52,7 +50,7 @@ The unsupported callback in this example produces a type error:
 
 The same check applies when the callback object is stored in a variable.
 
-Correctly split per mode:
+A configuration for scroll mode:
 
 ```tsx
 <Cineview
@@ -100,7 +98,7 @@ export function handleError(detail: CineviewErrorDetail) {
 
 For an application-owned fallback, use `detail.preventDefault?.()` before displaying it. The optional call is required because the public error type does not narrow this method by code.
 
-## Two behavioral notes
+## Gesture notifications and performance
 
-- `onDragStart` fires only on the **first direction-qualified** drag gesture; a light touch doesn't count.
-- Reading values inside callbacks is fine; writing per-frame callback values (`onDragProgress`, `onZoneProgress`) into React state is the performance problem. See [Performance](/docs/01-performance).
+- `onDragStart` fires once per gesture when its direction is confirmed and dragging starts. A touch that does not become a drag produces no notification.
+- `onDragProgress` and `onZoneProgress` run frequently. Use MotionValues for continuous visual updates to avoid updating React state on every notification. See [Performance](/docs/01-performance).

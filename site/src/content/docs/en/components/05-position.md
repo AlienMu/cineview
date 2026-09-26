@@ -7,14 +7,14 @@ Position places content inside a Scene using design-pixel coordinates. Use [Cont
 
 ## Props
 
-| prop        | Type                                             | Notes                                                   |
-| ----------- | ------------------------------------------------ | ------------------------------------------------------- |
-| `at`        | `{ x?, y?, offsetX?, offsetY?, anchor? }`        | Coordinate declaration, all values in design px         |
-| `fixed`     | boolean                                          | Mounts into the scene-scoped fixed layer in scroll mode |
-| `children`  | ReactNode                                        | Required                                                |
-| `style`     | CSSProperties                                    | Applied to the root div                                 |
-| `className` | string                                           | Root div class                                          |
-| rest        | HTMLAttributes (except children/style/className) | Passed through to the root div                          |
+| prop        | Type                                             | Notes                                                     |
+| ----------- | ------------------------------------------------ | --------------------------------------------------------- |
+| `at`        | `{ x?, y?, offsetX?, offsetY?, anchor? }`        | Coordinate declaration, all values in design px           |
+| `fixed`     | boolean                                          | Fixed to the screen in scroll mode; leaves with its Scene |
+| `children`  | ReactNode                                        | Required                                                  |
+| `style`     | CSSProperties                                    | Applied to the root div                                   |
+| `className` | string                                           | Root div class                                            |
+| rest        | HTMLAttributes (except children/style/className) | Passed through to the root div                            |
 
 The forwarded `ref` points to the root div.
 
@@ -32,16 +32,16 @@ Each axis resolves in priority order, highest first:
 
 1. **Centered**: an axis selected by `anchor` is centered in its containing block.
 2. **Absolute**: either `x` or `y` present; a missing axis defaults to `0`.
-3. **Relative chain**: only `offsetX` / `offsetY` given → accumulated on top of the nearest enclosing Position. Once absolute positioning triggers, the offset chain yields entirely.
+3. **Relative coordinates**: with only `offsetX` / `offsetY`, add these values to the nearest enclosing Position coordinates. Declaring either `x` or `y` makes both offsets ineffective.
 4. None given → `(0, 0)`.
 
 ## Centering anchors
 
 `anchor: 'center'` centers both axes. `'center-x'` and `'center-y'` center one axis; the other retains its normal coordinate rules.
 
-After centering, `x` / `y` on a centered axis become "offset from center" values (design px, still converted against the conversion base): `anchor: 'center', y: -100` means centered, then shifted up by 100. A centered axis ignores the `offsetX` / `offsetY` relative chain.
+After centering, `x` / `y` on a centered axis become "offset from center" values (design px, still converted against the conversion base): `anchor: 'center', y: -100` means centered, then shifted up by 100. A centered axis ignores `offsetX` / `offsetY`.
 
-No hand-written `translate(-50%, -50%)` needed; the framework composes it, placing the centering transform first and custom `style.transform` after it:
+Position adds the centering transform first, then combines it with `style.transform`:
 
 ```tsx
 <Position at={{ anchor: 'center' }} style={{ transform: 'rotate(8deg)' }}>
@@ -49,7 +49,7 @@ No hand-written `translate(-50%, -50%)` needed; the framework composes it, placi
 </Position>
 ```
 
-## Scene-scoped fixed layer
+## Fixed elements that follow a Scene
 
 In scroll mode, `fixed` places content in the Scene's fixed layer. It keeps a screen-aligned position while that Scene is visible and leaves with the Scene. Without a fixed-layer host, it uses sticky positioning.
 
@@ -57,7 +57,7 @@ A transformed ancestor changes the containing block for native `position: fixed`
 
 Place UI that must persist across Scenes outside Cineview.
 
-## Common mistakes
+## Usage notes
 
 - Use Position for design-coordinate placement and Container for dimensions and spacing.
 - Use `at.anchor` for centering so custom transforms compose with it.
@@ -65,4 +65,4 @@ Place UI that must persist across Scenes outside Cineview.
 
 ---
 
-For the conversion base itself (width-only scaling), see the [responsive model](/docs/05-responsive); for fixed-layer mechanics and considerations, see [Fixed Layer](/docs/04-fixed-layer).
+See [Responsive conversion](/docs/05-responsive) for width-based scaling and [Fixed elements](/docs/04-fixed-layer) for scrolling behavior.

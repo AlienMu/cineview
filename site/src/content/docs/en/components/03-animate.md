@@ -22,10 +22,9 @@ Animate adds entrance, exit, and loop animations to content. Its progress follow
 | `duration.enter` / `duration.exit`      | number, ms                        | 600                    | Animation duration; scene-driven locked-zone values correspond to scroll pixels |
 | `timeline.driver`                       | `'scene' \| 'clock'`              | `'scene'`              | Progress source                                                                 |
 | `timeline.delay`                        | number, ms                        | 0                      | Entrance delay                                                                  |
-| `timeline.after`                        | string                            | none                   | Wait for another `animateId` to enter                                           |
-| `timeline.zoneId`                       | string                            | Inherited zone         | Explicit locked-zone binding                                                    |
+| `timeline.after`                        | string                            | none                   | Start when another `animateId` finishes entering, then apply `delay`            |
 | `timeline.phase.start` / `end`          | number                            | Whole range            | Fraction of the zone's total budget                                             |
-| `visibility.replay`                     | boolean                           | true                   | Replay after exiting and becoming visible again                                 |
+| `visibility.replay`                     | boolean                           | `true`                 | Replay after exiting and becoming visible again                                 |
 | `visibility.enterMargin` / `exitMargin` | number, design px                 | Root value, then 50    | Visibility margins                                                              |
 | `stagger`                               | `{ each?, from? }`                | none                   | Reveal direct children at intervals                                             |
 | `enterRef` / `exitRef`                  | Mutable ref to a function or null | none                   | Manual triggers on supported drivers                                            |
@@ -40,6 +39,8 @@ Animation props accept a preset name, a custom object, or a composition:
 - `PresetAnimation`: one of the 43 [preset names](/docs/08-presets).
 - `CustomAnimation`: `{ initial?, animate?, exit? }`. Ordinary entrance and exit animations support ten mapped properties: opacity, translation, scale, rotation, skew, and filter. See [Custom animations](/docs/05-custom-animation) for the exact list.
 - `ComposedAnimation`: `{ animations, mode: 'sequential' | 'parallel', delays? }`.
+
+Ordinary entrances and exits use one overall duration, including visibility and clock playback. Composition step timing is consumed by `loopAnimation` and `stagger`. See [Custom animations](/docs/05-custom-animation) for supported properties and timing.
 
 ```tsx
 <Animate
@@ -66,7 +67,7 @@ In drag mode, a forward exit uses `exitAnimation`, while moving back toward the 
 
 Use `loopAnimation` when a repeating effect needs to stop with the element or Scene. CSS animations do not automatically follow Cineview's visibility and lifecycle conditions.
 
-A loop can follow `enterAnimation`, or run alone. For a loop-only element, omit `enterAnimation`.
+A loop can follow `enterAnimation`, or run alone. For a loop-only element, omit `enterAnimation`. See [Preset animations](/docs/08-presets) for an entrance, loop, and exit used together.
 
 ## Staggered children
 
@@ -163,4 +164,8 @@ export default function App() {
 
 ## Entrance and exit ordering
 
-`after` orders entrances only. `duration.exit` changes an exit's length, not its start time. Add ordered exits when needed, using the controls supported by the chosen driver. See [Timeline](/docs/04-orchestration).
+`after` determines when the current element enters. It does not define an exit sequence for the group.
+
+In every supported `after` dependency, the current element waits for the target's entrance to finish, then adds its own `timeline.delay`. Exit duration is excluded. In a locked zone, `timeline.phase` determines the target's actual entrance interval.
+
+`duration.exit` controls exit duration. To order a group's exits, use timeline ranges or manual controls supported by the selected driver. See [Timeline](/docs/04-orchestration).

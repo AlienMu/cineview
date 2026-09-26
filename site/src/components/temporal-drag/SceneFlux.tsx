@@ -1,5 +1,6 @@
 import { Animate } from 'cineview';
 import { memo } from 'react';
+import { useI18n } from '../../i18n';
 import { ACT4_IRIS_ENTER_MS, ACT4_IRIS_START_MS, ApertureIris } from './aperture/ApertureIris';
 import { DragTimecode, TIMECODE_EXIT_RESET_FRACTION } from './DragTimecode';
 import { ProgressRing } from './ProgressRing';
@@ -49,6 +50,7 @@ const TIMECODE_VISUAL_SETTLE = TIMECODE_VISUAL_ENTER_MS / ACT4_TIMELINE_DURATION
  */
 export const SceneFlux = memo(function SceneFlux(): import('react').JSX.Element {
   const timing = useTemporalMotion();
+  const { t } = useI18n();
 
   return (
     <div className="tp-scene__inner s04-scene">
@@ -110,6 +112,7 @@ export const SceneFlux = memo(function SceneFlux(): import('react').JSX.Element 
                   }
             }
           >
+            <h2 className="s04-title">{t('dragTemporal.s04.title')}</h2>
             <DragTimecode spanFrames={SPAN_FRAMES} />
           </Animate>
           <Animate

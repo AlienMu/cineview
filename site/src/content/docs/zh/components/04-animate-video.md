@@ -5,22 +5,41 @@ eyebrow: COMPONENTS / ANIMATEVIDEO
 
 AnimateVideo 将 Animate 时间轴映射为原生视频的播放位置，进度回退时向前面的画面定位。无需额外的视频库，视频始终静音并在页面内播放。
 
+## 用滚动控制视频
+
+给 Scene 声明锁定区，再设置视频的 `duration.enter`。示例将完整视频对应到 2000px 滚动距离；向回滚动时，视频位置也随之回退。
+
 ```tsx
-<AnimateVideo
-  src="/clip.mp4"
-  duration={{ enter: 2000 }} // 时间轴跨度，锁定区内对应滚动像素
-  visibility={{ replay: true }}
-  aria-label="产品演示"
-/>
+import { AnimateVideo, Cineview, Scene } from 'cineview';
+
+export default function VideoPage() {
+  return (
+    <Cineview mode="scroll" designWidth={750}>
+      <Scene
+        sceneId="product"
+        layout={{ height: '100vh' }}
+        scroll={{ zoneId: 'product-video' }}
+        assets={{ preloadImages: ['/clip.mp4'] }}
+      >
+        <AnimateVideo
+          src="/clip.mp4"
+          width="100%"
+          duration={{ enter: 2000 }}
+          aria-label="产品演示"
+        />
+      </Scene>
+    </Cineview>
+  );
+}
 ```
 
 ## 进度即播放位置
 
 视频直接读取时间轴 MotionValue，不通过逐帧 React state 更新播放位置。
 
-- 不设 `scrubRange` 时 `currentTime = progress × duration`：progress 0 即首帧，progress 1 即末帧。
-- 反向输入即倒放。往回拖、往回滚逐帧 seek 回去，不需要单独的「倒放模式」。
-- 包装层是普通的 `Animate`，`timeline.delay` / `after` / 可见性判定与其他元素一样生效。
+- 不设 `scrubRange` 时，视频位置等于进度乘以素材总时长。进度 0 对应首帧，1 对应末帧。
+- 反向拖拽或滚动会逐帧定位到较早的画面。实际定位速度取决于素材编码与浏览器。
+- `timeline.delay`、`timeline.after` 和可见性配置与 [Animate](/docs/03-animate) 相同。
 
 `duration.enter` 是这段定位占用的时间轴跨度，不是视频时长。scroll 锁定区（locked zone）内 `1ms = 1px`：`duration={{ enter: 2000 }}` 意味着滚动 2000px 对应视频走完整个区间；drag 模式下则是元素时间轴的 2000ms。
 
@@ -38,16 +57,18 @@ AnimateVideo 将 Animate 时间轴映射为原生视频的播放位置，进度�
 | `exitAnimation`                                       | AnimationType                        | 无               | 可叠加的退场效果                                                |
 | `timeline`                                            | `{ delay?: number; after?: string }` | 无               | 支持的时序选项                                                  |
 | `visibility`                                          | `{replay, enterMargin, exitMargin}`  | 无               | 同 Animate                                                      |
-| `preload`                                             | boolean                              | `true`           | 积极填充共享视频预加载缓存                                      |
-| `releaseOnLeave`                                      | boolean                              | `false`          | 解码帧释放管理，scroll 锁定区专属                               |
+| `preload`                                             | boolean                              | `true`           | 提前下载视频并加入共享缓存                                      |
+| `releaseOnLeave`                                      | boolean                              | `false`          | 远离 scroll 锁定区时释放解码帧                                  |
 | `width` / `height`                                    | number \| string                     | 无               | 数字 = 设计 px                                                  |
-| `poster`                                              | string                               | 无               |                                                                 |
-| `playbackRate`                                        | number                               | 无               |                                                                 |
-| `style`                                               | CSSProperties                        | 无               |                                                                 |
-| `aria-label`                                          | string                               | 无               | 无控件无声视频必须自报语义                                      |
-| `onEnded` `onPlay` `onPause` `onTimeUpdate` `onError` | 原生 video 事件                      | 无               | 透传给底层 `<video>`（播放归属仍由框架判定）                    |
+| `poster`                                              | string                               | 无               | 视频加载前显示的图片 URL                                        |
+| `playbackRate`                                        | number                               | `1`              | 区间结束后原生播放的速率；不影响时间轴定位                      |
+| `style`                                               | CSSProperties                        | 无               | 视频样式；受支持的数值长度按设计像素换算                        |
+| `aria-label`                                          | string                               | 无               | 为没有控件的静音视频提供描述                                    |
+| `onEnded` `onPlay` `onPause` `onTimeUpdate` `onError` | 原生 video 事件                      | 无               | 传给 `<video>` 的事件处理器                                     |
 
-## scrubRange 与终点交接
+转发的 `ref` 指向原生 `<video>` 元素，可用于读取媒体状态或调用原生方法。
+
+## 指定视频区间与后续播放
 
 显式区间的终点早于片尾时，进度到达终点后会开始原生播放。反向滚出终点附近 2% 的范围时，暂停播放并恢复时间轴定位。反向区间在终点也会向片尾正向播放；若需要停在固定帧，可改用预先倒序编码的素材。
 
@@ -74,12 +95,25 @@ ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 scrub.mp4
 - 两个不同的阈值用于避免在边界附近反复释放和恢复。
 - 时间轴进度发生过变化后才会释放，更换视频素材会重置此条件。
 
-## 预加载与冷启动
+## 预加载与首屏等待
 
 `preload` 填充共享视频缓存。命中缓存时，使用已下载完整的 blob，以便在整个文件内定位。
 
 需要首屏等待视频资源时，将 URL 写入 `Scene.assets.preloadImages`。视频自身的 `preload` 不会将其加入该队列。`onReady` 仅在挂载后提供 ref API，不等待视频加载。详见[预加载](/docs/02-preload)。
 
-## drag 模式下
+## 用拖拽控制视频
 
-drag 模式下，视频位置由场景的元素进度决定。`duration.enter` 使用元素时间线的毫秒数，`releaseOnLeave` 不生效；其他受支持的视频选项保持原有行为。
+将视频放在 drag 模式的 Scene 内。`unit="percent"` 和 `scale={1}` 使拖拽距离按视窗比例映射到元素时间线。示例中的视频位于第二个 Scene，拖向该场景时逐帧显示。
+
+```tsx
+<Cineview mode="drag" designWidth={750} unit="percent" scale={1}>
+  <Scene sceneId="intro">
+    <h1>向上拖拽查看视频</h1>
+  </Scene>
+  <Scene sceneId="video" assets={{ preloadImages: ['/clip.mp4'] }}>
+    <AnimateVideo src="/clip.mp4" width="100%" duration={{ enter: 2000 }} aria-label="产品演示" />
+  </Scene>
+</Cineview>
+```
+
+`duration.enter` 使用元素时间线的毫秒数。Scene 还包含其他动画时，其时长和依赖也会影响总时长。`releaseOnLeave` 在 drag 模式下不生效，详见[拖拽时间线](/docs/02-timeline)。

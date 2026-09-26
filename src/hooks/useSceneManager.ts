@@ -249,16 +249,19 @@ export const useSceneManager = (
     setDirection(null);
   }, []);
 
-  const reconcileSceneList = useCallback((index: number): void => {
-    currentSceneRef.current = index;
-    setCurrentScene(index);
-    programmaticNavRef.current = null;
-    animatingRef.current = false;
-    setIsAnimating(false);
-    setIsDragging(false);
-    setRenderProgress(0);
-    cleanupAfterTransition();
-  }, [cleanupAfterTransition]);
+  const reconcileSceneList = useCallback(
+    (index: number): void => {
+      currentSceneRef.current = index;
+      setCurrentScene(index);
+      programmaticNavRef.current = null;
+      animatingRef.current = false;
+      setIsAnimating(false);
+      setIsDragging(false);
+      setRenderProgress(0);
+      cleanupAfterTransition();
+    },
+    [cleanupAfterTransition]
+  );
 
   // Publishes the single read-only release directive. The token is injected here
   // (monotonic) so each release is uniquely identifiable and every scene's
@@ -358,7 +361,15 @@ export const useSceneManager = (
         onAfterChange?.(index, currentScene);
       }
     },
-    [currentScene, totalScenes, mode, onBeforeChange, onCommit, onAfterChange, cleanupAfterTransition]
+    [
+      currentScene,
+      totalScenes,
+      mode,
+      onBeforeChange,
+      onCommit,
+      onAfterChange,
+      cleanupAfterTransition,
+    ]
   );
 
   // Next scene

@@ -3,52 +3,39 @@ title: 介绍
 eyebrow: GETTING STARTED / INTRODUCTION
 ---
 
-Cineview 是用于全屏场景切换的 React 库，支持由拖拽或滚动驱动动画。声明场景、动画时序与设计稿宽度后，Cineview 负责导航，并按视窗宽度换算数值型设计长度。
+用 Cineview 的 React 组件，可以制作随拖动或滚动变化的页面。画面可以包含普通内容、视频和自定义绘制。先选交互方式，再为每个场景安排动画。
 
-## 两种模式
+## 两种交互方式
 
-通过根组件的 `mode` 选择交互方式：
+拖动模式适合一屏一屏切换的展示。往下一屏拖时，可以预览新场景；往回拖则返回之前的画面。松手后，页面完成切换或回到原处。
 
-- **drag**：全屏分页，可通过指针手势、键盘或 ref 方法切换场景。
-- **scroll**：内容在原生滚动容器中移动。带锁定区（locked zone）的场景会保持位置，由滚动推进内部动画。
+滚动模式保留页面的正常阅读顺序。需要动画跟随滚动时，在对应场景设置锁定区（locked zone）：场景暂时停在视窗中，滚动距离决定动画进度。往回滚动，动画也随之倒退。
 
-两种模式共用同一套 Scene / Animate / Position 组件。两种模式的时间轴语义不同，状态不能跨模式复用。详见 [模式](/docs/01-modes) 和 [选择模式](/docs/04-choosing-mode)。
+两种模式都用 `Scene` 组织内容。如何选择见[选择模式](/docs/04-choosing-mode)。
 
-## 核心概念
+## 拖动或滚动视频
 
-**响应式长度。** 将 `designWidth` 设为设计稿宽度，默认值为 750。两个方向的数值型设计长度都按 `scale = viewportWidth / designWidth` 换算。详见[响应式换算](/docs/05-responsive)。
+用 `AnimateVideo`，拖动或滚动可以直接控制视频画面：向前移动看到后面的帧，往回移动看到前面的帧。在所选片段内部停止滚动，视频停在当前画面；若片段终点后还有素材，抵达终点时会继续播放。拖动松手并确认切换后，尚未完成的动画从当前位置继续。
 
-**场景与时间轴。** `Scene` 组织共享布局与转场行为的内容，`Animate` 配置元素动画及其时序。在 drag 模式下，页面位移完成时，元素可能仍在入场。
+[快速上手](/docs/03-quickstart)分别给出拖动和滚动视频的完整示例。[AnimateVideo](/docs/04-animate-video)说明视频区间、后续播放和编码建议。
 
-**1ms = 1px。** 锁定区内，声明的动画时长每 1 毫秒对应 1 像素的滚动距离。反向滚动时，动画沿同一区间回退。详见 [center-lock](/docs/01-centerlock)。
+## 组合预设与自定义画面
 
-## 两个场景的示例
+同一个标题可以同时淡入、放大；下一行文字可以等标题出现后再入场。拖动时，这些元素读取同一段已播放时间，到了各自的起点才开始变化。带 100ms 延迟的标题及在 800ms 开始的说明见[快速上手](/docs/03-quickstart)；配置方式见[动画组合与顺序](/docs/04-orchestration)。
 
-```tsx
-import { Cineview, Scene, Animate } from 'cineview';
+Canvas、SVG 或 WebGL 画面也能跟着拖动或滚动变化。自定义组件用 `useAnimateTimeline()` 读取进度并更新画面；无需每帧重新渲染 React。见[自定义绘制示例](/docs/09-use-animate-timeline)。
 
-export default function App() {
-  return (
-    <Cineview designWidth={750} mode="drag">
-      <Scene sceneId="hero">
-        <Animate enterAnimation="fade-in" duration={{ enter: 800 }}>
-          <h1>第一幕</h1>
-        </Animate>
-      </Scene>
-      <Scene sceneId="closing">
-        <Animate enterAnimation="slide-up" duration={{ enter: 800 }}>
-          <h1>谢幕</h1>
-        </Animate>
-      </Scene>
-    </Cineview>
-  );
-}
-```
+场景中还可以放独立拖动的滑块或画布。给控件加 `data-cineview-ignore-drag`，拖动它时就不会切换场景。用法见[手势与阈值](/docs/02-gestures)。
 
-`designWidth={750}` 设置设计稿宽度。每个 `Scene` 包含一个使用预设入场动画的标题，可通过拖拽手势或键盘在两个场景之间切换。
+## 在显示前准备资源
+
+首个场景可以等图片或视频加载后再入场。把资源地址写进 `Scene.assets.preloadImages`，即可把它们计入首屏等待；其他场景声明的资源也会自动下载。需要等资源就绪再继续操作时，用 `ref.preload()`。见[预加载](/docs/02-preload)。
+
+## 按设计稿定位
+
+`Position` 放置元素，`Container` 设置尺寸和间距。`designWidth` 填设计稿宽度，数字尺寸会随视窗宽度缩放。见[响应式换算](/docs/05-responsive)。
 
 ## 下一步
 
-- [安装](/docs/02-installation)：依赖安装、peer 依赖与按模式入口选择。
-- [快速上手](/docs/03-quickstart)：包含定位与顺序动画的双场景示例。
-- [选择模式](/docs/04-choosing-mode)：比较 drag 与 scroll 的行为。
+- [安装](/docs/02-installation)：依赖与入口选择。
+- [快速上手](/docs/03-quickstart)：运行拖动视频与滚动视频示例。

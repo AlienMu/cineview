@@ -32,10 +32,48 @@ This file is the repository guide for coding agents. Read it before making code 
 
 - Keep English and Chinese page trees, slugs, section counts, and frontmatter eyebrows aligned.
 - State the user-visible behavior before explaining implementation details.
+- For documentation, use task-oriented writing and progressive disclosure: explain what the reader can do, show a usable example, then provide API details. Check code examples against current types and runtime behavior.
 - Use short paragraphs and direct verbs. Use API names and code identifiers only where they help the reader configure or diagnose behavior.
 - Do not use physical metaphors or generated-sounding filler in user-facing prose. Avoid the banned vocabulary listed in `WRITING.md`, including `lane`, `root cause`, `bypass`, `takeover` as a general explanation, and the Chinese equivalents listed there. DOM attribute names and API identifiers are allowed in code examples and tables.
 - Troubleshooting pages use two parts: what the reader observes, then what to change. Do not use `Symptom / Mechanism / Resolution` or `现象 / 机理 / 修复方案` labels.
 - Keep README claims tied to current package metadata and verified commands. Do not present historical test counts as a release guarantee.
+
+## Code interface preference
+
+- When providing runnable code, prefer an importable function called with ordinary function arguments.
+- Do not make `argparse`, CLI flags, or shell parameters the main interface unless the user explicitly requests a command-line tool.
+
+## Response and decision style
+
+- Evaluate and rank solutions before responding. If one solution is clearly best, present only that solution. Otherwise present at most the three strongest options, each with its conclusion, decisive reason, and necessary execution steps.
+- Do not present one solution and then append a more strongly recommended alternative. Do not list lower-priority options or theoretical edge cases for completeness unless the user requests an exhaustive analysis or comparison.
+- For a question that needs continued work, give one recommended next step.
+- Execute implementation directly when the goal, scope, and action are settled. Follow the collaboration protocol when a material ambiguity, consequential choice, destructive or irreversible operation, global behavior, real external target, or high-cost change remains unresolved.
+
+## Sub-agent use
+
+- Use sub-agents when independent context, parallel investigation, or independent validation materially improves the work. Handle simple, local tasks directly. Do not create agents merely because a task is large.
+- After starting a sub-agent, wait for its result before doing more investigation or starting another work item. Keep one work item running at a time to limit request rate.
+- Prefer sub-agents for exploration, investigation, independent review, and test analysis. Keep edits to the same or closely related code under one owner.
+- Treat sub-agent findings as evidence. The primary agent owns the final decision, conflict resolution, edits, and acceptance. Resolve disagreements against source, tests, and repository constraints rather than voting or averaging conclusions.
+- Follow any user limit or request on agent use. Otherwise choose the scheduling without asking. For ordinary exploration, search, code location, and information organization, prefer `gpt-5.6-luna` with `reasoning_effort=max` when the tool supports it. Use the primary model or a stronger one for complex reasoning, architecture decisions, difficult debugging, or high-reliability review. If the preferred model is unavailable, use an available model without creating a custom role.
+- Each time a sub-agent is called, tell the user its model and reasoning effort.
+
+## Avoid overengineering
+
+- Do not add hashes, frozen contracts, baselines, gates, or other defensive mechanisms by default. Add one only for a concrete failure scenario that existing Git, types, tests, validation, rollback, or other ordinary engineering mechanisms do not cover.
+- Prefer existing engineering capabilities. Simplify duplicate checks or state when an equivalent mechanism already covers the behavior, and explain why.
+- Do not turn ordinary quality, compatibility, or defensive-programming concerns into security issues. Preserve real protections for authentication, authorization, sensitive data, irreversible operations, and formal releases.
+
+## Critical thinking
+
+- When the user proposes a plan, judgment, design, or decision, first check for a false premise, major cost, or clearly better option. Raise the one to three issues that materially affect the choice.
+- If the proposal stands after examination, state why it is recommended. Distinguish a workable option from the recommended one. Do not disagree just to appear critical.
+
+## Collaboration protocol
+
+- When the goal, scope, deliverable, execution method, or authorization is unclear, or materially different choices would change the result, fully read and follow [`collaboration-protocol.md`](./collaboration-protocol.md) before dependent work. The same applies to destructive or irreversible actions, global behavior, real external targets, and high-cost changes. This is a required rule, not optional guidance.
+- A clear, local, fully scoped instruction does not require confirmation merely because it writes a file or changes the environment.
 
 ## Verification commands
 
@@ -49,7 +87,7 @@ pnpm type-check:site
 pnpm --dir site build
 ```
 
-Use `pnpm verify:framework:static` for the framework static gate. Use `pnpm verify:all` only when browser acceptance is available. `cineview` is published on npm. Use `pnpm pack --dry-run` and `npm view cineview` as release checks, not install prerequisites.
+Use `pnpm verify:framework:static` for the framework static gate. Use `pnpm verify:all` only when browser acceptance is available. `cineview` is published on npm. Use `npm pack --dry-run --ignore-scripts` and `npm view cineview` as release checks, not install prerequisites.
 
 ## Browser acceptance
 

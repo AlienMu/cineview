@@ -1,62 +1,58 @@
 ---
-title: 双模式引擎
+title: 模式与动画进度
 eyebrow: CONCEPTS / MODES
 ---
 
-`mode` 选择 drag 或 scroll，默认值为 `'drag'`。drag 在全屏场景之间切换；scroll 使用原生滚动容器，也可配置随滚动距离推进动画的锁定区。详见[选择模式](/docs/04-choosing-mode)。
+Cineview 把一段页面内容组织成多个 Scene。每个 Scene 中的元素用时长、延迟和 `after` 描述动画顺序，再由拖拽、滚动位置或经过的时间推进这段动画。
 
-## drag：分页引擎
+例如，标题入场 600ms，说明在标题之后等待 100ms，再入场 400ms。两段动画构成 1100ms 的时间线。同一组声明可以用于拖拽和滚动，区别在于时间线怎样前进。
 
-手势期间，当前场景与相邻场景保持挂载。松手后，由速度和位移决定切换场景或返回原位。
+## drag：拖动时预览，松手后决定是否切换
 
-页面位移和元素动画可以在不同时间完成，详见[页面位移与元素时间线](/docs/03-two-track)：
+drag 每幕的导航高度固定为一屏，不能通过 `Scene.layout.height` 编辑或改变。该字段只调整内部内容盒。需要不同高度的页面或连续阅读时，使用 scroll。详见[drag 场景布局](/docs/01-layout)。
 
-- 页面位移决定何时提交场景切换。
-- 各 Scene 的元素按自身动画时长运行，切换完成后仍可继续入场。
+拖动同时改变页面位置与目标 Scene 的元素时间。向回拖动，画面也回到较早的位置。按住不动时，跟随手势的动画停在当前进度。
 
-### drag 配置
+松手时，位移和释放速度决定是否切换。确认切换后，页面继续移到目标位置，元素从释放时的画面继续播放剩余动画。取消切换时，页面和目标元素还原。页面到达与元素动画结束是两个不同的时刻，长动画可以在翻页完成后继续。
 
-| prop                 | 类型                                               | 默认                    | 说明                                                 |
-| -------------------- | -------------------------------------------------- | ----------------------- | ---------------------------------------------------- |
-| `direction`          | `'x' \| 'y'`                                       | `'y'`                   | 拖拽方向                                             |
-| `transitionDuration` | number                                             | 800                     | `ref.goToScene()` 的程序化导航时序；手势时序单独计算 |
-| `threshold`          | `{ minVelocity, maxVelocity, minRatio, maxRatio }` | `0 / 1000 / 0.15 / 0.3` | 手势提交阈值，详见[手势](/docs/02-gestures)          |
-| `unit`               | `'time' \| 'percent'`                              | `'time'`                | Scene 元素时间轴的拖拽映射单位                       |
-| `scale`              | number                                             | time=10 / percent=1     | 每拖拽 1% 的映射量                                   |
-| `firstSceneTimeout`  | number                                             | 3000                    | 首屏优先图等待上限（ms）                             |
+### 把拖拽距离换成时间
 
-`unit` 和 `scale` 决定拖拽距离怎么换算成元素时间轴：`unit: 'time'` 下每拖 1% 推进 10ms 入场时间轴，`unit: 'percent'` 下直接映射 1% 进度。场景级可用 `Scene.drag` 覆盖单位与比例（见 [Scene 参考](/docs/02-scene)）。
+默认每拖动视窗长度的 1%，元素时间前进 10ms。拖动半屏推进 500ms，因此上面的标题还没入场完成，说明尚未开始。
 
-等待超过 `firstSceneTimeout` 后，框架报告 `FIRST_SCENE_TIMEOUT`，并将首场景显示为完成态。在 `onError` 中调用 `detail.preventDefault?.()` 可取消该默认处理，由应用继续处理等待。
+使用 `unit="percent" scale={1}` 时，拖动半屏推进所属 Scene 总时长的 50%。在这个例子中是 550ms。每个 Scene 计算自己的总时长；修改一个 Scene 的动画不会改变另一个 Scene 的时间线。
 
-## scroll：真实文档流与锁定区
+`unit` 和 `scale` 调整的是元素时间与拖拽距离的关系。决定松手是否翻页的是 `threshold`。释放速度如何降低阈值，见[手势与阈值](/docs/02-gestures)。可操作案例见[快速上手](/docs/03-quickstart)。
 
-场景通常随内容滚动。声明了锁定区且动画时长预算大于零时，场景会保持位置，由滚动距离推进内部动画。同一时刻只有一个锁定区处于活动状态。
+### 第一场景如何开始
 
-### 锁定区与时长预算
+第一场景先等待 `assets.preloadImages` 声明的优先资源，再开始入场。其他场景的资源在后台加载。默认等待上限为 3000ms，超时后的处理及自定义等待方式见[预加载](/docs/02-preload)。
 
-锁定区的时长预算对应真实的滚动距离：**1ms = 1px**。`duration: { enter: 2000 }` 表示该元素在 2000px 的实际滚动过程中完成入场。反向滚动进入锁定区时，进度由 100% 连续递减至 0%。过大的单次输入会被限制在当前区段的有效范围内，因此不会跳过整个区域。完整机制详见 [center-lock 滚动](/docs/01-centerlock)。
+## scroll：滚动到哪里，动画就走到哪里
 
-### scroll 配置
+普通 Scene 随页面移动。给 Scene 声明 `scroll`，其中的场景动画就形成锁定区（locked zone）。场景到达视窗中央后保持位置，继续滚动推进动画；动画结束后，页面继续移动。
 
-| prop                         | 类型                    | 默认            | 说明                                |
-| ---------------------------- | ----------------------- | --------------- | ----------------------------------- |
-| `direction`                  | `'x' \| 'y'`            | `'y'`           | 滚动方向                            |
-| `zoneTrigger`                | `'center-lock'`         | `'center-lock'` | 支持的触发方式                      |
-| `sceneSizing`                | `'content' \| 'screen'` | `'content'`     | 场景尺寸策略                        |
-| `enterMargin` / `exitMargin` | number                  | 50              | 可见性条件的全局默认边距（设计 px） |
+### 时长怎样变成滚动距离
 
-`enterMargin` 和 `exitMargin` 设置可见性动画的视窗边距，单个 Animate 可通过 `visibility.enterMargin` 和 `visibility.exitMargin` 覆盖。具体判定及超高元素的规则见[可见性条件](/docs/03-visibility-conditions)。
+锁定区内 **1ms 对应 1px 真实滚动距离**。这个例子的前 600px 用于标题入场，再滚动 100px，说明开始入场，持续 400px。锁定距离共 1100px。
 
-```tsx
-<Cineview mode="scroll" designWidth={750} direction="y" sceneSizing="content">
-  <Scene sceneId="intro">
-    <article>普通滚动内容。</article>
-  </Scene>
-  <Scene sceneId="seq" scroll={{ zoneId: 'seq', trigger: 'center-lock' }}>
-    <Animate enterAnimation="fade-in" duration={{ enter: 800 }}>
-      <h1>动画片段</h1>
-    </Animate>
-  </Scene>
-</Cineview>
-```
+停下滚动，动画停在当前位置；反向滚动，动画沿相同的时间线倒退。松开鼠标或手指不会让剩余动画自行播完。`designWidth` 和视窗高度都不会缩放这段距离。
+
+并行动画的总时长取最晚结束的元素。设置 `after` 后，后续元素的起点后移，可能增加锁定距离。带退场动画或 `phase` 的计算见[锁定区与时长预算](/docs/02-zones-budget)。
+
+### 普通入场动画仍然按时间播放
+
+scroll 模式也能使用常规入场动画。锁定区外的 Animate 默认在满足可见性条件后按时间播放。即使停止滚动，已开始的入场仍会继续；滚动速度不会改变它的播放时长。
+
+`timeline={{ driver: 'clock' }}` 明确选择这种播放方式。在锁定区内使用它，也能让该元素独立播放，且不会增加锁定距离。首尾普通入场与中间滚动动画的对比见[center-lock 滚动](/docs/01-centerlock)。触发位置可通过[可见性条件](/docs/03-visibility-conditions)调整。
+
+## after：让后一个元素接在前一个之后
+
+`timeline={{ after: 'title', delay: 100 }}` 引用同一 Scene 中的 `animateId="title"`。修改标题时长后，说明的起点随之调整，不必重新计算绝对延迟。JSX 的书写顺序不决定播放顺序。
+
+跟随拖拽或滚动时，`after` 确定时间线上的开始位置，输入到达该位置即可继续。按可见性播放时，它等待前序入场完成，再结合自身可见性和延迟开始。完整例子与驱动方式的限制见[动画组合与顺序](/docs/04-orchestration)。
+
+## 视频与自定义画面也能使用这段进度
+
+`AnimateVideo` 按动画进度定位视频帧。Canvas 或 SVG 可以在 Animate 的子组件中订阅 `useAnimateTimeline().progress`，随同一段进度绘制。
+
+选择 `driver: 'clock'` 后，普通 Animate 独立按时间播放。在 drag 中，它从 Scene 正式到达后开始，不参与场景总时长或 `after` 顺序。驱动方式对照见 [Animate 时间线](/docs/02-timeline)。

@@ -1,5 +1,5 @@
-import { Animate, useAnimateTimeline } from 'cineview';
-import { memo, useEffect, useRef } from 'react';
+import { Animate } from 'cineview';
+import { memo } from 'react';
 import { useI18n } from '../../i18n';
 import { ProjectorBeam } from './ProjectorBeam';
 import { useTemporalMotion } from './TemporalMotion';
@@ -75,46 +75,6 @@ const CREDIT_FADE_MS = CREDIT_ENTER_MS * 0.5;
 // budget extinguishes first; copy remains legible for the final portion of the 700ms exit.
 const COPY_EXIT_MS = 700;
 
-function ClosingActions(): import('react').JSX.Element {
-  const { t } = useI18n();
-  const { frame } = useAnimateTimeline();
-  const actions = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const node = actions.current;
-    if (!node) return;
-    const update = (): void => {
-      const current = frame.get();
-      const hidden = current.phase !== 'entered';
-      if (node.inert === hidden) return;
-      node.inert = hidden;
-      node.setAttribute('aria-hidden', String(hidden));
-      node.style.pointerEvents = hidden ? 'none' : 'auto';
-    };
-    update();
-    return frame.on('change', update);
-  }, [frame]);
-
-  return (
-    <div className="s05-closing">
-      <p>{t('dragTemporal.s05.summary')}</p>
-      <nav
-        ref={actions}
-        className="s05-actions"
-        aria-label={t('dragTemporal.s05.actionsLabel')}
-        inert
-        aria-hidden="true"
-      >
-        <a href="/docs/03-quickstart" target="_blank" rel="noopener noreferrer">
-          {t('dragTemporal.s05.btnDocs')}
-        </a>
-        <a href="https://github.com/AlienMu/cineview" target="_blank" rel="noopener noreferrer">
-          {t('dragTemporal.s05.btnGithub')}
-        </a>
-      </nav>
-    </div>
-  );
-}
-
 export const SceneCut = memo(function SceneCut(): import('react').JSX.Element {
   const timing = useTemporalMotion();
   const { t } = useI18n();
@@ -175,17 +135,6 @@ export const SceneCut = memo(function SceneCut(): import('react').JSX.Element {
               timeline={{ delay: timing.delay(THE_END_START_MS) }}
             >
               <p className="s05-the-end">THE END</p>
-            </Animate>
-            <Animate
-              animateId="s05-actions"
-              enterAnimation={{
-                initial: { opacity: 0, y: 12 },
-                animate: { opacity: 1, y: 0 },
-              }}
-              duration={{ enter: timing.duration(600) }}
-              timeline={{ delay: timing.delay(THE_END_START_MS + THE_END_ENTER_MS) }}
-            >
-              <ClosingActions />
             </Animate>
           </section>
         </Animate>

@@ -15,11 +15,11 @@ Use an object to enable the scrollbar and `false` to disable it:
 | `scrollbar={{}}`                 | enabled, all defaults                                                |
 | `scrollbar={{ enabled: false }}` | disabled                                                             |
 | `scrollbar={false}`              | disabled                                                             |
-| `scrollbar={true}`               | **ineffective**, fails the object test, same as omitting it          |
+| `scrollbar={true}`               | TypeScript error; in JavaScript, same as omitting it                 |
 
-`scrollbar={true}` is not supported. Use `scrollbar={{}}` to enable the default appearance.
+Use `scrollbar={{}}` to enable the default appearance.
 
-When enabled, the framework injects CSS that hides the native scrollbar on the container (`scrollbar-width: none` plus zeroed `::-webkit-scrollbar`) and sets the container's `scrollbarGutter` to `auto`; when disabled the gutter is `stable`.
+When enabled, Cineview hides the native scrollbar. When disabled, the native scrollbar remains visible.
 
 ## Fields and defaults
 
@@ -33,13 +33,13 @@ The overlay uses these defaults and limits:
 | `inset`           | `number`  | `0`                           | floored at `0` | gap from the scroll container edge (px)                  |
 | `trackColor`      | `string`  | `'transparent'`               | none           | the rail's `background`                                  |
 | `thumbColor`      | `string`  | `'rgba(255, 255, 255, 0.28)'` | none           | the thumb's `background`                                 |
-| `thumbHoverColor` | `string`  | `'rgba(255, 255, 255, 0.42)'` | none           | a 1px ring around the thumb (box-shadow), always present |
+| `thumbHoverColor` | `string`  | same as `thumbColor`          | none           | thumb fill while the pointer hovers over it              |
 | `autoHide`        | `boolean` | `true`                        | none           | fade out when idle, see "autoHide timing"                |
-| `ariaLabel`       | `string`  | `'Cineview scroll position'`  | none           | accessible name of the rail                              |
+| `ariaLabel`       | `string`  | `'CineView scroll position'`  | none           | accessible name of the rail                              |
 
-`thumbHoverColor` colors the thumb's one-pixel border in every state. It does not change only on hover.
+The rail and thumb have no border by default. `thumbHoverColor` changes the thumb fill only while the pointer hovers over it.
 
-The thumb is at least 40px long, or the track length when shorter. The overlay is hidden when scrollable distance is at most one pixel. Its outer border, shadow, and focus outline are fixed.
+The thumb is at least 40px long, or the track length when shorter. The overlay is hidden when scrollable distance is at most one pixel. Keyboard focus keeps a separate visible outline.
 
 The overlay's `z-index` is 80, above the fixed layer (20) and the active locked-zone shell (30).
 
@@ -47,7 +47,7 @@ The overlay's `z-index` is 80, above the fixed layer (20) and the active locked-
 
 The focusable scrollbar supports ArrowUp/ArrowDown, PageUp/PageDown, Space, Home, and End. Its steps match other keyboard scrolling; see [Input paths](/docs/03-inputs).
 
-A gesture starting on the thumb becomes a drag; a press on empty rail is a single jump and starts no drag. The offsets a drag writes run through the same intent clamp as the other three paths, so dragging the bar cannot skip a locked segment either. Only one pointer owns the thumb at a time, and a second finger does not interrupt the first.
+A gesture starting on the thumb drags it; pressing the empty rail jumps once. Dragging the bar passes through the same zone limits as other input, so it cannot skip a locked zone. A second finger does not interrupt a thumb drag.
 
 ## CSS variable linkage
 
@@ -63,7 +63,6 @@ Color options accept CSS colors and custom-property references. For example, `th
     autoHide: true,
     trackColor: 'rgba(26, 24, 20, 0.06)',
     thumbColor: 'var(--accent)',
-    thumbHoverColor: 'rgba(255, 255, 255, 0.9)',
   }}
 >
   <Scene sceneId="content">Scrollable content</Scene>

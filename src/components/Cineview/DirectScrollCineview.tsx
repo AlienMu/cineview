@@ -19,8 +19,6 @@ import type {
   CineviewPreloadTarget,
   CineviewRef,
   CineviewScrollModeProps,
-  PerformanceMetrics,
-  ScrollModeConfig,
 } from '../../types';
 import {
   createScrollbarCss,
@@ -59,8 +57,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
       children,
       designWidth,
       direction: directionProp,
-      zoneTrigger,
-      sceneSizing,
+      sceneSizing = 'content',
       enterMargin,
       exitMargin,
       scrollbar,
@@ -73,19 +70,32 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     const { designSize } = resolveDesignDimensions(designWidth);
     // Public callbacks are flat + mode-aware; regroup back into { common, drag,
     // scroll } so the read sites below stay grouped (mirrors CineView.tsx).
-    const resolvedCallbacks = useMemo<GroupedCallbacks>(
-      () => regroupCallbacks(callbacks),
-      [callbacks]
-    );
-    const resolvedScrollConfig = useMemo<ScrollModeConfig>(
-      () => ({
-        direction: directionProp ?? 'y',
-        zoneTrigger: zoneTrigger ?? 'center-lock',
-        sceneSizing: sceneSizing ?? 'content',
-      }),
-      [directionProp, zoneTrigger, sceneSizing]
-    );
-    const direction = resolvedScrollConfig.direction ?? 'y';
+    const resolvedCallbacks = useMemo<GroupedCallbacks>(() => {
+      const grouped = regroupCallbacks(callbacks);
+      // Memoize individual callback groups to prevent unnecessary rerenders when
+      // the callbacks container object changes but individual callbacks don't
+      return {
+        common: grouped.common,
+        drag: grouped.drag,
+        scroll: grouped.scroll,
+      };
+    }, [
+      callbacks?.onReady,
+      callbacks?.onLoadProgress,
+      callbacks?.onSceneEnter,
+      callbacks?.onSceneLeave,
+      callbacks?.onError,
+      callbacks?.onDragStart,
+      callbacks?.onDragProgress,
+      callbacks?.onDragBlocked,
+      callbacks?.onDragEnd,
+      callbacks?.onDragCancel,
+      callbacks?.onZoneEnter,
+      callbacks?.onZoneLeave,
+      callbacks?.onZoneProgress,
+      callbacks?.onSceneVisibilityChange,
+    ]);
+    const direction = directionProp ?? 'y';
     const containerRef = useRef<HTMLDivElement | null>(null);
     const scrollOffsetRef = useRef(0);
     const scrollOffsetStoreRef = useRef(createScrollExternalStore(0));
@@ -140,13 +150,14 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
       scrollOffsetRef,
       measureSceneLayoutsRef,
       updateSceneRenderSnapshotsRef,
+      onError: resolvedCallbacks.common?.onError,
     });
     const { sceneLayoutsRef, sceneWrapperRefs, measureSceneLayouts, setSceneWrapperRef } =
       useScrollSceneLayout({
         rootRef: containerRef,
         direction,
         scenes,
-        sceneSizing: resolvedScrollConfig.sceneSizing,
+        sceneSizing,
         getViewportSpan,
         getZoneIdForScene,
         getZoneDistance,
@@ -279,7 +290,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
       scrollDirectionRef,
       isScrollingStateRef,
       direction,
-      sceneSizing: resolvedScrollConfig.sceneSizing,
+      sceneSizing,
       firstSceneEnterActive,
       firstSceneEnterReady,
       exposeTakeoverDebugData,
@@ -393,85 +404,84 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
       );
     }, [hasLegacyDisplayNameScene]);
 
-    const getRuntimeApi = useCallback(
-      (): CineviewRef => ({
-        goToScene: (index: number, animated = true): void => {
-          const currentScenes = scenesRef.current;
-          if (index < 0 || index >= currentScenes.length) {
-            // Mirror the drag side (useSceneManager) instead of a silent no-op.
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn(
-                `[Cineview] Invalid scene index: ${index}. Must be between 0 and ${currentScenes.length - 1}`
-              );
-            }
-            return;
-          }
+    // Create a stable API object that doesn't change reference across renders.
+    // Individual methods are updated via refs so the API object itself can be
+    // exposed once to onReady and ref.current without creating new references.
+    const stableApiRef = useRef<CineviewRef | null>(null);
 
-          const root = containerRef.current;
-          const wrapper = sceneWrapperRefs.current[index];
-          if (!root || !wrapper) {
-            return;
+    const goToSceneImpl = useCallback(
+      (index: number, animated = true): void => {
+        const currentScenes = scenesRef.current;
+        if (index < 0 || index >= currentScenes.length) {
+          // Mirror the drag side (useSceneManager) instead of a silent no-op.
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn(
+              `[Cineview] Invalid scene index: ${index}. Must be between 0 and ${currentScenes.length - 1}`
+            );
           }
+          return;
+        }
 
-          const offset = getRelativeOffset(wrapper, root, direction);
-          // S-F2: goToScene is self-issued navigation — mark it programmatic
-          // so its scroll frames crossing a takeover segment aren't treated as
-          // a user gesture and clamped to the segment boundary (the corrective
-          // auto scrollTo would abort a smooth animation mid-way).
-          beginProgrammaticScroll(offset);
-          root.scrollTo({
-            top: direction === 'x' ? undefined : offset,
-            left: direction === 'x' ? offset : undefined,
-            behavior: animated ? 'smooth' : 'auto',
-          });
-        },
-        goToZone: (zoneId: string, options): void => {
-          goToScrollZone(zoneId, options);
-        },
-        refreshLayout: (): void => {
-          updateViewportMetrics();
-          measureSceneLayouts();
-          syncNativeScrollState();
-        },
-        preload: async (targets?: CineviewPreloadTarget[]): Promise<void> => {
-          const targetImages = resolvedTargetPreloadImages(targets);
-          if (targetImages.length > 0) {
-            preloadActions.addUrls(targetImages, true);
-          }
+        const root = containerRef.current;
+        const wrapper = sceneWrapperRefs.current[index];
+        if (!root || !wrapper) {
+          return;
+        }
 
-          await startPreload();
-        },
-        getCurrentIndex: () => activeSceneIndexRef.current,
-        getPerformanceMetrics: (): PerformanceMetrics => performanceMonitor.getMetrics(),
-      }),
-      [
-        beginProgrammaticScroll,
-        direction,
-        goToScrollZone,
-        measureSceneLayouts,
-        preloadActions,
-        resolvedTargetPreloadImages,
-        sceneWrapperRefs,
-        startPreload,
-        syncNativeScrollState,
-        updateViewportMetrics,
-      ]
+        const offset = getRelativeOffset(wrapper, root, direction);
+        // S-F2: goToScene is self-issued navigation — mark it programmatic
+        // so its scroll frames crossing a takeover segment aren't treated as
+        // a user gesture and clamped to the segment boundary (the corrective
+        // auto scrollTo would abort a smooth animation mid-way).
+        beginProgrammaticScroll(offset);
+        root.scrollTo({
+          top: direction === 'x' ? undefined : offset,
+          left: direction === 'x' ? offset : undefined,
+          behavior: animated ? 'smooth' : 'auto',
+        });
+      },
+      [beginProgrammaticScroll, direction, sceneWrapperRefs]
     );
 
-    // onReady must fire exactly once after mount, mirroring the drag root
-    // (CineView.tsx). getRuntimeApi changes identity on every activeSceneIndex
-    // change, so depending on it here would re-fire onReady on each scene
-    // change. Hold the latest api in a ref and fire once on mount instead.
-    const getRuntimeApiRef = useRef(getRuntimeApi);
-    getRuntimeApiRef.current = getRuntimeApi;
-    const onReadyRef = useRef(resolvedCallbacks.common?.onReady);
-    onReadyRef.current = resolvedCallbacks.common?.onReady;
+    const refreshLayoutImpl = useCallback((): void => {
+      updateViewportMetrics();
+      measureSceneLayouts();
+      syncNativeScrollState();
+    }, [measureSceneLayouts, syncNativeScrollState, updateViewportMetrics]);
 
+    const preloadImpl = useCallback(
+      async (targets?: CineviewPreloadTarget[]): Promise<void> => {
+        const targetImages = resolvedTargetPreloadImages(targets);
+        if (targetImages.length > 0) {
+          preloadActions.addUrls(targetImages, true);
+        }
+        await startPreload();
+      },
+      [preloadActions, resolvedTargetPreloadImages, startPreload]
+    );
+
+    if (!stableApiRef.current) {
+      stableApiRef.current = {
+        goToScene: (index: number, animated = true) => goToSceneImpl(index, animated),
+        goToZone: (zoneId: string, options) => goToScrollZone(zoneId, options),
+        refreshLayout: () => refreshLayoutImpl(),
+        preload: (targets) => preloadImpl(targets),
+        getCurrentIndex: () => activeSceneIndexRef.current,
+        getPerformanceMetrics: () => performanceMonitor.getMetrics(),
+      };
+    }
+
+    const stableApi = stableApiRef.current;
+
+    // onReady must fire exactly once after mount, mirroring the drag root.
+    const onReadyFiredRef = useRef(false);
     useEffect(() => {
-      onReadyRef.current?.(getRuntimeApiRef.current());
-    }, []);
+      if (onReadyFiredRef.current) return;
+      onReadyFiredRef.current = true;
+      resolvedCallbacks.common?.onReady?.(stableApi);
+    }, [resolvedCallbacks.common, stableApi]);
 
-    useImperativeHandle(ref, getRuntimeApi, [getRuntimeApi]);
+    useImperativeHandle(ref, () => stableApi, [stableApi]);
 
     const resolvedScrollbarConfig = typeof scrollbar === 'object' ? scrollbar : {};
     const scrollbarAutoHide = resolvedScrollbarConfig.autoHide ?? true;

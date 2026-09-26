@@ -94,3 +94,9 @@ site/.v1-acceptance/
 /site/check-*.mjs
 /site/act5-scroll-drive-probe.mjs
 /site/scene5-*.mjs
+
+# Generated from a successful framework coverage run for the website badge.
+site/public/coverage.json
+
+# Production browser acceptance build.
+site/dist-acceptance/

@@ -3,7 +3,7 @@ title: useAnimateTimeline
 eyebrow: ADVANCED / USEANIMATETIMELINE
 ---
 
-`useAnimateTimeline()` provides MotionValues from the nearest Animate. Bind them to motion styles or subscribe to changes for custom drawing. Updates do not cause React renders unless the consumer puts values into React state.
+Use `useAnimateTimeline()` to connect custom styles, canvas drawing, or WebGL content to Animate progress. It provides MotionValues from the nearest Animate. Bind them to styles or subscribe to changes without updating React state on every frame.
 
 ## Call the hook inside an Animate child
 
@@ -32,7 +32,7 @@ Treat the returned values as read-only. Derive new MotionValues instead of setti
 
 ```tsx
 import { motion, useTransform } from 'framer-motion';
-import { Animate, useAnimateTimeline } from 'cineview';
+import { Animate, Cineview, Scene, useAnimateTimeline } from 'cineview';
 
 function MovingContent() {
   const { progress } = useAnimateTimeline();
@@ -42,12 +42,18 @@ function MovingContent() {
 
 export function Example() {
   return (
-    <Animate enterAnimation="fade-in" duration={{ enter: 1200 }}>
-      <MovingContent />
-    </Animate>
+    <Cineview mode="scroll">
+      <Scene layout={{ height: '100vh' }} scroll={{ zoneId: 'moving-content' }}>
+        <Animate enterAnimation="fade-in" duration={{ enter: 1200 }}>
+          <MovingContent />
+        </Animate>
+      </Scene>
+    </Cineview>
   );
 }
 ```
+
+In this example, 1200px of scrolling completes the movement and fade. To control it with dragging, change Cineview to `mode="drag"` and remove `Scene.scroll`. The child component stays the same.
 
 Motion applies these style updates without React rendering. Render-prop children are another option when JSX needs ordinary numbers, with a React render for updates.
 
@@ -90,6 +96,19 @@ export function Meter() {
   return <canvas ref={ref} width={128} height={128} aria-label="Animation progress" />;
 }
 ```
+
+Place Meter inside Animate and declare the timeline span for the drawing. Keep opacity unchanged so the canvas displays its own result:
+
+```tsx
+<Animate
+  enterAnimation={{ initial: { opacity: 1 }, animate: { opacity: 1 } }}
+  duration={{ enter: 1200 }}
+>
+  <Meter />
+</Animate>
+```
+
+The subscription returns a cleanup function that unsubscribes on unmount. When integrating another drawing library, release resources created by that component in the same cleanup.
 
 For drawing that also changes with elapsed time, use an explicit visibility condition to start and stop a rAF loop. Cancel it on cleanup; an `entered` phase alone does not mean the canvas is still on screen.
 

@@ -423,24 +423,6 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     0 0 18px 0 color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-/* 滚动提示:缓慢上下浮动。定位交给 Position(viewport center + y),此处不设 position/left。
- * 2026-08-14(审计 act1-3):zh 下 0.16em 字距 = 全角字间再加 0.16 字宽(CJK 灾难边缘),
- * 压到 0.10em;en(35 字符长行)保持 0.16em 的报纸小标题感。 */
-.hero__hint-position {
-  position: absolute;
-  inset-inline: 1rem;
-  bottom: max(2rem, env(safe-area-inset-bottom));
-  display: flex;
-  justify-content: center;
-}
-
-.hero__scroll-hint {
-  display: inline-block;
-  font-size: var(--text-xs);
-  letter-spacing: 0.16em;
-  color: var(--ink-mute);
-}
-
 /* Keep reading and touch sizes independent of the 1440px illustration canvas. */
 @media (max-width: 900px) {
   .home-scene--hero .hero__stack {
@@ -485,11 +467,6 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   .home-scene--hero .hero__link {
     font-size: 14px;
   }
-
-  .home-scene--hero .hero__scroll-hint {
-    font-size: 12px;
-    letter-spacing: 0.08em;
-  }
 }
 
 @media (max-width: 600px) {
@@ -512,15 +489,6 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   .home-scene--hero .hero__slogan {
     font-size: 32px;
   }
-
-  .home-scene--hero .hero__hint-position {
-    bottom: 12px;
-  }
-}
-
-[data-lang='zh'] .hero__scroll-hint,
-.hero__scroll-hint[data-lang='zh'] {
-  letter-spacing: 0.1em;
 }
 
 .eyebrow {

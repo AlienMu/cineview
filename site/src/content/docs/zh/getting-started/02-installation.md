@@ -3,23 +3,43 @@ title: 安装
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-在使用 React 19 和 Framer Motion 13 的 React 应用中安装 Cineview 1.0.0。
+本文档对应 `cineview@0.0.1-beta` 的 `Cineview` API。安装下方指定版本即可运行示例。
 
-## 在 React 应用中安装
+## 安装 beta 及其依赖
 
 ```bash
-npm install cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
 使用 pnpm：
 
 ```bash
-pnpm add cineview@1.0.0 react@19 react-dom@19 framer-motion@13
+pnpm add cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
 ```
 
-## 运行本地示例
+`beta` 标签对应这套 API。`latest` 标签保留在 1.0.0，该版本导出 `CineView`，API 与本文不同。
 
-仓库使用 pnpm 10.22.0，Node.js 版本要求为 `^22.22.1 || >=24.0.0`。
+应用需要提供 React、React DOM 和 Framer Motion，并与 Cineview 共用它们。重复安装 React 可能导致 Hook 错误。
+
+| 包 | 版本要求 |
+| --- | --- |
+| `react` | `^19.0.0` |
+| `react-dom` | `^19.0.0` |
+| `framer-motion` | `^13.0.0` |
+
+## 导入组件
+
+从主入口导入组件：
+
+```tsx
+import { Animate, AnimateVideo, Cineview, Scene } from 'cineview';
+```
+
+主入口支持拖动和滚动模式。接下来可阅读[快速上手](/docs/03-quickstart)，也可运行下方本地示例来修改框架源码。
+
+## 运行仓库示例
+
+开发本仓库使用 pnpm 10.22.0 和 Node.js `^22.22.1 || >=24.0.0`。npm 包声明的 Node.js 最低版本是 18，应用还需满足自身构建工具的要求。
 
 ```bash
 git clone https://github.com/AlienMu/cineview.git
@@ -30,74 +50,44 @@ pnpm --dir examples/minimal install --frozen-lockfile
 pnpm --dir examples/minimal dev
 ```
 
-要在其他应用中测试本地修改，先构建 Cineview，再在仓库执行 `pnpm pack`，将生成的 `.tgz` 文件安装到目标应用。
+在其他应用中验证本地修改时，先构建 Cineview，再执行 `pnpm pack`。将生成的 `.tgz` 文件安装到目标应用。
 
-## Peer 依赖
+## 其他包入口
 
-以下三个运行时由应用提供：
+主入口支持 ECMAScript 模块（ESM）和 CommonJS，并包含两种模式的代码。设置 `mode` 只决定运行哪种模式，不会从构建产物中移除另一种。
 
-| 包              | 版本要求  |
-| --------------- | --------- |
-| `react`         | `^19.0.0` |
-| `react-dom`     | `^19.0.0` |
-| `framer-motion` | `^13.0.0` |
+| 应用环境 | 入口或文件 | 包含的模式 |
+| --- | --- | --- |
+| ES 模块或 CommonJS | `cineview` | drag 与 scroll |
+| CommonJS | `cineview/drag` | drag |
+| CommonJS | `cineview/scroll` | scroll |
+| 浏览器脚本 | `cineview-drag.umd.js` | drag |
+| 浏览器脚本 | `cineview-scroll.umd.js` | scroll |
+| 浏览器脚本 | `cineview.umd.js` | drag 与 scroll |
 
-应用的构建产物中，每个运行时保留一份。
-
-## 三个运行时入口
-
-| 入口              | 内容                       | 模块支持           |
-| ----------------- | -------------------------- | ------------------ |
-| `cineview`        | 两套引擎，通过 `mode` 选择 | ES 模块与 CommonJS |
-| `cineview/drag`   | drag 引擎                  | CommonJS           |
-| `cineview/scroll` | scroll 引擎                | CommonJS           |
-
-```tsx
-import { Cineview, Scene, Animate } from 'cineview';
-```
-
-## 完整 ES 模块入口包含两套引擎
-
-Vite、webpack 或 Rollup 应用使用 `cineview`。完整入口引用两套引擎，设置单个 `mode` 不会从构建产物中移除另一套引擎。
-
-## 按模式子路径支持 CommonJS
-
-两个子路径提供 `types` 与 `require` 条件，没有 `import` 条件。TypeScript 可以解析其中的类型，但 ESM 应用无法通过这些子路径导入运行时对象。
+CommonJS 应用可以选择单模式入口，减少包含的引擎代码：
 
 ```js
 const { Cineview } = require('cineview/drag');
 ```
 
-应用已提供 React、React DOM 和 Framer Motion 全局对象时，可通过脚本加载独立的 UMD 文件。这些文件不包含上述运行时。
+**两个模式子路径不提供 ES 模块运行时入口。** TypeScript 能解析其类型，但 ESM 应用仍需从 `cineview` 导入运行时对象。
 
-## 选择入口
+`cineview/drag` 固定使用 drag，传入其他 `mode` 会报错。`cineview/scroll` 固定使用 scroll。需要切换模式的应用使用主入口。
 
-| 应用环境              | 入口或文件               |
-| --------------------- | ------------------------ |
-| ESM 打包器            | `cineview`               |
-| CommonJS，仅 drag     | `cineview/drag`          |
-| CommonJS，仅 scroll   | `cineview/scroll`        |
-| 浏览器脚本，仅 drag   | `cineview-drag.umd.js`   |
-| 浏览器脚本，仅 scroll | `cineview-scroll.umd.js` |
-| 浏览器脚本，两种模式  | `cineview.umd.js`        |
+通用模块定义（UMD）文件用于浏览器脚本加载。页面需先提供 React、React DOM 和 Framer Motion 全局对象。
 
-每个 UMD 文件在单个构建包中包含所选引擎的代码。
+## 类型与性能面板
 
-## 单模式入口的行为
+类型定义随包提供。共享类型从 `cineview` 导入。`CineviewDragProps` 和 `CineviewScrollProps` 分别从对应模式子路径导入。
 
-drag 入口始终使用拖拽模式；JavaScript 调用方传入其他 `mode` 值时会收到错误。scroll 入口始终使用滚动模式，不读取传入的 `mode`。需要在运行时选择模式时，使用完整入口 `cineview`。
-
-## TypeScript 与开发工具
-
-类型定义随包提供。共享类型从 `cineview` 导入，`CineviewDragProps` 和 `CineviewScrollProps` 分别由对应的按模式子路径导出。
-
-按需导入性能面板和样式：
+要采集帧指标，在 Cineview 上设置 `monitor`。要显示性能面板，从 `cineview/dev` 导入 `PerfPanel`，并单独导入样式：
 
 ```tsx
 import { PerfPanel } from 'cineview/dev';
 import 'cineview/dev/style.css';
 ```
 
-使用内置面板时，设置 `<Cineview debug>` 即可，无需单独导入面板或样式。需要自定义面板时，在 Cineview 上启用 `monitor`，将 `callbacks.onReady` 提供的引用传给面板的 `source` 属性。同一入口还导出 `usePerfMonitor`，用于自定义指标展示。可用指标见[性能](/docs/01-performance)。
+在 `callbacks.onReady` 中接收 Cineview 引用，传给 `<PerfPanel source={ref} />`。scroll 模式的 `debug` 只输出锁定区布局诊断属性，不显示面板。同一入口还提供 `usePerfMonitor`，用于自定义指标展示。完整示例见[性能](/docs/01-performance)。
 
 继续阅读[快速上手](/docs/03-quickstart)。

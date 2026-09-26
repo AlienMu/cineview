@@ -1,78 +1,90 @@
 ---
-title: Timeline
+title: Animation composition and sequencing
 eyebrow: CONCEPTS / SEQUENCING
 ---
 
-`timeline.after` orders animations on separate elements. `stagger` reveals the direct children of one container at intervals.
+An element can combine several presets or custom animations. Use `timeline.after` to order separate elements, or `stagger` to reveal a container's direct children at intervals.
 
-## after chains
+`after` expresses a dependency between elements. If the title changes from 600ms to 900ms, a following detail moves 300ms later automatically. Absolute delays would require updating each following element separately.
 
-Set `timeline.after` to another element's `animateId` in the same Scene. The follower starts after that element's entrance, plus its own delay.
+## Order elements with after
+
+Set `timeline.after` to another element's `animateId` in the same Scene. This example has no exit animations: the subtitle follows the title, and the button follows the subtitle.
 
 ```tsx
 <Scene sceneId="titles">
   <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
     <h1>Title</h1>
   </Animate>
-  <Animate animateId="sub" enterAnimation="fade-in" timeline={{ after: 'title', delay: 100 }}>
+  <Animate
+    animateId="subtitle"
+    enterAnimation="fade-in"
+    duration={{ enter: 600 }}
+    timeline={{ after: 'title', delay: 100 }}
+  >
     <p>Subtitle</p>
   </Animate>
-  <Animate animateId="cta" enterAnimation="fade-in" timeline={{ after: 'sub' }}>
+  <Animate enterAnimation="fade-in" duration={{ enter: 400 }} timeline={{ after: 'subtitle' }}>
     <button>Continue</button>
   </Animate>
 </Scene>
 ```
 
-## How after starts an animation
+The target `animateId` must exist in the same Scene. JSX order does not determine animation order, so the preceding animation can be declared after its follower.
 
-The timing depends on the element's driver.
+## How each driver waits
 
-### Elements that follow progress
+### Following drag or scroll progress
 
-Scene-driven drag elements and scene-driven elements inside a scroll locked zone use accumulated timing offsets:
+The subtitle starts at 700ms and the button at 1300ms in this example. Dragging or scrolling to those positions starts each element's change, with **no additional wait at that position**.
 
-```text
-follower start = follower delay + leader start + leader enter duration
-```
+`after` waits for the preceding entrance to finish in both drag and scroll mode. An entrance of 600ms followed by an exit of 400ms lets a follower without delay start at 600ms. In a locked zone, an authored `phase` sets the effective entrance interval, so the follower starts at that interval's end.
 
-For the example, the subtitle starts at 700ms and the button at 1300ms. Scrolling or dragging through those positions advances each element; no additional wait occurs when the position is reached.
+The follower's own `timeline.delay` is added after this position. See [Zones and scroll budgets](/docs/02-zones-budget) for more locked-zone examples.
 
-### Elements triggered by visibility
+### Playing on visibility
 
-Visibility-driven scroll elements wait until their leader has completed an entrance at least once. They then require their own visibility condition and delay.
+Visibility animation waits for the preceding element to complete an entrance at least once. Its own visibility condition and delay then determine when it starts.
 
-```text
-start = leader has entered + own visibility condition + own delay
-```
-
-The leader's exit or a follower replay does not undo that completed entrance. The follower waits only for its own delay; it does not add the leader's elapsed playback time again.
+A later exit of the preceding element does not undo that completed entrance. A replaying follower also waits only for its own delay, without waiting again for time the preceding element has already played.
 
 ### Combining drivers
 
-| Follower                     | Leader                       | Supported                                  |
-| ---------------------------- | ---------------------------- | ------------------------------------------ |
-| Visibility-driven            | Visibility-driven            | Yes                                        |
-| Follows scene progress       | Same progress driver         | Yes                                        |
-| Visibility-driven scroll     | Scroll locked-zone animation | Yes, after the leader's entrance completes |
-| Scroll locked-zone animation | Visibility-driven            | No                                         |
-| Scene-driven drag            | A different driver           | No                                         |
+| Follower                           | Preceding element                       | Supported                                   |
+| ---------------------------------- | --------------------------------------- | ------------------------------------------- |
+| Visibility animation               | Visibility animation                    | Yes                                         |
+| Animation following scene progress | Animation with the same progress source | Yes                                         |
+| Scroll visibility animation        | Scroll locked-zone animation            | Yes, after the preceding entrance completes |
+| Scroll locked-zone animation       | Visibility animation                    | No                                          |
+| Drag scene animation               | A different driver                      | No                                          |
 
-An unsupported dependency reports `INVALID_ANIMATION` and is ignored. The follower keeps its own delay and driver. A fixed scroll position cannot wait for a visibility event whose time depends on user input.
+An unsupported dependency reports `INVALID_ANIMATION` and is ignored. The follower keeps its own delay and driver. A fixed scroll position cannot wait for a visibility event whose timing depends on user input.
 
-In drag mode, a `driver: 'clock'` element cannot lead or follow an `after` chain.
+A drag element with `driver: 'clock'` cannot precede or follow another element through `after`.
 
-## Errors
+## Combine animations on one element
 
-| Code                  | Condition                                                           |
-| --------------------- | ------------------------------------------------------------------- |
-| `INVALID_ANIMATION`   | The target `animateId` does not exist or its driver is incompatible |
-| `CIRCULAR_DEPENDENCY` | The chain contains a cycle                                          |
+Put presets and custom animations in `animations` and choose a composition mode. This title fades in while moving upward:
 
-The target must exist when the Scene's declarations are ready. JSX order does not determine animation order, so a follower can appear before its leader in the same render. Match identifiers exactly and remove cycles.
+```tsx
+<Animate
+  enterAnimation={{
+    animations: ['fade-in', { initial: { y: 32 }, animate: { y: 0 } }],
+    mode: 'parallel',
+  }}
+  duration={{ enter: 800 }}
+>
+  <h1>Product details</h1>
+</Animate>
+```
 
-## stagger
+Later entries take precedence when they define the same property. Use keyframes for a property that needs several successive values. See [Custom animation](/docs/05-custom-animation) for the complete syntax.
 
-With `stagger`, pass a single container element. Its direct children use the entrance animation in sequence.
+Ordinary `Animate` entrances and exits, including visibility and clock playback, combine the properties of a composed animation into one progress interval; `sequential` and `delays` do not stage their playback. Use keyframes for ordered changes to one element, or `timeline.after` to start one element after another.
+
+## Reveal children at intervals
+
+Pass a single container element when using `stagger`. Its direct children play the same entrance animation in sequence:
 
 ```tsx
 <Animate enterAnimation="fade-in" stagger={{ each: 40, from: 'first' }}>
@@ -84,30 +96,29 @@ With `stagger`, pass a single container element. Its direct children use the ent
 </Animate>
 ```
 
-`each` is the interval in milliseconds, defaulting to 40. `from` is `'first'`, `'last'`, or `'center'`, with `'first'` as the default.
+`each` is the interval between children, defaulting to 40ms. `from` accepts `'first'`, `'last'`, or `'center'`, and defaults to the first child.
 
-Stagger plays by elapsed time even inside a locked zone. For children that follow individual scroll ranges, map their visuals from `useAnimateTimeline()` progress or use separate Animate elements.
+Stagger plays by time, including inside locked zones. For children that each follow scrolling, use separate Animate elements or subscribe to progress as in the [Canvas example](/docs/02-timeline).
 
-## Plan exit behavior
+## Configure exits
 
-`after` orders entrances only. Add exits when the design needs them; an entrance sequence does not require a mirrored exit.
+`after` schedules a follower's entrance; it does not generate a reversed sequence of exits. For ordered exits on visibility animations, call each `exitRef` in sequence. See [Manual triggers](/docs/03-animate).
 
-`exitAnimation` specifies the visual change and `duration.exit` sets its duration. Neither adds an exit dependency. For ordered exits on visibility-driven scroll elements, call their `exitRef` triggers in the desired order. See [Manual triggers](/docs/03-animate).
+In a locked zone, reverse scrolling moves backward through the same animation. Returning to earlier frames needs no separate exit declaration. Adding `exitAnimation` creates an additional exit during forward scrolling.
 
-Inside a locked zone, reverse scrolling already reverses the mapped animation. Use duration, delay, and keyframes to define what happens at each scroll position.
+| Drag navigation direction  | Element behavior                                  |
+| -------------------------- | ------------------------------------------------- |
+| To the next scene          | Plays `exitAnimation`                             |
+| Back to the previous scene | Plays the entrance in reverse                     |
+| Forward without an exit    | Holds the completed entrance while the page moves |
 
-## Forward and reverse exits in drag
+For similar visuals in both directions, define the exit as the entrance in reverse.
 
-| Direction                      | Animation                                                     |
-| ------------------------------ | ------------------------------------------------------------- |
-| Toward the next scene          | The declared `exitAnimation`                                  |
-| Back toward the previous scene | The entrance in reverse; `exitAnimation` is not used          |
-| Forward with no exit declared  | The element holds its completed entrance while the page moves |
+## Check dependency errors
 
-Set the exit close to the entrance's reverse when both directions need similar visuals. Omitting an exit keeps the forward scene's content still during page movement.
+| Error code            | Check                                                                       |
+| --------------------- | --------------------------------------------------------------------------- |
+| `INVALID_ANIMATION`   | Whether the target id exists, matches exactly, and uses a compatible driver |
+| `CIRCULAR_DEPENDENCY` | Whether A waits for B while B also waits for A                              |
 
-## Related pages
-
-- [Animate](/docs/03-animate): duration, timeline, and manual refs
-- [Animate timeline](/docs/02-timeline): drivers and phases
-- [Troubleshooting](/docs/07-common-pitfalls): sequencing problems
+Declare preceding and following elements in the same render. See [Common pitfalls](/docs/07-common-pitfalls) for further diagnosis.

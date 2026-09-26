@@ -15,24 +15,19 @@
  *    short-circuits all logic — silent failure. UMD / script-tag consumers lack
  *    type protection; only runtime override truly prevents this.
  *
- * Props type is not `Omit<CineviewProps, 'mode'>`: `CineviewProps` is a discriminated
- * union keyed on `mode` (types/index.ts:377-379). Omitting the discriminant collapses
- * `callbacks` into the union of both modes, matching neither. Instead, assemble directly
- * from `CineviewBaseProps` + drag callbacks — naturally no `mode`, and preserves the
- * callbacks-to-mode correspondence.
+ * Derive props from the concrete drag branch before omitting `mode`, preserving
+ * every drag configuration field and its corresponding callbacks.
  */
 
 import { forwardRef, createElement } from 'react';
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
 import { CineviewDragEngine } from './components/Cineview/Cineview';
-import type { CineviewBaseProps, DragModeCallbacks, CineviewRef } from './types';
+import type { CineviewDragModeProps, CineviewRef } from './types';
 
 export * from './public-api';
 
 /** Drag entry props: no `mode`, callbacks fixed to drag set. */
-export type CineviewDragProps = CineviewBaseProps & {
-  callbacks?: DragModeCallbacks;
-};
+export type CineviewDragProps = Omit<CineviewDragModeProps, 'mode'>;
 
 const CineviewDragOnly = forwardRef<CineviewRef, CineviewDragProps>((props, ref) => {
   // script-tag / CJS consumers lack type protection and may pass `mode="scroll"`.

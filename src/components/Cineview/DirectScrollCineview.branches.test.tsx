@@ -1,7 +1,7 @@
 import React, { act, useCallback, useContext, useEffect, createRef } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { DirectScrollCineView } from './DirectScrollCineView';
+import { DirectScrollCineView } from './DirectScrollCineview';
 import type { CineviewRef } from '../../types';
 import { CineviewRuntimeContext } from '../runtime/runtimeContext';
 import {
@@ -69,7 +69,6 @@ interface TestSceneProps {
   exitAnimation?: string;
   scroll?: {
     zoneId?: string;
-    trigger?: 'center-lock';
   };
   sceneRuntime?: {
     sceneIndex: number;
@@ -92,7 +91,6 @@ const TestScene: React.FC<TestSceneProps> = ({ children, sceneId, scroll, sceneR
 
     runtime.registerZone(zoneId, {
       sceneIndex,
-      trigger: scroll.trigger ?? 'center-lock',
     });
 
     return () => {
@@ -864,7 +862,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="px"
             layout={{ height: '1200px' }}
-            scroll={{ zoneId: 'px-zone', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'px-zone' }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
             <ScrollBudgetProbe animateId="px-anim" />
@@ -873,7 +871,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="vh"
             layout={{ height: '60vh' }}
-            scroll={{ zoneId: 'vh-zone', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'vh-zone' }}
             sceneRuntime={{ sceneIndex: 2 }}
           >
             <ScrollBudgetProbe animateId="vh-anim" />
@@ -882,7 +880,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="auto"
             layout={{ height: 'auto' }}
-            scroll={{ zoneId: 'auto-zone', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'auto-zone' }}
             sceneRuntime={{ sceneIndex: 3 }}
           >
             <ScrollBudgetProbe animateId="auto-anim" />
@@ -891,7 +889,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="bad"
             layout={{ height: 'nope' }}
-            scroll={{ zoneId: 'bad-zone', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'bad-zone' }}
             sceneRuntime={{ sceneIndex: 4 }}
           >
             <ScrollBudgetProbe animateId="bad-anim" />
@@ -900,7 +898,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="unitless"
             layout={{ height: '500' }}
-            scroll={{ zoneId: 'unitless-zone', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'unitless-zone' }}
             sceneRuntime={{ sceneIndex: 5 }}
           >
             <ScrollBudgetProbe animateId="unitless-anim" />
@@ -933,7 +931,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="vw"
             layout={{ width: '70vw' }}
-            scroll={{ zoneId: 'vw-zone', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'vw-zone' }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
             <ScrollBudgetProbe animateId="vw-anim" />
@@ -1091,7 +1089,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="scene-1"
             sceneHeight={1000}
-            scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'zone-1' }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
             <ScrollBudgetProbe animateId="zone-anim" />
@@ -1205,7 +1203,7 @@ describe('DirectScrollCineView — branch coverage', () => {
           <TestScene
             sceneId="scene-1"
             sceneHeight={1000}
-            scroll={{ zoneId: 'zone-1', trigger: 'center-lock' }}
+            scroll={{ zoneId: 'zone-1' }}
             sceneRuntime={{ sceneIndex: 1 }}
           >
             <ScrollBudgetProbe animateId="dbg-anim" />

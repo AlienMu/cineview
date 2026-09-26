@@ -7,32 +7,32 @@ eyebrow: ADVANCED / PERFORMANCE
 
 ## 运行时监控
 
-设置 `<Cineview debug>` 可在两种模式下显示内置性能面板，同时开启采样和 scroll 布局诊断。面板自动加载样式。设置 `debug={false}` 后面板消失；某个实例仍开启 `monitor` 或 `debug` 时，采样继续。
+设置 `monitor` 后开始采集帧数据。要在页面显示数据，从 `cineview/dev` 引入 `PerfPanel`，并引入面板样式。scroll 模式的 `debug` 只在 DOM 上添加布局诊断属性，不会启动采样或显示面板。
 
 启用 `monitor`，通过 Cineview ref 读取结果：
 
 ```tsx
-import { useRef } from 'react';
+import { useState } from 'react';
 import { Cineview, Scene, type CineviewRef } from 'cineview';
+import { PerfPanel } from 'cineview/dev';
+import 'cineview/dev/style.css';
 
 export default function Demo() {
-  const ref = useRef<CineviewRef>(null);
+  const [source, setSource] = useState<CineviewRef | null>(null);
   return (
     <>
-      <button onClick={() => console.table(ref.current?.getPerformanceMetrics())}>
-        输出性能数据
-      </button>
-      <Cineview monitor ref={ref}>
+      <Cineview monitor callbacks={{ onReady: setSource }}>
         <Scene sceneId="example">
           <h1>示例</h1>
         </Scene>
       </Cineview>
+      <PerfPanel source={source} lang="zh" />
     </>
   );
 }
 ```
 
-读取方法不要求采样处于开启状态。至少一个实例开启 `monitor` 或 `debug` 后才会采集帧样本。尚无样本时帧数据为零，停止监控后保留最近的样本。
+自定义展示时，可调用 `source?.getPerformanceMetrics()`，或使用 `cineview/dev` 中的 `usePerfMonitor`。至少一个实例开启 `monitor` 后才会采集帧样本。读取数据时无需保持监控开启；尚无样本时帧数据为零，停止监控后保留最近的样本。
 
 ## 指标字段
 

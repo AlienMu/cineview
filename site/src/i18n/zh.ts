@@ -17,7 +17,6 @@ export const zh = {
   'hero.ctaStart': '开始使用',
   'hero.ctaApi': 'API 文档',
   'hero.ctaGithub': 'GitHub',
-  'hero.scrollHint': '向下滚动,胶片开始走动',
 
   // ── Act 2 Philosophy ──
   'idea.eyebrow': '为什么是 Cineview',
@@ -31,9 +30,8 @@ export const zh = {
   'cap.tc.rec': 'REC',
 
   'cap.shot1.slate': 'SCENE TIMELINE',
-  'cap.shot1.title': '像挑镜头一样|挑一种入场',
-  'cap.shot1.intro':
-    '四十余种进场预设内置其中——从淡入到震颤，改一个 prop 便从容切换，不必手写一行动画曲线。',
+  'cap.shot1.title': '选一种入场|试试不同动效',
+  'cap.shot1.intro': '淡入、滑动、缩放，选择预设即可使用。搭配延迟与先后顺序，让元素依次出现。',
   'cap.shot1.preset.fadeIn.title': '淡入登场',
   'cap.shot1.preset.fadeIn.name': 'fade-in',
   'cap.shot1.preset.fadeIn.desc': '透明度从 0 淡入至 1，最基础的进场语义。',
@@ -118,17 +116,18 @@ export const zh = {
   'demoDrag.s4.title': '40+ 动画预设',
   'demoDrag.s4.sub': 'fade / zoom / flip / blur 任意组合',
 
-  // ── Act 5 Cinema Entrance (fade-in from black) ──
-  /* Title + subtitle (2026-08-09 rewrite, user interview ruling "Direction A: reveal dual-mode co-existence").
-     This act's objective fact: the page itself is scroll mode, the phone interior is drag mode, the audience is simultaneously
-     watching both modes running the same framework — the copy reveals it directly. First subtitle line uses "it" to refer back
-     to the title's "unified system"; second line lands on verifiable framework facts (timeline semantics / animation declarations share the same source).
-     Deliberately not written as marketing copy: the site's tone is "show you by demonstration", not "tell you it's great". */
-  'scene5.title': '演示到这里。',
-  'scene5.subtitle':
-    '这一页使用 scroll，手机内使用 drag。\n两种交互，共用同一套场景组件和动画时序声明。',
+  // Homepage closing copy, outside the embedded /drag experience.
+  'scene5.title': '也有另一种不同的模式',
+  'scene5.subtitle': '专为移动端设计',
+  'scene5.dragLead': '拖动下一幕，画面和其中的动画都会跟着手势前进。',
+  'scene5.timelineDetail':
+    '每个元素在同一条时间线上有自己的起点：标题延迟 100ms 开始，持续 600ms；说明接在标题之后，再延迟 100ms，从 800ms 开始。',
+  'scene5.releaseDetail':
+    '松手确认切换后，动画从当前进度继续。若已经拖过 800ms，说明会在松手前出现。',
+  'scene5.rulerTitle': '100ms · 标题',
+  'scene5.rulerDetail': '800ms · 说明',
   'scene5.frameTitle': 'Cineview 拖拽体验',
-  'scene5.dragHint': '拖拽试试',
+  'scene5.dragHint': '按住画面上下拖动',
 
   // ── Act 5 Capability matrix ──
   'caps.eyebrow': '能力',
@@ -147,10 +146,9 @@ export const zh = {
   'caps.6.title': 'scene-scoped 固定层',
   'caps.6.desc': '固定层限定在场景内,跨场景不漂浮,Position 直接挂载,层级清晰可控。',
 
-  // ── Act 6 CTA / Footer ──
-  'cta.title': '接下来，写第一个场景',
-  'cta.body': '接入已有的 React 内容，用 Scene 组织页面，用 Animate 编排入场、退场与先后顺序。',
-  'cta.start': '阅读文档',
+  // Homepage closing action and footer.
+  'cta.title': '从第一个场景开始',
+  'cta.start': '阅读快速入门',
   'cta.github': '查看 GitHub',
   'footer.tagline': 'Cineview · React 场景与动画框架',
   'footer.docs': '文档',
@@ -171,7 +169,7 @@ export const zh = {
   'demoVideo.intro':
     '从逐帧跳动，\n到光影长卷——\n所有动态，共用一种节奏；\n解锁画面，让故事自由上演。',
   'demoVideo.code':
-    '<Scene scroll={{ zoneId: "hero-video", trigger: "center-lock" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
+    '<Scene scroll={{ zoneId: "hero-video" }}>\n  <AnimateVideo\n    src="/video.mp4"\n    duration={{ enter: 2000 }}\n    timeline={{ after: "intro" }}\n  />\n</Scene>',
   'demoVideo.desc': '滚动即时间轴：进度 0→1 映射到视频首帧→末帧，反向滚动天然倒放。',
 
   // ── Documentation shell ──
@@ -225,28 +223,23 @@ export const zh = {
   'dragTemporal.s03.sub3': '控制',
   'dragTemporal.s03.sub4': '节奏',
   'dragTemporal.s03.sub5': '时序',
+  'dragTemporal.s04.title': '画面聚焦于你',
   'dragTemporal.s04.equationLabel': 'DRAG DISTANCE = TIME',
   'dragTemporal.s04.footerHint': '拖拽距离化作时间',
   'dragTemporal.s04.rulerLabel': '拖拽进度标尺',
-  'dragTemporal.s05.actionsLabel': '尾场导航',
-  'dragTemporal.s05.btnHome': '返回首页',
-  'dragTemporal.s05.btnDocs': '阅读文档',
-  'dragTemporal.s05.btnGithub': 'GitHub',
-  'dragTemporal.s05.summary':
-    '场景、图形与视频，以上效果都由 Cineview 编排。同一套组件，支持拖拽与滚动。',
   'dragTemporal.s05.reelLabel': '胶片尾段',
-  'dragTemporal.s05.creditsLabel': '本次演示使用的 Cineview 组件',
+  'dragTemporal.s05.creditsLabel': 'Cineview 谢幕演职员表',
   'dragTemporal.s05.title': '灯光落下，戏散场。',
-  'dragTemporal.s05.director': '场景',
-  'dragTemporal.s05.editor': '动画编排',
-  'dragTemporal.s05.cinematography': '交互',
-  'dragTemporal.s05.performance': '视频',
-  'dragTemporal.s05.starring': '自定义画面',
-  'dragTemporal.s05.sceneEngine': 'Scene',
-  'dragTemporal.s05.timeline': 'Animate + timeline',
-  'dragTemporal.s05.scrollDrag': 'scroll / drag',
-  'dragTemporal.s05.motionRuntime': 'AnimateVideo',
-  'dragTemporal.s05.yourStory': 'React + Canvas',
+  'dragTemporal.s05.director': '导演',
+  'dragTemporal.s05.editor': '剪辑',
+  'dragTemporal.s05.cinematography': '摄影',
+  'dragTemporal.s05.performance': '动态演出',
+  'dragTemporal.s05.starring': '领衔主演',
+  'dragTemporal.s05.sceneEngine': '场景调度引擎',
+  'dragTemporal.s05.timeline': '统一时间线',
+  'dragTemporal.s05.scrollDrag': '滚动与拖拽',
+  'dragTemporal.s05.motionRuntime': '可逆动效运行时',
+  'dragTemporal.s05.yourStory': '你的叙事',
   'dragTemporal.s05.salute1': '封神',
   'dragTemporal.s05.salute2': '帧听你的',
   'dragTemporal.s05.salute3': '一镜到底',

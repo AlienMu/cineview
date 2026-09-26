@@ -7,24 +7,24 @@ Container scales numeric dimensions and supported style lengths by `viewportWidt
 
 ## Props
 
-| prop        | Type                                             | Notes                                                               |
-| ----------- | ------------------------------------------------ | ------------------------------------------------------------------- |
-| `width`     | number                                           | Container width (design px)                                         |
-| `height`    | number                                           | Container height (design px)                                        |
-| `style`     | CSSProperties                                    | Whole style block; numeric length values are converted as design px |
-| `className` | string                                           | Root div class                                                      |
-| `children`  | ReactNode                                        | Required                                                            |
-| rest        | HTMLAttributes (except children/style/className) | Passed through to the root div                                      |
+| prop        | Type                                             | Notes                                                          |
+| ----------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| `width`     | number                                           | Container width (design px)                                    |
+| `height`    | number                                           | Container height (design px)                                   |
+| `style`     | CSSProperties                                    | Additional styles; supported numeric lengths use design pixels |
+| `className` | string                                           | Root div class                                                 |
+| `children`  | ReactNode                                        | Required                                                       |
+| rest        | HTMLAttributes (except children/style/className) | Passed through to the root div                                 |
 
 The forwarded `ref` points to the root div.
 
-Container only works under `<Cineview>`: conversion depends on the context. Rendering it outside Cineview throws in development builds.
+Place Container inside `<Cineview>` so it can read the design width. Development builds throw an error when it is used outside Cineview.
 
 ## Conversion behavior
 
 `scale = viewportWidth / designWidth` (`designWidth` defaults to 750). `width={520}` renders as 260px in a 375px viewport (scale 0.5).
 
-Numeric values in `style` are converted through an explicit property allowlist, covering:
+Numeric values in these `style` properties use design-pixel conversion:
 
 - Sizing: `width` / `height` / `minWidth` / `maxWidth` / `minHeight` / `maxHeight`
 - Positioning and inset: `top` / `right` / `bottom` / `left` / `inset*`
@@ -40,7 +40,7 @@ CSS strings such as `'50%'` and `'1rem'` pass through unchanged. Unitless number
 </Container>
 ```
 
-## Common mistakes
+## Usage notes
 
 - Use [Position](/docs/05-position) to place content by design coordinates. Container does not set a positioning mode.
 - Use numeric `fontSize: 28` to scale a design font size. The string `'28px'` stays at 28 CSS pixels.

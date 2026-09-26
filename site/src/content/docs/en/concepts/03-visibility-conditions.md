@@ -3,76 +3,65 @@ title: Visibility conditions
 eyebrow: CONCEPTS / VISIBILITY
 ---
 
-In scroll mode, elements outside locked zones use visibility conditions by default. `timeline.driver: 'clock'` selects the same behavior inside a locked zone. The element waits at its initial frame until the enter condition is met, then plays for its configured duration.
+In scroll mode, elements outside locked zones start their animations after entering the visible area. Set `timeline.driver: 'clock'` to use the same behavior inside a locked zone.
 
-Scrolling determines when the animation starts. Its playback duration is independent of scroll speed; frame delivery still depends on browser workload.
+An element holds its initial frame until its entrance condition is met. It then plays for the configured duration, independent of scroll speed.
 
-## The six phases
+## Enter before evaluating exit
 
-| Phase      | Meaning                                                  |
-| ---------- | -------------------------------------------------------- |
-| `idle`     | Not yet scheduled, and never exits                       |
-| `waiting`  | The enter condition holds, waiting on `after` or `delay` |
-| `entering` | The enter tween is running                               |
-| `entered`  | The entrance is complete                                 |
-| `exiting`  | The exit tween is running                                |
-| `exited`   | The exit is complete                                     |
+An `idle` element cannot exit directly. It must first satisfy its entrance condition before its position can trigger an exit. This prevents content approaching from below the viewport from exiting before it appears.
 
-An `idle` element does not exit. This lets content approaching from beyond the viewport enter before an exit condition applies.
+See [The Animate timeline](/docs/02-timeline) for the waiting, entrance, and exit phases.
 
-## Condition geometry
+## When an ordinary element enters
 
-The criteria are based on the element's position relative to the scroll container. With `vh` as the container height:
+These conditions describe vertical scrolling. `relTop` and `relBottom` are the element's top and bottom positions relative to the scroll container. `vh` is the container height:
 
 ```text
-enter when: relTop >= 0 && relBottom <= vh - enterMargin
-exit when:  relTop <= exitMargin  ||  relBottom >= vh - exitMargin
+enter: relTop >= 0 && relBottom <= vh - enterMargin
+exit:  relTop <= exitMargin || relBottom >= vh - exitMargin
 ```
 
-Entering requires the element to be fully inside the viewport, with its bottom edge still clearing the viewport bottom by `enterMargin`. The exit is symmetric, with two clauses: the top edge approaching the viewport top (leaving upward under forward scrolling), or the bottom edge approaching the viewport bottom (leaving downward under reverse scrolling).
+For entrance, the element must fit entirely inside the visible area. Its bottom edge must also remain at least `enterMargin` from the viewport bottom.
 
-`enterMargin` and `exitMargin` use design px, scaled to physical pixels via `scale = viewportWidth / designWidth` before evaluation. Both default to 50, with a three-level fallback: a per-`Animate` `visibility.enterMargin` → the root's `enterMargin` → 50. Because values scale with viewport width, the same number produces different physical margins across device sizes.
+Exit can start in either direction. Scrolling down brings the element's top toward the viewport top. Scrolling up brings its bottom toward the viewport bottom.
 
-## Debounce overlap range
+Both margins use design px and scale by `viewportWidth / designWidth` before comparison. An Animate's `visibility.enterMargin` or `visibility.exitMargin` takes priority. Otherwise, the corresponding root setting applies, with 50 as the final default.
 
-The enter and top exit conditions overlap when `relTop ∈ [0, exitMargin]`.
+## Keep the current phase when conditions overlap
 
-When both conditions are true, the element keeps its current phase. Entering starts beyond the overlap and exiting starts after crossing its opposite boundary.
+An ordinary element can satisfy entrance and exit conditions at the same time. For example, the conditions may overlap when its top lies between `0` and `exitMargin`.
 
-## Tall element evaluation rules
+The element keeps its current phase during overlap. It enters when only the entrance condition holds and exits when only the exit condition holds. Small scroll movements near an edge therefore do not repeatedly switch the animation.
 
-When an element's height exceeds `vh - enterMargin`, standard entrance criteria cannot be met simultaneously. Such elements switch to height-adaptive criteria:
+## Elements taller than the visible area
+
+An element taller than `vh - enterMargin` cannot fit inside the entrance area. It uses a different pair of position checks:
 
 ```text
-enter: relTop <= vh / 2        (the top edge crosses the viewport midline)
-exit:  relBottom <= vh * 0.7   (the bottom edge rises past 70% of the viewport)
+enter: relTop <= vh / 2        (top passes the viewport midpoint)
+exit:  relBottom <= vh * 0.7   (bottom rises past 70% of viewport height)
 ```
 
-These criteria overlap across a wider range. In this scenario, exit evaluation takes precedence to ensure smooth departure without re-triggering entrance animations.
+Exit takes priority when both conditions hold. Long content that is already leaving does not re-enter merely because its top remains above the midpoint.
 
-## Behavior without exitAnimation
+## Declare an exit to allow replay
 
-Without `exitAnimation`, an element remains `entered` after its entrance. Moving outside the viewport does not reset it, and `visibility.replay` has no effect.
+Without `exitAnimation`, an element remains `entered` after its entrance. Moving outside the viewport does not reset it, and `visibility.replay` cannot make it replay.
 
-To make an element leave and replay, declare an exit animation.
+Declare `exitAnimation` when the element needs to leave and play again. An explicit `duration.exit: 0` completes the exit as soon as its condition holds. A positive duration plays the configured exit.
 
-An explicit `exitAnimation` with `duration.exit: 0` changes state immediately when the exit condition is met. A parsed non-empty exit variant with a positive exit duration also enables the exit condition.
+`visibility.replay` defaults to `true`. Set it to `false` to prevent an element that has exited from replaying when its entrance condition holds again.
 
-## Two special cases for the first screen and the first frame
+## The first scene and reloading partway down
 
-**First-screen cold-start restriction**: elements in scene 0 hold their initial frame until the first screen's critical assets are ready. This restriction applies in every mode, and scenes beyond the first are not subject to it. That first evaluation also relaxes the bottom margin, otherwise a hint element sitting against the viewport bottom never enters.
+Elements in the first scene wait at their initial frame for priority resources. This resource wait applies to both modes; see [Preloading](/docs/02-preload). The first scroll scene's initial entrance check relaxes the bottom margin so hints near the viewport bottom can start playing.
 
-**Already scrolled past the top on the first frame**: if an element's bottom edge is already above the viewport at first measurement (`relBottom <= 0`), it is revealed directly at its entered state with no entrance tween. Reloading partway down a page therefore does not make everything above replay.
-
-## replay
-
-Defaults to `true`. It affects only the `exiting` / `exited` → enter transition: whether an element replays when it satisfies the enter condition again after exiting.
-
-It is meaningless for elements with no `exitAnimation`, since those never reach `exited` in the first place.
+If an element is already entirely above the viewport at its first measurement (`relBottom <= 0`), it displays its completed entrance frame immediately. Reloading partway down a page therefore does not replay all preceding content. An `enterRef` configured for manual entrance only still requires a manual trigger.
 
 ## Related pages
 
-- [The Animate timeline](/docs/02-timeline): how to read phases and what drives an element
-- [Timeline](/docs/04-orchestration): with visibility driving, `after` waits for the leader's completion
-- [Runtime states](/docs/07-runtime-states): how scene-level runtime state controls continuous animation
-- [Animate](/docs/03-animate): the full `visibility.*` prop table
+- [The Animate timeline](/docs/02-timeline): progress, phases, and manual triggers.
+- [Animation composition and sequencing](/docs/04-orchestration): wait for preceding elements.
+- [Scene visibility and input](/docs/07-runtime-states): when loops pause.
+- [Animate](/docs/03-animate): the complete property reference.

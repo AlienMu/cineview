@@ -74,7 +74,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
     expect(resolved.budgets.title.exitEndPx).toBe(1220);
   });
 
-  it('resolves delay and waitFor chains into one shared timeline', () => {
+  it('starts after the predecessor entrance and delay, without waiting for its exit', () => {
     const registrations = new Map<string, SceneScrollAnimationRegistration>();
     registrations.set('intro', {
       animateId: 'intro',
@@ -92,11 +92,67 @@ describe('resolveSceneScrollAnimationBudgets', () => {
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
 
-    expect(resolved.totalDurationMs).toBe(850);
+    expect(resolved.totalDurationMs).toBe(650);
     expect(resolved.budgets.intro.startMs).toBe(100);
     expect(resolved.budgets.intro.exitEndMs).toBe(600);
-    expect(resolved.budgets.details.startMs).toBe(650);
-    expect(resolved.budgets.details.totalEndMs).toBe(850);
+    expect(resolved.budgets.details.startMs).toBe(450);
+    expect(resolved.budgets.details.totalEndMs).toBe(650);
+  });
+
+  it.each([
+    { phase: { start: 1 }, exitDuration: 0, total: 100 },
+    { phase: { start: 0, end: 1 }, exitDuration: 100, total: 200 },
+  ])(
+    'ignores a phase that leaves no reachable entrance or exit: %j',
+    ({ phase, exitDuration, total }) => {
+      const resolved = resolveSceneScrollAnimationBudgets(
+        new Map([
+          ['leaf', { animateId: 'leaf', delay: 0, enterDuration: 100, exitDuration, phase }],
+        ])
+      );
+
+      expect(resolved.invalidPhaseIds).toEqual(['leaf']);
+      expect(resolved.totalBudgetPx).toBe(total);
+      expect(resolved.budgets.leaf.phaseEndPx).toBe(100);
+      expect(resolved.budgets.leaf.exitEndPx).toBe(exitDuration ? total : null);
+    }
+  );
+
+  it('reserves a reachable minimum entrance interval for a near-end leaf phase', () => {
+    const resolved = resolveSceneScrollAnimationBudgets(
+      new Map([
+        [
+          'leaf',
+          {
+            animateId: 'leaf',
+            delay: 0,
+            enterDuration: 10,
+            exitDuration: 0,
+            phase: { start: 0.99 },
+          },
+        ],
+      ])
+    );
+
+    expect(resolved.invalidPhaseIds).toBeUndefined();
+    expect(resolved.totalBudgetPx).toBeCloseTo(100);
+    expect(resolved.budgets.leaf.phaseStartPx).toBeCloseTo(99);
+    expect(resolved.budgets.leaf.phaseEndPx).toBeCloseTo(100);
+  });
+
+  it('allows a leaf entrance to finish at the zone end when it has no exit', () => {
+    const resolved = resolveSceneScrollAnimationBudgets(
+      new Map([
+        [
+          'leaf',
+          { animateId: 'leaf', delay: 0, enterDuration: 100, exitDuration: 0, phase: { end: 1 } },
+        ],
+      ])
+    );
+
+    expect(resolved.invalidPhaseIds).toBeUndefined();
+    expect(resolved.totalBudgetPx).toBe(100);
+    expect(resolved.budgets.leaf.phaseEndPx).toBe(100);
   });
 
   it('fails open dependency cycles without adding cyclic predecessor time', () => {
@@ -173,10 +229,10 @@ describe('resolveSceneScrollAnimationBudgets', () => {
   });
 
   // T1.8 dual-clock fix (task-flow 2026-08-23-scene-scroll-budget-dual-clock):
-  // a phase-authored leader must hold its waitFor followers until its PHASE
+  // a phase-authored leader must hold its after followers until its PHASE
   // window closes, not until its nominal ms end. Pre-fix, the follower below
   // started at 600px while the leader's window ended at 2160px.
-  it('holds waitFor followers until the phase-authored leader window closes', () => {
+  it('holds after followers until the phase-authored leader window closes', () => {
     const registrations = new Map<string, SceneScrollAnimationRegistration>();
     registrations.set('title', {
       animateId: 'title',
@@ -203,9 +259,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
 
     // Core invariant: no follower starts before its leader's effective end.
-    // The phase-leader edge carries the fixed-point iteration's numerical lag
-    // (≤ 1e-9 px), so it converges to the leader's end rather than ordering
-    // strictly above it; phase-free chain edges are exact.
+    // Fractional budgets use floating-point arithmetic.
     expect(resolved.budgets.subline.enterStartPx).toBeCloseTo(resolved.budgets.title.totalEndPx, 6);
     expect(resolved.budgets.video.enterStartPx).toBeGreaterThanOrEqual(
       resolved.budgets.subline.totalEndPx
@@ -220,10 +274,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
     expect(resolved.budgets.video.enterEndPx).toBeCloseTo(6600 / 0.7, 3);
   });
 
-  it('keeps phase-only zones byte-identical to the single-pass resolution', () => {
-    // No waitFor anywhere → the estimates map stays empty; exact integer math,
-    // no fixed-point residue. Guards the zero-impact claim for phase-without-
-    // chain configurations.
+  it('preserves authored phase timing without dependencies', () => {
     const registrations = new Map<string, SceneScrollAnimationRegistration>();
     registrations.set('intro', {
       animateId: 'intro',
@@ -246,7 +297,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
     // Review PROBE1 regression guard (task-flow 2026-08-23-scene-scroll-budget-
     // dual-clock): anchoring the chain at a zone-end-pinned exit diverges
     // linearly (zone ballooned ~600,000px). The anchor is the enter-window
-    // close — documented waitFor semantics — and the composition stays bounded.
+    // close — documented after semantics — and the composition stays bounded.
     // Fixed point by hand: T = max(nominal leader total 1000, 0.3·T + 600)
     // → T = 1000; follower [300, 900]; leader phase window [50, 300];
     // leader exit pinned [max(300, 1000 − 400), 1000] = [600, 1000].
@@ -277,11 +328,7 @@ describe('resolveSceneScrollAnimationBudgets', () => {
     expect(resolved.budgets.follower.enterEndPx).toBe(900);
   });
 
-  it('terminates on degenerate phase.end = 1 leaders with chained followers', () => {
-    // phase.end = 1 with a follower has no fixed point (the zone total would
-    // have to grow forever). The honest contract: terminate with finite
-    // timings and keep the follower past the leader's NOMINAL end — the
-    // follower is unreachable by construction either way.
+  it('rejects an unbounded phase and preserves reachable after timing', () => {
     const registrations = new Map<string, SceneScrollAnimationRegistration>();
     registrations.set('leader', {
       animateId: 'leader',
@@ -300,12 +347,60 @@ describe('resolveSceneScrollAnimationBudgets', () => {
 
     const resolved = resolveSceneScrollAnimationBudgets(registrations);
 
-    expect(Number.isFinite(resolved.totalBudgetPx)).toBe(true);
-    expect(resolved.budgets.follower.enterStartPx).toBeGreaterThanOrEqual(
-      resolved.budgets.leader.enterEndPx
+    expect(resolved.invalidPhaseIds).toEqual(['leader']);
+    expect(resolved.totalBudgetPx).toBe(700);
+    expect(resolved.budgets.leader.phaseEndPx).toBe(500);
+    expect(resolved.budgets.follower.enterStartPx).toBe(500);
+    expect(resolved.budgets.follower.enterEndPx).toBe(700);
+  });
+
+  it('keeps a phased follower behind its predecessor even when its authored start is earlier', () => {
+    const resolved = resolveSceneScrollAnimationBudgets(
+      new Map([
+        ['leader', { animateId: 'leader', delay: 0, enterDuration: 300, exitDuration: 200 }],
+        [
+          'follower',
+          {
+            animateId: 'follower',
+            delay: 20,
+            enterDuration: 200,
+            exitDuration: 0,
+            after: 'leader',
+            phase: { start: 0, end: 0.9 },
+          },
+        ],
+      ])
     );
-    expect(
-      Object.values(resolved.budgets).every((budget) => Number.isFinite(budget.totalEndPx))
-    ).toBe(true);
+    expect(resolved.budgets.follower.phaseStartPx).toBe(320);
+    expect(resolved.budgets.follower.phaseEndPx).toBeCloseTo(468);
+    expect(resolved.totalBudgetPx).toBe(520);
+  });
+
+  it('solves finite near-one phase timing without truncating a long dependency calculation', () => {
+    const resolved = resolveSceneScrollAnimationBudgets(
+      new Map([
+        [
+          'leader',
+          {
+            animateId: 'leader',
+            delay: 0,
+            enterDuration: 500,
+            exitDuration: 0,
+            phase: { start: 0, end: 0.99999 },
+          },
+        ],
+        [
+          'follower',
+          { animateId: 'follower', delay: 0, enterDuration: 200, exitDuration: 0, after: 'leader' },
+        ],
+      ])
+    );
+    expect(resolved.invalidPhaseIds).toBeUndefined();
+    expect(resolved.totalBudgetPx).toBeCloseTo(200 / (1 - 0.99999), 5);
+    expect(resolved.budgets.follower.enterStartPx).toBeCloseTo(
+      resolved.budgets.leader.phaseEndPx!,
+      5
+    );
+    expect(resolved.budgets.follower.enterEndPx).toBeCloseTo(resolved.totalBudgetPx, 5);
   });
 });

@@ -61,6 +61,13 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Keep authored Scene identity independent of its current position in the list. */
+export function getSceneIdentity(scene: React.ReactElement, index: number): string {
+  if (scene.key != null) return `key:${scene.key}`;
+  const { sceneId } = scene.props as SceneProps;
+  return sceneId !== undefined ? `scene:${sceneId}` : `index:${index}`;
+}
+
 export function normalizeWheelDeltaPx(
   delta: number,
   deltaMode: number,

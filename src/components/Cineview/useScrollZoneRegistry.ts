@@ -10,10 +10,11 @@ import {
   type SceneScrollAnimationRegistration,
 } from '../Scene/sceneScrollBudget';
 import { createKeyedScrollExternalStore } from '../runtime/scrollExternalStore';
+import type { CineviewErrorDetail } from '../../types';
+import { devWarn } from '../../utils/devLog';
 
 export interface ScrollZoneRegistration {
   sceneIndex: number;
-  trigger: 'center-lock';
   element: HTMLElement | null;
 }
 
@@ -28,6 +29,7 @@ interface UseScrollZoneRegistryParams {
   scrollOffsetRef: MutableRefObject<number>;
   measureSceneLayoutsRef: MutableRefObject<(() => void) | null>;
   updateSceneRenderSnapshotsRef: MutableRefObject<(nativeOffset: number) => void>;
+  onError?: (detail: CineviewErrorDetail) => void;
 }
 
 export interface ScrollZoneRegistryPort {
@@ -51,7 +53,11 @@ export function useScrollZoneRegistry({
   scrollOffsetRef,
   measureSceneLayoutsRef,
   updateSceneRenderSnapshotsRef,
+  onError,
 }: UseScrollZoneRegistryParams): ScrollZoneRegistryPort {
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const reportedInvalidPhases = useRef(new WeakSet<SceneScrollAnimationRegistration>());
   const zoneRegistryRef = useRef(new Map<string, ScrollZoneRegistration>());
   const zoneAnimationsRef = useRef(
     new Map<string, Map<string, SceneScrollAnimationRegistration>>()
@@ -133,6 +139,18 @@ export function useScrollZoneRegistry({
 
       const registrations = zoneAnimationsRef.current.get(zoneId) ?? new Map();
       const sequence = resolveSceneScrollAnimationBudgets(registrations);
+      sequence.invalidPhaseIds?.forEach((animateId) => {
+        const registration = registrations.get(animateId);
+        if (!registration || reportedInvalidPhases.current.has(registration)) return;
+        reportedInvalidPhases.current.add(registration);
+        const message = `Animate "${animateId}" has an invalid timeline.phase in zone "${zoneId}". Its phase cannot fit reachable entrance and exit intervals in a finite zone budget; using duration, delay and after instead.`;
+        onErrorRef.current?.({
+          code: 'INVALID_ANIMATION',
+          message,
+          context: { zoneId, animateId, field: 'timeline.phase' },
+        });
+        devWarn(message);
+      });
       syncZoneState(zoneId, (current) => ({
         zoneId,
         sceneIndex: meta.sceneIndex,
@@ -155,7 +173,7 @@ export function useScrollZoneRegistry({
   const warnedDuplicateZoneIdsRef = useRef(new Set<string>());
 
   const registerZone = useCallback(
-    (zoneId: string, config: { sceneIndex: number; trigger: 'center-lock' }): void => {
+    (zoneId: string, config: { sceneIndex: number }): void => {
       const existing = zoneRegistryRef.current.get(zoneId);
       if (existing && existing.sceneIndex !== config.sceneIndex) {
         if (

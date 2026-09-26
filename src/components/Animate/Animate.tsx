@@ -193,7 +193,10 @@ export const Animate = ({
   const stableLoopAnimation = useStructurallyStableValue(loopAnimation);
   const dragInfiniteControls = useAnimation();
   const scrollInfiniteControls = useAnimation();
-  const normalizedSemantics = normalizeAnimateSemantics({ duration, timeline, visibility });
+  const normalizedSemantics = useMemo(
+    () => normalizeAnimateSemantics({ duration, timeline, visibility }),
+    [duration, timeline, visibility]
+  );
   const mode = sceneContext?.mode ?? cineViewRuntime?.mode ?? 'drag';
 
   const authoredDragArrival = mode === 'drag' && normalizedSemantics.timeline.driver === 'clock';
@@ -232,7 +235,6 @@ export const Animate = ({
   const normalizedExitDuration = normalizedSemantics.duration.exit;
   const normalizedDelay = resolvedTimeline.delay;
   const normalizedAfter = resolvedTimeline.after;
-  const resolvedZoneId = resolvedTimeline.zoneId ?? inheritedZoneId;
   // The keyed store is intentionally kept outside React's render path. A
   // scroll frame updates the zone's progress MotionValue in useAnimateScroll;
   // only registration/authoring changes rebuild this stable runtime envelope.
@@ -666,7 +668,7 @@ export const Animate = ({
   const scrollResult = useAnimateScroll({
     sceneContext: mode === 'scroll' ? sceneContext : null,
     zoneRuntime: mode === 'scroll' ? scrollZoneRuntime : null,
-    zoneId: resolvedZoneId,
+    zoneId: inheritedZoneId,
     enterVariant,
     exitVariant,
     hasAuthoredEnterAnimation: Boolean(enterAnimation),

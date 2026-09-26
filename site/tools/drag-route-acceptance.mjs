@@ -56,7 +56,7 @@ await page.locator('[data-cineview-container]').focus();
 await page.evaluate(() => { window.__dragRafTimestamps = []; });
 
 await page.locator('[data-cineview-container]').press('End');
-await painted(page.locator('.s05-actions'));
+await painted(page.locator('.s05-the-end'));
 await page.waitForTimeout(500);
 
 assert.equal(await page.locator('[role="status"]').textContent(), '5 / 5');

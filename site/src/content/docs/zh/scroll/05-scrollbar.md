@@ -15,11 +15,11 @@ eyebrow: SCROLL / SCROLLBAR
 | `scrollbar={{}}`                 | 开启，全部走默认值                         |
 | `scrollbar={{ enabled: false }}` | 关闭                                       |
 | `scrollbar={false}`              | 关闭                                       |
-| `scrollbar={true}`               | **无效**，过不了对象判断，等同省略         |
+| `scrollbar={true}`               | TypeScript 报错；在 JavaScript 中等同省略  |
 
-不支持 `scrollbar={true}`，使用 `scrollbar={{}}` 开启默认外观。
+使用 `scrollbar={{}}` 开启默认外观。
 
-开启时框架往容器注入一段 CSS 把原生滚动条隐藏（`scrollbar-width: none` + `::-webkit-scrollbar` 归零），并把容器的 `scrollbarGutter` 设成 `auto`；不开启时保留 `stable`，为原生滚动条预留空间。
+开启后，Cineview 隐藏原生滚动条；关闭后，原生滚动条仍会显示。
 
 ## 字段与默认值
 
@@ -33,13 +33,13 @@ eyebrow: SCROLL / SCROLLBAR
 | `inset`           | `number`  | `0`                           | 下限 `0` | 距滚动容器边缘的内缩（px）            |
 | `trackColor`      | `string`  | `'transparent'`               | 无       | 轨道的 `background`                   |
 | `thumbColor`      | `string`  | `'rgba(255, 255, 255, 0.28)'` | 无       | 滑块的 `background`                   |
-| `thumbHoverColor` | `string`  | `'rgba(255, 255, 255, 0.42)'` | 无       | 滑块四周的 1px 描边，所有状态下均显示 |
+| `thumbHoverColor` | `string`  | 与 `thumbColor` 相同         | 无       | 指针悬停时滑块的填充色                |
 | `autoHide`        | `boolean` | `true`                        | 无       | 空闲时淡出，见「autoHide 时序」       |
-| `ariaLabel`       | `string`  | `'Cineview scroll position'`  | 无       | 轨道的无障碍名称                      |
+| `ariaLabel`       | `string`  | `'CineView scroll position'`  | 无       | 轨道的无障碍名称                      |
 
-`thumbHoverColor` 设置滑块在所有状态下的一像素描边颜色，并非仅用于悬停。
+轨道和滑块默认都没有描边。`thumbHoverColor` 只在指针悬停滑块时改变填充色。
 
-滑块长度至少为 40px，轨道更短时以轨道长度为准。可滚动距离不超过一个像素时不显示滚动条，外描边、投影与焦点样式为固定配置。
+滑块长度至少为 40px，轨道更短时以轨道长度为准。可滚动距离不超过一个像素时不显示滚动条。键盘焦点仍有独立的可见轮廓。
 
 覆盖层的 `z-index` 是 80，位于固定层（20）与活跃锁定区（locked zone）的容器（30）之上。
 
@@ -63,7 +63,6 @@ eyebrow: SCROLL / SCROLLBAR
     autoHide: true,
     trackColor: 'rgba(26, 24, 20, 0.06)',
     thumbColor: 'var(--accent)',
-    thumbHoverColor: 'rgba(255, 255, 255, 0.9)',
   }}
 >
   <Scene sceneId="content">可滚动内容</Scene>

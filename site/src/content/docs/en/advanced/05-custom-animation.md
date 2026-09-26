@@ -22,15 +22,17 @@ At least one of `initial`, `animate`, or `exit` must be a non-empty object. Extr
 </Animate>
 ```
 
-Variant parsing rules:
+Configuration notes:
 
-- A string is parsed as a preset name; an object is parsed as a custom variant; the parser dispatches on the type.
+- Use a string for a preset name and an object for a custom animation.
 - `transformOrigin` strings are normalized to percentage pairs (`'top left'` → `'0% 0%'`, `'center'` → `'50% 50%'`).
-- Configure ordinary Animate timing with `duration` and `timeline.delay`. Variant transition timing applies to native Framer playback paths such as stagger and loops; it does not change the distance of position-driven animations. `transition.times` still defines keyframe positions.
+- Configure Animate entrance and exit timing with `duration` and `timeline.delay`. Object-level `transition.duration` and `transition.delay` apply to Framer Motion playback such as stagger and loops. They do not change drag or scroll distances. `transition.times` defines keyframe positions.
 
 ## Keyframes and times
 
-Any property value may be an array holding a full keyframe sequence. Keyframe positions come from `transition.times`: per-property (`transition: { opacity: { times: [0, 0.3, 0.9, 1] } }`) when present, otherwise a top-level `transition.times` of the same length; with no `times` at all, keyframes are spaced evenly (`index / (count - 1)`).
+Supported animation properties accept keyframe arrays. Use `transition.times` to place each keyframe within progress 0–1. The time array needs the same number of entries as the keyframe array.
+
+A property-specific `times` takes priority over top-level `transition.times`. Without a matching time array, keyframes are evenly spaced.
 
 ```tsx
 // A background that fades in, holds, and fades out across one enter span.
@@ -59,13 +61,13 @@ A numeric target interpolates between its initial and final values. An array int
 
 ## How keyframes resolve while scrolling
 
-Walk one property through the resolver. With `opacity: [0, 1, 1, 0]` and `times: [0, 0.3, 0.9, 1]`:
+For an opacity animation with `opacity: [0, 1, 1, 0]` and `times: [0, 0.3, 0.9, 1]`:
 
-| progress | segment                                 | result                                            |
-| -------- | --------------------------------------- | ------------------------------------------------- |
-| 0.15     | 0 → 0.3                                 | lerps 0 → 1, at halfway: `0.5`                    |
-| 0.45     | inside 0.3 → 0.9 (both keyframes are 1) | holds `1`                                         |
-| 0.95     | 0.9 → 1                                 | lerps 1 → 0, at `(0.95 − 0.9) / 0.1 = 0.5`: `0.5` |
+| progress | segment                                 | result                                                         |
+| -------- | --------------------------------------- | -------------------------------------------------------------- |
+| 0.15     | 0 → 0.3                                 | interpolates from 0 to 1, at halfway: `0.5`                    |
+| 0.45     | inside 0.3 → 0.9 (both keyframes are 1) | holds `1`                                                      |
+| 0.95     | 0.9 → 1                                 | interpolates from 1 to 0, at `(0.95 − 0.9) / 0.1 = 0.5`: `0.5` |
 
 Keyframes can make an element enter, remain visible, and leave within one `duration.enter`. Add the number of keyframes the effect needs.
 
@@ -95,7 +97,7 @@ Use `solidVariant()` when content reads progress through `useAnimateTimeline()` 
 
 ## Exit variants
 
-`exitAnimation` accepts the same shapes, but the record that matters is `exit`: `initial`/`animate` exist for symmetry and are typically left still:
+Declare target values in the `exit` field of an `exitAnimation` object. The object does not need `initial` or `animate`:
 
 ```tsx
 <Animate
@@ -123,18 +125,17 @@ Enter and exit animations can animate exactly ten properties:
 
 The property list applies to ordinary Animate entrances and exits. Stagger uses Framer's native child animation support and can use additional properties such as `clipPath` and `width`.
 
-For canvas or other custom drawing, read timeline MotionValues and render the required output directly.
+For canvas, SVG, or WebGL drawing, subscribe to the timeline and update the image. See [useAnimateTimeline](/docs/09-use-animate-timeline) for a complete example.
 
 ## Composed animations
 
-`ComposedAnimation` stitches multiple steps (preset names, custom variants, or a mix) into one animation:
+`ComposedAnimation` combines presets and custom properties on one element. This example fades and scales at the same time:
 
 ```tsx
 <Animate
   enterAnimation={{
-    animations: ['fade-in', { animate: { scale: [0.9, 1], transition: { duration: 0.4 } } }],
-    mode: 'sequential',
-    delays: [0, 200],
+    animations: ['fade-in', { initial: { scale: 0.9 }, animate: { scale: 1 } }],
+    mode: 'parallel',
   }}
   duration={{ enter: 1600 }}
 >
@@ -142,7 +143,9 @@ For canvas or other custom drawing, read timeline MotionValues and render the re
 </Animate>
 ```
 
-Composition fields:
+Ordinary Animate entrances, including visibility and clock playback, use `duration.enter` for the complete entrance. Composition delays do not divide that entrance into successive steps. For repeated changes to one property, use [Keyframes and times](#Keyframes-and-times).
+
+Composition fields. `loopAnimation` and `stagger` consume the resulting per-property transition timing. Ordinary Animate entrances and exits, and Scene transitions, use the merged properties without these step delays:
 
 | Field        | Meaning                                                                                                                                   |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -152,6 +155,6 @@ Composition fields:
 
 - In `sequential` mode, the next step starts after the preceding duration and delay. A step without `transition.duration` uses 1s for this calculation. `initial` comes from the first step and `exit` from the last.
 - In `parallel` mode, each step keeps its delay. Initial and exit properties are merged, with later values replacing earlier values of the same property.
-- Animate properties and their per-property transition settings are merged in the same way. If several steps write one property, the last step supplies its value. Use a keyframe array to describe repeated changes to one property. Position-driven playback uses the mapped values and keyframe times, not transition delays.
+- Animate properties and their per-property transition settings are merged in the same way. If several steps write one property, the last step supplies its value. Use a keyframe array to describe repeated changes to one property. Ordinary Animate entrances and exits use the mapped values and keyframe times, without transition delays.
 
-For sequencing elements rather than steps inside a single element, use `after` chains, covered in [Timeline](/docs/04-orchestration).
+Use `timeline.after` to order entrances across elements; see [Timeline](/docs/04-orchestration). For entrance, loop, and exit effects together, see [Preset animations](/docs/08-presets).

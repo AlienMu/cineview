@@ -16,7 +16,7 @@ Set `direction="x"` on Cineview for horizontal navigation in either mode. The de
 
 ```tsx
 <Cineview mode="scroll" designWidth={1440} direction="x">
-  <Scene sceneId="panorama" scroll={{ zoneId: 'panorama', trigger: 'center-lock' }}>
+  <Scene sceneId="panorama" scroll={{ zoneId: 'panorama' }}>
     ...
   </Scene>
 </Cineview>
@@ -24,7 +24,7 @@ Set `direction="x"` on Cineview for horizontal navigation in either mode. The de
 
 ## What switches with the axis
 
-Drag reads horizontal displacement and velocity, then moves scenes horizontally. Gesture progress is measured against the executing window's width.
+Drag reads horizontal displacement and velocity, then moves scenes horizontally. Gesture progress is measured against the current viewport width.
 
 Scroll uses `scrollLeft`, horizontal touch movement, and wheel `deltaX`. Scene scroll ranges and fixed layers use the horizontal span. The custom scrollbar appears along the bottom with `aria-orientation="horizontal"`.
 
@@ -34,4 +34,4 @@ The responsive scale base remains unchanged: `scale = viewportWidth / designWidt
 
 - Wheel input reads `deltaX` only. Standard vertical mouse wheels dispatch `deltaY` and do not produce movement in `'x'` mode; Shift+wheel and trackpad horizontal gestures dispatch `deltaX` to drive the page.
 - Drag keyboard navigation uses ArrowLeft/ArrowRight. Scroll uses ArrowUp/ArrowDown on its main axis. PageUp/PageDown, Home, and End apply in both modes.
-- In drag mode, Scene layout does not rotate with the axis; scenes continue to fill 100% of the container in both dimensions, altering only the progression axis of the scene stack.
+- In drag mode, Scene layout does not rotate with the axis; Navigation still uses the full viewport, with no per-Scene height setting; content inside each Scene can be sized separately.

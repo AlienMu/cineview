@@ -15,7 +15,7 @@
   min-height: 100svh;
   color: var(--docs-ink);
   background: var(--docs-paper);
-  font: 400 17px/1.75 var(--docs-body-font);
+  font: 400 17px/1.65 var(--docs-body-font);
   letter-spacing: 0;
 }
 .docs-page button,
@@ -269,7 +269,7 @@
   color: var(--docs-accent-ink);
 }
 .docs-article__header {
-  padding: 36px 0 20px;
+  padding: 28px 0 24px;
 }
 .docs-article__eyebrow {
   color: var(--docs-accent-ink);
@@ -280,7 +280,8 @@
 }
 .docs-article h1 {
   color: var(--docs-ink);
-  font: 500 clamp(42px, 4.2vw, 62px)/1.1 var(--docs-title-font);
+  font: 500 clamp(38px, 3.6vw, 52px)/1.15 var(--docs-title-font);
+  text-wrap: balance;
   letter-spacing: -0.035em;
   overflow-wrap: anywhere;
   margin: 0;
@@ -291,16 +292,22 @@
   line-height: 1.25;
 }
 .docs-article__markdown {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+.docs-article__markdown > :is(p, ul, ol, blockquote) {
+  max-width: 72ch;
+}
+.docs-page[data-lang='zh'] .docs-article__markdown {
+  line-height: 1.85;
 }
 .docs-article__markdown > p:first-child {
   color: #5b4f47;
-  font-size: 19px;
-  line-height: 1.75;
-  margin: 0 0 30px;
+  font-size: 18px;
+  line-height: 1.7;
+  margin: 0 0 24px;
 }
 .docs-article__markdown p {
-  margin: 1rem 0;
+  margin: 14px 0;
 }
 .docs-article__markdown h2,
 .docs-article__markdown h3 {
@@ -308,19 +315,23 @@
   color: var(--docs-ink);
   font-family: var(--docs-body-font);
   letter-spacing: -0.015em;
+  text-wrap: balance;
   scroll-margin-top: calc(var(--docs-header-h) + 28px);
 }
 .docs-article__markdown h2 {
   font-size: 26px;
   font-weight: 650;
   line-height: 1.35;
-  margin: 52px 0 17px;
+  margin: 40px 0 14px;
 }
 .docs-article__markdown h3 {
   font-size: 20px;
   font-weight: 650;
   line-height: 1.4;
-  margin: 32px 0 12px;
+  margin: 28px 0 10px;
+}
+.docs-article__markdown :is(h2, h3) + :is(p, ul, ol) {
+  margin-top: 0;
 }
 .docs-article__markdown h2:first-child {
   margin-top: 18px;
@@ -328,10 +339,10 @@
 .docs-article__markdown ul,
 .docs-article__markdown ol {
   padding-left: 24px;
-  margin: 18px 0;
+  margin: 16px 0;
 }
 .docs-article__markdown li {
-  margin: 8px 0;
+  margin: 6px 0;
   padding-left: 3px;
 }
 .docs-article__markdown li::marker {
@@ -383,8 +394,40 @@
   margin: 36px 0;
 }
 
+.docs-interactive-preview {
+  margin: 28px 0 34px;
+  overflow: hidden;
+  border: 1px solid var(--docs-line);
+  border-radius: 8px;
+  background: #f0e8dd;
+}
+
+.docs-interactive-preview__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  background: #f8f2ea;
+  color: var(--docs-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.docs-interactive-preview__header span:first-child {
+  color: var(--docs-ink);
+  font-weight: 650;
+}
+
+.docs-interactive-preview iframe {
+  display: block;
+  width: 100%;
+  height: min(58vw, 440px);
+  min-height: 360px;
+  border: 0;
+}
+
 .docs-code {
-  margin: 24px 0;
+  margin: 20px 0;
   border: 1px solid #37322e;
   border-radius: 7px;
   overflow: hidden;
@@ -469,7 +512,7 @@
 .docs-table {
   width: 100%;
   overflow-x: auto;
-  margin: 24px 0 32px;
+  margin: 20px 0 24px;
   border: 1px solid var(--docs-line);
   border-radius: 5px;
   scrollbar-width: thin;
@@ -738,7 +781,7 @@ body:has(.docs-dialog[open]) {
 
 @media (max-width: 1200px) {
   .docs-layout {
-    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-columns: 210px minmax(0, 744px);
     column-gap: 40px;
     padding-inline: 32px;
   }
@@ -878,12 +921,15 @@ body:has(.docs-dialog[open]) {
   .docs-page[data-lang='zh'] .docs-article h1 {
     font-size: 36px;
   }
+  .docs-page[data-lang='zh'] .docs-article__markdown {
+    line-height: 1.75;
+  }
   .docs-article__markdown > p:first-child {
     font-size: 17px;
   }
   .docs-article__markdown h2 {
     font-size: 23px;
-    margin-top: 40px;
+    margin-top: 32px;
   }
   .docs-article__markdown h3 {
     font-size: 19px;
@@ -896,6 +942,26 @@ body:has(.docs-dialog[open]) {
   }
   .docs-table {
     margin-block: 20px;
+  }
+  .docs-table[data-overflow='true'] {
+    border-right: 2px solid var(--docs-accent);
+  }
+  .docs-table[data-overflow='true']::before {
+    content: 'Swipe to see more columns →';
+    position: sticky;
+    left: 0;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px 13px;
+    border-bottom: 1px solid var(--docs-line);
+    background: var(--docs-surface);
+    color: var(--docs-accent-ink);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .docs-page[data-lang='zh'] .docs-table[data-overflow='true']::before {
+    content: '左右滑动，查看其他列 →';
   }
   .docs-table :is(th, td) {
     padding: 11px 13px;

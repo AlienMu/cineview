@@ -123,7 +123,7 @@ try {
 
       await frame.locator('[data-cineview-container]').focus();
       await frame.locator('[data-cineview-container]').press('End');
-      await painted(frame.locator('.s05-actions'));
+      await painted(frame.locator('.s05-the-end'));
       assert.equal(await frame.locator('[role="status"]').textContent(), '5 / 5');
 
       await page.screenshot({ path: new URL(`closing-${width}x${height}.png`, output).pathname });
@@ -172,7 +172,7 @@ try {
   await painted(page.locator('.s01-title'));
   await page.locator('[data-cineview-container]').focus();
   await page.locator('[data-cineview-container]').press('End');
-  await painted(page.locator('.s05-actions'));
+  await painted(page.locator('.s05-the-end'));
   assert.equal(await page.locator('[role="status"]').textContent(), '5 / 5');
   await page.screenshot({ path: new URL('standalone-drag-closing.png', output).pathname });
 

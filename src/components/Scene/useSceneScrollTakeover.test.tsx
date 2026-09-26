@@ -8,14 +8,13 @@ function Probe({
   mode = 'scroll',
   sceneId,
   sceneIndex = 1,
-  scroll = { zoneId: 'demo-zone', trigger: 'center-lock' as const },
+  scroll = { zoneId: 'demo-zone' },
 }: {
   mode?: 'drag' | 'scroll';
   sceneId?: string;
   sceneIndex?: number;
   scroll?: {
     zoneId?: string;
-    trigger?: 'center-lock';
   };
 }): React.JSX.Element {
   const ref = React.useRef<HTMLDivElement>(null);
@@ -56,7 +55,6 @@ describe('useSceneScrollTakeover', () => {
 
     expect(runtime.registerZone).toHaveBeenCalledWith('demo-zone', {
       sceneIndex: 1,
-      trigger: 'center-lock',
     });
     expect(runtime.setZoneElement).toHaveBeenCalledWith('demo-zone', 1, expect.any(HTMLDivElement));
   });

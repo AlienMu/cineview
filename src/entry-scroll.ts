@@ -17,14 +17,12 @@
 
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
 import { DirectScrollCineview } from './components/Cineview/DirectScrollCineview';
-import type { CineviewBaseProps, ScrollModeCallbacks, CineviewRef } from './types';
+import type { CineviewScrollModeProps, CineviewRef } from './types';
 
 export * from './public-api';
 
 /** Scroll entry Props: no `mode`, callbacks fixed to scroll group. */
-export type CineviewScrollProps = CineviewBaseProps & {
-  callbacks?: ScrollModeCallbacks;
-};
+export type CineviewScrollProps = Omit<CineviewScrollModeProps, 'mode'>;
 
 export const Cineview = DirectScrollCineview as unknown as ForwardRefExoticComponent<
   CineviewScrollProps & RefAttributes<CineviewRef>

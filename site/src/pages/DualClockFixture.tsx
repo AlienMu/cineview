@@ -22,7 +22,7 @@ export default function DualClockFixturePage(): import('react').JSX.Element {
       <Scene
         sceneId="dual-zone"
         layout={{ width: '100%', height: '100vh', overflow: 'hidden' }}
-        scroll={{ zoneId: 'dual-clock-zone', trigger: 'center-lock' }}
+        scroll={{ zoneId: 'dual-clock-zone' }}
       >
         <div style={{ padding: '30vh 8vw', background: '#101418', color: '#eee', height: '100%' }}>
           <Animate

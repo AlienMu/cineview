@@ -50,8 +50,9 @@ export function ScrollbarOverlay({
   const scrollbarInset = Math.max(config.inset ?? 0, 0);
   const scrollbarTrackColor = config.trackColor ?? 'transparent';
   const scrollbarThumbColor = config.thumbColor ?? 'rgba(255, 255, 255, 0.28)';
-  const scrollbarThumbBorder = config.thumbHoverColor ?? 'rgba(255, 255, 255, 0.42)';
+  const scrollbarThumbHoverColor = config.thumbHoverColor ?? scrollbarThumbColor;
   const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false);
+  const [thumbHovered, setThumbHovered] = useState(false);
   const railRef = useRef<HTMLDivElement | null>(null);
   const thumbRef = useRef<HTMLDivElement | null>(null);
 
@@ -278,8 +279,7 @@ export function ScrollbarOverlay({
                 height: scrollbarThickness,
                 borderRadius: scrollbarRadius,
                 background: scrollbarTrackColor,
-                boxShadow:
-                  '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
+                boxShadow: '0 10px 24px rgba(53, 74, 116, 0.14)',
                 pointerEvents: 'auto',
                 touchAction: 'none',
                 cursor: 'pointer',
@@ -294,8 +294,7 @@ export function ScrollbarOverlay({
                 height: railLength,
                 borderRadius: scrollbarRadius,
                 background: scrollbarTrackColor,
-                boxShadow:
-                  '0 0 0 1px rgba(255, 255, 255, 0.78), 0 10px 24px rgba(53, 74, 116, 0.14)',
+                boxShadow: '0 10px 24px rgba(53, 74, 116, 0.14)',
                 pointerEvents: 'auto',
                 touchAction: 'none',
                 cursor: 'pointer',
@@ -307,6 +306,8 @@ export function ScrollbarOverlay({
         <div
           ref={thumbRef}
           data-cineview-scrollbar-thumb="true"
+          onPointerEnter={() => setThumbHovered(true)}
+          onPointerLeave={() => setThumbHovered(false)}
           style={
             direction === 'x'
               ? {
@@ -316,8 +317,8 @@ export function ScrollbarOverlay({
                   width: thumbLength,
                   height: scrollbarThickness,
                   borderRadius: scrollbarRadius,
-                  background: scrollbarThumbColor,
-                  boxShadow: `0 0 0 1px ${scrollbarThumbBorder}, 0 10px 24px rgba(53, 74, 116, 0.16)`,
+                  background: thumbHovered ? scrollbarThumbHoverColor : scrollbarThumbColor,
+                  boxShadow: '0 10px 24px rgba(53, 74, 116, 0.16)',
                   cursor: 'grab',
                 }
               : {
@@ -327,8 +328,8 @@ export function ScrollbarOverlay({
                   width: scrollbarThickness,
                   height: thumbLength,
                   borderRadius: scrollbarRadius,
-                  background: scrollbarThumbColor,
-                  boxShadow: `0 0 0 1px ${scrollbarThumbBorder}, 0 10px 24px rgba(53, 74, 116, 0.16)`,
+                  background: thumbHovered ? scrollbarThumbHoverColor : scrollbarThumbColor,
+                  boxShadow: '0 10px 24px rgba(53, 74, 116, 0.16)',
                   cursor: 'grab',
                 }
           }

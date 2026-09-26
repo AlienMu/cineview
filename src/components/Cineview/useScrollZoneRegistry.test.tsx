@@ -42,7 +42,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('dup', {
         sceneIndex: 0,
-        trigger: 'center-lock',
       });
     });
     expect(warnSpy).not.toHaveBeenCalled();
@@ -51,7 +50,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('dup', {
         sceneIndex: 1,
-        trigger: 'center-lock',
       });
     });
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -62,7 +60,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('dup', {
         sceneIndex: 2,
-        trigger: 'center-lock',
       });
     });
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -74,13 +71,11 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('solo', {
         sceneIndex: 3,
-        trigger: 'center-lock',
       });
     });
     act(() => {
       result.current.zoneRuntimeValue.registerZone('solo', {
         sceneIndex: 3,
-        trigger: 'center-lock',
       });
     });
 
@@ -93,7 +88,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('handoff', {
         sceneIndex: 0,
-        trigger: 'center-lock',
       });
     });
     act(() => {
@@ -102,7 +96,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('handoff', {
         sceneIndex: 1,
-        trigger: 'center-lock',
       });
     });
 
@@ -117,7 +110,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('removed', {
         sceneIndex: 4,
-        trigger: 'center-lock',
       });
       result.current.zoneRuntimeValue.setZoneElement(
         'removed',
@@ -141,12 +133,10 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
     act(() => {
       result.current.zoneRuntimeValue.registerZone('dup', {
         sceneIndex: 0,
-        trigger: 'center-lock',
       });
       result.current.zoneRuntimeValue.setZoneElement('dup', 0, winnerElement);
       result.current.zoneRuntimeValue.registerZone('dup', {
         sceneIndex: 1,
-        trigger: 'center-lock',
       });
       result.current.zoneRuntimeValue.setZoneElement('dup', 1, document.createElement('aside'));
       result.current.zoneRuntimeValue.unregisterZone('dup', 1);
@@ -154,7 +144,6 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
 
     expect(result.current.zoneRegistryRef.current.get('dup')).toEqual({
       sceneIndex: 0,
-      trigger: 'center-lock',
       element: winnerElement,
     });
     expect(params.measureSceneLayoutsRef.current).toHaveBeenCalledTimes(1);
@@ -162,12 +151,38 @@ describe('useScrollZoneRegistry — duplicate zone registration diagnostics', ()
 });
 
 describe('useScrollZoneRegistry — animation registration ownership', () => {
+  it('reports an impossible phase once and publishes a usable after sequence', () => {
+    const onError = jest.fn();
+    const params = { ...makeParams(), onError };
+    const { result } = renderHook(() => useScrollZoneRegistry(params));
+    const runtime = result.current.zoneRuntimeValue;
+    act(() => {
+      runtime.registerZone('film', { sceneIndex: 0 });
+      runtime.registerZoneAnimation('film', {
+        ...makeAnimation('leader', 500),
+        phase: { start: 0, end: 1 },
+      });
+      runtime.registerZoneAnimation('film', { ...makeAnimation('follower', 200), after: 'leader' });
+      result.current.recomputeZoneSequence('film');
+    });
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'INVALID_ANIMATION',
+        context: { zoneId: 'film', animateId: 'leader', field: 'timeline.phase' },
+      })
+    );
+    const sequence = result.current.zoneStatesRef.current.film.sequence;
+    expect(sequence.totalBudgetPx).toBe(700);
+    expect(sequence.budgets.follower.enterStartPx).toBe(sequence.budgets.leader.phaseEndPx);
+  });
+
   it('keeps the latest generation when an older owner cleans up', () => {
     const { result } = renderHook(() => useScrollZoneRegistry(makeParams()));
     const runtime = result.current.zoneRuntimeValue;
 
     act(() => {
-      runtime.registerZone('zone', { sceneIndex: 0, trigger: 'center-lock' });
+      runtime.registerZone('zone', { sceneIndex: 0 });
     });
 
     let ownerA!: SceneScrollAnimationRegistration;

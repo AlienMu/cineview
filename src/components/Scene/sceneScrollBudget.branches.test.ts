@@ -81,9 +81,9 @@ describe('resolveSceneScrollAnimationBudgets — uncovered timing branches', () 
     expect(resolved.budgets.a).toMatchObject({ startMs: 10, totalEndMs: 35 });
     expect(resolved.budgets.b).toMatchObject({ startMs: 20, totalEndMs: 55 });
     expect(resolved.budgets.c).toMatchObject({ startMs: 30, totalEndMs: 75 });
-    expect(resolved.budgets.downstream).toMatchObject({ startMs: 42, totalEndMs: 92 });
-    expect(resolved.totalDurationMs).toBe(92);
-    expect(resolved.totalBudgetPx).toBe(92);
+    expect(resolved.budgets.downstream).toMatchObject({ startMs: 37, totalEndMs: 87 });
+    expect(resolved.totalDurationMs).toBe(87);
+    expect(resolved.totalBudgetPx).toBe(87);
     expect(
       Object.values(resolved.budgets).every((budget) => Number.isFinite(budget.totalEndMs))
     ).toBe(true);

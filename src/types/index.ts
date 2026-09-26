@@ -70,7 +70,6 @@ export interface DragModeConfig {
 
 export interface ScrollModeConfig {
   direction?: SlideDirection;
-  zoneTrigger?: 'center-lock';
   sceneSizing?: 'content' | 'screen';
   // Global default enter/exit gate margins (design px) for visibility-driven
   // Animate elements in scroll mode. Per-Animate `visibility.enterMargin` /
@@ -105,6 +104,7 @@ export interface ScrollbarConfig {
   inset?: number;
   trackColor?: string;
   thumbColor?: string;
+  /** Thumb fill on pointer hover. Defaults to `thumbColor`; does not add a border. */
   thumbHoverColor?: string;
   autoHide?: boolean;
 }
@@ -123,7 +123,7 @@ export interface SceneChangeDetail {
  *   or a Scene has no children (`context.scope === 'scene'`, includes `sceneIndex`).
  * - `IMAGE_LOAD_FAILED`: Image preload failed.
  * - `FIRST_SCENE_TIMEOUT`: First-screen priority resource wait timed out (recoverable, includes preventDefault).
- * - `INVALID_ANIMATION`: Animate's after points to a nonexistent component.
+ * - `INVALID_ANIMATION`: An animation dependency, control, or scroll phase is invalid.
  * - `CIRCULAR_DEPENDENCY`: Animate's after chain contains a cycle.
  * - `INVALID_COMPONENT_HIERARCHY`: Duplicate animateId or authored scroll zone identity in component tree.
  * - `INVALID_DRAG_CONFIG`: Drag unit / scale / enabled config is invalid (recoverable).
@@ -340,14 +340,14 @@ export interface CineviewBaseProps {
   designWidth?: number;
   scrollbar?: false | ScrollbarConfig;
   monitor?: boolean;
-  /** Show the performance panel and collect samples. Also exposes scroll layout diagnostics. */
+  /** Expose scroll layout diagnostics. Use `monitor` to sample performance and render `PerfPanel` explicitly. */
   debug?: boolean;
   a11y?: A11yConfig;
   children: ReactNode;
 }
 
 /** Drag-branch-only config keys cannot appear on scroll root (and vice versa) — same cross-exclusion as callbacks. */
-type ScrollOnlyConfigKeys = 'zoneTrigger' | 'sceneSizing' | 'enterMargin' | 'exitMargin';
+type ScrollOnlyConfigKeys = 'sceneSizing' | 'enterMargin' | 'exitMargin';
 type DragOnlyConfigKeys =
   'transitionDuration' | 'threshold' | 'unit' | 'scale' | 'firstSceneTimeout';
 
@@ -413,7 +413,7 @@ export interface CineviewRef {
   getCurrentIndex: () => number;
   getPerformanceMetrics: () => PerformanceMetrics;
   /** Scroll mode only: jump to specified zone. Not available in drag mode. */
-  goToZone?: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
+  goToZone?: (zoneId: string, options?: { animated?: boolean }) => void;
 }
 
 /**
@@ -421,7 +421,7 @@ export interface CineviewRef {
  * Usage: `const ref = useRef<CineviewScrollRef>(null)`, with `mode="scroll"`.
  */
 export interface CineviewScrollRef extends CineviewRef {
-  goToZone: (zoneId: string, options?: { align?: 'center'; animated?: boolean }) => void;
+  goToZone: (zoneId: string, options?: { animated?: boolean }) => void;
 }
 
 /**
@@ -431,6 +431,7 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
   sceneId?: string;
   layout?: {
     width?: number | string;
+    /** Content-box CSS height; drag navigation remains fixed at one viewport. */
     height?: number | string;
     anchor?: SceneAnchor;
     overflow?: 'hidden' | 'visible' | 'clip';
@@ -454,7 +455,6 @@ export interface SceneProps extends Omit<HTMLAttributes<HTMLDivElement>, 'childr
   drag?: SceneDragConfig;
   scroll?: {
     zoneId?: string;
-    trigger?: 'center-lock';
   };
   callbacks?: {
     onVisibilityChange?: (detail: SceneVisibilityDetail) => void;
@@ -487,9 +487,8 @@ interface AnimateBaseProps {
      */
     driver?: 'scene' | 'clock';
     delay?: number;
-    /** Wait for a specific animateId to finish before entering. */
+    /** Start after the referenced animateId finishes entering, then apply delay. */
     after?: string;
-    zoneId?: string;
     phase?: {
       start?: number;
       end?: number;

@@ -1,6 +1,6 @@
 {
   "name": "cineview-site",
-  "version": "1.0.0",
+  "version": "0.0.1-beta",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,14 @@
     "build:cf": "pnpm run build:framework && pnpm run build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
-    "format": "pnpm --dir .. exec prettier --write \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\"",
-    "format:check": "pnpm --dir .. exec prettier --check \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\""
+    "format": "pnpm --dir .. exec prettier --write \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"site/tools/{acceptance-drag,acceptance-scroll,profile-production,verify-browser-failure-injection}.mjs\"",
+    "format:check": "pnpm --dir .. exec prettier --check \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"site/tools/{acceptance-drag,acceptance-scroll,profile-production,verify-browser-failure-injection}.mjs\"",
+    "build:acceptance": "vite build --config vite.acceptance.config.ts",
+    "acceptance:drag": "node tools/acceptance-drag.mjs",
+    "acceptance:scroll": "node tools/acceptance-scroll.mjs",
+    "acceptance:browser": "pnpm acceptance:drag && pnpm acceptance:scroll",
+    "acceptance:failure-injection": "node tools/verify-browser-failure-injection.mjs",
+    "profile:browser": "node tools/profile-production.mjs"
   },
   "dependencies": {
     "cineview": "link:../",

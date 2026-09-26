@@ -25,7 +25,7 @@ describe('SSR smoke (node environment, no DOM)', () => {
   it('scroll mode first render is server-renderable, and child content actually appears in HTML', () => {
     const html = renderToString(
       <Cineview mode="scroll" designWidth={750}>
-        <Scene sceneId="hero" scroll={{ zoneId: 'z1', trigger: 'center-lock' }}>
+        <Scene sceneId="hero" scroll={{ zoneId: 'z1' }}>
           <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
             <h1>SSR title</h1>
           </Animate>
