@@ -9,11 +9,10 @@ From the repository root:
 ```bash
 pnpm install
 pnpm --dir examples/minimal install
-pnpm build
 pnpm --dir examples/minimal dev
 ```
 
-Open the URL printed by Vite. Rebuild the root package with `pnpm build` after changing framework source; the example reads its built output.
+The development command builds the framework before starting Vite, so it also works without an existing `dist/` directory. Open the URL printed by Vite. Rebuild the root package with `pnpm build` after changing framework source while Vite is running; the example reads its built output. Keep `dist/` while the example is running.
 
 ## What to look for
 

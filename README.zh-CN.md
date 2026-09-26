@@ -30,11 +30,10 @@ npm 的 `beta` 标签对应这套 API。`latest` 标签保留在 `1.0.0`，该�
 ```bash
 pnpm install --frozen-lockfile
 pnpm --dir examples/minimal install --frozen-lockfile
-pnpm build
 pnpm --dir examples/minimal dev
 ```
 
-当前包需要 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^13.0.0`。迁移说明见 [Changelog](./CHANGELOG.md)。
+开发命令会先构建框架，再启动 Vite。当前包需要 React `^19.0.0`、React DOM `^19.0.0` 和 Framer Motion `^13.0.0`。迁移说明见 [Changelog](./CHANGELOG.md)。
 
 ## 第一个拖拽页面
 

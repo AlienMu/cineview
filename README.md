@@ -30,11 +30,10 @@ To change the source and try it in the included example:
 ```bash
 pnpm install --frozen-lockfile
 pnpm --dir examples/minimal install --frozen-lockfile
-pnpm build
 pnpm --dir examples/minimal dev
 ```
 
-The current package requires React `^19.0.0`, React DOM `^19.0.0`, and Framer Motion `^13.0.0`. See the [Changelog](./CHANGELOG.md) for migration notes.
+The development command builds the framework before starting Vite. The current package requires React `^19.0.0`, React DOM `^19.0.0`, and Framer Motion `^13.0.0`. See the [Changelog](./CHANGELOG.md) for migration notes.
 
 ## Build a drag page
 

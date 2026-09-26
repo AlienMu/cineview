@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "pnpm --dir ../.. run build && vite",
     "build": "vite build",
     "preview": "vite preview",
     "type-check": "pnpm --dir ../.. run build && tsc --noEmit"

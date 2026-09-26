@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "pnpm run build:framework && vite",
     "build": "vite build",
     "build:framework": "pnpm --dir .. run build",
     "build:cf": "pnpm run build:framework && pnpm run build",

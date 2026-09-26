@@ -99,4 +99,5 @@ Unit tests, type-checking, lint, and static builds do not prove drag or scroll b
 - Keep review reports, task flows, screenshots, traces, generated measurements, and local agent tooling outside Git tracking. Store new investigation helpers under `review/` or `site/scripts/`. Keep reusable verification scripts and regression tests tracked.
 - Preserve local evidence unless cleanup is explicitly requested. Run `pnpm verify:repository` before committing; never force-add ignored files.
 - Generated or local-only directories such as `coverage`, `dist`, `.playwright-cli`, `.idea`, and `.DS_Store` can be cleaned when they are untracked or regenerated, but check `git status` first.
+- Root `dist/` is required by the linked site and minimal example. Keep it while either consumer is running. After offline cleanup, rebuild it before validating or handing back a development environment; a production deployment check does not verify the local development server.
 - Never remove user changes or run destructive Git commands without explicit approval.

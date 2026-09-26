@@ -38,10 +38,9 @@ that acceptance.
 
 ## Running examples and the website
 
-After installing the dependencies listed in Local Checks, build the library and start a consumer:
+After installing the dependencies listed in Local Checks, start a consumer:
 
 ```bash
-pnpm build
 pnpm --dir examples/minimal dev
 ```
 
@@ -51,7 +50,9 @@ For the bilingual website and documentation:
 pnpm --dir site dev
 ```
 
-Use the address printed by Vite. The website serves the scroll demonstration at `/`, the drag demonstration at `/drag`, and documentation at `/docs`. Rebuild the root package after framework changes; both consumers use the built package.
+Both development commands build the framework before starting Vite, including on a fresh checkout without `dist/`. Use the address printed by Vite. The website serves the scroll demonstration at `/`, the drag demonstration at `/drag`, and documentation at `/docs`. Rebuild the root package with `pnpm build` after framework changes made while Vite is running; both consumers use the built package.
+
+Keep the root `dist/` directory while either consumer is running: its files are the linked package's runtime and type declarations. Coverage reports, screenshots, and temporary probes can be cleaned separately. If `dist/` is removed while the servers are stopped, the next development command rebuilds it automatically.
 
 ## Deploying the website
 
