@@ -11,7 +11,7 @@ These guides target cineview@0.0.1-beta, React 19, and Framer Motion 13. Import 
 - [Modes](docs/ai/modes.md): drag versus scroll, fixed drag navigation height, scroll zones, and mode-specific parameters.
 - [Recipes](docs/ai/recipes.md): complete scroll narrative and video Apps, asset requirements, and expected behavior.
 
-Read quick start first. Add modes when selecting an interaction, timeline when sequencing elements, and recipes for complete implementations. Detailed references can be read only when the task needs them.
+Read quick start first. Then load only the guides needed for the task: modes for selecting an interaction, timeline for sequencing elements, and recipes for complete implementations. This uses fewer input tokens than loading all documentation each time. Reuse unchanged material already in context; open detailed references when the task needs them or a property requires verification.
 
 ## Essential rules
 

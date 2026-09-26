@@ -9,9 +9,11 @@
 
 AI-generated landing pages often feel scattered to me: the content and animations are there, but the page lacks a clear order and rhythm. I want a landing page to unfold like a film, one scene at a time.
 
-That is the idea behind Cineview, a React animation framework built around **timelines, with drag and scroll modes**. Scenes organize the content, timelines arrange its entrances, and dragging or scrolling advances the presentation.
+Cineview is a React animation framework built around **timelines, with drag and scroll modes**. It divides content into scenes and arranges animations on a timeline. The viewer advances the page by scrolling or dragging.
 
 Each `Scene` owns its element timeline. `Animate` defines effects and durations; `after` starts an element when its predecessor finishes entering, then adds the follower's delay. Video can follow the same progress, and ordinary entrances can play independently over time.
+
+AI coding assistants have a short index and guides organized by task. Reading the index and the relevant guides uses fewer input tokens than loading the full documentation for every task, leaving more context for the page being built.
 
 [Quick start and interactive examples](https://cineview.pages.dev/docs/03-quickstart) · [Documentation](https://cineview.pages.dev/docs) · [Website](https://cineview.pages.dev)
 
@@ -28,6 +30,8 @@ The npm `beta` channel tracks this API. The `latest` channel remains on `1.0.0`,
 ## Build with AI
 
 Start with [llms.txt](./llms.txt). It indexes concise Markdown guides for [quick start](./docs/ai/quickstart.md), [timelines](./docs/ai/timeline.md), [mode selection](./docs/ai/modes.md), and [complete recipes](./docs/ai/recipes.md). These English guides target the current beta API and link to the detailed documentation and public types.
+
+Read the timeline guide when changing animation order, or the video recipe when adding a video. Reuse unchanged material already in context and open detailed references when a property needs checking. This keeps unrelated documentation out of the prompt.
 
 Give an assistant access to this repository and use this prompt:
 
