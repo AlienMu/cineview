@@ -3,7 +3,6 @@
 [English](./README.md)
 
 [![npm](https://img.shields.io/npm/v/cineview/beta?style=flat-square&color=8A5B43)](https://www.npmjs.com/package/cineview)
-[![Tests](https://github.com/AlienMu/cineview/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AlienMu/cineview/actions/workflows/ci.yml)
 [![Framework line coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fcineview.pages.dev%2Fcoverage.json&style=flat-square)](https://cineview.pages.dev/coverage.json)
 [![React 19](https://img.shields.io/badge/React-19-287EA3?style=flat-square)](https://react.dev/)
 [![MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](./LICENSE)
@@ -93,7 +92,7 @@ export default function App() {
 
 ## 验证与开发
 
-测试徽章显示 GitHub CI 状态。覆盖率徽章读取网站发布时成功运行框架测试生成的行覆盖率，不代表所有浏览器交互都已覆盖；拖拽与滚动另有浏览器验收。
+覆盖率徽章读取网站发布时成功运行框架测试生成的行覆盖率，不代表所有浏览器交互都已覆盖；拖拽与滚动另有浏览器验收。
 
 完整开发环境、测试与发布命令见 [Contributing](./CONTRIBUTING.md) 和[发布说明](./RELEASING.md)。[最小示例](./examples/minimal/README.md)可在两种模式间切换。
 

@@ -42,6 +42,11 @@ pnpm-debug.log*
 .claude
 .agents/
 /skills-lock.json
+/.github/workflows/
+/agent-report-*.txt
+/test-threshold.js
+/ACCEPTANCE-REPORT.md
+/requirements.md
 
 # Bundle analysis output
 stats.html

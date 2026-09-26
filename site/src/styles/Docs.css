@@ -79,16 +79,10 @@
   letter-spacing: -0.035em;
 }
 .docs-shell__mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 30px;
   height: 30px;
-  padding-top: 2px;
-  border-radius: 50%;
-  background: var(--docs-accent);
-  color: #3b261f;
-  font-size: 23px;
-  font-style: italic;
+  flex-shrink: 0;
 }
 .docs-shell__section {
   border-left: 1px solid var(--docs-line);
@@ -896,7 +890,6 @@ body:has(.docs-dialog[open]) {
   .docs-shell__mark {
     width: 26px;
     height: 26px;
-    font-size: 21px;
   }
   .docs-shell__section {
     font-size: 13px;

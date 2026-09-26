@@ -195,9 +195,14 @@ export function DocsShell({
             className="docs-shell__brand"
             aria-label={zh ? 'Cineview 首页' : 'Cineview home'}
           >
-            <span className="docs-shell__mark" aria-hidden="true">
-              C
-            </span>
+            <img
+              className="docs-shell__mark"
+              src="/favicon.svg"
+              width="30"
+              height="30"
+              alt=""
+              aria-hidden="true"
+            />
             <span>Cineview</span>
           </Link>
           <Link className="docs-shell__section" to="/docs">

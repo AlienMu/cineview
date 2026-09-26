@@ -83,7 +83,9 @@ traces, local agent tooling, and build outputs out of commits. Reusable checks
 and regression tests remain part of the source repository.
 
 `pnpm verify:repository` rejects tracked files covered by `.gitignore`, including
-files staged with `git add -f`. It runs before commits and in the static CI gate.
+files staged with `git add -f`. It runs before commits and in the local static gate.
+GitHub Actions workflows are excluded from this repository. Run the verification
+commands locally before publishing; pushing commits or tags does not publish a package.
 Save new one-off investigation scripts in `review/` or `site/scripts/`.
 
 ## Commit Scope

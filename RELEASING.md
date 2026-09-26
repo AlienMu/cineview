@@ -39,26 +39,27 @@ npm pack --dry-run --ignore-scripts
 The dry-run command inspects package contents without running lifecycle scripts;
 `pnpm verify:all` above performs validation. Inspect the contents, update the version
 and changelog, and confirm that
-the exact source commit passed CI and browser acceptance. Check the registry
+the exact source commit passed local verification and browser acceptance. Check the registry
 before publishing; an existing version cannot be replaced.
 
-Future `v*` tags trigger the release workflow. The tag must match `package.json`,
-and the changelog must contain that version. Browser acceptance precedes the npm
-publish job; the publish command requests npm provenance. Never create a release
+GitHub Actions workflows are excluded from this repository. Tags record verified
+source versions; pushing a tag does not publish a package. The tag must match
+`package.json`, and the changelog must contain that version. Never create a release
 tag on an unverified source commit or move an existing published tag.
 
-A historical `npm/*` correspondence tag does not trigger the `v*` publish workflow.
-Use it only for verified artifact records, never as a substitute for testing a
-new version.
+After verification, publish manually from the clean source checkout with an npm
+account that owns the package. Complete any authentication requested by npm:
 
-The release job uses npm trusted publishing with GitHub Actions. In the npm
-package settings, configure owner `AlienMu`, repository `cineview`, and workflow
-`release.yml`, with no environment name and direct publication enabled. The job
-has `id-token: write` permission and uses npm 11.15.0; it does not need an
-`NPM_TOKEN` secret. See [npm's setup instructions](https://docs.npmjs.com/trusted-publishers/).
+```bash
+npm login --registry https://registry.npmjs.org
+npm publish --access public --tag beta --registry https://registry.npmjs.org
+```
 
-Versions containing a prerelease suffix publish to `beta`; stable versions publish
-to `latest`. Verify the new registry version and install its tarball before
+Use `beta` for prerelease versions and `latest` for stable versions. Local publication
+does not use the former GitHub trusted publisher and does not produce GitHub Actions
+provenance. Historical `npm/*` tags record artifact correspondence only.
+
+Verify the new registry version and install its tarball before
 deploying the corresponding documentation. A failed package publication must not
 be described as a completed joint release.
 
