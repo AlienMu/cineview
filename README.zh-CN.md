@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview/beta?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm beta version" /></a>
+  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/dm/cineview?style=flat-square&amp;color=8A5B43" alt="npm monthly downloads" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT license" /></a>
   <br />
@@ -50,13 +50,13 @@
 
 ## 试试看
 
-在 React 19 项目中，安装 beta 版本及其依赖：
+在 React 19 项目中，安装 Cineview 及其依赖：
 
 ```bash
-npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
-示例使用 beta 版本的 `Cineview` API。npm 的 `latest` 版本 `1.0.0` 使用早期的 `CineView` API，运行下面的示例请安装上方指定版本。
+示例使用 1.0.1 的 `Cineview` API。1.0.0 使用早期的 `CineView` API，升级时需要更新导入名称和配置。
 
 把以下内容放进 `App.tsx`，在全局样式中设置 `body { margin: 0; }`。无需准备媒体素材。
 
@@ -97,7 +97,7 @@ export default function App() {
 - [模式选择](./docs/ai/modes.md)：选择拖拽或滚动，确认各自的限制。
 - [完整案例](./docs/ai/recipes.md)：实现滚动叙事或加入视频。
 
-这套指南对应当前 beta API。写代码前先确认索引中的版本，遇到不确定的参数，再沿链接查阅类型定义和详细文档。只读取当前任务需要的内容，比一次加载整套文档更省输入 token，也能为页面代码和需求留出更多上下文。
+这套指南对应 Cineview 1.0.1 API。写代码前先确认索引中的版本，遇到不确定的参数，再沿链接查阅类型定义和详细文档。只读取当前任务需要的内容，比一次加载整套文档更省输入 token，也能为页面代码和需求留出更多上下文。
 
 ## 文档与案例
 

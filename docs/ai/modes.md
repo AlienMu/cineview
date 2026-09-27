@@ -1,6 +1,6 @@
 # Select drag or scroll
 
-Applies to `cineview@0.0.1-beta`. Cineview has two page modes. `timeline.driver` separately selects how an element advances; it is not a third page mode.
+Applies to `cineview@1.0.1`. Cineview has two page modes. `timeline.driver` separately selects how an element advances; it is not a third page mode.
 
 ## Match the interaction
 

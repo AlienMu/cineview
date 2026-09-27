@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview/beta?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm beta version" /></a>
+  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/dm/cineview?style=flat-square&amp;color=8A5B43" alt="npm monthly downloads" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT license" /></a>
   <br />
@@ -50,13 +50,13 @@ For a new page, combine existing scenes, assets, and animations. For an update, 
 
 ## Try it
 
-In a React 19 project, install the beta and its peer dependencies:
+In a React 19 project, install Cineview and its peer dependencies:
 
 ```bash
-npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
-This example uses the beta `Cineview` API. The npm `latest` version, `1.0.0`, uses the earlier `CineView` API; install the version above to run this example.
+This example uses the `Cineview` API in 1.0.1. Version 1.0.0 uses the earlier `CineView` API; update imports and configuration when upgrading.
 
 Replace `App.tsx` with the component below and set `body { margin: 0; }` in your global stylesheet. No media files are needed.
 
@@ -97,7 +97,7 @@ If you are an AI coding assistant working with Cineview, **read [llms.txt](./llm
 - [Modes](./docs/ai/modes.md): choose drag or scroll and check their constraints.
 - [Recipes](./docs/ai/recipes.md): add a scroll narrative or video.
 
-These guides target the current beta API. Check the version in the index before writing code, and use the linked types and detailed references when a property is unclear. Read only what the task needs: loading selected guides uses fewer input tokens than loading the entire documentation, leaving more context for the page being built.
+These guides target the Cineview 1.0.1 API. Check the version in the index before writing code, and use the linked types and detailed references when a property is unclear. Read only what the task needs: loading selected guides uses fewer input tokens than loading the entire documentation, leaving more context for the page being built.
 
 ## Docs and examples
 

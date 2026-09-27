@@ -1,6 +1,6 @@
 # Arrange an animation timeline
 
-Applies to `cineview@0.0.1-beta`. Each Scene owns its element timeline. Read [quick start](./quickstart.md) for a runnable example and [modes](./modes.md) for how user input advances time.
+Applies to `cineview@1.0.1`. Each Scene owns its element timeline. Read [quick start](./quickstart.md) for a runnable example and [modes](./modes.md) for how user input advances time.
 
 ## Calculate entrances
 

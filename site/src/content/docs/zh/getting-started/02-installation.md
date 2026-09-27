@@ -3,21 +3,21 @@ title: 安装
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-本文档对应 `cineview@0.0.1-beta` 的 `Cineview` API。安装下方指定版本即可运行示例。
+本文档对应 `cineview@1.0.1` 的 `Cineview` API。安装下方指定版本即可运行示例。
 
-## 安装 beta 及其依赖
+## 安装 Cineview 及其依赖
 
 ```bash
-npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
 使用 pnpm：
 
 ```bash
-pnpm add cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+pnpm add cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
-`beta` 标签对应这套 API。`latest` 标签保留在 1.0.0，该版本导出 `CineView`，API 与本文不同。
+1.0.0 导出 `CineView`，API 与本文不同。升级到 1.0.1 时，请按本文档更新导入名称和配置。
 
 应用需要提供 React、React DOM 和 Framer Motion，并与 Cineview 共用它们。重复安装 React 可能导致 Hook 错误。
 

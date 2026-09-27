@@ -1,13 +1,13 @@
 # Build a Cineview page
 
-Applies to `cineview@0.0.1-beta`. Start here when generating an application. Use the [reading index](../../llms.txt) to select additional guides.
+Applies to `cineview@1.0.1`. Start here when generating an application. Use the [reading index](../../llms.txt) to select additional guides.
 
 ## Install
 
 Use an existing React 19 application with TypeScript support, such as a React TypeScript Vite project:
 
 ```bash
-npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
 The component is `Cineview`. Examples for the older `CineView` component target a different package API. Check [package metadata](../../package.json) and [public types](../../src/types/index.ts) when working against a different version.

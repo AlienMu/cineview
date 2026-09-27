@@ -3,21 +3,21 @@ title: Installation
 eyebrow: GETTING STARTED / INSTALLATION
 ---
 
-These guides target `cineview@0.0.1-beta` and its `Cineview` API. Use the exact version below to run the examples.
+These guides target `cineview@1.0.1` and its `Cineview` API. Use the exact version below to run the examples.
 
-## Install the beta and its dependencies
+## Install Cineview and its dependencies
 
 ```bash
-npm install cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
 With pnpm:
 
 ```bash
-pnpm add cineview@0.0.1-beta react@19 react-dom@19 framer-motion@13
+pnpm add cineview@1.0.1 react@19 react-dom@19 framer-motion@13
 ```
 
-The `beta` channel tracks this API. The `latest` channel remains on 1.0.0, which exports `CineView` and has a different API.
+Version 1.0.0 exports `CineView` and has a different API. When upgrading to 1.0.1, update imports and configuration using these guides.
 
 The application supplies React, React DOM, and Framer Motion and shares them with Cineview. Installing a second React instance can cause Hook errors.
 

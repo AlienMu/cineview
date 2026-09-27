@@ -52,7 +52,7 @@ account that owns the package. Complete any authentication requested by npm:
 
 ```bash
 npm login --registry https://registry.npmjs.org
-npm publish --access public --tag beta --registry https://registry.npmjs.org
+npm publish --access public --tag latest --registry https://registry.npmjs.org
 ```
 
 Use `beta` for prerelease versions and `latest` for stable versions. Local publication

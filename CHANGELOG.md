@@ -2,6 +2,24 @@
 
 All notable changes to Cineview are documented here.
 
+## 1.0.1 — 2026-09-27
+
+Stable release of the API introduced in 0.0.1-beta, published under the npm
+`latest` tag, including subsequent fixes and documentation updates.
+
+### Compatibility with 1.0.0
+
+This early release includes incompatible API changes despite its patch version.
+Applications using 1.0.0 must update imports from `CineView` to `Cineview` and
+check configuration against the current public types and documentation.
+
+- Remove `zoneTrigger`, `Scene.scroll.trigger`, `goToZone`'s `align` option,
+  and `Animate.timeline.zoneId`. Declare zones on `Scene.scroll` and place
+  animations in their owning Scene.
+- Use flat, mode-specific callback configuration.
+- `after` waits for entrance completion, excluding exit duration.
+- Update package versions, installation examples and AI guides to 1.0.1.
+
 ## 0.0.1-beta — 2026-09-27
 
 First beta of the current API on the npm `beta` channel. The `latest` channel

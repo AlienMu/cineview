@@ -2,7 +2,7 @@
 
 > React animation framework centered on scene timelines, with drag and scroll modes. Organize content into Scenes, declare animation durations and dependencies, and advance them through gestures, scrolling, or elapsed time.
 
-These guides target cineview@0.0.1-beta, React 19, and Framer Motion 13. Import `Cineview` with this capitalization. The earlier cineview@1.0.0 uses a different API; do not combine examples from those versions. In a different checkout, confirm package.json and public types before applying these guides.
+These guides target cineview@1.0.1, React 19, and Framer Motion 13. Import `Cineview` with this capitalization. The earlier cineview@1.0.0 uses a different API; do not combine examples from those versions. In a different checkout, confirm package.json and public types before applying these guides.
 
 ## Read by task
 

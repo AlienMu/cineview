@@ -1,6 +1,6 @@
 {
   "name": "cineview",
-  "version": "0.0.1-beta",
+  "version": "1.0.1",
   "description": "React UI framework for creating cinematic full-screen sliding pages",
   "main": "dist/cineview.umd.js",
   "module": "dist/cineview.es.mjs",

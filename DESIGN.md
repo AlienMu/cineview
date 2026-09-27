@@ -1,6 +1,6 @@
 # Cineview architecture
 
-This document describes the current implementation of Cineview 0.0.1-beta for contributors.
+This document describes the current implementation of Cineview 1.0.1 for contributors.
 Use the [public types](./src/types/index.ts) for exact property names and unions,
 and the [documentation](./site/src/content/docs/en/getting-started/01-introduction.md) for application examples.
 Historical reviews record earlier states; they do not override the current source.

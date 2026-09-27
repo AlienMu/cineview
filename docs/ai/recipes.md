@@ -1,6 +1,6 @@
 # Build from complete recipes
 
-Applies to `cineview@0.0.1-beta`. Each TSX block is a separate complete `App.tsx`; use one at a time after [installation](./quickstart.md#install). Set the document body margin to `0` in the application's global stylesheet. The [quick-start App](./quickstart.md#run-a-drag-example) covers a drag narrative with a title followed by an explanation.
+Applies to `cineview@1.0.1`. Each TSX block is a separate complete `App.tsx`; use one at a time after [installation](./quickstart.md#install). Set the document body margin to `0` in the application's global stylesheet. The [quick-start App](./quickstart.md#run-a-drag-example) covers a drag narrative with a title followed by an explanation.
 
 ## Scroll through a narrative
 
