@@ -186,6 +186,15 @@ configuration. Reentry reacquires media; asynchronous loading must respect the
 current resource generation. Video seeking is a browser/media operation and
 requires a real browser test with a real asset.
 
+In drag mode, backward departure seeks from the video's actual position at
+departure toward the authored scrub range start, using the existing exit progress.
+This does not require a visual `exitAnimation`. Reversing or cancelling the gesture
+restores that position; a cancelled return resumes native playback only if it was
+playing before departure. Forward departure pauses at the current frame. The
+media controller retains the departure position until cancellation or departure
+completes and reads Scene activity to distinguish the two; it does not write Scene progress. Scroll and visibility exit frames
+retain their existing pause behavior.
+
 ## Layout and responsive sizing
 
 `designWidth` is the only numeric conversion base. Conversion follows viewport

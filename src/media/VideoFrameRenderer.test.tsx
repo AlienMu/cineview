@@ -2,7 +2,7 @@
  * VideoFrameRenderer unit tests: renders <video muted playsInline>, progress → currentTime seek,
  * swaps objectURL when ready, unified dimension conversion. jsdom's video.duration/currentTime require mocking.
  */
-import { createRef, Suspense, startTransition, useState } from 'react';
+import { createRef, Suspense, startTransition, useLayoutEffect, useState } from 'react';
 import { render, act, fireEvent } from '@testing-library/react';
 import { motionValue } from 'framer-motion';
 import type { AnimateTimelineFrame } from '../types';
@@ -432,7 +432,7 @@ describe('VideoFrameRenderer', () => {
     expect(playSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('pauses on outgoing frames without mapping exit progress to currentTime', () => {
+  it('pauses on forward outgoing frames without mapping exit progress to currentTime', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:outgoing');
     stubVideoTiming(10, 1);
     const pauseSpy = jest
@@ -457,6 +457,149 @@ describe('VideoFrameRenderer', () => {
 
     expect(pauseSpy).toHaveBeenCalledTimes(1);
     expect(currentTimeSetters).toEqual([]);
+  });
+
+  it('reverses a fully entered video and restores its frame when the return is cancelled', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:reverse-exit');
+    stubVideoTiming(10);
+    const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 1,
+      signedProgress: 1,
+      phase: 'entered',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer src="/reverse-exit.mp4" progress={1} timelineFrame={frame} />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    let time = 10;
+    Object.defineProperty(video, 'currentTime', {
+      get: () => time,
+      set: (value: number) => {
+        time = value;
+        currentTimeSetters.push(value);
+      },
+    });
+    currentTimeSetters = [];
+
+    act(() => {
+      frame.set({ progress: 0, signedProgress: 0, phase: 'exiting', source: 'gesture' });
+      frame.set({ progress: 0.25, signedProgress: -0.25, phase: 'exiting', source: 'gesture' });
+    });
+    expect(video.currentTime).toBe(7.5);
+    act(() => {
+      frame.set({ progress: 0.5, signedProgress: -0.5, phase: 'exiting', source: 'gesture' });
+    });
+    expect(video.currentTime).toBe(5);
+    act(() => {
+      frame.set({ progress: 0.1, signedProgress: -0.1, phase: 'exiting', source: 'gesture' });
+      frame.set({ progress: 0, signedProgress: 0, phase: 'exiting', source: 'continuation' });
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'idle' });
+    });
+    expect(currentTimeSetters).toEqual([7.5, 5, 9, 10]);
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it('reverses from the native playback frame and resumes there after cancelling', async () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:reverse-tail');
+    stubVideoTiming(10);
+    const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const pause = jest
+      .spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0.5,
+      signedProgress: 0.5,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    const { container } = render(
+      <VideoFrameRenderer
+        src="/reverse-tail.mp4"
+        progress={0.5}
+        timelineFrame={frame}
+        scrubRange={[2, 6]}
+      />
+    );
+    const video = container.querySelector('video') as HTMLVideoElement;
+    let time = 8;
+    Object.defineProperty(video, 'currentTime', {
+      get: () => time,
+      set: (value: number) => {
+        time = value;
+        currentTimeSetters.push(value);
+      },
+    });
+    fireEvent.play(video);
+    currentTimeSetters = [];
+    act(() => {
+      frame.set({ progress: 0.25, signedProgress: -0.25, phase: 'exiting', source: 'gesture' });
+    });
+    expect(video.currentTime).toBe(6.5);
+    expect(pause).toHaveBeenCalledTimes(1);
+    fireEvent.pause(video);
+    act(() => {
+      frame.set({ progress: 0.5, signedProgress: -0.5, phase: 'exiting', source: 'continuation' });
+    });
+    expect(video.currentTime).toBe(5);
+    await act(async () => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'idle' });
+      await Promise.resolve();
+    });
+    expect(video.currentTime).toBe(8);
+    expect(currentTimeSetters).toEqual([6.5, 5, 8]);
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a departed scene paused when a late entered frame follows a committed return', () => {
+    jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:committed-return');
+    stubVideoTiming(10);
+    const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    jest.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0.5,
+      signedProgress: 0.5,
+      phase: 'entering',
+      source: 'gesture',
+    });
+    function Departure({ active }: { active: boolean }): React.JSX.Element {
+      useLayoutEffect(() => {
+        if (!active) {
+          frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'continuation' });
+        }
+      }, [active]);
+      return (
+        <VideoFrameRenderer
+          src="/committed-return.mp4"
+          progress={0.5}
+          timelineFrame={frame}
+          scrubRange={[2, 6]}
+          dragSceneActive={active}
+        />
+      );
+    }
+    const { container, rerender } = render(<Departure active />);
+    const video = container.querySelector('video') as HTMLVideoElement;
+    let time = 8;
+    Object.defineProperty(video, 'currentTime', {
+      get: () => time,
+      set: (value: number) => {
+        time = value;
+      },
+    });
+    fireEvent.play(video);
+    act(() => {
+      frame.set({ progress: 1, signedProgress: -1, phase: 'exiting', source: 'continuation' });
+    });
+    expect(video.currentTime).toBe(2);
+    rerender(<Departure active={false} />);
+    act(() => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'continuation' });
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'idle' });
+    });
+    expect(video.currentTime).toBe(2);
+    expect(play).not.toHaveBeenCalled();
   });
 
   it('allows an external play after automatic play rejection', async () => {

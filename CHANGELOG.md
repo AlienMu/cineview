@@ -2,6 +2,16 @@
 
 All notable changes to Cineview are documented here.
 
+## Unreleased
+
+- Reverse video seeking when dragging back from a fully entered Scene. Restore
+  the departure position when the return is cancelled, including videos that
+  continued playing beyond a partial scrub range.
+- Update the interactive video example and bilingual guides to cover reverse
+  departure and cancellation.
+- Rewrite the README around maintainable landing pages, responsive web layouts,
+  extensibility, and component reuse in AI-assisted development.
+
 ## 1.0.1 — 2026-09-27
 
 Stable release of the API introduced in 0.0.1-beta, published under the npm

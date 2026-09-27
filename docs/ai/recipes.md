@@ -93,6 +93,8 @@ The Scene lasts 1200ms: video 0–1000ms, title 100–700ms, caption 800–1200m
 
 Video positions are measured in seconds; animation duration is measured in milliseconds. Without `scrubRange`, the full clip follows the entrance interval. An explicit range such as `scrubRange={[2, 6]}` selects part of the clip and then allows the remaining video to play automatically. Read [video behavior](../../site/src/content/docs/en/components/04-animate-video.md) before using a partial range.
 
+After arrival in drag mode, returning to the previous Scene seeks from the actual video position toward the range start. `duration.exit` controls this return (default 600ms); no `exitAnimation` is required. Cancelling restores the departure position and resumes only if the video was playing. Forward departure pauses at the current frame. Test this separately from reversing an unfinished entrance.
+
 AnimateVideo manages its own Animate wrapper. Its `timeline` accepts only `delay` and `after`; do not pass Animate's `driver` or `phase`, or assume every native video attribute is supported. `releaseOnLeave` defaults to `false` and applies only to scroll zones. Check [AnimateVideoProps](../../src/components/Animate/AnimateVideo.tsx) for exact properties.
 
 ## Verify the result

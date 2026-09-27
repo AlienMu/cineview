@@ -7,7 +7,7 @@ import {
   SceneScrollTakeoverContext,
   useSceneScrollZoneApproach,
 } from '../Scene/sceneScrollRuntime';
-import { Animate } from './Animate';
+import { Animate, SceneContext } from './Animate';
 import { useAnimateTimeline } from './animateTimeline';
 
 const NEUTRAL_ENTER: AnimationType = {
@@ -175,6 +175,7 @@ const AnimateVideoContent = forwardRef<HTMLVideoElement, AnimateVideoContentProp
     ref
   ): React.JSX.Element {
     const timeline = useAnimateTimeline();
+    const scene = useContext(SceneContext);
     const controlRef = useVideoResidencyControl(releaseOnLeave, src);
 
     return (
@@ -184,6 +185,7 @@ const AnimateVideoContent = forwardRef<HTMLVideoElement, AnimateVideoContentProp
         src={src}
         progress={timeline.progress}
         timelineFrame={timeline.frame}
+        dragSceneActive={timeline.mode === 'drag' ? scene?.isActive : undefined}
         aria-label={ariaLabel}
         width={width}
         height={height}

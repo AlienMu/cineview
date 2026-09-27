@@ -3,7 +3,7 @@ title: Control video with drag and scroll
 eyebrow: ADVANCED / VIDEO
 ---
 
-Drag up into the second scene to advance its video and text along one timeline. Pause between scenes, then move back and forth to seek through the video. Commit the scene change and unfinished animations continue from the release point. Drag down to return.
+Drag up into the second scene to advance its video and text along one timeline. Pause between scenes, then move back and forth to seek through the video. Commit the scene change and unfinished animations continue from the release point. Once fully inside the scene, drag down to return: the video moves backward too. Reverse the gesture or cancel the return to restore its position.
 
 <!-- preview:video -->
 
@@ -61,6 +61,8 @@ export default function App() {
 The target scene's element timeline lasts 1200ms. The title starts at 100ms and finishes 600ms later, at 700ms. The caption follows the title and waits another 100ms, so it begins at 800ms. The video starts at 0ms and runs for 1000ms. All three elements read the same elapsed time and change only during their own intervals.
 
 `unit="percent"` uses the default `scale={1}` to map drag percentage to this 1200ms timeline. Halfway through the drag, element time reaches 600ms: the video is at 60% of its full length, the title is nearly complete, and the caption has not started. Commit at this point and animation continues from 600ms; the caption fades in when time reaches 800ms. Cancel the change and the target scene returns to its initial frame.
+
+Once fully inside the second scene, drag down to move the video from its current frame toward the start. Move upward again to restore its position before departure. Hold a short drag before releasing to cancel the return. A video that was playing resumes; a paused video stays paused. The return uses `duration.exit`, which defaults to 600ms, without requiring `exitAnimation`. Moving to a later scene still pauses the video at its current frame.
 
 Omitting `scrubRange` maps the full video to the 1000ms entrance interval. Video seconds select the media range; animation milliseconds control how the gesture advances it. To control only part of the clip, set `scrubRange={[2, 6]}`. After reaching six seconds, the remaining video plays automatically.
 

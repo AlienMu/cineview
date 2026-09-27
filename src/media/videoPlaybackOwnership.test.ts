@@ -184,7 +184,7 @@ describe('videoPlaybackOwnership', () => {
     expect(stale.commands).toEqual([]);
   });
 
-  it('pauses once on outgoing frames and never maps exit progress to currentTime', () => {
+  it('pauses once on forward outgoing frames and never maps exit progress to currentTime', () => {
     let state = createVideoPlaybackOwnershipState(1);
     state = dispatch(state, { type: 'media-play', activationId: 1 }).state;
     const outgoingFrame: AnimateTimelineFrame = {
@@ -250,7 +250,7 @@ describe('videoPlaybackOwnership', () => {
       status: 'framework-scrub',
       lastSeekTime: 2,
       endpointLatched: false,
-      outgoingLatched: false,
+      outgoing: null,
     });
 
     const repeated = dispatch(reset.state, {
@@ -267,6 +267,152 @@ describe('videoPlaybackOwnership', () => {
     });
     expect(pauseAcknowledged.state.status).toBe('framework-scrub');
   });
+
+  it.each([
+    { range: undefined, time: 10, midpoint: 5, end: 0 },
+    { range: [2, 6] as const, time: 8, midpoint: 5, end: 2 },
+    { range: [6, 2] as const, time: 2, midpoint: 4, end: 6 },
+  ])('finishes a reverse departure from $time at $end', ({ range, time, midpoint, end }) => {
+    let state = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'media-ended',
+      activationId: 1,
+    }).state;
+    const frame: AnimateTimelineFrame = {
+      progress: 0.5,
+      signedProgress: -0.5,
+      phase: 'exiting',
+      source: 'gesture',
+    };
+    const middle = dispatch(state, {
+      type: 'timeline-frame',
+      frame,
+      duration: 10,
+      currentTime: time,
+      scrubRange: range,
+    });
+    expect(middle.commands).toEqual([{ type: 'seek', time: midpoint }]);
+    state = middle.state;
+    const completed = dispatch(state, {
+      type: 'timeline-frame',
+      frame: { ...frame, progress: 1, signedProgress: -1, source: 'continuation' },
+      duration: 10,
+      currentTime: midpoint,
+      scrubRange: range,
+    });
+    expect(completed.commands).toEqual([{ type: 'seek', time: end }]);
+    const hidden = dispatch(completed.state, {
+      type: 'timeline-frame',
+      frame: { progress: 0, signedProgress: 0, phase: 'idle', source: 'idle' },
+      duration: 10,
+      scrubRange: range,
+    });
+    expect(hidden.commands).toEqual([]);
+    expect(hidden.state.outgoing).toBeNull();
+    const reentered = dispatch(hidden.state, {
+      type: 'timeline-frame',
+      frame: gestureFrame(0.5),
+      duration: 10,
+      scrubRange: range,
+    });
+    expect(reentered.commands).toEqual([
+      { type: 'seek', time: mapVideoScrubProgress(0.5, 10, range) },
+    ]);
+  });
+
+  it.each(['scroll', 'visibility'] as const)(
+    'keeps negative %s exit progress separate from reverse drag',
+    (source) => {
+      const next = dispatch(createVideoPlaybackOwnershipState(1), {
+        type: 'timeline-frame',
+        frame: { progress: 0.5, signedProgress: -0.5, phase: 'exiting', source },
+        duration: 10,
+        currentTime: 8,
+      });
+      expect(next.commands).toEqual([]);
+    }
+  );
+
+  it('rejects a late native play while reversing and preserves a user pause on cancellation', () => {
+    let state = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'timeline-frame',
+      frame: gestureFrame(1),
+      duration: 10,
+      scrubRange: [2, 6],
+    }).state;
+    state = dispatch(state, { type: 'play-resolved', requestId: 1 }).state;
+    state = dispatch(state, { type: 'media-pause', activationId: 1 }).state;
+    state = dispatch(state, {
+      type: 'timeline-frame',
+      frame: { progress: 0.5, signedProgress: -0.5, phase: 'exiting', source: 'gesture' },
+      duration: 10,
+      currentTime: 8,
+      scrubRange: [2, 6],
+    }).state;
+    const late = dispatch(state, { type: 'media-play', activationId: 1, requestId: 1 });
+    expect(late.commands).toEqual([{ type: 'pause' }]);
+    const cancelled = dispatch(late.state, {
+      type: 'timeline-frame',
+      frame: { progress: 1, signedProgress: 1, phase: 'entered', source: 'idle' },
+      duration: 10,
+      currentTime: 5,
+      scrubRange: [2, 6],
+    });
+    expect(cancelled.commands).toEqual([{ type: 'seek', time: 8 }]);
+  });
+
+  it.each(['playing', 'paused', 'ended'] as const)(
+    'preserves the %s departure position after crossing zero and cancelling',
+    (status) => {
+      let state = dispatch(createVideoPlaybackOwnershipState(1), {
+        type: 'media-play',
+        activationId: 1,
+      }).state;
+      if (status !== 'playing') {
+        state = dispatch(state, {
+          type: status === 'ended' ? 'media-ended' : 'media-pause',
+          activationId: 1,
+        }).state;
+      }
+      const time = status === 'ended' ? 10 : 8;
+      for (const signedProgress of [-0.8, 0, 0.1]) {
+        state = dispatch(state, {
+          type: 'timeline-frame',
+          frame: {
+            progress: Math.abs(signedProgress),
+            signedProgress,
+            phase: 'exiting',
+            source: 'gesture',
+          },
+          duration: 10,
+          currentTime: time,
+          scrubRange: [2, 6],
+          dragSceneActive: true,
+        }).state;
+      }
+      const cancelled = dispatch(state, {
+        type: 'timeline-frame',
+        frame: { ...gestureFrame(1), source: 'continuation' },
+        duration: 10,
+        currentTime: time,
+        scrubRange: [2, 6],
+        dragSceneActive: true,
+      });
+      expect(cancelled.state.lastSeekTime).toBe(time);
+      expect(cancelled.commands).toEqual(
+        status === 'playing' ? [{ type: 'play', requestId: 1 }] : []
+      );
+      const repeated = dispatch(cancelled.state, {
+        type: 'timeline-frame',
+        frame: { ...gestureFrame(1), source: 'continuation' },
+        duration: 10,
+        currentTime: time,
+        scrubRange: [2, 6],
+        dragSceneActive: true,
+      });
+      expect(repeated.commands).toEqual([]);
+      expect(repeated.state.lastSeekTime).toBe(time);
+    }
+  );
 
   it('holds ended media until a new activation and scrub frame reclaims it', () => {
     let state = createVideoPlaybackOwnershipState(1);

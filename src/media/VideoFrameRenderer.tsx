@@ -86,6 +86,8 @@ export interface VideoFrameRendererProps {
   /** Legacy progress-only input. Atomic timelineFrame takes ownership when supplied. */
   progress: number | MotionValue<number>;
   timelineFrame?: MotionValue<AnimateTimelineFrame>;
+  /** Existing Scene activity distinguishes a cancelled return from a committed departure. */
+  dragSceneActive?: boolean;
   scrubRange?: readonly [fromSeconds: number, toSeconds: number];
   width?: number | string;
   height?: number | string;
@@ -117,6 +119,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       src,
       progress,
       timelineFrame,
+      dragSceneActive,
       scrubRange,
       width,
       height,
@@ -136,6 +139,10 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
   ): React.JSX.Element {
     const context = useCineviewContext();
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    const dragSceneActiveRef = useRef(dragSceneActive);
+    useIsomorphicLayoutEffect(() => {
+      dragSceneActiveRef.current = dragSceneActive;
+    }, [dragSceneActive]);
     const [objectUrlState, setObjectUrlState] = useState<{ src: string; url: string | null }>(
       () => ({
         src,
@@ -498,10 +505,7 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       const publish = (frame: AnimateTimelineFrame): void => {
         latestFrame = frame;
         const ownership = ownershipRef.current;
-        if (
-          frame.phase === 'entering' &&
-          (ownership.status === 'ended' || ownership.outgoingLatched)
-        ) {
+        if (frame.phase === 'entering' && (ownership.status === 'ended' || ownership.outgoing)) {
           activationIdRef.current += 1;
           bindNativeMediaListeners(null, activationIdRef.current);
           dispatchOwnership({ type: 'activate', activationId: activationIdRef.current });
@@ -513,6 +517,8 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           type: 'timeline-frame',
           frame,
           duration: video.duration,
+          currentTime: video.currentTime,
+          dragSceneActive: dragSceneActiveRef.current,
           scrubRange,
         });
       };

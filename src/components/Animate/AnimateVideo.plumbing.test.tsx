@@ -2,6 +2,7 @@ import { createRef } from 'react';
 import { render } from '@testing-library/react';
 import type { AnimateTimelineFrame } from '../../types';
 import { AnimateVideo } from './AnimateVideo';
+import { SceneContext, type SceneContextType } from './Animate';
 import {
   SceneScrollTakeoverContext,
   SceneScrollTimelineContext,
@@ -47,12 +48,16 @@ jest.mock('./animateTimeline', () => ({
   }),
 }));
 
-jest.mock('./Animate', () => ({
-  Animate: (props: Record<string, unknown> & { children?: React.ReactNode }) => {
-    mockAnimateProps.push(props);
-    return <>{props.children}</>;
-  },
-}));
+jest.mock('./Animate', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    SceneContext: React.createContext<SceneContextType | null>(null),
+    Animate: (props: Record<string, unknown> & { children?: React.ReactNode }) => {
+      mockAnimateProps.push(props);
+      return <>{props.children}</>;
+    },
+  };
+});
 
 jest.mock('../../media/VideoFrameRenderer', () => {
   const React = jest.requireActual<typeof import('react')>('react');
@@ -83,6 +88,20 @@ beforeEach(() => {
 });
 
 describe('AnimateVideo plumbing', () => {
+  it('uses Scene activity to distinguish reverse cancellation from committed departure', () => {
+    const { rerender } = render(
+      <SceneContext.Provider value={{ isActive: true } as SceneContextType}>
+        <AnimateVideo src="/departure.mp4" />
+      </SceneContext.Provider>
+    );
+    expect(mockRendererProps[mockRendererProps.length - 1]?.dragSceneActive).toBe(true);
+    rerender(
+      <SceneContext.Provider value={{ isActive: false } as SceneContextType}>
+        <AnimateVideo src="/departure.mp4" />
+      </SceneContext.Provider>
+    );
+    expect(mockRendererProps[mockRendererProps.length - 1]?.dragSceneActive).toBe(false);
+  });
   it('forwards timeline, native media, ref, and enter/exit animation contracts', () => {
     const ref = createRef<HTMLVideoElement>();
     const enterAnimation = { initial: { opacity: 0 }, animate: { opacity: 1 } } as const;

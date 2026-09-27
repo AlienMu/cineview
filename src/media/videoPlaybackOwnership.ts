@@ -17,7 +17,12 @@ export interface VideoPlaybackOwnershipState {
   readonly nextPlayRequestId: number;
   readonly lastSeekTime: number | null;
   readonly endpointLatched: boolean;
-  readonly outgoingLatched: boolean;
+  /** Playback position at departure, retained while a return gesture is reversible. */
+  readonly outgoing: {
+    readonly time: number | null;
+    readonly reverse: boolean;
+    readonly resumePlayback: boolean;
+  } | null;
   /** Blocks untagged late play events after framework has reclaimed scrub ownership. */
   readonly frameworkPlayBlocked: boolean;
   /** The next native pause event acknowledges a framework-issued pause command. */
@@ -33,6 +38,8 @@ interface TimelineFrameEvent {
   readonly type: 'timeline-frame';
   readonly frame: AnimateTimelineFrame;
   readonly duration: number;
+  readonly currentTime?: number;
+  readonly dragSceneActive?: boolean;
   readonly scrubRange?: readonly [fromSeconds: number, toSeconds: number];
 }
 
@@ -100,7 +107,7 @@ export function createVideoPlaybackOwnershipState(
     nextPlayRequestId: 1,
     lastSeekTime: null,
     endpointLatched: false,
-    outgoingLatched: false,
+    outgoing: null,
     frameworkPlayBlocked: false,
     frameworkPausePending: false,
   };
@@ -167,6 +174,88 @@ function shouldAutoPlay(event: TimelineFrameEvent, endpointLatched: boolean): bo
   return range[1] < event.duration - SEEK_EPSILON_SECONDS;
 }
 
+function reduceOutgoingFrame(
+  state: VideoPlaybackOwnershipState,
+  event: TimelineFrameEvent
+): VideoPlaybackOwnershipResult {
+  const { frame } = event;
+  const playing = state.status === 'native-playback' || state.status === 'play-pending';
+  const outgoing = state.outgoing ?? {
+    time:
+      event.currentTime !== undefined && Number.isFinite(event.currentTime)
+        ? clamp(event.currentTime, 0, event.duration)
+        : (state.lastSeekTime ?? mapVideoScrubProgress(1, event.duration, event.scrubRange)),
+    reverse: false,
+    resumePlayback: playing,
+  };
+  // Drag departure uses negative signed progress when returning to a previous
+  // Scene. Scroll/visibility exit progress has a different meaning.
+  const reverse =
+    frame.source !== 'scroll' &&
+    frame.source !== 'visibility' &&
+    (frame.signedProgress < 0 || (frame.progress === 0 && outgoing.reverse));
+  const startTime = mapVideoScrubProgress(0, event.duration, event.scrubRange);
+  const targetTime =
+    reverse && outgoing.time !== null && startTime !== null
+      ? outgoing.time + clamp(frame.progress, 0, 1) * (startTime - outgoing.time)
+      : outgoing.reverse
+        ? outgoing.time
+        : null;
+  const commands: VideoPlaybackOwnershipCommand[] = [];
+  if (!state.outgoing && playing) commands.push({ type: 'pause' });
+  if (
+    targetTime !== null &&
+    (state.lastSeekTime === null ||
+      Math.abs(state.lastSeekTime - targetTime) > SEEK_EPSILON_SECONDS)
+  ) {
+    commands.push({ type: 'seek', time: targetTime });
+  }
+  if (state.outgoing && !reverse && !outgoing.reverse) return result(state);
+  return result(
+    {
+      ...state,
+      status: 'framework-scrub',
+      activePlayRequestId: null,
+      lastSeekTime: targetTime,
+      // Remember a reverse departure across a zero crossing. Its cancellation
+      // must still restore the actual departure frame, including a native tail.
+      outgoing: outgoing.reverse || !reverse ? outgoing : { ...outgoing, reverse: true },
+      frameworkPlayBlocked:
+        state.frameworkPlayBlocked || playing || state.settledPlayRequestId !== null,
+      frameworkPausePending: state.frameworkPausePending || (!state.outgoing && playing),
+    },
+    commands
+  );
+}
+
+function restoreReverseDeparture(state: VideoPlaybackOwnershipState): VideoPlaybackOwnershipResult {
+  const outgoing = state.outgoing;
+  if (!outgoing) return result(state);
+  const commands: VideoPlaybackOwnershipCommand[] = [];
+  if (
+    outgoing.time !== null &&
+    (state.lastSeekTime === null ||
+      Math.abs(state.lastSeekTime - outgoing.time) > SEEK_EPSILON_SECONDS)
+  ) {
+    commands.push({ type: 'seek', time: outgoing.time });
+  }
+  const requestId = outgoing.resumePlayback ? state.nextPlayRequestId : null;
+  if (requestId !== null) commands.push({ type: 'play', requestId });
+  return result(
+    {
+      ...state,
+      status: requestId === null ? 'framework-scrub' : 'play-pending',
+      activePlayRequestId: requestId,
+      settledPlayRequestId: null,
+      nextPlayRequestId: requestId === null ? state.nextPlayRequestId : requestId + 1,
+      lastSeekTime: outgoing.time,
+      endpointLatched: true,
+      outgoing: null,
+    },
+    commands
+  );
+}
+
 function reduceTimelineFrame(
   state: VideoPlaybackOwnershipState,
   event: TimelineFrameEvent
@@ -174,25 +263,27 @@ function reduceTimelineFrame(
   const { frame } = event;
 
   if (frame.phase === 'exiting' || frame.phase === 'exited') {
-    if (state.outgoingLatched) return result(state);
-    const playing = state.status === 'native-playback' || state.status === 'play-pending';
-    const hasFrameworkPlay =
-      state.activePlayRequestId !== null || state.settledPlayRequestId !== null;
-    return result(
-      {
-        ...state,
-        status: 'framework-scrub',
-        activePlayRequestId: null,
-        lastSeekTime: null,
-        outgoingLatched: true,
-        frameworkPlayBlocked: state.frameworkPlayBlocked || playing || hasFrameworkPlay,
-        frameworkPausePending: playing,
-      },
-      playing ? [{ type: 'pause' }] : []
-    );
+    return reduceOutgoingFrame(state, event);
   }
 
-  if (!state.outgoingLatched && !isScrubSource(frame.source)) return result(state);
+  if (state.outgoing?.reverse && frame.phase === 'entered') {
+    // A committed departure can publish a terminal entered frame while the
+    // Scene switches roles. Only the still-active Scene can cancel its return.
+    if (event.dragSceneActive === false) return result(state);
+    return restoreReverseDeparture(state);
+  }
+  // Cancellation may be followed by more terminal continuation frames. Keep
+  // the restored position just as we keep a native endpoint handoff, until
+  // progress moves away from the endpoint or a new departure begins.
+  if (
+    !state.outgoing &&
+    state.endpointLatched &&
+    frame.phase === 'entered' &&
+    frame.progress >= 1 - PROGRESS_EPSILON
+  ) {
+    return result(state);
+  }
+  if (!state.outgoing && !isScrubSource(frame.source)) return result(state);
   if (!canReclaimTerminalState(state, frame)) return result(state);
 
   const targetTime = mapVideoScrubProgress(frame.progress, event.duration, event.scrubRange);
@@ -218,7 +309,7 @@ function reduceTimelineFrame(
         activePlayRequestId: null,
         lastSeekTime: targetTime,
         endpointLatched: false,
-        outgoingLatched: false,
+        outgoing: null,
         frameworkPlayBlocked: true,
         frameworkPausePending: shouldPause,
       },
@@ -246,7 +337,7 @@ function reduceTimelineFrame(
         nextPlayRequestId: requestId + 1,
         lastSeekTime: targetTime,
         endpointLatched: true,
-        outgoingLatched: false,
+        outgoing: null,
         frameworkPlayBlocked: false,
       },
       commands
@@ -262,7 +353,7 @@ function reduceTimelineFrame(
       activePlayRequestId: null,
       lastSeekTime: targetTime,
       endpointLatched: atEndpoint ? true : leftEndpoint ? false : state.endpointLatched,
-      outgoingLatched: false,
+      outgoing: null,
     },
     commands
   );

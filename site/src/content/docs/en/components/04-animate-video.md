@@ -122,3 +122,5 @@ Place the video inside a Scene in drag mode. With `unit="percent"` and `scale={1
 ```
 
 `duration.enter` uses element-timeline milliseconds. If the Scene contains other animations, their durations and dependencies also affect its total duration. `releaseOnLeave` has no effect in drag mode. See [The drag timeline](/docs/02-timeline).
+
+After fully entering the video scene, dragging back to the previous scene moves the video from its position at departure toward the range start. `duration.exit` controls the return and defaults to 600ms; `exitAnimation` is optional. Reversing the gesture restores the frame. Cancelling resumes a video that was playing from its departure position; a paused video stays paused. If native playback has continued beyond a partial range, the return starts from that actual playback position. Moving to a later scene pauses the video at its current frame.

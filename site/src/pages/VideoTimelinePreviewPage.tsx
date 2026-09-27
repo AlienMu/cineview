@@ -6,21 +6,21 @@ import './VideoTimelinePreviewPage.css';
 const copy = {
   zh: {
     intro: '拖动，展开下一帧。',
-    instruction: '向上拖到两幕之间，停住，再前后移动。视频与文字会跟随同一次手势。',
+    instruction: '向上拖动，观看视频与文字。完全进入后再向下拖回，视频也会随手势回退。',
     title: '光影之间',
-    caption: '标题先出现，说明随后淡入。',
+    caption: '向下拖动让视频回退。短距离拖动后停住再松手，可取消返回。',
     video: '光影剪辑演示',
-    hint: '向上拖动进入 · 向下拖动返回',
+    hint: '向上拖动进入 · 向下拖动回退视频',
     restart: '重新体验',
   },
   en: {
     intro: 'Drag into the next frame.',
     instruction:
-      'Drag up, pause between scenes, then move back and forth. The video and text follow the same gesture.',
+      'Drag up to reveal the video and text. Once inside, drag down to return and move the video backward.',
     title: 'Light in motion',
-    caption: 'The title appears first. The caption follows.',
+    caption: 'Drag down to rewind. Hold a short drag, then release to cancel.',
     video: 'Light and motion film',
-    hint: 'Drag up to enter · Drag down to return',
+    hint: 'Drag up to enter · Drag down to reverse',
     restart: 'Start again',
   },
 } as const;

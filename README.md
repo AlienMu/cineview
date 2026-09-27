@@ -29,9 +29,13 @@
   <a href="#ai-read-this">AI, read this</a>
 </p>
 
-I want landing pages to be easier to maintain and AI assistants to spend less effort repeating the same work. Scene transitions, animation sequencing, and responsive layout can be reused across projects. Cineview organizes these features around scenes and timelines, so common page sections can become React components used on more than one page.
+Cineview is a React animation framework for landing pages and interactive presentations. Its goal is to make thoughtfully designed pages easier to build, maintain, and extend as their content changes. Scenes and timelines organize the page, with drag and scroll modes for product introductions, brand showcases, and campaigns.
 
-For a new page, combine existing scenes, assets, and animations. For an update, find the relevant component and adjust its content or timeline. The AI guides follow the same approach: read the index, then load the guides and code needed for the change. Reusing components and reading by task can reduce the tokens spent regenerating code and reconstructing how an entire page works, leaving more context for the actual request.
+Much of the work on these pages repeats: coordinating animations, recovering from interrupted gestures, and loading assets during scene changes. Cineview maintains this shared behavior in the framework, reducing the timing conflicts and animation-state problems that separate implementations can introduce. Page code can focus on content, layout, and pacing.
+
+Package common sections as React components and reuse them across pages. Update copy, assets, or animation order in the relevant scene. Responsive sizing and CSS layouts adapt the same page to desktop, tablet, and phone browsers. Combine animation presets, define custom effects, or connect Canvas, SVG, and WebGL content to the existing timeline.
+
+The same conventions help with AI-assisted development. Reusing components and reading only the guides and code needed for a task can reduce tokens spent regenerating basic behavior and reconstructing an entire page. New pages build on existing components; updates stay focused on the scenes that need to change.
 
 ## Features
 
@@ -47,6 +51,7 @@ For a new page, combine existing scenes, assets, and animations. For an update, 
 | [Custom drawing and extensions](https://cineview.pages.dev/docs/09-use-animate-timeline) | Read animation progress with useAnimateTimeline and connect Canvas, SVG, WebGL, or your own components to the existing progress controls.   |
 | [Responsive layout](https://cineview.pages.dev/docs/05-responsive)                       | Scale dimensions from a design width, position and size content with Position and Container, and adapt layouts with CSS.                    |
 | [Resource preloading](https://cineview.pages.dev/docs/02-preload)                        | Prepare scene images in advance and handle initial loading, progress, and failures to reduce waiting for assets during scene changes.       |
+| Types and interaction                                                                    | Check component configuration with TypeScript; drag mode provides keyboard navigation and current-scene announcements.                      |
 
 ## Try it
 
