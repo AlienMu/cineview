@@ -26,7 +26,7 @@ For entrance, the element must fit entirely inside the visible area. Its bottom 
 
 Exit can start in either direction. Scrolling down brings the element's top toward the viewport top. Scrolling up brings its bottom toward the viewport bottom.
 
-Both margins use design px and scale by `viewportWidth / designWidth` before comparison. An Animate's `visibility.enterMargin` or `visibility.exitMargin` takes priority. Otherwise, the corresponding root setting applies, with 50 as the final default.
+Both margins use design px and scale by `contentWidth / designWidth` before comparison. An Animate's `visibility.enterMargin` or `visibility.exitMargin` takes priority. Otherwise, the corresponding root setting applies, with 50 as the final default.
 
 ## Keep the current phase when conditions overlap
 

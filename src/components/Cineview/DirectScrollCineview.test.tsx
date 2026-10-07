@@ -189,12 +189,21 @@ jest.mock('framer-motion', () => {
   };
 
   return {
+    // Driver tests use immediate frames; real batching is covered separately.
+    frame: { preRender: (callback: () => void) => callback() },
+    cancelFrame: jest.fn(),
     __esModule: true,
     motion: {
       div: MotionDiv,
     },
     useAnimation,
-    useMotionValue: (initial: unknown) => createMotionValue(initial),
+    useMotionValue: (initial: unknown) => {
+      // A MotionValue survives React renders; recreating it discards the current
+      // zone progress before the visual subscriber can consume that frame.
+      const ref = React.useRef(null);
+      if (ref.current === null) ref.current = createMotionValue(initial);
+      return ref.current;
+    },
     useTransform: (
       source: {
         get: () => unknown;

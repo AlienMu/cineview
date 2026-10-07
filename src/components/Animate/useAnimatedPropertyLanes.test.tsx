@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { renderHook } from '@testing-library/react';
-import { useMotionValue } from 'framer-motion';
+import { frame, motionValue, useMotionValue } from 'framer-motion';
 import type { MutableRefObject } from 'react';
 import {
   getDefaultValue,
@@ -63,10 +63,9 @@ function renderLanes(variants: ArrivalShape, withNumericResolver: boolean) {
     );
     return { source, lanes };
   });
-  // framer-motion recomputes useTransform outputs synchronously on every
-  // render (use-combine-values runs updateValue() in the render body), so
-  // "set the source, then rerender" is the deterministic way to drive lanes
-  // without depending on the frame loop.
+  // The hook refreshes outputs after each render, so these interpolation checks
+  // can run without the frame loop. The separate scheduling test drives source
+  // changes through a real Motion frame without rerendering.
   const driveTo = (progress: number): void => {
     act(() => {
       view.result.current.source.set(progress);
@@ -79,6 +78,64 @@ function renderLanes(variants: ArrivalShape, withNumericResolver: boolean) {
 }
 
 describe('useAnimatedPropertyLanes', () => {
+  it('shares one source subscription and publishes the latest frame without a React render', async () => {
+    const source = motionValue(0);
+    const subscribe = jest.spyOn(source, 'on');
+    const variants = {
+      current: { initial: { opacity: 0, x: 0 }, animate: { opacity: 1, x: 100 } },
+    };
+    let renders = 0;
+    const view = renderHook(() => {
+      renders += 1;
+      return useAnimatedPropertyLanes(source, variants, arrivalMixed);
+    });
+    expect(subscribe.mock.calls.filter(([event]) => event === 'change')).toHaveLength(1);
+    const initialRenders = renders;
+    await act(async () => {
+      source.set(0.2);
+      source.set(0.75);
+      await new Promise<void>((resolve) => frame.postRender(() => resolve()));
+    });
+    expect(view.result.current.opacity.get()).toBe(0.75);
+    expect(view.result.current.x.get()).toBe(75);
+    expect(renders).toBe(initialRenders);
+    const opacity = view.result.current.opacity;
+    act(() => source.set(0.9));
+    view.unmount();
+    await new Promise<void>((resolve) => frame.postRender(() => resolve()));
+    expect(opacity.get()).toBe(0.75);
+    source.destroy();
+  });
+
+  it('refreshes changed variants at a stationary progress and detaches a replaced source', async () => {
+    const first = motionValue(0.5);
+    const second = motionValue(0.25);
+    const variants = {
+      current: { initial: { opacity: 0, x: 0 }, animate: { opacity: 1, x: 100 } },
+    };
+    const view = renderHook(
+      ({ source }) => useAnimatedPropertyLanes(source, variants, arrivalMixed),
+      { initialProps: { source: first } }
+    );
+    const output = view.result.current.x;
+    expect(output.get()).toBe(50);
+    variants.current = { initial: { opacity: 0, x: 0 }, animate: { opacity: 1, x: 200 } };
+    view.rerender({ source: first });
+    expect(output.get()).toBe(100);
+    act(() => first.set(0.9));
+    view.rerender({ source: second });
+    await act(async () => {
+      first.set(1);
+      second.set(0.4);
+      await new Promise<void>((resolve) => frame.postRender(() => resolve()));
+    });
+    expect(view.result.current.x).toBe(output);
+    expect(output.get()).toBe(80);
+    view.unmount();
+    first.destroy();
+    second.destroy();
+  });
+
   it('tweens an arrival-style numeric lane toward the fallback for unparseable targets', () => {
     const { result, driveTo } = renderLanes(
       { initial: { opacity: 0 }, animate: { opacity: 'visible' } },

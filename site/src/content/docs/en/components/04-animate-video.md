@@ -3,7 +3,9 @@ title: AnimateVideo
 eyebrow: COMPONENTS / ANIMATEVIDEO
 ---
 
-AnimateVideo maps an Animate timeline to a native video's playback position. Reverse progress seeks backward. It adds no separate video-library dependency and always uses muted, inline playback.
+AnimateVideo maps an Animate timeline to a native video's playback position. Reverse progress seeks backward. It adds no separate video-library dependency and configures muted, inline playback by default.
+
+**Compatibility notice: WeChat's in-app browser on iOS has a known issue with video seeking.** Copy the page link and open it in Safari or Chrome when using WeChat. See [Browser compatibility](#Browser-compatibility).
 
 ## Control a video with scrolling
 
@@ -100,6 +102,16 @@ All-keyframe encoding increases file size and can reduce seek work. In developme
 `preload` fills the shared video cache. A cache hit uses a complete downloaded blob, which supports seeking across the file.
 
 To include a first-screen video in the initial resource wait, declare its URL in `Scene.assets.preloadImages`. The video's own `preload` does not add it to that queue. `onReady` only exposes the ref API after mount; it does not wait for the video. See [Preloading](/docs/02-preload).
+
+## Browser compatibility
+
+WeChat's in-app browser on iOS is not currently a supported environment for `AnimateVideo` timeline seeking. A video may finish downloading but remain on its poster or show a blank frame, with no picture updates during dragging. No reliable fix has yet been verified on the affected device.
+
+In the physical-device comparison on 2026-09-30, WeChat 8.0.69 on an iPhone 13 still failed to display the test video. Chrome 152 on the same device displayed and updated frames from the same test asset. The device owner also confirmed that Safari displayed the video correctly. This finding applies to that test environment; other operating systems and browser versions need separate validation.
+
+If this occurs, copy the page link and open it in Safari or Chrome. Pages intended for WeChat visitors should provide a video poster and essential text so the content remains understandable without video. Use `poster` to configure the image.
+
+A completed download does not mean the browser has started decoding or presenting video. A different content delivery network (CDN) can improve download speed but cannot guarantee that frames appear. The host app may restrict mobile preloading and playback; see [Tencent's player limitations](https://cloud.tencent.com/document/product/881/20219) and [WebKit's media policies](https://webkit.org/blog/6784/new-video-policies-for-ios/). These policies do not establish the specific cause of this WeChat failure.
 
 ## Control a video with dragging
 

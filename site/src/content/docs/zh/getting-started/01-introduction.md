@@ -33,7 +33,7 @@ Canvas、SVG 或 WebGL 画面也能跟着拖动或滚动变化。自定义组件
 
 ## 按设计稿定位
 
-`Position` 放置元素，`Container` 设置尺寸和间距。`designWidth` 填设计稿宽度，数字尺寸会随视窗宽度缩放。见[响应式换算](/docs/05-responsive)。
+`Position` 放置元素，`Container` 设置尺寸和间距。`designWidth` 设置设计稿宽度和显示上限；页面按父容器宽度缩小，宽屏居中。见[响应式换算](/docs/05-responsive)。
 
 ## 下一步
 

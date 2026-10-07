@@ -1,4 +1,4 @@
-export const ACT3_VIDEO_SRC = '/act3-edit.mp4';
+export const ACT3_VIDEO_SRC = 'https://files.catbox.moe/8l41z0.mp4';
 export const ACT3_POSTER_SRC = '/act3-edit-poster.jpg';
 export const ACT3_MEDIA_DURATION_SECONDS = 10;
 export const ACT3_CLIP_DURATION_SECONDS = 2;

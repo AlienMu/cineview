@@ -52,7 +52,7 @@ export default function HomePage(): import('react').JSX.Element {
       {/* Site-wide background ribbon = App-level <BackgroundRibbon /> (original mechanism restored, 2026-08-13),
           no longer mounted from this page (see task-flow 2026-08-13 追加轮). */}
       <Cineview
-        designWidth={1440}
+        designWidth={1920}
         mode="scroll"
         scrollbar={{
           enabled: true,

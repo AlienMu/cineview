@@ -24,7 +24,8 @@ Cineview 管理页面中的场景，选择 drag 或 scroll 行为，并设置响
 
 | prop          | 类型                       | 默认                  | 说明                                      |
 | ------------- | -------------------------- | --------------------- | ----------------------------------------- |
-| `designWidth` | `number`                   | `750`                 | 设计稿宽度基准，见 designWidth 小节       |
+| `designWidth` | `number`                   | `750`                 | 设计稿宽度及最大显示宽度       |
+| `minWidth` | `number` | 未设置 | 最小自适应宽度，0 到 `designWidth` 之间 |
 | `mode`        | `'drag' \| 'scroll'`       | `'drag'`              | drag 拖拽切换场景 / scroll 文档流滚动     |
 | `scrollbar`   | `false \| ScrollbarConfig` | `false`（省略时同效） | scroll 模式的自绘滚动条                   |
 | `monitor`     | `boolean`                  | `false`               | 开启性能采样                              |
@@ -33,7 +34,7 @@ Cineview 管理页面中的场景，选择 drag 或 scroll 行为，并设置响
 
 ### designWidth
 
-将 `designWidth` 设为设计稿宽度，默认 750。两个方向的数值型设计长度都按 `viewportWidth / designWidth` 换算。锁定区时长保持 `1ms = 1px`。详见[响应式换算](/docs/05-responsive)。
+将 `designWidth` 设为设计稿宽度和最大显示宽度，默认 750。页面按父容器宽度缩小，达到上限后水平居中。两个方向的数值尺寸都按实际内容宽度 `contentWidth / designWidth` 换算。`minWidth` 设置停止缩小的宽度，窄屏通过外层横向滚动查看内容。锁定区时长保持 `1ms = 1px`。详见[响应式换算](/docs/05-responsive)。
 
 ### drag 配置
 

@@ -57,6 +57,41 @@ function createTakeoverScene(
 }
 
 describe('useScrollSceneSnapshots', () => {
+  it.each([null, 750])(
+    'keeps measured geometry separate from a declared viewport span %s',
+    (declaredViewportSpan) => {
+      const sceneLayoutsRef = {
+        current: [{ ...createLayout(0), visualSpan: 1000, declaredViewportSpan }],
+      };
+      const params: Parameters<typeof useScrollSceneSnapshots>[0] = {
+        scenes: [createTakeoverScene('zone', '100%', 'auto')],
+        sceneLayoutsRef,
+        timelineStoreRef: {
+          current: createKeyedScrollExternalStore<
+            Record<string, SceneScrollTimelineState>,
+            string,
+            SceneScrollTimelineState
+          >({}, (snapshot, key) => snapshot[key]),
+        },
+        viewportSizeRef: { current: { width: 750, height: 900 } },
+        activeSceneIndexRef: { current: 0 },
+        scrollDirectionRef: { current: null },
+        isScrollingStateRef: { current: false },
+        direction: 'x',
+        sceneSizing: 'content',
+        firstSceneEnterActive: false,
+        firstSceneEnterReady: true,
+        exposeTakeoverDebugData: false,
+        scrollOffsetRef: { current: 0 },
+        updateSceneRenderSnapshotsRef: { current: () => undefined },
+      };
+      const { result } = renderHook(() => useScrollSceneSnapshots(params));
+      const snapshot = result.current.store.getKeySnapshot(0)!;
+      expect(snapshot.sceneLayout?.visualSpan).toBe(1000);
+      expect(snapshot.takeoverSceneSpan).toBe(declaredViewportSpan);
+    }
+  );
+
   it.each(['x', 'y'] as const)(
     'keeps fixed children in the sticky Scene at both zone boundaries (%s)',
     (direction) => {
@@ -350,7 +385,11 @@ describe('useScrollSceneSnapshots', () => {
       createTakeoverScene('scene-e', '100vw', '150vh'),
     ];
     const sceneLayoutsRef = {
-      current: initialScenes.map((_scene, index) => createLayout(index)),
+      current: initialScenes.map((_scene, index) => ({
+        ...createLayout(index),
+        visualSpan: 110 + index * 10,
+        declaredViewportSpan: 110 + index * 10,
+      })),
     };
     const timelineStoreRef = {
       current: createKeyedScrollExternalStore<
@@ -401,6 +440,7 @@ describe('useScrollSceneSnapshots', () => {
       initialScenes[4],
       initialScenes[3],
     ];
+    sceneLayoutsRef.current = [0, 1, 2, 4, 3].map((index) => sceneLayoutsRef.current[index]);
     rerender({ scenes: reorderedScenes });
 
     const reorderedSnapshots = result.current.store.getSnapshot();
@@ -471,7 +511,12 @@ describe('useScrollSceneSnapshots', () => {
     const scenes = Array.from({ length: 5 }, (_, sceneIndex) =>
       createTakeoverScene(`scene-${sceneIndex}`, '50vw', '50vh')
     );
-    const sceneLayoutsRef = { current: scenes.map((_scene, index) => createLayout(index)) };
+    const sceneLayoutsRef = {
+      current: scenes.map((_scene, index) => ({
+        ...createLayout(index),
+        declaredViewportSpan: 100,
+      })),
+    };
     const timelineStoreRef = {
       current: createKeyedScrollExternalStore<
         Record<string, SceneScrollTimelineState>,
@@ -512,6 +557,12 @@ describe('useScrollSceneSnapshots', () => {
     expect(previousSnapshots[4]?.takeoverSceneSpan).toBe(100);
 
     viewportSizeRef.current = { width: 120, height: 240 };
+    // The layout owner publishes measured spans; snapshots do not reparse CSS units.
+    sceneLayoutsRef.current = sceneLayoutsRef.current.map((layout) => ({
+      ...layout,
+      visualSpan: 120,
+      declaredViewportSpan: 120,
+    }));
     act(() => result.current.updateSceneRenderSnapshots(0));
     let nextSnapshots = result.current.store.getSnapshot();
     nextSnapshots.forEach((snapshot, sceneIndex) => {
@@ -523,6 +574,11 @@ describe('useScrollSceneSnapshots', () => {
     expect(nextSnapshots[4]?.takeoverSceneSpan).toBe(120);
     previousSnapshots = nextSnapshots;
 
+    sceneLayoutsRef.current = sceneLayoutsRef.current.map((layout) => ({
+      ...layout,
+      visualSpan: 60,
+      declaredViewportSpan: 60,
+    }));
     rerender({
       direction: 'x',
       sceneSizing: 'content',

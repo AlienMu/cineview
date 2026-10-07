@@ -54,6 +54,9 @@ jest.mock('framer-motion', () => {
         children as never
       );
   return {
+    // Driver tests use immediate frames; the property-lane test covers real batching.
+    frame: { preRender: (callback: () => void) => callback() },
+    cancelFrame: jest.fn(),
     motion: { div: passthrough('div'), p: passthrough('p'), span: passthrough('span') },
     useAnimation: () => ({ start: jest.fn(), set: jest.fn(), stop: jest.fn() }),
     useMotionValue: (initial: number) => makeStub(initial),

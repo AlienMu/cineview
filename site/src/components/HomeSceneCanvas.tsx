@@ -4,25 +4,19 @@ import { Container } from 'cineview';
 /**
  * Unified design canvas for the home page.
  *
- * Cineview's `config.size=1440` is the sole conversion ruler; here we use Container to declare a 1440×900
- * design box model, for relative layout roots like Capability / DemoVideo that consume `width/height:100%`.
- * Container does not establish a new positioned containing block: Position continues to uniquely own coordinates, and Hero's
- * viewport-center semantics remain unchanged. Scene is still actual viewport height, does not alter takeover measurement.
- *
- * `height` is optional (defaults to 900): on mobile, act three requires "canvas = one viewport height" to fill vertical screen with six blocks
- * (see `useDesignCanvasHeight` and task-flow `2026-08-04-act3-phone-layout.md`).
- * Uses Container's own `height` convenience prop (framework-native conversion), does not override inline styles.
- * Call sites that don't pass this prop remain byte-for-byte unchanged.
+ * Container declares a 1920×1200 design box using the parent Cineview's
+ * width conversion. Callers can override its design height; this sizes the
+ * content without changing Scene navigation or Position's containing block.
  */
 export function HomeSceneCanvas({
   children,
-  height = 900,
+  height = 1200,
 }: {
   children: ReactNode;
   height?: number;
 }): import('react').JSX.Element {
   return (
-    <Container width={1440} height={height} className="home-scene-canvas">
+    <Container width={1920} height={height} className="home-scene-canvas">
       {children}
     </Container>
   );

@@ -74,16 +74,27 @@
 .home-scene--cinema {
 }
 
-.drag-page {
-  min-height: 100vh;
-  /* 2026-08-15 主题审计 A-4：透明底时 overscroll 回弹（iOS 橡皮筋/桌面惯性）
-   * 拖出 .drag-temporal 之外的暖白 body——暗色页四周闪暖白。写死 --tp-bg 值
-   * 避免跨 token 依赖；overscroll-behavior 双保险。 */
+html.drag-document {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: #0c0a0c;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+}
+
+.drag-document body,
+.drag-document #root,
+.drag-page {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #0c0a0c;
+  overscroll-behavior: none;
 }
 
 .drag-page > .drag-temporal {
+  height: 100%;
+  min-height: 0;
   max-width: 750px;
   margin-inline: auto;
 }
@@ -93,32 +104,32 @@
 .home-scene-canvas {
   --cv-u: var(--cineview-unit);
   container-type: size;
-  --text-xs: calc(12 * var(--cv-u));
-  --text-sm: calc(14 * var(--cv-u));
-  --text-base: calc(16 * var(--cv-u));
-  --text-lg: calc(20 * var(--cv-u));
-  --text-xl: calc(24 * var(--cv-u));
-  --text-2xl: calc(32 * var(--cv-u));
-  --text-3xl: calc(44 * var(--cv-u));
-  --text-4xl: calc(64 * var(--cv-u));
-  --text-5xl: calc(88 * var(--cv-u));
-  --text-6xl: calc(120 * var(--cv-u));
-  --space-1: calc(4 * var(--cv-u));
-  --space-2: calc(8 * var(--cv-u));
-  --space-3: calc(12 * var(--cv-u));
-  --space-4: calc(16 * var(--cv-u));
-  --space-6: calc(24 * var(--cv-u));
-  --space-8: calc(32 * var(--cv-u));
-  --space-12: calc(48 * var(--cv-u));
-  --space-16: calc(64 * var(--cv-u));
-  --space-24: calc(96 * var(--cv-u));
-  --space-32: calc(128 * var(--cv-u));
-  --radius-sm: calc(6 * var(--cv-u));
-  --radius: calc(12 * var(--cv-u));
-  --radius-lg: calc(20 * var(--cv-u));
-  --shadow-sm: 0 calc(1 * var(--cv-u)) calc(3 * var(--cv-u)) rgba(26, 24, 20, 0.05);
-  --shadow: 0 calc(8 * var(--cv-u)) calc(30 * var(--cv-u)) rgba(26, 24, 20, 0.08);
-  --shadow-lg: 0 calc(24 * var(--cv-u)) calc(60 * var(--cv-u)) rgba(26, 24, 20, 0.12);
+  --text-xs: calc(16 * var(--cv-u));
+  --text-sm: calc(18.666667 * var(--cv-u));
+  --text-base: calc(21.333333 * var(--cv-u));
+  --text-lg: calc(26.666667 * var(--cv-u));
+  --text-xl: calc(32 * var(--cv-u));
+  --text-2xl: calc(42.666667 * var(--cv-u));
+  --text-3xl: calc(58.666667 * var(--cv-u));
+  --text-4xl: calc(85.333333 * var(--cv-u));
+  --text-5xl: calc(117.333333 * var(--cv-u));
+  --text-6xl: calc(160 * var(--cv-u));
+  --space-1: calc(5.333333 * var(--cv-u));
+  --space-2: calc(10.666667 * var(--cv-u));
+  --space-3: calc(16 * var(--cv-u));
+  --space-4: calc(21.333333 * var(--cv-u));
+  --space-6: calc(32 * var(--cv-u));
+  --space-8: calc(42.666667 * var(--cv-u));
+  --space-12: calc(64 * var(--cv-u));
+  --space-16: calc(85.333333 * var(--cv-u));
+  --space-24: calc(128 * var(--cv-u));
+  --space-32: calc(170.666667 * var(--cv-u));
+  --radius-sm: calc(8 * var(--cv-u));
+  --radius: calc(16 * var(--cv-u));
+  --radius-lg: calc(26.666667 * var(--cv-u));
+  --shadow-sm: 0 calc(1.333333 * var(--cv-u)) calc(4 * var(--cv-u)) rgba(26, 24, 20, 0.05);
+  --shadow: 0 calc(10.666667 * var(--cv-u)) calc(40 * var(--cv-u)) rgba(26, 24, 20, 0.08);
+  --shadow-lg: 0 calc(32 * var(--cv-u)) calc(80 * var(--cv-u)) rgba(26, 24, 20, 0.12);
 }
 
 /* 滚动条「未滚动时隐藏、滚动时淡入」现由框架 autoHide 原生接管
@@ -392,15 +403,15 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
 }
 
 .home-scene-canvas .btn {
-  gap: calc(8 * var(--cv-u));
-  padding: calc(12 * var(--cv-u)) calc(24 * var(--cv-u));
-  border-radius: calc(999 * var(--cv-u));
-  border-width: calc(1 * var(--cv-u));
+  gap: calc(10.666667 * var(--cv-u));
+  padding: calc(16 * var(--cv-u)) calc(32 * var(--cv-u));
+  border-radius: calc(1332 * var(--cv-u));
+  border-width: calc(1.333333 * var(--cv-u));
 }
 
 .home-scene-canvas .btn svg {
-  width: calc(16 * var(--cv-u));
-  height: calc(16 * var(--cv-u));
+  width: calc(21.333333 * var(--cv-u));
+  height: calc(21.333333 * var(--cv-u));
 }
 
 .btn--primary {
@@ -428,7 +439,7 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
     0 0 18px 0 color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-/* Keep reading and touch sizes independent of the 1440px illustration canvas. */
+/* Keep reading and touch sizes independent of the 1920px illustration canvas. */
 @media (max-width: 900px) {
   .home-scene--hero .hero__stack {
     width: min(700px, calc(100vw - 40px));
@@ -515,4 +526,8 @@ body:has(.scene5-cinema[data-cinema-stage='revealed']) .lang-toggle:hover {
   .home-scene--hero .hero__intro-break {
     display: block;
   }
+}
+.route-loading {
+  padding: 4rem 1.5rem;
+  text-align: center;
 }

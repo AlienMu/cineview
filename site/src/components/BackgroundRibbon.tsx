@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { matchPath, useLocation } from 'react-router-dom';
 import { lutAt } from '../design/lut';
 
 /**
@@ -29,10 +29,15 @@ import { lutAt } from '../design/lut';
  *     animation frame loop added here.
  *   - Quantization deduplication: variables not written when all four color values unchanged (adjacent LUT anchors change only once per ~60-100px).
  */
-export function BackgroundRibbon(): import('react').JSX.Element {
+export function BackgroundRibbon(): import('react').JSX.Element | null {
   const { pathname } = useLocation();
+  const isDrag = matchPath('/drag', pathname) !== null;
 
   useEffect(() => {
+    // The drag experience owns its backgrounds and has no native scroll progress.
+    // Its animated text mutations must not trigger this scroll layout measurement.
+    if (isDrag) return;
+
     let scroller: HTMLElement | null = null;
     let disposed = false;
     let lastKey = '';
@@ -132,7 +137,7 @@ export function BackgroundRibbon(): import('react').JSX.Element {
       mutationObserver = null;
       detach();
     };
-  }, [pathname]);
+  }, [pathname, isDrag]);
 
-  return <div className="bg-ribbon" aria-hidden="true" />;
+  return isDrag ? null : <div className="bg-ribbon" aria-hidden="true" />;
 }

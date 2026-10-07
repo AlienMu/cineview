@@ -57,6 +57,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     {
       children,
       designWidth,
+      minWidth,
       direction: directionProp,
       sceneSizing = 'content',
       enterMargin,
@@ -375,6 +376,7 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
           runContentRemeasure();
         });
       });
+      if (containerRef.current) observer.observe(containerRef.current);
       sceneWrapperRefs.current.forEach((wrapper) => {
         if (wrapper) observer.observe(wrapper);
       });
@@ -501,8 +503,8 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     const containerStyle: React.CSSProperties = {
       position: 'relative',
       width: '100%',
-      height: '100vh',
-      minHeight: '100vh',
+      height: '100%',
+      minHeight: '100%',
       overflowX: direction === 'x' ? 'scroll' : 'hidden',
       overflowY: direction === 'x' ? 'hidden' : 'scroll',
       overscrollBehavior: 'contain',
@@ -528,7 +530,11 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
     );
 
     return (
-      <CineviewProvider designSize={designSize}>
+      <CineviewProvider
+        designSize={designSize}
+        minWidth={minWidth}
+        viewportWidth={viewportSize.width}
+      >
         <CineviewRuntimeContext.Provider value={runtimeContextValue}>
           <SceneScrollRuntimeContext.Provider value={zoneRuntimeValue}>
             <SceneScrollTimelineContext.Provider value={zoneTimelineValue}>
@@ -540,8 +546,8 @@ export const DirectScrollCineView = forwardRef<CineviewRef, DirectScrollCineView
                 style={{
                   position: 'relative',
                   width: '100%',
-                  height: '100vh',
-                  minHeight: '100vh',
+                  height: '100%',
+                  minHeight: '100%',
                 }}
               >
                 <div

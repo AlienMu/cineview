@@ -12,6 +12,9 @@ import type { CineviewRef } from '../../types';
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
+  // Driver tests use immediate frames; real batching is covered separately.
+  frame: { preRender: (callback: () => void) => callback() },
+  cancelFrame: jest.fn(),
   __esModule: true,
   useMotionValue: (initial: number) => {
     let current = initial;

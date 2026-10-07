@@ -258,6 +258,107 @@ describe('VideoFrameRenderer', () => {
     );
   });
 
+  it.each([
+    { scrubRange: undefined, active: true, expectedTime: 10, plays: 0 },
+    { scrubRange: [2, 6] as const, active: true, expectedTime: 6, plays: 1 },
+    { scrubRange: [2, 6] as const, active: false, expectedTime: undefined, plays: 0 },
+  ])('catches up a late blob to a completed active timeline: %o', async (scenario) => {
+    const getUrl = jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+    jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+    jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+    let notifyReady: ((url: string) => void) | undefined;
+    jest.spyOn(cache, 'subscribeToPreloadedMedia').mockImplementation((listener) => {
+      notifyReady = listener;
+      return () => {};
+    });
+    const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    stubVideoTiming(NaN, 0);
+    const frame = motionValue<AnimateTimelineFrame>({
+      progress: 0.2,
+      signedProgress: 0.2,
+      phase: 'entering',
+      source: 'continuation',
+    });
+    const { container } = render(
+      <VideoFrameRenderer
+        src="/late-timeline.mp4"
+        progress={0}
+        timelineFrame={frame}
+        scrubRange={scenario.scrubRange}
+        dragSceneActive={scenario.active}
+      />
+    );
+    const original = container.querySelector('video');
+    act(() => {
+      frame.set({ progress: 1, signedProgress: 1, phase: 'entered', source: 'idle' });
+    });
+    stubVideoTiming(10, 0);
+    getUrl.mockReturnValue('blob:late-timeline');
+    await act(async () => notifyReady?.('/late-timeline.mp4'));
+    const video = container.querySelector('video')!;
+    expect(video).not.toBe(original);
+    expect(video).toHaveAttribute('src', 'blob:late-timeline');
+    await act(async () => fireEvent.loadedMetadata(video));
+    expect(currentTimeSetters).toEqual(
+      scenario.expectedTime === undefined ? [] : [scenario.expectedTime]
+    );
+    expect(play).toHaveBeenCalledTimes(scenario.plays);
+    const seeks = currentTimeSetters.length;
+    act(() => {
+      frame.set({ ...frame.get() });
+    });
+    expect(currentTimeSetters).toHaveLength(seeks);
+    expect(play).toHaveBeenCalledTimes(scenario.plays);
+  });
+
+  it.each([false, true])(
+    'preserves native playback on a same-source blob swap (playing=%s)',
+    async (playing) => {
+      const getUrl = jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue(undefined);
+      jest.spyOn(cache, 'isMediaPreloaded').mockReturnValue(false);
+      jest.spyOn(cache, 'preloadMedia').mockResolvedValue(undefined);
+      let notifyReady: ((url: string) => void) | undefined;
+      jest.spyOn(cache, 'subscribeToPreloadedMedia').mockImplementation((listener) => {
+        notifyReady = listener;
+        return () => {};
+      });
+      const play = jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+      stubVideoTiming(10, 4);
+      const frame = motionValue<AnimateTimelineFrame>({
+        progress: 1,
+        signedProgress: 1,
+        phase: 'entered',
+        source: 'programmatic',
+      });
+      const { container } = render(
+        <VideoFrameRenderer
+          src="/native-late.mp4"
+          progress={0}
+          timelineFrame={frame}
+          scrubRange={[0, 2]}
+          dragSceneActive
+        />
+      );
+      const original = container.querySelector('video')!;
+      await act(async () => fireEvent.play(original));
+      if (!playing) act(() => fireEvent.pause(original));
+      Object.defineProperty(original, 'currentTime', { configurable: true, value: 3.5 });
+      Object.defineProperty(original, 'paused', { configurable: true, value: !playing });
+      Object.defineProperty(original, 'readyState', { configurable: true, value: 4 });
+      act(() => frame.set({ ...frame.get(), source: 'idle' }));
+      play.mockClear();
+      currentTimeSetters = [];
+      stubVideoTiming(10, 0);
+      getUrl.mockReturnValue('blob:native-late');
+      await act(async () => notifyReady?.('/native-late.mp4'));
+      const replacement = container.querySelector('video')!;
+      expect(replacement).not.toBe(original);
+      await act(async () => fireEvent.loadedMetadata(replacement));
+      expect(currentTimeSetters).toEqual([3.5]);
+      expect(play).toHaveBeenCalledTimes(playing ? 1 : 0);
+    }
+  );
+
   it('does not seek when duration is invalid (NaN/0 guard)', () => {
     jest.spyOn(cache, 'getVideoObjectUrl').mockReturnValue('blob:nodur');
     stubVideoTiming(NaN, 1);

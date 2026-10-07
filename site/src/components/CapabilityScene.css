@@ -4,24 +4,16 @@
    设计契约（task-flow 2026-07-09-act2-cinema-rewrite.md，规格冻结）：
    - 贯穿签名「时间码胶囊」：左上角小胶囊，REC 红点由框架 infinite lane 驱动。
    - SHOT01 胶片带：1140×260 居中、上下齿孔条，帧格预设定格，活跃帧 scale+双层光晕。
-   - 视觉延续 Act1 暖白胶片质感，全走 tokens.css 变量；1440×900 画布 + overflow:hidden。
+   - 视觉延续 Act1 暖白胶片质感，全走 tokens.css 变量；1920×1200 设计画布。
 
-   原 SHOT02「舞台抽屉」样式已于 2026-08-04 随第三幕重构拆除，
-   新第三幕样式见 Act3DollyScene.css。共享的 .capability-full / .bg-grid /
-   .cap-slate / .cap-title 保留在本文件，由第三幕复用。
+   Shared scene classes include .capability-full, .bg-grid, .cap-slate and .cap-title.
    =================================================================== */
 
-/* ⚠️ `overflow: clip` + `overflow-clip-margin` 而不是 `overflow: hidden`（C6，2026-08-10）。
- * 用户报「阴影部分存在截断」。机制：本元素是 1440×900 设计画布且裁掉溢出，而
- * `.film-codecard` 的投影是 `0 20u 48u` —— 卡片底边落在约 y=789，投影要到约 857，
- * 静息时距 900 的裁切线只剩约 43px 余量。一旦卡片**下移退场**（C3 新增的
- * 「下移 + 淡出」），投影立刻穿过 900 被切成一条硬横线。
- * `hidden` 无法留余量；`clip` 支持 `overflow-clip-margin`，把裁切盒外扩 120px，
- * 投影与退场位移都落在这条外扩带里。另一个好处：`clip` 不会建立滚动容器
- * （`hidden` 会，那是 sticky/takeover 的历史雷区）。
- * 仍然裁剪：本幕内容不得溢到相邻幕；胶带自己的窗口裁剪在 `.film-gate` 上独立生效。 */
+/* Leave 120 CSS pixels for the code card's shadow and exit movement.
+ * `clip` preserves that margin without creating another scroll container.
+ * The film strip clips its own contents separately in `.film-gate`. */
 .capability-full {
-  --cap-codecard-width: calc(620 * var(--cv-u));
+  --cap-codecard-width: calc(826.666667 * var(--cv-u));
 
   position: relative;
   width: 100%;
@@ -51,10 +43,10 @@
    * (同 scrolling-ribbon-makes-tint-visible 机制);中性墨点在任何 LUT 段
    * 都读作「变暗的网点」。与 act3/act4 中性墨投影裁决同机制。 */
   background-image: radial-gradient(
-    rgba(26, 24, 20, 0.1) calc(1 * var(--cv-u)),
-    transparent calc(1 * var(--cv-u))
+    rgba(26, 24, 20, 0.1) calc(1.333333 * var(--cv-u)),
+    transparent calc(1.333333 * var(--cv-u))
   );
-  background-size: calc(32 * var(--cv-u)) calc(32 * var(--cv-u));
+  background-size: calc(42.666667 * var(--cv-u)) calc(42.666667 * var(--cv-u));
   pointer-events: none;
   z-index: 0;
 }
@@ -75,17 +67,17 @@
 
 .tc-capsule {
   position: absolute;
-  top: calc(40 * var(--cv-u));
-  left: calc(80 * var(--cv-u));
+  top: calc(53.333333 * var(--cv-u));
+  left: calc(106.666667 * var(--cv-u));
   display: inline-flex;
   align-items: center;
-  gap: calc(10 * var(--cv-u));
-  padding: calc(8 * var(--cv-u)) calc(16 * var(--cv-u));
-  border-radius: calc(999 * var(--cv-u));
+  gap: calc(13.333333 * var(--cv-u));
+  padding: calc(10.666667 * var(--cv-u)) calc(21.333333 * var(--cv-u));
+  border-radius: calc(1332 * var(--cv-u));
   background: rgba(250, 248, 244, 0.72);
-  backdrop-filter: saturate(160%) blur(calc(10 * var(--cv-u)));
-  -webkit-backdrop-filter: saturate(160%) blur(calc(10 * var(--cv-u)));
-  border: calc(1 * var(--cv-u)) solid var(--frame-line);
+  backdrop-filter: saturate(160%) blur(calc(13.333333 * var(--cv-u)));
+  -webkit-backdrop-filter: saturate(160%) blur(calc(13.333333 * var(--cv-u)));
+  border: calc(1.333333 * var(--cv-u)) solid var(--frame-line);
   box-shadow: var(--shadow-sm);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -100,8 +92,8 @@
   font-variant-numeric: tabular-nums;
 }
 .tc-capsule__divider {
-  width: calc(1 * var(--cv-u));
-  height: calc(14 * var(--cv-u));
+  width: calc(1.333333 * var(--cv-u));
+  height: calc(18.666667 * var(--cv-u));
   background: var(--frame-line);
 }
 /* REC 红点：呼吸由 TimecodeAxis 的 phase-gated loopAnimation 驱动。 */
@@ -113,11 +105,11 @@
   display: inline-flex;
 }
 .tc-capsule__rec-dot {
-  width: calc(8 * var(--cv-u));
-  height: calc(8 * var(--cv-u));
+  width: calc(10.666667 * var(--cv-u));
+  height: calc(10.666667 * var(--cv-u));
   border-radius: 50%;
   background: var(--rec);
-  box-shadow: 0 0 0 calc(3 * var(--cv-u)) var(--rec-glow);
+  box-shadow: 0 0 0 calc(4 * var(--cv-u)) var(--rec-glow);
 }
 .tc-capsule__rec-label {
   color: var(--rec);
@@ -133,8 +125,8 @@
 /* 镜号 eyebrow（胶囊下方） */
 .cap-slate {
   position: absolute;
-  top: calc(92 * var(--cv-u));
-  left: calc(80 * var(--cv-u));
+  top: calc(122.666667 * var(--cv-u));
+  left: calc(106.666667 * var(--cv-u));
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
@@ -168,7 +160,7 @@
 .cap-title--side {
   font-size: var(--text-2xl);
   text-align: left;
-  max-width: calc(340 * var(--cv-u));
+  max-width: calc(453.333333 * var(--cv-u));
 }
 /* 顶部标题块:hero 风格 evocative slogan + 引介副标题 */
 .cap-title--header {
@@ -179,10 +171,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(18 * var(--cv-u));
+  gap: calc(24 * var(--cv-u));
 }
 .film-intro {
-  max-width: calc(640 * var(--cv-u));
+  max-width: calc(853.333333 * var(--cv-u));
   margin: 0;
   font-family: var(--font-body);
   font-size: var(--text-base);
@@ -200,7 +192,7 @@
 .film-gate {
   position: relative;
   width: 100vw;
-  height: calc(204 * var(--cv-u));
+  height: calc(272 * var(--cv-u));
   overflow: hidden;
 }
 /* x 由 film-pan Animate host 驱动；三层 wrapper 均保持 gate 尺寸。 */
@@ -223,7 +215,7 @@
 .film-track {
   position: relative;
   width: 100%;
-  height: calc(204 * var(--cv-u));
+  height: calc(272 * var(--cv-u));
   background: rgba(250, 248, 244, 0.82);
 }
 /* 铺满后的齿孔位移读取 film-pan infinite lane 的继承变量。 */
@@ -239,13 +231,13 @@
   position: absolute;
   left: 0;
   width: 100%;
-  height: calc(26 * var(--cv-u));
+  height: calc(34.666667 * var(--cv-u));
   background-image:
     repeating-linear-gradient(
       to right,
-      transparent 0 calc(13 * var(--cv-u)),
-      rgba(252, 248, 243, 0.92) calc(13 * var(--cv-u)) calc(27 * var(--cv-u)),
-      transparent calc(27 * var(--cv-u)) calc(40 * var(--cv-u))
+      transparent 0 calc(17.333333 * var(--cv-u)),
+      rgba(252, 248, 243, 0.92) calc(17.333333 * var(--cv-u)) calc(36 * var(--cv-u)),
+      transparent calc(36 * var(--cv-u)) calc(53.333333 * var(--cv-u))
     ),
     /* 2026-08-14(审计 act2-2):流光色与基底渐变从写死色改 accent 派生——
      * 齿孔条是「胶片」签名件,accent 家族色让它在 12%→40% LUT 行程内始终
@@ -259,12 +251,12 @@
       ),
     linear-gradient(100deg, var(--accent), color-mix(in srgb, var(--accent), black 14%));
   background-size:
-    calc(40 * var(--cv-u)) calc(13 * var(--cv-u)),
+    calc(53.333333 * var(--cv-u)) calc(17.333333 * var(--cv-u)),
     100% 100%,
     100% 100%;
   background-repeat: repeat-x, no-repeat, no-repeat;
   background-position:
-    calc(var(--film-perf-phase, 0) * 40 * var(--cv-u)) center,
+    calc(var(--film-perf-phase, 0) * 53.333333 * var(--cv-u)) center,
     0 center,
     0 center;
 }
@@ -279,17 +271,17 @@
  * 不反转「陶土同调」裁决意图。 */
 .film-track__frames {
   position: absolute;
-  top: calc(26 * var(--cv-u));
+  top: calc(34.666667 * var(--cv-u));
   left: 0;
   width: 100%;
-  height: calc(152 * var(--cv-u));
+  height: calc(202.666667 * var(--cv-u));
   display: flex;
   align-items: stretch;
   background-image: repeating-linear-gradient(
     to right,
-    transparent 0 calc(100% / 9 - calc(2 * var(--cv-u))),
-    color-mix(in srgb, var(--accent-ink) 50%, transparent) calc(100% / 9 - calc(2 * var(--cv-u)))
-      calc(100% / 9)
+    transparent 0 calc(100% / 9 - calc(2.666667 * var(--cv-u))),
+    color-mix(in srgb, var(--accent-ink) 50%, transparent)
+      calc(100% / 9 - calc(2.666667 * var(--cv-u))) calc(100% / 9)
   );
 }
 /* 9 格等分（C8 起改为 `.film-frame__slot` 作 flex 子元素）。
@@ -328,7 +320,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: calc(12 * var(--cv-u));
+  gap: calc(16 * var(--cv-u));
   width: 100%;
   height: 100%;
   background: transparent;
@@ -340,15 +332,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(48 * var(--cv-u));
-  height: calc(48 * var(--cv-u));
+  width: calc(64 * var(--cv-u));
+  height: calc(64 * var(--cv-u));
   border-radius: 50%;
   background: transparent;
   color: var(--ink);
 }
 .film-frame__icon svg {
-  width: calc(24 * var(--cv-u));
-  height: calc(24 * var(--cv-u));
+  width: calc(32 * var(--cv-u));
+  height: calc(32 * var(--cv-u));
 }
 /* ⚠️ C8 起 `is-active` 挂在 `.film-frame__slot` 上（`data-film-index` 随之上提），
  * 不再在 `.film-frame` 上 —— 序号已移出 Animate，必须能拿到选中态。
@@ -356,7 +348,7 @@
 .film-frame__slot.is-active .film-frame__icon {
   background: var(--accent);
   color: #fff;
-  transform: scale(1.08) translateY(calc(-2 * var(--cv-u)));
+  transform: scale(1.08) translateY(calc(-2.666667 * var(--cv-u)));
 }
 .film-frame__name {
   font-family: var(--font-mono);
@@ -370,10 +362,10 @@
 }
 .film-frame__no {
   position: absolute;
-  top: calc(8 * var(--cv-u));
-  right: calc(10 * var(--cv-u));
+  top: calc(10.666667 * var(--cv-u));
+  right: calc(13.333333 * var(--cv-u));
   font-family: var(--font-mono);
-  font-size: calc(10 * var(--cv-u));
+  font-size: calc(13.333333 * var(--cv-u));
   font-weight: 600;
   color: var(--ink-mute);
   letter-spacing: 0.08em;
@@ -385,8 +377,8 @@
 /* 胶带上方：活跃帧描述性标题 + 预设名标签（blur 交叉淡出，悬停可切换） */
 .film-caption-slot {
   position: relative;
-  width: calc(560 * var(--cv-u));
-  height: calc(68 * var(--cv-u));
+  width: calc(746.666667 * var(--cv-u));
+  height: calc(90.666667 * var(--cv-u));
 }
 .film-caption {
   position: absolute;
@@ -395,7 +387,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: calc(7 * var(--cv-u));
+  gap: calc(9.333333 * var(--cv-u));
   opacity: 0;
   pointer-events: none;
 }
@@ -436,7 +428,7 @@
  *  2. 底板降不透明度 0.94→0.84 且去暖：让 backdrop-filter 真能把背后色透上来，
  *     卡片色温随渐变走。两端底色都很亮（L≈95%），文字对比度不受影响。
  *  3. saturate 150%→112%：全宽卡片上过高的 saturate 会把背后色彩度拉高，
- *     放大暖/冷差（与第三幕同一类问题，见 Act3DollyScene.css 的 --a3-plate 注释）。 */
+ *     放大暖/冷差。 */
 /* ── 底板：不透明实色 + 按幕台阶跟随色带（C5 + C7，2026-08-10）─────────────
  * 用户报两件事，其实同一个根：
  *   ①「存在胶带在完成的时候，panel 变回半透明的情况」
@@ -467,12 +459,12 @@
  * 投影尺寸保留 0 16u 36u（2026-08-13 阴影截断修复），tint 换回初版暖琥珀。 */
 .film-codecard {
   width: var(--cap-codecard-width);
-  border-radius: calc(14 * var(--cv-u));
+  border-radius: calc(18.666667 * var(--cv-u));
   background: rgba(252, 247, 241, 0.94);
-  backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
-  -webkit-backdrop-filter: saturate(150%) blur(calc(12 * var(--cv-u)));
-  border: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.28);
-  box-shadow: 0 calc(16 * var(--cv-u)) calc(36 * var(--cv-u)) rgba(168, 102, 63, 0.16);
+  backdrop-filter: saturate(150%) blur(calc(16 * var(--cv-u)));
+  -webkit-backdrop-filter: saturate(150%) blur(calc(16 * var(--cv-u)));
+  border: calc(1.333333 * var(--cv-u)) solid rgba(201, 138, 106, 0.28);
+  box-shadow: 0 calc(21.333333 * var(--cv-u)) calc(48 * var(--cv-u)) rgba(168, 102, 63, 0.16);
   /* `clip` 而非 `hidden`：内容仍不得溢出圆角，但不建立滚动容器。
    * 卡片自身的投影画在**外面**，不受本条影响；外层裁切余量见 `.capability-full`。 */
   overflow: clip;
@@ -481,14 +473,14 @@
 .film-codecard__bar {
   display: flex;
   align-items: center;
-  gap: calc(8 * var(--cv-u));
-  padding: calc(11 * var(--cv-u)) calc(16 * var(--cv-u));
+  gap: calc(10.666667 * var(--cv-u));
+  padding: calc(14.666667 * var(--cv-u)) calc(21.333333 * var(--cv-u));
   background: rgba(201, 138, 106, 0.1);
-  border-bottom: calc(1 * var(--cv-u)) solid rgba(201, 138, 106, 0.18);
+  border-bottom: calc(1.333333 * var(--cv-u)) solid rgba(201, 138, 106, 0.18);
 }
 .film-codecard__dot {
-  width: calc(11 * var(--cv-u));
-  height: calc(11 * var(--cv-u));
+  width: calc(14.666667 * var(--cv-u));
+  height: calc(14.666667 * var(--cv-u));
   border-radius: 50%;
   background: rgba(176, 118, 79, 0.3);
 }
@@ -519,13 +511,13 @@
 .film-codecard__body {
   display: flex;
   flex-direction: column;
-  gap: calc(14 * var(--cv-u));
-  padding: calc(20 * var(--cv-u)) calc(24 * var(--cv-u)) calc(22 * var(--cv-u));
+  gap: calc(18.666667 * var(--cv-u));
+  padding: calc(26.666667 * var(--cv-u)) calc(32 * var(--cv-u)) calc(29.333333 * var(--cv-u));
 }
 .film-codecard__head {
   display: flex;
   align-items: center;
-  gap: calc(12 * var(--cv-u));
+  gap: calc(16 * var(--cv-u));
 }
 .film-codecard__prompt {
   color: var(--accent);
@@ -536,7 +528,7 @@
 .film-codecard__code-slot {
   position: relative;
   flex: 1;
-  height: calc(24 * var(--cv-u));
+  height: calc(32 * var(--cv-u));
 }
 /* ── 卡内行切换：**无动画**（2026-08-12 用户裁决）────────────────────────
  * 「代码框里面的内容不要有动画，只有代码框在真正的切换」。
@@ -560,15 +552,15 @@
 
 .film-codecard__desc-slot {
   position: relative;
-  height: calc(22 * var(--cv-u));
-  padding-top: calc(12 * var(--cv-u));
-  border-top: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.1);
+  height: calc(29.333333 * var(--cv-u));
+  padding-top: calc(16 * var(--cv-u));
+  border-top: calc(1.333333 * var(--cv-u)) solid rgba(26, 24, 20, 0.1);
 }
 .film-codecard__desc {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(12 * var(--cv-u));
+  top: calc(16 * var(--cv-u));
   display: flex;
   align-items: center;
   font-family: var(--font-body);
@@ -593,18 +585,18 @@
 /* 1. 时间轴可视化：显示在胶带下方，标记播放进度 */
 .film-timeline {
   position: relative;
-  width: calc(800 * var(--cv-u));
-  height: calc(40 * var(--cv-u));
+  width: calc(1066.666667 * var(--cv-u));
+  height: calc(53.333333 * var(--cv-u));
   display: flex;
   align-items: center;
-  gap: calc(12 * var(--cv-u));
+  gap: calc(16 * var(--cv-u));
 }
 
 .film-timeline__track {
   flex: 1;
-  height: calc(2 * var(--cv-u));
+  height: calc(2.666667 * var(--cv-u));
   background: rgba(26, 24, 20, 0.12);
-  border-radius: calc(999 * var(--cv-u));
+  border-radius: calc(1332 * var(--cv-u));
   position: relative;
   overflow: hidden;
 }
@@ -615,13 +607,13 @@
   top: 0;
   height: 100%;
   background: var(--accent);
-  border-radius: calc(999 * var(--cv-u));
+  border-radius: calc(1332 * var(--cv-u));
   transform-origin: left center;
 }
 
 .film-timeline__label {
   font-family: var(--font-mono);
-  font-size: calc(11 * var(--cv-u));
+  font-size: calc(14.666667 * var(--cv-u));
   font-weight: 600;
   color: var(--ink-mute);
   letter-spacing: 0.08em;
@@ -639,35 +631,35 @@
 
 .transition-particle {
   position: absolute;
-  width: calc(6 * var(--cv-u));
-  height: calc(6 * var(--cv-u));
+  width: calc(8 * var(--cv-u));
+  height: calc(8 * var(--cv-u));
   border-radius: 50%;
   background: var(--accent-ink);
-  box-shadow: 0 0 calc(8 * var(--cv-u)) color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 0 calc(10.666667 * var(--cv-u)) color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 /* 3. 代码卡片运行状态指示 */
 .film-codecard__status {
   display: flex;
   align-items: center;
-  gap: calc(8 * var(--cv-u));
-  padding: calc(6 * var(--cv-u)) 0;
-  border-top: calc(1 * var(--cv-u)) solid rgba(26, 24, 20, 0.08);
-  margin-top: calc(8 * var(--cv-u));
+  gap: calc(10.666667 * var(--cv-u));
+  padding: calc(8 * var(--cv-u)) 0;
+  border-top: calc(1.333333 * var(--cv-u)) solid rgba(26, 24, 20, 0.08);
+  margin-top: calc(10.666667 * var(--cv-u));
 }
 
 .film-codecard__indicator {
   display: flex;
   align-items: center;
-  gap: calc(6 * var(--cv-u));
+  gap: calc(8 * var(--cv-u));
 }
 
 .film-codecard__led {
-  width: calc(8 * var(--cv-u));
-  height: calc(8 * var(--cv-u));
+  width: calc(10.666667 * var(--cv-u));
+  height: calc(10.666667 * var(--cv-u));
   border-radius: 50%;
   background: #22c55e;
-  box-shadow: 0 0 calc(8 * var(--cv-u)) rgba(34, 197, 94, 0.5);
+  box-shadow: 0 0 calc(10.666667 * var(--cv-u)) rgba(34, 197, 94, 0.5);
   animation: led-pulse 2s ease-in-out infinite;
 }
 
@@ -683,7 +675,7 @@
 
 .film-codecard__runtime {
   font-family: var(--font-mono);
-  font-size: calc(11 * var(--cv-u));
+  font-size: calc(14.666667 * var(--cv-u));
   font-weight: 500;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
@@ -696,10 +688,10 @@
 
 .film-codecard__easing-viz {
   position: absolute;
-  right: calc(16 * var(--cv-u));
-  bottom: calc(16 * var(--cv-u));
-  width: calc(60 * var(--cv-u));
-  height: calc(60 * var(--cv-u));
+  right: calc(21.333333 * var(--cv-u));
+  bottom: calc(21.333333 * var(--cv-u));
+  width: calc(80 * var(--cv-u));
+  height: calc(80 * var(--cv-u));
   opacity: 0;
   transition: opacity 0.2s ease-out;
   pointer-events: none;

@@ -104,6 +104,9 @@ jest.mock('framer-motion', () => {
   );
   MotionDiv.displayName = 'MotionDiv';
   return {
+    // Driver tests use immediate frames; real batching is covered separately.
+    frame: { preRender: (callback: () => void) => callback() },
+    cancelFrame: jest.fn(),
     __esModule: true,
     motion: { div: MotionDiv },
     AnimatePresence: ({ children }: any) => <>{children}</>,

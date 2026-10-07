@@ -62,6 +62,8 @@ interface UseDragSceneEngineParams {
   currentSceneIndex: number;
   totalScenes: number;
   slideDirection: 'x' | 'y';
+  viewportWidth?: number;
+  viewportHeight?: number;
   slideDuration: number;
   sceneTransitionDuration: number;
   sceneOffset: number;
@@ -129,6 +131,8 @@ export function useDragSceneEngine({
   currentSceneIndex,
   totalScenes,
   slideDirection,
+  viewportWidth,
+  viewportHeight,
   slideDuration,
   sceneTransitionDuration,
   sceneOffset,
@@ -375,7 +379,12 @@ export function useDragSceneEngine({
       if (!isActive && !ownsGestureRef.current) return;
 
       const offset = slideDirection === 'y' ? info.offset.y : info.offset.x;
-      const viewportSize = slideDirection === 'y' ? window.innerHeight : window.innerWidth;
+      const viewportSize = Math.max(
+        1,
+        slideDirection === 'y'
+          ? viewportHeight || window.innerHeight
+          : viewportWidth || window.innerWidth
+      );
       // D-F7: the gesture baseline is the frozen render position of a
       // taken-over transition (0 for a normal from-rest drag) — the pan
       // continues from where the page visually froze, never from a fresh 0.
@@ -409,6 +418,8 @@ export function useDragSceneEngine({
       slideMode,
       isActive,
       slideDirection,
+      viewportWidth,
+      viewportHeight,
       sceneIndex,
       onDragProgressChange,
       onDragTimelineProgressChange,

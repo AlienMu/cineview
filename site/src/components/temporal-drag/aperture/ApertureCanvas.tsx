@@ -1,49 +1,11 @@
 /**
- * Act 04 aperture canvas — nine iris leaves stopping down inside the eclipse ring.
+ * Act 04 iris: nine leaves follow timeline progress; elapsed time moves only the
+ * specular highlight. Empty frames and inactive phases stop the local draw loop,
+ * and progress or dimension changes restart it without another timeline driver.
  *
- * ── RULE 6 EXEMPTION, DECLARED ───────────────────────────────────────────────
- * AGENTS.md / CLAUDE.md rule 6 bans site components from building their own animation
- * drivers. Self-drawn canvas is the ONE exemption (DESIGN.md §0: a child may read a
- * MotionValue and run its own rAF, zero per-frame setState), and this is that case. Nine
- * leaves whose outline, facet shading and lit edge are all functions of one crank angle
- * cannot be expressed as framework variants: the drag lane animates exactly ten properties
- * (opacity, x, y, scale, rotate, rotateX/Y, skewX/Y, filter) and none of them can change a
- * polygon's vertices. The DOM alternative is nine clipped boxes, which §8.4 rules out — see
- * the containment note below.
- *
- * The exemption is conditional. This canvas lives INSIDE a <Scene>, so it has a framework
- * phase and MUST be gated by it — the `tp-ambient` exemption (global chrome outside every
- * Scene, no phase to gate against) does not apply here. The rAF stops on `exited` / `idle`
- * and restarts on re-entry: `applyPhase` below, the same contract `corona/CoronaCanvas.tsx`
- * and `clapperboard/ClapperboardCanvas.tsx` implement.
- *
- * ── What drives what ─────────────────────────────────────────────────────────
- *  - `timeline.progress` (a MotionValue, read not subscribed-to-React) is this lane's own
- *    enter progress, and it is the ONLY input to the mechanism: it becomes the barrel's crank
- *    angle, and the opening is a projection of that angle (`apertureBlades.ts`). The iris is
- *    therefore scrubbed by the finger and completes under settle, never self-running.
- *  - Wall-clock elapsed drives ONLY the specular travelling round the lit edges — a highlight
- *    on metal, no geometry. That is the act's 防空等 coverage now that the corona is gone:
- *    after act 04's lanes land at 2200ms the iris edges are still catching light.
- *
- * ── §8.4, and how this file avoids it ────────────────────────────────────────
- * §8.4 records that clipping a `mix-blend-mode: screen` layer renders the clip edge itself as
- * a hard bright line once a transform is applied (measured on `tp-ambient`: top-edge
- * luminance 19.6 -> 57.6). Hard-edged blades are precisely the shape that tempts the banned
- * build — `clip-path: circle()` on nine boxes, or `ctx.clip()` to the barrel before filling.
- *
- * Neither appears here. There is no `clip-path`, no `ctx.clip()`, no `ctx.save`/`restore`
- * clip pair, and the host needs no `overflow: hidden`. Containment is structural instead:
- * every vertex `apertureGeometry` can produce is at radius <= `barrel`, a disc is convex, so
- * every segment and curve between those vertices is inside it as well (the proof, including
- * why `OPEN_INRADIUS = cos(pi/9)` is the load-bearing constant, is in `apertureBlades.ts`'s
- * header). The one curved boundary — each leaf's outer edge — is drawn as an explicit
- * `ctx.arc` ON the barrel radius, which is the same circle a clip would have imposed, except
- * it is a filled path edge that antialiases normally rather than a compositing boundary.
- *
- * The host is also NOT a blend layer: unlike the corona, blades are opaque metal occluding
- * the disc, so they composite normally (`source-over`) and §8.4's failure mode has no surface
- * to appear on even if a clip were later added by accident.
+ * apertureBlades keeps every vertex inside the barrel. Explicit arc boundaries
+ * provide antialiasing without clipping a blended layer, which would introduce
+ * visible compositing edges. Blade geometry and lighting use stored dimensions.
  */
 
 import type { AnimatePhase } from 'cineview';
@@ -112,11 +74,12 @@ export const ApertureCanvas = memo(function ApertureCanvas({
     let phaseIsExiting = phase.get() === 'exiting';
     const startedAt = performance.now();
 
-    const draw = (): void => {
-      if (width <= 0 || height <= 0) return;
+    const draw = (): boolean => {
+      if (width <= 0 || height <= 0) return false;
       const raw = progress.get();
       const clampedRaw = raw < 0 ? 0 : raw > 1 ? 1 : raw;
-      ctx.clearRect(0, 0, width, height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
       // The lane sits at 0 through its whole delay. Cheap out before any trigonometry —
       // and before painting a wide-open iris over a ring that has not closed yet. Exit has
       // its own 80%-to-open curve, so only its completed frame is empty.
@@ -124,7 +87,7 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         ctx.globalAlpha = 1;
         canvas.dataset.stop = '0.000';
         canvas.dataset.opacity = phaseIsExiting ? '0.000' : '1.000';
-        return;
+        return false;
       }
 
       const centerX = width / 2;
@@ -246,14 +209,12 @@ export const ApertureCanvas = memo(function ApertureCanvas({
       canvas.dataset.spin = spin.toFixed(4);
       canvas.dataset.opacity = paintOpacity.toFixed(3);
       canvas.dataset.paused = paused ? '1' : '0';
+      return true;
     };
 
     const tick = (): void => {
-      if (paused) {
-        rafRef.current = 0;
-        return;
-      }
-      draw();
+      rafRef.current = 0;
+      if (paused || !draw()) return;
       rafRef.current = requestAnimationFrame(tick);
     };
 
@@ -274,8 +235,7 @@ export const ApertureCanvas = memo(function ApertureCanvas({
         rafRef.current = 0;
         if (width > 0 && height > 0) ctx.clearRect(0, 0, width, height);
         canvas.dataset.paused = '1';
-      } else {
-        draw();
+      } else if (draw()) {
         start();
       }
     };
@@ -303,7 +263,7 @@ export const ApertureCanvas = memo(function ApertureCanvas({
       bladeSheen.addColorStop(0.22, 'rgba(64, 155, 168, 0.07)');
       bladeSheen.addColorStop(0.58, 'rgba(12, 30, 34, 0.1)');
       bladeSheen.addColorStop(1, 'rgba(0, 6, 8, 0.45)');
-      if (!paused) draw();
+      if (!paused && draw()) start();
     };
 
     resize();
@@ -312,13 +272,18 @@ export const ApertureCanvas = memo(function ApertureCanvas({
     // (font swap, language toggle, dynamic viewport bars).
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    canvas.addEventListener('contextrestored', resize);
 
     applyPhase(phase.get());
     const unsubscribePhase = phase.on('change', applyPhase);
+    // Empty frames sleep until progress changes, including within an exit phase.
+    const unsubscribeProgress = progress.on('change', start);
 
     return () => {
       observer.disconnect();
+      canvas.removeEventListener('contextrestored', resize);
       unsubscribePhase();
+      unsubscribeProgress();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };

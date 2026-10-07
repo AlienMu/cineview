@@ -324,20 +324,15 @@ export type AnimationType = PresetAnimation | CustomAnimation | ComposedAnimatio
  * fields are constrained by the active mode.
  */
 export interface CineviewBaseProps {
-  /**
-   * Design viewport width baseline (design px). The single site-wide conversion
-   * ruler: `scale = viewportWidth / designWidth`. All design lengths (Position
-   * coordinates, Container box model, etc.) are multiplied by the same `scale`
-   * (width-only, never distorted). Scroll takeover time budget is still settled
-   * at `1ms = 1px`; scene absolute spans fall back to measured DOM, without
-   * introducing a second height ruler.
-   *
-   * Aligns with common Figma / design file standards: set to the design file
-   * width (default 750, standard mobile viewport), then all design px values
-   * are scaled to any viewport from this baseline. No separate height baseline —
-   * vertical overflow is left to natural document flow / scroll extension.
+  /** Design width and maximum layout width in CSS pixels. Defaults to 750.
+   * Numeric design lengths scale by the measured content width / designWidth.
+   * The layout shrinks to its parent and centers when it reaches this limit.
    */
   designWidth?: number;
+  /** Minimum layout width in CSS pixels, from 0 through designWidth.
+   * Narrower parents expose horizontal scrolling. Omitted means no minimum.
+   */
+  minWidth?: number;
   scrollbar?: false | ScrollbarConfig;
   monitor?: boolean;
   /** Expose scroll layout diagnostics. Use `monitor` to sample performance and render `PerfPanel` explicitly. */

@@ -3,7 +3,7 @@ title: Container
 eyebrow: COMPONENTS / CONTAINER
 ---
 
-Container 按 `viewportWidth / designWidth` 换算数值宽高与受支持的样式长度，宽度和高度使用同一比例。
+Container 按 `contentWidth / designWidth` 换算数值宽高与受支持的样式长度，宽度和高度使用同一比例。
 
 ## Props
 
@@ -22,7 +22,7 @@ Container 按 `viewportWidth / designWidth` 换算数值宽高与受支持的样
 
 ## 换算行为
 
-`scale = viewportWidth / designWidth`（`designWidth` 默认 750）。`width={520}` 在 375px 屏幕宽度下（scale 0.5）渲染为 260px。
+`scale = contentWidth / designWidth`（`designWidth` 默认 750）。`width={520}` 在 375px 屏幕宽度下（scale 0.5）渲染为 260px。
 
 `style` 中以下属性的数值会按设计像素换算：
 

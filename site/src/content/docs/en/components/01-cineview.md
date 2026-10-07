@@ -24,7 +24,8 @@ Omitting `mode` selects `'drag'`. TypeScript checks configuration and callbacks 
 
 | prop          | type                       | default                           | notes                                                 |
 | ------------- | -------------------------- | --------------------------------- | ----------------------------------------------------- |
-| `designWidth` | `number`                   | `750`                             | Design width base, see the designWidth section        |
+| `designWidth` | `number`                   | `750`                             | Design width and maximum displayed width        |
+| `minWidth` | `number` | `undefined` | Minimum adaptive width, from 0 through `designWidth` |
 | `mode`        | `'drag' \| 'scroll'`       | `'drag'`                          | Drag paging / scroll document flow                    |
 | `scrollbar`   | `false \| ScrollbarConfig` | `false` (equivalent when omitted) | Optional overlay in scroll mode                       |
 | `monitor`     | `boolean`                  | `false`                           | Enables performance sampling                          |
@@ -33,7 +34,7 @@ Omitting `mode` selects `'drag'`. TypeScript checks configuration and callbacks 
 
 ### designWidth
 
-Set `designWidth` to the width of the design file; the default is 750. Numeric design lengths on both axes scale by `viewportWidth / designWidth`. Locked-zone duration stays at `1ms = 1px`. See [Responsive conversion](/docs/05-responsive).
+Set `designWidth` to the design width and maximum displayed width (default 750). The page shrinks to its parent and centers at the limit. Numeric lengths on both axes use the actual content width: `contentWidth / designWidth`. Set `minWidth` to stop shrinking and expose horizontal overflow scrolling on narrower screens. Locked-zone duration stays at `1ms = 1px`. See [Responsive conversion](/docs/05-responsive).
 
 ### Drag configuration
 

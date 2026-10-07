@@ -212,6 +212,18 @@ describe('useDragSceneEngine — handlePan', () => {
     animateCalls.length = 0;
   });
 
+  it.each([-375, 375])('uses the measured horizontal viewport for a %s px drag', (offset) => {
+    const { view, spies } = setup({ viewportWidth: 750 });
+    view.result.current.handlePan(new MouseEvent('mousemove'), panInfo(offset));
+    expect(spies.onDragProgressChange).toHaveBeenCalledWith(-offset / 750);
+  });
+
+  it('uses the embedded height for vertical drag', () => {
+    const { view, spies } = setup({ slideDirection: 'y', viewportHeight: 500 });
+    view.result.current.handlePan(new MouseEvent('mousemove'), panInfo(-250, 0, 'y'));
+    expect(spies.onDragProgressChange).toHaveBeenCalledWith(0.5);
+  });
+
   it('ignores pan when not active', () => {
     const { view, spies } = setup({ isActive: false });
     view.result.current.handlePan(new MouseEvent('mousemove'), panInfo(-100));

@@ -21,7 +21,7 @@ Image 渲染 `<img>`，并将加载完成的图片记入框架缓存。`src` 和
 
 ## 换算行为
 
-`width={375}` 是设计稿尺寸，渲染时换算为 `375 × scale`；`scale = viewportWidth / designWidth`（默认 750）。字符串值（`'50%'`、`'12rem'`）不换算、原样透传。`style` 中受支持的数值长度使用与 [Container](/docs/07-container) 相同的换算规则。
+`width={375}` 是设计稿尺寸，渲染时换算为 `375 × scale`；`scale = contentWidth / designWidth`（默认 750）。字符串值（`'50%'`、`'12rem'`）不换算、原样透传。`style` 中受支持的数值长度使用与 [Container](/docs/07-container) 相同的换算规则。
 
 ## 预加载行为
 

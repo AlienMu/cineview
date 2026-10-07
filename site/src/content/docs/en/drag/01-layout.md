@@ -58,7 +58,7 @@ The target Scene's element timeline lasts 1200ms. The title starts at 100ms and 
 
 | Field             | drag default | scroll default | Notes                                           |
 | ----------------- | ------------ | -------------- | ----------------------------------------------- |
-| `layout.width`    | `'100vw'`    | `'100vw'`      | Same in both modes                              |
+| `layout.width`    | `'100%'`    | `'100%'`      | Same in both modes                              |
 | `layout.height`   | `'100vh'`    | `'auto'`       | Full viewport in drag, content height in scroll |
 | `layout.anchor`   | `'top-left'` | `'top-left'`   | Content alignment                               |
 | `layout.overflow` | `'hidden'`   | `'hidden'`     | Clips content outside the Scene                 |

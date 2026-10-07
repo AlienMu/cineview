@@ -53,6 +53,20 @@ All Cineview instances share the page monitor. The first monitored instance star
 
 Two instances therefore return the same readings. The data does not attribute rendering cost to a particular Scene or Cineview.
 
+## Check mobile dragging
+
+Record the production page while dragging forward, reversing, and releasing between Scenes. Include the first visit to each Scene and a return visit: mounting content and decoding media can produce different costs. Keep the viewport, device pixel ratio, assets, and input sequence the same when comparing changes.
+
+Inspect the longest frame intervals and tasks over 50ms alongside the average frame rate. A short pause during a scene change can be noticeable even when most frames take about 16.7ms. Browser traces help distinguish script execution, layout, painting, and media work.
+
+CPU throttling helps expose expensive work, but desktop emulation does not reproduce a phone's GPU, memory limits, or browser. Confirm the affected interaction on the target device after measuring locally.
+
+When a custom Canvas keeps drawing after its Scene is inactive, stop its animation frame loop using the timeline phase. Measure its size when the container changes, then draw from stored dimensions. Avoid measuring layout in progress callbacks or in observers that run for every animated text change.
+
+A transparent Canvas can still run its drawing loop. Check frames after its exit animation becomes invisible, including when a gesture stops before the Scene leaves. Resume drawing if the gesture reverses and makes the content visible again.
+
+Keep `minWidth` unset for a page that should shrink on phones. A large minimum preserves the wider layout and can increase the size of drawing surfaces. See [Responsive layout](/docs/05-responsive).
+
 ## Initial resource wait
 
 The first Scene waits for its declared priority resource requests to settle. To include a video, add its URL to `Scene.assets.preloadImages`; a video's own `preload` only fills the shared cache.
@@ -87,6 +101,10 @@ The zone threshold accumulates against the last reported value, so slow movement
 ## Video seeking and memory
 
 Dense video keyframes can reduce random and reverse seek work. Development builds warn when sampled median seek latency exceeds 50ms; inspect both the asset and device workload when this occurs.
+
+Dense keyframes do not eliminate the cost of repeated positioning. Compare `currentTime` writes with `seeked` events and presented frames during slow and reverse gestures. Many requested times can fall within the same source frame. A browser recording is needed to determine whether repeated requests delay the displayed picture.
+
+Video blob cache sizes describe compressed downloads. They do not include decoded frames or GPU textures; JavaScript heap readings also omit those allocations.
 
 For scroll locked zones, `releaseOnLeave` can release decoded frames after a video is far away and restore them on return. See [Media playback](/docs/06-media-ownership).
 

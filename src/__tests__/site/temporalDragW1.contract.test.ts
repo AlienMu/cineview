@@ -314,7 +314,7 @@ describe('/drag W1 calibration dial contract', () => {
     expect(titleArea).not.toContain('<GatedDate text={clock.dateLabel}');
 
     const app = stripComments(fs.readFileSync(APP_FILE, 'utf8'));
-    expect(app).toContain("const isDrag = pathname === '/drag'");
+    expect(app).toContain("const isDrag = matchPath('/drag', pathname) !== null");
     // Contract scope: /drag must not mount the global LangToggle (act1 mounts its own inside the Scene).
     // Assertion narrowed from full-line literal to "isDrag participates in exclusion logic" — otherwise
     // adding any new route to the exclusion list (e.g. /docs added 2026-08-27, whose toggle lives in DocsShell)

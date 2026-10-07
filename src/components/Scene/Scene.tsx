@@ -735,6 +735,8 @@ const SceneImpl = React.forwardRef<HTMLDivElement, SceneInternalProps>(
       currentSceneIndex,
       totalScenes,
       slideDirection: effectiveDirection,
+      viewportWidth: globalViewportWidth,
+      viewportHeight: globalViewportHeight,
       slideDuration,
       sceneTransitionDuration: resolvedSceneTransitionDuration,
       sceneOffset,

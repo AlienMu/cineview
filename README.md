@@ -53,6 +53,8 @@ The same conventions help with AI-assisted development. Reusing components and r
 | [Resource preloading](https://cineview.pages.dev/docs/02-preload)                        | Prepare scene images in advance and handle initial loading, progress, and failures to reduce waiting for assets during scene changes.       |
 | Types and interaction                                                                    | Check component configuration with TypeScript; drag mode provides keyboard navigation and current-scene announcements.                      |
 
+**Video compatibility: WeChat's in-app browser on iOS has a known seeking issue and is not currently supported for this feature.** Videos may finish downloading without displaying frames. Copy the page link and open it in Safari or Chrome. See [AnimateVideo details](https://cineview.pages.dev/docs/04-animate-video) for the tested scope and guidance.
+
 ## Try it
 
 In a React 19 project, install Cineview and its peer dependencies:
@@ -113,6 +115,7 @@ See the [documentation](https://cineview.pages.dev/docs) for component APIs and 
 - [Canvas, SVG, and WebGL](https://cineview.pages.dev/docs/09-use-animate-timeline)
 - [Responsive layout](https://cineview.pages.dev/docs/05-responsive)
 - [Resource preloading](https://cineview.pages.dev/docs/02-preload)
+- [Performance and mobile dragging](https://cineview.pages.dev/docs/01-performance)
 
 Prefer to run the source locally? The [minimal example](./examples/minimal/README.md) includes startup commands and both modes.
 

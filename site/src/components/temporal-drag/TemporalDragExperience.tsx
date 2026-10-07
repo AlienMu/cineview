@@ -7,6 +7,7 @@ import { SceneSlate } from './SceneSlate';
 import { SceneSync } from './SceneSync';
 import { TemporalMotionProvider, useTemporalMotion } from './TemporalMotion';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
+import { ACT3_VIDEO_SRC } from './act3MediaTimeline';
 import '../../styles/temporal-drag.css';
 import '../../styles/temporal-scenes-03-05.css';
 
@@ -226,7 +227,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
       <div ref={blackRef} className="tp-act5-black" aria-hidden="true" />
       <TemporalMotionProvider>
         <Cineview
-          designWidth={390}
+          designWidth={750}
           mode="drag"
           direction="y"
           transitionDuration={720}
@@ -263,6 +264,7 @@ export const TemporalDragExperience = memo(function TemporalDragExperience({
           <Scene
             sceneId="sync"
             className="tp-scene tp-scene--03"
+            assets={reduced ? undefined : { preloadImages: [ACT3_VIDEO_SRC] }}
             layout={{ width: '100%', height: '100%', overflow: 'hidden' }}
           >
             <SceneSync />

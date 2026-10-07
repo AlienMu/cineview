@@ -34,7 +34,7 @@ threshold(v) = maxRatio − (clamp(v) − minVelocity) / (maxVelocity − minVel
 - 首屏向后、末屏向前拖拽时，回弹耗时 150 ms。普通回弹按位移比例 × 800 ms 计算，上限为 300 ms。
 - 脱离 Cineview 的独立 Scene 使用固定阈值 0.5。
 
-手势进度按 `window.innerHeight` 或 `window.innerWidth` 计算。容器小于窗口时，拖动距离达到容器尺寸也可能尚未达到切换阈值。
+手势进度按 Cineview 容器实际宽高计算。嵌入较小容器或设置宽度上限后，切换阈值仍以该容器为参照。
 
 ## 让控件独立处理拖动
 

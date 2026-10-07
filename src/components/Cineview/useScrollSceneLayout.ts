@@ -52,6 +52,9 @@ export function useScrollSceneLayout({
     if (!root) return sceneLayoutsRef.current;
 
     const viewportSpan = getViewportSpan();
+    const view = root.ownerDocument.defaultView;
+    const cssViewportWidth = view?.innerWidth ?? root.clientWidth;
+    const cssViewportHeight = view?.innerHeight ?? root.clientHeight;
     const nextLayouts = scenes.map((scene, index) => {
       const wrapper = sceneWrapperRefs.current[index];
       const sceneProps = scene.props;
@@ -62,7 +65,7 @@ export function useScrollSceneLayout({
           ? (sceneProps.layout?.width ?? sceneProps.sceneWidth)
           : (sceneProps.layout?.height ?? sceneProps.sceneHeight);
       const renderedTakeoverSpan = isTakeoverScene
-        ? resolveTakeoverSceneSpan(rawTakeoverSpan, root.clientWidth, root.clientHeight)
+        ? resolveTakeoverSceneSpan(rawTakeoverSpan, cssViewportWidth, cssViewportHeight)
         : null;
       const zoneId = getZoneIdForScene(index);
       const zoneElement = zoneId ? zoneRegistryRef.current.get(zoneId)?.element : null;
@@ -71,8 +74,8 @@ export function useScrollSceneLayout({
         : resolveScrollSceneDeclaredSpan(
             sceneProps,
             direction,
-            root.clientWidth,
-            root.clientHeight
+            cssViewportWidth,
+            cssViewportHeight
           );
       const measuredSpan =
         direction === 'x'
@@ -116,6 +119,7 @@ export function useScrollSceneLayout({
         sceneStart,
         sceneEnd,
         visualSpan,
+        declaredViewportSpan: renderedTakeoverSpan,
         flowSpan,
         timelineDistancePx,
         centerLockOffset,

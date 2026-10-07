@@ -34,7 +34,7 @@ These behaviors are independent of `threshold`:
 - Dragging backward at the first Scene or forward at the last bounces back over 150 ms. An ordinary bounce takes displacement ratio × 800 ms, capped at 300 ms.
 - A standalone Scene outside Cineview uses a fixed threshold of 0.5.
 
-Gesture progress uses `window.innerHeight` or `window.innerWidth`. In a smaller container, dragging its full length can still fall short of the switching threshold.
+Gesture progress uses the measured Cineview container dimensions. Embedded and width-limited layouts use their own size for switching thresholds.
 
 ## Keep a control's own drag
 

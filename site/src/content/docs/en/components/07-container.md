@@ -3,7 +3,7 @@ title: Container
 eyebrow: COMPONENTS / CONTAINER
 ---
 
-Container scales numeric dimensions and supported style lengths by `viewportWidth / designWidth`. Width and height use the same ratio.
+Container scales numeric dimensions and supported style lengths by `contentWidth / designWidth`. Width and height use the same ratio.
 
 ## Props
 
@@ -22,7 +22,7 @@ Place Container inside `<Cineview>` so it can read the design width. Development
 
 ## Conversion behavior
 
-`scale = viewportWidth / designWidth` (`designWidth` defaults to 750). `width={520}` renders as 260px in a 375px viewport (scale 0.5).
+`scale = contentWidth / designWidth` (`designWidth` defaults to 750). `width={520}` renders as 260px in a 375px viewport (scale 0.5).
 
 Numeric values in these `style` properties use design-pixel conversion:
 

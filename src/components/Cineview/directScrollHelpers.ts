@@ -24,6 +24,8 @@ export interface SceneLayoutInfo {
   sceneStart: number;
   sceneEnd: number;
   visualSpan: number;
+  /** Only an explicit authored viewport-unit size may override intrinsic CSS sizing. */
+  declaredViewportSpan?: number | null;
   flowSpan: number;
   timelineDistancePx: number;
   centerLockOffset: number;
@@ -550,6 +552,7 @@ export function areSceneLayoutsEqual(
       currentLayout.sceneStart === nextLayout.sceneStart &&
       currentLayout.sceneEnd === nextLayout.sceneEnd &&
       currentLayout.visualSpan === nextLayout.visualSpan &&
+      (currentLayout.declaredViewportSpan ?? null) === (nextLayout.declaredViewportSpan ?? null) &&
       currentLayout.flowSpan === nextLayout.flowSpan &&
       currentLayout.timelineDistancePx === nextLayout.timelineDistancePx &&
       currentLayout.centerLockOffset === nextLayout.centerLockOffset &&

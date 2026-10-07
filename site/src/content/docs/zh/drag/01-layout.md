@@ -58,7 +58,7 @@ export function DragTransitionExample() {
 
 | 字段              | drag 默认    | scroll 默认  | 说明                             |
 | ----------------- | ------------ | ------------ | -------------------------------- |
-| `layout.width`    | `'100vw'`    | `'100vw'`    | 两种模式相同                     |
+| `layout.width`    | `'100%'`    | `'100%'`    | 两种模式相同                     |
 | `layout.height`   | `'100vh'`    | `'auto'`     | drag 占满视窗，scroll 随内容增长 |
 | `layout.anchor`   | `'top-left'` | `'top-left'` | 内容对齐方式                     |
 | `layout.overflow` | `'hidden'`   | `'hidden'`   | 裁切超出场景边界的内容           |

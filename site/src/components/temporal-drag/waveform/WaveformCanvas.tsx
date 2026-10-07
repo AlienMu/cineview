@@ -1,32 +1,9 @@
 /**
- * Act 03 A1 waveform canvas — the audio track, drawn.
- *
- * ── RULE 6 EXEMPTION, DECLARED ───────────────────────────────────────────────
- * AGENTS.md / CLAUDE.md rule 6 bans site components from building their own animation
- * drivers. Self-drawn canvas is the ONE exemption (DESIGN.md §0: a child may read a
- * MotionValue and run its own rAF, zero per-frame setState), and this is that case: a
- * waveform is a continuous curve whose every sample has a different height, which no
- * framework variant can express, and 256 subscribed `motion.span` bars would cost far more
- * per frame than one path.
- *
- * The exemption is CONDITIONAL. This canvas lives INSIDE a <Scene>, so it has a framework
- * phase and MUST be gated by it — task-flow §10 rule 2 states this explicitly for exactly
- * this component. The `tp-ambient` exemption (global chrome mounted outside every Scene,
- * with no phase to gate against) does not apply. The rAF is therefore driven by
- * `timeline.phase`: it stops on `exited` / `idle` and restarts on re-entry. See
- * `applyPhase` below — same contract as `clapperboard/ClapperboardCanvas.tsx` (act 02) and
- * `corona/CoronaCanvas.tsx` (act 04).
- *
- * ── What drives what ─────────────────────────────────────────────────────────
- *  - `timeline.progress` (a MotionValue, read not subscribed-to-React) is this lane's own
- *    enter progress. It does two things: reveals the waveform left-to-right (a track being
- *    written), and opens the filter — the "drag-controlled filtering" of design document §3.3, expressed purely
- *    visually since the audio was cut.
- *  - Wall-clock elapsed drives the horizontal FLOW, which is why the track keeps moving
- *    after every act-03 lane has finished. That is this act's continuous coverage together with
- *    the playhead breath (§1.4).
- *
- * There is NO audio here and none is intended: no Web Audio, no `<audio>`, no analyser.
+ * Act 03 waveform: timeline progress reveals the bars and opens the visual filter;
+ * elapsed time moves the field while it is visible. There is no audio processing.
+ * Empty frames, completed transparent exits and inactive phases stop this local
+ * draw loop. Progress changes restart it, including a reversed exit gesture.
+ * Per-frame work reads MotionValues and writes Canvas pixels without React state.
  */
 
 import type { AnimatePhase } from 'cineview';
@@ -78,14 +55,16 @@ export const WaveformCanvas = memo(function WaveformCanvas({
     let width = 0;
     let height = 0;
     let paused = phase.get() === 'exited' || phase.get() === 'idle';
+    let exiting = phase.get() === 'exiting';
     const startedAt = performance.now();
 
-    const draw = (): void => {
-      if (width <= 0 || height <= 0) return;
+    const draw = (): boolean => {
+      if (width <= 0 || height <= 0) return false;
       const reveal = Math.max(0, Math.min(1, progress.get()));
-      ctx.clearRect(0, 0, width, height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
       // Nothing to paint before the lane opens; the lane sits at 0 for its whole delay.
-      if (reveal <= 0.001) return;
+      if (reveal <= 0.001 || (exiting && reveal >= 1)) return false;
 
       const midY = height / 2;
       const halfHeight = midY * 0.86;
@@ -128,14 +107,12 @@ export const WaveformCanvas = memo(function WaveformCanvas({
       canvas.dataset.reveal = reveal.toFixed(3);
       canvas.dataset.openness = openness.toFixed(3);
       canvas.dataset.paused = paused ? '1' : '0';
+      return true;
     };
 
     const tick = (): void => {
-      if (paused) {
-        rafRef.current = 0;
-        return;
-      }
-      draw();
+      rafRef.current = 0;
+      if (paused || !draw()) return;
       rafRef.current = requestAnimationFrame(tick);
     };
 
@@ -148,6 +125,7 @@ export const WaveformCanvas = memo(function WaveformCanvas({
     // whatever act the user is now looking at.
     const applyPhase = (nextPhase: AnimatePhase): void => {
       paused = nextPhase === 'exited' || nextPhase === 'idle';
+      exiting = nextPhase === 'exiting';
       if (paused) {
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = 0;
@@ -155,8 +133,7 @@ export const WaveformCanvas = memo(function WaveformCanvas({
         // an empty one.
         if (width > 0 && height > 0) ctx.clearRect(0, 0, width, height);
         canvas.dataset.paused = '1';
-      } else {
-        draw();
+      } else if (draw()) {
         start();
       }
     };
@@ -168,7 +145,7 @@ export const WaveformCanvas = memo(function WaveformCanvas({
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!paused) draw();
+      if (!paused && draw()) start();
     };
 
     resize();
@@ -180,10 +157,13 @@ export const WaveformCanvas = memo(function WaveformCanvas({
 
     applyPhase(phase.get());
     const unsubscribePhase = phase.on('change', applyPhase);
+    // A reversed gesture can reveal content without changing the phase.
+    const unsubscribeProgress = progress.on('change', start);
 
     return () => {
       observer.disconnect();
       unsubscribePhase();
+      unsubscribeProgress();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };

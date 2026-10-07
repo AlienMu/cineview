@@ -362,8 +362,8 @@ describe('Position Component', () => {
       });
     });
 
-    it('should correctly convert based on design size (different design size)', () => {
-      // Design size 375px, viewport 750px, scale = 750/375 = 2
+    it('does not enlarge coordinates past the design width', () => {
+      // Design width caps the 750px window at 375px, scale = 1.
       renderWithContext(
         <Position x={100} y={200}>
           <div data-testid="child">Content</div>
@@ -374,10 +374,10 @@ describe('Position Component', () => {
       const child = screen.getByTestId('child');
       const parent = child.parentElement;
 
-      // 100 * 2 = 200, 200 * 2 = 400
+      // Coordinates retain their design size at the cap.
       expect(parent).toHaveStyle({
-        left: '200px',
-        top: '400px',
+        left: '100px',
+        top: '200px',
       });
     });
 

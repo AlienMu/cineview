@@ -77,8 +77,8 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  max-width: calc(720 * var(--cv-u));
-  padding: 0 calc(24 * var(--cv-u));
+  max-width: calc(960 * var(--cv-u));
+  padding: 0 calc(32 * var(--cv-u));
 }
 .demo-video__title {
   margin: 0;
@@ -89,7 +89,7 @@
   letter-spacing: -0.015em;
   color: var(--ink);
   /* 2026-08-14(审计 act4-4):text-shadow 同 scrim 派生,谷段不再偏冷。 */
-  text-shadow: 0 calc(1 * var(--cv-u)) calc(20 * var(--cv-u))
+  text-shadow: 0 calc(1.333333 * var(--cv-u)) calc(26.666667 * var(--cv-u))
     color-mix(in srgb, var(--bg-grad-bot, #fbf5ea) 60%, transparent);
 }
 .demo-video__title-head {
@@ -112,8 +112,8 @@
    行级 blur/opacity 由 Animate lane 拥有；逐字 inline style 只写不受框架支持的渐变色。 */
 .demo-video__subtitle {
   margin: 0;
-  width: calc(860 * var(--cv-u));
-  padding: 0 calc(32 * var(--cv-u));
+  width: calc(1146.666667 * var(--cv-u));
+  padding: 0 calc(42.666667 * var(--cv-u));
   text-align: center;
   font-family: 'Playfair Display', 'Songti SC', 'Fraunces', Georgia, serif;
   font-weight: 500;
@@ -132,7 +132,7 @@
   white-space: nowrap;
 }
 .demo-video[data-lang='en'] .demo-video__subtitle {
-  width: calc(1340 * var(--cv-u));
+  width: calc(1786.666667 * var(--cv-u));
 }
 .demo-video__subtitle
   > [data-cineview-animate-host^='demo-subtitle-line-']

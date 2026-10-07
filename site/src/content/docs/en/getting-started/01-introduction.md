@@ -33,7 +33,7 @@ The first scene can wait for its images or video before entering. List their URL
 
 ## Position content from a design
 
-`Position` places elements, while `Container` sets dimensions and spacing. Set `designWidth` to the design's width; numeric dimensions scale with viewport width. See [Responsive scaling](/docs/05-responsive).
+`Position` places elements, while `Container` sets dimensions and spacing. Set `designWidth` to the design width and display limit; the page shrinks to its parent and centers on wider screens. See [Responsive scaling](/docs/05-responsive).
 
 ## Next steps
 

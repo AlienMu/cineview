@@ -53,6 +53,8 @@ Cineview 是一个面向落地页和交互展示的 React 动画框架。我们�
 | [资源预加载](https://cineview.pages.dev/docs/02-preload)                  | 提前准备场景图片，处理首屏加载、加载进度和资源失败，减少切换场景时等待素材的情况。                 |
 | 类型与交互支持                                                            | 使用 TypeScript 检查组件配置；拖拽模式提供键盘导航和当前场景提示。                                 |
 
+**视频兼容性：iOS 微信内置浏览器存在已知的逐帧定位问题，暂不列为受支持环境。** 视频可能已下载却没有画面。建议复制页面链接并在 Safari 或 Chrome 打开。测试范围和处理建议见 [AnimateVideo 详情](https://cineview.pages.dev/docs/04-animate-video)。
+
 ## 试试看
 
 在 React 19 项目中，安装 Cineview 及其依赖：
@@ -113,6 +115,7 @@ export default function App() {
 - [Canvas、SVG 与 WebGL](https://cineview.pages.dev/docs/09-use-animate-timeline)
 - [响应式布局](https://cineview.pages.dev/docs/05-responsive)
 - [资源预加载](https://cineview.pages.dev/docs/02-preload)
+- [性能与移动端拖拽](https://cineview.pages.dev/docs/01-performance)
 
 想在本地运行源码，可以从[最小示例](./examples/minimal/README.md)开始，其中包含启动步骤和两种模式。
 

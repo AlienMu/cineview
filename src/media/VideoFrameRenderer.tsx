@@ -60,6 +60,13 @@ interface PendingPlayRequest {
   settled: boolean;
 }
 
+interface NativeVideoSnapshot {
+  generation: number;
+  time: number;
+  playing: boolean;
+  ended: boolean;
+}
+
 /**
  * Imperative media-residency control for scroll-driven scrub videos
  * (AnimateVideo `releaseOnLeave`, task-flow 2026-08-14 Plan A).
@@ -176,6 +183,8 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
     >(new WeakMap());
     const readyMediaGenerationRef = useRef<number | null>(null);
     const releasedSrcRef = useRef<string | null>(null);
+    const detachedNativeRef = useRef<NativeVideoSnapshot | null>(null);
+    const pendingNativeRestoreRef = useRef<NativeVideoSnapshot | null>(null);
 
     const bindNativeMediaListeners = useCallback(
       (video: HTMLVideoElement | null, activationId: number): void => {
@@ -317,7 +326,25 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
 
     const setVideoRef = useCallback(
       (video: HTMLVideoElement | null): void => {
-        if (!video) bindNativeMediaListeners(null, activationIdRef.current);
+        if (!video) {
+          const previous = videoRef.current;
+          const status = ownershipRef.current.status;
+          const nativeOwned =
+            status === 'native-playback' ||
+            status === 'native-paused' ||
+            status === 'play-pending' ||
+            status === 'ended';
+          detachedNativeRef.current =
+            previous && previous.readyState >= 2 && nativeOwned
+              ? {
+                  generation: mediaGenerationRef.current,
+                  time: previous.currentTime,
+                  playing: !previous.paused,
+                  ended: previous.ended,
+                }
+              : null;
+          bindNativeMediaListeners(null, activationIdRef.current);
+        }
         videoRef.current = video;
         if (video) bindNativeMediaListeners(video, activationIdRef.current);
         assignRef(forwardedRef, video);
@@ -479,6 +506,15 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
       const committedIdentity = committedMediaIdentityRef.current;
       let identityChanged = false;
       if (committedIdentity.src !== src || committedIdentity.objectUrl !== objectUrl) {
+        const detached = detachedNativeRef.current;
+        pendingNativeRestoreRef.current =
+          committedIdentity.src === src &&
+          !committedIdentity.objectUrl &&
+          objectUrl &&
+          detached?.generation === mediaGenerationRef.current
+            ? detached
+            : null;
+        detachedNativeRef.current = null;
         committedMediaIdentityRef.current = { src, objectUrl };
         mediaGenerationRef.current += 1;
         readyMediaGenerationRef.current = null;
@@ -522,7 +558,23 @@ export const VideoFrameRenderer = forwardRef<HTMLVideoElement, VideoFrameRendere
           scrubRange,
         });
       };
-      const publishLatest = (): void => publish(latestFrame);
+      const publishLatest = (): void => {
+        const native = pendingNativeRestoreRef.current;
+        if (native) {
+          pendingNativeRestoreRef.current = null;
+          dispatchOwnership({
+            type: 'restore-native',
+            time: Math.min(native.time, video.duration),
+            playing:
+              native.playing &&
+              dragSceneActiveRef.current !== false &&
+              latestFrame.phase !== 'exiting' &&
+              latestFrame.phase !== 'exited',
+            ended: native.ended,
+          });
+        }
+        publish(latestFrame);
+      };
       const unsubscribe = timelineFrame.on('change', publish);
       if (video.readyState >= 1) publishLatest();
       else video.addEventListener('loadedmetadata', publishLatest, { once: true });

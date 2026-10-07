@@ -3,7 +3,6 @@ import type { ScrollModeConfig, SlideDirection } from '../../types';
 import type { SceneScrollTimelineState } from '../Scene/sceneScrollRuntime';
 import {
   buildSceneTimelineState,
-  resolveTakeoverSceneSpan,
   type SceneAuthoringCompatProps,
   type SceneLayoutInfo,
   type ScrollInputDirection,
@@ -224,12 +223,8 @@ export function useScrollSceneSnapshots({
         const sceneTimelineState = sceneLayout
           ? buildSceneTimelineState(sceneLayout, sceneTimelineOffset, viewportSpan)
           : null;
-        const rawTakeoverSpan =
-          direction === 'x'
-            ? (scene.props.layout?.width ?? scene.props.sceneWidth)
-            : (scene.props.layout?.height ?? scene.props.sceneHeight);
         const takeoverSceneSpan = isTakeoverScene
-          ? resolveTakeoverSceneSpan(rawTakeoverSpan, viewport.width, viewport.height)
+          ? (sceneLayout?.declaredViewportSpan ?? null)
           : null;
         const timelineIsLive =
           sceneTimelineState?.phase === 'enter' ||

@@ -28,7 +28,7 @@ Drag reads horizontal displacement and velocity, then moves scenes horizontally.
 
 Scroll uses `scrollLeft`, horizontal touch movement, and wheel `deltaX`. Scene scroll ranges and fixed layers use the horizontal span. The custom scrollbar appears along the bottom with `aria-orientation="horizontal"`.
 
-The responsive scale base remains unchanged: `scale = viewportWidth / designWidth` is calculated strictly against viewport width on both axes. `'x'` changes the travel axis without altering the scaling reference.
+The responsive scale base remains unchanged: `scale = contentWidth / designWidth` is calculated strictly against viewport width on both axes. `'x'` changes the travel axis without altering the scaling reference.
 
 ## Caveats
 

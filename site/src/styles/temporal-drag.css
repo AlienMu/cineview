@@ -96,8 +96,9 @@
 
   position: relative;
   width: 100%;
-  height: 100svh;
-  min-height: 100svh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
   container-type: inline-size;
   isolation: isolate;
@@ -107,13 +108,19 @@
 }
 
 .drag-temporal > .cineview-responsive-container,
+.drag-temporal .cineview-stage,
 .drag-temporal .cineview-container {
   width: 100%;
   height: 100%;
   min-height: 100%;
 }
 
+.drag-temporal > .cineview-responsive-container,
 .drag-temporal .cineview-container {
+  /* The site shell owns the visible height; override the framework's inline
+   * 100vh default, which includes the collapsed browser toolbar on iOS. */
+  height: 100% !important;
+  min-height: 100% !important;
   background: var(--tp-bg) !important;
 }
 
@@ -215,6 +222,8 @@
   grid-template-rows: minmax(0, 1fr);
   width: 100%;
   height: 100%;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 .drag-temporal .tp-timecode {
@@ -1410,7 +1419,9 @@
 
 .drag-temporal .tp-texture > .cineview-animate {
   position: absolute;
-  inset: -50%;
+  /* The largest grain translation is 3% of this box. An 8% margin covers it
+   * without allocating a texture four times the visible scene area on phones. */
+  inset: -8%;
 }
 
 .drag-temporal .tp-texture > .cineview-animate > *,
@@ -1421,7 +1432,7 @@
 
 .drag-temporal .tp-texture__grain {
   position: absolute;
-  inset: -50%;
+  inset: -8%;
   opacity: 0.11;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");

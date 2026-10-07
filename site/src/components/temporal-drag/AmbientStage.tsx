@@ -96,7 +96,8 @@ function AmbientDust(): import('react').JSX.Element {
       if (phasePaused || hidden) return;
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
-      ctx.clearRect(0, 0, width, height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
 
       for (const mote of motes) {
         mote.x += (mote.drift * dt) / width;

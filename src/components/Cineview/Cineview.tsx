@@ -191,6 +191,7 @@ const VISUALLY_HIDDEN_STYLE: React.CSSProperties = {
 const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((props, ref) => {
   const {
     designWidth,
+    minWidth,
     mode,
     direction: dragDirection,
     transitionDuration,
@@ -823,7 +824,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
     const ownerWindow = root.ownerDocument?.defaultView ?? window;
     const measureViewport = (): void => {
       const nextRect = root.getBoundingClientRect();
-      const nextWidth = nextRect.width;
+      const nextWidth = root.clientWidth || nextRect.width;
       const nextHeight = nextRect.height;
       if (nextWidth > 0) {
         setViewportWidth(nextWidth);
@@ -1158,8 +1159,8 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
   const containerStyle: React.CSSProperties = {
     position: 'relative',
     width: '100%',
-    height: '100vh',
-    minHeight: '100vh',
+    height: '100%',
+    minHeight: '100%',
     overflowX: 'hidden',
     overflowY: 'hidden',
     background: '#0d1624',
@@ -1184,7 +1185,7 @@ const DragCineViewComponent = forwardRef<CineviewRef, CineviewDragModeProps>((pr
   );
 
   return (
-    <CineviewProvider designSize={designSize}>
+    <CineviewProvider designSize={designSize} minWidth={minWidth} viewportWidth={viewportWidth}>
       <CineviewRuntimeContext.Provider value={runtimeContextValue}>
         <div
           ref={containerRef}

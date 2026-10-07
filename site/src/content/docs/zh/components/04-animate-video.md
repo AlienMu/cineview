@@ -3,7 +3,9 @@ title: AnimateVideo
 eyebrow: COMPONENTS / ANIMATEVIDEO
 ---
 
-AnimateVideo 将 Animate 时间轴映射为原生视频的播放位置，进度回退时向前面的画面定位。无需额外的视频库，视频始终静音并在页面内播放。
+AnimateVideo 将 Animate 时间轴映射为原生视频的播放位置，进度回退时向前面的画面定位。无需额外的视频库，组件默认设置静音和行内播放。
+
+**兼容性提示：iOS 微信内置浏览器存在已知的视频逐帧定位问题。** 微信中请复制页面链接并在 Safari 或 Chrome 打开，详见[浏览器兼容性](#浏览器兼容性)。
 
 ## 用滚动控制视频
 
@@ -100,6 +102,16 @@ ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 scrub.mp4
 `preload` 填充共享视频缓存。命中缓存时，使用已下载完整的 blob，以便在整个文件内定位。
 
 需要首屏等待视频资源时，将 URL 写入 `Scene.assets.preloadImages`。视频自身的 `preload` 不会将其加入该队列。`onReady` 仅在挂载后提供 ref API，不等待视频加载。详见[预加载](/docs/02-preload)。
+
+## 浏览器兼容性
+
+iOS 微信内置浏览器暂不列为 `AnimateVideo` 视频逐帧定位的受支持环境。已知表现是视频下载完成后仍停留在封面或空白，拖动无法更新视频画面。目前尚无经过真机验证的可靠修复。
+
+2026-09-30 的真机对比中，iPhone 13 上的微信 8.0.69 仍未能显示测试视频。同一设备上的 Chrome 152 使用相同测试素材已能显示并更新画面，用户也确认 Safari 能正常显示视频。该结论针对本次测试环境，其他系统和浏览器版本需要单独验证。
+
+遇到此问题时，复制页面链接并在 Safari 或 Chrome 打开。面向微信访问的页面应提供视频封面和必要的文字内容，避免必须看到视频才能理解页面。可以用 `poster` 配置封面。
+
+完整下载不代表浏览器已开始解码或呈现视频。更换内容分发网络（CDN）可以改善下载速度，但无法保证画面被激活。移动端的预加载和播放可能受宿主 App 的策略限制，参见[腾讯播放器限制说明](https://cloud.tencent.com/document/product/881/20219)和 [WebKit 媒体策略](https://webkit.org/blog/6784/new-video-policies-for-ios/)。这些策略说明尚不足以确定本次微信失败的具体原因。
 
 ## 用拖拽控制视频
 

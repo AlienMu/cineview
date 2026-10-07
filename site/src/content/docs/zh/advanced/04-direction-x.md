@@ -28,7 +28,7 @@ drag 读取横向位移与速度，并水平移动场景。手势进度按当前
 
 scroll 使用 `scrollLeft`、横向触摸位移与滚轮 `deltaX`。场景滚动范围和固定层使用横向跨度。自绘滚动条显示在底部，并设置 `aria-orientation="horizontal"`。
 
-响应式基准保持不变：`scale = viewportWidth / designWidth` 在两个轴向下均基于视窗宽度计算。`'x'` 仅改变场景行进轴，不改变缩放映射基准。
+响应式基准保持不变：`scale = contentWidth / designWidth` 在两个轴向下均基于视窗宽度计算。`'x'` 仅改变场景行进轴，不改变缩放映射基准。
 
 ## 注意事项
 

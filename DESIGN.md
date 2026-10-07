@@ -67,6 +67,13 @@ properties through the existing animation driver, and dispose of subscriptions.
 Read geometry during the existing measurement phase, then publish the resulting
 snapshot for consumers.
 
+Each animation driver subscribes once to its visual progress source. It schedules
+one callback in Motion's pre-render phase to update its property MotionValues from
+the latest progress and variants. Repeated changes before that phase share the
+callback. Replacing the source or unmounting cancels pending work; a variant change
+at stationary progress also refreshes the outputs. Numeric opacity and scale
+retain each driver's existing interpolation rules.
+
 ## Drag mode
 
 Users move between scenes with pointer gestures, supported keyboard input, or
@@ -186,6 +193,13 @@ configuration. Reentry reacquires media; asynchronous loading must respect the
 current resource generation. Video seeking is a browser/media operation and
 requires a real browser test with a real asset.
 
+When video metadata or a cached blob arrives after a drag entrance completes, the
+media controller initializes the active video's position from the completed frame
+once. Later idle frames do not override native playback or user pauses, and an
+inactive Scene does not start playback from that initialization.
+Replacing a usable native video with its cached copy retains its playback position
+and whether the user paused it; old-node events remain isolated by media generation.
+
 In drag mode, backward departure seeks from the video's actual position at
 departure toward the authored scrub range start, using the existing exit progress.
 This does not require a visual `exitAnimation`. Reversing or cancelling the gesture
@@ -197,9 +211,26 @@ retain their existing pause behavior.
 
 ## Layout and responsive sizing
 
-`designWidth` is the only numeric conversion base. Conversion follows viewport
-width, including for vertical design coordinates. It does not switch to viewport
-height for portrait screens.
+`designWidth` is the design-coordinate base and maximum layout width in CSS pixels
+(default 750). The stage shrinks to its available parent width and centers when
+it fits. Optional `minWidth` stops shrinking below its CSS-pixel value; a smaller
+parent exposes a focusable horizontal scrolling area. Invalid minimums (negative,
+non-finite, or greater than `designWidth`) are ignored with a development diagnostic.
+
+Both modes publish their measured content width to `CineviewContext`, including
+any native scrollbar gutter. Numeric lengths use `contentWidth / designWidth` on
+both axes. The provider adds no window listener or per-frame measurement. Drag
+input uses the existing measured root dimensions; scroll observes its root and
+scene wrappers through its existing coalesced resize measurement. Default Scene
+width is `100%`; explicit CSS `vw` still refers to the browser viewport.
+Only an explicitly authored viewport-unit span becomes a Scene CSS size override.
+Measured intrinsic spans drive the shell and timeline, never the Scene's authored
+width/height. Percentage content resolves against the root viewport to avoid
+feeding child measurements back into its size.
+
+Equal minimum and design widths give a fixed layout. Browser zoom remains native;
+these bounds apply to CSS layout pixels. Horizontal overflow scrolling is separate
+from scene navigation; a horizontal drag gesture remains scene input.
 
 `Position` owns placement; `Container` owns dimensions and internal spacing.
 Their numeric convenience properties use the design conversion. Use ordinary

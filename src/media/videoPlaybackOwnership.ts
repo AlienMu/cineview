@@ -54,6 +54,12 @@ export type VideoPlaybackOwnershipEvent =
   | { readonly type: 'media-ended'; readonly activationId: number }
   | { readonly type: 'play-resolved'; readonly requestId: number }
   | { readonly type: 'play-rejected'; readonly requestId: number }
+  | {
+      readonly type: 'restore-native';
+      readonly time: number;
+      readonly playing: boolean;
+      readonly ended: boolean;
+    }
   | { readonly type: 'activate'; readonly activationId: number }
   | { readonly type: 'reset'; readonly activationId: number };
 
@@ -283,7 +289,17 @@ function reduceTimelineFrame(
   ) {
     return result(state);
   }
-  if (!state.outgoing && !isScrubSource(frame.source)) return result(state);
+  // Metadata or the cached blob may arrive after the drag transaction finishes.
+  // Seed that new media generation from the completed frame once; later idle
+  // frames must still leave native playback and user pauses alone.
+  const needsCompletedFrame =
+    frame.phase === 'entered' &&
+    state.status === 'framework-scrub' &&
+    state.lastSeekTime === null &&
+    event.dragSceneActive !== false;
+  if (!state.outgoing && !isScrubSource(frame.source) && !needsCompletedFrame) {
+    return result(state);
+  }
   if (!canReclaimTerminalState(state, frame)) return result(state);
 
   const targetTime = mapVideoScrubProgress(frame.progress, event.duration, event.scrubRange);
@@ -364,6 +380,25 @@ export function reduceVideoPlaybackOwnership(
   event: VideoPlaybackOwnershipEvent
 ): VideoPlaybackOwnershipResult {
   switch (event.type) {
+    case 'restore-native': {
+      const requestId = event.playing ? state.nextPlayRequestId : null;
+      return result(
+        {
+          ...state,
+          status: requestId !== null ? 'play-pending' : event.ended ? 'ended' : 'native-paused',
+          lastSeekTime: event.time,
+          endpointLatched: true,
+          activePlayRequestId: requestId,
+          nextPlayRequestId: requestId === null ? state.nextPlayRequestId : requestId + 1,
+        },
+        requestId === null
+          ? [{ type: 'seek', time: event.time }]
+          : [
+              { type: 'seek', time: event.time },
+              { type: 'play', requestId },
+            ]
+      );
+    }
     case 'timeline-frame':
       return reduceTimelineFrame(state, event);
     case 'media-play':

@@ -4,7 +4,7 @@
  * including NODE_ENV === 'development' console.warn branch and inside-provider branch.
  */
 
-import { render, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { CineviewProvider, useConvertSize } from './CineviewContext';
 
@@ -125,31 +125,5 @@ describe('CineviewProvider designSize guard', () => {
 
     expect(result.current(100)).toBeCloseTo(50);
     expect(errorSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe('CineviewProvider resize debounce cleanup', () => {
-  it('cancels the pending debounced resize commit when unmounted mid-debounce', () => {
-    jest.useFakeTimers();
-    try {
-      const { unmount } = render(
-        <CineviewProvider designSize={750}>
-          <div />
-        </CineviewProvider>
-      );
-
-      const baselineTimerCount = jest.getTimerCount();
-      act(() => {
-        window.dispatchEvent(new Event('resize'));
-      });
-
-      expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
-
-      unmount();
-
-      expect(jest.getTimerCount()).toBe(baselineTimerCount);
-    } finally {
-      jest.useRealTimers();
-    }
   });
 });

@@ -3,7 +3,7 @@ title: Responsive conversion base
 eyebrow: CONCEPTS / RESPONSIVE
 ---
 
-Set `designWidth` to the design's width (default 750). Numeric design lengths scale by `viewportWidth / designWidth` on both axes.
+Set `designWidth` to the design width and maximum displayed width (default 750). The page adapts to its parent and centers at its width limit. Numeric lengths use `contentWidth / designWidth`, where `contentWidth` is the actual available page width.
 
 ## Conversion rules
 
@@ -11,9 +11,21 @@ Set `designWidth` to the design's width (default 750). Numeric design lengths sc
 <Cineview designWidth={750}>   // design file is 750px wide
 ```
 
-- At a 750px viewport, scale = 1: one design px is one screen px.
-- At a 1500px viewport, scale = 2: numeric design lengths double.
+- In a 375px parent, the page is 375px wide and scale = 0.5.
+- In a 1500px parent, the page stops at 750px and centers, with scale = 1. Space reserved for native scrollbars is subtracted from the content width.
 - Vertical design values in `Position`, `Container`, and `Image` use the same width-derived ratio. `Scene.layout.height` does not.
+
+## Minimum adaptive width
+
+```tsx
+<Cineview designWidth={1920} minWidth={1440}>
+  <Scene>{/* Content */}</Scene>
+</Cineview>
+```
+
+A 1000px parent keeps a 1440px layout; an 1800px parent uses 1800px. Above 1920px, the page stops growing and centers. On narrower screens, use the outer horizontal scrollbar to reach overflowing content. Horizontal dragging still navigates scenes.
+
+Set both values to 1440 for a fixed width. Optional `minWidth` must be between 0 and `designWidth`; invalid values are ignored. Browser zoom remains native, and these limits use CSS pixels.
 
 ## Which values convert
 
@@ -30,6 +42,8 @@ Set `designWidth` to the design's width (default 750). Numeric design lengths sc
 `Image`'s numeric width/height goes through the same base. A number means design px; write percentages, `auto`, or CSS functions in style and they pass through untouched.
 
 `Scene.layout.width` and `layout.height` differ from those components: numbers are CSS px, and CSS strings pass through unchanged. In drag mode, `layout.height` changes the content box without changing the full-screen navigation distance.
+
+Numeric `x` and `y` in custom `Animate` variants use CSS pixels and do not use this design-size conversion.
 
 ## Content taller than the viewport
 

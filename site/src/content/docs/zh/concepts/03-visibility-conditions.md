@@ -26,7 +26,7 @@ scroll 模式下，锁定区外的元素默认在进入可视区域后播放动�
 
 退场可从两个方向触发。向下滚动时，元素顶边接近视窗顶部；向上滚动时，元素底边接近视窗底部。
 
-两个边距都用设计 px 填写，比较前按 `viewportWidth / designWidth` 换算。单个 Animate 的 `visibility.enterMargin` 或 `visibility.exitMargin` 优先。未配置时采用根组件对应的值，再未配置则使用 50。
+两个边距都用设计 px 填写，比较前按 `contentWidth / designWidth` 换算。单个 Animate 的 `visibility.enterMargin` 或 `visibility.exitMargin` 优先。未配置时采用根组件对应的值，再未配置则使用 50。
 
 ## 条件重叠时保持当前阶段
 

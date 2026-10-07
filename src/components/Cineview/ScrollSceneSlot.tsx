@@ -200,7 +200,7 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
   // The stream has the viewport's width, so percentages resolve once at the
   // slot. Keep intrinsic widths in CSS instead of feeding measured pixels back
   // into sizing; otherwise content and viewport changes retain the old width.
-  const authoredHorizontalWidth = child.props.layout?.width ?? child.props.sceneWidth ?? '100vw';
+  const authoredHorizontalWidth = child.props.layout?.width ?? child.props.sceneWidth ?? '100%';
   const takeoverOverflowInset = isTakeoverScene ? Math.max((visualSpan - viewportSpan) / 2, 0) : 0;
   const takeoverStickyInset = isTakeoverScene ? Math.max((viewportSpan - visualSpan) / 2, 0) : 0;
   const handleWrapperRef = useCallback(
@@ -330,12 +330,12 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
             ? isTakeoverScene && typeof flowSpan === 'number'
               ? flowSpan
               : isTakeoverScene
-                ? '100vw'
+                ? '100%'
                 : authoredHorizontalWidth
             : '100%',
         flex: direction === 'x' ? '0 0 auto' : undefined,
         minHeight: direction === 'y' && sceneNeedsViewportSpan ? '100vh' : undefined,
-        minWidth: direction === 'x' && sceneNeedsViewportSpan ? '100vw' : undefined,
+        minWidth: direction === 'x' && sceneNeedsViewportSpan ? '100%' : undefined,
         ...(isTakeoverScene && typeof flowSpan === 'number'
           ? direction === 'x'
             ? { boxSizing: 'border-box', paddingLeft: takeoverOverflowInset }
@@ -364,7 +364,7 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
                   position: 'sticky',
                   left: takeoverStickyInset,
                   width: visualSpan,
-                  maxWidth: '100vw',
+                  maxWidth: viewportWidth || '100%',
                   height: '100%',
                   overflow: 'hidden',
                   zIndex: sceneZoneState?.active ? 30 : undefined,
@@ -385,13 +385,15 @@ export const ScrollSceneSlot = memo(function ScrollSceneSlot({
             style={
               direction === 'x'
                 ? {
-                    width: visualSpan,
+                    // Percentages resolve against the root viewport, never the
+                    // measured child span (which would freeze or compound size).
+                    width: viewportWidth || '100%',
                     height: '100%',
                     transform: `translateX(${-takeoverOverflowInset}px)`,
                   }
                 : {
                     width: '100%',
-                    height: visualSpan,
+                    height: viewportHeight || '100%',
                     transform: `translateY(${-takeoverOverflowInset}px)`,
                   }
             }

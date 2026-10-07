@@ -42,7 +42,7 @@ Scene groups content that shares layout, transitions, and preloaded assets. Decl
 
 | field      | type                              | default                              | notes                                                                |
 | ---------- | --------------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
-| `width`    | `number \| string`                | `'100vw'`                            | Scene width                                                          |
+| `width`    | `number \| string`                | `'100%'`                            | Scene width                                                          |
 | `height`   | `number \| string`                | drag: `'100vh'`; scroll: `'auto'`    | Content box height; does not change the fixed drag navigation height |
 | `anchor`   | `SceneAnchor`                     | `'top-left'`                         | Nine-grid anchor                                                     |
 | `overflow` | `'hidden' \| 'visible' \| 'clip'` | `'hidden'`                           | Overflow handling                                                    |

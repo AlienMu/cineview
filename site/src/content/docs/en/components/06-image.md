@@ -21,7 +21,7 @@ The forwarded `ref` points to the `<img>` element.
 
 ## Conversion behavior
 
-`width={375}` is a design-size value, rendered as `375 × scale`; `scale = viewportWidth / designWidth` (default 750). String values (`'50%'`, `'12rem'`) are not converted and pass through as-is. Numeric lengths inside `style` use exactly the same conversion logic as [Container](/docs/07-container).
+`width={375}` is a design-size value, rendered as `375 × scale`; `scale = contentWidth / designWidth` (default 750). String values (`'50%'`, `'12rem'`) are not converted and pass through as-is. Numeric lengths inside `style` use exactly the same conversion logic as [Container](/docs/07-container).
 
 ## Preload behavior
 

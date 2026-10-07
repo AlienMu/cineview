@@ -188,7 +188,7 @@ export function normalizeSceneProps(props: SceneInternalProps): NormalizedSceneP
     globalScrollTimelineState: props.scrollRuntime?.timelineState ?? null,
     globalScrollActiveSceneIndex: props.scrollRuntime?.activeSceneIndex ?? 0,
     globalScrollViewportOffset: props.scrollRuntime?.viewportOffset ?? 0,
-    resolvedSceneWidth: props.layout?.width ?? props.sceneWidth ?? '100vw',
+    resolvedSceneWidth: props.layout?.width ?? props.sceneWidth ?? '100%',
     resolvedSceneHeight:
       props.layout?.height ?? props.sceneHeight ?? (effectiveMode === 'scroll' ? 'auto' : '100vh'),
     resolvedSceneAnchor: props.layout?.anchor ?? props.sceneAnchor ?? 'top-left',

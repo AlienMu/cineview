@@ -288,7 +288,7 @@ describe('Scene Component', () => {
   });
 
   describe('9.1 Basic Functionality', () => {
-    it('should render with full screen layout (100vh/100vw) in drag mode', () => {
+    it('should render with full-height parent-width layout (100vh/100%) in drag mode', () => {
       renderScene(
         <Scene>
           <div>Test Content</div>
@@ -297,7 +297,7 @@ describe('Scene Component', () => {
 
       const sceneElement = screen.getByText('Test Content').parentElement;
       expect(sceneElement).toHaveStyle({
-        width: '100vw',
+        width: '100%',
         height: '100vh',
         position: 'absolute',
         overflow: 'hidden',
@@ -2755,7 +2755,7 @@ describe('Animation Variant Coverage', () => {
 
 describe('Interpolation Function Coverage', () => {
   it('should handle interpolation with default opacity value', async () => {
-    const { container } = render(
+    render(
       <CineviewProvider>
         <Scene
           mode="drag"
@@ -2771,7 +2771,7 @@ describe('Interpolation Function Coverage', () => {
     );
 
     // Simulate drag
-    const sceneElement = container.querySelector('[style*="width: 100vw"]');
+    const sceneElement = screen.getByText('Test').parentElement;
     expect(sceneElement).toBeInTheDocument();
 
     if (sceneElement) {
@@ -2786,7 +2786,7 @@ describe('Interpolation Function Coverage', () => {
   });
 
   it('should handle interpolation with non-numeric values', async () => {
-    const { container } = render(
+    render(
       <CineviewProvider>
         <Scene
           mode="drag"
@@ -2801,7 +2801,7 @@ describe('Interpolation Function Coverage', () => {
       </CineviewProvider>
     );
 
-    const sceneElement = container.querySelector('[style*="width: 100vw"]');
+    const sceneElement = screen.getByText('Test').parentElement;
     expect(sceneElement).toBeInTheDocument();
 
     if (sceneElement) {
@@ -2816,7 +2816,7 @@ describe('Interpolation Function Coverage', () => {
   });
 
   it('should handle interpolation with pixel string values', async () => {
-    const { container } = render(
+    render(
       <CineviewProvider>
         <Scene
           mode="drag"
@@ -2831,7 +2831,7 @@ describe('Interpolation Function Coverage', () => {
       </CineviewProvider>
     );
 
-    const sceneElement = container.querySelector('[style*="width: 100vw"]');
+    const sceneElement = screen.getByText('Test').parentElement;
     expect(sceneElement).toBeInTheDocument();
 
     if (sceneElement) {

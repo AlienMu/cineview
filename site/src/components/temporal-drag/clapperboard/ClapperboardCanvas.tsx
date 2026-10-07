@@ -504,7 +504,10 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
       const clap = exiting ? 1 : local(raw, CLAP_START, CLAP_END);
       const openAngle = CLAPPER_MAX_OPEN_RAD * (1 - clapFall(clap));
 
-      ctx.clearRect(0, 0, width, height);
+      // A restored canvas context has an identity transform. Reapply our pixel scale
+      // on every paint so clearing cannot leave old pixels outside the top-left quarter.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
       const { ox, oy, s } = boxOf();
       const g = BOARD_GEOMETRY;
       const hingeX = ox + HINGE.x * s;
@@ -885,11 +888,13 @@ export const ClapperboardCanvas = memo(function ClapperboardCanvas({
     // now also means stale cached light gradients, not just stale particle mapping.
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    canvas.addEventListener('contextrestored', resize);
     applyPhase(phase.get());
     const unsubscribePhase = phase.on('change', applyPhase);
 
     return () => {
       observer.disconnect();
+      canvas.removeEventListener('contextrestored', resize);
       unsubscribePhase();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;

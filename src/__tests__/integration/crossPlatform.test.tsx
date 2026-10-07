@@ -27,6 +27,9 @@ type MockMotionDivProps = React.HTMLAttributes<HTMLDivElement> & {
 
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
+  // Driver tests use immediate frames; real batching is covered separately.
+  frame: { preRender: (callback: () => void) => callback() },
+  cancelFrame: jest.fn(),
   __esModule: true,
   useMotionValue: (initial: number) => {
     let current = initial;
@@ -169,7 +172,7 @@ describe('Cross-platform compatibility tests', () => {
       // Verify scenes render correctly and are ready to handle events (Requirements 21.1, 21.2)
       const scene1 = screen.getByText('场景 1').parentElement;
       expect(scene1).toBeInTheDocument();
-      expect(scene1).toHaveStyle({ width: '100vw', height: '100vh' });
+      expect(scene1).toHaveStyle({ width: '100%', height: '100vh' });
     });
 
     test('should render correctly in drag mode and be ready to handle drag events', async () => {
@@ -199,7 +202,7 @@ describe('Cross-platform compatibility tests', () => {
       // Verify drag mode scene renders correctly (Requirements 21.1, 21.2, 21.3)
       const scene = screen.getByText('拖拽场景').parentElement;
       expect(scene).toBeInTheDocument();
-      expect(scene).toHaveStyle({ width: '100vw', height: '100vh' });
+      expect(scene).toHaveStyle({ width: '100%', height: '100vh' });
     });
 
     test('should support both horizontal and vertical swipe directions', async () => {
@@ -583,7 +586,7 @@ describe('Cross-platform compatibility tests', () => {
       // Verify scene renders correctly, framework supports touch and mouse events
       const scene = screen.getByText('场景 1').parentElement;
       expect(scene).toBeInTheDocument();
-      expect(scene).toHaveStyle({ width: '100vw', height: '100vh' });
+      expect(scene).toHaveStyle({ width: '100%', height: '100vh' });
     });
   });
 

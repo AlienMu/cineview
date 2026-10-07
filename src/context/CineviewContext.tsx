@@ -1,28 +1,11 @@
-/**
- * Cineview Context
- * Provides global responsive size conversion context.
- *
- * Conversion model: px2vw single ruler (width-only, height-agnostic). The design spec has
- * one size baseline `size` (design px), and the entire canvas locks to `scale = viewportWidth / size`
- * proportional scaling — horizontal 1px and vertical 1px multiply by the same `scale`, so squares
- * remain squares, circles remain circles, with zero distortion. Vertical overflow is handled by
- * natural document flow / scroll extension (naturally aligned with scroll mode).
- *
- * Context exposes only the conversion kernel `{ scale, convert }`; Provider root DOM outputs
- * the length-type `--cineview-unit: ${scale}px` for external CSS consumption. No independent height
- * baseline exists. Scroll takeover time budget is independently settled at `1ms = 1px`, absolute scene
- * span falls back to DOM measurement; neither creates a second design ruler. Thus provider accepts
- * only `designSize`, tracks only `viewportWidth`.
- */
-
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { debounceCancelable } from '../utils/debounce';
+/** Width conversion and the shared constrained layout for both runtime modes. */
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { devErrorOnce, devWarnOnce } from '../utils/devLog';
 
 export interface CineviewContextValue {
-  /** px2vw single-ruler ratio: `viewportWidth / size`. Only useAnimateScroll gate margin conversion reads this. */
+  /** Measured content width divided by the design width. */
   scale: number;
-  /** px2vw single-ruler conversion: design px → physical px (`size * scale`). Shared by all length values. */
+  /** Design lengths converted to CSS pixels with the shared scale. */
   convert: (size: number) => number;
 }
 
@@ -32,8 +15,11 @@ const CineviewContext = createContext<CineviewContextValue | null>(null);
 export { CineviewContext };
 
 export interface CineviewProviderProps {
-  /** Design spec size baseline (design px). Single conversion ruler site-wide: `scale = viewportWidth / designSize`. */
+  /** Design-coordinate baseline and maximum stage width in CSS pixels. */
   designSize?: number;
+  minWidth?: number;
+  /** Actual content width published by the owning runtime measurement. */
+  viewportWidth?: number;
   children: React.ReactNode;
 }
 
@@ -55,61 +41,67 @@ function resolveDesignSize(designSize: number | undefined): number {
   return FALLBACK_DESIGN_SIZE;
 }
 
-export const CineviewProvider: React.FC<CineviewProviderProps> = ({ designSize, children }) => {
+export const CineviewProvider: React.FC<CineviewProviderProps> = ({
+  designSize,
+  minWidth,
+  viewportWidth,
+  children,
+}) => {
   const resolvedDesignSize = resolveDesignSize(designSize);
-  const [viewportWidth, setViewportWidth] = useState<number>(
-    typeof window !== 'undefined' ? window.innerWidth : 750
-  );
-
-  // px2vw single ruler: width-only. No independent height baseline.
-  const scale = useMemo(
-    () => viewportWidth / resolvedDesignSize,
-    [viewportWidth, resolvedDesignSize]
-  );
-  const convert = useCallback(
-    (size: number): number => {
-      return size * scale;
-    },
-    [scale]
-  );
-
-  // Handle window resize: track width only (sole conversion input).
-  // Use cancelable debounce: cancel() clears in-flight timer on unmount,
-  // avoiding setState trigger within 150ms after unmount.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const { debounced: handleResize, cancel } = debounceCancelable(() => {
-      setViewportWidth(window.innerWidth);
-    }, 150);
-
-    window.addEventListener('resize', handleResize);
-
-    return (): void => {
-      window.removeEventListener('resize', handleResize);
-      cancel();
-    };
-  }, []);
-
-  const contextValue = useMemo<CineviewContextValue>(
-    () => ({
-      scale,
-      convert,
-    }),
-    [scale, convert]
-  );
+  const validMinimum =
+    minWidth !== undefined &&
+    Number.isFinite(minWidth) &&
+    minWidth >= 0 &&
+    minWidth <= resolvedDesignSize;
+  const minimum = validMinimum ? minWidth : 0;
+  if (minWidth !== undefined && !validMinimum) {
+    devErrorOnce(
+      'cineview-context:invalid-min-width',
+      `Invalid minWidth (${String(minWidth)}). It must be between 0 and designWidth (${resolvedDesignSize}); ignoring it.`
+    );
+  }
+  // The runtime owns measurement. The initial estimate is replaced on mount,
+  // including when a parent or a native scrollbar reduces the available width.
+  const initialWidth = typeof window === 'undefined' ? resolvedDesignSize : window.innerWidth;
+  const width =
+    viewportWidth && viewportWidth > 0
+      ? viewportWidth
+      : Math.min(resolvedDesignSize, Math.max(minimum, initialWidth));
+  const scale = Math.min(width, resolvedDesignSize) / resolvedDesignSize;
+  const convert = useCallback((size: number): number => size * scale, [scale]);
+  const contextValue = useMemo<CineviewContextValue>(() => ({ scale, convert }), [scale, convert]);
   const responsiveStyle = useMemo(
     () =>
       ({
         '--cineview-unit': `${scale}px`,
+        width: '100%',
+        height: '100vh',
+        minWidth: 0,
+        overflowX: minimum > 0 ? 'auto' : undefined,
+        overflowY: minimum > 0 ? 'hidden' : undefined,
       }) as React.CSSProperties,
-    [scale]
+    [scale, minimum]
   );
 
   return (
     <CineviewContext.Provider value={contextValue}>
-      <div className="cineview-responsive-container" style={responsiveStyle}>
-        {children}
+      <div
+        className="cineview-responsive-container"
+        style={responsiveStyle}
+        tabIndex={minimum > 0 ? 0 : undefined}
+      >
+        <div
+          className="cineview-stage"
+          style={{
+            width: '100%',
+            minWidth: minimum,
+            maxWidth: resolvedDesignSize,
+            marginInline: 'auto',
+            height: '100%',
+          }}
+        >
+          {children}
+        </div>
       </div>
     </CineviewContext.Provider>
   );

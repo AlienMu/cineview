@@ -23,10 +23,7 @@ import './CapabilityScene.css';
  * SHOT01 胶片带镜:标题 → 胶带一次轻入场 → 9 预设帧格依次入场播一次原生预设并定格,
  *        活跃帧高亮 + 联动说明/代码。九帧序列 9.4s，每帧间隔 800ms；连同标题总长 10.04s。
  *
- * 原同文件的 SHOT02「舞台抽屉镜」已于 2026-08-04 拆除,第三幕改为推镜结构,
- * 见 `Act3DollyScene.tsx` 与 task-flow 2026-08-04-home-continuous-bg-act3-dolly.md。
- * 共用变体 riseVariant / solidVariant / SplitTitle / renderIntroLines 保留在本文件,
- * 由第三幕跨文件复用(避免重复实现)。
+ * Title and animation helpers are local to this scene.
  *
  * 框架边界(已核实,勿越):
  *   - 支持属性全部由 Animate lane 拥有；流光位置、选中帧和文本只读 timeline
@@ -35,7 +32,7 @@ import './CapabilityScene.css';
  */
 
 /* ── 自定义变体(仅白名单属性;scroll 驱动下 transition duration 置 0)── */
-export function riseVariant(amplitude: string): {
+function riseVariant(amplitude: string): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
@@ -47,7 +44,7 @@ export function riseVariant(amplitude: string): {
 /**
  * 中性变体:只建立共享 timeline，不让承载内容随整段时长淡入。
  */
-export function solidVariant(): {
+function solidVariant(): {
   initial: Record<string, unknown>;
   animate: Record<string, unknown>;
 } {
@@ -68,7 +65,7 @@ function filmEnterVariant(): {
   };
 }
 
-export function SplitTitle({
+function SplitTitle({
   text,
   kind = 'main',
 }: {
@@ -96,7 +93,7 @@ export function SplitTitle({
 }
 
 /** 副标题在首个逗号(中文，/ 英文 ,)处换行,两行更均衡。 */
-export function renderIntroLines(text: string): import('react').JSX.Element {
+function renderIntroLines(text: string): import('react').JSX.Element {
   const m = text.match(/[，,]/);
   if (!m || m.index == null) return <>{text}</>;
   const cut = m.index + 1;
@@ -358,7 +355,7 @@ export function CapabilityFilmStripScene(): import('react').JSX.Element {
       <div className="cap-slate">{t('cap.shot1.slate')}</div>
 
       {/* 标题块(hero 风格):evocative slogan + 引介副标题 */}
-      <Position at={{ anchor: 'center-x', y: 66 }} className="film-layout-title">
+      <Position at={{ anchor: 'center-x', y: 88 }} className="film-layout-title">
         <Animate
           animateId="film-title"
           enterAnimation={riseVariant('25%')}
@@ -373,7 +370,7 @@ export function CapabilityFilmStripScene(): import('react').JSX.Element {
       </Position>
 
       {/* 胶带上方:活跃帧描述性标题 + 预设名标签(悬停可切换) */}
-      <Position at={{ anchor: 'center-x', y: 238 }} className="film-layout-caption">
+      <Position at={{ anchor: 'center-x', y: 317.333333 }} className="film-layout-caption">
         <Animate
           animateId="film-caption-selection"
           enterAnimation={FILM_CAPTION_SELECTION}
@@ -399,7 +396,7 @@ export function CapabilityFilmStripScene(): import('react').JSX.Element {
           9 帧按 FRAME_STAGGER 依次入场播一次预设并定格;齿孔条由 infinite lane 循环走片;
           鼠标悬停暂停走片并切换说明。
           hold 尾段延长锁定区,悬停互动都落在 hold 段。 */}
-      <Position at={{ anchor: 'center-x', y: 342 }} className="film-layout-strip">
+      <Position at={{ anchor: 'center-x', y: 456 }} className="film-layout-strip">
         <div className="film-gate">
           <Animate
             animateId="film-pan"
@@ -482,7 +479,7 @@ export function CapabilityFilmStripScene(): import('react').JSX.Element {
       </div>
 
       {/* 胶带下方:代码卡片 —— code 行 + 一句话描述,随展示帧联动(与胶带拉开间距) */}
-      <Position at={{ anchor: 'center-x', y: 636 }} className="film-layout-code">
+      <Position at={{ anchor: 'center-x', y: 848 }} className="film-layout-code">
         {/* 只剩一条 lane：`film-card-inout` 管整卡入场（上移淡入，无退场）。
               卡内 code/desc 行的切换已改为无动画的内容替换（用户裁决），
               原 `film-code-selection` 位移轨整条移除。 */}

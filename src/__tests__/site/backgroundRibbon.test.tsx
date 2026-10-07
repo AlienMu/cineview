@@ -1,15 +1,21 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
+import { TextEncoder } from 'node:util';
 import { lutAt } from '../../../site/src/design/lut';
 
 // The site owns react-router-dom in its isolated workspace dependency set. The
-// component only needs the pathname today; keep the test focused on real DOM
-// mount/replacement mutations without making the framework Jest resolver load
-// the site's bundled router package.
+// Use its real path matcher while controlling location for DOM lifecycle tests.
+Object.assign(globalThis, { TextEncoder });
 jest.doMock(require.resolve('../../../site/node_modules/react'), () => jest.requireActual('react'));
-jest.doMock('react-router-dom', () => ({ useLocation: () => ({ pathname: '/demo' }) }), {
-  virtual: true,
-});
+let mockPathname = '/demo';
+jest.doMock(
+  'react-router-dom',
+  () => ({
+    matchPath: jest.requireActual('../../../site/node_modules/react-router-dom').matchPath,
+    useLocation: () => ({ pathname: mockPathname }),
+  }),
+  { virtual: true }
+);
 
 // Load after the site-local React package has been aliased to the renderer's
 // singleton; otherwise pnpm's isolated site dependency creates two React
@@ -90,10 +96,61 @@ function renderSite(): ReturnType<typeof render> {
 }
 
 afterEach(() => {
+  mockPathname = '/demo';
   for (const key of LUT_KEYS) document.documentElement.style.removeProperty(key);
 });
 
 describe('BackgroundRibbon container ownership', () => {
+  it.each(['/drag', '/drag/', '/DRAG'])(
+    'does not observe %s, and resumes after route navigation',
+    (pathname) => {
+      mockPathname = pathname;
+      const observe = jest.spyOn(MutationObserver.prototype, 'observe');
+      try {
+        const { container, rerender } = render(<BackgroundRibbon />);
+        expect(container.querySelector('.bg-ribbon')).toBeNull();
+        expect(observe).not.toHaveBeenCalled();
+        mockPathname = '/demo';
+        rerender(<BackgroundRibbon />);
+        expect(container.querySelector('.bg-ribbon')).not.toBeNull();
+        expect(observe).toHaveBeenCalledTimes(1);
+      } finally {
+        observe.mockRestore();
+      }
+    }
+  );
+
+  it('stops geometry reads and clears scroll colors when navigating into the drag page', async () => {
+    const { rerender } = renderSite();
+    const scroller = screen.getByTestId('cineview-container');
+    const reads = jest.fn(() => 2_000);
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: reads });
+    scroller.scrollTop = 500;
+    fireEvent.scroll(scroller);
+    expectRootLut(0.5);
+
+    mockPathname = '/DRAG/';
+    rerender(
+      <>
+        <BackgroundRibbon />
+        <SiteFixture />
+      </>
+    );
+    reads.mockClear();
+    await act(async () => {
+      scroller.append(document.createTextNode('animated text'));
+    });
+    fireEvent.scroll(scroller);
+
+    expect(reads).not.toHaveBeenCalled();
+    expect(rootLut()).toEqual({
+      '--bg-grad-top': '',
+      '--bg-grad-bot': '',
+      '--accent': '',
+      '--accent-ink': '',
+    });
+  });
+
   it('reattaches to a same-route Cineview replacement and detaches the old listener', async () => {
     renderSite();
     expect(screen.getByTestId('site-route')).toHaveAttribute('data-route', '/demo');

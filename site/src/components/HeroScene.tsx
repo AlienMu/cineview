@@ -205,7 +205,7 @@ export function HeroScene(): import('react').JSX.Element {
           >
             <h1 className="hero__slogan" data-lang={lang}>
               {sloganLines.map((line, i) => {
-                const persist = lang === 'zh' ? (i === 0 ? -44 : 44) : 0;
+                const persist = lang === 'zh' ? (i === 0 ? -58.666667 : 58.666667) : 0;
                 return (
                   <Animate
                     key={i}

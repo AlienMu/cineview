@@ -77,8 +77,7 @@ export const zh = {
   'cap.shot3.card.container.label': '尺寸换算',
   'cap.shot3.card.scrub.label': '滚动接管',
   'cap.shot3.card.image.label': '资源预加载',
-  /* 2026-08-16 user directive: zh uses same line breaks as en, but follows the homepage hero staggered line-break pattern
-   * (\n line break + inline ±44u static horizontal shift, see Act3DollyScene split-line rendering). */
+  // Retain the authored line break for the Chinese title.
   'cap.shot3.title': '时间随滚动流转，\n画面随叙事前行',
 
   // ── Act 3 Dual engines ──

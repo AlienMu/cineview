@@ -90,7 +90,7 @@ describe('Scene Component - Drag Mode Refactoring', () => {
   });
 
   const getRenderedSceneRoot = (container: HTMLElement): Element | null =>
-    container.querySelector('.cineview-responsive-container')?.firstElementChild ?? null;
+    container.querySelector('.cineview-stage')?.firstElementChild ?? null;
 
   describe('Task 20.1: dragProgress MotionValue and Scene State Machine', () => {
     it('should create dragProgress MotionValue on mount', () => {

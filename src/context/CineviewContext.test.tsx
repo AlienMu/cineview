@@ -1,323 +1,132 @@
-/**
- * CineviewContext test (px2vw single-ruler model)
- *
- * Conversion engine uses width only: `scale = viewportWidth / designSize`, `convert(size) = size * scale`.
- * `viewportHeight` does not affect `scale` (see CineviewContext.tsx header).
- */
-
-import { act, render, screen, waitFor } from '@testing-library/react';
-import { renderHook } from '@testing-library/react';
+import { render, renderHook } from '@testing-library/react';
 import { CineviewProvider, useCineviewContext } from './CineviewContext';
 
-describe('CineviewContext', () => {
-  describe('CineviewProvider', () => {
-    it('should default to designSize 750 when no props are passed (scale reflects it)', (): void => {
-      // Context no longer exposes designSize; default 750 is verified indirectly via scale = viewportWidth/750.
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 750,
-      });
-
-      const { result } = renderHook(() => useCineviewContext(), {
-        wrapper: ({ children }) => <CineviewProvider>{children}</CineviewProvider>,
-      });
-
-      // Default designSize=750, viewport=750 → scale=1
-      expect(result.current!.scale).toBe(1);
-    });
-
-    it('should honor a custom designSize (scale = viewport / designSize)', (): void => {
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 960,
-      });
-
+describe('Cineview width conversion', () => {
+  it.each([
+    [750, 375, 0.5],
+    [750, 750, 1],
+    [500, 500, 1],
+    [1920, 1440, 0.75],
+  ])(
+    'converts a %s design using the measured content width %s',
+    (designSize, viewportWidth, scale) => {
       const { result } = renderHook(() => useCineviewContext(), {
         wrapper: ({ children }) => (
-          <CineviewProvider designSize={1920}>{children}</CineviewProvider>
+          <CineviewProvider designSize={designSize} viewportWidth={viewportWidth}>
+            {children}
+          </CineviewProvider>
         ),
       });
+      expect(result.current?.scale).toBe(scale);
+      expect(result.current?.convert(100)).toBe(100 * scale);
+    }
+  );
 
-      // scale = 960 / 1920 = 0.5
-      expect(result.current!.scale).toBe(0.5);
-    });
-
-    it('should expose the resolved design-pixel length as --cineview-unit', async (): Promise<void> => {
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 960,
-      });
-
-      const { container } = render(
-        <CineviewProvider designSize={1920}>
-          <div />
-        </CineviewProvider>
-      );
-      const responsiveRoot = container.querySelector<HTMLElement>('.cineview-responsive-container');
-
-      expect(responsiveRoot?.style.getPropertyValue('--cineview-unit')).toBe('0.5px');
-
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 480,
-      });
-      act(() => {
-        window.dispatchEvent(new Event('resize'));
-      });
-
-      await waitFor(() => {
-        expect(responsiveRoot?.style.getPropertyValue('--cineview-unit')).toBe('0.25px');
-      });
-    });
-
-    it('should calculate scale from viewport width only (px2vw)', (): void => {
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 750,
-      });
-
-      const TestComponent = (): React.JSX.Element => {
-        const context = useCineviewContext();
-        return <div data-testid="scale">{context?.scale}</div>;
-      };
-
-      render(
-        <CineviewProvider designSize={750}>
-          <TestComponent />
-        </CineviewProvider>
-      );
-
-      // scale = 750 / 750 = 1
-      expect(screen.getByTestId('scale')).toHaveTextContent('1');
-    });
-
-    it('should scale down when viewport is narrower than design size', (): void => {
-      const TestComponent = (): React.JSX.Element => {
-        const context = useCineviewContext();
-        return <div data-testid="scale">{context?.scale}</div>;
-      };
-
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
-
-      render(
-        <CineviewProvider designSize={750}>
-          <TestComponent />
-        </CineviewProvider>
-      );
-
-      const scale = screen.getByTestId('scale').textContent;
-      expect(parseFloat(scale || '0')).toBe(0.5);
-    });
-
-    it('should NOT let viewportHeight affect scale', (): void => {
-      // px2vw uses width only: even when viewport height differs drastically, scale is determined solely by width.
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 750,
-      });
-      Object.defineProperty(window, 'innerHeight', {
-        writable: true,
-        configurable: true,
-        value: 100,
-      });
-
-      const { result } = renderHook(() => useCineviewContext(), {
-        wrapper: ({ children }) => <CineviewProvider designSize={750}>{children}</CineviewProvider>,
-      });
-
-      // scale = 750 / 750 = 1, unaffected by viewportHeight(100).
-      expect(result.current!.scale).toBe(1);
-    });
-
-    it('should recompute scale on window resize (width-driven)', async (): Promise<void> => {
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 750,
-      });
-
-      const TestComponent = (): React.JSX.Element => {
-        const context = useCineviewContext();
-        return <div data-testid="scale">{context?.scale}</div>;
-      };
-
-      render(
-        <CineviewProvider designSize={750}>
-          <TestComponent />
-        </CineviewProvider>
-      );
-
-      expect(screen.getByTestId('scale')).toHaveTextContent('1');
-
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 1500,
-      });
-      // Height change should not affect scale (width-only) — dispatch both to verify only width takes effect.
-      Object.defineProperty(window, 'innerHeight', {
-        writable: true,
-        configurable: true,
-        value: 768,
-      });
-      act(() => {
-        window.dispatchEvent(new Event('resize'));
-      });
-
-      // The resize handler is debounced (150ms); poll until the debounced commit
-      // flushes to the DOM rather than asserting after a fixed delay.
-      await waitFor(() => {
-        // scale = 1500 / 750 = 2
-        expect(screen.getByTestId('scale')).toHaveTextContent('2');
-      });
-    });
-
-    it('should provide a convert function (single scale)', (): void => {
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 750,
-      });
-
-      const TestComponent = (): React.JSX.Element => {
-        const context = useCineviewContext();
-        const converted = context?.convert(100);
-        return <div data-testid="converted">{converted}</div>;
-      };
-
-      render(
-        <CineviewProvider designSize={750}>
-          <TestComponent />
-        </CineviewProvider>
-      );
-
-      // scale = 750 / 750 = 1, 100 * 1 = 100
-      expect(screen.getByTestId('converted')).toHaveTextContent('100');
-    });
-  });
-
-  describe('useCineviewContext', () => {
-    it('should return null when used outside CineviewProvider', (): void => {
-      const { result } = renderHook(() => useCineviewContext());
-      expect(result.current).toBeNull();
-    });
-
-    it('should return context value when used inside CineviewProvider', (): void => {
-      const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
-        <CineviewProvider designSize={750}>{children}</CineviewProvider>
-      );
-
-      const { result } = renderHook(() => useCineviewContext(), { wrapper });
-
-      expect(result.current).not.toBeNull();
-      // Context exposes only conversion kernel { scale, convert }; designSize is provider's private input.
-      expect(typeof result.current?.scale).toBe('number');
-      expect(typeof result.current?.convert).toBe('function');
-    });
-  });
-});
-
-describe('SSR Support', () => {
-  it('should not crash when window is present (SSR-safe guard)', (): void => {
-    const TestComponent = (): React.JSX.Element => {
-      const context = useCineviewContext();
-      return <div data-testid="scale">{context?.scale}</div>;
-    };
-
-    render(
-      <CineviewProvider>
-        <TestComponent />
-      </CineviewProvider>
-    );
-
-    expect(screen.getByTestId('scale')).toBeInTheDocument();
-  });
-});
-
-describe('Scale recalculation', () => {
-  it('should recalculate scale when viewport width changes', async (): Promise<void> => {
-    const { result } = renderHook(() => useCineviewContext(), {
-      wrapper: ({ children }) => <CineviewProvider designSize={750}>{children}</CineviewProvider>,
-    });
-
-    const initialScale = result.current!.scale;
-
+  it('uses parent content width even when the browser is wider', () => {
     Object.defineProperty(window, 'innerWidth', {
-      value: 1500,
+      value: 1920,
       writable: true,
       configurable: true,
     });
-    window.dispatchEvent(new Event('resize'));
-
-    await waitFor(
-      () => {
-        expect(result.current!.scale).not.toBe(initialScale);
-      },
-      { timeout: 300 }
-    );
-
-    expect(result.current!.scale).toBe(1500 / 750);
-  });
-
-  it('should compute scale = viewportWidth / designSize for varied design sizes', (): void => {
-    const designSizes = [375, 750, 1920];
-
-    designSizes.forEach((designSize) => {
-      const { result } = renderHook(() => useCineviewContext(), {
-        wrapper: ({ children }) => (
-          <CineviewProvider designSize={designSize}>{children}</CineviewProvider>
-        ),
-      });
-
-      // scale = window.innerWidth / designSize (jsdom innerWidth is the viewport)
-      expect(result.current!.scale).toBe(window.innerWidth / designSize);
-    });
-  });
-
-  it('should memoize convert function across rerenders without prop change', (): void => {
-    const { result, rerender } = renderHook(() => useCineviewContext(), {
-      wrapper: ({ children }) => <CineviewProvider designSize={750}>{children}</CineviewProvider>,
-    });
-
-    const firstConvert = result.current!.convert;
-    rerender();
-    expect(result.current!.convert).toBe(firstConvert);
-  });
-
-  it('should cleanup resize listener on unmount', (): void => {
-    const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
-
-    const { unmount } = renderHook(() => useCineviewContext(), {
-      wrapper: ({ children }) => <CineviewProvider designSize={750}>{children}</CineviewProvider>,
-    });
-
-    unmount();
-
-    expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
-
-    removeEventListenerSpy.mockRestore();
-  });
-
-  it('should add resize listener in browser environment', (): void => {
-    const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
-
     const { result } = renderHook(() => useCineviewContext(), {
-      wrapper: ({ children }) => <CineviewProvider designSize={750}>{children}</CineviewProvider>,
+      wrapper: ({ children }) => (
+        <CineviewProvider designSize={750} viewportWidth={360}>
+          {children}
+        </CineviewProvider>
+      ),
     });
+    expect(result.current?.convert(100)).toBe(48);
+  });
 
-    expect(addEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
-    expect(result.current).not.toBeNull();
+  it('keeps CSS conversion and the resize publication in sync', () => {
+    const { container, rerender } = render(
+      <CineviewProvider designSize={750} viewportWidth={375}>
+        <div />
+      </CineviewProvider>
+    );
+    const root = container.querySelector<HTMLElement>('.cineview-responsive-container')!;
+    expect(root.style.getPropertyValue('--cineview-unit')).toBe('0.5px');
+    rerender(
+      <CineviewProvider designSize={750} viewportWidth={600}>
+        <div />
+      </CineviewProvider>
+    );
+    expect(root.style.getPropertyValue('--cineview-unit')).toBe('0.8px');
+  });
 
-    addEventListenerSpy.mockRestore();
+  it('centers and caps the stage without a minimum', () => {
+    const { container } = render(
+      <CineviewProvider designSize={500}>
+        <div />
+      </CineviewProvider>
+    );
+    const stage = container.querySelector<HTMLElement>('.cineview-stage')!;
+    expect(stage.style.maxWidth).toBe('500px');
+    expect(stage.style.marginInline).toBe('auto');
+    expect(stage.style.width).toBe('100%');
+    expect(container.firstElementChild).not.toHaveAttribute('tabindex');
+  });
+
+  it('provides reachable overflow for a minimum width', () => {
+    const { container } = render(
+      <CineviewProvider designSize={1920} minWidth={1440} viewportWidth={1440}>
+        <div />
+      </CineviewProvider>
+    );
+    const root = container.querySelector<HTMLElement>('.cineview-responsive-container')!;
+    const stage = container.querySelector<HTMLElement>('.cineview-stage')!;
+    expect(stage.style.minWidth).toBe('1440px');
+    expect(stage.style.maxWidth).toBe('1920px');
+    expect(root.style.overflowX).toBe('auto');
+    expect(root.tabIndex).toBe(0);
+    expect(root.style.getPropertyValue('--cineview-unit')).toBe('0.75px');
+  });
+
+  it.each([-1, 751, Infinity, NaN])(
+    'ignores an invalid minimum %s instead of exceeding the cap',
+    (minWidth) => {
+      const { container } = render(
+        <CineviewProvider designSize={750} minWidth={minWidth}>
+          <div />
+        </CineviewProvider>
+      );
+      expect(container.querySelector<HTMLElement>('.cineview-stage')!.style.minWidth).toBe('0');
+    }
+  );
+
+  it('keeps the conversion identity stable when measured width is unchanged', () => {
+    const { result, rerender } = renderHook(() => useCineviewContext(), {
+      wrapper: ({ children }) => (
+        <CineviewProvider designSize={750} viewportWidth={750}>
+          {children}
+        </CineviewProvider>
+      ),
+    });
+    const previous = result.current;
+    Object.defineProperty(window, 'innerWidth', {
+      value: 2560,
+      writable: true,
+      configurable: true,
+    });
+    rerender();
+    expect(result.current).toBe(previous);
+    expect(result.current?.scale).toBe(1);
+  });
+
+  it('does not add a second resize listener', () => {
+    const listener = jest.spyOn(window, 'addEventListener');
+    const { unmount } = render(
+      <CineviewProvider viewportWidth={750}>
+        <div />
+      </CineviewProvider>
+    );
+    expect(listener.mock.calls.filter(([event]) => event === 'resize')).toHaveLength(0);
+    unmount();
+    listener.mockRestore();
+  });
+
+  it('returns null outside the provider', () => {
+    const { result } = renderHook(() => useCineviewContext());
+    expect(result.current).toBeNull();
   });
 });

@@ -150,7 +150,7 @@
 }
 
 .scene5-cinema__phone-slot.is-split {
-  gap: min(calc(72 * var(--cineview-unit)), 7vw);
+  gap: min(calc(96 * var(--cineview-unit)), 7vw);
 }
 
 /* 手机列：居中态占满可用宽度并居中；分栏态收到左侧。
@@ -218,6 +218,7 @@
   flex: 0 1 0;
   width: 0;
   min-width: 0;
+  container-type: inline-size;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -232,18 +233,18 @@
 
 /* Match the phone height while leaving the footer at the column bottom. */
 .scene5-cinema__phone-slot.is-split .scene5-cinema__text-col {
-  flex-basis: min(calc(500 * var(--cineview-unit)), 36vw);
-  width: min(calc(500 * var(--cineview-unit)), 36vw);
+  flex-basis: min(calc(666.666667 * var(--cineview-unit)), 36vw);
+  width: min(calc(666.666667 * var(--cineview-unit)), 36vw);
   min-height: 90vh;
   justify-content: flex-start;
-  padding-top: min(calc(72 * var(--cineview-unit)), 8vh);
+  padding-top: min(calc(96 * var(--cineview-unit)), 8vh);
 }
 
 /* Stack the closing column below the phone when there is no readable side column. */
 @media (max-width: 900px) {
   .scene5-cinema__phone-slot.is-split {
     flex-direction: column;
-    gap: min(calc(28 * var(--cineview-unit)), 2.4vh);
+    gap: min(calc(37.333333 * var(--cineview-unit)), 2.4vh);
   }
 
   /* Let the outer closing copy use the available width below the phone. */
@@ -295,6 +296,12 @@
     0 0 14px rgba(225, 164, 91, 0.2),
     0 0 42px rgba(225, 164, 91, 0.1);
   /* The Animate wrapper seeds hidden state before its variant resolves. */
+}
+
+/* Ten Chinese characters fit one line within the actual copy column. */
+.scene5-cinema[data-lang='zh'] .scene5-cinema__title-text {
+  white-space: nowrap;
+  font-size: min(40px, 9cqi);
 }
 
 /* Let the longer English title wrap naturally. */
@@ -481,7 +488,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: min(calc(16 * var(--cineview-unit)), 1.8vh);
+  gap: min(calc(21.333333 * var(--cineview-unit)), 1.8vh);
   margin-top: 0;
 }
 
@@ -494,27 +501,27 @@
 .scene5-cinema__phone-slot.is-split
   .scene5-cinema__text-col
   > [data-cineview-animate-host='cinema-split-subtitle'] {
-  margin-top: min(calc(14 * var(--cineview-unit)), 1.5vh);
+  margin-top: min(calc(18.666667 * var(--cineview-unit)), 1.5vh);
 }
 
 .scene5-cinema__phone-slot.is-split
   .scene5-cinema__text-col
   > [data-cineview-animate-host='cinema-split-cta'] {
-  margin-top: min(calc(30 * var(--cineview-unit)), 3.2vh);
+  margin-top: min(calc(40 * var(--cineview-unit)), 3.2vh);
 }
 
 .scene5-cinema__phone-slot.is-split
   .scene5-cinema__text-col
   > [data-cineview-animate-host='cinema-split-story'] {
   width: 100%;
-  margin-top: min(calc(30 * var(--cineview-unit)), 3.2vh);
+  margin-top: min(calc(40 * var(--cineview-unit)), 3.2vh);
 }
 
 .scene5-cinema__phone-slot.is-split
   .scene5-cinema__text-col
   > [data-cineview-animate-host='cinema-split-ruler'] {
   width: 100%;
-  margin-top: min(calc(24 * var(--cineview-unit)), 2.6vh);
+  margin-top: min(calc(32 * var(--cineview-unit)), 2.6vh);
 }
 
 .scene5-cinema__cta-lead {
@@ -529,7 +536,7 @@
 .scene5-cinema__cta-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: min(calc(12 * var(--cineview-unit)), 12px);
+  gap: min(calc(16 * var(--cineview-unit)), 12px);
 }
 
 /* ── 本幕 scoped 按钮（2026-08-15 重做，取代照搬 global .btn）──────────────
@@ -595,14 +602,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: min(calc(18 * var(--cineview-unit)), 22px);
-  padding-top: min(calc(14 * var(--cineview-unit)), 16px);
+  gap: min(calc(24 * var(--cineview-unit)), 22px);
+  padding-top: min(calc(18.666667 * var(--cineview-unit)), 16px);
   border-top: 1px solid rgba(250, 248, 244, 0.14);
   font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0;
   color: rgba(250, 248, 244, 0.5);
-  margin-bottom: min(calc(4 * var(--cineview-unit)), 6px);
+  margin-bottom: min(calc(5.333333 * var(--cineview-unit)), 6px);
 }
 
 .scene5-cinema__footer-tagline {
@@ -612,7 +619,7 @@
 .scene5-cinema__footer-links {
   display: inline-flex;
   align-items: center;
-  gap: min(calc(14 * var(--cineview-unit)), 16px);
+  gap: min(calc(18.666667 * var(--cineview-unit)), 16px);
 }
 
 .scene5-cinema__footer-links a {
@@ -667,7 +674,7 @@
   position: absolute;
   inset: 0;
   border: 1px solid rgba(225, 164, 91, 0.35);
-  border-radius: calc(40 * var(--cineview-unit));
+  border-radius: calc(53.333333 * var(--cineview-unit));
   background: #0b0a0c;
   /* 2026-08-14(审计 act5-1):呼吸 glow 峰值 alpha 0.40→0.32、blur 20→16px、
    * spread 5→4px——熄灯 0.94 黑场下 90vh 手机的呼吸光晕是全屏唯一脉动高亮面,
@@ -680,8 +687,8 @@
 
 .phone-mockup__screen {
   position: absolute;
-  inset: calc(8 * var(--cineview-unit));
-  border-radius: calc(32 * var(--cineview-unit));
+  inset: calc(10.666667 * var(--cineview-unit));
+  border-radius: calc(42.666667 * var(--cineview-unit));
   background: #060507;
   overflow: hidden;
 }
@@ -689,12 +696,12 @@
 /* 摄像头岛剪影 */
 .phone-mockup__notch {
   position: absolute;
-  top: calc(18 * var(--cineview-unit));
+  top: calc(24 * var(--cineview-unit));
   left: 50%;
   transform: translateX(-50%);
-  width: calc(88 * var(--cineview-unit));
-  height: calc(22 * var(--cineview-unit));
-  border-radius: calc(11 * var(--cineview-unit));
+  width: calc(117.333333 * var(--cineview-unit));
+  height: calc(29.333333 * var(--cineview-unit));
+  border-radius: calc(14.666667 * var(--cineview-unit));
   background: rgba(0, 0, 0, 0.92);
   z-index: 2;
   pointer-events: none;
@@ -767,6 +774,10 @@
 
   .scene5-cinema__title-text {
     font-size: 28px;
+  }
+
+  .scene5-cinema[data-lang='zh'] .scene5-cinema__title-text {
+    font-size: min(28px, 9cqi);
   }
 
   .scene5-cinema__subtitle-text {
