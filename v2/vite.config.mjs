@@ -10,6 +10,8 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'framer-motion'],
   },
   esbuild: { jsx: 'automatic' },
+  // 2.0 sources use a build-time flag for craft warnings (v2/build.mjs defines it per build).
+  define: { __DEV__: 'true' },
   server: { host: '127.0.0.1', port: 4360, strictPort: true, fs: { allow: [here('..')] } },
   build: {
     outDir: here('./fixtures-dist'),

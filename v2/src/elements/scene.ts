@@ -2,7 +2,7 @@
  * <cv-scene>: one shot. Owns its timeline (solved from its animates in document order) and, in
  * scroll input, the sticky shell of a zone.
  */
-import { solveScene, type SceneSolution } from '../core/time';
+import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
 import { ElementBase } from '../platform';
 import type { CvAnimate } from './animate';
 import { CvStage } from './stage';
@@ -11,6 +11,8 @@ export class CvScene extends ElementBase {
   stage: CvStage | null = null;
   animates = new Set<CvAnimate>();
   solution: SceneSolution = { entranceEnd: 0, total: 0, byIndex: [], errors: [] };
+  /** Animates on the timeline, in the solver's index order. */
+  timed: CvAnimate[] = [];
   ordered: CvAnimate[] = [];
   shell: HTMLElement | null = null;
   /** Document offset and height, measured in refresh(). */
@@ -65,14 +67,27 @@ export class CvScene extends ElementBase {
     this.stage?.invalidate();
   }
 
-  /** Solve the timeline in document order. */
-  solve(): void {
+  /**
+   * Solve the timeline in document order. Drag runs exits on the page travel instead of scene time
+   * (1.x two-track), so they stay off the total there.
+   */
+  solve(exitsOnTimeline: boolean): Array<{ error: TimeError; element: Element }> {
     this.ordered = [...this.animates].sort((a, b) =>
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
     );
-    this.solution = solveScene(this.ordered.map((a) => a.timeSpec()));
-    this.ordered.forEach((a, i) => {
+    this.timed = this.ordered.filter((a) => a.timed);
+    const sequence = this.getAttribute('sequence');
+    this.solution = solveScene(
+      this.timed.map((a) => a.timeSpec()),
+      { sequence: sequence === null ? null : parseMs(sequence, 0), exitsOnTimeline }
+    );
+    for (const a of this.ordered) a.solved = null;
+    this.timed.forEach((a, i) => {
       a.solved = this.solution.byIndex[i] ?? null;
     });
+    return this.solution.errors.map((error) => ({
+      error,
+      element: this.timed[error.index] ?? this,
+    }));
   }
 }

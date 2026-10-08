@@ -86,8 +86,9 @@ export class CvStage extends ElementBase {
       for (const a of scene.animates) {
         a.build(a.plan({ timeSource }, (m) => this.report(m, a)));
       }
-      scene.solve();
-      for (const e of scene.solution.errors) this.report(e, scene);
+      for (const { error, element } of scene.solve(input === 'scroll')) {
+        this.report(error.message, element);
+      }
       if (input === 'scroll' && scene.isZone) {
         scene.style.height = `calc(100svh + ${scene.solution.total}px)`;
       }
