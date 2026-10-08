@@ -336,7 +336,10 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   /** The element's timeline (plan v3 §3.6): current frame and a subscription. */
   get timeline(): CvTimeline {
     if (!this.view) {
-      const frame = (): TimelineFrame => (this.run ? this.clockFrame() : this.lastFrame);
+      const frame = (): TimelineFrame =>
+        this.run
+          ? this.clockFrame()
+          : (this.scene?.stage?.engine?.frameOf?.(this) ?? this.lastFrame);
       this.view = {
         get frame(): TimelineFrame {
           return frame();
@@ -363,6 +366,11 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       };
     }
     return this.view;
+  }
+
+  /** Someone follows the timeline: inputs build and send it frames (others read on demand). */
+  get subscribed(): boolean {
+    return this.listeners.size > 0;
   }
 
   /** Inputs that compute time on the main thread (drag, zones): a frame, with its phase. */

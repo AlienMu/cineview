@@ -11,8 +11,14 @@ export default defineConfig({
   },
   esbuild: { jsx: 'automatic' },
   // 2.0 sources use a build-time flag for craft warnings (v2/build.mjs defines it per build).
-  define: { __DEV__: 'true' },
-  server: { host: '127.0.0.1', port: 4360, strictPort: true, fs: { allow: [here('..')] } },
+  // Measurements run without them (CV_DEV=0), as the production build would.
+  define: { __DEV__: process.env.CV_DEV === '0' ? 'false' : 'true' },
+  server: {
+    host: '127.0.0.1',
+    port: Number(process.env.CV_PORT ?? 4360),
+    strictPort: true,
+    fs: { allow: [here('..')] },
+  },
   build: {
     outDir: here('./fixtures-dist'),
     emptyOutDir: true,

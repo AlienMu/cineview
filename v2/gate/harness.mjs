@@ -12,6 +12,8 @@ import os from 'node:os';
 
 const PAGES = { v1: '/v1/index.html', v2: '/v2.html', plain: '/plain.html', 'v1-heavy': '/v1/heavy.html', 'v2-heavy': '/v2-heavy.html' };
 const ENGINES = { chrome: chromium, webkit, firefox };
+/** Chrome, or another Chromium build at CV_CHROMIUM (cloud container). */
+const CHROME = process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' };
 
 const INIT = () => {
   const m = (window.measure = { frames: [], loaf: [], long: [], active: false, last: 0 });
@@ -92,6 +94,11 @@ function frameStates(traceBuffer) {
       out.dropped++;
       if (r.affects_smoothness) out.droppedSmooth++;
     } else if (r.state === 'STATE_NO_UPDATE_DESIRED') out.noUpdate++;
+    // What partial and dropped frames had pending (reporter flags), for diagnosis.
+    if (r.state !== 'STATE_PRESENTED_ALL' && r.state !== 'STATE_NO_UPDATE_DESIRED') {
+      const k = `${r.state.slice(6)}:${r.frame_drop_reason ?? '-'}${r.has_main_animation ? '+mainAnim' : ''}${r.has_missing_content ? '+missing' : ''}${r.has_high_latency ? '+latency' : ''}`;
+      (out.why ??= {})[k] = (out.why[k] ?? 0) + 1;
+    }
     if (r.has_compositor_animation) out.compositorAnim++;
     if (r.has_main_animation) out.mainAnim++;
   }
@@ -110,6 +117,10 @@ function frameStates(traceBuffer) {
   return out;
 }
 
+// Headless Chromium builds without touch scrolling (Linux containers) ignore touch-sourced scroll
+// gestures on the document: CV_SCROLL_GESTURE=mouse scrolls there (drag still uses touch).
+const SCROLL_SOURCE = process.env.CV_SCROLL_GESTURE === 'mouse' ? 'mouse' : 'touch';
+
 /** Realistic constant-speed input via Chrome's gesture synthesizer; each gesture is marked in the trace. */
 async function moveGestures(page, cdp, mode) {
   const movement = [];
@@ -117,7 +128,7 @@ async function moveGestures(page, cdp, mode) {
   for (let i = 0; i < plan.length; i++) {
     await page.evaluate((n) => performance.mark(`cv-g${n}-start`), i);
     await cdp.send('Input.synthesizeScrollGesture', {
-      x: 195, y: plan[i] < 0 ? 700 : 150, yDistance: plan[i], speed: mode === 'drag' ? 1500 : 1200, gestureSourceType: 'touch',
+      x: 195, y: plan[i] < 0 ? 700 : 150, yDistance: plan[i], speed: mode === 'drag' ? 1500 : 1200, gestureSourceType: mode === 'drag' ? 'touch' : SCROLL_SOURCE,
     });
     // Scroll: the window ends with the gesture (no fling). Drag: it also covers the settle and playheads.
     if (mode !== 'drag') await page.evaluate((n) => performance.mark(`cv-g${n}-end`), i);
@@ -189,10 +200,10 @@ export async function measure(opts) {
   return result;
 }
 
-async function measureOnce({ impl, config, engine = 'chrome', cpuRate = 4, trace = false, gestures = true, layers = false, debug = false, stress = null, base = 'http://127.0.0.1:4360', browser: shared }) {
+async function measureOnce({ impl, config, engine = 'chrome', cpuRate = 4, trace = false, gestures = true, layers = false, debug = false, stress = null, base = process.env.CV_BASE ?? 'http://127.0.0.1:4360', browser: shared }) {
   const t0 = Date.now();
   const mark = (label) => debug && console.log(`  [${impl}] ${label} +${Date.now() - t0} ms`);
-  const browser = shared ?? (await ENGINES[engine].launch(engine === 'chrome' ? { channel: 'chrome' } : {}));
+  const browser = shared ?? (await ENGINES[engine].launch(engine === 'chrome' ? CHROME : {}));
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 3,
@@ -295,7 +306,7 @@ export const passes = (s) => s.hz >= 50 && s.p95 <= 25;
 
 /** Capacity: largest N per scene where the majority of runs pass (same criterion as 10-07). */
 export async function capacity({ impl, base: cfg, ns, runs = 3, engine = 'chrome', log = () => {} }) {
-  const browser = await ENGINES[engine].launch(engine === 'chrome' ? { channel: 'chrome' } : {});
+  const browser = await ENGINES[engine].launch(engine === 'chrome' ? CHROME : {});
   const results = [];
   let best = 0;
   try {

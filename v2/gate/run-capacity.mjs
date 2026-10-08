@@ -5,11 +5,11 @@ import { capacity, passes } from './harness.mjs';
  * Gate thresholds 3-5 (plan v3 §11): capacity per scene (agreed rAF criterion: mean >= 50 Hz and
  * P95 <= 25 ms, majority of 3 runs), plus dropped frames, LoAF, ready time and heap per sample.
  */
-export async function runCapacitySweep(output, { engine = 'chrome', ns = [64, 128, 256, 512, 1024, 2048], runs = 3 } = {}) {
+export async function runCapacitySweep(output, { engine = 'chrome', ns = [64, 128, 256, 512, 1024, 2048], runs = 3, v1 = true } = {}) {
   const cases = [];
   for (const workload of ['capacity', 'mix']) {
     for (const mode of ['scroll', 'drag']) {
-      cases.push({ impl: 'v1', cfg: { mode, scenes: 5, workload } });
+      if (v1) cases.push({ impl: 'v1', cfg: { mode, scenes: 5, workload } });
       cases.push({ impl: 'v2', cfg: { mode, scenes: 5, workload } });
       if (mode === 'scroll') cases.push({ impl: 'v2', cfg: { mode, scenes: 5, workload, fallback: true } });
     }

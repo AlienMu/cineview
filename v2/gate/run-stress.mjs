@@ -2,14 +2,14 @@ import { writeFile } from 'node:fs/promises';
 import { measure } from './harness.mjs';
 
 /** Decisive test for native vs direct writes in scroll input: does compositor animation survive main-thread blocking? */
-export async function runStress(output, { runs = 3 } = {}) {
+export async function runStress(output, { runs = 3, v1 = true } = {}) {
   const frames = (s) => { const f = s.frameStates; const tot = f.presented + f.partial + f.dropped; return +((100 * f.presented) / tot).toFixed(1); };
   const rows = [];
   for (const [label, impl, extra] of [
     ['v1', 'v1', {}],
     ['v2 native', 'v2', {}],
     ['v2 fallback', 'v2', { fallback: true }],
-  ]) {
+  ].filter(([, impl]) => v1 || impl !== 'v1')) {
     for (const stress of [null, { everyMs: 200, blockMs: 40 }]) {
       for (let r = 0; r < runs; r++) {
         const s = await measure({ impl, trace: true, stress, config: { mode: 'scroll', scenes: 5, animations: 128, ...extra } });

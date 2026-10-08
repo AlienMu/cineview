@@ -16,7 +16,7 @@ import { cubicBezier } from '../core/ease';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
-import type { TimelineFrame, TimelineSource } from '../core/timeline';
+import type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
 import { progressIn, writeLayer } from '../render/layers';
 import {
   cancelDuration,
@@ -776,7 +776,10 @@ class DragInput implements DragEngine {
       if (t > 0) this.departed.delete(i);
       for (const a of s.ordered) {
         this.writeAnimate(a, t, sceneView, offset, departure, side);
-        if (a.timed) a.sendFrame(this.frameFor(a, i, t, travel));
+        if (a.timed) {
+          if (a.subscribed) a.sendFrame(this.frameFor(a, i, t, travel));
+          else a.showPhase(this.phaseFor(a, i, t, travel));
+        }
         if (a.loopItems.length) {
           if (!a.solved || t >= a.solved.end) a.startLoops(this.stage.clock);
           else a.stopLoops();
@@ -793,23 +796,39 @@ class DragInput implements DragEngine {
     return this.heads.some(Boolean) ? 'continuation' : 'idle';
   }
 
-  /** The element's timeline frame in scene i (el.timeline, data-cv-phase, <cv-video>). */
+  /** The element's timeline frame in scene i (el.timeline, <cv-video>). */
   private frameFor(a: CvAnimate, i: number, t: number, travel: number): TimelineFrame {
     const source = this.source();
-    if (i === this.index && travel !== 0) {
+    const phase = this.phaseFor(a, i, t, travel);
+    if (phase === 'exiting') {
       // Departure on the page travel; leaving backwards is negative (1.x).
       const progress = Math.min(1, Math.abs(travel));
-      return { progress, signedProgress: Math.sign(travel) * progress, phase: 'exiting', source };
+      return { progress, signedProgress: Math.sign(travel) * progress, phase, source };
     }
-    const left = this.departed.get(i);
-    if (left !== undefined && t === 0) {
-      return { progress: 1, signedProgress: left, phase: 'exited', source };
+    if (phase === 'exited') {
+      return { progress: 1, signedProgress: this.departed.get(i)!, phase, source };
     }
     const w = a.solved;
     const p = w ? progressIn(t, w.start, w.end) : t > 0 ? 1 : 0;
-    const incoming = i !== this.index && Math.abs(this.pos - i) < 1;
-    const phase = p >= 1 ? 'entered' : p > 0 || incoming || i === this.index ? 'entering' : 'idle';
     return { progress: p, signedProgress: p, phase, source };
+  }
+
+  /** The phase alone (data-cv-phase), without building a frame: runs per frame for every element. */
+  private phaseFor(a: CvAnimate, i: number, t: number, travel: number): TimelinePhase {
+    if (i === this.index && travel !== 0) return 'exiting';
+    if (t === 0 && this.departed.has(i)) return 'exited';
+    const w = a.solved;
+    const p = w ? progressIn(t, w.start, w.end) : t > 0 ? 1 : 0;
+    if (p >= 1) return 'entered';
+    // Incoming during a page travel, or the current scene before its time starts.
+    return p > 0 || i === this.index || Math.abs(this.pos - i) < 1 ? 'entering' : 'idle';
+  }
+
+  /** el.timeline read: frames are sent only to subscribed elements. */
+  frameOf(a: CvAnimate): TimelineFrame | null {
+    const i = a.scene ? this.scenes.indexOf(a.scene) : -1;
+    if (i < 0 || this.destroyed) return null;
+    return this.frameFor(a, i, this.times[i] ?? 0, this.pos - this.index);
   }
 
   private writeAnimate(

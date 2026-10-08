@@ -48,20 +48,6 @@ export interface Frame {
 
 type NumericProp = Exclude<Prop, 'clip'>;
 
-const ADDITIVE: readonly NumericProp[] = [
-  'x',
-  'y',
-  'xp',
-  'yp',
-  'rotate',
-  'rx',
-  'ry',
-  'skx',
-  'sky',
-  'blur',
-];
-const MULTIPLICATIVE: readonly NumericProp[] = ['scale', 'sx', 'sy', 'opacity'];
-
 export const IDENTITY: Readonly<Record<NumericProp, number>> = {
   x: 0,
   y: 0,
@@ -82,16 +68,31 @@ export const NO_CLIP: Clip = [0, 0, 0, 0];
 
 export const identityFrame = (): Frame => ({ ...IDENTITY, clip: null });
 
+// Per-frame paths (direct writes run these per layer per frame): named fields, no keyed access.
+// Additive: x y xp yp rotate rx ry skx sky blur; multiplicative: scale sx sy opacity.
 export function resetFrame(frame: Frame): void {
-  for (const p of ADDITIVE) frame[p] = 0;
-  for (const p of MULTIPLICATIVE) frame[p] = 1;
+  frame.x = frame.y = frame.xp = frame.yp = 0;
+  frame.rotate = frame.rx = frame.ry = frame.skx = frame.sky = frame.blur = 0;
+  frame.scale = frame.sx = frame.sy = frame.opacity = 1;
   frame.clip = null;
 }
 
 /** Fold b into a (same-source composition). */
 export function combine(a: Frame, b: Frame): void {
-  for (const p of ADDITIVE) a[p] += b[p];
-  for (const p of MULTIPLICATIVE) a[p] *= b[p];
+  a.x += b.x;
+  a.y += b.y;
+  a.xp += b.xp;
+  a.yp += b.yp;
+  a.rotate += b.rotate;
+  a.rx += b.rx;
+  a.ry += b.ry;
+  a.skx += b.skx;
+  a.sky += b.sky;
+  a.blur += b.blur;
+  a.scale *= b.scale;
+  a.sx *= b.sx;
+  a.sy *= b.sy;
+  a.opacity *= b.opacity;
   if (b.clip) a.clip = b.clip;
 }
 
@@ -108,10 +109,52 @@ export function applyTrack(frame: Frame, prop: Prop, from: Value, to: Value, t: 
       lerp(f[2], g[2], t),
       lerp(f[3], g[3], t),
     ];
-  } else if ((MULTIPLICATIVE as readonly Prop[]).includes(prop)) {
-    frame[prop] *= lerp(from as number, to as number, t);
-  } else {
-    frame[prop] += lerp(from as number, to as number, t);
+    return;
+  }
+  const v = lerp(from as number, to as number, t);
+  switch (prop) {
+    case 'scale':
+      frame.scale *= v;
+      break;
+    case 'sx':
+      frame.sx *= v;
+      break;
+    case 'sy':
+      frame.sy *= v;
+      break;
+    case 'opacity':
+      frame.opacity *= v;
+      break;
+    case 'x':
+      frame.x += v;
+      break;
+    case 'y':
+      frame.y += v;
+      break;
+    case 'xp':
+      frame.xp += v;
+      break;
+    case 'yp':
+      frame.yp += v;
+      break;
+    case 'rotate':
+      frame.rotate += v;
+      break;
+    case 'rx':
+      frame.rx += v;
+      break;
+    case 'ry':
+      frame.ry += v;
+      break;
+    case 'skx':
+      frame.skx += v;
+      break;
+    case 'sky':
+      frame.sky += v;
+      break;
+    case 'blur':
+      frame.blur += v;
+      break;
   }
 }
 

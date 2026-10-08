@@ -6,7 +6,7 @@ import { measure } from './harness.mjs';
  * Long frame = rAF gap > 50 ms (applied to 1.x the same way). Firefox has no scroll-driven animations,
  * so 2.0 runs its direct-write path automatically.
  */
-export async function runEngines(output, { runs = 3, engines = ['webkit', 'firefox'] } = {}) {
+export async function runEngines(output, { runs = 3, engines = ['webkit', 'firefox'], v1 = true } = {}) {
   const rows = [];
   const cases = [];
   for (const engine of engines) {
@@ -20,7 +20,7 @@ export async function runEngines(output, { runs = 3, engines = ['webkit', 'firef
       cases.push({ engine, label: `heavy ${mode} v2`, impl: 'v2-heavy', cfg: { mode, scenes: 20, animations: 16, copy: 400, author: 'contract' } });
     }
   }
-  for (const c of cases) {
+  for (const c of cases.filter((c) => v1 || !c.impl.startsWith('v1'))) {
     for (let r = 0; r < runs; r++) {
       const s = await measure({ impl: c.impl, engine: c.engine, config: c.cfg, timeoutMs: 180000 });
       const row = { engine: c.engine, label: c.label, run: r + 1, hang: !!s.hang, hz: +(s.hz ?? 0).toFixed(1), p95: +(s.p95 ?? 0).toFixed(1), gaps50: s.gaps50 ?? null, maxGap: Math.round(s.maxGap ?? 0), readyMs: Math.round(s.readyMs ?? 0), movement: s.movement, errors: s.errors?.length ?? 0 };

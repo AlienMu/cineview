@@ -1,3 +1,6 @@
+import type { TimelineFrame } from '../core/timeline';
+import type { CvAnimate } from '../elements/animate';
+
 /**
  * The contract between <cv-stage> and an input. The stage owns structure (registration, solving,
  * layers); the input owns motion: it decides each scene's time and position and is the only writer
@@ -10,4 +13,9 @@ export interface InputEngine {
   currentIndex(): number;
   /** Inputs that page (drag) navigate themselves; scroll input leaves this to the stage. */
   goTo?(index: number, options?: { animated?: boolean }): void;
+  /**
+   * An element's frame when its time comes from this input (drag, zones), computed on read:
+   * inputs send frames only to subscribed elements. Null: the element keeps its own.
+   */
+  frameOf?(a: CvAnimate): TimelineFrame | null;
 }

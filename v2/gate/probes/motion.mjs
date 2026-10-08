@@ -79,6 +79,13 @@ try {
       const off = frames.slice(1).map((f, i) => (near(f[id], target) ? null : `frame ${i + 1}: ${fmt(f[id])}`)).filter(Boolean);
       check(off.length === 0, `${mode}: ${label}: ${id} at ${fmt(target)} from the first frame`, off.join(', '));
     }
+    // el.timeline read without a subscriber, and data-cv-phase, in a zone.
+    const tl = [];
+    for (const d of [200, 500]) {
+      await settled(g.z1 + d, 'z1a');
+      tl.push(await page.evaluate(() => { const a = document.getElementById('z1a'); const f = a.timeline.frame; return { p: +f.progress.toFixed(3), phase: f.phase, attr: a.getAttribute('data-cv-phase') }; }));
+    }
+    check(tl[0].p === 0.5 && tl[0].phase === 'entering' && tl[0].attr === 'entering' && tl[1].p === 1 && tl[1].phase === 'entered' && tl[1].attr === 'entered', `${mode}: zone element timeline read and data-cv-phase follow scroll`, JSON.stringify(tl));
     const e = await page.evaluate(() => ({ e0: window.shown('e0'), e2: window.shown('e2'), running: document.getElementById('e2').shadowRoot.querySelector('.l').getAnimations().filter((a) => a.playState === 'running').length }));
     check(e.e0.opacity === 1, `${mode}: first-screen entrance stays entered through the jumps`, fmt(e.e0));
     check((e.e2.opacity === 0 || e.e2.opacity === 1) && !e.running, `${mode}: entrance jumped over is not left mid-way`, JSON.stringify(e));
@@ -170,6 +177,10 @@ try {
       JSON.stringify({ ev, state })
     );
   }
+  await page.evaluate(() => document.getElementById('s').goTo(1));
+  await page.waitForTimeout(1500);
+  const a1 = await page.evaluate(() => { const a = document.getElementById('a1'); const f = a.timeline.frame; return { p: f.progress, phase: f.phase, attr: a.getAttribute('data-cv-phase') }; });
+  check(a1.p === 1 && a1.phase === 'entered' && a1.attr === 'entered', 'drag: element timeline read and data-cv-phase after the entrance', JSON.stringify(a1));
   const errors = await page.evaluate(() => window.cvErrors);
   check(errors.length === 0, 'drag: no cv-error', JSON.stringify(errors));
   await page.close();

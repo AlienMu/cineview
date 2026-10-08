@@ -7,9 +7,9 @@ import { measure } from './harness.mjs';
  * 2.0 with a naive author (everything starts at load) and with the cv-activate/cv-deactivate contract.
  */
 /** Load each page once so Vite's first-visit dependency optimisation (and its reload) happens outside measurement. */
-async function warmUp(paths, base = 'http://127.0.0.1:4360') {
+async function warmUp(paths, base = process.env.CV_BASE ?? 'http://127.0.0.1:4360') {
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch({ channel: 'chrome' });
+  const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
   for (const p of paths) {
     const page = await browser.newPage();
     await page.goto(base + p);
@@ -19,13 +19,14 @@ async function warmUp(paths, base = 'http://127.0.0.1:4360') {
   await browser.close();
 }
 
-export async function runHeavy(output, { copies = [40, 160, 400], runs = 3 } = {}) {
+/** Without 1.x (v1: false) there is no calibration: `copies` holds the copy to use (phase 0: 400). */
+export async function runHeavy(output, { copies = [40, 160, 400], runs = 3, v1 = true } = {}) {
   const report = { started: new Date().toISOString(), calibration: [], comparison: [] };
-  await warmUp(['/v1/heavy.html', '/v2-heavy.html']);
+  await warmUp(v1 ? ['/v1/heavy.html', '/v2-heavy.html'] : ['/v2-heavy.html']);
   const frames = (s) => { const f = s.frameStates; const tot = (f.presented ?? 0) + (f.partial ?? 0) + (f.dropped ?? 0); return tot ? +((100 * (f.presented ?? 0)) / tot).toFixed(1) : null; };
   const pick = (s) => ({ hang: !!s.hang, completePct: s.hang ? null : frames(s), readyMs: Math.round(s.readyMs), hz: +(s.hz ?? 0).toFixed(1), p95: +(s.p95 ?? 0).toFixed(1), loaf50: s.loaf50, loafMax: Math.round(s.loafMax), loafNoScriptMax: Math.round(s.loafNoScriptMax), dropped: +(s.frameStates?.droppedPct ?? 100).toFixed(1), heapMB: +(s.heapMB ?? 0).toFixed(0), nodes: s.nodes, movement: s.movement, errors: s.errors?.length ?? 0 });
   let chosen = copies.at(-1);
-  for (const copy of copies) {
+  for (const copy of v1 ? copies : []) {
     const s = await measure({ impl: 'v1-heavy', trace: true, config: { mode: 'drag', scenes: 20, animations: 16, copy } });
     report.calibration.push({ copy, ...pick(s) });
     console.log('calibrate', copy, JSON.stringify(pick(s)));
@@ -40,7 +41,7 @@ export async function runHeavy(output, { copies = [40, 160, 400], runs = 3 } = {
     ['scroll v2 native', 'v2-heavy', { mode: 'scroll', author: 'contract' }],
     ['scroll v2 fallback', 'v2-heavy', { mode: 'scroll', author: 'contract', fallback: true }],
   ];
-  for (const [label, impl, extra] of cases) {
+  for (const [label, impl, extra] of cases.filter(([, impl]) => v1 || impl !== 'v1-heavy')) {
     for (let r = 0; r < runs; r++) {
       const s = await measure({ impl, trace: true, config: { scenes: 20, animations: 16, copy: chosen, ...extra } });
       report.comparison.push({ label, run: r + 1, ...pick(s) });

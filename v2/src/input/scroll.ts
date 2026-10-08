@@ -8,7 +8,7 @@
  * `view(self)` subjects, all before any write.
  */
 import { compositorEligible } from '../core/props';
-import type { TimelineFrame } from '../core/timeline';
+import type { TimelineFrame, TimelinePhase } from '../core/timeline';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
@@ -54,8 +54,6 @@ export class ScrollInput implements InputEngine {
   /** Scenes crossing the viewport's middle line (current scene). */
   private centerIo: IntersectionObserver;
   private atCenter = new Set<number>();
-  /** Zones inside the activation window: their progress events need the frame loop. */
-  private activeZones = 0;
   private ro: ResizeObserver;
   private enter: EnterController;
   private pageTimeline: AnimationTimeline | null = null;
@@ -81,6 +79,8 @@ export class ScrollInput implements InputEngine {
         if (!this.destroyed) this.queueFrame();
       });
     }
+    // A rebuild re-solves elements: every zone publishes afresh.
+    for (const s of this.scenes) s.frameTime = Number.NaN;
     this.refresh();
     if (this.native) this.startNative();
     this.bindEnter();
@@ -104,10 +104,6 @@ export class ScrollInput implements InputEngine {
             new CustomEvent(s.active ? 'cv-activate' : 'cv-deactivate', { bubbles: true })
           );
         }
-        const zones = this.scenes.filter((s) => s.isZone && s.active).length;
-        // A zone leaving the window (also by a jump) gets its end value reported.
-        if (zones !== this.activeZones || zones) this.queueFrame();
-        this.activeZones = zones;
       },
       { rootMargin: '100% 0px 100% 0px' }
     );
@@ -184,10 +180,16 @@ export class ScrollInput implements InputEngine {
     this.queueFrame();
   };
 
-  /** Direct-write layers, gates and zone loop gates follow scroll here; pure native pages skip it. */
+  /**
+   * Zone state (data-cv-stuck, cv-progress, data-cv-phase, subscribed timelines) follows the scroll
+   * event itself; direct-write layers, gates and zone loop gates follow in a frame. Pure native
+   * pages request no frames: per-frame main-thread work would cost them the compositor's
+   * independence from a busy main thread (phase-0 blocking test).
+   */
   private onScroll = (): void => {
     this.lastScroll = performance.now();
-    if (this.native && !this.hasJsWork() && !this.activeZones) return;
+    this.zoneWork();
+    if (this.native && !this.hasJsWork()) return;
     this.queueFrame();
   };
 
@@ -223,25 +225,21 @@ export class ScrollInput implements InputEngine {
     const vh = this.vh;
     const work: Array<{ layer: Layer; p: number; px: number }> = [];
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
-    const zones: Array<{ s: CvScene; index: number; t: number }> = [];
     const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
     const gated = this.enter.measure((a) => a.scene !== null && isNear(a.scene));
     const page = Math.min(Math.max(y / Math.max(1, this.docHeight - vh), 0), 1);
-    this.scenes.forEach((s, index) => {
-      if (s.isZone)
-        zones.push({ s, index, t: Math.min(Math.max(y - s.docTop, 0), s.solution.total) });
-    });
     for (const s of this.scenes) {
       const near = isNear(s);
       if (!near) {
         if (s.isZone) for (const a of s.ordered) if (a.looping) loops.push({ a, on: false });
         continue;
       }
-      const t = s.isZone ? Math.min(Math.max(y - s.docTop, 0), s.solution.total) : 0;
+      const zone = s.isZone;
+      const t = zone ? Math.min(Math.max(y - s.docTop, 0), s.solution.total) : 0;
       const sceneView = (y + vh - s.docTop) / (vh + s.height);
       for (const a of s.ordered) {
         // Zone loops run once the entrance is complete (1.x: playable phase and visible).
-        if (s.isZone && a.loopItems.length) loops.push({ a, on: !a.solved || t >= a.solved.end });
+        if (zone && a.loopItems.length) loops.push({ a, on: !a.solved || t >= a.solved.end });
         let selfView = Number.NaN;
         for (const layer of a.layers) {
           // Native layers are driven by the compositor; skip them without further work.
@@ -268,19 +266,43 @@ export class ScrollInput implements InputEngine {
       }
     }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
-    // Zone timelines (el.timeline, data-cv-phase, <cv-video>) when the zone's time moved.
-    for (const { s, t } of zones) {
-      if (t === s.frameTime) continue;
-      s.frameTime = t;
-      for (const a of s.ordered) if (a.timed) a.sendFrame(zoneFrame(a, t));
-    }
     this.enter.apply(gated, vh, this.unit);
     for (const { a, on } of loops) {
       if (on) a.startLoops(this.clock);
       else a.stopLoops();
     }
-    // Last: listeners may read layout.
-    for (const z of zones) reportZone(z.s, z.index, z.t);
+    // Last: listeners may read layout. Covers changes without a scroll event (refresh, load).
+    // The offset read above: reading it again after the writes would force a style recalc.
+    this.zoneWork(y);
+  }
+
+  /**
+   * Zones whose time moved: phase attributes, subscribed element timelines (<cv-video>), then
+   * `data-cv-stuck` and `cv-progress`. A few comparisons per element; frames are built only for
+   * subscribers (others compute theirs on read, frameOf). Every zone is visited, so one jumped
+   * over still lands on its end value.
+   */
+  private zoneWork(y = window.scrollY): void {
+    this.scenes.forEach((s, index) => {
+      if (!s.isZone) return;
+      const t = Math.min(Math.max(y - s.docTop, 0), s.solution.total);
+      if (t !== s.frameTime) {
+        s.frameTime = t;
+        for (const a of s.ordered) {
+          if (!a.timed) continue;
+          if (a.subscribed) a.sendFrame(zoneFrame(a, t));
+          else a.showPhase(zonePhase(a, t));
+        }
+      }
+      reportZone(s, index, t);
+    });
+  }
+
+  /** An element's current frame (el.timeline read): zone elements only; others keep their own. */
+  frameOf(a: CvAnimate): TimelineFrame | null {
+    const s = a.scene;
+    if (!s?.isZone || this.destroyed) return null;
+    return zoneFrame(a, Math.min(Math.max(window.scrollY - s.docTop, 0), s.solution.total));
   }
 
   private selfView(a: CvAnimate, vh: number): number {
@@ -448,6 +470,16 @@ function reportZone(s: CvScene, index: number, t: number): void {
       detail: { kind: 'zone', index, progress: total > 0 ? t / total : 0 },
     })
   );
+}
+
+/** The phase alone, without building a frame (runs per scroll event for every zone element). */
+function zonePhase(a: CvAnimate, t: number): TimelinePhase {
+  const w = a.solved;
+  if (!w) return 'idle';
+  if (w.exitDuration > 0 && t > w.exitStart) {
+    return progressIn(t, w.exitStart, w.exitEnd) >= 1 ? 'exited' : 'exiting';
+  }
+  return progressIn(t, w.start, w.end) >= 1 ? 'entered' : 'entering';
 }
 
 /** An element's timeline frame in a zone: scene time from scroll. */
