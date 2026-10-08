@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 /**
  * P1.8 <cv-video>: scrub under drag (gesture and continuation), native tail after a short range,
@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
  * clock-played entrance. Fixture video: v2/fixtures/media/clip.webm (4 s, all keyframes).
  */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
-const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
+const browser = await launch();
 let failed = 0;
 const check = (ok, label, detail = '') => {
   if (!ok) failed++;

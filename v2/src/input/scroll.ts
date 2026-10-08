@@ -363,8 +363,7 @@ export class ScrollInput implements InputEngine {
               ? new VT({ subject: a, axis: 'block' })
               : s.timeline;
         const keyframes = zone ? sceneKeyframes(layer, w, s.solution.total) : layerKeyframes(layer);
-        clearLayer(layer);
-        layer.native = layer.el.animate(keyframes, {
+        const native = layer.el.animate(keyframes, {
           timeline,
           ...(page
             ? {}
@@ -375,7 +374,15 @@ export class ScrollInput implements InputEngine {
           fill: 'both',
           easing: 'linear',
         } as KeyframeAnimationOptions);
-        a.natives.push(layer.native);
+        layer.native = native;
+        // The direct-written value stays under the animation until it takes effect: a new
+        // scroll-driven animation is pending for a frame, and clearing it now would show the
+        // unanimated layer for that frame (a jump into a zone that just entered the window).
+        void native.ready.then(
+          () => layer.native === native && clearLayer(layer),
+          () => undefined
+        );
+        a.natives.push(native);
         this.live++;
         made++;
       }

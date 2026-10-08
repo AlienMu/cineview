@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 /**
  * React 19 with the 2.0 elements (P1.10): client render and SSR markup + hydration, with cineview
@@ -12,7 +12,7 @@ import { chromium } from 'playwright';
  * reports them and leaves them in place); any other difference fails.
  */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
-const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
+const browser = await launch();
 let failed = 0;
 const check = (ok, label, detail = '') => {
   if (!ok) failed++;

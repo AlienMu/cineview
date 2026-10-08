@@ -1,8 +1,8 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 /** P1.4 output behaviours, asserted against the spec (loops, pause, reduced motion, native budget). */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
-const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
+const browser = await launch();
 let failed = 0;
 const check = (ok, label, detail = '') => {
   if (!ok) failed++;

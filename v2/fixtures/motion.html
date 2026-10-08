@@ -1,0 +1,60 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>motion fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  .box{display:block;height:80px;width:200px;margin:0 20px;background:#b3ded6}
+  .gap{height:1200px}
+</style></head>
+<body>
+<script type="module">
+  // P1.11: forward/reverse and large scroll deltas over zones and entrances (?fallback).
+  history.scrollRestoration = 'manual';
+  const fallback = new URLSearchParams(location.search).has('fallback');
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${fallback ? ' fallback' : ''}>
+    <cv-scene id="s0">
+      <cv-animate id="e0" fx="fade" duration="300"><div class="box"></div></cv-animate>
+      <div class="gap"></div>
+    </cv-scene>
+    <cv-scene zone id="z1">
+      <cv-animate id="z1a" fx="rise" ease="linear" duration="400"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="s2">
+      <div class="gap"></div>
+      <cv-animate id="e2" fx="fade" duration="300"><div class="box"></div></cv-animate>
+      <div class="gap"></div>
+    </cv-scene>
+    <cv-scene zone id="z3">
+      <cv-animate id="z3a" fx="rise" ease="linear" duration="800"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="s4"><div class="gap"></div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  // Composed value of an element's layers: opacity product, vertical translate sum.
+  window.shown = (id) => {
+    let opacity = 1, y = 0;
+    for (const l of document.getElementById(id).shadowRoot.querySelectorAll('.l')) {
+      const cs = getComputedStyle(l);
+      opacity *= Number(cs.opacity);
+      if (cs.translate !== 'none') y += parseFloat(cs.translate.split(' ')[1] ?? '0');
+    }
+    return { opacity, y };
+  };
+  // Jump in one step, then the composed values at each of the next n frames.
+  window.jump = (y, ids, n = 4) =>
+    new Promise((resolve) => {
+      scrollTo(0, y);
+      const frames = [];
+      const tick = () => {
+        frames.push(Object.fromEntries(ids.map((id) => [id, window.shown(id)])));
+        if (frames.length < n) requestAnimationFrame(tick);
+        else resolve(frames);
+      };
+      requestAnimationFrame(tick);
+    });
+  await import('@v2');
+</script>
+</body></html>

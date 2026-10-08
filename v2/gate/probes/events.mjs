@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 /**
  * P1.9 events and errors: cv-ready once, cv-enter / cv-leave with details under scroll (middle of
@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
  * on links), development-build console output (errors and craft warnings).
  */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
-const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
+const browser = await launch();
 let failed = 0;
 const check = (ok, label, detail = '') => {
   if (!ok) failed++;

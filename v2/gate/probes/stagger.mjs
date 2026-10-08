@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 /**
  * Stagger in a zone: child k plays over [100k, 100k + 400] ms of zone time (linear ease), so at
@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
  * Asserted on both output paths (native scroll timeline and direct writes).
  */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
-const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
+const browser = await launch();
 let failed = 0;
 try {
   // Vite reloads a page on its first visit (dependency optimisation); warm up before measuring.
