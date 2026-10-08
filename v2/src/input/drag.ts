@@ -13,7 +13,7 @@ import { progressIn, writeLayer } from '../render/layers';
 import type { InputEngine } from './engine';
 
 const INTERACTIVE =
-  'a,button,input,textarea,select,option,summary,[contenteditable=""],[contenteditable="true"],[data-cv-ignore-drag],[data-cineview-ignore-drag]';
+  'a,button,input,textarea,select,option,summary,[contenteditable=""],[contenteditable="true"],[role=button],cv-pause,[data-cv-ignore-drag],[data-cineview-ignore-drag]';
 const VELOCITY_WINDOW_MS = 100;
 
 interface Sample {
@@ -351,6 +351,7 @@ class Drag implements InputEngine {
       else s.setAttribute('aria-hidden', 'true');
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
       s.toggleAttribute('data-cv-active', active);
+      if (!inWindow) for (const a of s.ordered) a.stopLoops();
       if (this.inWindow[i] !== inWindow) {
         this.inWindow[i] = inWindow;
         s.dispatchEvent(
@@ -371,7 +372,14 @@ class Drag implements InputEngine {
       const t = this.times[i] ?? 0;
       // Scene passage through the viewport, same formula as scroll "cover" (plan v3 §9.3).
       const sceneView = (vh - offset) / (2 * vh);
-      for (const a of s.ordered) this.writeAnimate(a, t, sceneView, offset);
+      for (const a of s.ordered) {
+        this.writeAnimate(a, t, sceneView, offset);
+        // Loops run once the element's entrance is complete, while its scene is in the window.
+        if (a.loopItems.length) {
+          if (!a.solved || t >= a.solved.end) a.startLoops(this.stage.clock);
+          else a.stopLoops();
+        }
+      }
     }
   }
 

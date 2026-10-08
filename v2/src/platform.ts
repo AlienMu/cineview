@@ -36,3 +36,14 @@ export function whenIdle(step: (deadline?: IdleDeadlineLike) => void, timeout = 
   if (idle) idle.call(window, step, { timeout });
   else setTimeout(step, 0);
 }
+
+/** prefers-reduced-motion, live. Listeners run when the preference changes. */
+const reduceQuery =
+  isBrowser && typeof matchMedia === 'function'
+    ? matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+export const prefersReducedMotion = (): boolean => reduceQuery?.matches ?? false;
+export function onReducedMotionChange(listener: () => void): () => void {
+  reduceQuery?.addEventListener('change', listener);
+  return () => reduceQuery?.removeEventListener('change', listener);
+}

@@ -2,7 +2,7 @@
 import { define } from './elements/define';
 import { isBrowser } from './platform';
 
-export { CvAnimate, CvScene, CvStage } from './elements/define';
+export { CvAnimate, CvPause, CvScene, CvStage } from './elements/define';
 export { defineEffect, presetNames, type EffectDefinition } from './core/fx';
 
 /**
@@ -15,6 +15,7 @@ if (isBrowser && !document.getElementById('cv-boot-style')) {
   style.id = 'cv-boot-style';
   style.textContent =
     'cv-stage,cv-scene,cv-animate{display:block}' +
+    'cv-pause{cursor:pointer}' +
     'cv-stage[input=drag]{position:fixed;inset:0;overflow:hidden}' +
     'cv-stage[input=drag]>cv-scene{position:absolute;inset:0}' +
     'cv-stage[input=drag]>cv-scene:nth-of-type(n+3){content-visibility:hidden}';

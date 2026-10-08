@@ -23,6 +23,8 @@ export class CvScene extends ElementBase {
   height = 0;
   timeline: AnimationTimeline | null = null;
   nativeAttached = false;
+  /** Attached, but some eligible layers wait for native budget. */
+  nativePending = false;
   nativeGeneration = 0;
 
   get isZone(): boolean {

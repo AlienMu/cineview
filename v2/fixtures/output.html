@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>output fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  .box{display:block;height:80px;width:80px;margin:20px;background:#b3ded6}
+  .grid{display:grid;grid-template-columns:repeat(15,1fr);gap:2px;padding:10px}
+  .cell{height:20px;background:#b3ded6}
+</style></head>
+<body>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  let html;
+  if (q.has('budget')) {
+    // 3 zones x 150 compositor-eligible elements; two zones fall in the native window at load.
+    const cells = Array.from({ length: 150 }, () => '<cv-animate from="opacity:0; y:20" duration="600"><div class="cell"></div></cv-animate>').join('');
+    html = `<cv-stage>${[0, 1, 2].map((i) => `<cv-scene zone id="z${i}"><div class="grid">${cells}</div></cv-scene>`).join('')}<cv-scene style="height:300vh"></cv-scene></cv-stage>`;
+  } else {
+    html = `<cv-stage id="s">
+      <cv-scene>
+        <cv-animate id="a1" fx="rise" duration="300" loop="pulse"><div class="box"></div></cv-animate>
+        <cv-animate id="a2" loop="opacity: 1 .45 1; --glow: 0 1 0" loop-duration="1.6s"><div class="box"></div></cv-animate>
+        <cv-animate id="d1" fx="drift"><div class="box"></div></cv-animate>
+        <cv-pause id="p"></cv-pause>
+      </cv-scene>
+      <cv-scene zone id="z"><cv-animate id="z1" fx="fade" duration="300" loop="float"><div class="box"></div></cv-animate></cv-scene>
+      <cv-scene style="height:200vh"></cv-scene>
+    </cv-stage>`;
+  }
+  document.body.insertAdjacentHTML('afterbegin', html);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

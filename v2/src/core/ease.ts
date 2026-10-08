@@ -4,9 +4,16 @@
  * (1.x scrubbed linearly and eased only clock playback; 2.0 treats easing as part of the effect.)
  */
 
-export type Ease = (t: number) => number;
+/** A curve, plus its CSS form so clock animations can hand it to the browser as is. */
+export type Ease = ((t: number) => number) & { readonly css?: string };
+
+const withCss = (fn: (t: number) => number, css: string): Ease => Object.assign(fn, { css });
 
 export function cubicBezier(x1: number, y1: number, x2: number, y2: number): Ease {
+  return withCss(bezier(x1, y1, x2, y2), `cubic-bezier(${x1}, ${y1}, ${x2}, ${y2})`);
+}
+
+function bezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
   const ax = 3 * x1 - 3 * x2 + 1;
   const bx = 3 * x2 - 6 * x1;
   const cx = 3 * x1;
@@ -41,7 +48,7 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): Eas
   };
 }
 
-export const linear: Ease = (t) => t;
+export const linear: Ease = withCss((t) => t, 'linear');
 
 /**
  * Named curves. `settle` and `pan` are the lexicon's own tokens (house.css `--settle`,

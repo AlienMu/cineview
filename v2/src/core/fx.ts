@@ -53,6 +53,8 @@ export interface Effect {
   origin: string | null;
   /** Suggested duration (ms) when the element sets none. */
   duration: number | null;
+  /** Decorative motion dropped under prefers-reduced-motion (plan v3 §13: parallax drift). */
+  reducible: boolean;
 }
 
 type Report = (message: string) => void;
@@ -64,6 +66,7 @@ interface EffectInit {
   origin?: string | null;
   duration?: number | null;
   range?: readonly [number, number];
+  reducible?: boolean;
 }
 
 export function makeEffect(init: EffectInit): Effect {
@@ -79,6 +82,7 @@ export function makeEffect(init: EffectInit): Effect {
     own: init.own ?? null,
     origin: init.origin ?? null,
     duration: init.duration ?? null,
+    reducible: init.reducible ?? false,
   };
 }
 
@@ -88,7 +92,13 @@ export function asExit(e: Effect): Effect {
   for (const [p, from, to] of e.entries) tracks[p] = [to, from];
   const ease = e.ease;
   return {
-    ...makeEffect({ tracks, ease: (t) => 1 - ease(1 - t), own: e.own, origin: e.origin }),
+    ...makeEffect({
+      tracks,
+      ease: (t) => 1 - ease(1 - t),
+      own: e.own,
+      origin: e.origin,
+      reducible: e.reducible,
+    }),
     range: [1 - e.range[1], 1 - e.range[0]],
   };
 }
@@ -251,7 +261,12 @@ presets.set('drift', (args, report) => {
     'px',
   ]);
   const track: Prop = a.unit === '%' ? 'yp' : 'y';
-  return makeEffect({ tracks: { [track]: [-a.value, a.value] }, ease: linear, own: 'view' });
+  return makeEffect({
+    tracks: { [track]: [-a.value, a.value] },
+    ease: linear,
+    own: 'view',
+    reducible: true,
+  });
 });
 
 // 1.x presets still used on the site, with their exact 1.x values (1.x played them ease-in-out).

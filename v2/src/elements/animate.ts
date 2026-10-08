@@ -3,7 +3,8 @@
  * themselves are built by render/layers.ts and written by whichever input drives the stage.
  */
 import { parseEase } from '../core/ease';
-import { parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import { makeEffect, parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import { parseLoop, type LoopItem } from '../core/loop';
 import {
   parseAfter,
   parseAt,
@@ -14,6 +15,7 @@ import {
 } from '../core/time';
 import { warn } from '../dev/warn';
 import { ElementBase } from '../platform';
+import type { Clock } from '../render/clock';
 import {
   buildLayers,
   buildTargetLayers,
@@ -39,6 +41,23 @@ const SOURCES: ReadonlySet<string> = new Set<Source>([
   'direction',
 ]);
 const TIMING_ATTRIBUTES = ['duration', 'delay', 'after', 'at', 'stagger'];
+/** Sources that play on a clock rather than follow the reader's input. */
+const CLOCK_PLAYED: ReadonlySet<Source> = new Set<Source>(['enter', 'eye', 'clock']);
+/** Reduced motion: a clock-played entrance is at most a short fade (plan v3 §13). */
+const REDUCED_DURATION = 200;
+
+/** Keep only opacity; null when nothing is left (the element shows its final state at once). */
+function opacityOnly(e: Effect): Effect | null {
+  const opacity = e.tracks.opacity;
+  if (!opacity) return null;
+  return { ...makeEffect({ tracks: { opacity }, ease: e.ease, own: e.own }), range: e.range };
+}
+
+export interface PlanContext {
+  /** Time source for time presets here: scene time in zones and drag scenes, enter elsewhere. */
+  timeSource: Source;
+  reducedMotion: boolean;
+}
 
 export interface AnimatePlan {
   layers: LayerPlan[];
@@ -48,7 +67,10 @@ export interface AnimatePlan {
   timed: boolean;
   /** Longest preset default among time effects; used when `duration` is not set. */
   duration: number | null;
+  /** Upper bound on the entrance duration (reduced motion on a clock-played entrance). */
+  maxDuration: number;
   hasExit: boolean;
+  loops: LoopItem[];
 }
 
 /** `on`: a source name or `view(self)`. */
@@ -80,6 +102,8 @@ export class CvAnimate extends ElementBase {
     'at',
     'stagger',
     'target',
+    'loop',
+    'loop-duration',
   ];
 
   scene: CvScene | null = null;
@@ -90,7 +114,12 @@ export class CvAnimate extends ElementBase {
   /** Effects that play on a clock once the element enters (normal flow). */
   enterLayers: Layer[] = [];
   entered = false;
+  /** Loop layer and its items (empty under reduced motion). */
+  loopLayer: Layer | null = null;
+  loopItems: LoopItem[] = [];
+  private loopAnimations: Animation[] = [];
   private presetDuration: number | null = null;
+  private maxDuration = Number.POSITIVE_INFINITY;
   private exitPlanned = false;
 
   connectedCallback(): void {
@@ -121,7 +150,10 @@ export class CvAnimate extends ElementBase {
     const stagger = parseStagger(this.getAttribute('stagger'));
     return {
       name: this.getAttribute('name'),
-      duration: parseMs(this.getAttribute('duration'), this.presetDuration ?? 600),
+      duration: Math.min(
+        parseMs(this.getAttribute('duration'), this.presetDuration ?? 600),
+        this.maxDuration
+      ),
       delay: Math.max(0, parseMs(this.getAttribute('delay'), 0)),
       after: parseAfter(this.getAttribute('after')),
       at: parseAt(this.getAttribute('at')),
@@ -151,7 +183,8 @@ export class CvAnimate extends ElementBase {
    * keep their signal; then an explicit `on`; then a rate preset's own source; then the context
    * (scene time in zones and drag scenes, enter elsewhere).
    */
-  plan(context: { timeSource: Source }, report: (m: string) => void): AnimatePlan {
+  plan(context: PlanContext, report: (m: string) => void): AnimatePlan {
+    const reduced = context.reducedMotion;
     const easeText = this.getAttribute('ease');
     const ease = parseEase(easeText);
     if (easeText !== null && !ease) report(`Unknown ease "${easeText}"`);
@@ -159,8 +192,16 @@ export class CvAnimate extends ElementBase {
     if (ease) effects = effects.map((e) => ({ ...e, ease }));
     const raw = parseFromTo(this.getAttribute('from'), this.getAttribute('to'), ease, report);
     if (raw) effects.push(raw);
-    const exits = parseExit(this.getAttribute('exit'), ease, report);
+    let exits = parseExit(this.getAttribute('exit'), ease, report);
     const on = parseOn(this.getAttribute('on'), report);
+    const loopDuration = this.getAttribute('loop-duration');
+    const loops = parseLoop(
+      this.getAttribute('loop'),
+      loopDuration === null ? null : parseMs(loopDuration, 3000),
+      ease,
+      report
+    );
+    if (reduced) effects = effects.filter((e) => !e.reducible);
 
     const groups = new Map<Source, { effects: Effect[]; exits: Effect[] }>();
     const group = (source: Source): { effects: Effect[]; exits: Effect[] } => {
@@ -171,9 +212,12 @@ export class CvAnimate extends ElementBase {
     for (const e of effects) {
       const source =
         e.own && SIGNALS.has(e.own) ? e.own : (on?.source ?? e.own ?? context.timeSource);
-      group(source).effects.push(e);
+      const kept = reduced && CLOCK_PLAYED.has(source) ? opacityOnly(e) : e;
+      if (kept) group(source).effects.push(kept);
     }
     const timeSource = on && kindOf(on.source) === 'time' ? on.source : context.timeSource;
+    const clockPlayed = reduced && CLOCK_PLAYED.has(on?.source ?? timeSource);
+    if (clockPlayed) exits = exits.map(opacityOnly).filter((e): e is Effect => e !== null);
     let hasExit = false;
     if (exits.length) {
       if (on && kindOf(on.source) !== 'time') {
@@ -205,10 +249,11 @@ export class CvAnimate extends ElementBase {
     }
     const sources = [...groups.keys()];
     if (staggered) sources.push(staggered.source);
-    // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor).
+    // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor);
+    // a loop alone does not (1.x: loops add no zone distance).
     const timed = sources.length
       ? sources.some((s) => ON_TIMELINE.has(s))
-      : !on || ON_TIMELINE.has(on.source);
+      : !this.hasAttribute('loop') && (!on || ON_TIMELINE.has(on.source));
     if (__DEV__ && !timed) {
       const ignored = TIMING_ATTRIBUTES.filter((a) => this.hasAttribute(a));
       if (ignored.length) {
@@ -227,11 +272,14 @@ export class CvAnimate extends ElementBase {
       if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
     }
     return {
-      layers: planLayers(groups, on?.subject ?? 'scene'),
+      layers: planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0),
       staggered,
       timed,
       duration,
+      maxDuration: clockPlayed ? REDUCED_DURATION : Number.POSITIVE_INFINITY,
       hasExit,
+      // Reduced motion: loops stop and show their static frame (plan v3 §13).
+      loops: reduced ? [] : loops,
     };
   }
 
@@ -239,8 +287,11 @@ export class CvAnimate extends ElementBase {
     this.release();
     this.timed = plan.timed;
     this.presetDuration = plan.duration;
+    this.maxDuration = plan.maxDuration;
     this.exitPlanned = plan.hasExit;
     this.layers = buildLayers(this, plan.layers);
+    this.loopLayer = this.layers.find((l) => l.kind === 'loop') ?? null;
+    this.loopItems = plan.loops;
     if (plan.staggered) {
       this.layers.push(...buildTargetLayers(this.staggerTargets(), plan.staggered));
     }
@@ -254,8 +305,31 @@ export class CvAnimate extends ElementBase {
     this.natives = [];
   }
 
+  get looping(): boolean {
+    return this.loopAnimations.length > 0;
+  }
+
+  /** Start the loops (idempotent). They run until stopLoops(); the clock pauses them with the stage. */
+  startLoops(clock: Clock): void {
+    const layer = this.loopLayer;
+    if (!layer || this.loopAnimations.length) return;
+    for (const item of this.loopItems) {
+      this.loopAnimations.push(
+        clock.add(
+          layer.el.animate(item.keyframes, { duration: item.duration, iterations: Infinity })
+        )
+      );
+    }
+  }
+
+  stopLoops(): void {
+    for (const a of this.loopAnimations) a.cancel();
+    this.loopAnimations = [];
+  }
+
   /** Stop animations and undo writes on author elements (shadow layers are simply replaced). */
   release(): void {
+    this.stopLoops();
     this.cancelNatives();
     for (const l of this.layers) {
       l.native = null;

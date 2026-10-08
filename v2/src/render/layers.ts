@@ -3,8 +3,9 @@
  *
  * Shadow layers nest in a fixed order from outside in (plan v3 §4.2):
  *
- *   space (view, page) → time (scene, enter + exits) → clock (clock, loop) → signal (velocity,
- *   direction) → clip (clip-path from any source, innermost so the window moves with the content)
+ *   space (view, page) → time (scene, enter + exits) → clock (on="clock") → loop → signal
+ *   (velocity, direction) → clip (clip-path from any source, innermost so the window moves with
+ *   the content)
  *
  * Author children stay in light DOM behind a <slot>. Layers are blocks that size to the host, so
  * percentage sizes in author content resolve against the host (§4.3).
@@ -24,9 +25,9 @@ import {
 import { combine, frameCss, identityFrame, type Frame, type Prop } from '../core/props';
 import type { Solved } from '../core/time';
 
-export type LayerKind = 'space' | 'time' | 'clock' | 'signal' | 'clip';
+export type LayerKind = 'space' | 'time' | 'clock' | 'loop' | 'signal' | 'clip';
 
-const KIND_OF: Readonly<Record<Source, Exclude<LayerKind, 'clip'>>> = {
+const KIND_OF: Readonly<Record<Source, Exclude<LayerKind, 'clip' | 'loop'>>> = {
   view: 'space',
   page: 'space',
   scene: 'time',
@@ -40,11 +41,12 @@ const RANK: Readonly<Record<LayerKind, number>> = {
   space: 0,
   time: 1,
   clock: 2,
-  signal: 3,
-  clip: 4,
+  loop: 3,
+  signal: 4,
+  clip: 5,
 };
 
-export const kindOf = (source: Source): Exclude<LayerKind, 'clip'> => KIND_OF[source];
+export const kindOf = (source: Source): Exclude<LayerKind, 'clip' | 'loop'> => KIND_OF[source];
 
 /** Absolute window of a time layer on its scene timeline (ms). */
 export interface Window {
@@ -103,9 +105,20 @@ const hasTracks = (effects: readonly Effect[], clip: boolean): boolean =>
  */
 export function planLayers(
   groups: ReadonlyMap<Source, { effects: Effect[]; exits: Effect[] }>,
-  subject: 'scene' | 'self'
+  subject: 'scene' | 'self',
+  loop = false
 ): LayerPlan[] {
   const plans: LayerPlan[] = [];
+  if (loop) {
+    plans.push({
+      kind: 'loop',
+      source: 'clock',
+      subject,
+      effects: [],
+      exitEffects: [],
+      select: 'rest',
+    });
+  }
   for (const [source, { effects, exits }] of groups) {
     const all = [...effects, ...exits];
     if (hasTracks(all, false)) {
