@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>currentTime vs direct writes</title>
+<style>html,body{margin:0}#root{display:grid;grid-template-columns:repeat(16,1fr);gap:2px;padding:8px}.b{height:12px;background:#4a9}</style></head>
+<body><div id="root"></div><script type="module">
+// N14: per-frame Animation.currentTime seeking vs direct style writes, same keyframes, same element count.
+const root = document.getElementById('root');
+const kf = [{ opacity: 0.2, translate: '0 20px', scale: '0.9' }, { opacity: 1, translate: '0 0', scale: '1' }];
+window.study = (mode, n, ms) => new Promise((resolve) => {
+  root.innerHTML = '<div class="b"></div>'.repeat(n);
+  const els = [...root.children];
+  const anims = mode === 'seek' ? els.map((el) => { const a = el.animate(kf, { duration: 1000, fill: 'both' }); a.pause(); return a; }) : null;
+  const frames = [];
+  let last = 0;
+  const t0 = performance.now();
+  const tick = (now) => {
+    if (last) frames.push(now - last);
+    last = now;
+    const p = ((now - t0) % 1000) / 1000;
+    if (anims) for (const a of anims) a.currentTime = p * 1000;
+    else for (const el of els) { el.style.opacity = String(0.2 + 0.8 * p); el.style.translate = `0 ${20 - 20 * p}px`; el.style.scale = String(0.9 + 0.1 * p); }
+    if (now - t0 < ms) requestAnimationFrame(tick);
+    else {
+      const f = frames.slice().sort((a, b) => a - b);
+      resolve({ mode, n, hz: +(1000 * f.length / f.reduce((a, b) => a + b, 0)).toFixed(1), p95: +f[Math.floor(f.length * 0.95)].toFixed(1), max: +f.at(-1).toFixed(1) });
+    }
+  };
+  requestAnimationFrame(tick);
+});
+// WebKit bug 322936 pattern: pause, seek, then play while another animation runs at a non-1 rate.
+window.bug322936 = () => new Promise((resolve) => {
+  root.innerHTML = '<div class="b"></div><div class="b"></div>';
+  const [x, y] = root.children;
+  const other = y.animate(kf, { duration: 2000 });
+  other.playbackRate = -1.5;
+  const a = x.animate(kf, { duration: 1000, fill: 'both' });
+  a.pause();
+  a.currentTime = 300;
+  requestAnimationFrame(() => {
+    a.play();
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve({ currentTime: a.currentTime, playState: a.playState })));
+  });
+});
+window.studyReady = true;
+</script></body></html>

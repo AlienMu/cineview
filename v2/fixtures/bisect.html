@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bisect</title>
+<style>html,body{margin:0}*{box-sizing:border-box}.sec{height:100vh;background:#234}.sec:nth-child(2n){background:#163}.zone{height:calc(100svh + 1500px);position:relative}.shell{position:sticky;top:0;height:100svh;background:#345}</style></head>
+<body><div id="root"></div>
+<script type="module">
+const root = document.getElementById('root');
+const variant = new URLSearchParams(location.search).get('v') || 'plain';
+let html = '';
+if (variant === 'plain') html = Array.from({ length: 8 }, () => '<div class="sec"></div>').join('');
+if (variant === 'sticky') html = Array.from({ length: 4 }, () => '<div class="zone"><div class="shell"></div></div>').join('');
+if (variant === 'clip') html = `<div style="overflow-x:clip">${Array.from({ length: 4 }, () => '<div class="zone"><div class="shell"></div></div>').join('')}</div>`;
+if (variant === 'stage-empty') { await import('@v2'); html = `<cv-stage>${Array.from({ length: 4 }, () => '<cv-scene zone style="height:100vh"><div style="height:100%;background:#345"></div></cv-scene>').join('')}</cv-stage>`; }
+const box = '<div class="t" style="height:120px;margin:20px;background:#9cd"></div>';
+const kf = [{ opacity: 0.2, translate: '0 40px' }, { opacity: 1, translate: '0 0' }];
+if (variant === 'vt-flow' || variant === 'css-sd') html = Array.from({ length: 6 }, () => `<div class="sec">${box.repeat(3)}</div>`).join('');
+if (variant === 'vt-sticky' || variant === 'vt-sticky-cover') html = Array.from({ length: 4 }, () => `<div class="zone"><div class="shell">${box.repeat(3)}</div></div>`).join('');
+if (variant === 'css-sd') html = `<style>.t{animation:a linear both;animation-timeline:view()}@keyframes a{from{opacity:.2;translate:0 40px}to{opacity:1;translate:0 0}}</style>` + html;
+root.innerHTML = html;
+const VT = window.ViewTimeline;
+if (variant === 'vt-flow') for (const el of root.querySelectorAll('.t')) el.animate(kf, { timeline: new VT({ subject: el }), rangeStart: 'cover 0%', rangeEnd: 'cover 100%', fill: 'both' });
+if (variant === 'vt-sticky' || variant === 'vt-sticky-cover') for (const z of root.querySelectorAll('.zone')) { const tl = new VT({ subject: z }); for (const el of z.querySelectorAll('.t')) el.animate(kf, { timeline: tl, rangeStart: variant === 'vt-sticky' ? 'contain 0%' : 'cover 0%', rangeEnd: variant === 'vt-sticky' ? 'contain 100%' : 'cover 100%', fill: 'both' }); }
+window.audit = { ready: true };
+</script></body></html>

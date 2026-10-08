@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>plain control</title>
+<style>html,body{margin:0}.sec{height:100vh;background:#234}.sec:nth-child(2n){background:#163}</style></head>
+<body><div id="root"></div><script>
+// Control page for the gate: no framework, same mount contract. Its displayed-frame rate is the ceiling.
+window.audit = { ready: false, mountStart: 0, readyAt: 0, api: { getCurrentIndex: () => -1 } };
+window.mountFixture = (c) => { audit.mountStart = performance.now(); document.getElementById('root').innerHTML = '<div class="sec"></div>'.repeat(c.scenes * 3); requestAnimationFrame(() => { audit.readyAt = performance.now(); audit.ready = true; }); };
+</script></body></html>
