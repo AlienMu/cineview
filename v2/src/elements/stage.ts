@@ -12,6 +12,8 @@ import type { CvScene } from './scene';
 type Input = 'scroll' | 'drag';
 
 export class CvStage extends ElementBase {
+  static readonly observedAttributes = ['input', 'fallback'];
+
   scenes = new Set<CvScene>();
   ordered: CvScene[] = [];
   readyAt = 0;
@@ -31,6 +33,10 @@ export class CvStage extends ElementBase {
     // A preset defined after the page built may be one this stage uses.
     this.stopListening ??= onEffectDefined(() => this.invalidate());
     this.invalidate();
+  }
+
+  attributeChangedCallback(_name: string, before: string | null, after: string | null): void {
+    if (before !== after && this.isConnected) this.invalidate();
   }
 
   disconnectedCallback(): void {

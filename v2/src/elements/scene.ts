@@ -4,10 +4,13 @@
  */
 import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
 import { ElementBase } from '../platform';
+import { assignWindows } from '../render/layers';
 import type { CvAnimate } from './animate';
 import { CvStage } from './stage';
 
 export class CvScene extends ElementBase {
+  static readonly observedAttributes = ['zone', 'sequence'];
+
   stage: CvStage | null = null;
   animates = new Set<CvAnimate>();
   solution: SceneSolution = { entranceEnd: 0, total: 0, byIndex: [], errors: [] };
@@ -52,6 +55,10 @@ export class CvScene extends ElementBase {
     }
   }
 
+  attributeChangedCallback(_name: string, before: string | null, after: string | null): void {
+    if (before !== after) this.stage?.invalidate();
+  }
+
   disconnectedCallback(): void {
     this.stage?.unregisterScene(this);
     this.stage = null;
@@ -85,6 +92,7 @@ export class CvScene extends ElementBase {
     this.timed.forEach((a, i) => {
       a.solved = this.solution.byIndex[i] ?? null;
     });
+    for (const a of this.ordered) assignWindows(a.layers, a.solved);
     return this.solution.errors.map((error) => ({
       error,
       element: this.timed[error.index] ?? this,

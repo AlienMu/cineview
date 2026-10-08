@@ -16,9 +16,9 @@ const collect = (): { report: (m: string) => void; messages: string[] } => {
   const messages: string[] = [];
   return { report: (m) => messages.push(m), messages };
 };
-const at = (effects: Effect[], p: number, clipOnly = false) => {
+const at = (effects: Effect[], p: number, clip = false) => {
   const frame = identityFrame();
-  evaluate(effects, p, frame, clipOnly);
+  evaluate(effects, p, frame, clip ? 'clip' : 'rest');
   return frame;
 };
 
@@ -130,8 +130,8 @@ describe('presets', () => {
   it('reveal = focus + wipe + push, with clip on its own track', () => {
     const effects = one('reveal(right)');
     expect(effects).toHaveLength(3);
-    expect(usedProps(effects, true)).toEqual(new Set(['clip']));
-    expect(usedProps(effects, false)).toEqual(new Set(['blur', 'opacity', 'scale']));
+    expect(usedProps(effects, 'clip')).toEqual(new Set(['clip']));
+    expect(usedProps(effects, 'rest')).toEqual(new Set(['blur', 'opacity', 'scale']));
     expect(at(effects, 0, true).clip).toEqual([0, 0, 0, 100]);
   });
 

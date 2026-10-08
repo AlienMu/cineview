@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stagger fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  ul{list-style:none;margin:0;padding:40px;display:flex;gap:12px}
+  li{width:60px;height:60px;background:#b3ded6}
+  .after{height:200vh;background:#123}
+</style></head>
+<body>
+<script type="module">
+  const fallback = new URLSearchParams(location.search).has('fallback');
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage${fallback ? ' fallback' : ''}>
+    <cv-scene zone id="z">
+      <cv-animate id="list" fx="rise" ease="linear" duration="400" stagger="100">
+        <ul><li></li><li></li><li></li></ul>
+      </cv-animate>
+    </cv-scene>
+    <cv-scene class="after"></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

@@ -12,6 +12,7 @@ import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
 import { compositorEligible } from '../core/props';
 import {
+  clearLayer,
   layerKeyframes,
   progressIn,
   sceneKeyframes,
@@ -126,12 +127,12 @@ export class ScrollInput implements InputEngine {
           // Native layers are driven by the compositor; skip them without further work.
           if (layer.native) continue;
           if (layer.source === 'scene') {
-            const w = a.solved;
+            const w = layer.window;
             if (!w) continue;
             work.push({
               layer,
               p: progressIn(t, w.start, w.end),
-              px: layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : -1,
+              px: layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : 0,
             });
           } else if (layer.source === 'view') {
             let v = sceneView;
@@ -186,8 +187,8 @@ export class ScrollInput implements InputEngine {
       for (const layer of a.layers) {
         // Main-thread-only properties stay on direct writes even in native mode (phase-0 measurement).
         if (!compositorEligible(layer.used)) continue;
-        if (layer.source === 'scene' && s.isZone && a.solved) {
-          const w = a.solved;
+        const w = layer.window;
+        if (layer.source === 'scene' && s.isZone && w) {
           jobs.push(() => {
             layer.native = layer.el.animate(sceneKeyframes(layer, w, s.solution.total), {
               timeline: sceneTimeline,
@@ -244,7 +245,7 @@ export class ScrollInput implements InputEngine {
     for (const s of this.scenes) {
       for (const a of s.ordered) {
         if (!a.enterLayers.length) continue;
-        for (const layer of a.enterLayers) writeLayer(layer, 0, -1);
+        for (const layer of a.enterLayers) writeLayer(layer, 0, 0);
         pending.push(a);
       }
     }
@@ -266,15 +267,12 @@ export class ScrollInput implements InputEngine {
   private playEnter(a: CvAnimate): void {
     if (a.entered) return;
     a.entered = true;
-    const w = a.solved;
-    const duration = w ? w.end - w.start : 600;
-    const delay = w ? w.start : 0;
     for (const layer of a.enterLayers) {
-      layer.el.style.cssText = '';
-      layer.last.clear();
+      const w = layer.window;
+      clearLayer(layer);
       const anim = layer.el.animate(layerKeyframes(layer), {
-        duration,
-        delay,
+        duration: w ? w.end - w.start : 600,
+        delay: w ? w.start : 0,
         fill: 'both',
         easing: 'linear',
       });

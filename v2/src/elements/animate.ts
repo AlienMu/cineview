@@ -14,7 +14,15 @@ import {
 } from '../core/time';
 import { warn } from '../dev/warn';
 import { ElementBase } from '../platform';
-import { buildLayers, kindOf, planLayers, type Layer, type LayerPlan } from '../render/layers';
+import {
+  buildLayers,
+  buildTargetLayers,
+  clearLayer,
+  kindOf,
+  planLayers,
+  type Layer,
+  type LayerPlan,
+} from '../render/layers';
 import { CvScene } from './scene';
 
 /** Sources whose effects sit on the scene timeline (plan v3 §3.5). */
@@ -34,6 +42,8 @@ const TIMING_ATTRIBUTES = ['duration', 'delay', 'after', 'at', 'stagger'];
 
 export interface AnimatePlan {
   layers: LayerPlan[];
+  /** Time effects applied to each stagger target instead of the host. */
+  staggered: LayerPlan | null;
   /** Takes part in the scene timeline (counts toward the total, can be an `after` target). */
   timed: boolean;
   /** Longest preset default among time effects; used when `duration` is not set. */
@@ -55,6 +65,23 @@ function parseOn(
 }
 
 export class CvAnimate extends ElementBase {
+  static readonly observedAttributes = [
+    'fx',
+    'from',
+    'to',
+    'exit',
+    'exit-duration',
+    'on',
+    'ease',
+    'name',
+    'duration',
+    'delay',
+    'after',
+    'at',
+    'stagger',
+    'target',
+  ];
+
   scene: CvScene | null = null;
   layers: Layer[] = [];
   timed = true;
@@ -80,8 +107,12 @@ export class CvAnimate extends ElementBase {
     }
   }
 
+  attributeChangedCallback(_name: string, before: string | null, after: string | null): void {
+    if (before !== after) this.scene?.stage?.invalidate();
+  }
+
   disconnectedCallback(): void {
-    this.cancelNatives();
+    this.release();
     this.scene?.unregisterAnimate(this);
     this.scene = null;
   }
@@ -104,11 +135,15 @@ export class CvAnimate extends ElementBase {
    * Elements a stagger spreads over: `target` matches, else the children of a single container
    * child (1.x: `<Animate stagger><ul><li>…`), else the direct children.
    */
-  staggerTargets(): Element[] {
+  staggerTargets(): Array<HTMLElement | SVGElement> {
     const target = this.getAttribute('target');
-    if (target) return [...this.querySelectorAll(target)];
     const children = [...this.children];
-    return children.length === 1 ? [...children[0]!.children] : children;
+    const found = target
+      ? [...this.querySelectorAll(target)]
+      : children.length === 1
+        ? [...children[0]!.children]
+        : children;
+    return found.filter((el) => el instanceof HTMLElement || el instanceof SVGElement);
   }
 
   /**
@@ -149,7 +184,27 @@ export class CvAnimate extends ElementBase {
       }
     }
 
+    // stagger: the time group plays on each target child instead of the host (plan v3 §5, F13).
+    let staggered: LayerPlan | null = null;
+    if (this.hasAttribute('stagger')) {
+      const g = groups.get(timeSource);
+      if (g && ON_TIMELINE.has(timeSource)) {
+        staggered = {
+          kind: 'time',
+          source: timeSource,
+          subject: 'scene',
+          effects: g.effects,
+          exitEffects: g.exits,
+          select: 'all',
+        };
+        groups.delete(timeSource);
+        if (__DEV__) warnUnsafeStagger(this, staggered);
+      } else if (__DEV__) {
+        warn(this, 'stagger needs time-driven effects (scene or enter); it has no effect here');
+      }
+    }
     const sources = [...groups.keys()];
+    if (staggered) sources.push(staggered.source);
     // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor).
     const timed = sources.length
       ? sources.some((s) => ON_TIMELINE.has(s))
@@ -164,27 +219,91 @@ export class CvAnimate extends ElementBase {
       }
     }
     let duration: number | null = null;
-    for (const s of sources) {
-      if (!ON_TIMELINE.has(s)) continue;
-      for (const e of groups.get(s)!.effects) {
-        if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
-      }
+    const timeEffects = [
+      ...(staggered?.effects ?? []),
+      ...sources.flatMap((s) => (ON_TIMELINE.has(s) ? (groups.get(s)?.effects ?? []) : [])),
+    ];
+    for (const e of timeEffects) {
+      if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
     }
-    return { layers: planLayers(groups, on?.subject ?? 'scene'), timed, duration, hasExit };
+    return {
+      layers: planLayers(groups, on?.subject ?? 'scene'),
+      staggered,
+      timed,
+      duration,
+      hasExit,
+    };
   }
 
   build(plan: AnimatePlan): void {
-    this.cancelNatives();
+    this.release();
     this.timed = plan.timed;
     this.presetDuration = plan.duration;
     this.exitPlanned = plan.hasExit;
     this.layers = buildLayers(this, plan.layers);
+    if (plan.staggered) {
+      this.layers.push(...buildTargetLayers(this.staggerTargets(), plan.staggered));
+    }
     this.enterLayers = this.layers.filter((l) => l.source === 'enter');
     this.entered = false;
+    if (__DEV__ && plan.layers.length) warnScopedPositioning(this);
   }
 
   cancelNatives(): void {
     for (const a of this.natives) a.cancel();
     this.natives = [];
+  }
+
+  /** Stop animations and undo writes on author elements (shadow layers are simply replaced). */
+  release(): void {
+    this.cancelNatives();
+    for (const l of this.layers) {
+      l.native = null;
+      if (l.target) clearLayer(l);
+    }
+  }
+}
+
+const UNSAFE_ON_TARGETS: ReadonlyArray<[string, string]> = [
+  ['blur', '--cv-filter'],
+  ['clip', '--cv-clip-path'],
+  ['rx', '--cv-transform'],
+  ['ry', '--cv-transform'],
+  ['skx', '--cv-transform'],
+  ['sky', '--cv-transform'],
+];
+
+function warnUnsafeStagger(el: Element, plan: LayerPlan): void {
+  const used = new Set(
+    [...plan.effects, ...plan.exitEffects].flatMap((e) => e.entries.map(([p]) => p as string))
+  );
+  const vars = [...new Set(UNSAFE_ON_TARGETS.filter(([p]) => used.has(p)).map(([, v]) => v))];
+  if (vars.length) {
+    warn(
+      el,
+      `stagger writes only translate, rotate, scale and opacity on your elements; the rest arrives as ${vars.join(', ')}. Use them in your CSS, e.g. filter: var(--cv-filter).`
+    );
+  }
+}
+
+/** Layers carry a transform, which scopes sticky, fixed and z-index of everything inside (§4.3). */
+function warnScopedPositioning(el: Element): void {
+  const nested = el.querySelector('cv-fixed, cv-stack');
+  if (nested) {
+    warn(
+      el,
+      `<${nested.localName}> inside <cv-animate> cannot stick to the viewport: the animation layers scope it. Move it outside.`
+    );
+    return;
+  }
+  for (const child of el.children) {
+    const position = getComputedStyle(child).position;
+    if (position === 'sticky' || position === 'fixed') {
+      warn(
+        el,
+        `position: ${position} inside <cv-animate> is scoped by the animation layers and will not stick to the viewport.`
+      );
+      return;
+    }
   }
 }

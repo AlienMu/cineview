@@ -95,12 +95,17 @@ export function asExit(e: Effect): Effect {
 
 // ---- evaluation -----------------------------------------------------------------------------------
 
+/** Which tracks a layer carries: shadow layers split clip from the rest; light-DOM targets take all. */
+export type Select = 'rest' | 'clip' | 'all';
+const selects = (select: Select, prop: Prop): boolean =>
+  select === 'all' || (prop === 'clip') === (select === 'clip');
+
 /** Evaluate same-source effects at progress p into `frame` (mutated, no allocation). */
 export function evaluate(
   effects: readonly Effect[],
   p: number,
   frame: Frame,
-  clipOnly: boolean
+  select: Select
 ): void {
   resetFrame(frame);
   for (const e of effects) {
@@ -108,15 +113,15 @@ export function evaluate(
     const q = b <= a ? (p >= b ? 1 : 0) : p <= a ? 0 : p >= b ? 1 : (p - a) / (b - a);
     const t = e.ease(q);
     for (const [prop, from, to] of e.entries) {
-      if ((prop === 'clip') === clipOnly) applyTrack(frame, prop, from, to, t);
+      if (selects(select, prop)) applyTrack(frame, prop, from, to, t);
     }
   }
 }
 
-export function usedProps(effects: readonly Effect[], clipOnly: boolean): Set<Prop> {
+export function usedProps(effects: readonly Effect[], select: Select): Set<Prop> {
   const used = new Set<Prop>();
   for (const e of effects) {
-    for (const [p] of e.entries) if ((p === 'clip') === clipOnly) used.add(p);
+    for (const [p] of e.entries) if (selects(select, p)) used.add(p);
   }
   return used;
 }
@@ -501,7 +506,7 @@ export function parseFromTo(
 /** Sample effects into WAAPI keyframes (native and clock paths). */
 export function sampleKeyframes(
   effects: readonly Effect[],
-  clipOnly: boolean,
+  select: Select,
   css: (frame: Frame) => Record<string, string>,
   frame: Frame,
   samples = 12
@@ -509,7 +514,7 @@ export function sampleKeyframes(
   const frames: Keyframe[] = [];
   for (let i = 0; i <= samples; i++) {
     const p = i / samples;
-    evaluate(effects, p, frame, clipOnly);
+    evaluate(effects, p, frame, select);
     frames.push({ offset: p, ...css(frame) });
   }
   return frames;

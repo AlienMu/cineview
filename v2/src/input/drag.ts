@@ -376,20 +376,20 @@ class Drag implements InputEngine {
   }
 
   private writeAnimate(a: CvAnimate, t: number, sceneView: number, offset: number): void {
-    const w = a.solved;
     for (const layer of a.layers) {
+      const w = layer.window;
       if (layer.source === 'view') {
         let v = sceneView;
         if (layer.subject === 'self') {
           const g = this.local.get(a);
           if (g) v = (this.vh - (offset + g.top)) / (this.vh + g.height);
         }
-        writeLayer(layer, Math.min(Math.max(v, 0), 1), -1);
+        writeLayer(layer, Math.min(Math.max(v, 0), 1), 0);
       } else if (w) {
         writeLayer(
           layer,
           progressIn(t, w.start, w.end),
-          layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : -1
+          layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : 0
         );
       }
     }
