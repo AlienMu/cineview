@@ -15,8 +15,14 @@ export interface IdleDeadlineLike {
   timeRemaining(): number;
 }
 
+export type ScrollTimelineCtor = new (options: {
+  source?: Element | null;
+  axis?: 'block' | 'inline';
+}) => AnimationTimeline;
+
 interface PlatformExtras {
   ViewTimeline?: ViewTimelineCtor;
+  ScrollTimeline?: ScrollTimelineCtor;
   requestIdleCallback?: (
     cb: (deadline: IdleDeadlineLike) => void,
     options?: { timeout: number }

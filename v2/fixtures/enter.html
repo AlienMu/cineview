@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>enter fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  .box{display:block;height:80px;width:200px;margin:0 20px;background:#b3ded6}
+  .gap{height:900px}
+</style></head>
+<body>
+<script type="module">
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s">
+    <cv-scene id="s0">
+      <cv-animate id="title" name="t" fx="rise" duration="400"><div class="box"></div></cv-animate>
+      <cv-animate id="sub" fx="fade" duration="400" after="t -100"><div class="box"></div></cv-animate>
+      <div class="gap"></div>
+      <cv-animate id="ex" fx="fade" exit="fade" duration="300" exit-duration="300"><div class="box"></div></cv-animate>
+      <div class="gap"></div>
+      <cv-animate id="rp" fx="fade" duration="200" replay><div class="box"></div></cv-animate>
+      <div class="gap"></div>
+      <cv-animate id="eye" on="eye" fx="fade" duration="200"><div class="box"></div></cv-animate>
+      <div class="gap"></div>
+    </cv-scene>
+    <cv-scene id="s1" style="height:3000px">
+      <cv-animate id="pg" on="page" from="opacity:0" ease="linear"><div class="box"></div></cv-animate>
+    </cv-scene>
+  </cv-stage>`);
+  if (q.has('at')) scrollTo(0, Number(q.get('at')));
+  window.events = [];
+  for (const type of ['cv-activate', 'cv-deactivate']) document.addEventListener(type, (e) => window.events.push(`${type}:${e.target.id}`));
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

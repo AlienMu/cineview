@@ -13,7 +13,7 @@ import type { CvScene } from './scene';
 type Input = 'scroll' | 'drag';
 
 export class CvStage extends ElementBase {
-  static readonly observedAttributes = ['input', 'fallback', 'paused'];
+  static readonly observedAttributes = ['input', 'fallback', 'paused', 'design-width', 'margin'];
 
   scenes = new Set<CvScene>();
   ordered: CvScene[] = [];

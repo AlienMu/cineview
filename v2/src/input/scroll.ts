@@ -21,7 +21,11 @@ import {
   writeLayer,
   type Layer,
 } from '../render/layers';
+
+/** Resizes that change only the height while scrolling are the mobile URL bar: defer them. */
+const GESTURE_QUIET_MS = 250;
 import type { InputEngine } from './engine';
+import { EnterController, parseMargins } from './enter';
 
 /** Native animations created per idle slice when the browser has no idle deadline. */
 const ATTACH_CHUNK = 96;
@@ -34,42 +38,79 @@ export const NATIVE_BUDGET = 256;
 
 export class ScrollInput implements InputEngine {
   private scenes: CvScene[];
+  private stage: CvStage;
   private clock: Clock;
   private native: boolean;
   private vh = 0;
+  private vw = 0;
+  /** Real px per design px (stage width / design-width), for visibility margins. */
+  private unit = 1;
+  private docHeight = 0;
   private frameQueued = false;
-  private io: IntersectionObserver | null = null;
   private nativeIo: IntersectionObserver | null = null;
+  private activeIo: IntersectionObserver;
   private ro: ResizeObserver;
+  private enter: EnterController;
+  private pageTimeline: AnimationTimeline | null = null;
+  private lastScroll = 0;
+  private deferred = 0;
   /** True when the frame loop has work in native mode (direct-write layers, zone loops). Cached. */
   private jsWork: boolean | null = null;
   /** Live native animations, against NATIVE_BUDGET. */
   private live = 0;
 
   constructor(stage: CvStage) {
+    this.stage = stage;
     this.scenes = stage.ordered;
     this.clock = stage.clock;
     this.native = !stage.hasAttribute('fallback') && typeof platform.ViewTimeline === 'function';
+    this.enter = new EnterController(this.clock);
     this.refresh();
     if (this.native) this.startNative();
     this.bindEnter();
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize, { passive: true });
+    window.addEventListener('load', this.onLoad);
+    document.fonts?.ready.then(this.onLoad, () => undefined);
     this.ro = new ResizeObserver(() => this.onResize());
     for (const s of this.scenes) this.ro.observe(s);
+    // Activation window (plan v3 §7, scroll): about one viewport around; events and media only.
+    this.activeIo = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const s = entry.target as CvScene;
+          if (entry.isIntersecting === s.active) continue;
+          s.active = entry.isIntersecting;
+          if (!s.active) for (const a of s.ordered) a.stopLoops();
+          s.dispatchEvent(
+            new CustomEvent(s.active ? 'cv-activate' : 'cv-deactivate', { bubbles: true })
+          );
+        }
+      },
+      { rootMargin: '100% 0px 100% 0px' }
+    );
+    for (const s of this.scenes) this.activeIo.observe(s);
     this.frame();
   }
 
   destroy(): void {
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
-    this.io?.disconnect();
+    window.removeEventListener('load', this.onLoad);
+    clearTimeout(this.deferred);
     this.nativeIo?.disconnect();
+    this.activeIo.disconnect();
     this.ro.disconnect();
+    this.enter.destroy();
+    for (const s of this.scenes) s.active = false;
   }
 
   refresh(): void {
     this.vh = window.innerHeight;
+    this.vw = window.innerWidth;
+    const design = Number(this.stage.getAttribute('design-width')) || 750;
+    this.unit = (this.stage.clientWidth || this.vw) / design;
+    this.docHeight = document.documentElement.scrollHeight;
     const y = window.scrollY;
     for (const s of this.scenes) {
       const r = s.getBoundingClientRect();
@@ -88,25 +129,43 @@ export class ScrollInput implements InputEngine {
   }
 
   private onResize = (): void => {
+    // A height-only change during a gesture is the mobile browser bar; measuring mid-gesture
+    // makes view progress jump, so wait until scrolling settles.
+    if (window.innerWidth === this.vw && performance.now() - this.lastScroll < GESTURE_QUIET_MS) {
+      clearTimeout(this.deferred);
+      this.deferred = window.setTimeout(this.onResize, GESTURE_QUIET_MS);
+      return;
+    }
     this.refresh();
     this.queueFrame();
   };
 
-  /** Direct-write layers and zone loop gates follow scroll here; pure native pages skip the frame. */
+  private onLoad = (): void => {
+    this.refresh();
+    this.queueFrame();
+  };
+
+  /** Direct-write layers, gates and zone loop gates follow scroll here; pure native pages skip it. */
   private onScroll = (): void => {
+    this.lastScroll = performance.now();
     if (this.native && !this.hasJsWork()) return;
     this.queueFrame();
   };
 
   private hasJsWork(): boolean {
     if (this.jsWork !== null) return this.jsWork;
-    this.jsWork = this.scenes.some((s) =>
-      s.ordered.some(
-        (a) =>
-          (s.isZone && a.loopItems.length > 0) ||
-          a.layers.some((l) => !l.native && (l.source === 'scene' || l.source === 'view'))
-      )
-    );
+    this.jsWork =
+      this.enter.size > 0 ||
+      this.scenes.some((s) =>
+        s.ordered.some(
+          (a) =>
+            (s.isZone && a.loopItems.length > 0) ||
+            a.layers.some(
+              (l) =>
+                !l.native && (l.source === 'scene' || l.source === 'view' || l.source === 'page')
+            )
+        )
+      );
     return this.jsWork;
   }
 
@@ -119,14 +178,17 @@ export class ScrollInput implements InputEngine {
     });
   }
 
-  /** All reads first (scroll offset, live rects of view(self) subjects), then all writes. */
+  /** All reads first (scroll offset, live rects), then all writes. */
   private frame(): void {
     const y = window.scrollY;
     const vh = this.vh;
     const work: Array<{ layer: Layer; p: number; px: number }> = [];
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
+    const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
+    const gated = this.enter.measure((a) => a.scene !== null && isNear(a.scene));
+    const page = Math.min(Math.max(y / Math.max(1, this.docHeight - vh), 0), 1);
     for (const s of this.scenes) {
-      const near = s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
+      const near = isNear(s);
       if (!near) {
         if (s.isZone) for (const a of s.ordered) if (a.looping) loops.push({ a, on: false });
         continue;
@@ -155,11 +217,14 @@ export class ScrollInput implements InputEngine {
               v = selfView;
             }
             work.push({ layer, p: Math.min(Math.max(v, 0), 1), px: 0 });
+          } else if (layer.source === 'page') {
+            work.push({ layer, p: page, px: 0 });
           }
         }
       }
     }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
+    this.enter.apply(gated, vh, this.unit);
     for (const { a, on } of loops) {
       if (on) a.startLoops(this.clock);
       else a.stopLoops();
@@ -181,6 +246,8 @@ export class ScrollInput implements InputEngine {
   private startNative(): void {
     const VT = platform.ViewTimeline!;
     for (const s of this.scenes) s.timeline = new VT({ subject: s, axis: 'block' });
+    const ST = platform.ScrollTimeline;
+    if (ST) this.pageTimeline = new ST({ source: document.documentElement, axis: 'block' });
     this.nativeIo = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -202,7 +269,11 @@ export class ScrollInput implements InputEngine {
     for (const a of s.ordered) {
       for (const layer of a.layers) {
         if (layer.native || !compositorEligible(layer.used)) continue;
-        if ((layer.source === 'scene' && s.isZone && layer.window) || layer.source === 'view') {
+        if (
+          (layer.source === 'scene' && s.isZone && layer.window) ||
+          layer.source === 'view' ||
+          (layer.source === 'page' && this.pageTimeline)
+        ) {
           out.push({ a, layer });
         }
       }
@@ -231,17 +302,24 @@ export class ScrollInput implements InputEngine {
         if (layer.native) continue;
         const w = layer.window;
         const zone = layer.source === 'scene' && w !== null;
+        const page = layer.source === 'page';
         const timeline = zone
           ? s.timeline
-          : layer.subject === 'self'
-            ? new VT({ subject: a, axis: 'block' })
-            : s.timeline;
+          : page
+            ? this.pageTimeline
+            : layer.subject === 'self'
+              ? new VT({ subject: a, axis: 'block' })
+              : s.timeline;
         const keyframes = zone ? sceneKeyframes(layer, w, s.solution.total) : layerKeyframes(layer);
         clearLayer(layer);
         layer.native = layer.el.animate(keyframes, {
           timeline,
-          rangeStart: zone ? 'contain 0%' : 'cover 0%',
-          rangeEnd: zone ? 'contain 100%' : 'cover 100%',
+          ...(page
+            ? {}
+            : {
+                rangeStart: zone ? 'contain 0%' : 'cover 0%',
+                rangeEnd: zone ? 'contain 100%' : 'cover 100%',
+              }),
           fill: 'both',
           easing: 'linear',
         } as KeyframeAnimationOptions);
@@ -282,55 +360,13 @@ export class ScrollInput implements InputEngine {
     for (const s of waiting) this.attachNative(s);
   }
 
-  /** Normal-flow entrances (and loops): IntersectionObserver trigger, fresh clock animations. */
+  /** Normal-flow entrances and loops: the visibility gate machine (input/enter.ts). */
   private bindEnter(): void {
-    const pending: CvAnimate[] = [];
-    for (const s of this.scenes) {
-      for (const a of s.ordered) {
-        if (!a.enterLayers.length && !(a.loopItems.length && !s.isZone)) continue;
-        for (const layer of a.enterLayers) writeLayer(layer, 0, 0);
-        pending.push(a);
-      }
-    }
-    if (!pending.length) return;
-    this.io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const a = entry.target as CvAnimate;
-          this.io?.unobserve(a);
-          this.playEnter(a);
-        }
-      },
-      { rootMargin: '0px 0px -10% 0px' }
-    );
-    for (const a of pending) this.io.observe(a);
-  }
-
-  private playEnter(a: CvAnimate): void {
-    if (a.entered) return;
-    a.entered = true;
-    const played: Animation[] = [];
-    for (const layer of a.enterLayers) {
-      const w = layer.window;
-      clearLayer(layer);
-      const anim = layer.el.animate(layerKeyframes(layer), {
-        duration: w ? w.end - w.start : 600,
-        delay: w ? w.start : 0,
-        fill: 'both',
-        easing: 'linear',
-      });
-      a.natives.push(this.clock.add(anim));
-      played.push(anim);
-    }
-    // Loops start once the entrance has played (1.x: loop after enterAnimation completes).
-    if (a.loopItems.length) {
-      void Promise.all(played.map((p) => p.finished)).then(
-        () => {
-          if (a.isConnected && a.entered) a.startLoops(this.clock);
-        },
-        () => undefined
-      );
-    }
+    const margins = parseMargins(this.stage.getAttribute('margin'), [50, 50]);
+    this.scenes.forEach((s, i) => {
+      if (s.isZone) return;
+      for (const a of s.ordered) this.enter.add(a, { first: i === 0, margins });
+    });
+    this.enter.link();
   }
 }

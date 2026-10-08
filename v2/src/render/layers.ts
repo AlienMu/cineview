@@ -279,6 +279,16 @@ export function layerKeyframes(layer: Layer, samples = 12): Keyframe[] {
   );
 }
 
+/** Keyframes of a layer's exit alone (entrance complete), for exits played on a clock. */
+export function exitKeyframes(layer: Layer, samples = 12): Keyframe[] {
+  const frames: Keyframe[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const px = i / samples;
+    frames.push({ offset: px, ...layerCss(layer, evaluateLayer(layer, 1, px)) });
+  }
+  return frames;
+}
+
 /** Keyframes for a time layer over a whole scene timeline of length `total` ms. */
 export function sceneKeyframes(
   layer: Layer,

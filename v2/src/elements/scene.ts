@@ -23,6 +23,8 @@ export class CvScene extends ElementBase {
   height = 0;
   timeline: AnimationTimeline | null = null;
   nativeAttached = false;
+  /** Inside the activation window (scroll: about one viewport around). */
+  active = false;
   /** Attached, but some eligible layers wait for native budget. */
   nativePending = false;
   nativeGeneration = 0;

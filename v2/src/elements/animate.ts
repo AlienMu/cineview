@@ -28,7 +28,7 @@ import {
 import { CvScene } from './scene';
 
 /** Sources whose effects sit on the scene timeline (plan v3 §3.5). */
-const ON_TIMELINE: ReadonlySet<Source> = new Set<Source>(['scene', 'enter']);
+const ON_TIMELINE: ReadonlySet<Source> = new Set<Source>(['scene', 'enter', 'eye']);
 const SIGNALS: ReadonlySet<Source> = new Set<Source>(['velocity', 'direction']);
 const SOURCES: ReadonlySet<string> = new Set<Source>([
   'scene',
@@ -104,6 +104,8 @@ export class CvAnimate extends ElementBase {
     'target',
     'loop',
     'loop-duration',
+    'margin',
+    'replay',
   ];
 
   scene: CvScene | null = null;
@@ -111,9 +113,6 @@ export class CvAnimate extends ElementBase {
   timed = true;
   solved: Solved | null = null;
   natives: Animation[] = [];
-  /** Effects that play on a clock once the element enters (normal flow). */
-  enterLayers: Layer[] = [];
-  entered = false;
   /** Loop layer and its items (empty under reduced motion). */
   loopLayer: Layer | null = null;
   loopItems: LoopItem[] = [];
@@ -295,8 +294,6 @@ export class CvAnimate extends ElementBase {
     if (plan.staggered) {
       this.layers.push(...buildTargetLayers(this.staggerTargets(), plan.staggered));
     }
-    this.enterLayers = this.layers.filter((l) => l.source === 'enter');
-    this.entered = false;
     if (__DEV__ && plan.layers.length) warnScopedPositioning(this);
   }
 
