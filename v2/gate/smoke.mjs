@@ -26,7 +26,8 @@ export async function smoke(base = 'http://127.0.0.1:4360') {
         return {
           index: window.audit.api.getCurrentIndex(),
           sceneHeight: scene.getBoundingClientRect().height,
-          natives: document.getAnimations().length,
+          // document.getAnimations() does not include animations inside shadow trees (Chrome).
+          natives: [...document.querySelectorAll('cv-animate')].reduce((n, el) => n + el.shadowRoot.getAnimations().length, 0),
           first: layers.map((c) => ({ opacity: c.opacity, translate: c.translate, scale: c.scale, filter: c.filter, clip: c.clipPath })),
           ready: Math.round(window.audit.readyAt - window.audit.mountStart),
           errors: window.audit.errors,

@@ -1,15 +1,16 @@
 /** Cineview 2.0 prototype entry: core + scroll input + first presets. Drag input loads on demand. */
-import { define } from './elements';
+import { define } from './elements/define';
+import { isBrowser } from './platform';
 
-export { CvAnimate, CvScene, CvStage } from './elements';
-export { presets } from './fx';
+export { CvAnimate, CvScene, CvStage } from './elements/define';
+export { presets } from './core/fx';
 
 /**
  * Boot styles. In the product these ship in cineview.css (loaded in <head>) so they apply before the
  * first layout of static HTML; the prototype injects them at module load. Drag scenes beyond the first
  * two start skipped, so the first layout does not pay for every scene (phase-0 heavy fixture).
  */
-if (!document.getElementById('cv-boot-style')) {
+if (isBrowser && !document.getElementById('cv-boot-style')) {
   const style = document.createElement('style');
   style.id = 'cv-boot-style';
   style.textContent =

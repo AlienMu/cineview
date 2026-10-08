@@ -6,8 +6,11 @@
  * writer. Everything is direct style writes (plan v3 §6: drag has no native
  * scroll timeline, and seek-then-resume is avoided).
  */
-import { progressIn, writeLayer } from './layers';
-import type { CvAnimate, CvScene, CvStage, DragEngine } from './elements';
+import type { CvAnimate } from '../elements/animate';
+import type { CvScene } from '../elements/scene';
+import type { CvStage } from '../elements/stage';
+import { progressIn, writeLayer } from '../render/layers';
+import type { InputEngine } from './engine';
 
 const INTERACTIVE =
   'a,button,input,textarea,select,option,summary,[contenteditable=""],[contenteditable="true"],[data-cv-ignore-drag],[data-cineview-ignore-drag]';
@@ -20,11 +23,11 @@ interface Sample {
 
 type Mode = 'idle' | 'dragging' | 'settling';
 
-export function createDragEngine(stage: CvStage): DragEngine {
+export function createDragEngine(stage: CvStage): InputEngine {
   return new Drag(stage);
 }
 
-class Drag implements DragEngine {
+class Drag implements InputEngine {
   private scenes: CvScene[];
   private vh = window.innerHeight;
   private index = 0;

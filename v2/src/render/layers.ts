@@ -13,7 +13,7 @@ import {
   type Frame,
   type Prop,
   type Source,
-} from './fx';
+} from '../core/fx';
 
 export type LayerKind = 'space' | 'time' | 'clip';
 
@@ -43,10 +43,10 @@ const LAYER_STYLE =
   '.l{display:block;width:100%;height:100%}' +
   'slot{display:contents}';
 
-export function buildLayers(
-  host: HTMLElement,
-  plans: Array<Omit<Layer, 'el' | 'used' | 'frame' | 'scratch' | 'last'>>
-): Layer[] {
+/** What an element decides about a layer before the layer exists. */
+export type LayerPlan = Omit<Layer, 'el' | 'used' | 'frame' | 'scratch' | 'last' | 'native'>;
+
+export function buildLayers(host: HTMLElement, plans: readonly LayerPlan[]): Layer[] {
   const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
   root.textContent = '';
   const style = document.createElement('style');

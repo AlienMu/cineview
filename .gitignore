@@ -109,3 +109,4 @@ site/dist-acceptance/
 # Cineview 2.0 prototype build outputs
 v2/.size/
 v2/fixtures-dist/
+v2/dist/
