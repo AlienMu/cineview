@@ -3,6 +3,8 @@
  *
  *   v2/dist/cineview.js        production entry (minified); drag input is a lazy chunk
  *   v2/dist/dev/cineview.js    development entry (readable, craft warnings on)
+ *   v2/dist/cineview.css       boot styles for the page <head> (plan v3 §10)
+ *   v2/dist/head.js            the inline <head> snippet that sets `.cv-js`, with its CSP hash
  *
  * Size budget (plan v3 §11 threshold 1): initial JS = entry + its static imports <= 40 KiB gzip;
  * the drag chunk <= 12 KiB gzip. Over budget fails the build.
@@ -12,7 +14,8 @@
  */
 import { build } from 'esbuild';
 import { gzipSync } from 'node:zlib';
-import { readFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,6 +75,28 @@ const report = await sizes(prod);
 const dragKiB = Object.entries(report.lazyKiB)
   .filter(([k]) => /\/drag-/.test(k))
   .reduce((a, [, v]) => a + v, 0);
+// Boot stylesheet and head snippet, generated from the same preset definitions as the runtime.
+{
+  const out = join(here, 'dist/.boot.mjs');
+  await build({
+    entryPoints: [join(here, 'src/boot.ts')],
+    outfile: out,
+    bundle: true,
+    format: 'esm',
+    platform: 'neutral',
+    define: { __DEV__: 'false' },
+    logLevel: 'warning',
+  });
+  const { bootCss, HEAD_SNIPPET } = await import(`${out}?${Date.now()}`);
+  await rm(out);
+  await writeFile(join(here, 'dist/cineview.css'), `${bootCss()}\n`);
+  const hash = createHash('sha256').update(HEAD_SNIPPET).digest('base64');
+  await writeFile(
+    join(here, 'dist/head.js'),
+    `// Inline in <head>, before cineview.css. CSP: script-src 'sha256-${hash}'\n${HEAD_SNIPPET}\n`
+  );
+}
+
 const over = [];
 if (report.initialKiB > BUDGET_KIB.initial) over.push(`initial ${report.initialKiB} KiB`);
 if (dragKiB > BUDGET_KIB.drag) over.push(`drag ${dragKiB} KiB`);

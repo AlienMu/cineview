@@ -47,6 +47,7 @@ export class ScrollInput implements InputEngine {
   private unit = 1;
   private docHeight = 0;
   private frameQueued = false;
+  private destroyed = false;
   private nativeIo: IntersectionObserver | null = null;
   private activeIo: IntersectionObserver;
   private ro: ResizeObserver;
@@ -64,7 +65,16 @@ export class ScrollInput implements InputEngine {
     this.scenes = stage.ordered;
     this.clock = stage.clock;
     this.native = !stage.hasAttribute('fallback') && typeof platform.ViewTimeline === 'function';
-    this.enter = new EnterController(this.clock);
+    const gate = stage.firstScreen;
+    this.enter = new EnterController(this.clock, {
+      held: (): boolean => gate?.held ?? false,
+      offset: stage.bootOffset,
+    });
+    if (gate?.held) {
+      gate.whenReleased((): void => {
+        if (!this.destroyed) this.queueFrame();
+      });
+    }
     this.refresh();
     if (this.native) this.startNative();
     this.bindEnter();
@@ -94,6 +104,7 @@ export class ScrollInput implements InputEngine {
   }
 
   destroy(): void {
+    this.destroyed = true;
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('load', this.onLoad);

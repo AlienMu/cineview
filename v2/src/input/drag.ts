@@ -127,6 +127,7 @@ class DragInput implements DragEngine {
   private session = false;
   private suppressClick = false;
   private raf = 0;
+  private destroyed = false;
   private transition: number;
   private threshold: Threshold;
   private mapping: DragMapping;
@@ -188,9 +189,26 @@ class DragInput implements DragEngine {
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onCancel);
     window.addEventListener('resize', this.onResize, { passive: true });
+    // First screen (1.x cold start): its entrance plays on the clock, from where a CSS-first
+    // entrance got to, once its assets are ready (plan v3 §10). A rebuild resumes at the end.
+    const first = this.index;
+    const gate = stage.firstScreen;
+    if (resumeAt !== undefined) {
+      this.times[first] = this.total(first);
+    } else if (gate?.held) {
+      gate.whenReleased(() => {
+        // A gesture or navigation since then owns the scene.
+        if (this.destroyed || this.index !== first || this.press?.owning || this.lane) return;
+        if (this.heads[first]) return;
+        this.play(first, 0, this.total(first));
+        this.loop();
+      });
+    } else {
+      const offset = Math.min(stage.bootOffset, this.total(first));
+      this.times[first] = offset;
+      this.play(first, offset, this.total(first));
+    }
     this.refresh();
-    // First screen: its entrance plays on the clock from 0 (1.x cold start).
-    this.play(this.index, 0, this.total(this.index));
     this.loop();
   }
 
@@ -215,6 +233,7 @@ class DragInput implements DragEngine {
   }
 
   destroy(): void {
+    this.destroyed = true;
     cancelAnimationFrame(this.raf);
     this.stage.removeEventListener('pointerdown', this.onDown);
     this.stage.removeEventListener('pointermove', this.onMove);
@@ -456,6 +475,8 @@ class DragInput implements DragEngine {
 
   /** Ownership: the frozen transition becomes the finger's, in place (never flush-committed). */
   private takeOver(p: Press): void {
+    // Grabbing the first screen while it waits for assets ends the wait (1.x preemption).
+    this.stage.firstScreen?.preempt();
     p.base = this.pos - this.index;
     // A commit slide that had not landed is still a transition away from `index`.
     this.lane = null;

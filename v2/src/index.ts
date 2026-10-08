@@ -1,25 +1,32 @@
 /** Cineview 2.0 prototype entry: core + scroll input + first presets. Drag input loads on demand. */
 import { define } from './elements/define';
+import { bootCss, captureBoot, HEAD_SNIPPET } from './boot';
 import { isBrowser } from './platform';
 
 export { CvAnimate, CvPause, CvScene, CvStage } from './elements/define';
 export { defineEffect, presetNames, type EffectDefinition } from './core/fx';
+/** For build tools and servers: the boot stylesheet and the <head> snippet that sets `.cv-js`. */
+export { bootCss, HEAD_SNIPPET };
 
 /**
- * Boot styles. In the product these ship in cineview.css (loaded in <head>) so they apply before the
- * first layout of static HTML; the prototype injects them at module load. Drag scenes beyond the first
- * two start skipped, so the first layout does not pay for every scene (phase-0 heavy fixture).
+ * Boot styles: pages should load cineview.css in <head> (plan v3 §10), so they apply before the first
+ * layout of static HTML. Without it the module injects the same rules when it loads.
  */
-if (isBrowser && !document.getElementById('cv-boot-style')) {
+if (isBrowser && !document.getElementById('cv-boot-style') && !hasBootSheet()) {
   const style = document.createElement('style');
   style.id = 'cv-boot-style';
-  style.textContent =
-    'cv-stage,cv-scene,cv-animate{display:block}' +
-    'cv-pause{cursor:pointer}' +
-    'cv-stage[input=drag]{position:fixed;inset:0;overflow:hidden}' +
-    'cv-stage[input=drag]>cv-scene{position:absolute;inset:0}' +
-    'cv-stage[input=drag]>cv-scene:nth-of-type(n+3){content-visibility:hidden}';
+  style.textContent = bootCss();
   document.head.append(style);
 }
 
-define();
+function hasBootSheet(): boolean {
+  return getComputedStyle(document.documentElement).getPropertyValue('--cv-boot').trim() === '1';
+}
+
+if (isBrowser) {
+  const restore = captureBoot();
+  define();
+  restore();
+} else {
+  define();
+}

@@ -3,6 +3,8 @@
  * rebuilds once per microtask after any change, then hands motion to its input. Drag input loads
  * on demand so scroll pages never pay for it.
  */
+import { FirstScreenGate } from '../assets/first-screen';
+import { adoptBoot } from '../boot';
 import { onEffectDefined, type Source } from '../core/fx';
 import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
@@ -19,6 +21,7 @@ export class CvStage extends ElementBase {
     'paused',
     'design-width',
     'margin',
+    'first-scene-timeout',
     'transition-duration',
     'threshold',
     'unit',
@@ -31,8 +34,16 @@ export class CvStage extends ElementBase {
   engine: InputEngine | null = null;
   /** Entrances played on time and loops; paused together. */
   readonly clock = new Clock();
+  /** The first-screen gate, created by the first build and kept across rebuilds. */
+  firstScreen: FirstScreenGate | null = null;
+  /**
+   * Elapsed time of the CSS-first entrance adopted by the first build (ms): the first screen's
+   * entrance starts that far in. 0 afterwards.
+   */
+  bootOffset = 0;
   private scheduled = false;
   private generation = 0;
+  private live: HTMLDivElement | null = null;
 
   get input(): Input {
     return this.getAttribute('input') === 'drag' ? 'drag' : 'scroll';
@@ -43,6 +54,7 @@ export class CvStage extends ElementBase {
   connectedCallback(): void {
     this.style.display = 'block';
     this.style.overflowX = 'clip';
+    this.ensureShadow();
     if (!this.stopListening.length) {
       this.stopListening = [
         // A preset defined after the page built may be one this stage uses.
@@ -69,7 +81,34 @@ export class CvStage extends ElementBase {
   disconnectedCallback(): void {
     for (const stop of this.stopListening) stop();
     this.stopListening = [];
+    this.firstScreen?.dispose();
+    this.firstScreen = null;
+    this.booted = false;
     this.teardown();
+  }
+
+  /**
+   * Shadow root: an inner frame (100% wide, at most the design width, centred; the inline-size
+   * container behind `--cv-unit`) holding the default slot, and a polite live region.
+   */
+  private ensureShadow(): void {
+    if (this.shadowRoot) return;
+    const root = this.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent =
+      '.frame{position:relative;width:100%;max-width:calc(var(--cv-dw,750) * 1px);margin-inline:auto;container-type:inline-size}' +
+      ':host([input=drag]) .frame{height:100%}' +
+      '.live{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}';
+    const frame = document.createElement('div');
+    frame.className = 'frame';
+    frame.setAttribute('part', 'frame');
+    frame.append(document.createElement('slot'));
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.setAttribute('aria-live', 'polite');
+    live.setAttribute('aria-atomic', 'true');
+    root.append(style, frame, live);
+    this.live = live;
   }
 
   /** Pause entrances played on time and loops (scroll and drag still move scenes). */
@@ -146,29 +185,14 @@ export class CvStage extends ElementBase {
     return i >= 0 ? i : null;
   }
 
-  /**
-   * Polite screen-reader announcement (scene changes under drag). The live region sits in the
-   * stage's shadow root next to a default slot, so the author's light DOM is never touched.
-   */
+  /** Polite screen-reader announcement (scene changes under drag). */
   announce(text: string): void {
-    if (!this.live) {
-      const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
-      root.append(document.createElement('slot'));
-      this.live = document.createElement('div');
-      this.live.setAttribute('aria-live', 'polite');
-      this.live.setAttribute('aria-atomic', 'true');
-      this.live.setAttribute('part', 'live');
-      this.live.style.cssText =
-        'position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap';
-      root.append(this.live);
-    }
-    // Same text twice in a row (A → B → A) must still be read: clear, then set on the next frame.
-    this.live.textContent = '';
     const live = this.live;
+    if (!live) return;
+    // Same text twice in a row (A → B → A) must still be read: clear, then set on the next frame.
+    live.textContent = '';
     requestAnimationFrame(() => (live.textContent = text));
   }
-
-  private live: HTMLDivElement | null = null;
 
   private teardown(): void {
     this.generation++;
@@ -181,6 +205,9 @@ export class CvStage extends ElementBase {
     const resumeAt = this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
     this.teardown();
     const input = this.input;
+    const dw = Number(this.getAttribute('design-width'));
+    if (dw > 0) this.style.setProperty('--cv-dw', String(dw));
+    else this.style.removeProperty('--cv-dw');
     this.ordered = [...this.scenes].sort((a, b) =>
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
     );
@@ -200,16 +227,44 @@ export class CvStage extends ElementBase {
       }
     }
 
+    const first = this.firstBuild();
     if (input === 'drag') {
       const generation = this.generation;
       const { createDragEngine } = await import('../input/drag');
       // A later build (or a disconnect) superseded this one while the chunk loaded.
       if (generation !== this.generation || !this.isConnected) return;
+      if (first)
+        this.startFirstScreen(
+          resumeAt ?? this.sceneIndexOf(decodeURIComponent(location.hash.slice(1))) ?? 0
+        );
       this.engine = createDragEngine(this, resumeAt);
     } else {
+      if (first) this.startFirstScreen(0);
       this.engine = new ScrollInput(this);
     }
+    // Same task as the engine's first writes and clock animations: the CSS-first entrance and the
+    // hidden boot state hand over without a frame in between.
+    this.bootOffset = 0;
+    for (const s of this.ordered) for (const a of s.animates) a.setAttribute('data-cv-live', '');
     this.markReady();
+  }
+
+  private booted = false;
+
+  /** True once per connection: the build that opens the page. */
+  private firstBuild(): boolean {
+    if (this.booted) return false;
+    this.booted = true;
+    return true;
+  }
+
+  /** Gate the opening scene on its assets and adopt a CSS-first entrance running on it. */
+  private startFirstScreen(index: number): void {
+    const scene = this.ordered[index] ?? null;
+    const timeout = Number(this.getAttribute('first-scene-timeout') ?? 3000);
+    this.firstScreen = new FirstScreenGate(this, scene, Number.isFinite(timeout) ? timeout : 3000);
+    const offset = adoptBoot();
+    this.bootOffset = index === 0 ? offset : 0;
   }
 
   private markReady(): void {

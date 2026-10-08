@@ -65,11 +65,21 @@ export function parseMargins(text: string | null, fallback: [number, number]): [
   return [enter, Number.isFinite(b) ? Math.max(0, b!) : enter];
 }
 
+export interface FirstScreen {
+  /** The first screen waits for its assets: its entrances are not measured yet. */
+  held(): boolean;
+  /** The first screen's entrances start this far in (CSS-first adoption), in ms. */
+  offset: number;
+}
+
 export class EnterController {
   private tracks: Track[] = [];
   private byElement = new Map<CvAnimate, Track>();
 
-  constructor(private clock: Clock) {}
+  constructor(
+    private clock: Clock,
+    private firstScreen: FirstScreen = { held: () => false, offset: 0 }
+  ) {}
 
   get size(): number {
     return this.tracks.length;
@@ -130,7 +140,10 @@ export class EnterController {
   /** Write phase: advance each measured element's gate machine. `unit` converts design px. */
   apply(measurements: readonly Measurement[], vh: number, unit: number): void {
     const now = performance.now();
+    const held = this.firstScreen.held();
     for (const { track: t, top, bottom } of measurements) {
+      // The first scene waits for its assets; it is measured afresh once they are ready.
+      if (held && t.first) continue;
       const g = gates({
         top,
         bottom,
@@ -149,7 +162,7 @@ export class EnterController {
           continue;
         }
         if (t.first && !g.oversized && !t.eye && top >= 0 && bottom <= vh) {
-          this.begin(t, now);
+          this.begin(t, now, now - this.firstScreen.offset);
           continue;
         }
       }
@@ -209,13 +222,14 @@ export class EnterController {
     this.release(t, performance.now());
   }
 
-  private begin(t: Track, now: number): void {
+  /** `origin`: when the entrance counts as started (earlier than now when adopting a CSS entrance). */
+  private begin(t: Track, now: number, origin = now): void {
     const pred = t.predecessor;
     if (pred && pred.startedAt === null) {
       t.phase = 'waiting';
       return;
     }
-    const startAt = pred ? Math.max(now + t.delay, pred.startedAt! + t.lead) : now + t.delay;
+    const startAt = pred ? Math.max(origin + t.delay, pred.startedAt! + t.lead) : origin + t.delay;
     this.cancel(t);
     t.startedAt = startAt;
     t.phase = 'entering';
@@ -229,7 +243,8 @@ export class EnterController {
         const animation = layer.el.animate(layerKeyframes(layer), {
           duration: w ? w.end - w.start : 600,
           // Stagger children keep their offset inside the element's window.
-          delay: Math.max(0, startAt - now) + (w && base ? w.start - base.start : 0),
+          // Negative when adopting an entrance already under way.
+          delay: startAt - now + (w && base ? w.start - base.start : 0),
           fill: 'both',
           easing: 'linear',
         });
