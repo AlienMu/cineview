@@ -49,7 +49,7 @@ function cell(kind: string, n: number): string {
     case 'rise-drift':
       return `<cv-animate fx="rise, drift" duration="800"><div class="cell"></div></cv-animate>`;
     default:
-      return `<cv-animate from="opacity:.2; x:-20; scale:.9" duration="800" exit-to="opacity:.2; x:20; scale:.9" exit-duration="300"><div class="cell"></div></cv-animate>`;
+      return `<cv-animate from="opacity:.2; x:-20; scale:.9" duration="800" exit="opacity:.2; x:20; scale:.9" exit-duration="300"><div class="cell"></div></cv-animate>`;
   }
 }
 

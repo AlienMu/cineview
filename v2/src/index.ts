@@ -3,7 +3,7 @@ import { define } from './elements/define';
 import { isBrowser } from './platform';
 
 export { CvAnimate, CvScene, CvStage } from './elements/define';
-export { presets } from './core/fx';
+export { defineEffect, presetNames, type EffectDefinition } from './core/fx';
 
 /**
  * Boot styles. In the product these ship in cineview.css (loaded in <head>) so they apply before the

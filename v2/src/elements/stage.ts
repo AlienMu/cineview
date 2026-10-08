@@ -3,7 +3,7 @@
  * rebuilds once per microtask after any change, then hands motion to its input. Drag input loads
  * on demand so scroll pages never pay for it.
  */
-import type { Source } from '../core/fx';
+import { onEffectDefined, type Source } from '../core/fx';
 import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
 import { ElementBase } from '../platform';
@@ -23,13 +23,19 @@ export class CvStage extends ElementBase {
     return this.getAttribute('input') === 'drag' ? 'drag' : 'scroll';
   }
 
+  private stopListening: (() => void) | null = null;
+
   connectedCallback(): void {
     this.style.display = 'block';
     this.style.overflowX = 'clip';
+    // A preset defined after the page built may be one this stage uses.
+    this.stopListening ??= onEffectDefined(() => this.invalidate());
     this.invalidate();
   }
 
   disconnectedCallback(): void {
+    this.stopListening?.();
+    this.stopListening = null;
     this.teardown();
   }
 

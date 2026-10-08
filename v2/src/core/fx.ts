@@ -1,174 +1,366 @@
 /**
- * `fx` parsing, presets, and per-source composition.
+ * The `fx` language and the preset library.
  *
- * An element's effects are grouped by progress source; each group becomes one
- * shadow layer (see layers.ts). Within a group, effects that touch the same
- * property are combined: translate and rotate add, scale and opacity multiply,
- * blur adds. Clip effects always go to the innermost clip layer.
+ *   fx="rise, reveal(left) 0% 60%, drift(strong)"
+ *   fx="focus(band) entry 0% cover 50%"
+ *
+ * An item is a preset name, optional word-first arguments, and an optional range: plain
+ * percentages are a part of the element's progress; named ranges (`cover`, `contain`, `entry`,
+ * `exit`, `entry-crossing`, `exit-crossing`, as in CSS `animation-range`) place a view-driven
+ * effect on the subject's passage through the viewport.
+ *
+ * Presets are the lexicon turned into functions: each carries its craft numbers (amounts, curve,
+ * duration) so a short name gives a finished result. Raw values go through `from` / `to`; reusable
+ * custom presets through `defineEffect()`.
  */
+import { easeInOut, linear, pan, parseEase, settle, type Ease } from './ease';
+import {
+  applyTrack,
+  parseDeclarations,
+  resetFrame,
+  tracksBetween,
+  type Clip,
+  type Frame,
+  type Prop,
+  type Tracks,
+  type Value,
+} from './props';
 
-export type Source = 'scene' | 'enter' | 'view' | 'clock';
-export type Prop = 'x' | 'y' | 'yp' | 'scale' | 'rotate' | 'opacity' | 'blur' | 'clip';
+/** Progress sources (plan v3 §3.5). Phase 1 drives scene, enter, view and clock. */
+export type Source =
+  'scene' | 'enter' | 'view' | 'page' | 'clock' | 'eye' | 'velocity' | 'direction';
 
-/** Numeric tracks. `clip` is [top, right, bottom, left] in percent. */
-export type Value = number | readonly [number, number, number, number];
+export type ViewRangeName =
+  'cover' | 'contain' | 'entry' | 'exit' | 'entry-crossing' | 'exit-crossing';
+export interface ViewEdge {
+  name: ViewRangeName;
+  offset: number;
+}
 
 export interface Effect {
-  /** Property tracks as [from, to]. */
-  tracks: Partial<Record<Prop, readonly [Value, Value]>>;
-  /** Fraction of the element's progress this effect occupies. */
+  /** Tracks as [from, to], evaluated at eased progress. */
+  tracks: Tracks;
+  /** Flattened tracks for the per-frame loop. */
+  entries: ReadonlyArray<readonly [Prop, Value, Value]>;
+  /** Part of the element's progress this effect occupies. */
   range: readonly [number, number];
+  /** Named view range; only meaningful on view sources (resolved against measured geometry). */
+  viewRange: readonly [ViewEdge, ViewEdge] | null;
   ease: Ease;
-  /** Source chosen by the preset when nothing overrides it. */
-  defaultSource: Source;
-  /** Rate presets keep their source inside zones and drag scenes. */
-  rate: boolean;
+  /** Rate presets keep this source inside zones and drag scenes; null = time (context decides). */
+  own: Source | null;
+  /** Layer transform-origin (push focus). */
+  origin: string | null;
+  /** Suggested duration (ms) when the element sets none. */
+  duration: number | null;
 }
 
-export type Ease = (t: number) => number;
+type Report = (message: string) => void;
 
-const cubic = (x1: number, y1: number, x2: number, y2: number): Ease => {
-  // Newton iterations on the x curve, then evaluate y. Enough precision for animation.
-  const ax = 3 * x1 - 3 * x2 + 1;
-  const bx = 3 * x2 - 6 * x1;
-  const cx = 3 * x1;
-  const ay = 3 * y1 - 3 * y2 + 1;
-  const by = 3 * y2 - 6 * y1;
-  const cy = 3 * y1;
-  return (t) => {
-    if (t <= 0) return 0;
-    if (t >= 1) return 1;
-    let u = t;
-    for (let i = 0; i < 6; i++) {
-      const x = ((ax * u + bx) * u + cx) * u - t;
-      const d = (3 * ax * u + 2 * bx) * u + cx;
-      if (Math.abs(x) < 1e-5 || d === 0) break;
-      u -= x / d;
-    }
-    return ((ay * u + by) * u + cy) * u;
+interface EffectInit {
+  tracks: Tracks;
+  ease?: Ease;
+  own?: Source | null;
+  origin?: string | null;
+  duration?: number | null;
+  range?: readonly [number, number];
+}
+
+export function makeEffect(init: EffectInit): Effect {
+  const entries = (Object.keys(init.tracks) as Prop[]).map(
+    (p) => [p, init.tracks[p]![0], init.tracks[p]![1]] as const
+  );
+  return {
+    tracks: init.tracks,
+    entries,
+    range: init.range ?? [0, 1],
+    viewRange: null,
+    ease: init.ease ?? settle,
+    own: init.own ?? null,
+    origin: init.origin ?? null,
+    duration: init.duration ?? null,
   };
-};
-
-export const easeOut = cubic(0.22, 1, 0.36, 1);
-export const easeInOut = cubic(0.65, 0, 0.35, 1);
-export const linear: Ease = (t) => t;
-
-type Preset = (args: string[]) => Effect;
-
-const dirInset = (dir: string): readonly [number, number, number, number] => {
-  switch (dir) {
-    case 'right':
-      return [0, 0, 0, 100];
-    case 'up':
-      return [100, 0, 0, 0];
-    case 'down':
-      return [0, 0, 100, 0];
-    default:
-      return [0, 100, 0, 0];
-  }
-};
-
-const level = (arg: string | undefined, soft: number, normal: number, strong: number): number =>
-  arg === 'soft' ? soft : arg === 'strong' ? strong : normal;
-
-const blurAmount = (arg: string | undefined): number => {
-  if (arg && arg.endsWith('px')) return Math.min(Number.parseFloat(arg), 6);
-  return level(arg, 3, 6, 6);
-};
-
-export const presets: Record<string, Preset> = {
-  fade: () => ({
-    tracks: { opacity: [0, 1] },
-    range: [0, 1],
-    ease: easeOut,
-    defaultSource: 'enter',
-    rate: false,
-  }),
-  rise: () => ({
-    tracks: { opacity: [0, 1], y: [40, 0] },
-    range: [0, 1],
-    ease: easeOut,
-    defaultSource: 'enter',
-    rate: false,
-  }),
-  // reveal = focus + wipe + push (lexicon #12, #30, #26). The clip track goes to the clip layer.
-  reveal: (args) => ({
-    tracks: {
-      blur: [blurAmount(args[1]), 0],
-      opacity: [0.34, 1],
-      clip: [dirInset(args[0] ?? 'left'), [0, 0, 0, 0]],
-      scale: [1.06, 1],
-    },
-    range: [0, 1],
-    ease: easeInOut,
-    defaultSource: 'enter',
-    rate: false,
-  }),
-  focus: (args) => ({
-    tracks: { blur: [blurAmount(args[0]), 0], opacity: [0.34, 1] },
-    range: [0, 1],
-    ease: easeOut,
-    defaultSource: 'enter',
-    rate: false,
-  }),
-  // Parallax (lexicon #4): small rate differences read as depth.
-  drift: (args) => {
-    const amount = level(args[0], 4, 8, 14);
-    return {
-      tracks: { yp: [amount, -amount] },
-      range: [0, 1],
-      ease: linear,
-      defaultSource: 'view',
-      rate: true,
-    };
-  },
-};
-
-export interface ParsedFx {
-  effect: Effect;
-  source: Source;
 }
 
-/** Parse `fx="rise, reveal(left) 0% 50%, drift(strong)"`. Unknown presets are reported, not thrown. */
-export function parseFx(text: string | null, report: (message: string) => void): Effect[] {
-  if (!text) return [];
-  const out: Effect[] = [];
-  for (const raw of splitTop(text)) {
-    const item = raw.trim();
-    if (!item) continue;
-    const m = /^([a-z][\w-]*)\s*(?:\(([^)]*)\))?\s*(?:(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%)?$/.exec(
-      item
-    );
-    if (!m) {
-      report(`Cannot parse fx item "${item}"`);
-      continue;
-    }
-    const preset = presets[m[1]!];
-    if (!preset) {
-      report(`Unknown preset "${m[1]}"`);
-      continue;
-    }
-    const args = (m[2] ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const effect = preset(args);
-    if (m[3] !== undefined && m[4] !== undefined) {
-      effect.range = [Number(m[3]) / 100, Number(m[4]) / 100];
-    }
-    out.push(effect);
-  }
-  return out;
+/** The same effect played backwards: an entrance used as an exit (identity → its from-state). */
+export function asExit(e: Effect): Effect {
+  const tracks: Tracks = {};
+  for (const [p, from, to] of e.entries) tracks[p] = [to, from];
+  const ease = e.ease;
+  return {
+    ...makeEffect({ tracks, ease: (t) => 1 - ease(1 - t), own: e.own, origin: e.origin }),
+    range: [1 - e.range[1], 1 - e.range[0]],
+  };
 }
 
-function splitTop(text: string): string[] {
+// ---- evaluation -----------------------------------------------------------------------------------
+
+/** Evaluate same-source effects at progress p into `frame` (mutated, no allocation). */
+export function evaluate(
+  effects: readonly Effect[],
+  p: number,
+  frame: Frame,
+  clipOnly: boolean
+): void {
+  resetFrame(frame);
+  for (const e of effects) {
+    const [a, b] = e.range;
+    const q = b <= a ? (p >= b ? 1 : 0) : p <= a ? 0 : p >= b ? 1 : (p - a) / (b - a);
+    const t = e.ease(q);
+    for (const [prop, from, to] of e.entries) {
+      if ((prop === 'clip') === clipOnly) applyTrack(frame, prop, from, to, t);
+    }
+  }
+}
+
+export function usedProps(effects: readonly Effect[], clipOnly: boolean): Set<Prop> {
+  const used = new Set<Prop>();
+  for (const e of effects) {
+    for (const [p] of e.entries) if ((p === 'clip') === clipOnly) used.add(p);
+  }
+  return used;
+}
+
+// ---- presets --------------------------------------------------------------------------------------
+
+type Factory = (args: readonly string[], report: Report) => Effect | Effect[];
+
+const presets = new Map<string, Factory>();
+
+/** Word levels (`soft` / `strong`) or an explicit number with an allowed unit. */
+function amount(
+  arg: string | undefined,
+  levels: { soft: number; normal: number; strong: number },
+  report: Report,
+  preset: string,
+  units: readonly string[] = ['']
+): { value: number; unit: string } {
+  if (arg === undefined || arg === '') return { value: levels.normal, unit: units[0]! };
+  if (arg === 'soft' || arg === 'strong') return { value: levels[arg], unit: units[0]! };
+  const m = /^(-?\d*\.?\d+)([a-z%]*)$/.exec(arg);
+  if (m && units.includes(m[2]!)) return { value: Number(m[1]), unit: m[2]! };
+  const accepted = units.map((u) => (u ? `n${u}` : 'n')).join(', ');
+  report(`${preset}(${arg}): expected soft, strong or ${accepted}`);
+  return { value: levels.normal, unit: units[0]! };
+}
+
+/** wipe sides: left/right/top/bottom name the starting edge; up/down name the travel. */
+const WIPE: Readonly<Record<string, Clip>> = {
+  left: [0, 100, 0, 0],
+  right: [0, 0, 0, 100],
+  top: [0, 0, 100, 0],
+  bottom: [100, 0, 0, 0],
+  up: [100, 0, 0, 0],
+  down: [0, 0, 100, 0],
+  center: [0, 50, 0, 50],
+};
+const CLEAR: Clip = [0, 0, 0, 0];
+
+function wipeTrack(side: string | undefined, report: Report): Tracks {
+  const from = WIPE[side ?? 'left'];
+  if (!from) report(`wipe(${side}): expected ${Object.keys(WIPE).join(', ')}`);
+  return { clip: [from ?? WIPE.left!, CLEAR] };
+}
+
+/** Lexicon #12 depth of field: blur 4.5px and opacity .34 out of focus. */
+function focusTracks(arg: string | undefined, report: Report): Tracks {
+  const blur = amount(arg, { soft: 2.5, normal: 4.5, strong: 9 }, report, 'focus', [
+    '',
+    'px',
+  ]).value;
+  return { blur: [Math.max(0, blur), 0], opacity: [0.34, 1] };
+}
+
+function scaleArg(
+  arg: string | undefined,
+  fallback: number,
+  report: Report,
+  preset: string
+): number {
+  if (arg === undefined || arg === '') return fallback;
+  const n = Number(arg);
+  if (Number.isFinite(n) && n >= 0) return n;
+  report(`${preset}(${arg}): expected a scale such as 1.06`);
+  return fallback;
+}
+
+presets.set('fade', () => makeEffect({ tracks: { opacity: [0, 1] }, duration: 600 }));
+
+// Lexicon #32: lines come up 40px and settle.
+presets.set('rise', (args, report) => {
+  const a = amount(args[0], { soft: 20, normal: 40, strong: 80 }, report, 'rise', ['', 'px', '%']);
+  const track: Prop = a.unit === '%' ? 'yp' : 'y';
+  return makeEffect({ tracks: { opacity: [0, 1], [track]: [a.value, 0] }, duration: 950 });
+});
+
+presets.set('grow', (args, report) => {
+  const from =
+    args[0] === undefined || args[0] === 'soft' || args[0] === 'strong'
+      ? { soft: 0.96, normal: 0.9, strong: 0.8 }[args[0] ?? 'normal']!
+      : scaleArg(args[0], 0.9, report, 'grow');
+  return makeEffect({ tracks: { opacity: [0, 1], scale: [from, 1] }, duration: 800 });
+});
+
+presets.set('focus', (args, report) => {
+  if (args[0] === 'band') {
+    // Sharp only in the middle of the passage (lexicon focusband keyframes: 46%–54%).
+    const tracks = focusTracks(args[1], report);
+    const into = makeEffect({ tracks, ease: linear, own: 'view', range: [0, 0.46] });
+    const out = asExit(makeEffect({ tracks, ease: linear, own: 'view' }));
+    return [into, { ...out, range: [0.54, 1] }];
+  }
+  return makeEffect({ tracks: focusTracks(args[0], report), duration: 900 });
+});
+
+// Lexicon #30: an edge travels across.
+presets.set('wipe', (args, report) =>
+  makeEffect({ tracks: wipeTrack(args[0], report), ease: pan, duration: 1100 })
+);
+
+// Lexicon #26 Ken Burns: scale around a focus point. push(from, to, focus).
+presets.set('push', (args, report) => {
+  const word = args[0] === 'in' || args[0] === 'out' ? args[0] : null;
+  const [from, to] = word
+    ? word === 'in'
+      ? [1, 1.16]
+      : [1.16, 1]
+    : [scaleArg(args[0], 1.06, report, 'push'), scaleArg(args[1], 1, report, 'push')];
+  const origin = args[word ? 1 : 2] ?? null;
+  if (origin !== null && !/^[\w\s.%-]+$/.test(origin))
+    report(`push focus "${origin}" is not a position`);
+  return makeEffect({ tracks: { scale: [from, to] }, ease: pan, origin, duration: 1200 });
+});
+
+// focus + wipe + push in one name (lexicon #12 + #30 + #26).
+presets.set('reveal', (args, report) => [
+  makeEffect({ tracks: focusTracks(args[1], report), duration: 1200 }),
+  makeEffect({ tracks: wipeTrack(args[0], report), ease: pan, duration: 1200 }),
+  makeEffect({ tracks: { scale: [1.06, 1] }, ease: pan, duration: 1200 }),
+]);
+
+// Lexicon #4 parallax: a rate difference reads as depth. Positive drifts lag (far), negative lead.
+presets.set('drift', (args, report) => {
+  const a = amount(args[0], { soft: 3.5, normal: 10, strong: 16 }, report, 'drift', [
+    '%',
+    '',
+    'px',
+  ]);
+  const track: Prop = a.unit === '%' ? 'yp' : 'y';
+  return makeEffect({ tracks: { [track]: [-a.value, a.value] }, ease: linear, own: 'view' });
+});
+
+// 1.x presets still used on the site, with their exact 1.x values (1.x played them ease-in-out).
+const legacy =
+  (tracks: Tracks): Factory =>
+  () =>
+    makeEffect({ tracks, ease: easeInOut, duration: 600 });
+presets.set('fade-in', legacy({ opacity: [0, 1] }));
+presets.set('slide-up', legacy({ yp: [100, 0], opacity: [0, 1] }));
+presets.set('zoom-in', legacy({ scale: [0, 1], opacity: [0, 1] }));
+presets.set('rotate-in', legacy({ rotate: [-180, 0], scale: [0, 1], opacity: [0, 1] }));
+presets.set('blur-in', legacy({ blur: [10, 0], opacity: [0, 1] }));
+
+export const presetNames = (): string[] => [...presets.keys()];
+
+// ---- defineEffect ---------------------------------------------------------------------------------
+
+/** Declarations as text (`"y:40; opacity:0"`) or an object (`{ y: 40, opacity: 0, blur: '6px' }`). */
+export type Declarations = string | Readonly<Record<string, number | string>>;
+
+export interface EffectDefinition {
+  from?: Declarations;
+  to?: Declarations;
+  /** A name from the ease table or `cubic-bezier(…)`. Default `settle`. */
+  ease?: string;
+  /** Suggested duration in ms. */
+  duration?: number;
+  /** Keep this source inside zones and drag scenes (rate effects). Default: follow the timeline. */
+  on?: 'view' | 'page' | 'clock';
+  /** Part of the element's progress, 0–1. */
+  range?: readonly [number, number];
+  origin?: string;
+}
+
+const declarationText = (d: Declarations | undefined): string | null =>
+  d === undefined
+    ? null
+    : typeof d === 'string'
+      ? d
+      : Object.entries(d)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(';');
+
+function fromDefinition(def: EffectDefinition, report: Report): Effect {
+  const from = parseDeclarations(declarationText(def.from), report);
+  const to = parseDeclarations(declarationText(def.to), report);
+  const ease = def.ease === undefined ? settle : parseEase(def.ease);
+  if (!ease) report(`Unknown ease "${def.ease}"`);
+  return makeEffect({
+    tracks: tracksBetween(from, to),
+    ease: ease ?? settle,
+    own: def.on ?? null,
+    origin: def.origin ?? null,
+    duration: def.duration ?? null,
+    ...(def.range ? { range: def.range } : {}),
+  });
+}
+
+export const NAME = /^[a-z][a-z0-9-]*$/;
+const custom = new Set<string>();
+const definedListeners = new Set<(name: string) => void>();
+/** Stages rebuild when a preset they may use is defined after them. */
+export const onEffectDefined = (listener: (name: string) => void): (() => void) => {
+  definedListeners.add(listener);
+  return () => definedListeners.delete(listener);
+};
+
+/**
+ * Register a preset usable in `fx`, `exit` and `loop`. A function receives the item's arguments
+ * (`fx="swing(left, 12)"` → `['left', '12']`). Names are lowercase; built-in names cannot be replaced.
+ */
+export function defineEffect(
+  name: string,
+  definition:
+    | EffectDefinition
+    | readonly EffectDefinition[]
+    | ((args: readonly string[]) => EffectDefinition | readonly EffectDefinition[])
+): void {
+  if (!NAME.test(name))
+    throw new TypeError(`defineEffect: "${name}" is not a valid name (a-z, 0-9, -)`);
+  if (presets.has(name) && !custom.has(name)) {
+    throw new TypeError(`defineEffect: "${name}" is a built-in preset`);
+  }
+  custom.add(name);
+  presets.set(name, (args, report) => {
+    const result = typeof definition === 'function' ? definition(args) : definition;
+    const list: readonly EffectDefinition[] = Array.isArray(result)
+      ? (result as readonly EffectDefinition[])
+      : [result as EffectDefinition];
+    return list.map((d) => fromDefinition(d, report));
+  });
+  definedListeners.forEach((listener) => listener(name));
+}
+
+// ---- parsing --------------------------------------------------------------------------------------
+
+const VIEW_NAMES: ReadonlySet<string> = new Set([
+  'cover',
+  'contain',
+  'entry',
+  'exit',
+  'entry-crossing',
+  'exit-crossing',
+]);
+
+/** Split on commas outside parentheses. */
+export function splitTop(text: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (c === '(') depth++;
-    else if (c === ')') depth--;
+    else if (c === ')') depth = Math.max(0, depth - 1);
     else if (c === ',' && depth === 0) {
       parts.push(text.slice(start, i));
       start = i + 1;
@@ -178,157 +370,147 @@ function splitTop(text: string): string[] {
   return parts;
 }
 
-/** Parse `from="opacity:.2; y:40; scale:.9; x:-20"` into a from/to effect. */
-export function parseFromTo(from: string | null, to: string | null): Effect | null {
-  if (!from && !to) return null;
-  const read = (text: string | null): Partial<Record<Prop, number>> => {
-    const values: Partial<Record<Prop, number>> = {};
-    if (!text) return values;
-    for (const pair of text.split(';')) {
-      const [k, v] = pair.split(':').map((s) => s.trim());
-      if (!k || v === undefined) continue;
-      const n = Number.parseFloat(v);
-      if (Number.isNaN(n)) continue;
-      if (
-        k === 'opacity' ||
-        k === 'scale' ||
-        k === 'x' ||
-        k === 'y' ||
-        k === 'rotate' ||
-        k === 'blur'
-      ) {
-        values[k] = n;
-      }
-    }
-    return values;
+interface ParsedRange {
+  range: readonly [number, number];
+  view: readonly [ViewEdge, ViewEdge] | null;
+}
+
+/** `0% 50%`, `20%`, `entry`, `entry 10% cover 50%`, `cover 20% 80%`. */
+function parseRange(text: string): ParsedRange | null {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return { range: [0, 1], view: null };
+  const pct = (t: string | undefined): number | null => {
+    const m = t === undefined ? null : /^(-?\d*\.?\d+)%$/.exec(t);
+    return m ? Number(m[1]) / 100 : null;
   };
-  const a = read(from);
-  const b = read(to);
-  const identity: Record<string, number> = { opacity: 1, scale: 1, x: 0, y: 0, rotate: 0, blur: 0 };
-  const tracks: Effect['tracks'] = {};
-  for (const key of new Set([...Object.keys(a), ...Object.keys(b)]) as Set<Prop>) {
-    tracks[key] = [a[key] ?? identity[key]!, b[key] ?? identity[key]!];
+  const edges: Array<{ name: ViewRangeName | null; offset: number | null }> = [];
+  let i = 0;
+  while (i < tokens.length && edges.length < 2) {
+    const t = tokens[i]!;
+    if (VIEW_NAMES.has(t)) {
+      const offset = pct(tokens[i + 1]);
+      edges.push({ name: t as ViewRangeName, offset });
+      i += offset === null ? 1 : 2;
+    } else {
+      const offset = pct(t);
+      if (offset === null) return null;
+      edges.push({ name: null, offset });
+      i += 1;
+    }
   }
-  return { tracks, range: [0, 1], ease: easeOut, defaultSource: 'enter', rate: false };
+  if (i < tokens.length || !edges.length) return null;
+  const [a, b] = edges as [(typeof edges)[0], (typeof edges)[0] | undefined];
+  const named = a.name !== null || (b !== undefined && b.name !== null);
+  if (!named) {
+    const start = a.offset ?? 0;
+    const end = b?.offset ?? 1;
+    return { range: [start, end], view: null };
+  }
+  // A range name alone spans that whole range; a bare second edge stays in the first edge's range.
+  const startName = a.name ?? 'cover';
+  const start: ViewEdge = { name: startName, offset: a.offset ?? 0 };
+  const end: ViewEdge = b
+    ? { name: b.name ?? startName, offset: b.offset ?? 1 }
+    : { name: startName, offset: 1 };
+  return { range: [0, 1], view: [start, end] };
 }
 
-/** Values of one layer at one progress. */
-export interface Frame {
-  x: number;
-  y: number;
-  yp: number;
-  scale: number;
-  rotate: number;
-  opacity: number;
-  blur: number;
-  clip: [number, number, number, number] | null;
+export interface ParsedItem {
+  name: string;
+  args: string[];
+  range: ParsedRange;
 }
 
-export const identityFrame = (): Frame => ({
-  x: 0,
-  y: 0,
-  yp: 0,
-  scale: 1,
-  rotate: 0,
-  opacity: 1,
-  blur: 0,
-  clip: null,
-});
+/** One item: `name(args) range`. Null when it cannot be read. */
+export function parseItem(item: string): ParsedItem | null {
+  const m = /^([a-z][a-z0-9-]*)\s*(?:\(([^()]*)\))?\s*(.*)$/.exec(item);
+  const range = m ? parseRange(m[3]!) : null;
+  if (!m || !range) return null;
+  const parts = m[2] === undefined ? [] : splitTop(m[2]).map((s) => s.trim());
+  const args = parts.length === 1 && parts[0] === '' ? [] : parts;
+  return { name: m[1]!, args, range };
+}
 
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+/** Parse one list (`fx`, `exit`, `loop`) into items. Bad items are reported and skipped. */
+export function parseItems(text: string | null, report: Report): ParsedItem[] {
+  const out: ParsedItem[] = [];
+  for (const raw of splitTop(text ?? '')) {
+    const item = raw.trim();
+    if (!item) continue;
+    const parsed = parseItem(item);
+    if (parsed) out.push(parsed);
+    else report(`Cannot parse fx item "${item}"`);
+  }
+  return out;
+}
 
-/** Evaluate a set of same-source effects at progress p into `frame` (mutated, no allocation). */
-export function evaluate(
-  effects: readonly Effect[],
-  p: number,
-  frame: Frame,
-  clipOnly: boolean
-): void {
-  frame.x = 0;
-  frame.y = 0;
-  frame.yp = 0;
-  frame.scale = 1;
-  frame.rotate = 0;
-  frame.opacity = 1;
-  frame.blur = 0;
-  frame.clip = null;
-  for (const e of effects) {
-    const span = e.range[1] - e.range[0];
-    const q =
-      span <= 0 ? (p >= e.range[1] ? 1 : 0) : Math.min(1, Math.max(0, (p - e.range[0]) / span));
-    const t = e.ease(q);
-    const tr = e.tracks;
-    if (clipOnly) {
-      const c = tr.clip;
-      if (c) {
-        const from = c[0] as readonly number[];
-        const to = c[1] as readonly number[];
-        frame.clip = [
-          lerp(from[0]!, to[0]!, t),
-          lerp(from[1]!, to[1]!, t),
-          lerp(from[2]!, to[2]!, t),
-          lerp(from[3]!, to[3]!, t),
-        ];
-      }
+/** Effects for an `fx` list. Unknown presets are reported, not thrown. */
+export function parseFx(text: string | null, report: Report): Effect[] {
+  const out: Effect[] = [];
+  // One pass, so messages come in source order.
+  for (const raw of splitTop(text ?? '')) {
+    if (!raw.trim()) continue;
+    const item = parseItem(raw.trim());
+    if (!item) {
+      report(`Cannot parse fx item "${raw.trim()}"`);
       continue;
     }
-    if (tr.x) frame.x += lerp(tr.x[0] as number, tr.x[1] as number, t);
-    if (tr.y) frame.y += lerp(tr.y[0] as number, tr.y[1] as number, t);
-    if (tr.yp) frame.yp += lerp(tr.yp[0] as number, tr.yp[1] as number, t);
-    if (tr.rotate) frame.rotate += lerp(tr.rotate[0] as number, tr.rotate[1] as number, t);
-    if (tr.scale) frame.scale *= lerp(tr.scale[0] as number, tr.scale[1] as number, t);
-    if (tr.opacity) frame.opacity *= lerp(tr.opacity[0] as number, tr.opacity[1] as number, t);
-    if (tr.blur) frame.blur += lerp(tr.blur[0] as number, tr.blur[1] as number, t);
-  }
-}
-
-export const hasNonClip = (effects: readonly Effect[]): boolean =>
-  effects.some((e) => Object.keys(e.tracks).some((k) => k !== 'clip'));
-export const hasClip = (effects: readonly Effect[]): boolean =>
-  effects.some((e) => e.tracks.clip !== undefined);
-
-/** CSS declarations for a frame. Only properties the effects touch are emitted. */
-export function frameCss(frame: Frame, used: ReadonlySet<Prop>): Record<string, string> {
-  const css: Record<string, string> = {};
-  if (used.has('x') || used.has('y') || used.has('yp')) {
-    css.translate = frame.yp
-      ? `${frame.x}px calc(${frame.y}px + ${frame.yp}%)`
-      : `${frame.x}px ${frame.y}px`;
-  }
-  if (used.has('scale')) css.scale = String(frame.scale);
-  if (used.has('rotate')) css.rotate = `${frame.rotate}deg`;
-  if (used.has('opacity')) css.opacity = String(frame.opacity);
-  if (used.has('blur')) css.filter = `blur(${frame.blur}px)`;
-  if (used.has('clip') && frame.clip) {
-    const [t, r, b, l] = frame.clip;
-    css.clipPath = `inset(${t}% ${r}% ${b}% ${l}%)`;
-  }
-  return css;
-}
-
-export function usedProps(effects: readonly Effect[], clipOnly: boolean): Set<Prop> {
-  const used = new Set<Prop>();
-  for (const e of effects) {
-    for (const k of Object.keys(e.tracks) as Prop[]) {
-      if ((k === 'clip') === clipOnly) used.add(k);
+    const factory = presets.get(item.name);
+    if (!factory) {
+      report(`Unknown preset "${item.name}"`);
+      continue;
+    }
+    const made = factory(item.args, (m) => report(m));
+    for (const e of Array.isArray(made) ? made : [made]) {
+      out.push(applyRange(e, item.range));
     }
   }
-  return used;
+  return out;
 }
 
-/** Sample effects into WAAPI keyframes (used by the native path). */
+/** An item range narrows the effect's own range (a preset's segments keep their proportions). */
+function applyRange(e: Effect, r: ParsedRange): Effect {
+  const [a, b] = r.range;
+  const [x, y] = e.range;
+  return { ...e, range: [a + (b - a) * x, a + (b - a) * y], viewRange: r.view ?? e.viewRange };
+}
+
+/** `exit`: raw target values (`opacity:0; y:-40`) or presets played in reverse (`fade, rise`). */
+export function parseExit(text: string | null, ease: Ease | null, report: Report): Effect[] {
+  if (!text) return [];
+  if (text.includes(':')) {
+    const target = parseDeclarations(text, report);
+    return [makeEffect({ tracks: tracksBetween({}, target), ease: ease ?? easeInOut })];
+  }
+  return parseFx(text, report).map((e) => asExit(ease ? { ...e, ease } : e));
+}
+
+/** `from` / `to`: one effect between two raw states. */
+export function parseFromTo(
+  from: string | null,
+  to: string | null,
+  ease: Ease | null,
+  report: Report
+): Effect | null {
+  if (from === null && to === null) return null;
+  const tracks = tracksBetween(parseDeclarations(from, report), parseDeclarations(to, report));
+  if (!Object.keys(tracks).length) return null;
+  return makeEffect({ tracks, ease: ease ?? easeInOut });
+}
+
+/** Sample effects into WAAPI keyframes (native and clock paths). */
 export function sampleKeyframes(
   effects: readonly Effect[],
   clipOnly: boolean,
+  css: (frame: Frame) => Record<string, string>,
+  frame: Frame,
   samples = 12
 ): Keyframe[] {
-  const used = usedProps(effects, clipOnly);
-  const frame = identityFrame();
   const frames: Keyframe[] = [];
   for (let i = 0; i <= samples; i++) {
     const p = i / samples;
     evaluate(effects, p, frame, clipOnly);
-    frames.push({ offset: p, ...frameCss(frame, used) });
+    frames.push({ offset: p, ...css(frame) });
   }
   return frames;
 }

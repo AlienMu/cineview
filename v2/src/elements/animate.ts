@@ -2,7 +2,8 @@
  * <cv-animate>: one element's effects. Attributes are read into layer plans; the shadow layers
  * themselves are built by render/layers.ts and written by whichever input drives the stage.
  */
-import { parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import { parseEase } from '../core/ease';
+import { parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
 import {
   parseAfter,
   parseAt,
@@ -13,17 +14,44 @@ import {
 } from '../core/time';
 import { warn } from '../dev/warn';
 import { ElementBase } from '../platform';
-import { buildLayers, type Layer, type LayerKind, type LayerPlan } from '../render/layers';
+import { buildLayers, kindOf, planLayers, type Layer, type LayerPlan } from '../render/layers';
 import { CvScene } from './scene';
 
-/** Time sources: their effects sit on the scene timeline (plan v3 §3.5). */
+/** Sources whose effects sit on the scene timeline (plan v3 §3.5). */
 const ON_TIMELINE: ReadonlySet<Source> = new Set<Source>(['scene', 'enter']);
+const SIGNALS: ReadonlySet<Source> = new Set<Source>(['velocity', 'direction']);
+const SOURCES: ReadonlySet<string> = new Set<Source>([
+  'scene',
+  'enter',
+  'view',
+  'page',
+  'clock',
+  'eye',
+  'velocity',
+  'direction',
+]);
 const TIMING_ATTRIBUTES = ['duration', 'delay', 'after', 'at', 'stagger'];
 
 export interface AnimatePlan {
   layers: LayerPlan[];
   /** Takes part in the scene timeline (counts toward the total, can be an `after` target). */
   timed: boolean;
+  /** Longest preset default among time effects; used when `duration` is not set. */
+  duration: number | null;
+  hasExit: boolean;
+}
+
+/** `on`: a source name or `view(self)`. */
+function parseOn(
+  text: string | null,
+  report: (m: string) => void
+): { source: Source; subject: 'scene' | 'self' } | null {
+  if (text === null) return null;
+  const t = text.trim();
+  if (t === 'view(self)') return { source: 'view', subject: 'self' };
+  if (SOURCES.has(t)) return { source: t as Source, subject: 'scene' };
+  report(`Unknown progress source on="${t}"`);
+  return null;
 }
 
 export class CvAnimate extends ElementBase {
@@ -35,6 +63,8 @@ export class CvAnimate extends ElementBase {
   /** Effects that play on a clock once the element enters (normal flow). */
   enterLayers: Layer[] = [];
   entered = false;
+  private presetDuration: number | null = null;
+  private exitPlanned = false;
 
   connectedCallback(): void {
     const scene = this.closest('cv-scene');
@@ -56,20 +86,16 @@ export class CvAnimate extends ElementBase {
     this.scene = null;
   }
 
-  get hasExit(): boolean {
-    return this.hasAttribute('exit') || this.hasAttribute('exit-to');
-  }
-
   timeSpec(): TimeSpec {
     const stagger = parseStagger(this.getAttribute('stagger'));
     return {
       name: this.getAttribute('name'),
-      duration: parseMs(this.getAttribute('duration'), 600),
+      duration: parseMs(this.getAttribute('duration'), this.presetDuration ?? 600),
       delay: Math.max(0, parseMs(this.getAttribute('delay'), 0)),
       after: parseAfter(this.getAttribute('after')),
       at: parseAt(this.getAttribute('at')),
       // 1.x default: 600 ms, counted only when an exit is declared.
-      exitDuration: this.hasExit ? parseMs(this.getAttribute('exit-duration'), 600) : 0,
+      exitDuration: this.exitPlanned ? parseMs(this.getAttribute('exit-duration'), 600) : 0,
       stagger: stagger && { ...stagger, count: this.staggerTargets().length },
     };
   }
@@ -85,56 +111,49 @@ export class CvAnimate extends ElementBase {
     return children.length === 1 ? [...children[0]!.children] : children;
   }
 
-  /** Decide layers from attributes and context (plan v3 §3.5 precedence). */
+  /**
+   * Decide layers from attributes and context. Source precedence (plan v3 §3.5): signal presets
+   * keep their signal; then an explicit `on`; then a rate preset's own source; then the context
+   * (scene time in zones and drag scenes, enter elsewhere).
+   */
   plan(context: { timeSource: Source }, report: (m: string) => void): AnimatePlan {
-    const effects: Effect[] = parseFx(this.getAttribute('fx'), report);
-    const raw = parseFromTo(this.getAttribute('from'), this.getAttribute('to'));
+    const easeText = this.getAttribute('ease');
+    const ease = parseEase(easeText);
+    if (easeText !== null && !ease) report(`Unknown ease "${easeText}"`);
+    let effects: Effect[] = parseFx(this.getAttribute('fx'), report);
+    if (ease) effects = effects.map((e) => ({ ...e, ease }));
+    const raw = parseFromTo(this.getAttribute('from'), this.getAttribute('to'), ease, report);
     if (raw) effects.push(raw);
-    const exitRaw = parseFromTo(null, this.getAttribute('exit-to'));
-    const explicit = this.getAttribute('on');
-    const explicitSource = explicit?.startsWith('view') ? 'view' : (explicit as Source | null);
-    const subject: 'scene' | 'self' = explicit === 'view(self)' ? 'self' : 'scene';
+    const exits = parseExit(this.getAttribute('exit'), ease, report);
+    const on = parseOn(this.getAttribute('on'), report);
 
-    const bySource = new Map<Source, Effect[]>();
+    const groups = new Map<Source, { effects: Effect[]; exits: Effect[] }>();
+    const group = (source: Source): { effects: Effect[]; exits: Effect[] } => {
+      let g = groups.get(source);
+      if (!g) groups.set(source, (g = { effects: [], exits: [] }));
+      return g;
+    };
     for (const e of effects) {
-      const source: Source = explicitSource ?? (e.rate ? e.defaultSource : context.timeSource);
-      const list = bySource.get(source) ?? [];
-      list.push(e);
-      bySource.set(source, list);
+      const source =
+        e.own && SIGNALS.has(e.own) ? e.own : (on?.source ?? e.own ?? context.timeSource);
+      group(source).effects.push(e);
+    }
+    const timeSource = on && kindOf(on.source) === 'time' ? on.source : context.timeSource;
+    let hasExit = false;
+    if (exits.length) {
+      if (on && kindOf(on.source) !== 'time') {
+        if (__DEV__) warn(this, `exit has no effect with on="${on.source}": exits follow time`);
+      } else {
+        group(timeSource).exits.push(...exits);
+        hasExit = true;
+      }
     }
 
-    const plans: LayerPlan[] = [];
-    for (const [source, list] of bySource) {
-      const kind: LayerKind = source === 'view' ? 'space' : 'time';
-      const nonClip = list.filter((e) => Object.keys(e.tracks).some((k) => k !== 'clip'));
-      const clips = list.filter((e) => e.tracks.clip);
-      const exits = kind === 'time' && exitRaw ? [exitRaw] : [];
-      if (nonClip.length || exits.length) {
-        plans.push({
-          kind,
-          source,
-          subject,
-          effects: nonClip,
-          exitEffects: exits,
-          clipOnly: false,
-        });
-      }
-      if (clips.length) {
-        plans.push({
-          kind: 'clip',
-          source,
-          subject,
-          effects: clips,
-          exitEffects: [],
-          clipOnly: true,
-        });
-      }
-    }
+    const sources = [...groups.keys()];
     // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor).
-    const timed =
-      plans.length === 0
-        ? !explicitSource || ON_TIMELINE.has(explicitSource)
-        : plans.some((p) => ON_TIMELINE.has(p.source));
+    const timed = sources.length
+      ? sources.some((s) => ON_TIMELINE.has(s))
+      : !on || ON_TIMELINE.has(on.source);
     if (__DEV__ && !timed) {
       const ignored = TIMING_ATTRIBUTES.filter((a) => this.hasAttribute(a));
       if (ignored.length) {
@@ -144,12 +163,21 @@ export class CvAnimate extends ElementBase {
         );
       }
     }
-    return { layers: plans, timed };
+    let duration: number | null = null;
+    for (const s of sources) {
+      if (!ON_TIMELINE.has(s)) continue;
+      for (const e of groups.get(s)!.effects) {
+        if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
+      }
+    }
+    return { layers: planLayers(groups, on?.subject ?? 'scene'), timed, duration, hasExit };
   }
 
   build(plan: AnimatePlan): void {
     this.cancelNatives();
     this.timed = plan.timed;
+    this.presetDuration = plan.duration;
+    this.exitPlanned = plan.hasExit;
     this.layers = buildLayers(this, plan.layers);
     this.enterLayers = this.layers.filter((l) => l.source === 'enter');
     this.entered = false;

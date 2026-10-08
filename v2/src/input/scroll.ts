@@ -7,18 +7,20 @@
  * measured in refresh() and reused; the frame loop reads only the scroll offset and live rects of
  * `view(self)` subjects, all before any write.
  */
-import { sampleKeyframes } from '../core/fx';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
-import { progressIn, sceneKeyframes, writeLayer, type Layer } from '../render/layers';
+import { compositorEligible } from '../core/props';
+import {
+  layerKeyframes,
+  progressIn,
+  sceneKeyframes,
+  writeLayer,
+  type Layer,
+} from '../render/layers';
 import { platform, whenIdle, type IdleDeadlineLike } from '../platform';
 import type { InputEngine } from './engine';
 
-/** Properties Chrome can animate on the compositor (no pixel-moving filters, no clip-path). */
-const COMPOSITOR_PROPS = new Set(['x', 'y', 'yp', 'scale', 'rotate', 'opacity']);
-const compositorEligible = (layer: Layer): boolean =>
-  [...layer.used].every((p) => COMPOSITOR_PROPS.has(p));
 const ATTACH_CHUNK = 96;
 
 export class ScrollInput implements InputEngine {
@@ -183,7 +185,7 @@ export class ScrollInput implements InputEngine {
     for (const a of s.ordered) {
       for (const layer of a.layers) {
         // Main-thread-only properties stay on direct writes even in native mode (phase-0 measurement).
-        if (!compositorEligible(layer)) continue;
+        if (!compositorEligible(layer.used)) continue;
         if (layer.source === 'scene' && s.isZone && a.solved) {
           const w = a.solved;
           jobs.push(() => {
@@ -200,7 +202,7 @@ export class ScrollInput implements InputEngine {
           jobs.push(() => {
             const timeline =
               layer.subject === 'self' ? new VT({ subject: a, axis: 'block' }) : sceneTimeline;
-            layer.native = layer.el.animate(sampleKeyframes(layer.effects, layer.clipOnly), {
+            layer.native = layer.el.animate(layerKeyframes(layer), {
               timeline,
               rangeStart: 'cover 0%',
               rangeEnd: 'cover 100%',
@@ -270,7 +272,7 @@ export class ScrollInput implements InputEngine {
     for (const layer of a.enterLayers) {
       layer.el.style.cssText = '';
       layer.last.clear();
-      const anim = layer.el.animate(sampleKeyframes(layer.effects, layer.clipOnly), {
+      const anim = layer.el.animate(layerKeyframes(layer), {
         duration,
         delay,
         fill: 'both',
