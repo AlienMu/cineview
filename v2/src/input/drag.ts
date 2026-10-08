@@ -1,78 +1,169 @@
 /**
- * Drag input: one-viewport scenes paged by pointer, keyboard or goTo().
+ * Drag input: one-screen scenes paged by pointer, keyboard, hash links or goTo(), with the 1.x
+ * drag transaction (site docs: drag gestures, ownership, two-track timelines, callbacks).
  *
- * Two tracks, as in 1.x: page position (`pos`, continuous scene index) and
- * each scene's element time. Input submits intent; the frame loop is the only
- * writer. Everything is direct style writes (plan v3 §6: drag has no native
- * scroll timeline, and seek-then-resume is avoided).
+ * Two tracks. The page (`pos`, a continuous scene index) follows the finger and settles on
+ * release. Each scene has its own element time: the incoming scene's time follows the finger
+ * (unit/scale), and after release it continues at real time to its end, in parallel with the page
+ * slide, which commits the scene switch when it lands. The leaving scene runs its exits on the page
+ * travel (transition-duration is the time base); leaving backwards reverses the entrance of
+ * elements that declare an exit.
+ *
+ * Input only records intent; the frame loop is the only writer. All output is direct style writes
+ * (plan v3 §6: no native scroll timeline here, no seek-then-resume).
  */
+import { cubicBezier } from '../core/ease';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
 import { progressIn, writeLayer } from '../render/layers';
+import {
+  cancelDuration,
+  DEFAULT_THRESHOLD,
+  mapDrag,
+  parseMapping,
+  parseThreshold,
+  shouldCommit,
+  slideDuration,
+  type DragMapping,
+  type Threshold,
+} from './drag-rules';
 import type { InputEngine } from './engine';
 
+/** Presses that start here never page (1.x list, plus role=button and <cv-pause>). */
 const INTERACTIVE =
   'a,button,input,textarea,select,option,summary,[contenteditable=""],[contenteditable="true"],[role=button],cv-pause,[data-cv-ignore-drag],[data-cineview-ignore-drag]';
+const TYPING = 'input,textarea,select,[contenteditable=""],[contenteditable="true"]';
+/** No movement for this long before release means a held finger: velocity 0 (1.x). */
 const VELOCITY_WINDOW_MS = 100;
+/** Motion's easeOut, as 1.x settled the page. */
+const easeOut = cubicBezier(0, 0, 0.58, 1);
+const linear = (t: number): number => t;
 
-interface Sample {
-  t: number;
+type Side = 1 | -1;
+
+interface Tween {
+  from: number;
+  to: number;
+  t0: number;
+  duration: number;
+  ease: (t: number) => number;
+}
+const tweenAt = (tw: Tween, now: number): number => {
+  if (tw.duration <= 0) return tw.to;
+  const k = Math.min(1, Math.max(0, (now - tw.t0) / tw.duration));
+  return tw.from + (tw.to - tw.from) * tw.ease(k);
+};
+const tweenDone = (tw: Tween, now: number): boolean => now - tw.t0 >= tw.duration;
+/** Restart a tween from a frozen value, keeping its rate (real time) or its remaining share. */
+const resumed = (tw: Tween, value: number, now: number, realTime: boolean): Tween => {
+  const span = Math.abs(tw.to - tw.from);
+  const left = Math.abs(tw.to - value);
+  return {
+    ...tw,
+    from: value,
+    t0: now,
+    duration: realTime ? left : span > 0 ? (tw.duration * left) / span : 0,
+  };
+};
+
+interface Lane {
+  kind: 'commit' | 'cancel' | 'goto';
+  page: Tween;
+  /** Scene index the lane lands on. */
+  target: number;
+  /** Scene the transaction leaves (goTo may preposition past it). */
+  from: number;
+  /** Frozen by a press that may still turn into a drag. */
+  frozen: boolean;
+  /** cv-dragend detail captured at release. */
+  detail?: { progress: number; elapsed: number; total: number };
+}
+
+interface Press {
+  id: number;
+  x0: number;
+  y0: number;
   y: number;
+  t: number;
+  /** Signed velocity toward the next scene (px/s), from the last movement segment. */
+  v: number;
+  owning: boolean;
+  rejected: Set<Side>;
+  /** A lane or playheads were frozen at pointerdown and await resume or takeover. */
+  froze: boolean;
+  target: Element;
+  /** Page displacement at ownership (takeover of a frozen transition, else 0). */
+  base: number;
+  /** Incoming scene time and drag ratio at ownership, so the takeover continues in place. */
+  baseline: { scene: number; time: number; ratio: number } | null;
+  blocked: Set<Side>;
+  cancelled: boolean;
 }
 
-type Mode = 'idle' | 'dragging' | 'settling';
-
-export function createDragEngine(stage: CvStage): InputEngine {
-  return new Drag(stage);
+export interface DragEngine extends InputEngine {
+  goTo(index: number, options?: { animated?: boolean }): void;
 }
 
-class Drag implements InputEngine {
+/** `start`: the scene to resume at after a rebuild; otherwise the hash entry or the first scene. */
+export function createDragEngine(stage: CvStage, start?: number): DragEngine {
+  return new DragInput(stage, start);
+}
+
+class DragInput implements DragEngine {
   private scenes: CvScene[];
-  private vh = window.innerHeight;
+  private vh: number;
   private index = 0;
-  /** Displayed page position (continuous index). */
+  /** Displayed page position (continuous scene index). */
   private pos = 0;
-  /** Displayed element time per scene (ms). */
+  /** Element time per scene (ms). */
   private times: number[];
-  private mode: Mode = 'idle';
-  private startY = 0;
-  private startPos = 0;
-  private startTimes: number[] = [];
-  private samples: Sample[] = [];
-  private pointerId: number | null = null;
-  // Settle animation (page) and per-scene playheads (element time).
-  private settle: { from: number; to: number; t0: number; duration: number } | null = null;
-  private playheads: Array<{ from: number; to: number; t0: number } | null>;
+  /** Element-time playheads per scene. */
+  private heads: Array<Tween | null>;
+  private frozenHeads = false;
+  private lane: Lane | null = null;
+  private press: Press | null = null;
+  /** A drag session is open: cv-dragstart sent, its single terminal event pending. */
+  private session = false;
+  private suppressClick = false;
   private raf = 0;
   private transition: number;
-  private unitMsPerPercent: number;
-  private suppressClick = false;
+  private threshold: Threshold;
+  private mapping: DragMapping;
   private inWindow: boolean[] = [];
-  /** Element geometry relative to its scene, measured in refresh() (per-element view progress, plan v3 F7). */
+  /** Element geometry relative to its scene, for per-element view progress (plan v3 F7). */
   private local = new Map<CvAnimate, { top: number; height: number }>();
 
-  constructor(private stage: CvStage) {
+  constructor(
+    private stage: CvStage,
+    resumeAt?: number
+  ) {
     this.scenes = stage.ordered;
+    this.vh = stage.clientHeight || window.innerHeight;
     this.times = this.scenes.map(() => 0);
-    this.playheads = this.scenes.map(() => null);
-    this.transition = Number(stage.getAttribute('transition-duration') ?? 600) || 600;
-    const unit = stage.getAttribute('unit');
-    const scale = Number(stage.getAttribute('scale') ?? 1) || 1;
-    // Default 1.x mapping: 1% of the viewport = 10 ms. `unit="percent"` maps 100% to the scene total.
-    this.unitMsPerPercent = unit === 'percent' ? Number.NaN : 10 * scale;
+    this.heads = this.scenes.map(() => null);
+    this.transition = Math.max(0, Number(stage.getAttribute('transition-duration') ?? 800) || 0);
+    this.threshold = parseThreshold(stage.getAttribute('threshold'), DEFAULT_THRESHOLD);
+    const root = parseMapping(stage.getAttribute('unit'), stage.getAttribute('scale'), {
+      unit: 'time',
+      scale: 10,
+    });
+    this.mapping = root.mapping;
+    if (root.invalid) stage.report('unit/scale: expected unit="time|percent" and a scale >= 0');
 
     Object.assign(stage.style, {
       position: 'fixed',
       inset: '0',
       overflow: 'hidden',
-      touchAction: 'none',
+      // Vertical paging is ours; horizontal pans and pinch zoom stay native (1.x).
+      touchAction: 'pan-x pinch-zoom',
       userSelect: 'none',
     });
-    stage.setAttribute('role', 'region');
-    if (!stage.hasAttribute('aria-roledescription'))
+    if (!stage.hasAttribute('role')) stage.setAttribute('role', 'region');
+    if (!stage.hasAttribute('aria-roledescription')) {
       stage.setAttribute('aria-roledescription', 'carousel');
-    stage.tabIndex = 0;
+    }
+    if (!stage.hasAttribute('tabindex')) stage.tabIndex = 0;
     for (const s of this.scenes) {
       Object.assign(s.style, {
         position: 'absolute',
@@ -81,13 +172,25 @@ class Drag implements InputEngine {
         willChange: 'translate',
       });
     }
+
+    // Entry: a hash naming a scene (or something inside one) starts there (`:target` entry).
+    // A rebuild (attribute change, scene added) keeps the current scene.
+    const start =
+      resumeAt !== undefined
+        ? Math.min(resumeAt, this.scenes.length - 1)
+        : this.sceneFor(decodeURIComponent(location.hash.slice(1)));
+    this.index = this.pos = Math.max(0, start ?? 0);
+
     stage.addEventListener('pointerdown', this.onDown);
+    stage.addEventListener('pointermove', this.onMove);
     stage.addEventListener('click', this.onClick, true);
     stage.addEventListener('keydown', this.onKey);
+    window.addEventListener('pointerup', this.onUp);
+    window.addEventListener('pointercancel', this.onCancel);
     window.addEventListener('resize', this.onResize, { passive: true });
     this.refresh();
-    // First scene: entrance plays on the clock from 0, like 1.x first-scene enter.
-    this.play(0, 0, this.total(0));
+    // First screen: its entrance plays on the clock from 0 (1.x cold start).
+    this.play(this.index, 0, this.total(this.index));
     this.loop();
   }
 
@@ -96,7 +199,7 @@ class Drag implements InputEngine {
   }
 
   refresh(): void {
-    this.vh = window.innerHeight;
+    this.vh = this.stage.clientHeight || window.innerHeight;
     this.local.clear();
     for (const s of this.scenes) {
       const base = s.getBoundingClientRect().top;
@@ -114,86 +217,135 @@ class Drag implements InputEngine {
   destroy(): void {
     cancelAnimationFrame(this.raf);
     this.stage.removeEventListener('pointerdown', this.onDown);
+    this.stage.removeEventListener('pointermove', this.onMove);
     this.stage.removeEventListener('click', this.onClick, true);
     this.stage.removeEventListener('keydown', this.onKey);
-    window.removeEventListener('resize', this.onResize);
-    window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerup', this.onUp);
-    window.removeEventListener('pointercancel', this.onUp);
+    window.removeEventListener('pointercancel', this.onCancel);
+    window.removeEventListener('resize', this.onResize);
+    for (const s of this.scenes) for (const a of s.ordered) a.stopLoops();
   }
 
-  goTo(target: number): void {
-    target = Math.max(0, Math.min(this.scenes.length - 1, target));
-    if (target === this.index && this.mode === 'idle') return;
-    this.commit(target, this.pos);
+  /** Programmatic navigation. Not a gesture: no drag events, only cv-leave / cv-enter. */
+  goTo(target: number, options: { animated?: boolean } = {}): void {
+    target = Math.max(0, Math.min(this.scenes.length - 1, Math.round(target)));
+    if (this.press?.owning) return;
+    if (target === this.index && !this.lane) return;
+    this.endSession('cancel');
+    this.lane = null;
+    this.frozenHeads = false;
+    const from = this.index;
+    if (options.animated === false || this.transition === 0) {
+      this.heads = this.heads.map(() => null);
+      this.times = this.times.map((_, i) => (i === target ? this.total(i) : 0));
+      this.pos = target;
+      this.switchTo(target, from);
+      this.write();
+      return;
+    }
+    const side: Side = target > this.index ? 1 : -1;
+    if (Math.abs(target - this.index) > 1) {
+      // Jump next to the target first; scenes between are outside the window anyway.
+      this.index = target - side;
+      this.pos = this.index;
+      this.applyWindow();
+    }
+    this.times[target] = 0;
+    this.play(target, 0, this.total(target));
+    this.lane = {
+      kind: 'goto',
+      page: {
+        from: this.pos,
+        to: target,
+        t0: performance.now(),
+        duration: slideDuration(target - this.pos, this.transition),
+        ease: easeOut,
+      },
+      target,
+      from,
+      frozen: false,
+    };
+    this.loop();
   }
 
-  // ---- input ---------------------------------------------------------------
+  // ---- pointer -------------------------------------------------------------------------------------
 
   private onResize = (): void => this.refresh();
 
   private onDown = (e: PointerEvent): void => {
-    if (e.button !== 0 || this.pointerId !== null) return;
-    if ((e.target as Element).closest?.(INTERACTIVE)) return;
-    // Re-grab during settle: take over from the displayed frame, never flush (1.x rule).
-    this.settle = null;
-    this.playheads = this.playheads.map(() => null);
-    this.mode = 'dragging';
-    this.pointerId = e.pointerId;
-    this.startY = e.clientY;
-    this.startPos = this.pos;
-    this.startTimes = this.times.slice();
-    this.samples = [{ t: e.timeStamp, y: e.clientY }];
+    if (e.button !== 0 || e.isPrimary === false || e.defaultPrevented) return;
+    const target = e.target as Element;
+    if (target.closest?.(INTERACTIVE)) return;
+    if (this.press) this.release(this.press);
     this.suppressClick = false;
-    window.addEventListener('pointermove', this.onMove, { passive: true });
-    window.addEventListener('pointerup', this.onUp);
-    window.addEventListener('pointercancel', this.onUp);
-    this.stage.dispatchEvent(
-      new CustomEvent('cv-dragstart', { bubbles: true, detail: { index: this.index } })
-    );
-    this.loop();
+    const froze = this.freeze();
+    this.press = {
+      id: e.pointerId,
+      x0: e.clientX,
+      y0: e.clientY,
+      y: e.clientY,
+      t: e.timeStamp,
+      v: 0,
+      owning: false,
+      rejected: new Set(),
+      froze,
+      target,
+      base: 0,
+      baseline: null,
+      blocked: new Set(),
+      cancelled: false,
+    };
   };
 
   private onMove = (e: PointerEvent): void => {
-    if (e.pointerId !== this.pointerId) return;
-    const dy = e.clientY - this.startY;
-    if (Math.abs(dy) > 6) this.suppressClick = true;
-    let pos = this.startPos - dy / this.vh;
-    // Boundary rejection with resistance at the ends.
-    const max = this.scenes.length - 1;
-    if (pos < 0) pos = -this.resist(-pos);
-    if (pos > max) pos = max + this.resist(pos - max);
-    this.pos = pos;
-    this.samples.push({ t: e.timeStamp, y: e.clientY });
-    const cutoff = e.timeStamp - VELOCITY_WINDOW_MS * 2;
-    while (this.samples.length > 2 && this.samples[0]!.t < cutoff) this.samples.shift();
-    this.scrubTimes();
+    const p = this.press;
+    if (!p || e.pointerId !== p.id) return;
+    if (!p.owning) {
+      const dy = e.clientY - p.y0;
+      const dx = e.clientX - p.x0;
+      // Direction gate: at least 1 px along the axis, and more than across it.
+      if (Math.abs(dy) < 1 || Math.abs(dy) <= Math.abs(dx)) return;
+      const side: Side = dy < 0 ? 1 : -1;
+      if (p.rejected.has(side)) return;
+      if (!this.mayDrag(side, p)) {
+        p.rejected.add(side);
+        return;
+      }
+      // Ownership starts on this frame: rebase so the slop never reaches the page or element time.
+      p.owning = true;
+      p.y0 = e.clientY;
+      p.y = e.clientY;
+      p.t = e.timeStamp;
+      p.v = 0;
+      this.takeOver(p);
+      p.target.setPointerCapture?.(p.id);
+      if (!this.session) {
+        this.session = true;
+        this.emit('cv-dragstart', {
+          index: this.index,
+          direction: side === 1 ? 'forward' : 'backward',
+        });
+      }
+      return;
+    }
+    const dt = Math.max(e.timeStamp - p.t, 1);
+    p.v = (-(e.clientY - p.y) / dt) * 1000;
+    p.y = e.clientY;
+    p.t = e.timeStamp;
+    this.follow(p);
+    if (e.cancelable) e.preventDefault();
   };
 
   private onUp = (e: PointerEvent): void => {
-    if (e.pointerId !== this.pointerId) return;
-    window.removeEventListener('pointermove', this.onMove);
-    window.removeEventListener('pointerup', this.onUp);
-    window.removeEventListener('pointercancel', this.onUp);
-    this.pointerId = null;
-    const velocity = this.releaseVelocity(e.timeStamp); // px/s, positive = finger down
-    const travel = (this.pos - this.index) * this.vh; // positive = toward next
-    const fast = Math.abs(velocity) >= 1000;
-    const need = fast ? 0.15 : 0.3;
-    let target = this.index;
-    if (Math.abs(travel) > need * this.vh) target = this.index + Math.sign(travel);
-    target = Math.max(0, Math.min(this.scenes.length - 1, target));
-    if (target !== this.index) {
-      this.stage.dispatchEvent(
-        new CustomEvent('cv-dragend', { bubbles: true, detail: { from: this.index, to: target } })
-      );
-      this.commit(target, this.pos);
-    } else {
-      this.stage.dispatchEvent(
-        new CustomEvent('cv-dragcancel', { bubbles: true, detail: { index: this.index } })
-      );
-      this.cancel();
-    }
+    const p = this.press;
+    if (p && e.pointerId === p.id) this.release(p);
+  };
+
+  private onCancel = (e: PointerEvent): void => {
+    const p = this.press;
+    if (!p || e.pointerId !== p.id) return;
+    p.cancelled = true;
+    this.release(p);
   };
 
   private onClick = (e: Event): void => {
@@ -201,109 +353,235 @@ class Drag implements InputEngine {
       e.stopPropagation();
       e.preventDefault();
       this.suppressClick = false;
+      return;
     }
+    // Hash links to a scene page instead of jumping (plan v3 §9.2).
+    const link = (e.target as Element).closest?.('a[href^="#"]');
+    if (!link || e.defaultPrevented) return;
+    const href = link.getAttribute('href')!;
+    const scene = this.sceneFor(decodeURIComponent(href.slice(1)));
+    if (scene === null) return;
+    e.preventDefault();
+    history.pushState(null, '', href);
+    this.goTo(scene);
   };
 
   private onKey = (e: KeyboardEvent): void => {
-    if ((e.target as Element).closest?.('input,textarea,select,[contenteditable]')) return;
-    if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
-      e.preventDefault();
-      this.goTo(this.index + 1);
-    } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
-      e.preventDefault();
-      this.goTo(this.index - 1);
-    }
+    if (e.defaultPrevented || this.press?.owning) return;
+    if ((e.target as Element).closest?.(TYPING)) return;
+    const last = this.scenes.length - 1;
+    const to =
+      e.key === 'ArrowDown' || e.key === 'PageDown'
+        ? this.index + 1
+        : e.key === 'ArrowUp' || e.key === 'PageUp'
+          ? this.index - 1
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? last
+              : null;
+    if (to === null) return;
+    e.preventDefault();
+    if (to >= 0 && to <= last && to !== this.index) this.goTo(to);
   };
 
-  private resist(over: number): number {
-    return over * 0.25;
+  /** May a drag start toward `side`? Reports a blocked scene once per side per press. */
+  private mayDrag(side: Side, p: Press): boolean {
+    // Re-grabbing a transition in flight: pulling it back toward the current scene is always
+    // allowed (the takeover reverses it), even at the first or last scene.
+    const travel = this.pos - this.index;
+    if (p.froze && travel !== 0 && Math.sign(travel) === -side) return true;
+    const next = this.index + side;
+    if (next < 0 || next >= this.scenes.length) return false;
+    const scene = this.scenes[next]!;
+    if (scene.getAttribute('drag') === 'off') {
+      if (!p.blocked.has(side)) {
+        p.blocked.add(side);
+        this.emit('cv-dragblocked', {
+          index: this.index,
+          target: next,
+          direction: side === 1 ? 'forward' : 'backward',
+        });
+      }
+      return false;
+    }
+    // A nested scroller that can still scroll this way keeps the gesture (edge handoff).
+    const current = this.scenes[this.index];
+    for (let el: Element | null = p.target; el && el !== current; el = el.parentElement) {
+      if (!(el instanceof HTMLElement) || el.scrollHeight <= el.clientHeight + 1) continue;
+      const overflow = getComputedStyle(el).overflowY;
+      if (overflow !== 'auto' && overflow !== 'scroll') continue;
+      const canScroll =
+        side === 1 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0;
+      if (canScroll) return false;
+    }
+    return true;
   }
 
-  /** Velocity from samples inside the last 100 ms; older samples mean a held finger (1.x rule). */
-  private releaseVelocity(now: number): number {
-    const recent = this.samples.filter((s) => now - s.t <= VELOCITY_WINDOW_MS);
-    if (recent.length < 2) return 0;
-    const a = recent[0]!;
-    const b = recent[recent.length - 1]!;
-    const dt = b.t - a.t;
-    return dt > 0 ? ((b.y - a.y) / dt) * 1000 : 0;
+  /** Pointerdown: freeze any transition reversibly (a tap must give it back). */
+  private freeze(): boolean {
+    const now = performance.now();
+    let froze = false;
+    if (this.lane && !this.lane.frozen) {
+      this.pos = tweenAt(this.lane.page, now);
+      this.lane.frozen = true;
+      froze = true;
+    }
+    if (this.heads.some(Boolean) && !this.frozenHeads) {
+      this.heads.forEach((h, i) => {
+        if (h) this.times[i] = tweenAt(h, now);
+      });
+      this.frozenHeads = true;
+      froze = true;
+    }
+    return froze;
   }
 
-  // ---- time tracks ---------------------------------------------------------
+  /** The press ended without a drag: resume what it froze. */
+  private resume(): void {
+    const now = performance.now();
+    if (this.lane?.frozen) {
+      const lane = this.lane;
+      lane.frozen = false;
+      lane.page = resumed(lane.page, this.pos, now, false);
+    }
+    if (this.frozenHeads) {
+      this.frozenHeads = false;
+      this.heads = this.heads.map((h, i) =>
+        h ? resumed(h, this.times[i] ?? 0, now, h.ease === linear) : null
+      );
+    }
+    this.loop();
+  }
+
+  /** Ownership: the frozen transition becomes the finger's, in place (never flush-committed). */
+  private takeOver(p: Press): void {
+    p.base = this.pos - this.index;
+    // A commit slide that had not landed is still a transition away from `index`.
+    this.lane = null;
+    this.heads = this.heads.map(() => null);
+    this.frozenHeads = false;
+    const side: Side = p.base >= 0 ? 1 : -1;
+    const incoming = this.index + side;
+    if (p.base !== 0 && incoming >= 0 && incoming < this.scenes.length) {
+      p.baseline = { scene: incoming, time: this.times[incoming] ?? 0, ratio: Math.abs(p.base) };
+    }
+    this.loop();
+  }
+
+  /** While dragging: page follows the finger; the incoming scene's element time follows too. */
+  private follow(p: Press): void {
+    const last = this.scenes.length - 1;
+    let r = p.base - (p.y - p.y0) / this.vh;
+    if ((this.index === 0 && r < 0) || (this.index === last && r > 0)) r = 0;
+    const blocked = (side: Side): boolean =>
+      this.scenes[this.index + side]?.getAttribute('drag') === 'off';
+    if ((r > 0 && blocked(1)) || (r < 0 && blocked(-1))) r = 0;
+    r = Math.max(-1, Math.min(1, r));
+    this.pos = this.index + r;
+    for (const side of [1, -1] as const) {
+      const k = this.index + side;
+      if (k < 0 || k > last) continue;
+      const fraction = Math.sign(r) === side ? Math.abs(r) : 0;
+      const b = p.baseline?.scene === k ? p.baseline : null;
+      const mapping = this.mappingFor(k);
+      const total = this.total(k);
+      this.times[k] = b
+        ? Math.min(
+            total,
+            Math.max(
+              0,
+              b.time + mapDrag(fraction, total, mapping) - mapDrag(b.ratio, total, mapping)
+            )
+          )
+        : mapDrag(fraction, total, mapping);
+    }
+    this.loop();
+  }
+
+  private release(p: Press): void {
+    this.press = null;
+    if (!p.owning) {
+      if (p.froze) this.resume();
+      return;
+    }
+    this.suppressClick = true;
+    // A finger held still before release carries no velocity (1.x).
+    const now = performance.now();
+    const v = now - p.t > VELOCITY_WINDOW_MS ? 0 : p.v;
+    const r = this.pos - this.index;
+    const threshold = parseThreshold(
+      this.scenes[this.index]?.getAttribute('threshold') ?? null,
+      this.threshold
+    );
+    if (r !== 0 && shouldCommit(r, v, threshold, p.cancelled)) {
+      const target = this.index + (r > 0 ? 1 : -1);
+      this.lane = {
+        kind: 'commit',
+        page: {
+          from: this.pos,
+          to: target,
+          t0: now,
+          duration: slideDuration(target - this.pos, this.transition),
+          ease: easeOut,
+        },
+        target,
+        from: this.index,
+        frozen: false,
+        detail: {
+          progress: Math.abs(r),
+          elapsed: this.times[target] ?? 0,
+          total: this.total(target),
+        },
+      };
+      // Element time continues at real time from where the finger left it, beside the slide.
+      this.play(target, this.times[target] ?? 0, this.total(target));
+    } else {
+      const duration = cancelDuration(r, this.transition);
+      this.lane = {
+        kind: 'cancel',
+        page: { from: this.pos, to: this.index, t0: now, duration, ease: easeOut },
+        target: this.index,
+        from: this.index,
+        frozen: false,
+      };
+      for (const side of [1, -1] as const) {
+        const k = this.index + side;
+        const time = this.times[k] ?? 0;
+        if (time > 0) this.heads[k] = { from: time, to: 0, t0: now, duration, ease: easeOut };
+      }
+    }
+    this.loop();
+  }
+
+  // ---- time tracks --------------------------------------------------------------------------------
 
   private total(i: number): number {
     return this.scenes[i]?.solution.total ?? 0;
   }
 
-  private msForTravel(i: number, fraction: number): number {
-    const total = this.total(i);
-    if (Number.isNaN(this.unitMsPerPercent)) return total * fraction;
-    return Math.min(total, fraction * 100 * this.unitMsPerPercent);
+  private mappingFor(i: number): DragMapping {
+    const s = this.scenes[i];
+    if (!s) return this.mapping;
+    return parseMapping(s.getAttribute('unit'), s.getAttribute('scale'), this.mapping).mapping;
   }
 
-  /** While dragging, scene times follow the finger (scrub). */
-  private scrubTimes(): void {
-    const forward = this.pos - this.index; // >0 moving to next
-    const next = this.index + 1;
-    const prev = this.index - 1;
-    for (let i = 0; i < this.scenes.length; i++) this.times[i] = this.startTimes[i] ?? 0;
-    if (forward > 0 && next < this.scenes.length) {
-      this.times[next] = Math.max(this.startTimes[next] ?? 0, this.msForTravel(next, forward));
-      // Departing forward: run its exit section with the page.
-      const cur = this.scenes[this.index]!;
-      const exitSpan = cur.solution.total - cur.solution.entranceEnd;
-      if (exitSpan > 0)
-        this.times[this.index] = cur.solution.entranceEnd + exitSpan * Math.min(1, forward);
-    } else if (forward < 0 && prev >= 0) {
-      // Going back: the current scene's entrance reverses with the finger.
-      const cur = this.index;
-      const start = this.startTimes[cur] ?? this.total(cur);
-      this.times[cur] = Math.max(0, start - this.msForTravel(cur, -forward));
-    }
-  }
-
+  /** Real-time playhead for a scene's element time. */
   private play(i: number, from: number, to: number): void {
-    this.playheads[i] = { from, to, t0: performance.now() };
-  }
-
-  private commit(target: number, fromPos: number): void {
-    const leaving = this.index;
-    this.mode = 'settling';
-    this.settle = { from: fromPos, to: target, t0: performance.now(), duration: this.transition };
-    // Arriving scene continues from the displayed frame to its end at real time.
-    this.play(target, this.times[target] ?? 0, this.total(target));
-    if (target > leaving) {
-      const s = this.scenes[leaving]!;
-      if (s.solution.total > s.solution.entranceEnd)
-        this.play(leaving, this.times[leaving] ?? 0, s.solution.total);
-    } else {
-      this.play(leaving, this.times[leaving] ?? 0, 0);
-    }
-    if (target !== leaving) {
-      this.scenes[leaving]!.dispatchEvent(new CustomEvent('cv-leave', { bubbles: true }));
-      this.index = target;
-      this.applyWindow();
-      this.scenes[target]!.dispatchEvent(new CustomEvent('cv-enter', { bubbles: true }));
-    }
-    this.loop();
-  }
-
-  private cancel(): void {
-    this.mode = 'settling';
-    this.settle = {
-      from: this.pos,
-      to: this.index,
+    this.heads[i] = {
+      from,
+      to,
       t0: performance.now(),
-      duration: this.transition,
+      duration: Math.abs(to - from),
+      ease: linear,
     };
-    for (let i = 0; i < this.scenes.length; i++) {
-      if ((this.times[i] ?? 0) !== (this.startTimes[i] ?? 0))
-        this.play(i, this.times[i] ?? 0, this.startTimes[i] ?? 0);
-    }
-    this.loop();
   }
 
-  // ---- frame loop: the only writer -------------------------------------------
+  private sceneFor(id: string): number | null {
+    return this.stage.sceneIndexOf(id);
+  }
+
+  // ---- frame loop: the only writer -----------------------------------------------------------------
 
   private loop = (): void => {
     if (this.raf) return;
@@ -312,36 +590,75 @@ class Drag implements InputEngine {
 
   private tick = (now: number): void => {
     this.raf = 0;
-    let busy = this.mode === 'dragging';
-    if (this.settle) {
-      const s = this.settle;
-      const k = Math.min(1, (now - s.t0) / s.duration);
-      const e = 1 - Math.pow(1 - k, 3);
-      this.pos = s.from + (s.to - s.from) * e;
-      if (k >= 1) {
-        this.settle = null;
-        this.pos = s.to;
+    let busy = this.press?.owning ?? false;
+    const lane = this.lane;
+    if (lane && !lane.frozen) {
+      this.pos = tweenAt(lane.page, now);
+      if (tweenDone(lane.page, now)) {
+        this.pos = lane.target;
+        this.lane = null;
+        this.land(lane);
       } else busy = true;
     }
-    for (let i = 0; i < this.playheads.length; i++) {
-      const p = this.playheads[i];
-      if (!p) continue;
-      const dir = Math.sign(p.to - p.from);
-      const t = p.from + dir * (now - p.t0);
-      if ((dir >= 0 && t >= p.to) || (dir < 0 && t <= p.to)) {
-        this.times[i] = p.to;
-        this.playheads[i] = null;
-      } else {
-        this.times[i] = t;
-        busy = true;
+    if (!this.frozenHeads) {
+      for (let i = 0; i < this.heads.length; i++) {
+        const h = this.heads[i];
+        if (!h) continue;
+        this.times[i] = tweenAt(h, now);
+        if (tweenDone(h, now)) this.heads[i] = null;
+        else busy = true;
       }
     }
-    if (!busy && this.mode === 'settling') this.mode = 'idle';
     this.write();
     if (busy) this.loop();
   };
 
-  /** Scenes outside current ±1 are inert and skipped for painting (plan v3 §7, drag input). */
+  /** A lane landed: commit the switch (commit, goTo) or close the session (cancel). */
+  private land(lane: Lane): void {
+    if (lane.kind === 'cancel') {
+      this.endSession('cancel');
+      return;
+    }
+    this.switchTo(lane.target, lane.from);
+    if (lane.kind === 'commit') {
+      this.endSession('end', { from: lane.from, to: lane.target, ...lane.detail });
+    }
+  }
+
+  private switchTo(target: number, from: number): void {
+    const previous = this.index;
+    this.index = target;
+    // The scene left behind returns to its start: dragging back to it plays its entrance again.
+    if (previous !== target) {
+      this.times[previous] = 0;
+      this.heads[previous] = null;
+    }
+    this.applyWindow();
+    if (from !== target) {
+      this.scenes[from]?.dispatchEvent(new CustomEvent('cv-leave', { bubbles: true }));
+      this.scenes[target]?.dispatchEvent(new CustomEvent('cv-enter', { bubbles: true }));
+      this.stage.announce(this.label(target));
+    }
+  }
+
+  private endSession(kind: 'end' | 'cancel', detail: object = {}): void {
+    if (!this.session) return;
+    this.session = false;
+    this.emit(kind === 'end' ? 'cv-dragend' : 'cv-dragcancel', { index: this.index, ...detail });
+  }
+
+  private emit(type: string, detail: object): void {
+    this.stage.dispatchEvent(new CustomEvent(type, { bubbles: true, detail }));
+  }
+
+  private label(i: number): string {
+    const s = this.scenes[i]!;
+    const name = s.getAttribute('aria-label') ?? s.querySelector('h1,h2,h3')?.textContent?.trim();
+    const count = `${i + 1} / ${this.scenes.length}`;
+    return name ? `${name}, ${count}` : count;
+  }
+
+  /** Current scene ±1 stay rendered; the rest are inert and skipped (plan v3 §7, drag). */
   private applyWindow(): void {
     this.scenes.forEach((s, i) => {
       const inWindow = Math.abs(i - this.index) <= 1;
@@ -351,9 +668,14 @@ class Drag implements InputEngine {
       else s.setAttribute('aria-hidden', 'true');
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
       s.toggleAttribute('data-cv-active', active);
-      if (!inWindow) for (const a of s.ordered) a.stopLoops();
+      if (!inWindow) {
+        for (const a of s.ordered) a.stopLoops();
+        this.times[i] = 0;
+        this.heads[i] = null;
+      }
       if (this.inWindow[i] !== inWindow) {
         this.inWindow[i] = inWindow;
+        s.active = inWindow;
         s.dispatchEvent(
           new CustomEvent(inWindow ? 'cv-activate' : 'cv-deactivate', { bubbles: true })
         );
@@ -363,18 +685,22 @@ class Drag implements InputEngine {
 
   private write(): void {
     const vh = this.vh;
-    const lo = Math.floor(this.pos) - 1;
-    const hi = Math.ceil(this.pos) + 1;
-    for (let i = Math.max(0, lo); i <= Math.min(this.scenes.length - 1, hi); i++) {
+    const lo = Math.max(0, Math.floor(this.pos) - 1);
+    const hi = Math.min(this.scenes.length - 1, Math.ceil(this.pos) + 1);
+    const travel = this.pos - this.index;
+    for (let i = lo; i <= hi; i++) {
       const s = this.scenes[i]!;
       const offset = (i - this.pos) * vh;
       s.style.translate = `0 ${offset}px`;
       const t = this.times[i] ?? 0;
-      // Scene passage through the viewport, same formula as scroll "cover" (plan v3 §9.3).
+      // Scene passage through the viewport, the scroll `cover` formula with paging offset (§9.3).
       const sceneView = (vh - offset) / (2 * vh);
+      // The current scene departs with the page; exits run on the travel, in transition time.
+      const departure =
+        i === this.index && travel !== 0 ? Math.min(1, Math.abs(travel)) * this.transition : 0;
+      const side: Side = travel >= 0 ? 1 : -1;
       for (const a of s.ordered) {
-        this.writeAnimate(a, t, sceneView, offset);
-        // Loops run once the element's entrance is complete, while its scene is in the window.
+        this.writeAnimate(a, t, sceneView, offset, departure, side);
         if (a.loopItems.length) {
           if (!a.solved || t >= a.solved.end) a.startLoops(this.stage.clock);
           else a.stopLoops();
@@ -383,9 +709,17 @@ class Drag implements InputEngine {
     }
   }
 
-  private writeAnimate(a: CvAnimate, t: number, sceneView: number, offset: number): void {
+  private writeAnimate(
+    a: CvAnimate,
+    t: number,
+    sceneView: number,
+    offset: number,
+    departure: number,
+    side: Side
+  ): void {
+    const base = a.solved;
+    const exitDuration = base?.exitDuration ?? 0;
     for (const layer of a.layers) {
-      const w = layer.window;
       if (layer.source === 'view') {
         let v = sceneView;
         if (layer.subject === 'self') {
@@ -393,13 +727,24 @@ class Drag implements InputEngine {
           if (g) v = (this.vh - (offset + g.top)) / (this.vh + g.height);
         }
         writeLayer(layer, Math.min(Math.max(v, 0), 1), 0);
-      } else if (w) {
-        writeLayer(
-          layer,
-          progressIn(t, w.start, w.end),
-          layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : 0
-        );
+        continue;
       }
+      const w = layer.window;
+      if (!w || !base) continue;
+      let p = progressIn(t, w.start, w.end);
+      let px = 0;
+      if (departure > 0 && exitDuration > 0) {
+        if (side === 1) {
+          // Forward: exits play on the departure, each layer in its slice of the exit window.
+          px = layer.exitEffects.length
+            ? progressIn(departure, w.exitStart - base.exitStart, w.exitEnd - base.exitStart)
+            : 0;
+        } else {
+          // Backward: elements that declare an exit reverse their entrance instead (1.x).
+          p *= 1 - Math.min(1, departure / exitDuration);
+        }
+      }
+      writeLayer(layer, p, px);
     }
   }
 }

@@ -13,7 +13,17 @@ import type { CvScene } from './scene';
 type Input = 'scroll' | 'drag';
 
 export class CvStage extends ElementBase {
-  static readonly observedAttributes = ['input', 'fallback', 'paused', 'design-width', 'margin'];
+  static readonly observedAttributes = [
+    'input',
+    'fallback',
+    'paused',
+    'design-width',
+    'margin',
+    'transition-duration',
+    'threshold',
+    'unit',
+    'scale',
+  ];
 
   scenes = new Set<CvScene>();
   ordered: CvScene[] = [];
@@ -109,6 +119,57 @@ export class CvStage extends ElementBase {
     return this.engine?.currentIndex() ?? 0;
   }
 
+  /**
+   * Go to a scene by index or id (of the scene or anything inside it). Drag pages to it; scroll
+   * scrolls its top into view. Unknown targets are ignored.
+   */
+  goTo(target: number | string, options: { animated?: boolean } = {}): void {
+    const index = typeof target === 'number' ? target : this.sceneIndexOf(target);
+    if (index === null || !this.engine) return;
+    if (this.engine.goTo) {
+      this.engine.goTo(index, options);
+      return;
+    }
+    this.ordered[Math.max(0, Math.min(this.ordered.length - 1, Math.round(index)))]?.scrollIntoView(
+      {
+        behavior: options.animated === false ? 'instant' : 'smooth',
+        block: 'start',
+      }
+    );
+  }
+
+  /** Index of the scene that is, or contains, the element with this id. */
+  sceneIndexOf(id: string): number | null {
+    if (!id) return null;
+    const scene = document.getElementById(id)?.closest('cv-scene');
+    const i = scene ? this.ordered.indexOf(scene as CvScene) : -1;
+    return i >= 0 ? i : null;
+  }
+
+  /**
+   * Polite screen-reader announcement (scene changes under drag). The live region sits in the
+   * stage's shadow root next to a default slot, so the author's light DOM is never touched.
+   */
+  announce(text: string): void {
+    if (!this.live) {
+      const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
+      root.append(document.createElement('slot'));
+      this.live = document.createElement('div');
+      this.live.setAttribute('aria-live', 'polite');
+      this.live.setAttribute('aria-atomic', 'true');
+      this.live.setAttribute('part', 'live');
+      this.live.style.cssText =
+        'position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap';
+      root.append(this.live);
+    }
+    // Same text twice in a row (A → B → A) must still be read: clear, then set on the next frame.
+    this.live.textContent = '';
+    const live = this.live;
+    requestAnimationFrame(() => (live.textContent = text));
+  }
+
+  private live: HTMLDivElement | null = null;
+
   private teardown(): void {
     this.generation++;
     this.engine?.destroy();
@@ -117,6 +178,7 @@ export class CvStage extends ElementBase {
   }
 
   private async build(): Promise<void> {
+    const resumeAt = this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
     this.teardown();
     const input = this.input;
     this.ordered = [...this.scenes].sort((a, b) =>
@@ -143,7 +205,7 @@ export class CvStage extends ElementBase {
       const { createDragEngine } = await import('../input/drag');
       // A later build (or a disconnect) superseded this one while the chunk loaded.
       if (generation !== this.generation || !this.isConnected) return;
-      this.engine = createDragEngine(this);
+      this.engine = createDragEngine(this, resumeAt);
     } else {
       this.engine = new ScrollInput(this);
     }

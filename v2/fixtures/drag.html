@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>drag fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{padding:20px}
+  .box{display:block;height:80px;width:200px;background:#b3ded6}
+  .scroller{height:200px;overflow-y:auto;background:#eee}
+  .scroller div{height:600px}
+</style></head>
+<body>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s" input="drag" transition-duration="${q.get('td') ?? 400}">
+    <cv-scene id="s0" aria-label="Zero">
+      <div id="plain" class="box"></div>
+      <button id="btn">button</button>
+      <div id="scroller" class="scroller"><div></div></div>
+      <a id="link3" href="#s3">to s3</a>
+    </cv-scene>
+    <cv-scene id="s1" aria-label="One">
+      <cv-animate id="a1" from="opacity:0" ease="linear" duration="1000"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="s2" aria-label="Two"${q.has('off') ? ' drag="off"' : ''}><div class="box"></div></cv-scene>
+    <cv-scene id="s3" aria-label="Three"><div class="box"></div></cv-scene>
+  </cv-stage>`);
+  window.events = [];
+  for (const type of ['cv-dragstart', 'cv-dragend', 'cv-dragcancel', 'cv-dragblocked', 'cv-enter', 'cv-leave']) {
+    document.addEventListener(type, (e) => window.events.push(`${type}:${e.target.id}`));
+  }
+  window.clicks = 0;
+  document.getElementById('plain').addEventListener('click', () => window.clicks++);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

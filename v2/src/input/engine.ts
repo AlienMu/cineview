@@ -8,4 +8,6 @@ export interface InputEngine {
   refresh(): void;
   destroy(): void;
   currentIndex(): number;
+  /** Inputs that page (drag) navigate themselves; scroll input leaves this to the stage. */
+  goTo?(index: number, options?: { animated?: boolean }): void;
 }
