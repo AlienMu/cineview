@@ -11,11 +11,13 @@
  * - `preload` (default on; `preload="none"` turns it off): fetch the whole file into the shared
  *   blob cache, so every frame is seekable.
  * - `poster`, `playback-rate`, `aria-label`. Style the node with `cv-video::part(video)`.
- * - `play`, `pause` and `ended` are re-dispatched on the element, only for the current node.
+ * - `play`, `pause`, `ended` and `error` are re-dispatched on the element, only for the current
+ *   node; a load failure is also a `cv-error` (`asset-failed`).
  */
 import { IDLE_FRAME, VideoDriver } from '../media/driver';
 import type { TimelineFrame } from '../media/ownership';
-import { CvAnimate, type AnimatePlan, type ClockEvent } from './animate';
+import type { Report } from '../core/errors';
+import { CvAnimate, type AnimatePlan, type ClockEvent, type PlanContext } from './animate';
 
 const VIDEO_ATTRIBUTES = ['src', 'range', 'preload', 'poster', 'playback-rate', 'aria-label'];
 
@@ -47,6 +49,8 @@ export class CvVideo extends CvAnimate {
     if (!this.driver) {
       this.driver = new VideoDriver(this);
       this.driver.sceneActive = (): boolean | undefined => this.dragActive;
+      this.driver.failed = (url): void =>
+        this.scene?.stage?.report(`<cv-video> failed to load ${url}`, this, 'asset-failed');
       this.frameSink = (frame): void => this.driver?.frame(frame);
       this.clockSink = (event): void => this.onClock(event);
     }
@@ -73,6 +77,14 @@ export class CvVideo extends CvAnimate {
     this.driver = null;
     this.frameSink = null;
     this.clockSink = null;
+  }
+
+  override plan(context: PlanContext, report: Report): AnimatePlan {
+    const range = this.getAttribute('range');
+    if (range !== null && !parseRange(range)) {
+      report(`range="${range}": expected two times in seconds, such as range="0 3.2"`);
+    }
+    return super.plan(context, report);
   }
 
   /** The node lives in the innermost layer, next to the slot; rebuilt layers get it back. */

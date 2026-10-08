@@ -3,6 +3,7 @@
  * themselves are built by render/layers.ts and written by whichever input drives the stage.
  */
 import { parseEase } from '../core/ease';
+import type { Report } from '../core/errors';
 import { makeEffect, parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
 import { parseLoop, type LoopItem } from '../core/loop';
 import {
@@ -13,6 +14,7 @@ import {
   type Solved,
   type TimeSpec,
 } from '../core/time';
+import { warnScopedPositioning, warnUnsafeStagger } from '../dev/craft';
 import { warn } from '../dev/warn';
 import type { TimelineFrame } from '../media/ownership';
 import { ElementBase } from '../platform';
@@ -81,7 +83,7 @@ export interface AnimatePlan {
 /** `on`: a source name or `view(self)`. */
 function parseOn(
   text: string | null,
-  report: (m: string) => void
+  report: Report
 ): { source: Source; subject: 'scene' | 'self' } | null {
   if (text === null) return null;
   const t = text.trim();
@@ -198,7 +200,7 @@ export class CvAnimate extends ElementBase {
    * keep their signal; then an explicit `on`; then a rate preset's own source; then the context
    * (scene time in zones and drag scenes, enter elsewhere).
    */
-  plan(context: PlanContext, report: (m: string) => void): AnimatePlan {
+  plan(context: PlanContext, report: Report): AnimatePlan {
     const reduced = context.reducedMotion;
     const easeText = this.getAttribute('ease');
     const ease = parseEase(easeText);
@@ -366,50 +368,6 @@ export class CvAnimate extends ElementBase {
     for (const l of this.layers) {
       l.native = null;
       if (l.target) clearLayer(l);
-    }
-  }
-}
-
-const UNSAFE_ON_TARGETS: ReadonlyArray<[string, string]> = [
-  ['blur', '--cv-filter'],
-  ['clip', '--cv-clip-path'],
-  ['rx', '--cv-transform'],
-  ['ry', '--cv-transform'],
-  ['skx', '--cv-transform'],
-  ['sky', '--cv-transform'],
-];
-
-function warnUnsafeStagger(el: Element, plan: LayerPlan): void {
-  const used = new Set(
-    [...plan.effects, ...plan.exitEffects].flatMap((e) => e.entries.map(([p]) => p as string))
-  );
-  const vars = [...new Set(UNSAFE_ON_TARGETS.filter(([p]) => used.has(p)).map(([, v]) => v))];
-  if (vars.length) {
-    warn(
-      el,
-      `stagger writes only translate, rotate, scale and opacity on your elements; the rest arrives as ${vars.join(', ')}. Use them in your CSS, e.g. filter: var(--cv-filter).`
-    );
-  }
-}
-
-/** Layers carry a transform, which scopes sticky, fixed and z-index of everything inside (§4.3). */
-function warnScopedPositioning(el: Element): void {
-  const nested = el.querySelector('cv-fixed, cv-stack');
-  if (nested) {
-    warn(
-      el,
-      `<${nested.localName}> inside <cv-animate> cannot stick to the viewport: the animation layers scope it. Move it outside.`
-    );
-    return;
-  }
-  for (const child of el.children) {
-    const position = getComputedStyle(child).position;
-    if (position === 'sticky' || position === 'fixed') {
-      warn(
-        el,
-        `position: ${position} inside <cv-animate> is scoped by the animation layers and will not stick to the viewport.`
-      );
-      return;
     }
   }
 }

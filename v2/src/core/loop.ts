@@ -12,6 +12,7 @@
  * element's `ease` applies per segment (default ease-in-out, as 1.x loops).
  */
 import { easeInOut, type Ease } from './ease';
+import type { Report } from './errors';
 import { parseFx, parseItem, splitTop } from './fx';
 import {
   frameCss,
@@ -30,8 +31,6 @@ export interface LoopItem {
   /** One cycle, ms. */
   duration: number;
 }
-
-type Report = (message: string) => void;
 
 /** Keyframe lists per property; custom properties keep their raw text. */
 interface Lists {

@@ -5,7 +5,9 @@
  */
 import { FirstScreenGate } from '../assets/first-screen';
 import { adoptBoot } from '../boot';
+import type { CvErrorDetail, ErrorCode } from '../core/errors';
 import { onEffectDefined, type Source } from '../core/fx';
+import { checkDragScene, checkStage } from '../dev/craft';
 import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
@@ -41,7 +43,16 @@ export class CvStage extends ElementBase {
    * entrance starts that far in. 0 afterwards.
    */
   bootOffset = 0;
+  /** The current scene's index, as last placed by the input; -1 before the first placement. */
+  current = -1;
   private scheduled = false;
+  private readySent = false;
+  /**
+   * Errors (code and message per element) reported during the previous build and since the latest
+   * one: an error that persists across rebuilds is dispatched once.
+   */
+  private errorsBefore = new WeakMap<Element, Set<string>>();
+  private errorsNow = new WeakMap<Element, Set<string>>();
   private generation = 0;
   private live: HTMLDivElement | null = null;
 
@@ -84,6 +95,8 @@ export class CvStage extends ElementBase {
     this.firstScreen?.dispose();
     this.firstScreen = null;
     this.booted = false;
+    this.readySent = false;
+    this.current = -1;
     this.teardown();
   }
 
@@ -143,10 +156,63 @@ export class CvStage extends ElementBase {
     });
   }
 
-  report(message: string, element: Element = this): void {
-    this.dispatchEvent(
-      new CustomEvent('cv-error', { bubbles: true, detail: { message, element } })
-    );
+  /**
+   * An authoring error, in production too (plan v3 §3.6): a bubbling, cancelable `cv-error` on the
+   * element at fault with `{ code, message, element }`. The development build also logs it unless
+   * a listener cancels the event.
+   */
+  report(message: string, element: Element = this, code: ErrorCode = 'invalid-attribute'): void {
+    const key = `${code} ${message}`;
+    let now = this.errorsNow.get(element);
+    if (!now) this.errorsNow.set(element, (now = new Set()));
+    if (now.has(key)) return;
+    now.add(key);
+    if (this.errorsBefore.get(element)?.has(key)) return;
+    const detail: CvErrorDetail = { code, message, element };
+    const event = new CustomEvent('cv-error', { bubbles: true, cancelable: true, detail });
+    const target = element.isConnected ? element : this;
+    if (target.dispatchEvent(event) && __DEV__) {
+      console.error(`[cineview] ${code}: ${message}`, element);
+    }
+  }
+
+  /**
+   * The input placed the current scene: `data-cv-current` on it, in-page links to scenes marked
+   * (`aria-current` on the current one, `data-cv-before` / `data-cv-after` on the others). A change
+   * after the first placement sets `data-cv-direction` on the stage and dispatches `cv-leave` on
+   * the scene left, then `cv-enter` on the new one, both with `{ from, to, direction }`.
+   */
+  setCurrent(index: number): void {
+    const from = this.current;
+    this.current = index;
+    this.ordered.forEach((s, i) => s.toggleAttribute('data-cv-current', i === index));
+    this.markLinks();
+    const scene = this.ordered[index];
+    if (__DEV__ && scene && this.input === 'drag') {
+      requestAnimationFrame(() => checkDragScene(scene));
+    }
+    if (from < 0 || from === index) return;
+    const direction = index > from ? 'forward' : 'backward';
+    this.setAttribute('data-cv-direction', direction);
+    const detail = { from, to: index, direction };
+    this.ordered[from]?.dispatchEvent(new CustomEvent('cv-leave', { bubbles: true, detail }));
+    this.ordered[index]?.dispatchEvent(new CustomEvent('cv-enter', { bubbles: true, detail }));
+  }
+
+  private markLinks(): void {
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')) {
+      let i: number | null = null;
+      try {
+        i = this.sceneIndexOf(decodeURIComponent(a.getAttribute('href')!.slice(1)));
+      } catch {
+        // Malformed escape in the href: not a scene link.
+      }
+      if (i === null) continue;
+      if (i === this.current) a.setAttribute('aria-current', 'true');
+      else if (a.getAttribute('aria-current') === 'true') a.removeAttribute('aria-current');
+      a.toggleAttribute('data-cv-before', i < this.current);
+      a.toggleAttribute('data-cv-after', i > this.current);
+    }
   }
 
   /** Measure geometry once. Never called from the frame loop. */
@@ -204,6 +270,8 @@ export class CvStage extends ElementBase {
   private async build(): Promise<void> {
     const resumeAt = this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
     this.teardown();
+    this.errorsBefore = this.errorsNow;
+    this.errorsNow = new WeakMap();
     const input = this.input;
     const dw = Number(this.getAttribute('design-width'));
     if (dw > 0) this.style.setProperty('--cv-dw', String(dw));
@@ -211,16 +279,25 @@ export class CvStage extends ElementBase {
     this.ordered = [...this.scenes].sort((a, b) =>
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
     );
+    if (!this.ordered.length) {
+      // Still parsing: scenes may follow (an async module can run before the markup is in).
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => this.invalidate(), { once: true });
+      } else {
+        this.report('<cv-stage> has no <cv-scene>', this, 'empty-stage');
+      }
+      return;
+    }
 
     const reducedMotion = prefersReducedMotion();
     if (this.paused) this.clock.pause();
     for (const scene of this.ordered) {
       const timeSource: Source = input === 'drag' || scene.isZone ? 'scene' : 'enter';
       for (const a of scene.animates) {
-        a.build(a.plan({ timeSource, reducedMotion }, (m) => this.report(m, a)));
+        a.build(a.plan({ timeSource, reducedMotion }, (m, code) => this.report(m, a, code)));
       }
       for (const { error, element } of scene.solve(input === 'scroll')) {
-        this.report(error.message, element);
+        this.report(error.message, element, error.code);
       }
       if (input === 'scroll' && scene.isZone) {
         scene.style.height = `calc(100svh + ${scene.solution.total}px)`;
@@ -267,9 +344,15 @@ export class CvStage extends ElementBase {
     this.bootOffset = index === 0 ? offset : 0;
   }
 
+  /** `cv-ready` once per connection, when the first build has rendered (1.x onReady). */
   private markReady(): void {
+    const first = !this.readySent;
+    this.readySent = true;
+    const generation = this.generation;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
+        if (__DEV__ && generation === this.generation && this.isConnected) checkStage(this);
+        if (!first || !this.isConnected) return;
         this.readyAt = performance.now();
         this.dispatchEvent(new CustomEvent('cv-ready', { bubbles: true }));
       })

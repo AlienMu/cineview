@@ -45,6 +45,9 @@ const drag = async (page, from, dy, { steps = 10, gap = 16, hold = 0, release = 
   if (release) await page.mouse.up();
 };
 const settle = (page, ms = 600) => page.waitForTimeout(ms);
+// cv-ready fires once per connection; a rebuild (attribute change) is in place two frames later.
+const rebuilt = (page) =>
+  page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
 try {
   let page = await open();
@@ -112,8 +115,7 @@ try {
 
   // Re-grab during the commit slide takes over in place; dragging back cancels without flushing.
   await page.evaluate(() => document.getElementById('s').setAttribute('transition-duration', '1500'));
-  await page.evaluate(() => window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true })));
-  await page.evaluate(() => window.ready);
+  await rebuilt(page);
   await settle(page, 200);
   await state(page);
   await drag(page, plain, -0.5 * H, { hold: 150 });
@@ -129,8 +131,7 @@ try {
   check(st.index === 0 && !st.events.some((e) => e.startsWith('cv-enter')), 're-grab takes over without flushing the switch', JSON.stringify(st));
   check(st.events.filter((e) => e.startsWith('cv-dragstart')).length === 1 && st.events.at(-1) === 'cv-dragcancel:s', 'one session across the re-grab, ends cancelled', JSON.stringify(st));
   await page.evaluate(() => document.getElementById('s').setAttribute('transition-duration', '400'));
-  await page.evaluate(() => window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true })));
-  await page.evaluate(() => window.ready);
+  await rebuilt(page);
   await state(page);
 
   // Hash link → goTo.

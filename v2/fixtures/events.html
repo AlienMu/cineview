@@ -1,0 +1,56 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>events fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  nav{position:fixed;top:0;right:0;z-index:9;background:#fff}
+  .tall{height:100vh}
+  .box{display:block;height:80px;width:200px;background:#b3ded6}
+</style></head>
+<body>
+<script type="module">
+  // ?mode=scroll|drag|empty: event set, error codes, state attributes (P1.9).
+  const q = new URLSearchParams(location.search);
+  const mode = q.get('mode') ?? 'scroll';
+  const pixel = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%222%22 height=%222%22/%3E';
+  const nav = `<nav><a id="l0" href="#s0">0</a> <a id="l1" href="#s1">1</a> <a id="l2" href="#inner">2</a> <a id="l3" href="#s3">3</a> <a id="lx" href="#nowhere">x</a></nav>`;
+  const errors = `
+    <cv-animate id="e-unknown" fx="nope"><div class="box"></div></cv-animate>
+    <cv-animate id="e-parse" from="opacity:" ><div class="box"></div></cv-animate>
+    <cv-animate id="e-missing" fx="fade" after="ghost"><div class="box"></div></cv-animate>
+    <cv-animate id="e-cycle-a" name="a" after="b" fx="fade"><div class="box"></div></cv-animate>
+    <cv-animate id="e-cycle-b" name="b" after="a" fx="fade"><div class="box"></div></cv-animate>
+    <cv-video id="e-range" range="soon later"></cv-video>`;
+  const html = {
+    scroll: `${nav}
+      <cv-stage id="s">
+        <cv-scene id="s0" class="tall" preload><img src="${pixel}" alt=""><img id="broken" src="/missing.png" alt="">${errors}</cv-scene>
+        <cv-scene id="s1" zone><cv-animate id="z1" fx="fade" duration="1000"><div class="box"></div></cv-animate></cv-scene>
+        <cv-scene id="s2" class="tall"><div id="inner" class="box"></div></cv-scene>
+        <cv-scene id="s3" class="tall"><div class="box"></div></cv-scene>
+      </cv-stage>
+      <cv-animate id="orphan" fx="fade"><div class="box"></div></cv-animate>`,
+    drag: `${nav}
+      <cv-stage id="s" input="drag" transition-duration="400">
+        <cv-scene id="s0"><div class="box"></div></cv-scene>
+        <cv-scene id="s1" unit="bogus"><div class="box"></div></cv-scene>
+        <cv-scene id="s2"><div id="inner" class="box"></div></cv-scene>
+        <cv-scene id="s3"><div style="height:200vh">tall</div></cv-scene>
+        <cv-scene id="s4"><div class="box"></div></cv-scene>
+      </cv-stage>`,
+    empty: `<cv-stage id="s"></cv-stage>`,
+  }[mode];
+  document.body.insertAdjacentHTML('afterbegin', html);
+  window.log = [];
+  const tag = (e) => e.target.id || e.target.localName;
+  for (const type of ['cv-ready', 'cv-enter', 'cv-leave', 'cv-activate', 'cv-deactivate', 'cv-dragstart', 'cv-dragend', 'cv-dragcancel']) {
+    document.addEventListener(type, (e) => window.log.push({ type, target: tag(e), detail: e.detail ?? null }));
+  }
+  window.progress = [];
+  document.addEventListener('cv-progress', (e) => window.progress.push({ target: tag(e), ...e.detail }));
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push({ target: tag(e), code: e.detail.code, message: e.detail.message, element: e.detail.element.id || e.detail.element.localName }));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

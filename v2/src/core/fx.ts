@@ -14,6 +14,7 @@
  * custom presets through `defineEffect()`.
  */
 import { easeInOut, linear, pan, parseEase, settle, type Ease } from './ease';
+import type { Report } from './errors';
 import {
   applyTrack,
   parseDeclarations,
@@ -56,8 +57,6 @@ export interface Effect {
   /** Decorative motion dropped under prefers-reduced-motion (plan v3 §13: parallax drift). */
   reducible: boolean;
 }
-
-type Report = (message: string) => void;
 
 interface EffectInit {
   tracks: Tracks;
@@ -477,7 +476,7 @@ export function parseFx(text: string | null, report: Report): Effect[] {
     }
     const factory = presets.get(item.name);
     if (!factory) {
-      report(`Unknown preset "${item.name}"`);
+      report(`Unknown preset "${item.name}"`, 'unknown-effect');
       continue;
     }
     const made = factory(item.args, (m) => report(m));

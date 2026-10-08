@@ -25,6 +25,8 @@ export class CvScene extends ElementBase {
   nativeAttached = false;
   /** Inside the activation window (scroll: about one viewport around). */
   active = false;
+  /** Zone time last reported as cv-progress (scroll); NaN before the first report. */
+  zoneTime = Number.NaN;
   /** Attached, but some eligible layers wait for native budget. */
   nativePending = false;
   nativeGeneration = 0;

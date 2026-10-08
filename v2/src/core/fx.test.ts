@@ -1,4 +1,5 @@
 import { cubicBezier, EASES, parseEase, settle } from './ease';
+import type { ErrorCode } from './errors';
 import {
   asExit,
   defineEffect,
@@ -83,6 +84,12 @@ describe('fx grammar', () => {
       'Unknown preset "nope"',
       'Cannot parse fx item "rise(soft) sideways"',
     ]);
+  });
+
+  it('codes unknown presets as unknown-effect; parse failures carry no code (invalid-attribute)', () => {
+    const codes: Array<ErrorCode | undefined> = [];
+    parseFx('nope, rise(soft) sideways, rise(huge)', (_m, code) => codes.push(code));
+    expect(codes).toEqual(['unknown-effect', undefined, undefined]);
   });
 
   it('reports bad preset arguments and falls back to the default', () => {

@@ -6,7 +6,8 @@
  *   URLs. An image is ready when decoded; a scrub video (<cv-video>, or a listed video URL) when
  *   the whole file is in the blob cache, so every frame can be sought (1.x priorityComplete); a
  *   plain <video> when its first frame is loaded. A failed asset counts as settled and is
- *   reported as `cv-error`.
+ *   reported as `cv-error` (`asset-failed`). Each settled asset dispatches `cv-progress` on the
+ *   stage with `{ kind: 'load', progress, loaded, total }` (1.x onLoadProgress).
  * - The wait is capped by the stage's `first-scene-timeout` (default 3000 ms). On timeout the stage
  *   dispatches a cancelable `cv-timeout` with `{ loaded, total }`; unless it is cancelled the
  *   entrance plays. Cancelled, the entrance waits for the assets (consumer-driven recovery).
@@ -14,10 +15,11 @@
  *
  * The input asks `held` before playing the first screen and registers `whenReleased` otherwise.
  */
+import type { ErrorCode } from '../core/errors';
 import { inferMediaKind, preloadMedia } from '../media/cache';
 
 export interface FirstScreenHost extends HTMLElement {
-  report(message: string, element?: Element): void;
+  report(message: string, element?: Element, code?: ErrorCode): void;
 }
 
 export class FirstScreenGate {
@@ -40,7 +42,20 @@ export class FirstScreenGate {
     this.held = true;
     for (const w of waits) {
       void w.then(() => {
+        if (this.disposed) return;
         this.loaded++;
+        // 1.x onLoadProgress.
+        this.stage.dispatchEvent(
+          new CustomEvent('cv-progress', {
+            bubbles: true,
+            detail: {
+              kind: 'load',
+              progress: this.loaded / this.total,
+              loaded: this.loaded,
+              total: this.total,
+            },
+          })
+        );
         if (this.loaded === this.total) this.release();
       });
     }
@@ -96,7 +111,7 @@ export class FirstScreenGate {
     for (const url of new Set([...scrub, ...urls.filter((u) => inferMediaKind(u))])) {
       waits.push(
         preloadMedia(url, 'video').catch(() =>
-          this.stage.report(`preload: video failed to load: ${url}`)
+          this.stage.report(`preload: video failed to load: ${url}`, undefined, 'asset-failed')
         )
       );
     }
@@ -117,7 +132,11 @@ export class FirstScreenGate {
       () => {
         // decode() also rejects for images that loaded but cannot be decoded off-thread (SVG).
         if (img.complete && img.naturalWidth > 0) return;
-        this.stage.report(`preload: image failed to load: ${img.currentSrc || img.src}`, img);
+        this.stage.report(
+          `preload: image failed to load: ${img.currentSrc || img.src}`,
+          img,
+          'asset-failed'
+        );
       }
     );
   }
@@ -131,7 +150,8 @@ export class FirstScreenGate {
         if (failed)
           this.stage.report(
             `preload: video failed to load: ${video.currentSrc || video.src}`,
-            video
+            video,
+            'asset-failed'
           );
         resolve();
       };

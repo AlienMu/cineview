@@ -97,6 +97,8 @@ export class VideoDriver {
   private accepted = new WeakSet<Event>();
   /** Drag: is the scene the current one? Distinguishes a cancelled return from a departure. */
   sceneActive: (() => boolean | undefined) | null = null;
+  /** The current node failed to load its source (the host reports it). */
+  failed: ((url: string) => void) | null = null;
 
   private container: ParentNode | null = null;
 
@@ -328,12 +330,18 @@ export class VideoDriver {
     const metadata = (): void => {
       if (isCurrent()) this.publishLatest();
     };
+    const error = (): void => {
+      if (this.video !== video || this.generation !== generation || !video.error) return;
+      this.host.dispatchEvent(new Event('error'));
+      this.failed?.(video.currentSrc || video.src);
+    };
     video.addEventListener('loadstart', loadStart, true);
     video.addEventListener('play', play, true);
     video.addEventListener('pause', pause, true);
     video.addEventListener('ended', ended, true);
     for (const type of FORWARDED) video.addEventListener(type, forward);
     video.addEventListener('loadedmetadata', metadata);
+    video.addEventListener('error', error);
     if (video.readyState >= 1) queueMicrotask(metadata);
     this.unbind = (): void => {
       video.removeEventListener('loadstart', loadStart, true);
@@ -342,6 +350,7 @@ export class VideoDriver {
       video.removeEventListener('ended', ended, true);
       for (const type of FORWARDED) video.removeEventListener(type, forward);
       video.removeEventListener('loadedmetadata', metadata);
+      video.removeEventListener('error', error);
       this.unbind = (): void => undefined;
     };
   }

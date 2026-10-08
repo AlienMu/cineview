@@ -51,6 +51,11 @@ export class ScrollInput implements InputEngine {
   private destroyed = false;
   private nativeIo: IntersectionObserver | null = null;
   private activeIo: IntersectionObserver;
+  /** Scenes crossing the viewport's middle line (current scene). */
+  private centerIo: IntersectionObserver;
+  private atCenter = new Set<number>();
+  /** Zones inside the activation window: their progress events need the frame loop. */
+  private activeZones = 0;
   private ro: ResizeObserver;
   private enter: EnterController;
   private pageTimeline: AnimationTimeline | null = null;
@@ -90,6 +95,7 @@ export class ScrollInput implements InputEngine {
       (entries) => {
         for (const entry of entries) {
           const s = entry.target as CvScene;
+          s.toggleAttribute('data-cv-active', entry.isIntersecting);
           if (entry.isIntersecting === s.active) continue;
           s.active = entry.isIntersecting;
           if (!s.active) for (const a of s.ordered) a.stopLoops();
@@ -98,10 +104,29 @@ export class ScrollInput implements InputEngine {
             new CustomEvent(s.active ? 'cv-activate' : 'cv-deactivate', { bubbles: true })
           );
         }
+        const zones = this.scenes.filter((s) => s.isZone && s.active).length;
+        // A zone leaving the window (also by a jump) gets its end value reported.
+        if (zones !== this.activeZones || zones) this.queueFrame();
+        this.activeZones = zones;
       },
       { rootMargin: '100% 0px 100% 0px' }
     );
     for (const s of this.scenes) this.activeIo.observe(s);
+    // Current scene (1.x): the one under the middle of the viewport; at a shared edge the later
+    // one; in a gap between scenes (other content) the last one stays current.
+    this.centerIo = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const i = this.scenes.indexOf(entry.target as CvScene);
+          if (entry.isIntersecting) this.atCenter.add(i);
+          else this.atCenter.delete(i);
+        }
+        if (this.atCenter.size) this.stage.setCurrent(Math.max(...this.atCenter));
+        else if (this.stage.current < 0) this.stage.setCurrent(this.currentIndex());
+      },
+      { rootMargin: '-50% 0px -50% 0px' }
+    );
+    for (const s of this.scenes) this.centerIo.observe(s);
     this.frame();
   }
 
@@ -113,6 +138,7 @@ export class ScrollInput implements InputEngine {
     clearTimeout(this.deferred);
     this.nativeIo?.disconnect();
     this.activeIo.disconnect();
+    this.centerIo.disconnect();
     this.ro.disconnect();
     this.enter.destroy();
     for (const s of this.scenes) s.active = false;
@@ -161,7 +187,7 @@ export class ScrollInput implements InputEngine {
   /** Direct-write layers, gates and zone loop gates follow scroll here; pure native pages skip it. */
   private onScroll = (): void => {
     this.lastScroll = performance.now();
-    if (this.native && !this.hasJsWork()) return;
+    if (this.native && !this.hasJsWork() && !this.activeZones) return;
     this.queueFrame();
   };
 
@@ -198,9 +224,14 @@ export class ScrollInput implements InputEngine {
     const work: Array<{ layer: Layer; p: number; px: number }> = [];
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
     const frames: Array<{ a: CvAnimate; t: number }> = [];
+    const zones: Array<{ s: CvScene; index: number; t: number }> = [];
     const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
     const gated = this.enter.measure((a) => a.scene !== null && isNear(a.scene));
     const page = Math.min(Math.max(y / Math.max(1, this.docHeight - vh), 0), 1);
+    this.scenes.forEach((s, index) => {
+      if (s.isZone)
+        zones.push({ s, index, t: Math.min(Math.max(y - s.docTop, 0), s.solution.total) });
+    });
     for (const s of this.scenes) {
       const near = isNear(s);
       if (!near) {
@@ -245,6 +276,8 @@ export class ScrollInput implements InputEngine {
       if (on) a.startLoops(this.clock);
       else a.stopLoops();
     }
+    // Last: listeners may read layout.
+    for (const z of zones) reportZone(z.s, z.index, z.t);
   }
 
   private selfView(a: CvAnimate, vh: number): number {
@@ -385,6 +418,26 @@ export class ScrollInput implements InputEngine {
     });
     this.enter.link();
   }
+}
+
+/**
+ * A zone's state for the page (1.x onZoneProgress / onZoneEnter / onZoneLeave): `data-cv-stuck`
+ * while its shell is pinned and between its ends, and `cv-progress` `{ kind: 'zone', index,
+ * progress }` on the scene when it moved more than half a pixel or reached an end.
+ */
+function reportZone(s: CvScene, index: number, t: number): void {
+  const total = s.solution.total;
+  s.toggleAttribute('data-cv-stuck', t > 0.5 && t < total - 0.5);
+  const last = s.zoneTime;
+  const atEnd = t === 0 || t === total;
+  if (!Number.isNaN(last) && Math.abs(t - last) <= 0.5 && !(atEnd && t !== last)) return;
+  s.zoneTime = t;
+  s.dispatchEvent(
+    new CustomEvent('cv-progress', {
+      bubbles: true,
+      detail: { kind: 'zone', index, progress: total > 0 ? t / total : 0 },
+    })
+  );
 }
 
 /** An element's timeline frame in a zone: scene time from scroll (for <cv-video>). */

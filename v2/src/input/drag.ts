@@ -136,6 +136,8 @@ class DragInput implements DragEngine {
   /** Scenes left by a committed switch, with the direction they left in (+1 forward). */
   private departed = new Map<number, Side>();
   private tickSource: TimelineSource | null = null;
+  /** Page position last reported as cv-progress. */
+  private reported = 0;
   /** Element geometry relative to its scene, for per-element view progress (plan v3 F7). */
   private local = new Map<CvAnimate, { top: number; height: number }>();
 
@@ -154,7 +156,13 @@ class DragInput implements DragEngine {
       scale: 10,
     });
     this.mapping = root.mapping;
-    if (root.invalid) stage.report('unit/scale: expected unit="time|percent" and a scale >= 0');
+    const invalid = 'unit/scale: expected unit="time|percent" and a scale >= 0';
+    if (root.invalid) stage.report(invalid, stage, 'invalid-drag-config');
+    for (const s of this.scenes) {
+      if (parseMapping(s.getAttribute('unit'), s.getAttribute('scale'), this.mapping).invalid) {
+        stage.report(invalid, s, 'invalid-drag-config');
+      }
+    }
 
     Object.assign(stage.style, {
       position: 'fixed',
@@ -174,6 +182,8 @@ class DragInput implements DragEngine {
         position: 'absolute',
         inset: '0',
         height: '100%',
+        // One screen per scene: taller content is cut off, as in 1.x (dev build warns).
+        overflow: 'clip',
         willChange: 'translate',
       });
     }
@@ -185,6 +195,8 @@ class DragInput implements DragEngine {
         ? Math.min(resumeAt, this.scenes.length - 1)
         : this.sceneFor(decodeURIComponent(location.hash.slice(1)));
     this.index = this.pos = Math.max(0, start ?? 0);
+    this.reported = this.pos;
+    stage.setCurrent(this.index);
 
     stage.addEventListener('pointerdown', this.onDown);
     stage.addEventListener('pointermove', this.onMove);
@@ -249,7 +261,7 @@ class DragInput implements DragEngine {
     for (const s of this.scenes) for (const a of s.ordered) a.stopLoops();
   }
 
-  /** Programmatic navigation. Not a gesture: no drag events, only cv-leave / cv-enter. */
+  /** Programmatic navigation. Not a gesture: no drag events; cv-progress follows the slide. */
   goTo(target: number, options: { animated?: boolean } = {}): void {
     target = Math.max(0, Math.min(this.scenes.length - 1, Math.round(target)));
     if (this.press?.owning) return;
@@ -261,7 +273,7 @@ class DragInput implements DragEngine {
     if (options.animated === false || this.transition === 0) {
       this.heads = this.heads.map(() => null);
       this.times = this.times.map((_, i) => (i === target ? this.total(i) : 0));
-      this.pos = target;
+      this.pos = this.reported = target;
       this.switchTo(target, from);
       this.write();
       return;
@@ -270,7 +282,7 @@ class DragInput implements DragEngine {
     if (Math.abs(target - this.index) > 1) {
       // Jump next to the target first; scenes between are outside the window anyway.
       this.index = target - side;
-      this.pos = this.index;
+      this.pos = this.reported = this.index;
       this.applyWindow();
     }
     this.times[target] = 0;
@@ -624,9 +636,13 @@ class DragInput implements DragEngine {
       if (tweenDone(lane.page, now)) {
         this.pos = lane.target;
         this.lane = null;
+        // The landing value, against the scene being left; the new scene starts at rest.
+        this.reportProgress();
         this.land(lane);
+        this.reported = this.pos;
       } else busy = true;
     }
+    this.reportProgress();
     if (!this.frozenHeads) {
       for (let i = 0; i < this.heads.length; i++) {
         const h = this.heads[i];
@@ -665,8 +681,7 @@ class DragInput implements DragEngine {
     this.departed.delete(target);
     this.applyWindow();
     if (from !== target) {
-      this.scenes[from]?.dispatchEvent(new CustomEvent('cv-leave', { bubbles: true }));
-      this.scenes[target]?.dispatchEvent(new CustomEvent('cv-enter', { bubbles: true }));
+      this.stage.setCurrent(target);
       this.stage.announce(this.label(target));
     }
   }
@@ -675,6 +690,19 @@ class DragInput implements DragEngine {
     if (!this.session) return;
     this.session = false;
     this.emit(kind === 'end' ? 'cv-dragend' : 'cv-dragcancel', { index: this.index, ...detail });
+  }
+
+  /** `cv-progress` on the stage when the page moved (1.x onDragProgress): travel from the scene. */
+  private reportProgress(): void {
+    if (this.pos === this.reported) return;
+    this.reported = this.pos;
+    const travel = this.pos - this.index;
+    this.emit('cv-progress', {
+      kind: 'page',
+      index: this.index,
+      progress: Math.min(1, Math.abs(travel)),
+      direction: travel > 0 ? 'forward' : travel < 0 ? 'backward' : null,
+    });
   }
 
   private emit(type: string, detail: object): void {
@@ -697,7 +725,7 @@ class DragInput implements DragEngine {
       if (active) s.removeAttribute('aria-hidden');
       else s.setAttribute('aria-hidden', 'true');
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
-      s.toggleAttribute('data-cv-active', active);
+      s.toggleAttribute('data-cv-active', inWindow);
       for (const a of s.ordered) a.dragActive = active;
       if (!inWindow) {
         for (const a of s.ordered) a.stopLoops();
