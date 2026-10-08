@@ -16,7 +16,7 @@ import { cubicBezier } from '../core/ease';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
-import type { TimelineFrame, TimelineSource } from '../media/ownership';
+import type { TimelineFrame, TimelineSource } from '../core/timeline';
 import { progressIn, writeLayer } from '../render/layers';
 import {
   cancelDuration,
@@ -77,8 +77,13 @@ interface Lane {
   from: number;
   /** Frozen by a press that may still turn into a drag. */
   frozen: boolean;
-  /** cv-dragend detail captured at release. */
-  detail?: { progress: number; elapsed: number; total: number };
+  /** cv-dragend / cv-dragcancel detail captured at release. */
+  detail?: {
+    progress: number;
+    direction: 'forward' | 'backward' | null;
+    elapsed?: number;
+    total?: number;
+  };
 }
 
 interface Press {
@@ -164,14 +169,7 @@ class DragInput implements DragEngine {
       }
     }
 
-    Object.assign(stage.style, {
-      position: 'fixed',
-      inset: '0',
-      overflow: 'hidden',
-      // Vertical paging is ours; horizontal pans and pinch zoom stay native (1.x).
-      touchAction: 'pan-x pinch-zoom',
-      userSelect: 'none',
-    });
+    // Stage geometry (fixed, clipped, touch-action) is the stage's own :host([input=drag]) style.
     if (!stage.hasAttribute('role')) stage.setAttribute('role', 'region');
     if (!stage.hasAttribute('aria-roledescription')) {
       stage.setAttribute('aria-roledescription', 'carousel');
@@ -567,6 +565,7 @@ class DragInput implements DragEngine {
         frozen: false,
         detail: {
           progress: Math.abs(r),
+          direction: r > 0 ? 'forward' : 'backward',
           elapsed: this.times[target] ?? 0,
           total: this.total(target),
         },
@@ -581,6 +580,10 @@ class DragInput implements DragEngine {
         target: this.index,
         from: this.index,
         frozen: false,
+        detail: {
+          progress: Math.abs(r),
+          direction: r > 0 ? 'forward' : r < 0 ? 'backward' : null,
+        },
       };
       for (const side of [1, -1] as const) {
         const k = this.index + side;
@@ -660,12 +663,12 @@ class DragInput implements DragEngine {
   /** A lane landed: commit the switch (commit, goTo) or close the session (cancel). */
   private land(lane: Lane): void {
     if (lane.kind === 'cancel') {
-      this.endSession('cancel');
+      this.endSession('cancel', lane.detail);
       return;
     }
     this.switchTo(lane.target, lane.from);
     if (lane.kind === 'commit') {
-      this.endSession('end', { from: lane.from, to: lane.target, ...lane.detail });
+      this.endSession('end', lane.detail && { ...lane.detail, from: lane.from, to: lane.target });
     }
   }
 
@@ -686,8 +689,19 @@ class DragInput implements DragEngine {
     }
   }
 
-  private endSession(kind: 'end' | 'cancel', detail: object = {}): void {
+  private endSession(
+    kind: 'end' | 'cancel',
+    detail?: Lane['detail'] & { from?: number; to?: number }
+  ): void {
     if (!this.session) return;
+    if (!detail) {
+      // Superseded (goTo during a transaction): where the page was.
+      const travel = this.pos - this.index;
+      detail = {
+        progress: Math.min(1, Math.abs(travel)),
+        direction: travel > 0 ? 'forward' : travel < 0 ? 'backward' : null,
+      };
+    }
     this.session = false;
     this.emit(kind === 'end' ? 'cv-dragend' : 'cv-dragcancel', { index: this.index, ...detail });
   }
@@ -762,7 +776,7 @@ class DragInput implements DragEngine {
       if (t > 0) this.departed.delete(i);
       for (const a of s.ordered) {
         this.writeAnimate(a, t, sceneView, offset, departure, side);
-        if (a.frameSink) a.sendFrame(this.frameFor(a, i, t, travel));
+        if (a.timed) a.sendFrame(this.frameFor(a, i, t, travel));
         if (a.loopItems.length) {
           if (!a.solved || t >= a.solved.end) a.startLoops(this.stage.clock);
           else a.stopLoops();
@@ -779,7 +793,7 @@ class DragInput implements DragEngine {
     return this.heads.some(Boolean) ? 'continuation' : 'idle';
   }
 
-  /** The element's timeline frame in scene i (for <cv-video>). */
+  /** The element's timeline frame in scene i (el.timeline, data-cv-phase, <cv-video>). */
   private frameFor(a: CvAnimate, i: number, t: number, travel: number): TimelineFrame {
     const source = this.source();
     if (i === this.index && travel !== 0) {

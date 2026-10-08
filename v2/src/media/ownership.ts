@@ -7,18 +7,9 @@
  * and pause events from an older activation are ignored. One deliberate change from 1.x: the cancel
  * restore also covers forward departures (see reduceTimelineFrame).
  */
-export type TimelinePhase = 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
-export type TimelineSource =
-  'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility';
+import type { TimelineFrame } from '../core/timeline';
 
-/** One atomic sample of an element's timeline: progress, phase and what drives it. */
-export interface TimelineFrame {
-  progress: number;
-  /** Departure under drag: negative when leaving backwards (to the previous scene). */
-  signedProgress: number;
-  phase: TimelinePhase;
-  source: TimelineSource;
-}
+export type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
 type AnimateTimelineFrame = TimelineFrame;
 
 export type VideoPlaybackOwnershipStatus =

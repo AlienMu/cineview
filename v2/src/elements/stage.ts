@@ -12,11 +12,12 @@ import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
 import { Clock } from '../render/clock';
+import type { CvStageElement } from '../types';
 import type { CvScene } from './scene';
 
 type Input = 'scroll' | 'drag';
 
-export class CvStage extends ElementBase {
+export class CvStage extends ElementBase implements CvStageElement {
   static readonly observedAttributes = [
     'input',
     'fallback',
@@ -47,6 +48,9 @@ export class CvStage extends ElementBase {
   current = -1;
   private scheduled = false;
   private readySent = false;
+  /** Settles `ready`; null once this connection's cv-ready has fired. */
+  private settleReady: (() => void) | null = null;
+  private readyPromise = this.pendingReady();
   /**
    * Errors (code and message per element) reported during the previous build and since the latest
    * one: an error that persists across rebuilds is dispatched once.
@@ -56,15 +60,30 @@ export class CvStage extends ElementBase {
   private generation = 0;
   private live: HTMLDivElement | null = null;
 
+  /**
+   * Settles with this connection's `cv-ready`, also when that already fired: listeners attached
+   * late (React attaches `oncv-*` props of server-rendered markup only on a later render) await it.
+   */
+  get ready(): Promise<void> {
+    return this.readyPromise;
+  }
+
+  private pendingReady(): Promise<void> {
+    return new Promise((resolve) => (this.settleReady = resolve));
+  }
+
   get input(): Input {
     return this.getAttribute('input') === 'drag' ? 'drag' : 'scroll';
+  }
+
+  // Writable, as React 19 assigns props the element has as properties.
+  set input(value: Input) {
+    this.setAttribute('input', value);
   }
 
   private stopListening: Array<() => void> = [];
 
   connectedCallback(): void {
-    this.style.display = 'block';
-    this.style.overflowX = 'clip';
     this.ensureShadow();
     if (!this.stopListening.length) {
       this.stopListening = [
@@ -96,6 +115,7 @@ export class CvStage extends ElementBase {
     this.firstScreen = null;
     this.booted = false;
     this.readySent = false;
+    if (!this.settleReady) this.readyPromise = this.pendingReady();
     this.current = -1;
     this.teardown();
   }
@@ -108,7 +128,12 @@ export class CvStage extends ElementBase {
     if (this.shadowRoot) return;
     const root = this.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
+    // Host styles live here, not inline: the page can override them, nothing differs from
+    // server-rendered markup when React hydrates, and switching input drops the drag ones.
     style.textContent =
+      ':host{display:block;overflow-x:clip}' +
+      // Vertical paging is ours; horizontal pans and pinch zoom stay native (1.x).
+      ':host([input=drag]){position:fixed;inset:0;overflow:hidden;touch-action:pan-x pinch-zoom;user-select:none}' +
       '.frame{position:relative;width:100%;max-width:calc(var(--cv-dw,750) * 1px);margin-inline:auto;container-type:inline-size}' +
       ':host([input=drag]) .frame{height:100%}' +
       '.live{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}';
@@ -135,6 +160,11 @@ export class CvStage extends ElementBase {
 
   get paused(): boolean {
     return this.hasAttribute('paused');
+  }
+
+  set paused(value: boolean) {
+    if (value) this.pause();
+    else this.play();
   }
 
   registerScene(s: CvScene): void {
@@ -354,6 +384,8 @@ export class CvStage extends ElementBase {
         if (__DEV__ && generation === this.generation && this.isConnected) checkStage(this);
         if (!first || !this.isConnected) return;
         this.readyAt = performance.now();
+        this.settleReady?.();
+        this.settleReady = null;
         this.dispatchEvent(new CustomEvent('cv-ready', { bubbles: true }));
       })
     );

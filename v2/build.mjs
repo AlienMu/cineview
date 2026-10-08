@@ -5,6 +5,8 @@
  *   v2/dist/dev/cineview.js    development entry (readable, craft warnings on)
  *   v2/dist/cineview.css       boot styles for the page <head> (plan v3 §10)
  *   v2/dist/head.js            the inline <head> snippet that sets `.cv-js`, with its CSP hash
+ *   v2/dist/types/             public declarations (index.d.ts; jsx.d.ts = React 19 JSX), checked
+ *                              by compiling v2/types-test/usage.tsx against them
  *
  * Size budget (plan v3 §11 threshold 1): initial JS = entry + its static imports <= 40 KiB gzip;
  * the drag chunk <= 12 KiB gzip. Over budget fails the build.
@@ -13,6 +15,8 @@
  *   node v2/build.mjs --json    same, sizes as JSON on stdout
  */
 import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
@@ -71,6 +75,16 @@ async function sizes(metafile) {
 
 const prod = await bundle(join(here, 'dist'), false);
 await bundle(join(here, 'dist/dev'), true);
+// Public declarations, then a compile check of their use (internals unreachable, React 19 JSX).
+{
+  const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+  execFileSync(process.execPath, [tsc, '-p', join(here, 'tsconfig.types.json')], {
+    stdio: 'inherit',
+  });
+  execFileSync(process.execPath, [tsc, '-p', join(here, 'types-test/tsconfig.json')], {
+    stdio: 'inherit',
+  });
+}
 const report = await sizes(prod);
 const dragKiB = Object.entries(report.lazyKiB)
   .filter(([k]) => /\/drag-/.test(k))

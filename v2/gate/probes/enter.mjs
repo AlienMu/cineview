@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 
 /** P1.5 normal-flow entrances (1.x gate semantics), page source and activation events. */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
-const browser = await chromium.launch({ channel: 'chrome' });
+const browser = await chromium.launch(process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' });
 let failed = 0;
 const check = (ok, label, detail = '') => {
   if (!ok) failed++;

@@ -27,6 +27,8 @@ export class CvScene extends ElementBase {
   active = false;
   /** Zone time last reported as cv-progress (scroll); NaN before the first report. */
   zoneTime = Number.NaN;
+  /** Zone time last published to element timelines (scroll). */
+  frameTime = Number.NaN;
   /** Attached, but some eligible layers wait for native budget. */
   nativePending = false;
   nativeGeneration = 0;

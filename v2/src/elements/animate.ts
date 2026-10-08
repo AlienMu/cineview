@@ -16,7 +16,13 @@ import {
 } from '../core/time';
 import { warnScopedPositioning, warnUnsafeStagger } from '../dev/craft';
 import { warn } from '../dev/warn';
-import type { TimelineFrame } from '../media/ownership';
+import {
+  IDLE_FRAME,
+  type CvTimeline,
+  type TimelineFrame,
+  type TimelinePhase,
+  type TimelineSource,
+} from '../core/timeline';
 import { ElementBase } from '../platform';
 import type { Clock } from '../render/clock';
 import {
@@ -29,6 +35,7 @@ import {
   type LayerPlan,
 } from '../render/layers';
 import { CvScene } from './scene';
+import type { CvAnimateElement } from '../types';
 
 /** Sources whose effects sit on the scene timeline (plan v3 §3.5). */
 const ON_TIMELINE: ReadonlySet<Source> = new Set<Source>(['scene', 'enter', 'eye']);
@@ -93,7 +100,7 @@ function parseOn(
   return null;
 }
 
-export class CvAnimate extends ElementBase {
+export class CvAnimate extends ElementBase implements CvAnimateElement {
   static readonly observedAttributes = [
     'fx',
     'from',
@@ -116,17 +123,16 @@ export class CvAnimate extends ElementBase {
   ];
 
   scene: CvScene | null = null;
-  /**
-   * Elements that follow their own timeline frame by frame (<cv-video>): inputs that compute
-   * progress on the main thread (drag, zones) call this with each changed frame.
-   */
-  frameSink: ((frame: TimelineFrame) => void) | null = null;
-  /** Same, for entrances played on the clock (enter / eye): start and duration, not frames. */
-  clockSink: ((event: ClockEvent) => void) | null = null;
   /** Drag: the element's scene is the current one (undefined under scroll input). */
   dragActive: boolean | undefined = undefined;
-  /** Last frame sent to frameSink, to skip unchanged ones. */
-  lastFrame: TimelineFrame | null = null;
+  /** The latest published frame (drag, zones; clock runs compute theirs on read). */
+  private lastFrame: TimelineFrame = IDLE_FRAME;
+  private listeners = new Set<(frame: TimelineFrame) => void>();
+  private view: CvTimeline | null = null;
+  private shownPhase: string | null = null;
+  /** A clock-played entrance or exit in progress: start in clock time (render/clock.ts). */
+  private run: { kind: 'enter' | 'exit'; start: number; duration: number } | null = null;
+  private runRaf = 0;
   layers: Layer[] = [];
   timed = true;
   solved: Solved | null = null;
@@ -140,6 +146,13 @@ export class CvAnimate extends ElementBase {
   private exitPlanned = false;
 
   connectedCallback(): void {
+    // A property assigned before the element was defined (React 19 sets `after` as a property,
+    // since ChildNode.after exists) shadows the accessor below: move it to the attribute.
+    if (Object.prototype.hasOwnProperty.call(this, 'after')) {
+      const value: unknown = (this as { after: unknown }).after;
+      delete (this as { after?: unknown }).after;
+      reflect(this, 'after', value);
+    }
     const scene = this.closest('cv-scene');
     if (!scene) return;
     if (scene instanceof CvScene) {
@@ -158,6 +171,8 @@ export class CvAnimate extends ElementBase {
   }
 
   disconnectedCallback(): void {
+    cancelAnimationFrame(this.runRaf);
+    this.run = null;
     this.release();
     this.scene?.unregisterAnimate(this);
     this.scene = null;
@@ -318,11 +333,101 @@ export class CvAnimate extends ElementBase {
   /** The scene entered (true) or left (false) the activation window. */
   activated(_on: boolean): void {}
 
-  /** Send a timeline frame to frameSink when it changed. */
+  /** The element's timeline (plan v3 §3.6): current frame and a subscription. */
+  get timeline(): CvTimeline {
+    if (!this.view) {
+      const frame = (): TimelineFrame => (this.run ? this.clockFrame() : this.lastFrame);
+      this.view = {
+        get frame(): TimelineFrame {
+          return frame();
+        },
+        get progress(): number {
+          return frame().progress;
+        },
+        get signedProgress(): number {
+          return frame().signedProgress;
+        },
+        get phase(): TimelinePhase {
+          return frame().phase;
+        },
+        get source(): TimelineSource {
+          return frame().source;
+        },
+        subscribe: (listener): (() => void) => {
+          this.listeners.add(listener);
+          if (this.run) this.tickRun();
+          return (): void => {
+            this.listeners.delete(listener);
+          };
+        },
+      };
+    }
+    return this.view;
+  }
+
+  /** Inputs that compute time on the main thread (drag, zones): a frame, with its phase. */
   sendFrame(frame: TimelineFrame): void {
+    this.showPhase(frame.phase);
+    this.publish(frame);
+  }
+
+  /** `data-cv-phase`: the timeline phase, plus `waiting` (for a predecessor) on the clock. */
+  showPhase(phase: TimelinePhase | 'waiting'): void {
+    if (phase === this.shownPhase) return;
+    this.shownPhase = phase;
+    this.setAttribute('data-cv-phase', phase);
+  }
+
+  /** Entrance or exit played on the clock (enter / eye): frames tick while there are subscribers. */
+  clockEvent(event: ClockEvent): void {
+    cancelAnimationFrame(this.runRaf);
+    this.runRaf = 0;
+    if (event.type !== 'enter' && event.type !== 'exit') {
+      this.run = null;
+      this.publish(
+        event.type === 'reset'
+          ? IDLE_FRAME
+          : { progress: 1, signedProgress: 1, phase: 'entered', source: 'visibility' }
+      );
+      return;
+    }
+    const clock = this.scene?.stage?.clock;
+    this.run = {
+      kind: event.type,
+      start: clock ? clock.now(event.start) : event.start,
+      duration: event.duration,
+    };
+    this.tickRun();
+  }
+
+  private clockFrame(): TimelineFrame {
+    const run = this.run!;
+    const now = this.scene?.stage?.clock.now() ?? performance.now();
+    if (now < run.start) {
+      // Inside its delay: the starting frame.
+      return run.kind === 'enter'
+        ? { ...IDLE_FRAME, phase: 'entering', source: 'visibility' }
+        : { ...IDLE_FRAME, phase: 'exiting', source: 'visibility' };
+    }
+    const p = run.duration > 0 ? Math.min(1, (now - run.start) / run.duration) : 1;
+    const phase =
+      run.kind === 'enter' ? (p >= 1 ? 'entered' : 'entering') : p >= 1 ? 'exited' : 'exiting';
+    return { progress: p, signedProgress: p, phase, source: 'visibility' };
+  }
+
+  private tickRun = (): void => {
+    this.runRaf = 0;
+    if (!this.run || !this.listeners.size) return;
+    const frame = this.clockFrame();
+    this.publish(frame);
+    if (frame.phase === 'entered' || frame.phase === 'exited') this.run = null;
+    else this.runRaf = requestAnimationFrame(this.tickRun);
+  };
+
+  /** Keep the frame and tell subscribers when it changed. */
+  private publish(frame: TimelineFrame): void {
     const last = this.lastFrame;
     if (
-      last &&
       last.phase === frame.phase &&
       last.source === frame.source &&
       Math.abs(last.progress - frame.progress) < 1e-4 &&
@@ -331,7 +436,7 @@ export class CvAnimate extends ElementBase {
       return;
     }
     this.lastFrame = frame;
-    this.frameSink?.(frame);
+    for (const listener of this.listeners) listener(frame);
   }
 
   cancelNatives(): void {
@@ -370,4 +475,25 @@ export class CvAnimate extends ElementBase {
       if (l.target) clearLayer(l);
     }
   }
+}
+
+/** Property → attribute (null, undefined and false remove it). */
+function reflect(el: Element, name: string, value: unknown): void {
+  if (value === null || value === undefined || value === false) el.removeAttribute(name);
+  else el.setAttribute(name, value === true ? '' : String(value));
+}
+
+// React 19 sets a custom element prop as a property when the element has one by that name, and
+// every element has `after` (ChildNode.after). Give it an accessor that writes the attribute,
+// while reading still returns the DOM method.
+if (typeof Element !== 'undefined') {
+  Object.defineProperty(CvAnimate.prototype, 'after', {
+    configurable: true,
+    get(): unknown {
+      return Element.prototype.after;
+    },
+    set(this: CvAnimate, value: unknown) {
+      reflect(this, 'after', value);
+    },
+  });
 }

@@ -15,6 +15,7 @@
  * Scrub smoothness depends on keyframe density; the development build warns when seeks are slow
  * (re-encode as all-keyframe: `ffmpeg -i in.mp4 -g 1 -keyint_min 1 -c:v libx264 out.mp4`).
  */
+import { IDLE_FRAME } from '../core/timeline';
 import { warn } from '../dev/warn';
 import {
   acquireVideoObjectUrl,
@@ -62,13 +63,6 @@ export interface VideoOptions {
   label: string | null;
   range: readonly [number, number] | undefined;
 }
-
-export const IDLE_FRAME: TimelineFrame = {
-  progress: 0,
-  signedProgress: 0,
-  phase: 'idle',
-  source: 'idle',
-};
 
 export class VideoDriver {
   video: HTMLVideoElement | null = null;

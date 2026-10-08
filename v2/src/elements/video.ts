@@ -14,10 +14,10 @@
  * - `play`, `pause`, `ended` and `error` are re-dispatched on the element, only for the current
  *   node; a load failure is also a `cv-error` (`asset-failed`).
  */
-import { IDLE_FRAME, VideoDriver } from '../media/driver';
-import type { TimelineFrame } from '../media/ownership';
 import type { Report } from '../core/errors';
-import { CvAnimate, type AnimatePlan, type ClockEvent, type PlanContext } from './animate';
+import { VideoDriver } from '../media/driver';
+import type { CvVideoElement } from '../types';
+import { CvAnimate, type AnimatePlan, type PlanContext } from './animate';
 
 const VIDEO_ATTRIBUTES = ['src', 'range', 'preload', 'poster', 'playback-rate', 'aria-label'];
 
@@ -32,17 +32,14 @@ export function parseRange(text: string | null): readonly [number, number] | und
   return [parts[0]!, parts[1]!];
 }
 
-export class CvVideo extends CvAnimate {
+export class CvVideo extends CvAnimate implements CvVideoElement {
   static override readonly observedAttributes = [
     ...CvAnimate.observedAttributes,
     ...VIDEO_ATTRIBUTES,
   ];
 
   private driver: VideoDriver | null = null;
-  private clockRun: { kind: 'enter' | 'exit'; start: number; duration: number } | null = null;
-  private raf = 0;
-  /** Clock time spent paused during the current run (the stage's pause applies here too). */
-  private pausedAt: number | null = null;
+  private unsubscribe: (() => void) | null = null;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -51,8 +48,9 @@ export class CvVideo extends CvAnimate {
       this.driver.sceneActive = (): boolean | undefined => this.dragActive;
       this.driver.failed = (url): void =>
         this.scene?.stage?.report(`<cv-video> failed to load ${url}`, this, 'asset-failed');
-      this.frameSink = (frame): void => this.driver?.frame(frame);
-      this.clockSink = (event): void => this.onClock(event);
+      // The video follows the element's timeline, whichever input drives it.
+      this.unsubscribe = this.timeline.subscribe((frame) => this.driver?.frame(frame));
+      this.driver.frame(this.timeline.frame);
     }
     this.place();
     this.configure();
@@ -72,11 +70,10 @@ export class CvVideo extends CvAnimate {
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    cancelAnimationFrame(this.raf);
+    this.unsubscribe?.();
+    this.unsubscribe = null;
     this.driver?.destroy();
     this.driver = null;
-    this.frameSink = null;
-    this.clockSink = null;
   }
 
   override plan(context: PlanContext, report: Report): AnimatePlan {
@@ -121,69 +118,5 @@ export class CvVideo extends CvAnimate {
       label: this.getAttribute('aria-label'),
       range: parseRange(this.getAttribute('range')),
     });
-  }
-
-  // ---- entrances played on the clock (enter / eye sources): frames from the clock -------------
-
-  private onClock(event: ClockEvent): void {
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
-    this.pausedAt = null;
-    switch (event.type) {
-      case 'reset':
-        this.clockRun = null;
-        this.send(IDLE_FRAME);
-        return;
-      case 'reveal':
-        this.clockRun = null;
-        this.send({ progress: 1, signedProgress: 1, phase: 'entered', source: 'visibility' });
-        return;
-      default:
-        this.clockRun = { kind: event.type, start: event.start, duration: event.duration };
-    }
-    this.tick();
-  }
-
-  private tick = (): void => {
-    this.raf = 0;
-    const run = this.clockRun;
-    if (!run) return;
-    const now = performance.now();
-    const paused = this.scene?.stage?.clock.paused ?? false;
-    if (paused) {
-      this.pausedAt ??= now;
-      this.raf = requestAnimationFrame(this.tick);
-      return;
-    }
-    if (this.pausedAt !== null) {
-      run.start += now - this.pausedAt;
-      this.pausedAt = null;
-    }
-    const p = run.duration > 0 ? Math.min(1, Math.max(0, (now - run.start) / run.duration)) : 1;
-    if (now < run.start) {
-      // Waiting for its delay: hold the starting frame.
-      if (run.kind === 'enter')
-        this.send({ ...IDLE_FRAME, phase: 'entering', source: 'visibility' });
-    } else if (run.kind === 'enter') {
-      this.send({
-        progress: p,
-        signedProgress: p,
-        phase: p >= 1 ? 'entered' : 'entering',
-        source: 'visibility',
-      });
-    } else {
-      this.send({
-        progress: p,
-        signedProgress: p,
-        phase: p >= 1 ? 'exited' : 'exiting',
-        source: 'visibility',
-      });
-    }
-    if (p < 1 || now < run.start) this.raf = requestAnimationFrame(this.tick);
-    else this.clockRun = null;
-  };
-
-  private send(frame: TimelineFrame): void {
-    this.driver?.frame(frame);
   }
 }

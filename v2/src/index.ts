@@ -1,10 +1,51 @@
 /** Cineview 2.0 prototype entry: core + scroll input + first presets. Drag input loads on demand. */
-import { define } from './elements/define';
+import * as elements from './elements/define';
 import { bootCss, captureBoot, HEAD_SNIPPET } from './boot';
 import { isBrowser } from './platform';
+import type {
+  CvAnimateElement,
+  CvPauseElement,
+  CvSceneElement,
+  CvStageElement,
+  CvVideoElement,
+} from './types';
 
-export { CvAnimate, CvPause, CvScene, CvStage, CvVideo } from './elements/define';
+const { define } = elements;
+
+/** An element class, typed by its public interface (instanceof, subclassing); internals stay out. */
+export interface CvElementClass<T extends HTMLElement> {
+  new (): T;
+  readonly prototype: T;
+}
+export const CvStage: CvElementClass<CvStageElement> = elements.CvStage;
+export const CvScene: CvElementClass<CvSceneElement> = elements.CvScene;
+export const CvAnimate: CvElementClass<CvAnimateElement> = elements.CvAnimate;
+export const CvVideo: CvElementClass<CvVideoElement> = elements.CvVideo;
+export const CvPause: CvElementClass<CvPauseElement> = elements.CvPause;
+
 export { defineEffect, presetNames, type EffectDefinition } from './core/fx';
+export type {
+  CvAnimateElement,
+  CvDirection,
+  CvDragBlockedDetail,
+  CvDragCancelDetail,
+  CvDragEndDetail,
+  CvDragStartDetail,
+  CvErrorDetail,
+  CvEventMap,
+  CvPauseElement,
+  CvProgressDetail,
+  CvSceneChangeDetail,
+  CvSceneElement,
+  CvStageElement,
+  CvTimeline,
+  CvTimeoutDetail,
+  CvVideoElement,
+  ErrorCode,
+  TimelineFrame,
+  TimelinePhase,
+  TimelineSource,
+} from './types';
 /** For build tools and servers: the boot stylesheet and the <head> snippet that sets `.cv-js`. */
 export { bootCss, HEAD_SNIPPET };
 

@@ -8,7 +8,7 @@
  * `view(self)` subjects, all before any write.
  */
 import { compositorEligible } from '../core/props';
-import type { TimelineFrame } from '../media/ownership';
+import type { TimelineFrame } from '../core/timeline';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
@@ -198,7 +198,7 @@ export class ScrollInput implements InputEngine {
       this.scenes.some((s) =>
         s.ordered.some(
           (a) =>
-            (s.isZone && (a.loopItems.length > 0 || a.frameSink !== null)) ||
+            (s.isZone && a.loopItems.length > 0) ||
             a.layers.some(
               (l) =>
                 !l.native && (l.source === 'scene' || l.source === 'view' || l.source === 'page')
@@ -223,7 +223,6 @@ export class ScrollInput implements InputEngine {
     const vh = this.vh;
     const work: Array<{ layer: Layer; p: number; px: number }> = [];
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
-    const frames: Array<{ a: CvAnimate; t: number }> = [];
     const zones: Array<{ s: CvScene; index: number; t: number }> = [];
     const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
     const gated = this.enter.measure((a) => a.scene !== null && isNear(a.scene));
@@ -243,7 +242,6 @@ export class ScrollInput implements InputEngine {
       for (const a of s.ordered) {
         // Zone loops run once the entrance is complete (1.x: playable phase and visible).
         if (s.isZone && a.loopItems.length) loops.push({ a, on: !a.solved || t >= a.solved.end });
-        if (s.isZone && a.frameSink) frames.push({ a, t });
         let selfView = Number.NaN;
         for (const layer of a.layers) {
           // Native layers are driven by the compositor; skip them without further work.
@@ -270,7 +268,12 @@ export class ScrollInput implements InputEngine {
       }
     }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
-    for (const { a, t } of frames) a.sendFrame(zoneFrame(a, t));
+    // Zone timelines (el.timeline, data-cv-phase, <cv-video>) when the zone's time moved.
+    for (const { s, t } of zones) {
+      if (t === s.frameTime) continue;
+      s.frameTime = t;
+      for (const a of s.ordered) if (a.timed) a.sendFrame(zoneFrame(a, t));
+    }
     this.enter.apply(gated, vh, this.unit);
     for (const { a, on } of loops) {
       if (on) a.startLoops(this.clock);
@@ -440,7 +443,7 @@ function reportZone(s: CvScene, index: number, t: number): void {
   );
 }
 
-/** An element's timeline frame in a zone: scene time from scroll (for <cv-video>). */
+/** An element's timeline frame in a zone: scene time from scroll. */
 function zoneFrame(a: CvAnimate, t: number): TimelineFrame {
   const w = a.solved;
   if (!w) return { progress: 0, signedProgress: 0, phase: 'idle', source: 'scroll' };

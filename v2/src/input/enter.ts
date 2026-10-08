@@ -57,6 +57,12 @@ export interface Measurement {
 
 const NONE = (): void => undefined;
 
+/** The gate machine's phase is also the element's `data-cv-phase`. */
+function setPhase(t: Track, phase: GatePhase): void {
+  t.phase = phase;
+  t.a.showPhase(phase);
+}
+
 /** `margin="50"` or `margin="50 30"`: enter and exit margins in design px (1.x default 50). */
 export function parseMargins(text: string | null, fallback: [number, number]): [number, number] {
   if (text === null) return fallback;
@@ -87,7 +93,8 @@ export class EnterController {
 
   add(a: CvAnimate, options: { first: boolean; margins: [number, number] }): void {
     const layers = a.layers.filter((l) => l.source === 'enter' || l.source === 'eye');
-    if (!layers.length && !a.loopItems.length && !a.clockSink) return;
+    // Elements on the timeline without effects still have one (el.timeline, <cv-video>, anchors).
+    if (!layers.length && !a.loopItems.length && !a.timed) return;
     const track: Track = {
       a,
       layers,
@@ -177,14 +184,14 @@ export class EnterController {
     const pending = t.phase === 'waiting' || (t.phase === 'entering' && (t.startedAt ?? 0) > now);
     if (pending && !inGate) {
       this.cancel(t);
-      t.phase = t.origin;
+      setPhase(t, t.origin);
       for (const layer of t.layers) writeLayer(layer, 0, 0);
       return;
     }
     if (t.replay && !t.hasExit && t.phase === 'entered' && !g.onScreen) {
       // Re-arm off screen, so the next entry plays again.
       this.cancel(t);
-      t.phase = 'idle';
+      setPhase(t, 'idle');
       for (const layer of t.layers) writeLayer(layer, 0, 0);
       return;
     }
@@ -205,7 +212,7 @@ export class EnterController {
 
   private cancel(t: Track): void {
     t.token++;
-    if (t.running.length || t.startedAt !== null) t.a.clockSink?.({ type: 'reset' });
+    if (t.running.length || t.startedAt !== null) t.a.clockEvent({ type: 'reset' });
     for (const a of t.running) a.cancel();
     t.running = [];
     t.startedAt = null;
@@ -218,9 +225,9 @@ export class EnterController {
       clearLayer(layer);
       writeLayer(layer, 1, 0);
     }
-    t.phase = 'entered';
+    setPhase(t, 'entered');
     t.startedAt = Number.NEGATIVE_INFINITY;
-    t.a.clockSink?.({ type: 'reveal' });
+    t.a.clockEvent({ type: 'reveal' });
     this.release(t, performance.now());
   }
 
@@ -228,21 +235,20 @@ export class EnterController {
   private begin(t: Track, now: number, origin = now): void {
     const pred = t.predecessor;
     if (pred && pred.startedAt === null) {
-      t.phase = 'waiting';
+      setPhase(t, 'waiting');
       return;
     }
     const startAt = pred ? Math.max(origin + t.delay, pred.startedAt! + t.lead) : origin + t.delay;
     this.cancel(t);
     t.startedAt = startAt;
-    t.phase = 'entering';
-    if (t.a.clockSink) {
-      const s = t.a.solved;
-      t.a.clockSink({ type: 'enter', start: startAt, duration: s ? s.end - s.start : 600 });
-    }
+    setPhase(t, 'entering');
+    const base = t.a.solved;
+    const duration = base ? base.end - base.start : 600;
+    t.a.clockEvent({ type: 'enter', start: startAt, duration });
     if (!t.layers.length) {
-      t.phase = 'entered';
+      // Nothing to draw: an empty animation keeps the element's time (and the stage's pause).
+      t.running.push(this.clock.add(t.a.animate(null, { duration, delay: startAt - now })));
     } else {
-      const base = t.a.solved;
       for (const layer of t.layers) {
         const w = layer.window;
         clearLayer(layer);
@@ -256,15 +262,15 @@ export class EnterController {
         });
         t.running.push(this.clock.add(animation));
       }
-      const token = t.token;
-      void Promise.all(t.running.map((a) => a.finished)).then(() => {
-        if (t.token !== token) return;
-        t.phase = 'entered';
-        // Loops wait for the entrance (1.x); the next measurement starts them while on screen.
-        const r = t.a.getBoundingClientRect();
-        if (t.a.loopItems.length && r.bottom > 0 && r.top < innerHeight) t.a.startLoops(this.clock);
-      }, NONE);
     }
+    const token = t.token;
+    void Promise.all(t.running.map((a) => a.finished)).then(() => {
+      if (t.token !== token) return;
+      setPhase(t, 'entered');
+      // Loops wait for the entrance (1.x); the next measurement starts them while on screen.
+      const r = t.a.getBoundingClientRect();
+      if (t.a.loopItems.length && r.bottom > 0 && r.top < innerHeight) t.a.startLoops(this.clock);
+    }, NONE);
     this.release(t, now);
   }
 
@@ -277,13 +283,14 @@ export class EnterController {
   private exit(t: Track): void {
     this.cancel(t);
     t.a.stopLoops();
-    t.phase = 'exiting';
-    if (t.a.clockSink) {
-      const d = t.a.solved?.exitDuration ?? 0;
-      t.a.clockSink({ type: 'exit', start: performance.now(), duration: d });
-    }
-    t.origin = 'exited';
+    setPhase(t, 'exiting');
     const base = t.a.solved;
+    const exitDuration = base?.exitDuration ?? 0;
+    t.a.clockEvent({ type: 'exit', start: performance.now(), duration: exitDuration });
+    t.origin = 'exited';
+    if (!t.layers.length && exitDuration > 0) {
+      t.running.push(this.clock.add(t.a.animate(null, { duration: exitDuration })));
+    }
     for (const layer of t.layers) {
       const w = layer.window;
       const duration = w ? w.exitEnd - w.exitStart : (base?.exitDuration ?? 0);
@@ -302,9 +309,9 @@ export class EnterController {
     }
     const token = t.token;
     void Promise.all(t.running.map((a) => a.finished)).then(() => {
-      if (t.token === token) t.phase = 'exited';
+      if (t.token === token) setPhase(t, 'exited');
     }, NONE);
-    if (!t.running.length) t.phase = 'exited';
+    if (!t.running.length) setPhase(t, 'exited');
   }
 
   /** Stop everything (stage teardown). */
