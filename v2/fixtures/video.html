@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>video fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-video{width:192px;height:108px}
+  .gap{height:900px}
+</style></head>
+<body>
+<script type="module">
+  // ?mode=drag|zone|enter, ?range=from,to (seconds), ?preload=none
+  const q = new URLSearchParams(location.search);
+  const mode = q.get('mode') ?? 'drag';
+  const range = q.has('range') ? ` range="${q.get('range')}"` : '';
+  const preload = q.has('preload') ? ` preload="${q.get('preload')}"` : '';
+  const video = `<cv-video id="v" src="/media/clip.webm" duration="1000"${range}${preload}></cv-video>`;
+  document.body.insertAdjacentHTML('afterbegin',
+    mode === 'drag'
+      ? `<cv-stage id="s" input="drag" transition-duration="400">
+          <cv-scene id="s0"><div id="plain" style="height:100px">zero</div></cv-scene>
+          <cv-scene id="s1">${video}</cv-scene>
+          <cv-scene id="s2"><div>two</div></cv-scene>
+          <cv-scene id="s3"><div>three</div></cv-scene>
+        </cv-stage>`
+      : mode === 'zone'
+        ? `<cv-stage id="s"><cv-scene id="s0" zone>${video}</cv-scene><cv-scene id="s1" style="height:1200px"></cv-scene></cv-stage>`
+        : `<cv-stage id="s"><cv-scene id="s0">${video}<div class="gap"></div></cv-scene></cv-stage>`);
+  window.events = [];
+  for (const type of ['play', 'pause', 'ended']) document.getElementById('v').addEventListener(type, () => window.events.push(type));
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  window.media = () => {
+    const v = document.getElementById('v').video;
+    return v ? { t: +v.currentTime.toFixed(3), paused: v.paused, src: v.getAttribute('src') ?? '', ready: v.readyState } : null;
+  };
+  await import('@v2');
+</script>
+</body></html>

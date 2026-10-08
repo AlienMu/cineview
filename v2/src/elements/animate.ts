@@ -14,6 +14,7 @@ import {
   type TimeSpec,
 } from '../core/time';
 import { warn } from '../dev/warn';
+import type { TimelineFrame } from '../media/ownership';
 import { ElementBase } from '../platform';
 import type { Clock } from '../render/clock';
 import {
@@ -52,6 +53,10 @@ function opacityOnly(e: Effect): Effect | null {
   if (!opacity) return null;
   return { ...makeEffect({ tracks: { opacity }, ease: e.ease, own: e.own }), range: e.range };
 }
+
+/** An entrance or exit played on the clock (enter / eye sources), for elements that follow it. */
+export type ClockEvent =
+  { type: 'enter' | 'exit'; start: number; duration: number } | { type: 'reveal' | 'reset' };
 
 export interface PlanContext {
   /** Time source for time presets here: scene time in zones and drag scenes, enter elsewhere. */
@@ -109,6 +114,17 @@ export class CvAnimate extends ElementBase {
   ];
 
   scene: CvScene | null = null;
+  /**
+   * Elements that follow their own timeline frame by frame (<cv-video>): inputs that compute
+   * progress on the main thread (drag, zones) call this with each changed frame.
+   */
+  frameSink: ((frame: TimelineFrame) => void) | null = null;
+  /** Same, for entrances played on the clock (enter / eye): start and duration, not frames. */
+  clockSink: ((event: ClockEvent) => void) | null = null;
+  /** Drag: the element's scene is the current one (undefined under scroll input). */
+  dragActive: boolean | undefined = undefined;
+  /** Last frame sent to frameSink, to skip unchanged ones. */
+  lastFrame: TimelineFrame | null = null;
   layers: Layer[] = [];
   timed = true;
   solved: Solved | null = null;
@@ -295,6 +311,25 @@ export class CvAnimate extends ElementBase {
       this.layers.push(...buildTargetLayers(this.staggerTargets(), plan.staggered));
     }
     if (__DEV__ && plan.layers.length) warnScopedPositioning(this);
+  }
+
+  /** The scene entered (true) or left (false) the activation window. */
+  activated(_on: boolean): void {}
+
+  /** Send a timeline frame to frameSink when it changed. */
+  sendFrame(frame: TimelineFrame): void {
+    const last = this.lastFrame;
+    if (
+      last &&
+      last.phase === frame.phase &&
+      last.source === frame.source &&
+      Math.abs(last.progress - frame.progress) < 1e-4 &&
+      Math.abs(last.signedProgress - frame.signedProgress) < 1e-4
+    ) {
+      return;
+    }
+    this.lastFrame = frame;
+    this.frameSink?.(frame);
   }
 
   cancelNatives(): void {

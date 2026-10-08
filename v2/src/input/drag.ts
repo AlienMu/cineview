@@ -16,6 +16,7 @@ import { cubicBezier } from '../core/ease';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
+import type { TimelineFrame, TimelineSource } from '../media/ownership';
 import { progressIn, writeLayer } from '../render/layers';
 import {
   cancelDuration,
@@ -132,6 +133,9 @@ class DragInput implements DragEngine {
   private threshold: Threshold;
   private mapping: DragMapping;
   private inWindow: boolean[] = [];
+  /** Scenes left by a committed switch, with the direction they left in (+1 forward). */
+  private departed = new Map<number, Side>();
+  private tickSource: TimelineSource | null = null;
   /** Element geometry relative to its scene, for per-element view progress (plan v3 F7). */
   private local = new Map<CvAnimate, { top: number; height: number }>();
 
@@ -611,6 +615,8 @@ class DragInput implements DragEngine {
 
   private tick = (now: number): void => {
     this.raf = 0;
+    // What drove time in this frame, before a landing lane or a finished playhead is cleared.
+    this.tickSource = this.source();
     let busy = this.press?.owning ?? false;
     const lane = this.lane;
     if (lane && !lane.frozen) {
@@ -631,6 +637,7 @@ class DragInput implements DragEngine {
       }
     }
     this.write();
+    this.tickSource = null;
     if (busy) this.loop();
   };
 
@@ -653,7 +660,9 @@ class DragInput implements DragEngine {
     if (previous !== target) {
       this.times[previous] = 0;
       this.heads[previous] = null;
+      this.departed.set(previous, target > previous ? 1 : -1);
     }
+    this.departed.delete(target);
     this.applyWindow();
     if (from !== target) {
       this.scenes[from]?.dispatchEvent(new CustomEvent('cv-leave', { bubbles: true }));
@@ -689,6 +698,7 @@ class DragInput implements DragEngine {
       else s.setAttribute('aria-hidden', 'true');
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
       s.toggleAttribute('data-cv-active', active);
+      for (const a of s.ordered) a.dragActive = active;
       if (!inWindow) {
         for (const a of s.ordered) a.stopLoops();
         this.times[i] = 0;
@@ -697,6 +707,7 @@ class DragInput implements DragEngine {
       if (this.inWindow[i] !== inWindow) {
         this.inWindow[i] = inWindow;
         s.active = inWindow;
+        for (const a of s.ordered) a.activated(inWindow);
         s.dispatchEvent(
           new CustomEvent(inWindow ? 'cv-activate' : 'cv-deactivate', { bubbles: true })
         );
@@ -720,14 +731,43 @@ class DragInput implements DragEngine {
       const departure =
         i === this.index && travel !== 0 ? Math.min(1, Math.abs(travel)) * this.transition : 0;
       const side: Side = travel >= 0 ? 1 : -1;
+      if (t > 0) this.departed.delete(i);
       for (const a of s.ordered) {
         this.writeAnimate(a, t, sceneView, offset, departure, side);
+        if (a.frameSink) a.sendFrame(this.frameFor(a, i, t, travel));
         if (a.loopItems.length) {
           if (!a.solved || t >= a.solved.end) a.startLoops(this.stage.clock);
           else a.stopLoops();
         }
       }
     }
+  }
+
+  /** What drives element time right now (1.x timeline frame sources). */
+  private source(): TimelineSource {
+    if (this.tickSource) return this.tickSource;
+    if (this.press?.owning) return 'gesture';
+    if (this.lane) return this.lane.kind === 'goto' ? 'programmatic' : 'continuation';
+    return this.heads.some(Boolean) ? 'continuation' : 'idle';
+  }
+
+  /** The element's timeline frame in scene i (for <cv-video>). */
+  private frameFor(a: CvAnimate, i: number, t: number, travel: number): TimelineFrame {
+    const source = this.source();
+    if (i === this.index && travel !== 0) {
+      // Departure on the page travel; leaving backwards is negative (1.x).
+      const progress = Math.min(1, Math.abs(travel));
+      return { progress, signedProgress: Math.sign(travel) * progress, phase: 'exiting', source };
+    }
+    const left = this.departed.get(i);
+    if (left !== undefined && t === 0) {
+      return { progress: 1, signedProgress: left, phase: 'exited', source };
+    }
+    const w = a.solved;
+    const p = w ? progressIn(t, w.start, w.end) : t > 0 ? 1 : 0;
+    const incoming = i !== this.index && Math.abs(this.pos - i) < 1;
+    const phase = p >= 1 ? 'entered' : p > 0 || incoming || i === this.index ? 'entering' : 'idle';
+    return { progress: p, signedProgress: p, phase, source };
   }
 
   private writeAnimate(

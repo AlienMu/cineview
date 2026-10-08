@@ -87,7 +87,7 @@ export class EnterController {
 
   add(a: CvAnimate, options: { first: boolean; margins: [number, number] }): void {
     const layers = a.layers.filter((l) => l.source === 'enter' || l.source === 'eye');
-    if (!layers.length && !a.loopItems.length) return;
+    if (!layers.length && !a.loopItems.length && !a.clockSink) return;
     const track: Track = {
       a,
       layers,
@@ -205,6 +205,7 @@ export class EnterController {
 
   private cancel(t: Track): void {
     t.token++;
+    if (t.running.length || t.startedAt !== null) t.a.clockSink?.({ type: 'reset' });
     for (const a of t.running) a.cancel();
     t.running = [];
     t.startedAt = null;
@@ -219,6 +220,7 @@ export class EnterController {
     }
     t.phase = 'entered';
     t.startedAt = Number.NEGATIVE_INFINITY;
+    t.a.clockSink?.({ type: 'reveal' });
     this.release(t, performance.now());
   }
 
@@ -233,6 +235,10 @@ export class EnterController {
     this.cancel(t);
     t.startedAt = startAt;
     t.phase = 'entering';
+    if (t.a.clockSink) {
+      const s = t.a.solved;
+      t.a.clockSink({ type: 'enter', start: startAt, duration: s ? s.end - s.start : 600 });
+    }
     if (!t.layers.length) {
       t.phase = 'entered';
     } else {
@@ -272,6 +278,10 @@ export class EnterController {
     this.cancel(t);
     t.a.stopLoops();
     t.phase = 'exiting';
+    if (t.a.clockSink) {
+      const d = t.a.solved?.exitDuration ?? 0;
+      t.a.clockSink({ type: 'exit', start: performance.now(), duration: d });
+    }
     t.origin = 'exited';
     const base = t.a.solved;
     for (const layer of t.layers) {

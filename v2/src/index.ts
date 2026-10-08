@@ -3,7 +3,7 @@ import { define } from './elements/define';
 import { bootCss, captureBoot, HEAD_SNIPPET } from './boot';
 import { isBrowser } from './platform';
 
-export { CvAnimate, CvPause, CvScene, CvStage } from './elements/define';
+export { CvAnimate, CvPause, CvScene, CvStage, CvVideo } from './elements/define';
 export { defineEffect, presetNames, type EffectDefinition } from './core/fx';
 /** For build tools and servers: the boot stylesheet and the <head> snippet that sets `.cv-js`. */
 export { bootCss, HEAD_SNIPPET };

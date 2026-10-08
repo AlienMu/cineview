@@ -3,8 +3,10 @@
  * opens on may hold its entrance until its assets are ready:
  *
  * - `<cv-scene preload>` waits for the images and videos inside it; `preload="a.jpg b.mp4"` adds
- *   URLs. An image is ready when decoded, a video when its first frame is loaded (`loadeddata`).
- *   A failed asset counts as settled and is reported as `cv-error`.
+ *   URLs. An image is ready when decoded; a scrub video (<cv-video>, or a listed video URL) when
+ *   the whole file is in the blob cache, so every frame can be sought (1.x priorityComplete); a
+ *   plain <video> when its first frame is loaded. A failed asset counts as settled and is
+ *   reported as `cv-error`.
  * - The wait is capped by the stage's `first-scene-timeout` (default 3000 ms). On timeout the stage
  *   dispatches a cancelable `cv-timeout` with `{ loaded, total }`; unless it is cancelled the
  *   entrance plays. Cancelled, the entrance waits for the assets (consumer-driven recovery).
@@ -12,7 +14,7 @@
  *
  * The input asks `held` before playing the first screen and registers `whenReleased` otherwise.
  */
-const VIDEO = /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i;
+import { inferMediaKind, preloadMedia } from '../media/cache';
 
 export interface FirstScreenHost extends HTMLElement {
   report(message: string, element?: Element): void;
@@ -87,19 +89,22 @@ export class FirstScreenGate {
     const waits: Array<Promise<void>> = [];
     for (const img of scene.querySelectorAll('img')) waits.push(this.image(img));
     for (const video of scene.querySelectorAll('video')) waits.push(this.video(video));
+    const scrub = [...scene.querySelectorAll('cv-video')]
+      .map((v) => v.getAttribute('src'))
+      .filter((src): src is string => !!src);
     const urls = (scene.getAttribute('preload') ?? '').split(/[\s,]+/).filter(Boolean);
+    for (const url of new Set([...scrub, ...urls.filter((u) => inferMediaKind(u))])) {
+      waits.push(
+        preloadMedia(url, 'video').catch(() =>
+          this.stage.report(`preload: video failed to load: ${url}`)
+        )
+      );
+    }
     for (const url of urls) {
-      if (VIDEO.test(url)) {
-        const video = document.createElement('video');
-        video.preload = 'auto';
-        video.muted = true;
-        video.src = url;
-        waits.push(this.video(video));
-      } else {
-        const img = new Image();
-        img.src = url;
-        waits.push(this.image(img));
-      }
+      if (inferMediaKind(url)) continue;
+      const img = new Image();
+      img.src = url;
+      waits.push(this.image(img));
     }
     return waits;
   }
