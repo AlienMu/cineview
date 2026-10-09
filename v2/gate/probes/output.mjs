@@ -1,4 +1,4 @@
-import { launch } from './browser.mjs';
+import { engine, launch } from './browser.mjs';
 
 /** P1.4 output behaviours, asserted against the spec (loops, pause, reduced motion, native budget). */
 const base = process.argv[2] ?? 'http://127.0.0.1:4360';
@@ -112,8 +112,13 @@ try {
         return { live, direct };
       });
     const before = await count();
-    check(before.live === 256, 'native animations capped at 256', JSON.stringify(before));
-    check(before.direct >= 44, 'overflow layers fall back to direct writes', JSON.stringify(before));
+    if (engine === 'webkit') {
+      // WebKit runs native scroll animations without a per-frame main-thread cost: no cap there.
+      check(before.live === 300 && before.direct === 0, 'WebKit: no native cap', JSON.stringify(before));
+    } else {
+      check(before.live === 256, 'native animations capped at 256', JSON.stringify(before));
+      check(before.direct >= 44, 'overflow layers fall back to direct writes', JSON.stringify(before));
+    }
     // Values agree between the two paths at the same zone time.
     const z1 = await page.evaluate(() => document.getElementById('z1').getBoundingClientRect().top + scrollY);
     await page.evaluate((y) => scrollTo(0, y + 300), z1);

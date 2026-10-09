@@ -12,7 +12,7 @@ import type { TimelineFrame, TimelinePhase } from '../core/timeline';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
-import { platform, whenIdle, type IdleDeadlineLike } from '../platform';
+import { blink, platform, whenIdle, type IdleDeadlineLike } from '../platform';
 import type { Clock } from '../render/clock';
 import {
   clearLayer,
@@ -31,9 +31,11 @@ import { EnterController, parseMargins } from './enter';
 /** Native animations created per idle slice when the browser has no idle deadline. */
 const ATTACH_CHUNK = 96;
 /**
- * Most native scroll-driven animations alive at once. The browser services each live one on the
+ * Most native scroll-driven animations alive at once in Blink, which services each live one on the
  * main thread every frame; past this, extra layers are written directly instead (phase-0 gate:
- * Chrome 256-per-scene mix, native 75% complete frames vs 96% direct). Tuned in P1.12.
+ * Chrome 256-per-scene mix, native 75% complete frames vs 96% direct). Tuned in P1.12. WebKit has
+ * no such per-frame cost and is slower on direct writes (P1.12, WebKit mix 256: 33 frames over
+ * 50 ms uncapped vs 54 capped), so it runs uncapped.
  */
 export const NATIVE_BUDGET = 256;
 
@@ -61,8 +63,10 @@ export class ScrollInput implements InputEngine {
   private deferred = 0;
   /** True when the frame loop has work in native mode (direct-write layers, zone loops). Cached. */
   private jsWork: boolean | null = null;
-  /** Live native animations, against NATIVE_BUDGET. */
+  /** Live native animations, against the budget. */
   private live = 0;
+  /** NATIVE_BUDGET in Blink, uncapped elsewhere. */
+  private budget = blink ? NATIVE_BUDGET : Infinity;
 
   constructor(stage: CvStage) {
     this.stage = stage;
@@ -313,9 +317,10 @@ export class ScrollInput implements InputEngine {
 
   /**
    * Native path: scroll-driven WAAPI animations, one per eligible layer, alive only for scenes
-   * inside an activation window (two viewports ahead) and only up to NATIVE_BUDGET at once.
-   * Chrome services every live scroll-driven animation on the main thread each frame, so far
-   * scenes must not keep animations alive (phase-0: 3.9 s vs 1.2 s main-thread time at 512/scene).
+   * inside an activation window (two viewports ahead) and, in Blink, only up to NATIVE_BUDGET at
+   * once. Chrome services every live scroll-driven animation on the main thread each frame, so
+   * far scenes must not keep animations alive (phase-0: 3.9 s vs 1.2 s main-thread time at
+   * 512/scene).
    */
   private startNative(): void {
     const VT = platform.ViewTimeline!;
@@ -367,7 +372,7 @@ export class ScrollInput implements InputEngine {
       if (!s.nativeAttached || s.nativeGeneration !== generation) return;
       let made = 0;
       while (jobs.length && (deadline ? deadline.timeRemaining() > 2 : made < ATTACH_CHUNK)) {
-        if (this.live >= NATIVE_BUDGET) {
+        if (this.live >= this.budget) {
           // Over budget: the rest stay on direct writes until a detach frees room.
           s.nativePending = true;
           break;
@@ -433,7 +438,7 @@ export class ScrollInput implements InputEngine {
   }
 
   private refill(): void {
-    if (this.live >= NATIVE_BUDGET) return;
+    if (this.live >= this.budget) return;
     const y = window.scrollY;
     const waiting = this.scenes
       .filter((s) => s.nativeAttached && s.nativePending)

@@ -33,6 +33,13 @@ export const isBrowser = typeof window !== 'undefined' && typeof document !== 'u
 
 export const platform: PlatformExtras = isBrowser ? (window as unknown as PlatformExtras) : {};
 
+/**
+ * Blink (Chrome, Edge, Android WebView, headless Chrome), from the user agent. It services every
+ * live scroll-driven animation on the main thread each frame, which WebKit does not (phase-0 and
+ * P1.12 measurements). Only performance tuning reads this, never behaviour.
+ */
+export const blink = isBrowser && /Chrom(e|ium)\//.test(navigator.userAgent);
+
 export const ElementBase: typeof HTMLElement =
   typeof HTMLElement === 'undefined' ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
 

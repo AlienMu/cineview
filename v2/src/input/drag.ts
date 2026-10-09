@@ -180,8 +180,10 @@ class DragInput implements DragEngine {
         position: 'absolute',
         inset: '0',
         height: '100%',
-        // One screen per scene: taller content is cut off, as in 1.x (dev build warns).
-        overflow: 'clip',
+        // One screen per scene: taller content is cut off, as in 1.x (dev build warns). A clip
+        // path, not overflow: WebKit is slower on the first frame of a drag when a moving scene
+        // clips its overflow (P1.12, heavy fixture: 51 ms vs 37 ms).
+        clipPath: 'inset(0)',
         willChange: 'translate',
       });
     }
