@@ -17,6 +17,7 @@ import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
 import type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
+import { blink } from '../platform';
 import { progressIn, writeLayer } from '../render/layers';
 import {
   cancelDuration,
@@ -180,10 +181,11 @@ class DragInput implements DragEngine {
         position: 'absolute',
         inset: '0',
         height: '100%',
-        // One screen per scene: taller content is cut off, as in 1.x (dev build warns). A clip
-        // path, not overflow: WebKit is slower on the first frame of a drag when a moving scene
-        // clips its overflow (P1.12, heavy fixture: 51 ms vs 37 ms).
-        clipPath: 'inset(0)',
+        // One screen per scene: taller content is cut off, as in 1.x (dev build warns). WebKit
+        // clips with a clip path: it is slower on the first frame of a drag when a moving scene
+        // clips its overflow (P1.12, heavy fixture: 51 ms vs 37 ms). Blink keeps overflow, its
+        // measured baseline: the clip path showed no gain there (P1.12).
+        ...(blink ? { overflow: 'clip' } : { clipPath: 'inset(0)' }),
         willChange: 'translate',
       });
     }
