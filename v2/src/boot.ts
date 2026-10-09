@@ -123,44 +123,52 @@ export function bootCss(): string {
 export const HEAD_SNIPPET =
   "(function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);";
 
-/** Elapsed time (ms) of the CSS-first entrance on this element, or null when none runs. */
-function bootElapsed(el: Element): number | null {
+/** The CSS-first entrance running on this element, or null when none runs. */
+function bootAnimation(el: Element): Animation | null {
   for (const a of el.getAnimations()) {
     const name = (a as CSSAnimation).animationName;
-    if (typeof name === 'string' && name.startsWith(BOOT_PREFIX)) {
-      const t = a.currentTime;
-      const local = typeof t === 'number' ? t : t === null ? 0 : Number(t.to('ms').value);
-      return local - Number(a.effect?.getTiming().delay ?? 0);
-    }
+    if (typeof name === 'string' && name.startsWith(BOOT_PREFIX)) return a;
   }
   return null;
 }
 
-/** performance.now() at which the CSS-first entrance started; null when none runs. */
+/** Elapsed time (ms) of a CSS-first entrance, on its timeline's clock. */
+function elapsedOf(a: Animation): number {
+  const t = a.currentTime;
+  const local = typeof t === 'number' ? t : t === null ? 0 : Number(t.to('ms').value);
+  return local - Number(a.effect?.getTiming().delay ?? 0);
+}
+
+/** When the CSS-first entrance started (performance.now() scale); null when none runs. */
 let bootStart: number | null = null;
 const shifted = new Set<HTMLElement>();
 
 /**
  * Call before the elements upgrade. Attaching a shadow root to an ancestor restarts the CSS
- * animations below it (Blink), and the stage and scenes attach theirs on upgrade. So note when the
- * CSS-first entrance started, and return a function that puts the restarted animations back in
- * step (a negative animation-delay) right after the upgrade, in the same task.
+ * animations below it in Blink (WebKit keeps them), and the stage and scenes attach theirs on
+ * upgrade. So note when the CSS-first entrance started, and return a function that puts restarted
+ * animations back in step (a negative animation-delay) right after the upgrade, in the same task.
  */
 export function captureBoot(): () => void {
   const els = [
     ...document.querySelectorAll<HTMLElement>(`${FIRST} cv-animate:not([data-cv-live])`),
   ];
-  const now = performance.now();
-  for (const el of els) {
-    const t = bootElapsed(el);
-    if (t !== null) bootStart = Math.min(bootStart ?? now, now - t);
+  // Animation time follows the document timeline, which holds still between rendering updates:
+  // measured against performance.now(), the start would come out late by the time since the last
+  // update, and the adopted entrance would step back by as much.
+  const timeline = document.timeline.currentTime;
+  const now = typeof timeline === 'number' ? timeline : performance.now();
+  const running = els.map(bootAnimation);
+  for (const a of running) {
+    if (a) bootStart = Math.min(bootStart ?? now, now - elapsedOf(a));
   }
   return () => {
     if (bootStart === null) return;
     const elapsed = performance.now() - bootStart;
-    for (const el of els) {
-      const t = bootElapsed(el);
-      if (t === null || Math.abs(t - elapsed) < 1) continue;
+    for (const [i, el] of els.entries()) {
+      const a = bootAnimation(el);
+      // The same animation kept running: a negative delay would move it ahead of the clock.
+      if (!a || a === running[i]) continue;
       el.style.animationDelay = `${-elapsed}ms`;
       shifted.add(el);
     }

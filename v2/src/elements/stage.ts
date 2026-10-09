@@ -59,6 +59,7 @@ export class CvStage extends ElementBase implements CvStageElement {
   private errorsNow = new WeakMap<Element, Set<string>>();
   private generation = 0;
   private live: HTMLDivElement | null = null;
+  private frame: HTMLDivElement | null = null;
 
   /**
    * Settles with this connection's `cv-ready`, also when that already fired: listeners attached
@@ -122,7 +123,8 @@ export class CvStage extends ElementBase implements CvStageElement {
 
   /**
    * Shadow root: an inner frame (100% wide, at most the design width, centred; the inline-size
-   * container behind `--cv-unit`) holding the default slot, and a polite live region.
+   * container behind `--cv-unit`, from the first build) holding the default slot, and a polite live
+   * region.
    */
   private ensureShadow(): void {
     if (this.shadowRoot) return;
@@ -134,7 +136,8 @@ export class CvStage extends ElementBase implements CvStageElement {
       ':host{display:block;overflow-x:clip}' +
       // Vertical paging is ours; horizontal pans and pinch zoom stay native (1.x).
       ':host([input=drag]){position:fixed;inset:0;overflow:hidden;touch-action:pan-x pinch-zoom;user-select:none}' +
-      '.frame{position:relative;width:100%;max-width:calc(var(--cv-dw,750) * 1px);margin-inline:auto;container-type:inline-size}' +
+      '.frame{position:relative;width:100%;max-width:calc(var(--cv-dw,750) * 1px);margin-inline:auto}' +
+      '.sized{container-type:inline-size}' +
       ':host([input=drag]) .frame{height:100%}' +
       '.live{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}';
     const frame = document.createElement('div');
@@ -147,6 +150,20 @@ export class CvStage extends ElementBase implements CvStageElement {
     live.setAttribute('aria-atomic', 'true');
     root.append(style, frame, live);
     this.live = live;
+    this.frame = frame;
+  }
+
+  /**
+   * Make the frame a size container once the content has been laid out in it. WebKit drops the
+   * page's scroll offset when content is first laid out inside a new size container (the content
+   * is skipped while the container is sized, so the page is briefly short): a restored or linked
+   * position would be lost.
+   */
+  private sizeFrame(): void {
+    const frame = this.frame;
+    if (!frame || frame.classList.contains('sized')) return;
+    void frame.offsetWidth;
+    frame.classList.add('sized');
   }
 
   /** Pause entrances played on time and loops (scroll and drag still move scenes). */
@@ -319,6 +336,7 @@ export class CvStage extends ElementBase implements CvStageElement {
       return;
     }
 
+    this.sizeFrame();
     const reducedMotion = prefersReducedMotion();
     if (this.paused) this.clock.pause();
     for (const scene of this.ordered) {
