@@ -19,6 +19,7 @@ import {
   clearLayer,
   exitKeyframes,
   layerKeyframes,
+  samplesFor,
   writeLayer,
   type Layer,
 } from '../render/layers';
@@ -251,9 +252,10 @@ export class EnterController {
     } else {
       for (const layer of t.layers) {
         const w = layer.window;
+        const duration = w ? w.end - w.start : 600;
         clearLayer(layer);
-        const animation = layer.el.animate(layerKeyframes(layer), {
-          duration: w ? w.end - w.start : 600,
+        const animation = layer.el.animate(layerKeyframes(layer, samplesFor(layer, duration)), {
+          duration,
           // Stagger children keep their offset inside the element's window.
           // Negative when adopting an entrance already under way.
           delay: startAt - now + (w && base ? w.start - base.start : 0),
@@ -299,7 +301,7 @@ export class EnterController {
         continue;
       }
       clearLayer(layer);
-      const animation = layer.el.animate(exitKeyframes(layer), {
+      const animation = layer.el.animate(exitKeyframes(layer, samplesFor(layer, duration)), {
         duration,
         delay: w && base ? w.exitStart - base.exitStart : 0,
         fill: 'both',

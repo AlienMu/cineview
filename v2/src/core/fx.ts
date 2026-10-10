@@ -18,13 +18,17 @@ import type { Report } from './errors';
 import {
   applyTrack,
   parseDeclarations,
+  parseVars,
   resetFrame,
   tracksBetween,
+  varsBetween,
+  varValue,
   type Clip,
   type Frame,
   type Prop,
   type Tracks,
   type Value,
+  type VarTrack,
 } from './props';
 
 /** Progress sources (plan v3 §3.5). */
@@ -43,6 +47,8 @@ export interface Effect {
   tracks: Tracks;
   /** Flattened tracks for the per-frame loop. */
   entries: ReadonlyArray<readonly [Prop, Value, Value]>;
+  /** Custom property tracks (`--name`), written beside the tracks above. */
+  vars: readonly VarTrack[];
   /** Part of the element's progress this effect occupies. */
   range: readonly [number, number];
   /** Named view range; only meaningful on view sources (resolved against measured geometry). */
@@ -60,6 +66,7 @@ export interface Effect {
 
 interface EffectInit {
   tracks: Tracks;
+  vars?: readonly VarTrack[];
   ease?: Ease;
   own?: Source | null;
   origin?: string | null;
@@ -75,6 +82,7 @@ export function makeEffect(init: EffectInit): Effect {
   return {
     tracks: init.tracks,
     entries,
+    vars: init.vars ?? [],
     range: init.range ?? [0, 1],
     viewRange: null,
     ease: init.ease ?? settle,
@@ -89,10 +97,12 @@ export function makeEffect(init: EffectInit): Effect {
 export function asExit(e: Effect): Effect {
   const tracks: Tracks = {};
   for (const [p, from, to] of e.entries) tracks[p] = [to, from];
+  const vars = e.vars.map((v) => ({ ...v, from: v.to, to: v.from }) as VarTrack);
   const ease = e.ease;
   return {
     ...makeEffect({
       tracks,
+      vars,
       ease: (t) => 1 - ease(1 - t),
       own: e.own,
       origin: e.origin,
@@ -124,7 +134,15 @@ export function evaluate(
     for (const [prop, from, to] of e.entries) {
       if (selects(select, prop)) applyTrack(frame, prop, from, to, t);
     }
+    if (select !== 'clip') for (const v of e.vars) frame.vars.set(v.name, varValue(v, t));
   }
+}
+
+/** Custom properties an effect list writes on a layer with this selection. */
+export function usedVars(effects: readonly Effect[], select: Select): Set<string> {
+  const names = new Set<string>();
+  if (select !== 'clip') for (const e of effects) for (const v of e.vars) names.add(v.name);
+  return names;
 }
 
 export function usedProps(effects: readonly Effect[], select: Select): Set<Prop> {
@@ -280,6 +298,30 @@ presets.set('skew', (args, report) => {
   });
 });
 
+// Lexicon #37 token interpolation: one shared hue angle, `--cv-hue`, turned with the passage (or
+// any source). Author colours keep their own lightness and chroma and add the angle:
+// `color: oklch(.27 .045 calc(18deg + var(--cv-hue)))`. hue(to) or hue(from, to); default a full
+// turn. Not motion: kept under reduced motion.
+const angle = (arg: string | undefined, fallback: number, report: Report): number => {
+  if (arg === undefined || arg === '') return fallback;
+  const m = /^(-?\d*\.?\d+)(deg|turn|rad)?$/.exec(arg);
+  if (m) return Number(m[1]) * (m[2] === 'turn' ? 360 : m[2] === 'rad' ? 180 / Math.PI : 1);
+  report(`hue(${arg}): expected an angle such as 180deg or .5turn`);
+  return fallback;
+};
+presets.set('hue', (args, report) => {
+  const [from, to] =
+    args.length > 1
+      ? [angle(args[0], 0, report), angle(args[1], 360, report)]
+      : [0, angle(args[0], 360, report)];
+  return makeEffect({
+    tracks: {},
+    vars: [{ name: '--cv-hue', from, to, unit: 'deg' }],
+    ease: linear,
+    own: 'view',
+  });
+});
+
 // 1.x presets still used on the site, with their exact 1.x values (1.x played them ease-in-out).
 const legacy =
   (tracks: Tracks): Factory =>
@@ -295,7 +337,10 @@ export const presetNames = (): string[] => [...presets.keys()];
 
 // ---- defineEffect ---------------------------------------------------------------------------------
 
-/** Declarations as text (`"y:40; opacity:0"`) or an object (`{ y: 40, opacity: 0, blur: '6px' }`). */
+/**
+ * Declarations as text (`"y:40; opacity:0; --tint:#e33"`) or an object
+ * (`{ y: 40, opacity: 0, blur: '6px', '--tint': '#e33' }`).
+ */
 export type Declarations = string | Readonly<Record<string, number | string>>;
 
 export interface EffectDefinition {
@@ -322,12 +367,15 @@ const declarationText = (d: Declarations | undefined): string | null =>
           .join(';');
 
 function fromDefinition(def: EffectDefinition, report: Report): Effect {
-  const from = parseDeclarations(declarationText(def.from), report);
-  const to = parseDeclarations(declarationText(def.to), report);
+  const fromText = declarationText(def.from);
+  const toText = declarationText(def.to);
+  const from = parseDeclarations(fromText, report);
+  const to = parseDeclarations(toText, report);
   const ease = def.ease === undefined ? settle : parseEase(def.ease);
   if (!ease) report(`Unknown ease "${def.ease}"`);
   return makeEffect({
     tracks: tracksBetween(from, to),
+    vars: varsBetween(parseVars(fromText, report), parseVars(toText, report), report),
     ease: ease ?? settle,
     own: def.on ?? null,
     origin: def.origin ?? null,
@@ -511,7 +559,13 @@ export function parseExit(text: string | null, ease: Ease | null, report: Report
   if (!text) return [];
   if (text.includes(':')) {
     const target = parseDeclarations(text, report);
-    return [makeEffect({ tracks: tracksBetween({}, target), ease: ease ?? easeInOut })];
+    return [
+      makeEffect({
+        tracks: tracksBetween({}, target),
+        vars: varsBetween({}, parseVars(text, report), report),
+        ease: ease ?? easeInOut,
+      }),
+    ];
   }
   return parseFx(text, report).map((e) => asExit(ease ? { ...e, ease } : e));
 }
@@ -525,8 +579,9 @@ export function parseFromTo(
 ): Effect | null {
   if (from === null && to === null) return null;
   const tracks = tracksBetween(parseDeclarations(from, report), parseDeclarations(to, report));
-  if (!Object.keys(tracks).length) return null;
-  return makeEffect({ tracks, ease: ease ?? easeInOut });
+  const vars = varsBetween(parseVars(from, report), parseVars(to, report), report);
+  if (!Object.keys(tracks).length && !vars.length) return null;
+  return makeEffect({ tracks, vars, ease: ease ?? easeInOut });
 }
 
 /** Sample effects into WAAPI keyframes (native and clock paths). */

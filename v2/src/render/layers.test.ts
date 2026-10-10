@@ -1,11 +1,13 @@
-import { parseExit, parseFx, type Effect, type Source } from '../core/fx';
+import { parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
 import { solveScene } from '../core/time';
 import {
   assignWindows,
   buildLayers,
   buildTargetLayers,
   clearLayer,
+  compositorLayer,
   planLayers,
+  samplesFor,
   writeLayer,
 } from './layers';
 
@@ -41,6 +43,33 @@ describe('planLayers', () => {
       ['space:all:3', 'space:entry:2', 'clip:exit:1']
     );
     expect(plans.every((p) => p.subject === '#hero')).toBe(true);
+  });
+
+  it('gives custom properties a layer of their own source, kept off the compositor', () => {
+    const vars = parseFromTo('--glow:0', '--glow:1', null, () => undefined)!;
+    const plans = planLayers(
+      groups([
+        ['view', [vars]],
+        ['scene', fx('wipe')],
+      ]),
+      'scene'
+    );
+    expect(plans.map((p) => `${p.kind}:${p.source}`)).toEqual(['space:view', 'clip:scene']);
+    const host = document.createElement('div');
+    const [space, clip] = buildLayers(host, plans);
+    expect([...space!.vars]).toEqual(['--glow']);
+    expect(clip!.vars.size).toBe(0);
+    expect(compositorLayer(space!)).toBe(false);
+    expect(
+      compositorLayer(buildLayers(host, planLayers(groups([['view', fx('drift')]]), 'scene'))[0]!)
+    ).toBe(true);
+    // Clock-played: a keyframe per 60 Hz frame (an unregistered property steps between them).
+    expect(samplesFor(space!, 600)).toBe(36);
+    expect(samplesFor(space!, 100)).toBe(12);
+    writeLayer(space!, 0.5, 0);
+    expect(space!.el.style.getPropertyValue('--glow')).toBe('0.5');
+    clearLayer(space!);
+    expect(space!.el.style.getPropertyValue('--glow')).toBe('');
   });
 
   it('puts clip-only exits on a clip layer of the time source', () => {

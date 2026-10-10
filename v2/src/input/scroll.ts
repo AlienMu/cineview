@@ -9,7 +9,6 @@
  * measured in refresh() and reused; the frame loop reads only the scroll offset and live rects of
  * element subjects (`view(self)`, `view(#id)`), all before any write.
  */
-import { compositorEligible } from '../core/props';
 import type { TimelineFrame, TimelinePhase } from '../core/timeline';
 import { rangeCss, viewProgress } from '../core/view';
 import type { CvAnimate } from '../elements/animate';
@@ -27,6 +26,7 @@ import {
 } from '../render/covered';
 import {
   clearLayer,
+  compositorLayer,
   layerKeyframes,
   progressIn,
   sceneKeyframes,
@@ -593,7 +593,7 @@ export class ScrollInput implements InputEngine {
     const out: Array<{ a: CvAnimate; layer: Layer }> = [];
     for (const a of s.ordered) {
       for (const layer of a.layers) {
-        if (layer.native || !compositorEligible(layer.used)) continue;
+        if (layer.native || !compositorLayer(layer)) continue;
         if (
           (layer.source === 'scene' && s.isZone && layer.window) ||
           (layer.source === 'view' && this.nativeView(s, layer)) ||

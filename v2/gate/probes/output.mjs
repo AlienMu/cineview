@@ -39,7 +39,8 @@ try {
     const a1 = await loopState(page, 'a1');
     check(a1.anims.length === 1 && a1.anims[0].state === 'running' && a1.anims[0].iterations === Infinity, 'loop starts after the entrance', JSON.stringify(a1));
     const a2 = await loopState(page, 'a2');
-    check(a2.anims.length === 1 && a2.anims[0].props.includes('--glow') && a2.anims[0].props.includes('opacity'), 'loop-only element loops at once, custom property in keyframes', JSON.stringify(a2));
+    // Custom properties run as an item of their own, sampled per frame (P3.2).
+    check(a2.anims.length === 2 && a2.anims.every((x) => x.state === 'running') && a2.anims.map((x) => x.props.join()).join(' ') === 'opacity --glow', 'loop-only element loops at once, custom property in keyframes of its own', JSON.stringify(a2));
 
     const zone = await page.evaluate(() => document.getElementById('z').getBoundingClientRect().top + scrollY);
     const zAt = async (t) => {

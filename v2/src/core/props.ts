@@ -29,6 +29,8 @@ export type Value = number | Clip;
 export type Tracks = Partial<Record<Prop, readonly [Value, Value]>>;
 
 export interface Frame {
+  /** Custom properties by name (`--glow`), as written; a single owner per layer, like clip. */
+  vars: Map<string, string>;
   x: number;
   y: number;
   xp: number;
@@ -66,7 +68,7 @@ export const IDENTITY: Readonly<Record<NumericProp, number>> = {
 };
 export const NO_CLIP: Clip = [0, 0, 0, 0];
 
-export const identityFrame = (): Frame => ({ ...IDENTITY, clip: null });
+export const identityFrame = (): Frame => ({ ...IDENTITY, clip: null, vars: new Map() });
 
 // Per-frame paths (direct writes run these per layer per frame): named fields, no keyed access.
 // Additive: x y xp yp rotate rx ry skx sky blur; multiplicative: scale sx sy opacity.
@@ -75,6 +77,7 @@ export function resetFrame(frame: Frame): void {
   frame.rotate = frame.rx = frame.ry = frame.skx = frame.sky = frame.blur = 0;
   frame.scale = frame.sx = frame.sy = frame.opacity = 1;
   frame.clip = null;
+  if (frame.vars.size) frame.vars.clear();
 }
 
 /** Fold b into a (same-source composition). */
@@ -94,6 +97,7 @@ export function combine(a: Frame, b: Frame): void {
   a.sy *= b.sy;
   a.opacity *= b.opacity;
   if (b.clip) a.clip = b.clip;
+  for (const [name, value] of b.vars) a.vars.set(name, value);
 }
 
 /** The same frame the other way: offsets, rotations and skews reversed (velocity backward). */
@@ -214,7 +218,101 @@ export function frameCss(frame: Frame, used: ReadonlySet<Prop>): Record<string, 
     const [t, r, b, l] = frame.clip ?? NO_CLIP;
     css.clipPath = `inset(${fmt(t)}% ${fmt(r)}% ${fmt(b)}% ${fmt(l)}%)`;
   }
+  for (const [name, value] of frame.vars) css[name] = value;
   return css;
+}
+
+// ---- custom properties: from="--glow:0; --tint:#e33" -----------------------------------------------
+
+/**
+ * A custom property track: numbers keep their unit; colours travel around the OKLCH hue circle
+ * (lexicon #39: `color-mix(in oklch)` interpolates hue, so two colours meet through saturated
+ * hues rather than grey). Author CSS consumes the value: `color: var(--tint)`.
+ */
+export type VarTrack =
+  | { readonly name: string; readonly from: number; readonly to: number; readonly unit: string }
+  | { readonly name: string; readonly from: string; readonly to: string; readonly unit: null };
+
+/** One side of a custom property: a number with its unit, or a colour (var() references count). */
+export type VarValue = { readonly n: number; readonly unit: string } | { readonly color: string };
+
+const NUMBER = /^(-?\d*\.?\d+)([a-z%]*)$/i;
+const COLOR =
+  /^(#[\da-f]{3,8}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark|var)\(.*\)|[a-z]+)$/i;
+
+/** A colour as CSS reads it; without CSS.supports (tests), by its form. */
+export function isColor(text: string): boolean {
+  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+    return CSS.supports('color', text);
+  }
+  return COLOR.test(text);
+}
+
+export function parseVarValue(text: string): VarValue | null {
+  const m = NUMBER.exec(text);
+  if (m) return { n: Number(m[1]), unit: m[2]!.toLowerCase() };
+  return isColor(text) ? { color: text } : null;
+}
+
+export const isVarName = (key: string): boolean => /^--[\w-]+$/.test(key);
+
+/** The `--name` declarations of a from/to text; other keys are parseDeclarations' business. */
+export function parseVars(
+  text: string | null,
+  report: (message: string) => void
+): Record<string, VarValue> {
+  const out: Record<string, VarValue> = {};
+  if (!text) return out;
+  for (const pair of text.split(';')) {
+    const colon = pair.indexOf(':');
+    const key = colon < 0 ? '' : pair.slice(0, colon).trim();
+    if (!key.startsWith('--')) continue;
+    const raw = pair.slice(colon + 1).trim();
+    const value = isVarName(key) && raw ? parseVarValue(raw) : null;
+    if (value) out[key] = value;
+    else report(`Cannot read "${pair.trim()}": a custom property takes a number or a colour`);
+  }
+  return out;
+}
+
+/**
+ * Tracks between two sides. A bare number takes the other side's unit; a missing number is 0. A
+ * colour needs both sides (there is no neutral colour to start from).
+ */
+export function varsBetween(
+  from: Readonly<Record<string, VarValue>>,
+  to: Readonly<Record<string, VarValue>>,
+  report: (message: string) => void
+): VarTrack[] {
+  const tracks: VarTrack[] = [];
+  for (const name of new Set([...Object.keys(from), ...Object.keys(to)])) {
+    const a = from[name];
+    const b = to[name];
+    if ((a && 'color' in a) || (b && 'color' in b)) {
+      if (a && b && 'color' in a && 'color' in b) {
+        tracks.push({ name, from: a.color, to: b.color, unit: null });
+      } else {
+        report(`${name} needs a colour on both sides`);
+      }
+      continue;
+    }
+    const x = a ?? { n: 0, unit: '' };
+    const y = b ?? { n: 0, unit: '' };
+    if (x.unit && y.unit && x.unit !== y.unit) {
+      report(`${name} changes unit (${x.unit} to ${y.unit}); use the same unit on both sides`);
+      continue;
+    }
+    tracks.push({ name, from: x.n, to: y.n, unit: x.unit || y.unit });
+  }
+  return tracks;
+}
+
+/** A custom property's value at eased progress t. */
+export function varValue(track: VarTrack, t: number): string {
+  if (track.unit !== null) return `${fmt(lerp(track.from, track.to as number, t))}${track.unit}`;
+  if (t <= 0) return track.from;
+  if (t >= 1) return track.to as string;
+  return `color-mix(in oklch, ${track.from}, ${track.to as string} ${fmt(t * 100)}%)`;
 }
 
 // ---- raw declarations: from="opacity:.2; y:40; scale:.9" -------------------------------------------
@@ -264,6 +362,8 @@ export function parseDeclarations(
     const colon = pair.indexOf(':');
     const key = colon < 0 ? '' : pair.slice(0, colon).trim().toLowerCase().replace(/-/g, '');
     const raw = colon < 0 ? '' : pair.slice(colon + 1).trim();
+    // Custom properties are read by parseVars.
+    if (pair.trim().startsWith('--')) continue;
     const prop = KEYS[key];
     if (!prop || !raw) {
       report(

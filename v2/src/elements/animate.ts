@@ -14,7 +14,7 @@ import {
   type Solved,
   type TimeSpec,
 } from '../core/time';
-import { warnScopedPositioning, warnUnsafeStagger } from '../dev/craft';
+import { warnScopedPositioning, warnUnsafeStagger, warnWideVars } from '../dev/craft';
 import { warn } from '../dev/warn';
 import {
   IDLE_FRAME,
@@ -57,11 +57,17 @@ const CLOCK_PLAYED: ReadonlySet<Source> = new Set<Source>(['enter', 'eye', 'cloc
 /** Reduced motion: a clock-played entrance is at most a short fade (plan v3 §13). */
 const REDUCED_DURATION = 200;
 
-/** Keep only opacity; null when nothing is left (the element shows its final state at once). */
+/**
+ * Keep only opacity and custom properties (values, not motion); null when nothing is left (the
+ * element shows its final state at once).
+ */
 function opacityOnly(e: Effect): Effect | null {
   const opacity = e.tracks.opacity;
-  if (!opacity) return null;
-  return { ...makeEffect({ tracks: { opacity }, ease: e.ease, own: e.own }), range: e.range };
+  if (!opacity && !e.vars.length) return null;
+  return {
+    ...makeEffect({ tracks: opacity ? { opacity } : {}, vars: e.vars, ease: e.ease, own: e.own }),
+    range: e.range,
+  };
 }
 
 /** An entrance or exit played on the clock (enter / eye sources), for elements that follow it. */
@@ -235,6 +241,10 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       report
     );
     if (reduced) effects = effects.filter((e) => !e.reducible);
+    if (__DEV__) {
+      const names = [...effects, ...exits].flatMap((e) => e.vars.map((v) => v.name));
+      warnWideVars(this, [...names, ...loops.flatMap((l) => l.vars)]);
+    }
 
     const groups = new Map<Source, { effects: Effect[]; exits: Effect[] }>();
     const group = (source: Source): { effects: Effect[]; exits: Effect[] } => {

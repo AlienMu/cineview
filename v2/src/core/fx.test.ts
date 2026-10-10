@@ -260,6 +260,99 @@ describe('frameCss', () => {
   });
 });
 
+describe('custom properties', () => {
+  const vars = (effects: Effect[], p: number) => Object.fromEntries(at(effects, p).vars);
+
+  it("interpolates numbers with their unit; a bare number takes the other side's unit", () => {
+    const { report, messages } = collect();
+    const e = parseFromTo(
+      '--glow:0; --r:4px; opacity:0',
+      '--glow:1; --r:12; --a:.5turn',
+      null,
+      report
+    )!;
+    expect(messages).toEqual([]);
+    expect(e.vars).toEqual([
+      { name: '--glow', from: 0, to: 1, unit: '' },
+      { name: '--r', from: 4, to: 12, unit: 'px' },
+      { name: '--a', from: 0, to: 0.5, unit: 'turn' },
+    ]);
+    const linear = [{ ...e, ease: (t: number) => t }];
+    expect(vars(linear, 0.25)).toEqual({ '--glow': '0.25', '--r': '6px', '--a': '0.125turn' });
+    expect(frameCss(at(linear, 0.25), new Set(['opacity']))).toEqual({
+      opacity: '0.25',
+      '--glow': '0.25',
+      '--r': '6px',
+      '--a': '0.125turn',
+    });
+  });
+
+  it('turns colours around the OKLCH hue circle, exact at both ends (lexicon #39)', () => {
+    const e = parseFromTo('--tint:#e33', '--tint: oklch(.6 .12 250)', null, () => undefined)!;
+    const linear = [{ ...e, ease: (t: number) => t }];
+    expect(vars(linear, 0)).toEqual({ '--tint': '#e33' });
+    expect(vars(linear, 0.4)).toEqual({
+      '--tint': 'color-mix(in oklch, #e33, oklch(.6 .12 250) 40%)',
+    });
+    expect(vars(linear, 1)).toEqual({ '--tint': 'oklch(.6 .12 250)' });
+    // An ease that overshoots holds the colour at its end.
+    expect(vars([{ ...e, ease: () => 1.2 }], 1)).toEqual({ '--tint': 'oklch(.6 .12 250)' });
+  });
+
+  it('reports what it cannot interpolate, and from/to with only custom properties is an effect', () => {
+    const { report, messages } = collect();
+    const e = parseFromTo('--a:2px; --c:red; --d:big deal', '--a:1em; --e:blue', null, report);
+    expect(messages).toEqual([
+      'Cannot read "--d:big deal": a custom property takes a number or a colour',
+      '--a changes unit (px to em); use the same unit on both sides',
+      '--c needs a colour on both sides',
+      '--e needs a colour on both sides',
+    ]);
+    expect(e).toBeNull();
+    // Custom property keys are not reported as unknown properties.
+    const quiet = collect();
+    expect(parseDeclarations('--glow:1; y:4', quiet.report)).toEqual({ y: 4 });
+    expect(quiet.messages).toEqual([]);
+    expect(parseFromTo(null, '--glow:1', null, quiet.report)!.vars).toEqual([
+      { name: '--glow', from: 0, to: 1, unit: '' },
+    ]);
+  });
+
+  it('exits run custom properties backwards; raw exits start numbers at 0', () => {
+    const e = parseFromTo('--glow:1', '--glow:0.2', null, () => undefined)!;
+    expect(asExit(e).vars).toEqual([{ name: '--glow', from: 0.2, to: 1, unit: '' }]);
+    const [raw] = parseExit('--glow:1; opacity:0', null, () => undefined);
+    expect(raw!.vars).toEqual([{ name: '--glow', from: 0, to: 1, unit: '' }]);
+  });
+
+  it('are not written on clip layers; the last effect owns a property', () => {
+    const a = parseFromTo('--glow:0', '--glow:1', null, () => undefined)!;
+    const b = parseFromTo('--glow:10', '--glow:20', null, () => undefined)!;
+    expect(at([a, b], 1).vars.get('--glow')).toBe('20');
+    expect(at([a], 1, true).vars.size).toBe(0);
+  });
+
+  it('hue turns one shared angle with the passage, a full turn by default (lexicon #37)', () => {
+    const { report, messages } = collect();
+    const [hue] = parseFx('hue', report);
+    expect(hue).toMatchObject({ own: 'view', reducible: false, tracks: {} });
+    expect(hue!.vars).toEqual([{ name: '--cv-hue', from: 0, to: 360, unit: 'deg' }]);
+    expect(vars([hue!], 0.5)).toEqual({ '--cv-hue': '180deg' });
+    expect(parseFx('hue(180deg)', report)[0]!.vars[0]).toMatchObject({ from: 0, to: 180 });
+    expect(parseFx('hue(90, .5turn)', report)[0]!.vars[0]).toMatchObject({ from: 90, to: 180 });
+    expect(messages).toEqual([]);
+    parseFx('hue(red)', report);
+    expect(messages).toEqual(['hue(red): expected an angle such as 180deg or .5turn']);
+  });
+
+  it('defineEffect takes custom properties in objects', () => {
+    defineEffect('tint-test', { from: { '--tint': '#e33' }, to: { '--tint': '#36c', y: 10 } });
+    const [e] = parseFx('tint-test', () => undefined);
+    expect(e!.vars).toEqual([{ name: '--tint', from: '#e33', to: '#36c', unit: null }]);
+    expect(e!.tracks).toEqual({ y: [0, 10] });
+  });
+});
+
 describe('defineEffect', () => {
   it('registers a preset from declarations, with arguments', () => {
     defineEffect('swing-test', (args) => ({

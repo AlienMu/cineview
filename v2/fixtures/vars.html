@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vars fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{min-height:100vh;display:block}
+  #a{background:#f4f1ea} #b{background:#e9eef4} #c{background:#efe9f4}
+  .sw{height:60px;width:160px;background:var(--tint,#888)}
+  #hs{background:oklch(.6 .12 calc(20deg + var(--cv-hue,0deg)))}
+  #wide i{display:inline-block;width:2px;height:2px;background:#999;opacity:var(--glow,1)}
+</style></head>
+<body>
+<script type="module">
+  // P3.2 custom properties: v follows the scene's passage (--glow number, --r length, --tint
+  // colour), h turns the shared hue (--cv-hue), e plays an entrance of --glow and --tint on the
+  // clock, l loops --tint, w writes --glow over 1200 elements (the wide-scope warning).
+  // ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a">
+      <cv-animate id="v" on="view" from="--glow:0; --r:0px; --tint:#e33" to="--glow:1; --r:40px; --tint:#36c"><div class="sw" id="vs">view</div></cv-animate>
+      <cv-animate id="h" fx="hue"><div class="sw" id="hs">hue</div></cv-animate>
+    </cv-scene>
+    <cv-scene id="b">
+      <cv-animate id="e" duration="600" from="--glow:0; --tint:#e33" to="--glow:1; --tint:#36c"><div class="sw" id="es">enter</div></cv-animate>
+      <cv-animate id="l" loop="--tint: #e33 #36c #e33" loop-duration="1000"><div class="sw" id="ls">loop</div></cv-animate>
+      <cv-animate id="w" from="--glow:0" to="--glow:1"><div id="wide">${'<i></i>'.repeat(1200)}</div></cv-animate>
+    </cv-scene>
+    <cv-scene id="c"><div class="sw">c</div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

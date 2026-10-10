@@ -5,7 +5,8 @@
  *
  * Per element, at plan time (elements/animate.ts): timing attributes on untimed sources, `exit`
  * with a signal source, `stagger` without time-driven effects, properties that `stagger` can only
- * pass on as custom properties, sticky or fixed content inside a layer.
+ * pass on as custom properties, sticky or fixed content inside a layer, custom properties that
+ * restyle a large subtree.
  * Per stage, after a build (checkStage): elements outside their parents (<cv-fixed> outside a
  * scene too), drag scenes taller than the screen (also as each becomes current), in-page links to
  * nothing, `stack` with nothing to cover the scene, `covered` without `stack`, a `track` row with
@@ -35,6 +36,25 @@ export function warnUnsafeStagger(el: Element, plan: LayerPlan): void {
       `stagger writes only translate, rotate, scale and opacity on your elements; the rest arrives as ${vars.join(', ')}. Use them in your CSS, e.g. filter: var(--cv-filter).`
     );
   }
+}
+
+/**
+ * Above this many elements under one animated custom property, the per-frame style recalculation
+ * shows (lexicon #38: the same rotation declared over 3,457 elements instead of 25 ran at about a
+ * fifth of the frame rate).
+ */
+export const WIDE_VARS = 1000;
+
+/** An animated custom property restyles everything it is inherited by, every frame (#38). */
+export function warnWideVars(el: Element, names: readonly string[]): void {
+  if (!names.length) return;
+  const count = el.getElementsByTagName('*').length;
+  if (count <= WIDE_VARS) return;
+  const list = [...new Set(names)].join(', ');
+  warn(
+    el,
+    `${list} restyles all ${count} elements inside this <cv-animate> every frame. Wrap only the elements that use it, so fewer inherit it.`
+  );
 }
 
 /** Layers carry a transform, which scopes sticky, fixed and z-index of everything inside (§4.3). */

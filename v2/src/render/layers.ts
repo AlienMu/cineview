@@ -18,12 +18,14 @@ import {
   evaluate,
   sampleKeyframes,
   usedProps,
+  usedVars,
   type Effect,
   type Select,
   type Source,
 } from '../core/fx';
 import {
   combine,
+  compositorEligible,
   frameCss,
   identityFrame,
   mirrorFrame,
@@ -91,6 +93,11 @@ export interface Layer {
   /** Time layers: window on the scene timeline, assigned after the scene is solved. */
   window: Window | null;
   used: Set<Prop>;
+  /**
+   * Custom properties written here. They inherit into the slotted content only: the layer is the
+   * lowest scope that reaches it (lexicon #38), never the stage or the root.
+   */
+  vars: Set<string>;
   /** Scratch frames reused every write. */
   frame: Frame;
   scratch: Frame;
@@ -113,7 +120,9 @@ const LAYER_STYLE =
   'slot{display:contents}';
 
 const hasTracks = (effects: readonly Effect[], clip: boolean): boolean =>
-  effects.some((e) => e.entries.some(([p]) => (p === 'clip') === clip));
+  effects.some(
+    (e) => e.entries.some(([p]) => (p === 'clip') === clip) || (!clip && e.vars.length > 0)
+  );
 
 /** View effects split by named range, in order of first use: one native timeline range each. */
 function byRange(
@@ -182,6 +191,10 @@ function makeLayer(
     used: new Set<Prop>([
       ...usedProps(plan.effects, plan.select),
       ...usedProps(plan.exitEffects, plan.select),
+    ]),
+    vars: new Set([
+      ...usedVars(plan.effects, plan.select),
+      ...usedVars(plan.exitEffects, plan.select),
     ]),
     frame: identityFrame(),
     scratch: identityFrame(),
@@ -297,6 +310,20 @@ export function clearLayer(layer: Layer): void {
   }
   layer.last.clear();
 }
+
+/**
+ * Whether a scroll-driven animation can carry the layer off the main thread: transform and opacity
+ * only. Custom properties are main-thread values and step between keyframes unless registered.
+ */
+export const compositorLayer = (layer: Layer): boolean =>
+  compositorEligible(layer.used) && layer.vars.size === 0;
+
+/**
+ * Keyframe samples for a clock-played layer of `duration` ms. An unregistered custom property
+ * animates discretely between keyframes, so layers that write one get a keyframe per 60 Hz frame.
+ */
+export const samplesFor = (layer: Layer, duration: number): number =>
+  layer.vars.size ? Math.max(12, Math.ceil(duration / (1000 / 60))) : 12;
 
 /** Keyframes over the layer's own progress (view and clock paths). */
 export function layerKeyframes(layer: Layer, samples = 12): Keyframe[] {

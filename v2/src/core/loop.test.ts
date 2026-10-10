@@ -1,4 +1,4 @@
-import { pan } from './ease';
+import { easeInOut, pan } from './ease';
 import { parseLoop } from './loop';
 
 const quiet = (): void => undefined;
@@ -7,12 +7,45 @@ const props = (k: Keyframe): string[] =>
 
 describe('parseLoop', () => {
   it('reads raw keyframe lists, units and custom properties (1.x loopAnimation arrays)', () => {
-    const [item] = parseLoop('opacity: 1 .45 1; scale: 1 1.45 1; --glow: 0 1 0', 1600, null, quiet);
+    const [item, glow] = parseLoop(
+      'opacity: 1 .45 1; scale: 1 1.45 1; --glow: 0 1 0',
+      1600,
+      null,
+      quiet
+    );
     expect(item!.duration).toBe(1600);
     expect(item!.keyframes.map((k) => k.opacity)).toEqual(['1', '0.45', '1']);
     expect(item!.keyframes.map((k) => k.scale)).toEqual(['1', '1.45', '1']);
-    expect(item!.keyframes.map((k) => k['--glow'])).toEqual(['0', '1', '0']);
     expect(item!.keyframes.map((k) => k.offset)).toEqual([0, 0.5, 1]);
+    expect(item!.vars).toEqual([]);
+    // Custom properties: their own item, one keyframe per 60 Hz frame, eased per segment.
+    expect(glow!.duration).toBe(1600);
+    expect(glow!.vars).toEqual(['--glow']);
+    expect(glow!.keyframes).toHaveLength(2 * 48 + 1);
+    expect(glow!.keyframes.every((k) => props(k).join() === '--glow')).toBe(true);
+    const value = (offset: number): unknown =>
+      glow!.keyframes.find((k) => k.offset === offset)?.['--glow'];
+    expect([value(0), value(0.5), value(1)]).toEqual(['0', '1', '0']);
+    expect(Number(value(0.125))).toBeCloseTo(easeInOut(0.25), 3);
+  });
+
+  it('turns colour lists around the hue circle; lists it cannot interpolate stay as written', () => {
+    const [tint] = parseLoop('--tint: #e33 oklch(.6 .12 250) #e33', 1000, null, quiet);
+    expect(tint!.keyframes[0]!['--tint']).toBe('#e33');
+    expect(tint!.keyframes.find((k) => k.offset === 0.5)!['--tint']).toBe('oklch(.6 .12 250)');
+    expect(String(tint!.keyframes[5]!['--tint'])).toMatch(
+      /^color-mix\(in oklch, #e33, oklch\(\.6 \.12 250\) [\d.]+%\)$/
+    );
+    const [mixed] = parseLoop('--m: 0px 1em 0px', 1000, null, quiet);
+    expect(mixed!.keyframes.map((k) => k['--m'])).toEqual(['0px', '1em', '0px']);
+    expect(mixed!.vars).toEqual(['--m']);
+  });
+
+  it('plays an fx preset with custom properties there and back', () => {
+    const [hue] = parseLoop('hue(90deg)', 1000, null, quiet);
+    expect(hue!.vars).toEqual(['--cv-hue']);
+    expect(hue!.keyframes.find((k) => k.offset === 0.5)!['--cv-hue']).toBe('90deg');
+    expect(hue!.keyframes.at(-1)!['--cv-hue']).toBe('0deg');
   });
 
   it('holds the last value when lists differ in length', () => {

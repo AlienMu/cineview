@@ -33,6 +33,7 @@ const PROBES = [
   'track',
   'fixed',
   'signals',
+  'vars',
 ];
 const args = process.argv.slice(2);
 const engines = args.filter((a) => !a.startsWith('--'));

@@ -6,10 +6,12 @@
  *   loop="pulse(strong), breathe"                  several, each its own animation
  *   loop="push(in)"                                any fx preset, played there and back
  *   loop="opacity: 1 .45 1; scale: 1 1.45 1"       raw keyframe lists (1.x loopAnimation arrays)
- *   loop="--glow: 0 1 0"                           custom properties, for author CSS to consume
+ *   loop="--glow: 0 1 0; --tint: #e33 #36c #e33"   custom properties, for author CSS to consume
  *
  * Each item becomes one infinite WAAPI animation. `loop-duration` sets the cycle length; the
- * element's `ease` applies per segment (default ease-in-out, as 1.x loops).
+ * element's `ease` applies per segment (default ease-in-out, as 1.x loops). Custom properties with
+ * numbers or colours run as an item of their own, sampled once per 60 Hz frame (an unregistered
+ * property steps between keyframes; colours go around the OKLCH hue circle as in from/to).
  */
 import { easeInOut, type Ease } from './ease';
 import type { Report } from './errors';
@@ -20,17 +22,26 @@ import {
   identityFrame,
   NO_CLIP,
   parseDeclarations,
+  parseVarValue,
   resetFrame,
+  varValue,
   type Clip,
   type Prop,
   type Value,
+  type VarTrack,
+  type VarValue,
 } from './props';
 
 export interface LoopItem {
   keyframes: Keyframe[];
   /** One cycle, ms. */
   duration: number;
+  /** Custom properties the item writes. */
+  vars: string[];
 }
+
+/** Interpolable custom property lists: numbers in one unit, or colours. */
+type VarLists = Record<string, VarValue[]>;
 
 /** Keyframe lists per property; custom properties keep their raw text. */
 interface Lists {
@@ -85,25 +96,59 @@ const LOOPS: Readonly<
 
 export const loopNames = (): string[] => Object.keys(LOOPS);
 
+/** Split on spaces outside parentheses: `#e33 oklch(.7 .1 200)` is two values. */
+function words(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let word = '';
+  for (const c of text) {
+    if (c === '(') depth++;
+    else if (c === ')') depth = Math.max(0, depth - 1);
+    if (/\s/.test(c) && depth === 0) {
+      if (word) out.push(word);
+      word = '';
+    } else {
+      word += c;
+    }
+  }
+  if (word) out.push(word);
+  return out;
+}
+
+/** Values all numbers in one unit (bare numbers join it) or all colours; null otherwise. */
+function interpolable(values: readonly string[]): VarValue[] | null {
+  const parsed = values.map(parseVarValue);
+  if (parsed.some((v) => v === null)) return null;
+  const list = parsed as VarValue[];
+  if (list.every((v) => 'color' in v)) return list;
+  if (list.some((v) => 'color' in v)) return null;
+  const units = new Set(list.map((v) => ('unit' in v ? v.unit : '')).filter(Boolean));
+  if (units.size > 1) return null;
+  const unit = [...units][0] ?? '';
+  return list.map((v) => ({ n: 'n' in v ? v.n : 0, unit }));
+}
+
 /** `opacity: 1 .45 1; x: 0 -100% 0; --glow: 0 1 0`. */
-function parseRaw(text: string, report: Report): Omit<Lists, 'easing' | 'duration'> {
+function parseRaw(
+  text: string,
+  report: Report
+): Omit<Lists, 'easing' | 'duration'> & { vars: VarLists } {
   const props: Partial<Record<Prop, Value[]>> = {};
   const custom: Record<string, string[]> = {};
+  const vars: VarLists = {};
   for (const pair of text.split(';')) {
     if (!pair.trim()) continue;
     const colon = pair.indexOf(':');
     const key = pair.slice(0, colon).trim();
-    const values = pair
-      .slice(colon + 1)
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
+    const values = words(pair.slice(colon + 1).trim());
     if (colon < 0 || !values.length) {
       report(`Cannot read loop "${pair.trim()}"`);
       continue;
     }
     if (key.startsWith('--')) {
-      custom[key] = values;
+      const list = interpolable(values);
+      if (list) vars[key] = list;
+      else custom[key] = values;
       continue;
     }
     // Reuse the declaration reader per value so units behave exactly as in from/to. One key can
@@ -114,7 +159,39 @@ function parseRaw(text: string, report: Report): Omit<Lists, 'easing' | 'duratio
       props[p] = records.map((r) => r[p] ?? (p === 'clip' ? NO_CLIP : IDENTITY[p]));
     }
   }
-  return { props, custom };
+  return { props, custom, vars };
+}
+
+/**
+ * Custom property lists as their own keyframes, one per 60 Hz frame of the cycle, the ease
+ * applied per segment in the samples (the browser would only flip an unregistered property).
+ */
+function varFrames(lists: VarLists, ease: Ease, duration: number): Keyframe[] {
+  const n = Math.max(2, ...Object.values(lists).map((v) => v.length));
+  const per = Math.max(2, Math.ceil(duration / (n - 1) / (1000 / 60)));
+  const at = (values: VarValue[], i: number): VarValue => values[Math.min(i, values.length - 1)]!;
+  const track = (name: string, a: VarValue, b: VarValue): VarTrack =>
+    'color' in a
+      ? { name, from: a.color, to: (b as { color: string }).color, unit: null }
+      : { name, from: a.n, to: (b as { n: number }).n, unit: a.unit };
+  const out: Keyframe[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    for (let k = 0; k < per; k++) {
+      const t = ease(k / per);
+      const frame: Keyframe = { offset: (i + k / per) / (n - 1), easing: 'linear' };
+      for (const [name, values] of Object.entries(lists)) {
+        frame[name] = varValue(track(name, at(values, i), at(values, i + 1)), t);
+      }
+      out.push(frame);
+    }
+  }
+  const last: Keyframe = { offset: 1 };
+  for (const [name, values] of Object.entries(lists)) {
+    const v = at(values, n - 1);
+    last[name] = 'color' in v ? v.color : `${v.n}${v.unit}`;
+  }
+  out.push(last);
+  return out;
 }
 
 /** Pad every list to the longest one by holding its last value. */
@@ -156,11 +233,29 @@ export function parseLoop(
 ): LoopItem[] {
   if (!text || !text.trim()) return [];
   const easing = ease?.css ?? easeInOut.css ?? 'ease-in-out';
-  if (text.includes(':')) {
-    const raw = parseRaw(text, report);
-    return [{ keyframes: frames({ ...raw, easing, duration: 0 }), duration: duration ?? 3000 }];
-  }
   const items: LoopItem[] = [];
+  const addVars = (lists: VarLists, cycle: number): void => {
+    if (!Object.keys(lists).length) return;
+    const keyframes = varFrames(lists, ease ?? easeInOut, cycle);
+    items.push({ keyframes, duration: cycle, vars: Object.keys(lists) });
+  };
+  if (text.includes(':')) {
+    const { vars, ...raw } = parseRaw(text, report);
+    const cycle = duration ?? 3000;
+    if (
+      Object.keys(raw.props).length ||
+      Object.keys(raw.custom).length ||
+      !Object.keys(vars).length
+    ) {
+      items.push({
+        keyframes: frames({ ...raw, easing, duration: 0 }),
+        duration: cycle,
+        vars: Object.keys(raw.custom),
+      });
+    }
+    addVars(vars, cycle);
+    return items;
+  }
   for (const part of splitTop(text)) {
     if (!part.trim()) continue;
     const item = parseItem(part.trim());
@@ -174,6 +269,7 @@ export function parseLoop(
       items.push({
         keyframes: frames({ ...lists, easing: ease ? easing : (lists.easing ?? easing) }),
         duration: duration ?? lists.duration,
+        vars: [],
       });
       continue;
     }
@@ -181,14 +277,30 @@ export function parseLoop(
     const effects = parseFx(part.trim(), report);
     if (!effects.length) continue;
     const props: Partial<Record<Prop, Value[]>> = {};
+    const vars: VarLists = {};
     for (const e of effects) {
       for (const [p, from, to] of e.entries) props[p] = [from, to, from];
+      for (const v of e.vars) {
+        const [a, b]: VarValue[] =
+          v.unit === null
+            ? [{ color: v.from }, { color: v.to as string }]
+            : [
+                { n: v.from, unit: v.unit },
+                { n: v.to as number, unit: v.unit },
+              ];
+        vars[v.name] = [a!, b!, a!];
+      }
     }
     const own = effects.reduce((m, e) => Math.max(m, e.duration ?? 0), 0) || 1500;
-    items.push({
-      keyframes: frames({ props, custom: {}, easing, duration: 0 }),
-      duration: duration ?? own * 2,
-    });
+    const cycle = duration ?? own * 2;
+    if (Object.keys(props).length) {
+      items.push({
+        keyframes: frames({ props, custom: {}, easing, duration: 0 }),
+        duration: cycle,
+        vars: [],
+      });
+    }
+    addVars(vars, cycle);
   }
   return items;
 }
