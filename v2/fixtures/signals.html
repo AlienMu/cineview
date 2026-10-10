@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>signals fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{min-height:100vh;display:block}
+  #a{background:#d8e8f0;height:1600px} #b{background:#f0e0d0} #c{background:#e0d8f0}
+  .box{height:80px;width:160px;background:#36c;color:#fff}
+</style></head>
+<body>
+<script type="module">
+  // P3.1 signals: k leans with the reader's speed (velocity skew), d moves up while the reader
+  // goes forward (direction), p follows the stage's page position, in a (1600px) under scroll
+  // and in the first of three one-screen scenes under drag (?drag). ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a">
+      <cv-animate id="k" fx="skew"><div class="box">skew</div></cv-animate>
+      <cv-animate id="d" on="direction" from="y:0" to="y:-50"><div class="box">direction</div></cv-animate>
+      <cv-animate id="p" on="page" from="x:0" to="x:100"><div class="box">page</div></cv-animate>
+    </cv-scene>
+    <cv-scene id="b"><div class="box">b</div></cv-scene>
+    <cv-scene id="c"><div class="box">c</div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

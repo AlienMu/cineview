@@ -27,7 +27,7 @@ import {
   type Value,
 } from './props';
 
-/** Progress sources (plan v3 §3.5). Phase 1 drives scene, enter, view and clock. */
+/** Progress sources (plan v3 §3.5). */
 export type Source =
   'scene' | 'enter' | 'view' | 'page' | 'clock' | 'eye' | 'velocity' | 'direction';
 
@@ -264,6 +264,18 @@ presets.set('drift', (args, report) => {
     tracks: { [track]: [-a.value, a.value] },
     ease: linear,
     own: 'view',
+    reducible: true,
+  });
+});
+
+// Lexicon #7 velocity skew: content leans with the reader's speed (skewY -4deg and scaleY 1.1 at
+// full speed) and straightens as it settles; the signal mirrors the lean when moving backward.
+presets.set('skew', (args, report) => {
+  const a = amount(args[0], { soft: 2, normal: 4, strong: 8 }, report, 'skew', ['', 'deg']);
+  return makeEffect({
+    tracks: { sky: [0, -a.value], sy: [1, 1 + a.value * 0.025] },
+    ease: linear,
+    own: 'velocity',
     reducible: true,
   });
 });

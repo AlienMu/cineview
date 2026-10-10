@@ -22,7 +22,14 @@ import {
   type Select,
   type Source,
 } from '../core/fx';
-import { combine, frameCss, identityFrame, type Frame, type Prop } from '../core/props';
+import {
+  combine,
+  frameCss,
+  identityFrame,
+  mirrorFrame,
+  type Frame,
+  type Prop,
+} from '../core/props';
 import type { Solved } from '../core/time';
 import { sameRange, type ViewRange } from '../core/view';
 
@@ -238,13 +245,17 @@ export function assignWindows(layers: readonly Layer[], solved: Solved | null): 
   }
 }
 
-/** Evaluate a layer at entrance progress p and exit progress px (0 = no exit in play). */
-export function evaluateLayer(layer: Layer, p: number, px: number): Frame {
+/**
+ * Evaluate a layer at entrance progress p and exit progress px (0 = no exit in play); `mirror`
+ * reverses the result (a velocity layer while the reader moves backward).
+ */
+export function evaluateLayer(layer: Layer, p: number, px: number, mirror = false): Frame {
   evaluate(layer.effects, p, layer.frame, layer.select);
   if (px > 0 && layer.exitEffects.length) {
     evaluate(layer.exitEffects, px, layer.scratch, layer.select);
     combine(layer.frame, layer.scratch);
   }
+  if (mirror) mirrorFrame(layer.frame);
   return layer.frame;
 }
 
@@ -265,8 +276,8 @@ export function layerCss(layer: Layer, frame: Frame): Record<string, string> {
 }
 
 /** Direct style write (drag input and the scroll main-thread path). Skips unchanged values. */
-export function writeLayer(layer: Layer, p: number, px: number): void {
-  const css = layerCss(layer, evaluateLayer(layer, p, px));
+export function writeLayer(layer: Layer, p: number, px: number, mirror = false): void {
+  const css = layerCss(layer, evaluateLayer(layer, p, px, mirror));
   const style = layer.el.style;
   for (const key in css) {
     const value = css[key]!;

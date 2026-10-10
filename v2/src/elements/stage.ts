@@ -241,10 +241,20 @@ export class CvStage extends ElementBase implements CvStageElement {
     }
     if (from < 0 || from === index) return;
     const direction = index > from ? 'forward' : 'backward';
-    this.setAttribute('data-cv-direction', direction);
+    this.setHeading(direction);
     const detail = { from, to: index, direction };
     this.ordered[from]?.dispatchEvent(new CustomEvent('cv-leave', { bubbles: true, detail }));
     this.ordered[index]?.dispatchEvent(new CustomEvent('cv-enter', { bubbles: true, detail }));
+  }
+
+  /**
+   * Which way the reader moves (lexicon #20): `data-cv-direction` turns once the movement has gone
+   * a dead zone the other way (scroll offset or drag page), and with every scene change.
+   */
+  setHeading(direction: 'forward' | 'backward'): void {
+    if (this.getAttribute('data-cv-direction') !== direction) {
+      this.setAttribute('data-cv-direction', direction);
+    }
   }
 
   private markLinks(): void {

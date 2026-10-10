@@ -34,6 +34,7 @@ import {
   type Threshold,
 } from './drag-rules';
 import type { InputEngine } from './engine';
+import { isSignal, Signals, writeSignal } from './signals';
 
 /** Presses that start here never page (1.x list, plus role=button and <cv-pause>). */
 const INTERACTIVE =
@@ -149,6 +150,10 @@ class DragInput implements DragEngine {
   private reported = 0;
   /** Subject geometry relative to its scene, for per-element view progress (plan v3 F7). */
   private local = new Map<Element, { top: number; height: number }>();
+  /** The reader's speed and direction, from the page as displayed (finger, then slide). */
+  private signals = new Signals();
+  /** Some element follows velocity or direction: frames continue until the signals rest. */
+  private hasSignals: boolean;
 
   constructor(
     private stage: CvStage,
@@ -156,6 +161,9 @@ class DragInput implements DragEngine {
   ) {
     this.scenes = stage.ordered;
     this.vh = stage.clientHeight || window.innerHeight;
+    this.hasSignals = this.scenes.some((s) =>
+      s.ordered.some((a) => a.layers.some((l) => isSignal(l.source)))
+    );
     this.times = this.scenes.map(() => 0);
     this.heads = this.scenes.map(() => null);
     this.transition = Math.max(0, Number(stage.getAttribute('transition-duration') ?? 800) || 0);
@@ -682,9 +690,13 @@ class DragInput implements DragEngine {
         else busy = true;
       }
     }
+    if (this.signals.sample(this.pos * this.vh, now)) {
+      this.stage.setHeading(this.signals.heading > 0 ? 'forward' : 'backward');
+    }
+    this.signals.step(now);
     this.write();
     this.tickSource = null;
-    if (busy) this.loop();
+    if (busy || (this.hasSignals && !this.signals.resting)) this.loop();
   };
 
   /** A lane landed: commit the switch (commit, goTo) or close the session (cancel). */
@@ -901,6 +913,16 @@ class DragInput implements DragEngine {
     const base = a.solved;
     const exitDuration = base?.exitDuration ?? 0;
     for (const layer of a.layers) {
+      if (isSignal(layer.source)) {
+        writeSignal(layer, this.signals);
+        continue;
+      }
+      if (layer.source === 'page') {
+        // The stage's continuous scene position (plan v3 §3.5).
+        const last = this.scenes.length - 1;
+        writeLayer(layer, last > 0 ? Math.min(1, Math.max(0, this.pos / last)) : 0, 0);
+        continue;
+      }
       if (layer.source === 'view') {
         // Passage through the viewport: the scroll formula with the paging offset in place of the
         // scroll offset (plan v3 §9.3, F7); a departing scene carries on along the same line.

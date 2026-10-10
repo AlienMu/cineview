@@ -32,6 +32,7 @@ const PROBES = [
   'deck',
   'track',
   'fixed',
+  'signals',
 ];
 const args = process.argv.slice(2);
 const engines = args.filter((a) => !a.startsWith('--'));

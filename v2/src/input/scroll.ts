@@ -38,6 +38,7 @@ import {
 const GESTURE_QUIET_MS = 250;
 import type { InputEngine } from './engine';
 import { EnterController, parseMargins } from './enter';
+import { isSignal, Signals, writeSignal } from './signals';
 
 /** Native animations created per idle slice when the browser has no idle deadline. */
 const ATTACH_CHUNK = 96;
@@ -91,6 +92,12 @@ export class ScrollInput implements InputEngine {
   private decks: Array<{ s: CvScene; k: CvStack }> = [];
   /** `track="x"` scenes with a row to move; native: one scroll-driven animation each. */
   private tracks: Array<{ s: CvScene; native: Animation | null }> = [];
+  /** The reader's speed and direction (velocity and direction sources, data-cv-direction). */
+  private signals = new Signals();
+  /** Signal layers near the viewport at the last full frame: settling frames write only these. */
+  private signalWork: Layer[] = [];
+  /** The queued frame has more to do than settle the signals. */
+  private fullFrame = false;
 
   constructor(stage: CvStage) {
     this.stage = stage;
@@ -270,9 +277,14 @@ export class ScrollInput implements InputEngine {
    * independence from a busy main thread (phase-0 blocking test).
    */
   private onScroll = (): void => {
-    this.lastScroll = performance.now();
-    this.zoneWork();
-    this.stackWork();
+    const now = performance.now();
+    this.lastScroll = now;
+    const y = window.scrollY;
+    if (this.signals.sample(y, now)) {
+      this.stage.setHeading(this.signals.heading > 0 ? 'forward' : 'backward');
+    }
+    this.zoneWork(y);
+    this.stackWork(y);
     if (this.native && !this.hasJsWork()) return;
     this.queueFrame();
   };
@@ -290,20 +302,36 @@ export class ScrollInput implements InputEngine {
             (s.isZone && a.loopItems.length > 0) ||
             a.layers.some(
               (l) =>
-                !l.native && (l.source === 'scene' || l.source === 'view' || l.source === 'page')
+                !l.native &&
+                (l.source === 'scene' ||
+                  l.source === 'view' ||
+                  l.source === 'page' ||
+                  isSignal(l.source))
             )
         )
       );
     return this.jsWork;
   }
 
-  private queueFrame(): void {
+  /** `settle`: only the signals have something left to do (they slow down after the reader stops). */
+  private queueFrame(settle = false): void {
+    if (!settle) this.fullFrame = true;
     if (this.frameQueued) return;
     this.frameQueued = true;
     requestAnimationFrame(() => {
       this.frameQueued = false;
-      this.frame();
+      const full = this.fullFrame;
+      this.fullFrame = false;
+      if (full) this.frame();
+      else this.settle();
     });
+  }
+
+  /** Signals move on without a scroll event: step them and write their layers, nothing else. */
+  private settle(): void {
+    this.signals.step(performance.now());
+    for (const layer of this.signalWork) writeSignal(layer, this.signals);
+    if (this.signalWork.length && !this.signals.resting) this.queueFrame(true);
   }
 
   /** All reads first (scroll offset, live rects), then all writes. */
@@ -311,6 +339,7 @@ export class ScrollInput implements InputEngine {
     const y = window.scrollY;
     const vh = this.vh;
     const work: Array<{ layer: Layer; p: number; px: number }> = [];
+    const signalWork: Layer[] = [];
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
     const rects = new Map<Element, DOMRect>();
     const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
@@ -372,6 +401,8 @@ export class ScrollInput implements InputEngine {
             work.push({ layer, p: viewProgress(top, height, vh, layer.range), px: 0 });
           } else if (layer.source === 'page') {
             work.push({ layer, p: page, px: 0 });
+          } else if (isSignal(layer.source)) {
+            signalWork.push(layer);
           }
         }
       }
@@ -395,6 +426,10 @@ export class ScrollInput implements InputEngine {
       rows.push({ s, t: Math.min(Math.max(y - s.docTop, 0), s.solution.total) });
     }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
+    // Signal layers leaving the neighbourhood keep their last frame, like other direct layers.
+    this.signalWork = signalWork;
+    this.signals.step(performance.now());
+    for (const layer of signalWork) writeSignal(layer, this.signals);
     for (const { s, t } of rows) s.writeTrack(t);
     for (const { k, at } of decks) {
       if (k.dealt) k.writeTime(at);
@@ -413,6 +448,7 @@ export class ScrollInput implements InputEngine {
     // The offset read above: reading it again after the writes would force a style recalc.
     this.zoneWork(y);
     this.stackWork(y);
+    if (signalWork.length && !this.signals.resting) this.queueFrame(true);
   }
 
   /**

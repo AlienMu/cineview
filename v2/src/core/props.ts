@@ -96,6 +96,19 @@ export function combine(a: Frame, b: Frame): void {
   if (b.clip) a.clip = b.clip;
 }
 
+/** The same frame the other way: offsets, rotations and skews reversed (velocity backward). */
+export function mirrorFrame(frame: Frame): void {
+  frame.x = -frame.x;
+  frame.y = -frame.y;
+  frame.xp = -frame.xp;
+  frame.yp = -frame.yp;
+  frame.rotate = -frame.rotate;
+  frame.rx = -frame.rx;
+  frame.ry = -frame.ry;
+  frame.skx = -frame.skx;
+  frame.sky = -frame.sky;
+}
+
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /** Apply one track at eased progress t, composing into `frame`. */

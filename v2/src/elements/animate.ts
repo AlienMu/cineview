@@ -251,6 +251,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       if (__DEV__ && e.viewRange && source !== 'view') {
         warn(this, `a named range needs a view source; it has no effect with on="${source}"`);
       }
+      // Reduced motion: no deformation from the reader's speed or direction (plan v3 §13).
+      if (reduced && SIGNALS.has(source)) continue;
       const kept = reduced && CLOCK_PLAYED.has(source) ? opacityOnly(e) : e;
       if (kept) group(source).effects.push(kept);
     }

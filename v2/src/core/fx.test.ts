@@ -11,7 +11,7 @@ import {
   usedProps,
   type Effect,
 } from './fx';
-import { frameCss, identityFrame, parseDeclarations, parseInset } from './props';
+import { frameCss, identityFrame, mirrorFrame, parseDeclarations, parseInset } from './props';
 
 const collect = (): { report: (m: string) => void; messages: string[] } => {
   const messages: string[] = [];
@@ -149,6 +149,23 @@ describe('presets', () => {
     expect(at(band, 0.5)).toMatchObject({ blur: 0, opacity: 1 });
     expect(at(band, 1).blur).toBeCloseTo(4.5);
     expect(at(band, 1).opacity).toBeCloseTo(0.34);
+  });
+
+  it('skew leans with velocity, mirrored backward, and is dropped under reduced motion', () => {
+    const [skew] = one('skew');
+    expect(skew).toMatchObject({
+      own: 'velocity',
+      reducible: true,
+      tracks: { sky: [0, -4], sy: [1, 1.1] },
+    });
+    expect(one('skew(strong)')[0]!.tracks).toEqual({ sky: [0, -8], sy: [1, 1.2] });
+    expect(one('skew(2deg)')[0]!.tracks).toEqual({ sky: [0, -2], sy: [1, 1.05] });
+    const frame = at([skew!], 0.5);
+    expect(frame.sky).toBe(-2);
+    mirrorFrame(frame);
+    expect(frame.sky).toBe(2);
+    expect(frame.sy).toBeCloseTo(1.05);
+    expect(frameCss(frame, new Set(['sky'])).transform).toBe('skew(0deg, 2deg)');
   });
 
   it('narrows a multi-part preset proportionally inside an item range', () => {
