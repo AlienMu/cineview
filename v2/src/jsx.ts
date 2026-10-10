@@ -50,6 +50,8 @@ export interface CvSceneAttributes {
   stack?: Flag;
   /** How a stacked scene looks while the next one covers it. */
   covered?: 'dim' | 'recede';
+  /** Lay the content out in a row that moves sideways along scene time (a zone in scroll). */
+  track?: 'x';
   sequence?: Num;
   /** Present: wait for the scene's images and videos on the first screen; or a URL list. */
   preload?: Flag | string;

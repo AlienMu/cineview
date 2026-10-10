@@ -282,6 +282,7 @@ class DragInput implements DragEngine {
       this.cover(s, false);
       if (s.cover) clearCover(s, s.veil!);
       s.coverProgress = Number.NaN;
+      s.clearTrack();
     }
   }
 
@@ -809,6 +810,8 @@ class DragInput implements DragEngine {
       this.cover(s, held && this.pos >= i + 1);
       this.coverLook(s, held ? Math.min(1, this.pos - i) : 0);
       const t = this.times[i] ?? 0;
+      // `track="x"`: the row moves on scene time, as the finger and then the clock advance it.
+      if (s.isTrack) s.writeTrack(t);
       // The current scene departs with the page; exits run on the travel, in transition time.
       const departure =
         i === this.index && travel !== 0 ? Math.min(1, Math.abs(travel)) * this.transition : 0;

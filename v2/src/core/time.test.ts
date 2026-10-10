@@ -288,6 +288,17 @@ describe('solveScene: 2.0 additions', () => {
     expect(s.byIndex[0]).toMatchObject({ end: 600, exitDuration: 400 });
   });
 
+  it('lasts at least the span of a track, with at placed on the longer total', () => {
+    expect(solve([spec()], { span: 1200 }).total).toBe(1200);
+    expect(solve([spec({ duration: 2000 })], { span: 1200 }).total).toBe(2000);
+    expect(solve([], { span: 800 }).total).toBe(800);
+    const s = solve([spec({ exitDuration: 100, at: { start: 0.5, end: 0.6 } })], {
+      span: 1000,
+    });
+    expect(s.total).toBe(1000);
+    expect(s.byIndex[0]).toMatchObject({ start: 500, end: 600, exitStart: 900, exitEnd: 1000 });
+  });
+
   it('reports duplicate names and keeps the first', () => {
     const s = solve([
       spec({ name: 'x', duration: 100 }),

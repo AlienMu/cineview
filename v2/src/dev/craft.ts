@@ -8,7 +8,8 @@
  * pass on as custom properties, sticky or fixed content inside a layer.
  * Per stage, after a build (checkStage): elements outside their parents, drag scenes taller than
  * the screen (also as each becomes current), in-page links to nothing, `stack` with nothing to
- * cover the scene, `covered` without `stack`. Media: slow seeks (media/driver.ts).
+ * cover the scene, `covered` without `stack`, a `track` row with nothing to move. Media: slow
+ * seeks (media/driver.ts).
  */
 import type { LayerPlan } from '../render/layers';
 import { warn } from './warn';
@@ -99,7 +100,7 @@ function checkStacks(stage: CraftStage): void {
 
 export interface CraftStage extends HTMLElement {
   readonly input: 'scroll' | 'drag';
-  readonly ordered: readonly HTMLElement[];
+  readonly ordered: ReadonlyArray<HTMLElement & { readonly travel?: number }>;
 }
 
 /** Stage-wide checks. Reads layout: run after the build has rendered, never in a frame loop. */
@@ -116,6 +117,14 @@ export function checkStage(stage: CraftStage): void {
   }
   if (stage.input === 'drag') for (const scene of stage.ordered) checkDragScene(scene);
   checkStacks(stage);
+  for (const scene of stage.ordered) {
+    if (scene.getAttribute('track') === 'x' && (scene.travel ?? 0) < 1) {
+      warn(
+        scene,
+        'track="x" moves the row until its end meets the scene\'s; this row is no wider than the scene, so nothing moves.'
+      );
+    }
+  }
   for (const a of stage.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')) {
     const id = decodeURIComponent(a.getAttribute('href')!.slice(1));
     if (id && !document.getElementById(id)) warn(a, `href="#${id}" points to no element.`);

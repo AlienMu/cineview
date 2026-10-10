@@ -40,7 +40,7 @@ const DISQUALIFY = [
   'target',
 ];
 /** A scene whose own setup changes the clock is never CSS-first. */
-const SCENE_DISQUALIFY = ['preload', 'zone', 'sequence'];
+const SCENE_DISQUALIFY = ['preload', 'zone', 'track', 'sequence'];
 
 const FIRST = 'cv-stage>cv-scene:first-of-type';
 const not = (attrs: readonly string[]): string => `:not(${attrs.map((a) => `[${a}]`).join(',')})`;

@@ -2,7 +2,9 @@
  * <cv-scene>: one shot. Owns its timeline (solved from its animates in document order) and, in
  * scroll input, the sticky shell of a zone. `stack`: the scene holds while the next one covers it
  * (scroll: sticky; drag: it stays put while the next one slides over it); `covered="dim|recede"`
- * is how it looks meanwhile (render/covered.ts).
+ * is how it looks meanwhile (render/covered.ts). `track="x"`: the content lays out in a row that
+ * moves sideways along scene time, 1 px per ms until its end meets the scene's (lexicon #5); in
+ * scroll input the scene is a zone at least that long.
  */
 import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
 import { ElementBase } from '../platform';
@@ -12,7 +14,7 @@ import type { CvAnimate } from './animate';
 import { CvStage } from './stage';
 
 export class CvScene extends ElementBase {
-  static readonly observedAttributes = ['zone', 'sequence', 'stack', 'covered'];
+  static readonly observedAttributes = ['zone', 'sequence', 'stack', 'covered', 'track'];
 
   stage: CvStage | null = null;
   animates = new Set<CvAnimate>();
@@ -21,6 +23,13 @@ export class CvScene extends ElementBase {
   timed: CvAnimate[] = [];
   ordered: CvAnimate[] = [];
   shell: HTMLElement | null = null;
+  /** The row a `track="x"` scene lays its content out in (display: contents otherwise). */
+  track: HTMLElement | null = null;
+  /** How far the row moves (px): its width beyond the scene's, measured at build. */
+  travel = 0;
+  /** Row offset last written; NaN when nothing is written. */
+  private trackX = Number.NaN;
+  private trackRo: ResizeObserver | null = null;
   /** Darkens the scene while the next one covers it (`covered`). */
   veil: HTMLElement | null = null;
   /** `covered`, read at build; null when absent. */
@@ -45,7 +54,11 @@ export class CvScene extends ElementBase {
   nativeGeneration = 0;
 
   get isZone(): boolean {
-    return this.hasAttribute('zone');
+    return this.hasAttribute('zone') || this.isTrack;
+  }
+
+  get isTrack(): boolean {
+    return this.getAttribute('track') === 'x';
   }
 
   get isStacked(): boolean {
@@ -59,7 +72,10 @@ export class CvScene extends ElementBase {
       style.textContent =
         ':host{display:block;position:relative}' +
         '.shell{position:relative;height:100%}' +
-        ':host([zone]) .shell{position:sticky;top:0;height:100svh}' +
+        ':host([zone]) .shell,:host([track=x]) .shell{position:sticky;top:0;height:100svh}' +
+        '.track{display:contents}' +
+        ':host([track=x]) .shell{overflow-x:clip}' +
+        ':host([track=x]) .track{display:flex;width:max-content;height:100%}' +
         '.veil{display:none;position:absolute;inset:0;z-index:2147483647;background:#000;opacity:0;pointer-events:none}' +
         ':host([stack][covered]) .veil{display:block}' +
         // Recede toward the middle of what shows of it: a held scene shows its last screen.
@@ -67,11 +83,16 @@ export class CvScene extends ElementBase {
       const shell = document.createElement('div');
       shell.className = 'shell';
       shell.setAttribute('part', 'shell');
-      shell.append(document.createElement('slot'));
+      const track = document.createElement('div');
+      track.className = 'track';
+      track.setAttribute('part', 'track');
+      track.append(document.createElement('slot'));
+      shell.append(track);
       const veil = document.createElement('div');
       veil.className = 'veil';
       root.append(style, shell, veil);
       this.shell = shell;
+      this.track = track;
       this.veil = veil;
     }
     const stage = this.closest('cv-stage');
@@ -90,8 +111,48 @@ export class CvScene extends ElementBase {
   }
 
   disconnectedCallback(): void {
+    this.watchTrack(false);
     this.stage?.unregisterScene(this);
     this.stage = null;
+  }
+
+  /** The row's width beyond the scene's (layout px); 0 without `track="x"`. Reads layout. */
+  measureTravel(): number {
+    if (!this.isTrack || !this.track || !this.shell) return 0;
+    // Drag skips scenes outside its window (content-visibility): lay this one out to measure it.
+    const skipped = this.style.contentVisibility;
+    this.style.contentVisibility = 'visible';
+    const travel = Math.max(0, this.track.offsetWidth - this.shell.offsetWidth);
+    this.style.contentVisibility = skipped;
+    return travel;
+  }
+
+  /** A new travel (content or viewport width) changes the scene's length: rebuild. */
+  watchTrack(on: boolean): void {
+    if (!on) {
+      this.trackRo?.disconnect();
+      this.trackRo = null;
+      return;
+    }
+    if (this.trackRo || !this.track || !this.shell) return;
+    this.trackRo = new ResizeObserver(() => {
+      if (Math.abs(this.measureTravel() - this.travel) > 0.5) this.stage?.invalidate();
+    });
+    this.trackRo.observe(this.track);
+    this.trackRo.observe(this.shell);
+  }
+
+  /** The row at scene time t: 1 px per ms to the left until its end meets the scene's end. */
+  writeTrack(t: number): void {
+    const x = -Math.min(Math.max(t, 0), this.travel);
+    if (x === this.trackX) return;
+    this.trackX = x;
+    this.track!.style.translate = x ? `${x}px 0` : '';
+  }
+
+  clearTrack(): void {
+    this.trackX = Number.NaN;
+    this.track?.style.removeProperty('translate');
   }
 
   registerAnimate(a: CvAnimate): void {
@@ -106,7 +167,7 @@ export class CvScene extends ElementBase {
 
   /**
    * Solve the timeline in document order. Drag runs exits on the page travel instead of scene time
-   * (1.x two-track), so they stay off the total there.
+   * (1.x two-track), so they stay off the total there. A track lasts at least its travel.
    */
   solve(exitsOnTimeline: boolean): Array<{ error: TimeError; element: Element }> {
     this.ordered = [...this.animates].sort((a, b) =>
@@ -116,7 +177,11 @@ export class CvScene extends ElementBase {
     const sequence = this.getAttribute('sequence');
     this.solution = solveScene(
       this.timed.map((a) => a.timeSpec()),
-      { sequence: sequence === null ? null : parseMs(sequence, 0), exitsOnTimeline }
+      {
+        sequence: sequence === null ? null : parseMs(sequence, 0),
+        exitsOnTimeline,
+        span: this.travel,
+      }
     );
     for (const a of this.ordered) a.solved = null;
     this.timed.forEach((a, i) => {

@@ -42,6 +42,8 @@ export interface SolveOptions {
    * on the departure (page travel) instead, so the total is the entrance total (1.x two-track).
    */
   exitsOnTimeline?: boolean;
+  /** The scene lasts at least this long (a `track="x"` scene: its travel, 1 px per ms). */
+  span?: number;
 }
 
 export interface Solved {
@@ -280,7 +282,7 @@ export function solveScene(specs: readonly TimeSpec[], options: SolveOptions = {
     };
     for (let i = 0; i < n; i++) resolve(i);
 
-    total = 0;
+    total = nonNegative(options.span ?? 0);
     const before = invalidAt.size;
     for (const e of extents) {
       for (const t of e) {

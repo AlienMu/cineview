@@ -345,6 +345,10 @@ export class CvStage extends ElementBase implements CvStageElement {
       for (const a of scene.animates) {
         a.build(a.plan({ timeSource, reducedMotion }, (m, code) => this.report(m, a, code)));
       }
+      const track = scene.getAttribute('track');
+      if (track !== null && !scene.isTrack) this.report(`track="${track}": expected x`, scene);
+      scene.travel = scene.measureTravel();
+      scene.watchTrack(scene.isTrack);
       for (const { error, element } of scene.solve(input === 'scroll')) {
         this.report(error.message, element, error.code);
       }

@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>track fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{min-height:100vh}
+  #p{background:#eee} #t{background:#d8e8f0} #u{background:#f0e0d0} #v{background:#e0f0d8} #w,#n{background:#ddd}
+  .panel{flex:none;width:400px;border:1px solid #333;background:#7a9}
+  #u .panel{width:300px;background:#a97}
+  #n .panel{width:200px}
+</style></head>
+<body>
+<script type="module">
+  // P2.5 track="x": t moves its 1200px row over 800px of zone time (an `at` element is placed on
+  // that length); u is a stacked track whose elements run longer than its row; w has an unreadable
+  // track, n a row with nothing to move (?drag, ?fallback).
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="p"><div style="height:800px"></div></cv-scene>
+    <cv-scene id="t" track="x">
+      <section class="panel" id="t0"></section>
+      <section class="panel" id="t1"><cv-animate id="ta" fx="fade" at="50% 75%" ease="linear"><p>at</p></cv-animate></section>
+      <section class="panel" id="t2"></section>
+    </cv-scene>
+    <cv-scene id="u" track="x" stack>
+      <section class="panel" id="u0"><cv-animate id="ua" fx="fade" duration="1200" ease="linear"><p>long</p></cv-animate></section>
+      <section class="panel" id="u1"></section>
+      <section class="panel" id="u2"></section>
+      <section class="panel" id="u3"></section>
+    </cv-scene>
+    <cv-scene id="v"><div style="height:800px"></div></cv-scene>
+    <cv-scene id="w" track="y"><div style="height:800px"></div></cv-scene>
+    <cv-scene id="n" track="x"><section class="panel"></section></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => { window.warnings.push(String(args[0])); warn(...args); };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

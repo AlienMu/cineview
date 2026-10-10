@@ -1,7 +1,8 @@
 /**
  * Scroll input: the document scrolls natively; zones turn scroll distance into scene time
- * (1 px = 1 ms), `view` sources follow each subject through the viewport, and stacked scenes
- * stick until the next scene covers them (dimming or receding meanwhile with `covered`).
+ * (1 px = 1 ms), `view` sources follow each subject through the viewport, stacked scenes stick
+ * until the next scene covers them (dimming or receding meanwhile with `covered`), and `track`
+ * rows move sideways on zone time.
  *
  * Output is hybrid (phase-0 measurement): compositor-eligible layers run as native scroll-driven
  * animations where supported, everything else is written directly once per frame. Geometry is
@@ -88,6 +89,8 @@ export class ScrollInput implements InputEngine {
   private covers: Array<{ s: CvScene; next: CvScene; look: CoverLook; natives: Animation[] }> = [];
   /** <cv-stack> decks: sticking ones follow the scroll offset, dealt ones (zones) zone time. */
   private decks: Array<{ s: CvScene; k: CvStack }> = [];
+  /** `track="x"` scenes with a row to move; native: one scroll-driven animation each. */
+  private tracks: Array<{ s: CvScene; native: Animation | null }> = [];
 
   constructor(stage: CvStage) {
     this.stage = stage;
@@ -119,6 +122,7 @@ export class ScrollInput implements InputEngine {
     }
     for (const s of this.scenes) {
       for (const a of s.ordered) if (isDeck(a)) this.decks.push({ s, k: a });
+      if (s.isTrack && s.travel > 0) this.tracks.push({ s, native: null });
     }
     this.refresh();
     if (this.native) this.startNative();
@@ -187,6 +191,10 @@ export class ScrollInput implements InputEngine {
       clearCover(c.s, c.s.veil!);
     }
     for (const { k } of this.decks) k.clearWrites();
+    for (const track of this.tracks) {
+      track.native?.cancel();
+      track.s.clearTrack();
+    }
   }
 
   refresh(): void {
@@ -275,6 +283,7 @@ export class ScrollInput implements InputEngine {
       this.enter.size > 0 ||
       this.covers.some((c) => !c.natives.length) ||
       this.decks.some(({ k }) => k.dealt || k.followsScroll) ||
+      this.tracks.some((track) => !track.native) ||
       this.scenes.some((s) =>
         s.ordered.some(
           (a) =>
@@ -380,7 +389,13 @@ export class ScrollInput implements InputEngine {
       if (!isNear(s) || s.covered || !(k.dealt || k.followsScroll)) continue;
       decks.push({ k, at: k.dealt ? Math.min(Math.max(y - s.docTop, 0), s.solution.total) : y });
     }
+    const rows: Array<{ s: CvScene; t: number }> = [];
+    for (const { s, native } of this.tracks) {
+      if (native || !isNear(s) || s.covered) continue;
+      rows.push({ s, t: Math.min(Math.max(y - s.docTop, 0), s.solution.total) });
+    }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
+    for (const { s, t } of rows) s.writeTrack(t);
     for (const { k, at } of decks) {
       if (k.dealt) k.writeTime(at);
       else k.writeScroll(at);
@@ -489,6 +504,25 @@ export class ScrollInput implements InputEngine {
       } as KeyframeAnimationOptions;
       c.natives.push(c.s.veil!.animate(frames.veil, options));
       if (frames.host) c.natives.push(c.s.animate(frames.host, options));
+    }
+    // Track rows: the row moves over the first `travel` px of its zone, then stays. One animation
+    // per track scene, outside the budget; the direct value holds until it takes effect.
+    const y = window.scrollY;
+    for (const track of this.tracks) {
+      const { s } = track;
+      const total = s.solution.total;
+      const end = `${-s.travel}px 0px`;
+      const frames: Keyframe[] = [{ offset: 0, translate: '0px 0px' }];
+      if (s.travel < total) frames.push({ offset: s.travel / total, translate: end });
+      frames.push({ offset: 1, translate: end });
+      s.writeTrack(Math.min(Math.max(y - s.docTop, 0), total));
+      track.native = s.track!.animate(frames, {
+        timeline: s.timeline,
+        rangeStart: 'contain 0%',
+        rangeEnd: 'contain 100%',
+        fill: 'both',
+        easing: 'linear',
+      } as KeyframeAnimationOptions);
     }
     this.nativeIo = new IntersectionObserver(
       (entries) => {
