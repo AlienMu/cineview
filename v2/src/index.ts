@@ -4,6 +4,7 @@ import { bootCss, captureBoot, HEAD_SNIPPET } from './boot';
 import { isBrowser } from './platform';
 import type {
   CvAnimateElement,
+  CvFixedElement,
   CvPauseElement,
   CvSceneElement,
   CvStackElement,
@@ -22,6 +23,7 @@ export const CvStage: CvElementClass<CvStageElement> = elements.CvStage;
 export const CvScene: CvElementClass<CvSceneElement> = elements.CvScene;
 export const CvAnimate: CvElementClass<CvAnimateElement> = elements.CvAnimate;
 export const CvStack: CvElementClass<CvStackElement> = elements.CvStack;
+export const CvFixed: CvElementClass<CvFixedElement> = elements.CvFixed;
 export const CvVideo: CvElementClass<CvVideoElement> = elements.CvVideo;
 export const CvPause: CvElementClass<CvPauseElement> = elements.CvPause;
 
@@ -35,6 +37,7 @@ export type {
   CvDragStartDetail,
   CvErrorDetail,
   CvEventMap,
+  CvFixedElement,
   CvPauseElement,
   CvProgressDetail,
   CvSceneChangeDetail,

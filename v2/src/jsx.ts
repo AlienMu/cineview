@@ -16,6 +16,7 @@ import type { DetailedHTMLProps, HTMLAttributes } from 'react';
 import type {
   CvAnimateElement,
   CvEventMap,
+  CvFixedElement,
   CvPauseElement,
   CvSceneElement,
   CvStackElement,
@@ -121,6 +122,7 @@ declare module 'react' {
       'cv-scene': CvProps<CvSceneElement, CvSceneAttributes>;
       'cv-animate': CvProps<CvAnimateElement, CvAnimateAttributes>;
       'cv-stack': CvProps<CvStackElement, CvStackAttributes>;
+      'cv-fixed': CvProps<CvFixedElement, object>;
       'cv-video': CvProps<CvVideoElement, CvVideoAttributes>;
       'cv-pause': CvProps<CvPauseElement, CvPauseAttributes>;
     }

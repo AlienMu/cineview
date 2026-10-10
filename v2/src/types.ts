@@ -40,6 +40,9 @@ export interface CvAnimateElement extends HTMLElement {
 /** <cv-stack>: its timeline is the cards' arrival (zones, drag). */
 export type CvStackElement = CvAnimateElement;
 
+/** <cv-fixed>: the scene's fixed layer. */
+export type CvFixedElement = HTMLElement;
+
 export interface CvVideoElement extends CvAnimateElement {
   /** The current <video> node (replaced when the cached copy arrives); null before connection. */
   readonly video: HTMLVideoElement | null;
@@ -120,6 +123,7 @@ declare global {
     'cv-scene': CvSceneElement;
     'cv-animate': CvAnimateElement;
     'cv-stack': CvStackElement;
+    'cv-fixed': CvFixedElement;
     'cv-video': CvVideoElement;
     'cv-pause': CvPauseElement;
   }

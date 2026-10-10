@@ -22,10 +22,11 @@ describe('boot styles', () => {
     expect(css).toContain('cv-failsafe 1ms 4000ms both');
   });
 
-  it('registers --cv-unit and parks drag scenes', () => {
+  it('registers --cv-unit, parks drag scenes and frames fixed layers', () => {
     expect(css).toContain('@property --cv-unit{syntax:"<length>"');
     expect(css).toContain('cv-stage[input=drag]>cv-scene:nth-of-type(2){translate:0 100%}');
     expect(css).toContain(':root{--cv-boot:1}');
+    expect(css).toContain('cv-fixed{display:block;position:absolute;inset:0;overflow:clip');
   });
 
   it('head snippet only marks .cv-js', () => {

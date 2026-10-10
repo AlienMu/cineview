@@ -6,10 +6,10 @@
  * Per element, at plan time (elements/animate.ts): timing attributes on untimed sources, `exit`
  * with a signal source, `stagger` without time-driven effects, properties that `stagger` can only
  * pass on as custom properties, sticky or fixed content inside a layer.
- * Per stage, after a build (checkStage): elements outside their parents, drag scenes taller than
- * the screen (also as each becomes current), in-page links to nothing, `stack` with nothing to
- * cover the scene, `covered` without `stack`, a `track` row with nothing to move. Media: slow
- * seeks (media/driver.ts).
+ * Per stage, after a build (checkStage): elements outside their parents (<cv-fixed> outside a
+ * scene too), drag scenes taller than the screen (also as each becomes current), in-page links to
+ * nothing, `stack` with nothing to cover the scene, `covered` without `stack`, a `track` row with
+ * nothing to move. Media: slow seeks (media/driver.ts).
  */
 import type { LayerPlan } from '../render/layers';
 import { warn } from './warn';
@@ -108,6 +108,11 @@ export function checkStage(stage: CraftStage): void {
   for (const el of document.querySelectorAll('cv-animate, cv-video')) {
     if (!el.parentElement?.closest('cv-scene')) {
       warn(el, `<${el.localName}> outside a <cv-scene> has no timeline and never animates.`);
+    }
+  }
+  for (const el of document.querySelectorAll('cv-fixed')) {
+    if (!el.parentElement?.closest('cv-scene')) {
+      warn(el, '<cv-fixed> holds content within its scene; outside a <cv-scene> it has none.');
     }
   }
   for (const el of document.querySelectorAll('cv-scene')) {

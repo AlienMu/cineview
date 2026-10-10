@@ -98,6 +98,10 @@ export function bootCss(): string {
     // Sentinel the module reads to skip injecting these rules a second time.
     ':root{--cv-boot:1}' +
     'cv-stage,cv-scene,cv-animate{display:block}' +
+    // <cv-fixed> frames the scene from the first frame (its content at the scene's top).
+    'cv-scene{position:relative}' +
+    'cv-fixed{display:block;position:absolute;inset:0;overflow:clip;pointer-events:none}' +
+    'cv-fixed>*{pointer-events:auto}' +
     'cv-stage{--cv-dw:750}' +
     'cv-scene{--cv-unit:calc(min(100cqi,var(--cv-dw) * 1px) / var(--cv-dw))}' +
     'cv-pause{cursor:pointer}' +

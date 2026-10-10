@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fixed fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{min-height:100vh}
+  #a{background:#d8e8f0} #b{background:#f0e0d0} #c{background:#e0d8f0;min-height:0;height:400px} #z{background:#e0f0d8} #e{background:#eee}
+  .badge{height:100px;background:#c33;color:#fff}
+  .low{position:absolute;bottom:0;width:100%}
+</style></head>
+<body>
+<script type="module">
+  // P2.6 <cv-fixed>: a (1600px) holds its layer while it passes, with a button underneath the
+  // frame; b (one screen, little content) brings its layer in with its top edge; c is shorter than
+  // the layer, which it clips; z is a zone (the frame is its one-screen shell); e has a fixed
+  // layer inside <cv-animate>, and one sits outside any scene (?drag).
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}>
+    <cv-scene id="a">
+      <div style="height:300px"></div><button id="under" style="display:block;height:40px;width:200px">under</button><div style="height:1260px"></div>
+      <cv-fixed id="fa"><div class="badge" id="la">A</div><div class="badge low" id="la2">A</div></cv-fixed>
+    </cv-scene>
+    <cv-scene id="b"><div style="height:100px"></div><cv-fixed id="fb"><div class="badge" id="lb">B</div></cv-fixed></cv-scene>
+    <cv-scene id="c"><cv-fixed id="fc"><div class="badge" id="lc">C</div><div class="badge low" id="lc2">C</div></cv-fixed></cv-scene>
+    <cv-scene id="z" zone><cv-animate fx="fade" duration="400"><div>z</div></cv-animate><cv-fixed id="fz"><div class="badge" id="lz">Z</div></cv-fixed></cv-scene>
+    <cv-scene id="e"><cv-animate fx="fade"><cv-fixed><div>nested</div></cv-fixed></cv-animate></cv-scene>
+  </cv-stage>
+  <cv-fixed id="stray"></cv-fixed>`);
+  window.cvErrors = [];
+  window.warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => { window.warnings.push(String(args[0])); warn(...args); };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

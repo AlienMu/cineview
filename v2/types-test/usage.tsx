@@ -98,6 +98,11 @@ export const view = (
       <section />
       <section />
     </cv-scene>
+    <cv-scene>
+      <cv-fixed className="hud">
+        <nav />
+      </cv-fixed>
+    </cv-scene>
     <cv-scene stack covered="recede">
       <cv-stack step={8} covered="dim" duration={500} ref={(k) => void k?.timeline.progress}>
         <div />

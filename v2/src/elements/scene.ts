@@ -71,8 +71,9 @@ export class CvScene extends ElementBase {
       const style = document.createElement('style');
       style.textContent =
         ':host{display:block;position:relative}' +
-        '.shell{position:relative;height:100%}' +
-        ':host([zone]) .shell,:host([track=x]) .shell{position:sticky;top:0;height:100svh}' +
+        // The shell is as tall as the scene (a <cv-fixed> frame covers it), a zone's one screen.
+        '.shell{position:relative;height:100%;min-height:inherit}' +
+        ':host([zone]) .shell,:host([track=x]) .shell{position:sticky;top:0;height:100svh;min-height:0}' +
         '.track{display:contents}' +
         ':host([track=x]) .shell{overflow-x:clip}' +
         ':host([track=x]) .track{display:flex;width:max-content;height:100%}' +
