@@ -70,6 +70,14 @@ export const NO_CLIP: Clip = [0, 0, 0, 0];
 
 export const identityFrame = (): Frame => ({ ...IDENTITY, clip: null, vars: new Map() });
 
+/** A frame that leaves the element as it is (custom properties aside). */
+export function isRest(frame: Frame): boolean {
+  for (const key in IDENTITY) {
+    if (frame[key as NumericProp] !== IDENTITY[key as NumericProp]) return false;
+  }
+  return !frame.clip || frame.clip.every((v) => v === 0);
+}
+
 // Per-frame paths (direct writes run these per layer per frame): named fields, no keyed access.
 // Additive: x y xp yp rotate rx ry skx sky blur; multiplicative: scale sx sy opacity.
 export function resetFrame(frame: Frame): void {

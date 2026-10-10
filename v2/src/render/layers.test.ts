@@ -1,8 +1,10 @@
-import { parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import { evaluate, parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import { identityFrame, isRest } from '../core/props';
 import { solveScene } from '../core/time';
 import {
   assignWindows,
   buildLayers,
+  buildPieceLayers,
   buildTargetLayers,
   clearLayer,
   compositorLayer,
@@ -142,5 +144,58 @@ describe('stagger targets', () => {
     expect(style.opacity).not.toBe('');
     clearLayer(layers[0]!);
     expect(children[0]!.getAttribute('style') ?? '').toBe('');
+  });
+});
+
+describe('split pieces', () => {
+  const pieces = (n: number): HTMLElement[] =>
+    Array.from({ length: n }, () => document.createElement('span'));
+
+  it('gives progress-driven pieces overlapping windows of five units, one apart (lexicon #10)', () => {
+    const [plan] = planLayers(groups([['view', fx('fade')]]), 'scene');
+    const els = pieces(6);
+    const layers = buildPieceLayers(els, [plan!], false);
+    // n = 6: a unit is 1/10; piece k spans [k, k + 5] units.
+    expect(layers.map((l) => l.effects[0]!.range.map((v) => Math.round(v * 100)))).toEqual(
+      [0, 1, 2, 3, 4, 5].map((k) => [k * 10, (k + 5) * 10])
+    );
+    expect(layers.every((l) => l.piece && !compositorLayer(l))).toBe(true);
+    writeLayer(layers[2]!, 0.3, 0);
+    expect(Number(els[2]!.style.opacity)).toBeGreaterThan(0);
+    expect(Number(els[2]!.style.opacity)).toBeLessThan(1);
+    writeLayer(layers[5]!, 0.3, 0);
+    expect(els[5]!.style.opacity).toBe('0');
+  });
+
+  it('makes time-driven pieces stagger items, with the effect origin on each piece', () => {
+    const plan = {
+      ...planLayers(groups([['scene', fx('rise(line)')]]), 'scene')[0]!,
+      select: 'all' as const,
+    };
+    const els = pieces(3);
+    const layers = buildPieceLayers(els, [plan], true);
+    expect(layers.map((l) => l.item)).toEqual([0, 1, 2]);
+    expect(els.every((el) => el.style.transformOrigin === 'left bottom')).toBe(true);
+    let seen = -1;
+    layers[0]!.watch = (p) => (seen = p);
+    writeLayer(layers[0]!, 0.25, 0);
+    expect(seen).toBe(0.25);
+  });
+
+  it('knows which end states leave the text as it is', () => {
+    const end = identityFrame();
+    expect(isRest(end)).toBe(true);
+    for (const [text, rest] of [
+      ['rise(line)', true],
+      ['fade', true],
+      ['wipe', true],
+      ['drift', false],
+    ] as const) {
+      const frame = identityFrame();
+      for (const e of fx(text)) {
+        evaluate([e], 1, frame, 'all');
+        expect([text, isRest(frame)]).toEqual([text, rest]);
+      }
+    }
   });
 });

@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>split fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  body{font:20px/1.4 Georgia,serif;color:#222}
+  cv-scene{height:100vh;display:block;padding:40px 20px}
+  cv-animate{display:block;width:260px;margin-bottom:24px}
+  p{margin:0}
+  .grad{background:linear-gradient(90deg,#c33,#33c);-webkit-background-clip:text;background-clip:text;color:transparent}
+</style></head>
+<body>
+<script type="module">
+  // P3.4 split text (lexicon #10 word scrub, #32 split reveal): lines rising on entrance (a, d);
+  // words on view (b: Latin, CJK with punctuation, gradient; exits stay whole); words on a zone's
+  // time (c); refusals (d); words on page progress, re-measuring triggers (e). ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a">
+      <cv-animate id="ln" split="lines" fx="rise(line)"><p>Lines rise out of the page one after another, each a beat behind.</p></cv-animate>
+    </cv-scene>
+    <cv-scene id="b">
+      <cv-animate id="wd" split="words" on="view(self)" fx="fade" ease="linear"><p>Word by word the sentence lights as you read on, <em>left</em> to right.</p></cv-animate>
+      <cv-animate id="zh" lang="zh" split="words" on="view(self)" fx="fade" ease="linear"><p>「你好」，世界。这是一段中文，用来检查标点（括号）不会单独成块。</p></cv-animate>
+      <cv-animate id="gr" split="words" on="view(self)" fx="fade" ease="linear"><p class="grad">Gradient words keep their colours.</p></cv-animate>
+      <cv-animate id="ex" split="words" fx="fade" exit="fade" duration="400"><p>Exits stay whole.</p></cv-animate>
+    </cv-scene>
+    <cv-scene id="c" zone>
+      <cv-animate id="zw" split="words" fx="fade" duration="600" ease="linear"><p>one two three four five six</p></cv-animate>
+    </cv-scene>
+    <cv-scene id="d">
+      <cv-animate id="fimg" split="words" on="view(self)" fx="fade"><p>Look <svg width="10" height="10"></svg> here</p></cv-animate>
+      <cv-animate id="fdec" split="words" on="view(self)" fx="fade"><p style="text-decoration:underline">Underlined words</p></cv-animate>
+      <div style="rotate:8deg"><cv-animate id="frot" split="words" on="view(self)" fx="fade"><p>Rotated words</p></cv-animate></div>
+      <cv-animate id="frtl" dir="rtl" split="words" on="view(self)" fx="fade"><p>Right to left</p></cv-animate>
+      <cv-animate id="fbad" split="letters" fx="fade"><p>Letters</p></cv-animate>
+      <cv-animate id="fnone" split="words"><p>No effects</p></cv-animate>
+      <cv-animate id="ln2" split="lines" fx="rise(line)" stagger="200"><p>Two lines with a slower beat between them.</p></cv-animate>
+    </cv-scene>
+    <cv-scene id="e">
+      <cv-animate id="pg" split="words" on="page" fx="fade" ease="linear"><p>The whole page lights these words.</p></cv-animate>
+      <cv-animate id="ft" split="words" on="view(self)" fx="fade" style="width:360px"><p>Short line</p></cv-animate>
+      <cv-animate id="pl" split="lines" on="page" fx="rise(line)"><p>Lines that follow the page come up as it ends.</p></cv-animate>
+    </cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.cvWarnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => {
+    window.cvWarnings.push(`${args[0]} #${args[1]?.id ?? ''}`);
+    warn.apply(console, args);
+  };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

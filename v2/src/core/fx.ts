@@ -13,7 +13,7 @@
  * duration) so a short name gives a finished result. Raw values go through `from` / `to`; reusable
  * custom presets through `defineEffect()`.
  */
-import { easeInOut, linear, pan, parseEase, settle, type Ease } from './ease';
+import { cubicBezier, easeInOut, linear, pan, parseEase, settle, type Ease } from './ease';
 import type { Report } from './errors';
 import {
   applyTrack,
@@ -218,8 +218,18 @@ function scaleArg(
 
 presets.set('fade', () => makeEffect({ tracks: { opacity: [0, 1] }, duration: 600 }));
 
-// Lexicon #32: lines come up 40px and settle.
+// Lexicon #32: lines come up 40px and settle. `rise(line)`: a split line rises out of its clip,
+// 105% of its height and tilted 2.5deg about its bottom-left corner.
+const LINE_EASE = cubicBezier(0.19, 0.8, 0.22, 1);
 presets.set('rise', (args, report) => {
+  if (args[0] === 'line') {
+    return makeEffect({
+      tracks: { yp: [105, 0], rotate: [2.5, 0] },
+      ease: LINE_EASE,
+      origin: 'left bottom',
+      duration: 950,
+    });
+  }
   const a = amount(args[0], { soft: 20, normal: 40, strong: 80 }, report, 'rise', ['', 'px', '%']);
   const track: Prop = a.unit === '%' ? 'yp' : 'y';
   return makeEffect({ tracks: { opacity: [0, 1], [track]: [a.value, 0] }, duration: 950 });

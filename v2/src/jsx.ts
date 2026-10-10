@@ -78,6 +78,8 @@ export interface CvAnimateAttributes {
   after?: string;
   at?: string;
   stagger?: Flag | Num;
+  /** Animate the text word by word or line by line, on a measured copy. */
+  split?: 'words' | 'lines';
   target?: string;
   loop?: string;
   'loop-duration'?: Num;

@@ -13,6 +13,9 @@
  * Target layers are author elements themselves (stagger children). On those the framework writes
  * only translate, rotate, scale and opacity, which compose with the author's own `transform`;
  * anything else reaches them as `--cv-filter`, `--cv-clip-path` and `--cv-transform` (§5, F13).
+ *
+ * Piece layers are the words or lines of split text (text/split.ts): elements of the copy in the
+ * shadow root, so every track is written on them, always on the main thread.
  */
 import {
   evaluate,
@@ -88,8 +91,12 @@ export interface Layer {
   el: HTMLElement | SVGElement;
   /** An author element (stagger child) rather than a shadow layer. */
   target: boolean;
-  /** Index among the element's stagger targets; -1 otherwise. */
+  /** A word or line of split text. */
+  piece: boolean;
+  /** Index among the element's stagger targets or split pieces; -1 otherwise. */
   item: number;
+  /** Told the progress of every direct write (split text follows its first piece). */
+  watch: ((p: number) => void) | null;
   /** Time layers: window on the scene timeline, assigned after the scene is solved. */
   window: Window | null;
   used: Set<Prop>;
@@ -180,13 +187,16 @@ function makeLayer(
   plan: LayerPlan,
   el: HTMLElement | SVGElement,
   target: boolean,
-  item: number
+  item: number,
+  piece = false
 ): Layer {
   return {
     ...plan,
     el,
     target,
+    piece,
     item,
+    watch: null,
     window: null,
     used: new Set<Prop>([
       ...usedProps(plan.effects, plan.select),
@@ -231,6 +241,38 @@ export function buildTargetLayers(
   plan: LayerPlan
 ): Layer[] {
   return targets.map((el, item) => makeLayer({ ...plan, select: 'all' }, el, true, item));
+}
+
+/**
+ * Layers for split text pieces, every track on each. On a time source each piece is an item of the
+ * solved stagger (assignWindows); on others piece k takes [k s, (k + 5) s] of the element's
+ * progress, s = 1 / (n + 4), so each overlaps the four after it (lexicon #10: a word's window is
+ * five units, one unit apart; too little overlap blinks word by word, too much lights the line at
+ * once).
+ */
+export function buildPieceLayers(
+  pieces: readonly HTMLElement[],
+  plans: readonly LayerPlan[],
+  timed: boolean
+): Layer[] {
+  const n = pieces.length;
+  const s = 1 / (n + 4);
+  const layers: Layer[] = [];
+  for (const plan of plans) {
+    const origin = plan.effects.find((e) => e.origin)?.origin;
+    pieces.forEach((el, k) => {
+      if (origin) el.style.transformOrigin = origin;
+      const [from, to] = timed ? [0, 1] : [k * s, (k + 5) * s];
+      const effects = timed
+        ? plan.effects
+        : plan.effects.map((e) => ({
+            ...e,
+            range: [from + e.range[0] * (to - from), from + e.range[1] * (to - from)] as const,
+          }));
+      layers.push(makeLayer({ ...plan, effects, select: 'all' }, el, false, k, true));
+    });
+  }
+  return layers;
 }
 
 /** Assign windows to time layers from the element's solved window; stagger children get their slice. */
@@ -290,6 +332,7 @@ export function layerCss(layer: Layer, frame: Frame): Record<string, string> {
 
 /** Direct style write (drag input and the scroll main-thread path). Skips unchanged values. */
 export function writeLayer(layer: Layer, p: number, px: number, mirror = false): void {
+  layer.watch?.(p);
   const css = layerCss(layer, evaluateLayer(layer, p, px, mirror));
   const style = layer.el.style;
   for (const key in css) {
@@ -313,10 +356,11 @@ export function clearLayer(layer: Layer): void {
 
 /**
  * Whether a scroll-driven animation can carry the layer off the main thread: transform and opacity
- * only. Custom properties are main-thread values and step between keyframes unless registered.
+ * only. Custom properties are main-thread values and step between keyframes unless registered;
+ * split pieces each run over a narrow window that a dozen samples would not draw.
  */
 export const compositorLayer = (layer: Layer): boolean =>
-  compositorEligible(layer.used) && layer.vars.size === 0;
+  !layer.piece && compositorEligible(layer.used) && layer.vars.size === 0;
 
 /**
  * Keyframe samples for a clock-played layer of `duration` ms. An unregistered custom property

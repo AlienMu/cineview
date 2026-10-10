@@ -13,6 +13,7 @@ import { ScrollInput } from '../input/scroll';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
 import { Clock } from '../render/clock';
 import { parseCovered } from '../render/covered';
+import { loadSplit, splitModule } from '../text/load';
 import type { CvStageElement } from '../types';
 import type { CvScene } from './scene';
 
@@ -370,6 +371,16 @@ export class CvStage extends ElementBase implements CvStageElement {
         this.report('<cv-stage> has no <cv-scene>', this, 'empty-stage');
       }
       return;
+    }
+
+    if (
+      !splitModule() &&
+      this.ordered.some((s) => [...s.animates].some((a) => a.hasAttribute('split')))
+    ) {
+      const generation = this.generation;
+      await loadSplit();
+      // A later build (or a disconnect) superseded this one while the chunk loaded.
+      if (generation !== this.generation || !this.isConnected) return;
     }
 
     this.sizeFrame();

@@ -31,6 +31,7 @@ const DISQUALIFY = [
   'after',
   'at',
   'stagger',
+  'split',
   'from',
   'to',
   'on',

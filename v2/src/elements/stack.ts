@@ -91,6 +91,8 @@ export class CvStack extends CvAnimate {
     return {
       layers: [],
       staggered: null,
+      split: null,
+      whole: null,
       timed: this.dealt,
       duration: 600,
       maxDuration: Number.POSITIVE_INFINITY,

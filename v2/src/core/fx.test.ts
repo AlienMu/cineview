@@ -106,6 +106,14 @@ describe('presets', () => {
   it('carries lexicon craft numbers', () => {
     expect(one('rise')[0]!.tracks).toEqual({ opacity: [0, 1], y: [40, 0] });
     expect(one('rise(10%)')[0]!.tracks).toEqual({ opacity: [0, 1], yp: [10, 0] });
+    // Lexicon #32: a split line rises 105% and untilts 2.5deg about its bottom-left corner.
+    const [line] = one('rise(line)');
+    expect(line!.tracks).toEqual({ yp: [105, 0], rotate: [2.5, 0] });
+    expect([line!.origin, line!.duration, line!.ease.css]).toEqual([
+      'left bottom',
+      950,
+      'cubic-bezier(0.19, 0.8, 0.22, 1)',
+    ]);
     expect(one('focus')[0]!.tracks).toEqual({ blur: [4.5, 0], opacity: [0.34, 1] });
     expect(one('wipe')[0]!.tracks.clip).toEqual([
       [0, 100, 0, 0],

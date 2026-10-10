@@ -4,8 +4,17 @@
  */
 import { parseEase } from '../core/ease';
 import type { Report } from '../core/errors';
-import { makeEffect, parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import {
+  evaluate,
+  makeEffect,
+  parseExit,
+  parseFromTo,
+  parseFx,
+  type Effect,
+  type Source,
+} from '../core/fx';
 import { parseLoop, type LoopItem } from '../core/loop';
+import { identityFrame, isRest } from '../core/props';
 import {
   parseAfter,
   parseAt,
@@ -27,6 +36,7 @@ import { ElementBase } from '../platform';
 import type { Clock } from '../render/clock';
 import {
   buildLayers,
+  buildPieceLayers,
   buildTargetLayers,
   clearLayer,
   kindOf,
@@ -35,6 +45,8 @@ import {
   type LayerPlan,
   type Subject,
 } from '../render/layers';
+import { splitModule } from '../text/load';
+import type { SplitUnit, TextSplit } from '../text/split';
 import { CvScene } from './scene';
 import type { CvAnimateElement } from '../types';
 
@@ -56,6 +68,8 @@ const TIMING_ATTRIBUTES = ['duration', 'delay', 'after', 'at', 'stagger'];
 const CLOCK_PLAYED: ReadonlySet<Source> = new Set<Source>(['enter', 'eye', 'clock']);
 /** Reduced motion: a clock-played entrance is at most a short fade (plan v3 §13). */
 const REDUCED_DURATION = 200;
+/** Split text on a time source: ms between pieces unless `stagger` says (lexicon #32: 85 ms a line). */
+const SPLIT_STEP: Readonly<Record<SplitUnit, number>> = { words: 40, lines: 85 };
 
 /**
  * Keep only opacity and custom properties (values, not motion); null when nothing is left (the
@@ -80,10 +94,22 @@ export interface PlanContext {
   reducedMotion: boolean;
 }
 
+/** `split`: effects of one source play on the words or lines of a measured copy (text/split.ts). */
+export interface SplitPlan {
+  unit: SplitUnit;
+  /** A time source: pieces are stagger items. Otherwise windows over the progress. */
+  timed: boolean;
+  /** One plan per named range (view), each with every track. */
+  plans: LayerPlan[];
+}
+
 export interface AnimatePlan {
   layers: LayerPlan[];
   /** Time effects applied to each stagger target instead of the host. */
   staggered: LayerPlan | null;
+  split: SplitPlan | null;
+  /** The layers without `split`: used when the text cannot be split. */
+  whole: LayerPlan[] | null;
   /** Takes part in the scene timeline (counts toward the total, can be an `after` target). */
   timed: boolean;
   /** Longest preset default among time effects; used when `duration` is not set. */
@@ -120,6 +146,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     'after',
     'at',
     'stagger',
+    'split',
     'target',
     'loop',
     'loop-duration',
@@ -139,6 +166,9 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   private run: { kind: 'enter' | 'exit'; start: number; duration: number } | null = null;
   private runRaf = 0;
   layers: Layer[] = [];
+  /** Split text in place (`split`); null when absent or refused. */
+  split: TextSplit | null = null;
+  private splitTimed = false;
   timed = true;
   solved: Solved | null = null;
   natives: Animation[] = [];
@@ -198,7 +228,19 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       at: parseAt(this.getAttribute('at')),
       // 1.x default: 600 ms, counted only when an exit is declared.
       exitDuration: this.exitPlanned ? parseMs(this.getAttribute('exit-duration'), 600) : 0,
-      stagger: stagger && { ...stagger, count: this.staggerTargets().length },
+      stagger:
+        this.splitStagger(stagger) ??
+        (stagger && { ...stagger, count: this.staggerTargets().length }),
+    };
+  }
+
+  /** Split text on a time source: its pieces are the stagger items. */
+  private splitStagger(stagger: ReturnType<typeof parseStagger>): TimeSpec['stagger'] | null {
+    const split = this.split;
+    if (!split || !this.splitTimed) return null;
+    return {
+      ...(stagger ?? { each: SPLIT_STEP[split.unit], from: 'first' }),
+      count: split.pieces.length,
     };
   }
 
@@ -279,9 +321,64 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       }
     }
 
+    // split: one source's effects play on the words or lines of a measured copy (plan v3 §5, F5).
+    const splitText = this.getAttribute('split');
+    const unit = splitText === 'words' || splitText === 'lines' ? splitText : null;
+    if (splitText !== null && !unit) report(`split="${splitText}": expected words or lines`);
+    let split: SplitPlan | null = null;
+    let whole: LayerPlan[] | null = null;
+    const splitSource = on?.source ?? context.timeSource;
+    const splitGroup = unit ? groups.get(splitSource) : undefined;
+    if (unit && reduced) {
+      // Reduced motion: the text shows at once (lexicon #10, #32).
+      if (splitGroup) {
+        splitGroup.effects = [];
+        if (!splitGroup.exits.length) groups.delete(splitSource);
+      }
+    } else if (
+      unit &&
+      splitGroup?.effects.length &&
+      (ON_TIMELINE.has(splitSource) || splitSource === 'view' || splitSource === 'page')
+    ) {
+      const subject = on?.subject ?? 'scene';
+      whole = planLayers(groups, subject, loops.length > 0);
+      const timedSplit = ON_TIMELINE.has(splitSource);
+      const plans: LayerPlan[] = [];
+      const parts = timedSplit
+        ? [
+            {
+              kind: 'time' as const,
+              source: splitSource,
+              subject: 'scene' as const,
+              range: null,
+              effects: splitGroup.effects,
+              exitEffects: [],
+              select: 'all' as const,
+            },
+          ]
+        : planLayers(new Map([[splitSource, { effects: splitGroup.effects, exits: [] }]]), subject);
+      for (const p of parts) {
+        if (!plans.some((q) => q.range === p.range))
+          plans.push({ ...p, exitEffects: [], select: 'all' });
+      }
+      split = { unit, timed: timedSplit, plans };
+      // Exits stay with the whole element.
+      splitGroup.effects = [];
+      if (!splitGroup.exits.length) groups.delete(splitSource);
+    } else if (unit && __DEV__) {
+      warn(this, `split needs effects on a time, view or page source; it has no effect here`);
+    }
+
     // stagger: the time group plays on each target child instead of the host (plan v3 §5, F13).
     let staggered: LayerPlan | null = null;
-    if (this.hasAttribute('stagger')) {
+    if (split) {
+      if (__DEV__ && !split.timed && this.hasAttribute('stagger')) {
+        warn(
+          this,
+          'stagger has no effect on split text that follows the viewport: the words overlap instead'
+        );
+      }
+    } else if (this.hasAttribute('stagger')) {
       const g = groups.get(timeSource);
       if (g && ON_TIMELINE.has(timeSource)) {
         staggered = {
@@ -301,6 +398,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     }
     const sources = [...groups.keys()];
     if (staggered) sources.push(staggered.source);
+    if (split) sources.push(splitSource);
     // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor);
     // a loop alone does not (1.x: loops add no zone distance).
     const timed = sources.length
@@ -318,6 +416,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     let duration: number | null = null;
     const timeEffects = [
       ...(staggered?.effects ?? []),
+      ...(split?.timed ? split.plans.flatMap((p) => p.effects) : []),
       ...sources.flatMap((s) => (ON_TIMELINE.has(s) ? (groups.get(s)?.effects ?? []) : [])),
     ];
     for (const e of timeEffects) {
@@ -326,6 +425,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     return {
       layers: planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0),
       staggered,
+      split,
+      whole,
       timed,
       duration,
       maxDuration: clockPlayed ? REDUCED_DURATION : Number.POSITIVE_INFINITY,
@@ -343,6 +444,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.maxDuration = plan.maxDuration;
     this.exitPlanned = plan.hasExit;
     this.layers = buildLayers(this, plan.layers);
+    if (plan.split) this.mountSplit(plan.split, plan.whole!);
     this.loopLayer = this.layers.find((l) => l.kind === 'loop') ?? null;
     this.loopItems = plan.loops;
     if (plan.staggered) {
@@ -351,8 +453,43 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     if (__DEV__ && plan.layers.length) warnScopedPositioning(this);
   }
 
+  /**
+   * Draw the split copy and its piece layers; text that cannot be split (more than text, rotated,
+   * vertical, right-to-left, decorated) animates as a whole instead.
+   */
+  private mountSplit(plan: SplitPlan, whole: LayerPlan[]): void {
+    const slot = this.shadowRoot!.querySelector('slot')!;
+    // Pieces on a time source are timed with the scene: their number stays until the next build.
+    const rebuild = plan.timed ? null : (): void => this.scene?.stage?.invalidate();
+    // The stage loads the module before building; without it (not yet loaded) the text stays whole.
+    const mod = splitModule();
+    const split = mod && new mod.TextSplit(this, slot, plan.unit, rebuild);
+    const refused = split ? split.mount() : 'it is still loading';
+    if (!split || refused) {
+      split?.destroy();
+      if (__DEV__) warn(this, `split="${plan.unit}": ${refused}; the text animates as a whole`);
+      this.layers = buildLayers(this, whole);
+      return;
+    }
+    const end = identityFrame();
+    split.atRest = plan.plans.every((p) => {
+      evaluate(p.effects, 1, end, 'all');
+      return isRest(end);
+    });
+    const pieces = buildPieceLayers(split.pieces, plan.plans, plan.timed);
+    if (!plan.timed && pieces[0]) pieces[0].watch = (p): void => split.progress(p);
+    this.layers.push(...pieces);
+    this.split = split;
+    this.splitTimed = plan.timed;
+    // Inputs announce the phase again for the new copy.
+    this.shownPhase = null;
+  }
+
   /** The scene entered (true) or left (false) the activation window. */
-  activated(_on: boolean): void {}
+  activated(on: boolean): void {
+    // Fonts or sizes may have changed while it was away.
+    if (on) this.split?.schedule();
+  }
 
   /**
    * The element whose passage drives a view layer: the scene, this element, or the element of the
@@ -423,6 +560,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   showPhase(phase: TimelinePhase | 'waiting'): void {
     if (phase === this.shownPhase) return;
     this.shownPhase = phase;
+    if (this.splitTimed) this.split?.phase(phase);
     this.setAttribute('data-cv-phase', phase);
   }
 
@@ -518,6 +656,9 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   release(): void {
     this.stopLoops();
     this.cancelNatives();
+    this.split?.destroy();
+    this.split = null;
+    this.splitTimed = false;
     for (const l of this.layers) {
       l.native = null;
       if (l.target) clearLayer(l);
