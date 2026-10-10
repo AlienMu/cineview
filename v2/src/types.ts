@@ -37,6 +37,9 @@ export interface CvAnimateElement extends HTMLElement {
   readonly timeline: CvTimeline;
 }
 
+/** <cv-stack>: its timeline is the cards' arrival (zones, drag). */
+export type CvStackElement = CvAnimateElement;
+
 export interface CvVideoElement extends CvAnimateElement {
   /** The current <video> node (replaced when the cached copy arrives); null before connection. */
   readonly video: HTMLVideoElement | null;
@@ -116,6 +119,7 @@ declare global {
     'cv-stage': CvStageElement;
     'cv-scene': CvSceneElement;
     'cv-animate': CvAnimateElement;
+    'cv-stack': CvStackElement;
     'cv-video': CvVideoElement;
     'cv-pause': CvPauseElement;
   }

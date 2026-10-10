@@ -94,11 +94,19 @@ export const view = (
       </cv-animate>
       <cv-video src="a.mp4" range="0 3.2" preload="none" ref={(v) => void v?.timeline} />
     </cv-scene>
+    <cv-scene stack covered="recede">
+      <cv-stack step={8} covered="dim" duration={500} ref={(k) => void k?.timeline.progress}>
+        <div />
+        <div />
+      </cv-stack>
+    </cv-scene>
     <cv-pause for="s">Pause</cv-pause>
   </cv-stage>
 );
 // @ts-expect-error unknown input
 export const wrongInput = <cv-stage input="sideways" />;
+// @ts-expect-error covered is dim or recede
+export const wrongCovered = <cv-stack covered="fade" />;
 // @ts-expect-error handlers get the event's detail type
 export const wrongHandler = <cv-scene oncv-enter={(e: CustomEvent<number>) => e.detail} />;
 

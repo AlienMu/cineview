@@ -29,6 +29,7 @@ const PROBES = [
   'view',
   'stack',
   'covered',
+  'deck',
 ];
 const args = process.argv.slice(2);
 const engines = args.filter((a) => !a.startsWith('--'));

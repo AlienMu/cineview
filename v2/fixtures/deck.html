@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>deck fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{min-height:100vh}
+  #a{background:#d8e8f0} #b{background:#f0e0d0} #z{background:#e0f0d8} #e{background:#eee}
+  .card{display:block;height:400px;background:#7a9;border:1px solid #333}
+  #z .card{height:300px}
+  .pad{height:200px}
+</style></head>
+<body>
+<script type="module">
+  // P2.4 <cv-stack>: a sticks with step 0 (covered cards are hidden) and dims, b sticks 10px apart
+  // under a 40px top and recedes, zone z deals its cards along zone time; e has an unreadable step
+  // and a stack inside <cv-animate> (?drag: every deck is dealt; ?fallback).
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  const cards = (id) => [0, 1, 2].map((i) => `<div class="card" id="${id}${i}"></div>`).join('');
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a"><div class="pad"></div><cv-stack id="ka" covered="dim">${cards('a')}</cv-stack><div class="pad"></div></cv-scene>
+    <cv-scene id="b"><cv-stack id="kb" step="10" covered="recede" style="--cv-stack-top:40px">${cards('b')}</cv-stack><div class="pad"></div></cv-scene>
+    <cv-scene id="z" zone><cv-stack id="kz" step="8" duration="400" covered="dim" ease="linear">${cards('z')}</cv-stack></cv-scene>
+    <cv-scene id="e">
+      <cv-stack id="ke" step="x"><div></div><div></div></cv-stack>
+      <cv-animate fx="fade"><cv-stack><div></div><div></div></cv-stack></cv-animate>
+    </cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => { window.warnings.push(String(args[0])); warn(...args); };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

@@ -15,6 +15,7 @@
 import { cubicBezier } from '../core/ease';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
+import type { CvStack } from '../elements/stack';
 import type { CvStage } from '../elements/stage';
 import type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
 import { viewProgress } from '../core/view';
@@ -248,6 +249,8 @@ class DragInput implements DragEngine {
     for (const s of this.scenes) {
       const base = s.getBoundingClientRect().top;
       for (const a of s.ordered) {
+        // <cv-stack>: cards come up from the screen's bottom edge to their slots.
+        if (isDeck(a)) a.measureDealt(base, this.vh);
         for (const l of a.layers) {
           if (l.source !== 'view' || l.subject === 'scene') continue;
           const subject = a.viewSubject(l);
@@ -272,7 +275,10 @@ class DragInput implements DragEngine {
     window.removeEventListener('pointercancel', this.onCancel);
     window.removeEventListener('resize', this.onResize);
     for (const s of this.scenes) {
-      for (const a of s.ordered) a.stopLoops();
+      for (const a of s.ordered) {
+        a.stopLoops();
+        if (isDeck(a)) a.clearWrites();
+      }
       this.cover(s, false);
       if (s.cover) clearCover(s, s.veil!);
       s.coverProgress = Number.NaN;
@@ -774,6 +780,11 @@ class DragInput implements DragEngine {
       }
       if (this.inWindow[i] !== inWindow) {
         this.inWindow[i] = inWindow;
+        // Content outside the window is not laid out (content-visibility): measure decks now.
+        if (inWindow) {
+          const top = s.getBoundingClientRect().top;
+          for (const a of s.ordered) if (isDeck(a)) a.measureDealt(top, this.vh);
+        }
         s.active = inWindow;
         for (const a of s.ordered) a.activated(inWindow);
         s.dispatchEvent(
@@ -805,6 +816,7 @@ class DragInput implements DragEngine {
       if (t > 0) this.departed.delete(i);
       for (const a of s.ordered) {
         this.writeAnimate(a, t, offset, departure, side);
+        if (isDeck(a)) a.writeTime(t);
         if (a.timed) {
           if (a.subscribed) a.sendFrame(this.frameFor(a, i, t, travel));
           else a.showPhase(this.phaseFor(a, i, t, travel));
@@ -913,3 +925,5 @@ class DragInput implements DragEngine {
     }
   }
 }
+
+const isDeck = (a: CvAnimate): a is CvStack => a.localName === 'cv-stack';

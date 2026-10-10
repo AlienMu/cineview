@@ -18,6 +18,7 @@ import type {
   CvEventMap,
   CvPauseElement,
   CvSceneElement,
+  CvStackElement,
   CvStageElement,
   CvVideoElement,
 } from './types';
@@ -79,6 +80,20 @@ export interface CvAnimateAttributes {
   replay?: Flag;
 }
 
+export interface CvStackAttributes {
+  /** px between the cards' tops on the deck. */
+  step?: Num;
+  /** How a card looks while the next one covers it. */
+  covered?: 'dim' | 'recede';
+  /** Each card's arrival (zones, drag). */
+  duration?: Num;
+  delay?: Num;
+  after?: string;
+  name?: string;
+  at?: string;
+  ease?: string;
+}
+
 export interface CvVideoAttributes extends CvAnimateAttributes {
   src?: string;
   /** Seconds, `from to`. */
@@ -103,6 +118,7 @@ declare module 'react' {
       'cv-stage': CvProps<CvStageElement, CvStageAttributes>;
       'cv-scene': CvProps<CvSceneElement, CvSceneAttributes>;
       'cv-animate': CvProps<CvAnimateElement, CvAnimateAttributes>;
+      'cv-stack': CvProps<CvStackElement, CvStackAttributes>;
       'cv-video': CvProps<CvVideoElement, CvVideoAttributes>;
       'cv-pause': CvProps<CvPauseElement, CvPauseAttributes>;
     }

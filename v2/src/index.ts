@@ -6,6 +6,7 @@ import type {
   CvAnimateElement,
   CvPauseElement,
   CvSceneElement,
+  CvStackElement,
   CvStageElement,
   CvVideoElement,
 } from './types';
@@ -20,6 +21,7 @@ export interface CvElementClass<T extends HTMLElement> {
 export const CvStage: CvElementClass<CvStageElement> = elements.CvStage;
 export const CvScene: CvElementClass<CvSceneElement> = elements.CvScene;
 export const CvAnimate: CvElementClass<CvAnimateElement> = elements.CvAnimate;
+export const CvStack: CvElementClass<CvStackElement> = elements.CvStack;
 export const CvVideo: CvElementClass<CvVideoElement> = elements.CvVideo;
 export const CvPause: CvElementClass<CvPauseElement> = elements.CvPause;
 
@@ -37,6 +39,7 @@ export type {
   CvProgressDetail,
   CvSceneChangeDetail,
   CvSceneElement,
+  CvStackElement,
   CvStageElement,
   CvTimeline,
   CvTimeoutDetail,

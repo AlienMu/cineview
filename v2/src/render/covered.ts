@@ -2,7 +2,8 @@
  * Scene `covered` (plan v3 §3.2; lexicon #11): how a stacked scene looks while the next scene
  * covers it. The progress is the next scene's entry into the viewport (CSS `entry 0%` to
  * `entry 100%`): 0 while it is below the screen, 1 once it fills it. A veil darkens the scene on
- * that progress; `recede` also scales it back. Both are compositor properties.
+ * that progress; `recede` also scales it back. Both are compositor properties. <cv-stack> cards
+ * take the same looks on the next card's arrival (render/deck.ts).
  */
 import type { Report } from '../core/errors';
 import type { ViewRange } from '../core/view';
@@ -44,6 +45,12 @@ export function parseCovered(
 export function writeCover(host: HTMLElement, veil: HTMLElement, look: CoverLook, p: number): void {
   veil.style.opacity = String(look.veil * p);
   host.style.scale = look.scale === 1 || p === 0 ? '' : String(1 - (1 - look.scale) * p);
+}
+
+/** A <cv-stack> card has no veil of its own: it darkens through its filter. */
+export function writeCardCover(card: HTMLElement | SVGElement, look: CoverLook, p: number): void {
+  card.style.filter = p > 0 ? `brightness(${1 - look.veil * p})` : '';
+  card.style.scale = look.scale === 1 || p === 0 ? '' : String(1 - (1 - look.scale) * p);
 }
 
 export function clearCover(host: HTMLElement, veil: HTMLElement): void {

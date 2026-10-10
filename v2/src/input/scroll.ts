@@ -13,6 +13,7 @@ import type { TimelineFrame, TimelinePhase } from '../core/timeline';
 import { rangeCss, viewProgress } from '../core/view';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
+import type { CvStack } from '../elements/stack';
 import type { CvStage } from '../elements/stage';
 import { blink, platform, whenIdle, type IdleDeadlineLike } from '../platform';
 import type { Clock } from '../render/clock';
@@ -85,6 +86,8 @@ export class ScrollInput implements InputEngine {
   private held = new Set<CvScene>();
   /** Stacked scenes with a `covered` look; natives when the next scene's ViewTimeline drives it. */
   private covers: Array<{ s: CvScene; next: CvScene; look: CoverLook; natives: Animation[] }> = [];
+  /** <cv-stack> decks: sticking ones follow the scroll offset, dealt ones (zones) zone time. */
+  private decks: Array<{ s: CvScene; k: CvStack }> = [];
 
   constructor(stage: CvStage) {
     this.stage = stage;
@@ -113,6 +116,9 @@ export class ScrollInput implements InputEngine {
     });
     for (const { s, next } of this.stacks) {
       if (s.cover) this.covers.push({ s, next, look: s.cover, natives: [] });
+    }
+    for (const s of this.scenes) {
+      for (const a of s.ordered) if (isDeck(a)) this.decks.push({ s, k: a });
     }
     this.refresh();
     if (this.native) this.startNative();
@@ -180,6 +186,7 @@ export class ScrollInput implements InputEngine {
       c.s.coverProgress = Number.NaN;
       clearCover(c.s, c.s.veil!);
     }
+    for (const { k } of this.decks) k.clearWrites();
   }
 
   refresh(): void {
@@ -203,11 +210,17 @@ export class ScrollInput implements InputEngine {
       s.docTop = r.top + y;
       s.height = r.height;
     }
+    for (const { s, k } of this.decks) {
+      if (k.dealt) k.measureDealt(s.shell!.getBoundingClientRect().top, this.vh);
+      else k.measureFlow(y);
+    }
     for (const { s, look } of this.covers) {
       if (look.scale === 1) continue;
       s.style.removeProperty('scale');
       s.coverProgress = Number.NaN;
     }
+    // Whether sticking decks need frames depends on what they measure.
+    this.jsWork = null;
     // Held from the moment its bottom meets the viewport's bottom: a zone once its time has run,
     // a scene taller than the screen once its end arrives, any other at the top.
     for (const { s } of this.stacks) {
@@ -261,6 +274,7 @@ export class ScrollInput implements InputEngine {
     this.jsWork =
       this.enter.size > 0 ||
       this.covers.some((c) => !c.natives.length) ||
+      this.decks.some(({ k }) => k.dealt || k.followsScroll) ||
       this.scenes.some((s) =>
         s.ordered.some(
           (a) =>
@@ -361,7 +375,16 @@ export class ScrollInput implements InputEngine {
       const p = viewProgress(next.docTop - y, next.height, vh, COVER_RANGE);
       if (p !== s.coverProgress) covers.push({ s, look, p });
     }
+    const decks: Array<{ k: CvStack; at: number }> = [];
+    for (const { s, k } of this.decks) {
+      if (!isNear(s) || s.covered || !(k.dealt || k.followsScroll)) continue;
+      decks.push({ k, at: k.dealt ? Math.min(Math.max(y - s.docTop, 0), s.solution.total) : y });
+    }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
+    for (const { k, at } of decks) {
+      if (k.dealt) k.writeTime(at);
+      else k.writeScroll(at);
+    }
     for (const { s, look, p } of covers) {
       s.coverProgress = p;
       writeCover(s, s.veil!, look, p);
@@ -609,6 +632,8 @@ export class ScrollInput implements InputEngine {
     this.enter.link();
   }
 }
+
+const isDeck = (a: CvAnimate): a is CvStack => a.localName === 'cv-stack';
 
 /**
  * A zone's state for the page (1.x onZoneProgress / onZoneEnter / onZoneLeave): `data-cv-stuck`
