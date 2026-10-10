@@ -186,6 +186,7 @@ export class ScrollInput implements InputEngine {
       s.active = false;
       s.covered = false;
       s.removeAttribute('data-cv-covered');
+      s.removeAttribute('data-cv-stuck');
       s.style.visibility = '';
     }
     for (const { s } of this.stacks) {
@@ -452,12 +453,16 @@ export class ScrollInput implements InputEngine {
   }
 
   /**
-   * A stacked scene is covered once the next scene's top reaches the viewport's top: from there on
-   * the next scene and what follows it fill the screen. Covered, it is not painted (plan v3 §8),
-   * which also takes it out of focus and hit testing, and it is deactivated (1.x `covered`).
+   * A stacked scene is held (`data-cv-stuck`, lexicon #18) from where refresh() makes it stick (a
+   * zone from its top: its shell sticks first) until the next scene's top reaches the viewport's
+   * top; from there on it is covered: the next scene and what follows it fill the screen. Covered,
+   * it is not painted (plan v3 §8), which also takes it out of focus and hit testing, and it is
+   * deactivated (1.x `covered`).
    */
   private stackWork(y = window.scrollY): void {
     for (const { s, next } of this.stacks) {
+      const held = s.docTop + (s.isZone ? 0 : Math.max(0, s.height - this.vh));
+      s.toggleAttribute('data-cv-stuck', y > held + 0.5 && y < next.docTop - 0.5);
       const covered = y >= next.docTop - 0.5;
       if (covered === s.covered) continue;
       s.covered = covered;
@@ -707,12 +712,13 @@ const isDeck = (a: CvAnimate): a is CvStack => a.localName === 'cv-stack';
 
 /**
  * A zone's state for the page (1.x onZoneProgress / onZoneEnter / onZoneLeave): `data-cv-stuck`
- * while its shell is pinned and between its ends, and `cv-progress` `{ kind: 'zone', index,
- * progress }` on the scene when it moved more than half a pixel or reached an end.
+ * while its shell is pinned and between its ends (stacked zones: stackWork, held on to the next
+ * scene), and `cv-progress` `{ kind: 'zone', index, progress }` on the scene when it moved more
+ * than half a pixel or reached an end.
  */
 function reportZone(s: CvScene, index: number, t: number): void {
   const total = s.solution.total;
-  s.toggleAttribute('data-cv-stuck', t > 0.5 && t < total - 0.5);
+  if (!s.isStacked) s.toggleAttribute('data-cv-stuck', t > 0.5 && t < total - 0.5);
   const last = s.zoneTime;
   const atEnd = t === 0 || t === total;
   if (!Number.isNaN(last) && Math.abs(t - last) <= 0.5 && !(atEnd && t !== last)) return;

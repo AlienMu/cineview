@@ -47,6 +47,8 @@ export class CvStage extends ElementBase implements CvStageElement {
   bootOffset = 0;
   /** The current scene's index, as last placed by the input; -1 before the first placement. */
   current = -1;
+  /** The scene at eye level, whose `theme` the stage shows; -1 before the first placement. */
+  eye = -1;
   private scheduled = false;
   private readySent = false;
   /** Settles `ready`; null once this connection's cv-ready has fired. */
@@ -136,7 +138,8 @@ export class CvStage extends ElementBase implements CvStageElement {
     style.textContent =
       ':host{display:block;overflow-x:clip}' +
       // Vertical paging is ours; horizontal pans and pinch zoom stay native (1.x).
-      ':host([input=drag]){position:fixed;inset:0;overflow:hidden;touch-action:pan-x pinch-zoom;user-select:none}' +
+      // A gesture that reaches the end stays with the stage (lexicon #24).
+      ':host([input=drag]){position:fixed;inset:0;overflow:hidden;overscroll-behavior:contain;touch-action:pan-x pinch-zoom;user-select:none}' +
       '.frame{position:relative;width:100%;max-width:calc(var(--cv-dw,750) * 1px);margin-inline:auto}' +
       '.sized{container-type:inline-size}' +
       ':host([input=drag]) .frame{height:100%}' +
@@ -226,15 +229,17 @@ export class CvStage extends ElementBase implements CvStageElement {
 
   /**
    * The input placed the current scene: `data-cv-current` on it, in-page links to scenes marked
-   * (`aria-current` on the current one, `data-cv-before` / `data-cv-after` on the others). A change
-   * after the first placement sets `data-cv-direction` on the stage and dispatches `cv-leave` on
-   * the scene left, then `cv-enter` on the new one, both with `{ from, to, direction }`.
+   * (`aria-current` on the current one, `data-cv-before` / `data-cv-after` on the others), its
+   * theme shown. A change after the first placement sets `data-cv-direction` on the stage and
+   * dispatches `cv-leave` on the scene left, then `cv-enter` on the new one, both with
+   * `{ from, to, direction }`.
    */
   setCurrent(index: number): void {
     const from = this.current;
     this.current = index;
     this.ordered.forEach((s, i) => s.toggleAttribute('data-cv-current', i === index));
     this.markLinks();
+    this.showTheme(index);
     const scene = this.ordered[index];
     if (__DEV__ && scene && this.input === 'drag') {
       requestAnimationFrame(() => checkDragScene(scene));
@@ -255,6 +260,26 @@ export class CvStage extends ElementBase implements CvStageElement {
     if (this.getAttribute('data-cv-direction') !== direction) {
       this.setAttribute('data-cv-direction', direction);
     }
+  }
+
+  /**
+   * Lexicon #41: the scene at eye level lends the stage its `theme` as `data-cv-theme`, at once (no
+   * blend); a scene without one clears it. Scroll: the current scene (it crosses the middle of the
+   * screen); drag: the scene past the middle of the page, before the slide lands. The page's CSS
+   * swaps its palette on the attribute and transitions it (lexicon: about .7 s, none under reduced
+   * motion). A server-rendered stage can carry the first scene's value from the start.
+   */
+  showTheme(index: number): void {
+    this.eye = index;
+    const theme = this.ordered[index]?.getAttribute('theme') ?? null;
+    if (theme === this.getAttribute('data-cv-theme')) return;
+    if (theme === null) this.removeAttribute('data-cv-theme');
+    else this.setAttribute('data-cv-theme', theme);
+  }
+
+  /** A scene's `theme` changed: shown at once if it is the one at eye level. */
+  themeChanged(scene: CvScene): void {
+    if (this.eye >= 0 && this.ordered[this.eye] === scene) this.showTheme(this.eye);
   }
 
   private markLinks(): void {

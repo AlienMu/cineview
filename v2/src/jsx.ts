@@ -53,6 +53,8 @@ export interface CvSceneAttributes {
   covered?: 'dim' | 'recede';
   /** Lay the content out in a row that moves sideways along scene time (a zone in scroll). */
   track?: 'x';
+  /** At eye level, shown on the stage as `data-cv-theme` for the page's palette. */
+  theme?: string;
   sequence?: Num;
   /** Present: wait for the scene's images and videos on the first screen; or a URL list. */
   preload?: Flag | string;

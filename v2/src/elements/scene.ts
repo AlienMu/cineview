@@ -4,7 +4,8 @@
  * (scroll: sticky; drag: it stays put while the next one slides over it); `covered="dim|recede"`
  * is how it looks meanwhile (render/covered.ts). `track="x"`: the content lays out in a row that
  * moves sideways along scene time, 1 px per ms until its end meets the scene's (lexicon #5); in
- * scroll input the scene is a zone at least that long.
+ * scroll input the scene is a zone at least that long. `theme="name"`: at eye level the scene lends
+ * the stage its palette as `data-cv-theme` (lexicon #41).
  */
 import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
 import { ElementBase } from '../platform';
@@ -14,7 +15,7 @@ import type { CvAnimate } from './animate';
 import { CvStage } from './stage';
 
 export class CvScene extends ElementBase {
-  static readonly observedAttributes = ['zone', 'sequence', 'stack', 'covered', 'track'];
+  static readonly observedAttributes = ['zone', 'sequence', 'stack', 'covered', 'track', 'theme'];
 
   stage: CvStage | null = null;
   animates = new Set<CvAnimate>();
@@ -107,8 +108,11 @@ export class CvScene extends ElementBase {
     }
   }
 
-  attributeChangedCallback(_name: string, before: string | null, after: string | null): void {
-    if (before !== after) this.stage?.invalidate();
+  attributeChangedCallback(name: string, before: string | null, after: string | null): void {
+    if (before === after) return;
+    // A palette, not geometry: no rebuild.
+    if (name === 'theme') this.stage?.themeChanged(this);
+    else this.stage?.invalidate();
   }
 
   disconnectedCallback(): void {

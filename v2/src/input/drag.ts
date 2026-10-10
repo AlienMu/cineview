@@ -214,6 +214,7 @@ class DragInput implements DragEngine {
     stage.addEventListener('pointerdown', this.onDown);
     stage.addEventListener('pointermove', this.onMove);
     stage.addEventListener('click', this.onClick, true);
+    window.addEventListener('hashchange', this.onHash);
     stage.addEventListener('keydown', this.onKey);
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onCancel);
@@ -278,6 +279,7 @@ class DragInput implements DragEngine {
     this.stage.removeEventListener('pointerdown', this.onDown);
     this.stage.removeEventListener('pointermove', this.onMove);
     this.stage.removeEventListener('click', this.onClick, true);
+    window.removeEventListener('hashchange', this.onHash);
     this.stage.removeEventListener('keydown', this.onKey);
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onCancel);
@@ -288,6 +290,7 @@ class DragInput implements DragEngine {
         if (isDeck(a)) a.clearWrites();
       }
       this.cover(s, false);
+      s.removeAttribute('data-cv-stuck');
       if (s.cover) clearCover(s, s.veil!);
       s.coverProgress = Number.NaN;
       s.clearTrack();
@@ -432,6 +435,20 @@ class DragInput implements DragEngine {
     e.preventDefault();
     history.pushState(null, '', href);
     this.goTo(scene);
+  };
+
+  /**
+   * A hash link outside the stage (a table of contents, lexicon #23) or history: page to the scene
+   * it names. Links inside the stage page on click and push the hash themselves.
+   */
+  private onHash = (): void => {
+    let scene: number | null = null;
+    try {
+      scene = this.sceneFor(decodeURIComponent(location.hash.slice(1)));
+    } catch {
+      // Malformed escape: not a scene.
+    }
+    if (scene !== null && scene !== this.index) this.goTo(scene);
   };
 
   private onKey = (e: KeyboardEvent): void => {
@@ -783,6 +800,7 @@ class DragInput implements DragEngine {
         const behind = s.isStacked && i < this.index;
         this.cover(s, behind);
         this.coverLook(s, behind ? 1 : 0);
+        s.removeAttribute('data-cv-stuck');
       }
       s.toggleAttribute('data-cv-active', inWindow);
       for (const a of s.ordered) a.dragActive = active;
@@ -812,13 +830,18 @@ class DragInput implements DragEngine {
     const lo = Math.max(0, Math.floor(this.pos) - 1);
     const hi = Math.min(this.scenes.length - 1, Math.ceil(this.pos) + 1);
     const travel = this.pos - this.index;
+    // The palette follows the scene past the middle of the page (lexicon #41), as under scroll.
+    const eye = Math.round(this.pos);
+    if (eye !== this.stage.eye) this.stage.showTheme(eye);
     for (let i = lo; i <= hi; i++) {
       const s = this.scenes[i]!;
-      // Scene `stack` (plan v3 §9.3): once the page moves past a stacked scene it stays put and
-      // the next one slides over it; fully under it, it is covered.
+      // Scene `stack` (plan v3 §9.3): once the page moves past a stacked scene it stays put
+      // (`data-cv-stuck`, lexicon #18) and the next one slides over it; fully under it, it is
+      // covered.
       const held = s.isStacked && this.pos > i;
       const offset = held ? 0 : (i - this.pos) * vh;
       s.style.translate = `0 ${offset}px`;
+      s.toggleAttribute('data-cv-stuck', held && this.pos < i + 1);
       this.cover(s, held && this.pos >= i + 1);
       this.coverLook(s, held ? Math.min(1, this.pos - i) : 0);
       const t = this.times[i] ?? 0;

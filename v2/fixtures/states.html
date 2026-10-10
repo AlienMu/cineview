@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>states fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{height:100vh;display:block}
+  #c{height:150vh}
+  cv-stage{--ground:#eee;background:var(--ground);transition:background-color .7s}
+  cv-stage[data-cv-theme=dawn]{--ground:#f4e2c8} cv-stage[data-cv-theme=dusk]{--ground:#c8b4d8} cv-stage[data-cv-theme=night]{--ground:#28304a}
+  @media (prefers-reduced-motion:reduce){cv-stage{transition:none}}
+  .box{display:block;height:80px;width:200px;background:#7a9}
+  nav{position:fixed;top:0;right:0;z-index:10;display:flex;gap:4px}
+  nav a{display:block;width:32px;height:32px;background:#fff;text-align:center}
+  nav a[data-cv-after]{opacity:.55}
+</style></head>
+<body>
+<script type="module">
+  // P3.3 states: scene themes lend the stage data-cv-theme at eye level (a dawn, b dusk, c none,
+  // d night); data-cv-stuck on stacked a and c while held and on zone b while its shell is pinned;
+  // nav links outside the stage, one link inside d. ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <nav>${['a', 'b', 'c', 'd', 'e'].map((id) => `<a id="to-${id}" href="#${id}">${id}</a>`).join('')}</nav>
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a" theme="dawn" stack><div class="box"></div></cv-scene>
+    <cv-scene id="b" theme="dusk" zone>
+      <cv-animate id="br" fx="rise" duration="600" ease="linear"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="c" stack><div class="box"></div></cv-scene>
+    <cv-scene id="d" theme="night"><a id="in" class="box" href="#b">to b</a></cv-scene>
+    <cv-scene id="e"><div class="box"></div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>
