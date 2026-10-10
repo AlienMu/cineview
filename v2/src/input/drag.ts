@@ -19,6 +19,7 @@ import type { CvStage } from '../elements/stage';
 import type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
 import { viewProgress } from '../core/view';
 import { blink } from '../platform';
+import { clearCover, writeCover } from '../render/covered';
 import { progressIn, writeLayer } from '../render/layers';
 import {
   cancelDuration,
@@ -238,6 +239,12 @@ class DragInput implements DragEngine {
   refresh(): void {
     this.vh = this.stage.clientHeight || window.innerHeight;
     this.local.clear();
+    // Measured unscaled (`covered="recede"`); write() below scales again.
+    for (const s of this.scenes) {
+      if (!s.cover || s.cover.scale === 1) continue;
+      s.style.scale = '';
+      s.coverProgress = Number.NaN;
+    }
     for (const s of this.scenes) {
       const base = s.getBoundingClientRect().top;
       for (const a of s.ordered) {
@@ -267,6 +274,8 @@ class DragInput implements DragEngine {
     for (const s of this.scenes) {
       for (const a of s.ordered) a.stopLoops();
       this.cover(s, false);
+      if (s.cover) clearCover(s, s.veil!);
+      s.coverProgress = Number.NaN;
     }
   }
 
@@ -751,7 +760,11 @@ class DragInput implements DragEngine {
       else s.setAttribute('aria-hidden', 'true');
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
       // write() covers scenes in the window; the rest follow the current scene.
-      if (!inWindow) this.cover(s, s.isStacked && i < this.index);
+      if (!inWindow) {
+        const behind = s.isStacked && i < this.index;
+        this.cover(s, behind);
+        this.coverLook(s, behind ? 1 : 0);
+      }
       s.toggleAttribute('data-cv-active', inWindow);
       for (const a of s.ordered) a.dragActive = active;
       if (!inWindow) {
@@ -783,6 +796,7 @@ class DragInput implements DragEngine {
       const offset = held ? 0 : (i - this.pos) * vh;
       s.style.translate = `0 ${offset}px`;
       this.cover(s, held && this.pos >= i + 1);
+      this.coverLook(s, held ? Math.min(1, this.pos - i) : 0);
       const t = this.times[i] ?? 0;
       // The current scene departs with the page; exits run on the travel, in transition time.
       const departure =
@@ -810,6 +824,13 @@ class DragInput implements DragEngine {
     s.toggleAttribute('data-cv-covered', on);
     s.style.visibility = on ? 'hidden' : '';
     if (on) for (const a of s.ordered) a.stopLoops();
+  }
+
+  /** `covered` looks follow the next scene's travel over this one (scroll: its entry). */
+  private coverLook(s: CvScene, p: number): void {
+    if (!s.cover || p === s.coverProgress) return;
+    s.coverProgress = p;
+    writeCover(s, s.veil!, s.cover, p);
   }
 
   /** What drives element time right now (1.x timeline frame sources). */

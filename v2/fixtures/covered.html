@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>covered fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{height:100vh}
+  #a{background:#d8e8f0} #b{background:#f0e0d0} #c{background:#e0f0d8} #d{background:#f0d8e8} #e{background:#eee} #f{background:#ddd}
+  .box{display:block;height:80px;width:200px;background:#7a9}
+</style></head>
+<body>
+<script type="module">
+  // P2.3 covered: a recedes under b (b scrolls: native) with a view layer on an element of the held scene, c dims
+  // under d (d is held: written directly), zone d recedes under e once its time has run (native);
+  // f has an unreadable value (?drag, ?fallback).
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a" stack covered="recede">
+      <div class="box" id="mark"></div>
+      <cv-animate id="av" on="view(#mark)" fx="fade" ease="linear"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="b"><div class="box"></div></cv-scene>
+    <cv-scene id="c" stack covered="dim"><div class="box"></div></cv-scene>
+    <cv-scene id="d" zone stack covered="recede">
+      <cv-animate fx="rise" duration="400" ease="linear"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="e"><div class="box"></div></cv-scene>
+    <cv-scene id="f" covered="fade"><div class="box"></div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

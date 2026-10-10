@@ -47,6 +47,8 @@ export interface CvSceneAttributes {
   zone?: Flag;
   /** Hold this scene while the next one covers it. */
   stack?: Flag;
+  /** How a stacked scene looks while the next one covers it. */
+  covered?: 'dim' | 'recede';
   sequence?: Num;
   /** Present: wait for the scene's images and videos on the first screen; or a URL list. */
   preload?: Flag | string;

@@ -1,16 +1,18 @@
 /**
  * <cv-scene>: one shot. Owns its timeline (solved from its animates in document order) and, in
  * scroll input, the sticky shell of a zone. `stack`: the scene holds while the next one covers it
- * (scroll: sticky; drag: it stays put while the next one slides over it).
+ * (scroll: sticky; drag: it stays put while the next one slides over it); `covered="dim|recede"`
+ * is how it looks meanwhile (render/covered.ts).
  */
 import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
 import { ElementBase } from '../platform';
+import type { CoverLook } from '../render/covered';
 import { assignWindows } from '../render/layers';
 import type { CvAnimate } from './animate';
 import { CvStage } from './stage';
 
 export class CvScene extends ElementBase {
-  static readonly observedAttributes = ['zone', 'sequence', 'stack'];
+  static readonly observedAttributes = ['zone', 'sequence', 'stack', 'covered'];
 
   stage: CvStage | null = null;
   animates = new Set<CvAnimate>();
@@ -19,6 +21,12 @@ export class CvScene extends ElementBase {
   timed: CvAnimate[] = [];
   ordered: CvAnimate[] = [];
   shell: HTMLElement | null = null;
+  /** Darkens the scene while the next one covers it (`covered`). */
+  veil: HTMLElement | null = null;
+  /** `covered`, read at build; null when absent. */
+  cover: CoverLook | null = null;
+  /** Covering progress last written directly; NaN when nothing is written. */
+  coverProgress = Number.NaN;
   /** Document offset and height, measured in refresh(). */
   docTop = 0;
   height = 0;
@@ -51,13 +59,20 @@ export class CvScene extends ElementBase {
       style.textContent =
         ':host{display:block;position:relative}' +
         '.shell{position:relative;height:100%}' +
-        ':host([zone]) .shell{position:sticky;top:0;height:100svh}';
+        ':host([zone]) .shell{position:sticky;top:0;height:100svh}' +
+        '.veil{display:none;position:absolute;inset:0;z-index:2147483647;background:#000;opacity:0;pointer-events:none}' +
+        ':host([stack][covered]) .veil{display:block}' +
+        // Recede toward the middle of what shows of it: a held scene shows its last screen.
+        ':host([stack][covered=recede]){transform-origin:50% max(50%,calc(100% - 50svh))}';
       const shell = document.createElement('div');
       shell.className = 'shell';
       shell.setAttribute('part', 'shell');
       shell.append(document.createElement('slot'));
-      root.append(style, shell);
+      const veil = document.createElement('div');
+      veil.className = 'veil';
+      root.append(style, shell, veil);
       this.shell = shell;
+      this.veil = veil;
     }
     const stage = this.closest('cv-stage');
     if (stage instanceof CvStage) {

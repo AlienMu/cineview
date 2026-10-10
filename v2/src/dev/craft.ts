@@ -8,7 +8,7 @@
  * pass on as custom properties, sticky or fixed content inside a layer.
  * Per stage, after a build (checkStage): elements outside their parents, drag scenes taller than
  * the screen (also as each becomes current), in-page links to nothing, `stack` with nothing to
- * cover the scene. Media: slow seeks (media/driver.ts).
+ * cover the scene, `covered` without `stack`. Media: slow seeks (media/driver.ts).
  */
 import type { LayerPlan } from '../render/layers';
 import { warn } from './warn';
@@ -76,7 +76,15 @@ export function checkDragScene(scene: HTMLElement): void {
 /** Scene `stack` holds a scene until the next one covers it (plan v3 §8, §9.3). */
 function checkStacks(stage: CraftStage): void {
   stage.ordered.forEach((scene, i) => {
-    if (!scene.hasAttribute('stack')) return;
+    if (!scene.hasAttribute('stack')) {
+      if (scene.hasAttribute('covered')) {
+        warn(
+          scene,
+          'covered is how a stacked scene looks while the next one covers it; add stack.'
+        );
+      }
+      return;
+    }
     const next = stage.ordered[i + 1];
     if (!next) {
       warn(scene, 'stack holds a scene until the next one covers it; the last scene has none.');

@@ -1,7 +1,7 @@
 /**
  * Scroll input: the document scrolls natively; zones turn scroll distance into scene time
  * (1 px = 1 ms), `view` sources follow each subject through the viewport, and stacked scenes
- * stick until the next scene covers them.
+ * stick until the next scene covers them (dimming or receding meanwhile with `covered`).
  *
  * Output is hybrid (phase-0 measurement): compositor-eligible layers run as native scroll-driven
  * animations where supported, everything else is written directly once per frame. Geometry is
@@ -16,6 +16,13 @@ import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
 import { blink, platform, whenIdle, type IdleDeadlineLike } from '../platform';
 import type { Clock } from '../render/clock';
+import {
+  clearCover,
+  COVER_RANGE,
+  coverKeyframes,
+  writeCover,
+  type CoverLook,
+} from '../render/covered';
 import {
   clearLayer,
   layerKeyframes,
@@ -76,6 +83,8 @@ export class ScrollInput implements InputEngine {
   /** Stacked scenes, each with the scene that covers it (the last scene has none: not held). */
   private stacks: Array<{ s: CvScene; next: CvScene }> = [];
   private held = new Set<CvScene>();
+  /** Stacked scenes with a `covered` look; natives when the next scene's ViewTimeline drives it. */
+  private covers: Array<{ s: CvScene; next: CvScene; look: CoverLook; natives: Animation[] }> = [];
 
   constructor(stage: CvStage) {
     this.stage = stage;
@@ -102,6 +111,9 @@ export class ScrollInput implements InputEngine {
       this.stacks.push({ s, next });
       this.held.add(s);
     });
+    for (const { s, next } of this.stacks) {
+      if (s.cover) this.covers.push({ s, next, look: s.cover, natives: [] });
+    }
     this.refresh();
     if (this.native) this.startNative();
     this.bindEnter();
@@ -163,6 +175,11 @@ export class ScrollInput implements InputEngine {
       s.style.position = '';
       s.style.top = '';
     }
+    for (const c of this.covers) {
+      for (const n of c.natives) n.cancel();
+      c.s.coverProgress = Number.NaN;
+      clearCover(c.s, c.s.veil!);
+    }
   }
 
   refresh(): void {
@@ -172,15 +189,24 @@ export class ScrollInput implements InputEngine {
     this.unit = (this.stage.clientWidth || this.vw) / design;
     this.docHeight = document.documentElement.scrollHeight;
     const y = window.scrollY;
-    // A held scene's rect is where it sticks: measure stacked scenes where they sit in the flow.
+    // A held scene's rect is where it sticks: measure stacked scenes where they sit in the flow,
+    // and unscaled (`covered`; important beats the native animation; the frame writes it again).
     for (const { s } of this.stacks) {
       s.style.position = '';
       s.style.top = '';
+    }
+    for (const { s, look } of this.covers) {
+      if (look.scale !== 1) s.style.setProperty('scale', 'none', 'important');
     }
     for (const s of this.scenes) {
       const r = s.getBoundingClientRect();
       s.docTop = r.top + y;
       s.height = r.height;
+    }
+    for (const { s, look } of this.covers) {
+      if (look.scale === 1) continue;
+      s.style.removeProperty('scale');
+      s.coverProgress = Number.NaN;
     }
     // Held from the moment its bottom meets the viewport's bottom: a zone once its time has run,
     // a scene taller than the screen once its end arrives, any other at the top.
@@ -234,6 +260,7 @@ export class ScrollInput implements InputEngine {
     if (this.jsWork !== null) return this.jsWork;
     this.jsWork =
       this.enter.size > 0 ||
+      this.covers.some((c) => !c.natives.length) ||
       this.scenes.some((s) =>
         s.ordered.some(
           (a) =>
@@ -268,6 +295,22 @@ export class ScrollInput implements InputEngine {
       (a) => a.scene !== null && isNear(a.scene) && !a.scene.covered
     );
     const page = Math.min(Math.max(y / Math.max(1, this.docHeight - vh), 0), 1);
+    // A receding scene is scaled about its origin (`covered`); view progress is where the subject
+    // sits unscaled, as drag measures it. Read once per scene and frame, before any write.
+    const lenses = new Map<CvScene, { origin: number; k: number } | null>();
+    const lens = (s: CvScene): { origin: number; k: number } | null => {
+      if (!s.cover || s.cover.scale === 1) return null;
+      let l = lenses.get(s);
+      if (l === undefined) {
+        const k = parseFloat(getComputedStyle(s).scale) || 1;
+        let r = rects.get(s);
+        if (!r) rects.set(s, (r = s.getBoundingClientRect()));
+        const o = Math.max(s.height / 2, s.height - vh / 2);
+        l = k === 1 ? null : { origin: r.top + o * k, k };
+        lenses.set(s, l);
+      }
+      return l;
+    };
     for (const s of this.scenes) {
       // Covered scenes are not painted: nothing to write until they show again.
       if (!isNear(s) || s.covered) {
@@ -299,8 +342,9 @@ export class ScrollInput implements InputEngine {
               // read before any write (plan v3 §8), once per subject and frame.
               let r = rects.get(subject);
               if (!r) rects.set(subject, (r = subject.getBoundingClientRect()));
-              top = r.top;
-              height = r.height;
+              const l = this.held.has(s) ? lens(s) : null;
+              top = l ? l.origin + (r.top - l.origin) / l.k : r.top;
+              height = l ? r.height / l.k : r.height;
             }
             work.push({ layer, p: viewProgress(top, height, vh, layer.range), px: 0 });
           } else if (layer.source === 'page') {
@@ -309,7 +353,19 @@ export class ScrollInput implements InputEngine {
         }
       }
     }
+    // Covering progress: the next scene's entry. It moves in the flow until it has covered this
+    // one (a stacked next scene sticks only after that), so its offset is exact.
+    const covers: Array<{ s: CvScene; look: CoverLook; p: number }> = [];
+    for (const { s, next, look, natives } of this.covers) {
+      if (natives.length || s.covered) continue;
+      const p = viewProgress(next.docTop - y, next.height, vh, COVER_RANGE);
+      if (p !== s.coverProgress) covers.push({ s, look, p });
+    }
     for (const w of work) writeLayer(w.layer, w.p, w.px);
+    for (const { s, look, p } of covers) {
+      s.coverProgress = p;
+      writeCover(s, s.veil!, look, p);
+    }
     this.enter.apply(gated, vh, this.unit);
     for (const { a, on } of loops) {
       if (on) a.startLoops(this.clock);
@@ -396,6 +452,21 @@ export class ScrollInput implements InputEngine {
     for (const s of this.scenes) s.timeline = new VT({ subject: s, axis: 'block' });
     const ST = platform.ScrollTimeline;
     if (ST) this.pageTimeline = new ST({ source: document.documentElement, axis: 'block' });
+    // Covered looks follow the next scene's entry for the whole page: two animations per stacked
+    // scene at most, outside the budget. A held next scene sticks, which stretches its
+    // ViewTimeline (nativeView): written directly instead.
+    for (const c of this.covers) {
+      if (this.held.has(c.next)) continue;
+      const frames = coverKeyframes(c.look);
+      const options = {
+        timeline: c.next.timeline,
+        ...rangeCss(COVER_RANGE),
+        fill: 'both',
+        easing: 'linear',
+      } as KeyframeAnimationOptions;
+      c.natives.push(c.s.veil!.animate(frames.veil, options));
+      if (frames.host) c.natives.push(c.s.animate(frames.host, options));
+    }
     this.nativeIo = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {

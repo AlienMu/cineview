@@ -12,6 +12,7 @@ import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
 import { Clock } from '../render/clock';
+import { parseCovered } from '../render/covered';
 import type { CvStageElement } from '../types';
 import type { CvScene } from './scene';
 
@@ -347,6 +348,9 @@ export class CvStage extends ElementBase implements CvStageElement {
       for (const { error, element } of scene.solve(input === 'scroll')) {
         this.report(error.message, element, error.code);
       }
+      scene.cover = parseCovered(scene.getAttribute('covered'), reducedMotion, (m, code) =>
+        this.report(m, scene, code)
+      );
       if (input === 'scroll' && scene.isZone) {
         scene.style.height = `calc(100svh + ${scene.solution.total}px)`;
       }
