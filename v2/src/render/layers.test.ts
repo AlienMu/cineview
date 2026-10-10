@@ -32,6 +32,17 @@ describe('planLayers', () => {
     ]);
   });
 
+  it('gives view effects one layer per named range, in order of first use', () => {
+    const plans = planLayers(
+      groups([['view', fx('drift, fade entry, focus(band), wipe exit, grow entry')]]),
+      '#hero'
+    );
+    expect(plans.map((p) => `${p.kind}:${p.range?.[0].name ?? 'all'}:${p.effects.length}`)).toEqual(
+      ['space:all:3', 'space:entry:2', 'clip:exit:1']
+    );
+    expect(plans.every((p) => p.subject === '#hero')).toBe(true);
+  });
+
   it('puts clip-only exits on a clip layer of the time source', () => {
     const plans = planLayers(
       groups([['scene', fx('fade'), parseExit('wipe', null, () => undefined)]]),

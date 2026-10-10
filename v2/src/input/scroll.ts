@@ -5,10 +5,11 @@
  * Output is hybrid (phase-0 measurement): compositor-eligible layers run as native scroll-driven
  * animations where supported, everything else is written directly once per frame. Geometry is
  * measured in refresh() and reused; the frame loop reads only the scroll offset and live rects of
- * `view(self)` subjects, all before any write.
+ * element subjects (`view(self)`, `view(#id)`), all before any write.
  */
 import { compositorEligible } from '../core/props';
 import type { TimelineFrame, TimelinePhase } from '../core/timeline';
+import { rangeCss, viewProgress } from '../core/view';
 import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
@@ -229,6 +230,7 @@ export class ScrollInput implements InputEngine {
     const vh = this.vh;
     const work: Array<{ layer: Layer; p: number; px: number }> = [];
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
+    const rects = new Map<Element, DOMRect>();
     const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
     const gated = this.enter.measure((a) => a.scene !== null && isNear(a.scene));
     const page = Math.min(Math.max(y / Math.max(1, this.docHeight - vh), 0), 1);
@@ -240,11 +242,9 @@ export class ScrollInput implements InputEngine {
       }
       const zone = s.isZone;
       const t = zone ? Math.min(Math.max(y - s.docTop, 0), s.solution.total) : 0;
-      const sceneView = (y + vh - s.docTop) / (vh + s.height);
       for (const a of s.ordered) {
         // Zone loops run once the entrance is complete (1.x: playable phase and visible).
         if (zone && a.loopItems.length) loops.push({ a, on: !a.solved || t >= a.solved.end });
-        let selfView = Number.NaN;
         for (const layer of a.layers) {
           // Native layers are driven by the compositor; skip them without further work.
           if (layer.native) continue;
@@ -257,12 +257,18 @@ export class ScrollInput implements InputEngine {
               px: layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : 0,
             });
           } else if (layer.source === 'view') {
-            let v = sceneView;
-            if (layer.subject === 'self') {
-              if (Number.isNaN(selfView)) selfView = this.selfView(a, vh);
-              v = selfView;
+            const subject = a.viewSubject(layer);
+            let top = s.docTop - y;
+            let height = s.height;
+            if (subject !== s) {
+              // Elements inside a sticky shell move with it: live rects, read before any write
+              // (plan v3 §8), once per subject and frame.
+              let r = rects.get(subject);
+              if (!r) rects.set(subject, (r = subject.getBoundingClientRect()));
+              top = r.top;
+              height = r.height;
             }
-            work.push({ layer, p: Math.min(Math.max(v, 0), 1), px: 0 });
+            work.push({ layer, p: viewProgress(top, height, vh, layer.range), px: 0 });
           } else if (layer.source === 'page') {
             work.push({ layer, p: page, px: 0 });
           }
@@ -307,12 +313,6 @@ export class ScrollInput implements InputEngine {
     const s = a.scene;
     if (!s?.isZone || this.destroyed) return null;
     return zoneFrame(a, Math.min(Math.max(window.scrollY - s.docTop, 0), s.solution.total));
-  }
-
-  private selfView(a: CvAnimate, vh: number): number {
-    // Elements inside a sticky shell move with it; measure live in the read phase (plan v3 §8).
-    const r = a.getBoundingClientRect();
-    return (vh - r.top) / (vh + r.height);
   }
 
   /**
@@ -382,22 +382,22 @@ export class ScrollInput implements InputEngine {
         const w = layer.window;
         const zone = layer.source === 'scene' && w !== null;
         const page = layer.source === 'page';
+        const subject = zone || page ? s : a.viewSubject(layer);
         const timeline = zone
           ? s.timeline
           : page
             ? this.pageTimeline
-            : layer.subject === 'self'
-              ? new VT({ subject: a, axis: 'block' })
-              : s.timeline;
+            : subject === s
+              ? s.timeline
+              : new VT({ subject, axis: 'block' });
         const keyframes = zone ? sceneKeyframes(layer, w, s.solution.total) : layerKeyframes(layer);
         const native = layer.el.animate(keyframes, {
           timeline,
           ...(page
             ? {}
-            : {
-                rangeStart: zone ? 'contain 0%' : 'cover 0%',
-                rangeEnd: zone ? 'contain 100%' : 'cover 100%',
-              }),
+            : zone
+              ? { rangeStart: 'contain 0%', rangeEnd: 'contain 100%' }
+              : rangeCss(layer.range)),
           fill: 'both',
           easing: 'linear',
         } as KeyframeAnimationOptions);

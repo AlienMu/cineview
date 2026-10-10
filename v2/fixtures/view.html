@@ -1,0 +1,37 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>view fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{height:100vh}
+  .col{height:100%;display:flex;flex-direction:column;justify-content:space-between}
+  .box{display:block;height:80px;width:200px;background:#b3ded6}
+  .tall{height:300px;background:#e4c9a8}
+</style></head>
+<body>
+<script type="module">
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="s0"><div class="box"></div></cv-scene>
+    <cv-scene id="s1"><div class="col">
+      <cv-animate id="top" on="view(self)" fx="fade" ease="linear"><div class="box"></div></cv-animate>
+      <cv-animate id="en" on="view(self)" fx="fade entry" ease="linear"><div class="box"></div></cv-animate>
+      <cv-animate id="sc" fx="fade cover 25% cover 75%" ease="linear"><div class="box"></div></cv-animate>
+      <div id="target" class="box tall"></div>
+      <cv-animate id="nm" on="view(#target)" fx="fade contain" ease="linear"><div class="box"></div></cv-animate>
+      <cv-animate id="mix" on="view(self)" fx="fade entry, wipe exit" ease="linear"><div class="box"></div></cv-animate>
+      <cv-animate id="bot" on="view(self)" fx="fade" ease="linear"><div class="box"></div></cv-animate>
+    </div></cv-scene>
+    <cv-scene id="s2"><div class="box"></div></cv-scene>
+    <cv-scene id="s3"><div class="box"></div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

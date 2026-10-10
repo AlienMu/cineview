@@ -24,8 +24,15 @@ import {
 } from '../core/fx';
 import { combine, frameCss, identityFrame, type Frame, type Prop } from '../core/props';
 import type { Solved } from '../core/time';
+import { sameRange, type ViewRange } from '../core/view';
 
 export type LayerKind = 'space' | 'time' | 'clock' | 'loop' | 'signal' | 'clip';
+
+/**
+ * Whose passage through the viewport drives a view layer: the scene, the element itself, or an
+ * element of the same scene named by id (`view(#hero)`, plan v3 §3.5).
+ */
+export type Subject = 'scene' | 'self' | `#${string}`;
 
 const KIND_OF: Readonly<Record<Source, Exclude<LayerKind, 'clip' | 'loop'>>> = {
   view: 'space',
@@ -60,7 +67,9 @@ export interface Layer {
   kind: LayerKind;
   source: Source;
   /** For view sources: whose passage drives it. */
-  subject: 'scene' | 'self';
+  subject: Subject;
+  /** For view sources: the named range its progress runs over (null = all of `cover`). */
+  range: ViewRange | null;
   /** Entrance (or only) effects, evaluated at the layer's progress. */
   effects: Effect[];
   /** Exits, evaluated at exit progress and composed on top (time layers). */
@@ -87,7 +96,7 @@ export interface Layer {
 /** What an element decides about a layer before the layer exists. */
 export type LayerPlan = Pick<
   Layer,
-  'kind' | 'source' | 'subject' | 'effects' | 'exitEffects' | 'select'
+  'kind' | 'source' | 'subject' | 'range' | 'effects' | 'exitEffects' | 'select'
 >;
 
 const LAYER_STYLE =
@@ -99,13 +108,27 @@ const LAYER_STYLE =
 const hasTracks = (effects: readonly Effect[], clip: boolean): boolean =>
   effects.some((e) => e.entries.some(([p]) => (p === 'clip') === clip));
 
+/** View effects split by named range, in order of first use: one native timeline range each. */
+function byRange(
+  effects: readonly Effect[]
+): Array<{ range: ViewRange | null; effects: Effect[] }> {
+  const parts: Array<{ range: ViewRange | null; effects: Effect[] }> = [];
+  for (const e of effects) {
+    const part = parts.find((p) => sameRange(p.range, e.viewRange));
+    if (part) part.effects.push(e);
+    else parts.push({ range: e.viewRange, effects: [e] });
+  }
+  return parts;
+}
+
 /**
  * Plans for one element: one layer per source for non-clip tracks, plus one clip layer per source
- * that has clip tracks. Exits join the time layer of their source.
+ * that has clip tracks. Exits join the time layer of their source. View effects get one layer per
+ * named range, since a native animation runs over a single range.
  */
 export function planLayers(
   groups: ReadonlyMap<Source, { effects: Effect[]; exits: Effect[] }>,
-  subject: 'scene' | 'self',
+  subject: Subject,
   loop = false
 ): LayerPlan[] {
   const plans: LayerPlan[] = [];
@@ -114,25 +137,21 @@ export function planLayers(
       kind: 'loop',
       source: 'clock',
       subject,
+      range: null,
       effects: [],
       exitEffects: [],
       select: 'rest',
     });
   }
-  for (const [source, { effects, exits }] of groups) {
-    const all = [...effects, ...exits];
-    if (hasTracks(all, false)) {
-      plans.push({
-        kind: kindOf(source),
-        source,
-        subject,
-        effects,
-        exitEffects: exits,
-        select: 'rest',
-      });
-    }
-    if (hasTracks(all, true)) {
-      plans.push({ kind: 'clip', source, subject, effects, exitEffects: exits, select: 'clip' });
+  for (const [source, group] of groups) {
+    const parts =
+      source === 'view' ? byRange(group.effects) : [{ range: null, effects: group.effects }];
+    for (const { range, effects } of parts) {
+      const exits = range === null ? group.exits : [];
+      const all = [...effects, ...exits];
+      const plan = { source, subject, range, effects, exitEffects: exits };
+      if (hasTracks(all, false)) plans.push({ ...plan, kind: kindOf(source), select: 'rest' });
+      if (hasTracks(all, true)) plans.push({ ...plan, kind: 'clip', select: 'clip' });
     }
   }
   // Canonical order; clip layers keep their sources' order among themselves.

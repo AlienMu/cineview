@@ -33,6 +33,7 @@ import {
   planLayers,
   type Layer,
   type LayerPlan,
+  type Subject,
 } from '../render/layers';
 import { CvScene } from './scene';
 import type { CvAnimateElement } from '../types';
@@ -87,14 +88,12 @@ export interface AnimatePlan {
   loops: LoopItem[];
 }
 
-/** `on`: a source name or `view(self)`. */
-function parseOn(
-  text: string | null,
-  report: Report
-): { source: Source; subject: 'scene' | 'self' } | null {
+/** `on`: a source name, `view(self)` or `view(#id)` (an element of the same scene). */
+function parseOn(text: string | null, report: Report): { source: Source; subject: Subject } | null {
   if (text === null) return null;
   const t = text.trim();
-  if (t === 'view(self)') return { source: 'view', subject: 'self' };
+  const view = /^view\(\s*(self|#[\w-]+)\s*\)$/.exec(t);
+  if (view) return { source: 'view', subject: view[1] as Subject };
   if (SOURCES.has(t)) return { source: t as Source, subject: 'scene' };
   report(`Unknown progress source on="${t}"`);
   return null;
@@ -141,6 +140,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   loopLayer: Layer | null = null;
   loopItems: LoopItem[] = [];
   private loopAnimations: Animation[] = [];
+  /** Resolved `view(#id)` subjects. */
+  private subjects = new Map<string, Element>();
   private presetDuration: number | null = null;
   private maxDuration = Number.POSITIVE_INFINITY;
   private exitPlanned = false;
@@ -242,8 +243,14 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       return g;
     };
     for (const e of effects) {
+      // A named range says the item follows the viewport (plan v3 §3.4), below an explicit `on`.
       const source =
-        e.own && SIGNALS.has(e.own) ? e.own : (on?.source ?? e.own ?? context.timeSource);
+        e.own && SIGNALS.has(e.own)
+          ? e.own
+          : (on?.source ?? (e.viewRange ? 'view' : null) ?? e.own ?? context.timeSource);
+      if (__DEV__ && e.viewRange && source !== 'view') {
+        warn(this, `a named range needs a view source; it has no effect with on="${source}"`);
+      }
       const kept = reduced && CLOCK_PLAYED.has(source) ? opacityOnly(e) : e;
       if (kept) group(source).effects.push(kept);
     }
@@ -269,6 +276,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
           kind: 'time',
           source: timeSource,
           subject: 'scene',
+          range: null,
           effects: g.effects,
           exitEffects: g.exits,
           select: 'all',
@@ -317,6 +325,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
 
   build(plan: AnimatePlan): void {
     this.release();
+    this.subjects.clear();
     this.timed = plan.timed;
     this.presetDuration = plan.duration;
     this.maxDuration = plan.maxDuration;
@@ -332,6 +341,25 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
 
   /** The scene entered (true) or left (false) the activation window. */
   activated(_on: boolean): void {}
+
+  /**
+   * The element whose passage drives a view layer: the scene, this element, or the element of the
+   * same scene with that id (`view(#hero)`); the scene when there is none.
+   */
+  viewSubject(layer: Layer): Element {
+    const scene = this.scene ?? this;
+    if (layer.subject === 'scene') return scene;
+    if (layer.subject === 'self') return this;
+    const found = this.subjects.get(layer.subject);
+    if (found?.isConnected && scene.contains(found)) return found;
+    const el = scene.querySelector(`#${CSS.escape(layer.subject.slice(1))}`);
+    if (__DEV__ && !el) {
+      warn(this, `on="view(${layer.subject})": no element with that id in this scene`);
+    }
+    // Kept until the next build, the scene too: frames never search the scene again.
+    this.subjects.set(layer.subject, el ?? scene);
+    return el ?? scene;
+  }
 
   /** The element's timeline (plan v3 §3.6): current frame and a subscription. */
   get timeline(): CvTimeline {

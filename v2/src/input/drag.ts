@@ -17,6 +17,7 @@ import type { CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStage } from '../elements/stage';
 import type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
+import { viewProgress } from '../core/view';
 import { blink } from '../platform';
 import { progressIn, writeLayer } from '../render/layers';
 import {
@@ -144,8 +145,8 @@ class DragInput implements DragEngine {
   private tickSource: TimelineSource | null = null;
   /** Page position last reported as cv-progress. */
   private reported = 0;
-  /** Element geometry relative to its scene, for per-element view progress (plan v3 F7). */
-  private local = new Map<CvAnimate, { top: number; height: number }>();
+  /** Subject geometry relative to its scene, for per-element view progress (plan v3 F7). */
+  private local = new Map<Element, { top: number; height: number }>();
 
   constructor(
     private stage: CvStage,
@@ -240,9 +241,12 @@ class DragInput implements DragEngine {
     for (const s of this.scenes) {
       const base = s.getBoundingClientRect().top;
       for (const a of s.ordered) {
-        if (a.layers.some((l) => l.source === 'view' && l.subject === 'self')) {
-          const r = a.getBoundingClientRect();
-          this.local.set(a, { top: r.top - base, height: r.height });
+        for (const l of a.layers) {
+          if (l.source !== 'view' || l.subject === 'scene') continue;
+          const subject = a.viewSubject(l);
+          if (subject === s || this.local.has(subject)) continue;
+          const r = subject.getBoundingClientRect();
+          this.local.set(subject, { top: r.top - base, height: r.height });
         }
       }
     }
@@ -771,15 +775,13 @@ class DragInput implements DragEngine {
       const offset = (i - this.pos) * vh;
       s.style.translate = `0 ${offset}px`;
       const t = this.times[i] ?? 0;
-      // Scene passage through the viewport, the scroll `cover` formula with paging offset (§9.3).
-      const sceneView = (vh - offset) / (2 * vh);
       // The current scene departs with the page; exits run on the travel, in transition time.
       const departure =
         i === this.index && travel !== 0 ? Math.min(1, Math.abs(travel)) * this.transition : 0;
       const side: Side = travel >= 0 ? 1 : -1;
       if (t > 0) this.departed.delete(i);
       for (const a of s.ordered) {
-        this.writeAnimate(a, t, sceneView, offset, departure, side);
+        this.writeAnimate(a, t, offset, departure, side);
         if (a.timed) {
           if (a.subscribed) a.sendFrame(this.frameFor(a, i, t, travel));
           else a.showPhase(this.phaseFor(a, i, t, travel));
@@ -838,7 +840,6 @@ class DragInput implements DragEngine {
   private writeAnimate(
     a: CvAnimate,
     t: number,
-    sceneView: number,
     offset: number,
     departure: number,
     side: Side
@@ -847,12 +848,11 @@ class DragInput implements DragEngine {
     const exitDuration = base?.exitDuration ?? 0;
     for (const layer of a.layers) {
       if (layer.source === 'view') {
-        let v = sceneView;
-        if (layer.subject === 'self') {
-          const g = this.local.get(a);
-          if (g) v = (this.vh - (offset + g.top)) / (this.vh + g.height);
-        }
-        writeLayer(layer, Math.min(Math.max(v, 0), 1), 0);
+        // Passage through the viewport: the scroll formula with the paging offset in place of the
+        // scroll offset (plan v3 §9.3, F7); a departing scene carries on along the same line.
+        const g = layer.subject === 'scene' ? undefined : this.local.get(a.viewSubject(layer));
+        const top = offset + (g?.top ?? 0);
+        writeLayer(layer, viewProgress(top, g?.height ?? this.vh, this.vh, layer.range), 0);
         continue;
       }
       const w = layer.window;

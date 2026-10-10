@@ -5,9 +5,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Phase-1 browser checks (P1.11, plan §15): the phase-1 probes in each engine named on the command
- * line (chromium, webkit; default chromium); per engine a log and a JSON summary in
- * review/v2-phase1-checks/.
+ * Browser checks (P1.11, plan §15): the phase-1 probes, and the phase-2 ones as they come, in each
+ * engine named on the command line (chromium, webkit; default chromium); per engine a log and a
+ * JSON summary in review/v2-phase1-checks/.
  * Starts the dev server when it is not running and builds v2/dist when missing (first.mjs serves
  * its stylesheet). Chromium is Chrome unless CV_CHROMIUM names another build.
  *
@@ -26,6 +26,7 @@ const PROBES = [
   'video',
   'events',
   'react',
+  'view',
 ];
 const args = process.argv.slice(2);
 const engines = args.filter((a) => !a.startsWith('--'));
