@@ -27,6 +27,7 @@ const PROBES = [
   'events',
   'react',
   'view',
+  'stack',
 ];
 const args = process.argv.slice(2);
 const engines = args.filter((a) => !a.startsWith('--'));

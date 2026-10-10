@@ -45,6 +45,8 @@ export interface CvStageAttributes {
 
 export interface CvSceneAttributes {
   zone?: Flag;
+  /** Hold this scene while the next one covers it. */
+  stack?: Flag;
   sequence?: Num;
   /** Present: wait for the scene's images and videos on the first screen; or a URL list. */
   preload?: Flag | string;

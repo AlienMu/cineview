@@ -7,8 +7,8 @@
  * with a signal source, `stagger` without time-driven effects, properties that `stagger` can only
  * pass on as custom properties, sticky or fixed content inside a layer.
  * Per stage, after a build (checkStage): elements outside their parents, drag scenes taller than
- * the screen (also as each becomes current), in-page links to nothing. Media: slow seeks
- * (media/driver.ts).
+ * the screen (also as each becomes current), in-page links to nothing, `stack` with nothing to
+ * cover the scene. Media: slow seeks (media/driver.ts).
  */
 import type { LayerPlan } from '../render/layers';
 import { warn } from './warn';
@@ -73,6 +73,22 @@ export function checkDragScene(scene: HTMLElement): void {
   }
 }
 
+/** Scene `stack` holds a scene until the next one covers it (plan v3 §8, §9.3). */
+function checkStacks(stage: CraftStage): void {
+  stage.ordered.forEach((scene, i) => {
+    if (!scene.hasAttribute('stack')) return;
+    const next = stage.ordered[i + 1];
+    if (!next) {
+      warn(scene, 'stack holds a scene until the next one covers it; the last scene has none.');
+    } else if (stage.input === 'scroll' && scene.nextElementSibling !== next) {
+      warn(
+        scene,
+        'content between a stacked scene and the next scene scrolls underneath the held scene. Put it inside a scene.'
+      );
+    }
+  });
+}
+
 export interface CraftStage extends HTMLElement {
   readonly input: 'scroll' | 'drag';
   readonly ordered: readonly HTMLElement[];
@@ -91,6 +107,7 @@ export function checkStage(stage: CraftStage): void {
     }
   }
   if (stage.input === 'drag') for (const scene of stage.ordered) checkDragScene(scene);
+  checkStacks(stage);
   for (const a of stage.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')) {
     const id = decodeURIComponent(a.getAttribute('href')!.slice(1));
     if (id && !document.getElementById(id)) warn(a, `href="#${id}" points to no element.`);

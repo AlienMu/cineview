@@ -1,6 +1,7 @@
 /**
  * <cv-scene>: one shot. Owns its timeline (solved from its animates in document order) and, in
- * scroll input, the sticky shell of a zone.
+ * scroll input, the sticky shell of a zone. `stack`: the scene holds while the next one covers it
+ * (scroll: sticky; drag: it stays put while the next one slides over it).
  */
 import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
 import { ElementBase } from '../platform';
@@ -9,7 +10,7 @@ import type { CvAnimate } from './animate';
 import { CvStage } from './stage';
 
 export class CvScene extends ElementBase {
-  static readonly observedAttributes = ['zone', 'sequence'];
+  static readonly observedAttributes = ['zone', 'sequence', 'stack'];
 
   stage: CvStage | null = null;
   animates = new Set<CvAnimate>();
@@ -29,12 +30,18 @@ export class CvScene extends ElementBase {
   zoneTime = Number.NaN;
   /** Zone time last published to element timelines (scroll). */
   frameTime = Number.NaN;
+  /** Fully under the next scene (`stack`): not painted, no loops, media released. */
+  covered = false;
   /** Attached, but some eligible layers wait for native budget. */
   nativePending = false;
   nativeGeneration = 0;
 
   get isZone(): boolean {
     return this.hasAttribute('zone');
+  }
+
+  get isStacked(): boolean {
+    return this.hasAttribute('stack');
   }
 
   connectedCallback(): void {

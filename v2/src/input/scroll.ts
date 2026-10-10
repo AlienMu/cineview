@@ -1,6 +1,7 @@
 /**
  * Scroll input: the document scrolls natively; zones turn scroll distance into scene time
- * (1 px = 1 ms) and `view` sources follow each subject through the viewport.
+ * (1 px = 1 ms), `view` sources follow each subject through the viewport, and stacked scenes
+ * stick until the next scene covers them.
  *
  * Output is hybrid (phase-0 measurement): compositor-eligible layers run as native scroll-driven
  * animations where supported, everything else is written directly once per frame. Geometry is
@@ -68,6 +69,13 @@ export class ScrollInput implements InputEngine {
   private live = 0;
   /** NATIVE_BUDGET in Blink, uncapped elsewhere. */
   private budget = blink ? NATIVE_BUDGET : Infinity;
+  /** Scenes inside the activation window, covered or not. */
+  private inView = new Set<CvScene>();
+  /** Scenes inside the native window, covered or not. */
+  private inNative = new Set<CvScene>();
+  /** Stacked scenes, each with the scene that covers it (the last scene has none: not held). */
+  private stacks: Array<{ s: CvScene; next: CvScene }> = [];
+  private held = new Set<CvScene>();
 
   constructor(stage: CvStage) {
     this.stage = stage;
@@ -86,6 +94,14 @@ export class ScrollInput implements InputEngine {
     }
     // A rebuild re-solves elements: every zone publishes afresh.
     for (const s of this.scenes) s.frameTime = Number.NaN;
+    // Scene `stack` (plan v3 §8): the scene sticks (refresh() places it), and the next one,
+    // later in paint order, scrolls over it.
+    this.scenes.forEach((s, i) => {
+      const next = this.scenes[i + 1];
+      if (!s.isStacked || !next) return;
+      this.stacks.push({ s, next });
+      this.held.add(s);
+    });
     this.refresh();
     if (this.native) this.startNative();
     this.bindEnter();
@@ -100,14 +116,9 @@ export class ScrollInput implements InputEngine {
       (entries) => {
         for (const entry of entries) {
           const s = entry.target as CvScene;
-          s.toggleAttribute('data-cv-active', entry.isIntersecting);
-          if (entry.isIntersecting === s.active) continue;
-          s.active = entry.isIntersecting;
-          if (!s.active) for (const a of s.ordered) a.stopLoops();
-          for (const a of s.ordered) a.activated(s.active);
-          s.dispatchEvent(
-            new CustomEvent(s.active ? 'cv-activate' : 'cv-deactivate', { bubbles: true })
-          );
+          if (entry.isIntersecting) this.inView.add(s);
+          else this.inView.delete(s);
+          this.activate(s);
         }
       },
       { rootMargin: '100% 0px 100% 0px' }
@@ -142,7 +153,16 @@ export class ScrollInput implements InputEngine {
     this.centerIo.disconnect();
     this.ro.disconnect();
     this.enter.destroy();
-    for (const s of this.scenes) s.active = false;
+    for (const s of this.scenes) {
+      s.active = false;
+      s.covered = false;
+      s.removeAttribute('data-cv-covered');
+      s.style.visibility = '';
+    }
+    for (const { s } of this.stacks) {
+      s.style.position = '';
+      s.style.top = '';
+    }
   }
 
   refresh(): void {
@@ -152,10 +172,21 @@ export class ScrollInput implements InputEngine {
     this.unit = (this.stage.clientWidth || this.vw) / design;
     this.docHeight = document.documentElement.scrollHeight;
     const y = window.scrollY;
+    // A held scene's rect is where it sticks: measure stacked scenes where they sit in the flow.
+    for (const { s } of this.stacks) {
+      s.style.position = '';
+      s.style.top = '';
+    }
     for (const s of this.scenes) {
       const r = s.getBoundingClientRect();
       s.docTop = r.top + y;
       s.height = r.height;
+    }
+    // Held from the moment its bottom meets the viewport's bottom: a zone once its time has run,
+    // a scene taller than the screen once its end arrives, any other at the top.
+    for (const { s } of this.stacks) {
+      s.style.position = 'sticky';
+      s.style.top = s.isZone ? `${-s.solution.total}px` : `min(0px, calc(100svh - ${s.height}px))`;
     }
   }
 
@@ -194,6 +225,7 @@ export class ScrollInput implements InputEngine {
   private onScroll = (): void => {
     this.lastScroll = performance.now();
     this.zoneWork();
+    this.stackWork();
     if (this.native && !this.hasJsWork()) return;
     this.queueFrame();
   };
@@ -232,11 +264,13 @@ export class ScrollInput implements InputEngine {
     const loops: Array<{ a: CvAnimate; on: boolean }> = [];
     const rects = new Map<Element, DOMRect>();
     const isNear = (s: CvScene): boolean => s.docTop < y + vh * 2 && s.docTop + s.height > y - vh;
-    const gated = this.enter.measure((a) => a.scene !== null && isNear(a.scene));
+    const gated = this.enter.measure(
+      (a) => a.scene !== null && isNear(a.scene) && !a.scene.covered
+    );
     const page = Math.min(Math.max(y / Math.max(1, this.docHeight - vh), 0), 1);
     for (const s of this.scenes) {
-      const near = isNear(s);
-      if (!near) {
+      // Covered scenes are not painted: nothing to write until they show again.
+      if (!isNear(s) || s.covered) {
         if (s.isZone) for (const a of s.ordered) if (a.looping) loops.push({ a, on: false });
         continue;
       }
@@ -260,9 +294,9 @@ export class ScrollInput implements InputEngine {
             const subject = a.viewSubject(layer);
             let top = s.docTop - y;
             let height = s.height;
-            if (subject !== s) {
-              // Elements inside a sticky shell move with it: live rects, read before any write
-              // (plan v3 §8), once per subject and frame.
+            if (subject !== s || this.held.has(s)) {
+              // Elements inside a sticky shell move with it, a held scene stays put: live rects,
+              // read before any write (plan v3 §8), once per subject and frame.
               let r = rects.get(subject);
               if (!r) rects.set(subject, (r = subject.getBoundingClientRect()));
               top = r.top;
@@ -284,6 +318,41 @@ export class ScrollInput implements InputEngine {
     // Last: listeners may read layout. Covers changes without a scroll event (refresh, load).
     // The offset read above: reading it again after the writes would force a style recalc.
     this.zoneWork(y);
+    this.stackWork(y);
+  }
+
+  /**
+   * A stacked scene is covered once the next scene's top reaches the viewport's top: from there on
+   * the next scene and what follows it fill the screen. Covered, it is not painted (plan v3 §8),
+   * which also takes it out of focus and hit testing, and it is deactivated (1.x `covered`).
+   */
+  private stackWork(y = window.scrollY): void {
+    for (const { s, next } of this.stacks) {
+      const covered = y >= next.docTop - 0.5;
+      if (covered === s.covered) continue;
+      s.covered = covered;
+      s.toggleAttribute('data-cv-covered', covered);
+      s.style.visibility = covered ? 'hidden' : '';
+      if (covered) for (const a of s.ordered) a.stopLoops();
+      this.activate(s);
+      if (this.native) {
+        if (!covered && this.inNative.has(s)) this.attachNative(s);
+        else this.detachNative(s);
+        this.refill();
+      }
+      this.queueFrame();
+    }
+  }
+
+  /** Active: inside the activation window and not covered. Events and media follow (plan v3 §7). */
+  private activate(s: CvScene): void {
+    const on = this.inView.has(s) && !s.covered;
+    s.toggleAttribute('data-cv-active', on);
+    if (on === s.active) return;
+    s.active = on;
+    if (!on) for (const a of s.ordered) a.stopLoops();
+    for (const a of s.ordered) a.activated(on);
+    s.dispatchEvent(new CustomEvent(on ? 'cv-activate' : 'cv-deactivate', { bubbles: true }));
   }
 
   /**
@@ -331,8 +400,10 @@ export class ScrollInput implements InputEngine {
       (entries) => {
         for (const entry of entries) {
           const s = entry.target as CvScene;
-          if (entry.isIntersecting) this.attachNative(s);
-          else this.detachNative(s);
+          if (entry.isIntersecting) this.inNative.add(s);
+          else this.inNative.delete(s);
+          if (entry.isIntersecting && !s.covered) this.attachNative(s);
+          else if (s.nativeAttached) this.detachNative(s);
         }
         // Budget freed by a detach goes to scenes still waiting, nearest first.
         this.refill();
@@ -340,6 +411,17 @@ export class ScrollInput implements InputEngine {
       { rootMargin: '200% 0px 200% 0px' }
     );
     for (const s of this.scenes) this.nativeIo.observe(s);
+  }
+
+  /**
+   * View progress is where the subject is on screen; a ViewTimeline instead counts the stretch a
+   * sticky subject (or one inside a sticky box) is held as passage, so its progress runs on while
+   * the subject stands still. Subjects in a zone's shell and in held scenes are written directly,
+   * from live rects (plan v3 §8); drag gives the same values from the displayed offset (F7).
+   */
+  private nativeView(s: CvScene, layer: Layer): boolean {
+    if (this.held.has(s)) return false;
+    return !s.isZone || layer.subject === 'scene';
   }
 
   /** Eligible layers of a scene still on direct writes. */
@@ -350,7 +432,7 @@ export class ScrollInput implements InputEngine {
         if (layer.native || !compositorEligible(layer.used)) continue;
         if (
           (layer.source === 'scene' && s.isZone && layer.window) ||
-          layer.source === 'view' ||
+          (layer.source === 'view' && this.nativeView(s, layer)) ||
           (layer.source === 'page' && this.pageTimeline)
         ) {
           out.push({ a, layer });

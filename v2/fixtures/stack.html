@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stack fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{height:100vh}
+  #a{background:#d8e8f0} #b{background:#f0e0d0} #c{height:150vh;background:#e0f0d8} #d{background:#eee} #e{background:#ddd}
+  .box{display:block;height:80px;width:200px;background:#7a9}
+  .foot{position:absolute;bottom:0}
+</style></head>
+<body>
+<script type="module">
+  // P2.2 scene stack: a and c hold until the next scene covers them, b is a zone that holds once
+  // its time has run, c is taller than the screen; d does not stack (?drag, ?fallback).
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a" stack>
+      <cv-animate id="ap" on="view" fx="fade" ease="linear"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="b" zone stack>
+      <cv-animate id="br" fx="rise" duration="600" ease="linear"><div class="box"></div></cv-animate>
+      <cv-animate id="bself" on="view(self)" fx="fade" ease="linear"><div class="box"></div></cv-animate>
+    </cv-scene>
+    <cv-scene id="c" stack><div class="box"></div><div class="box foot"></div></cv-scene>
+    <cv-scene id="d"><div class="box"></div></cv-scene>
+    <cv-scene id="e"><div class="box"></div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.events = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  for (const type of ['cv-activate', 'cv-deactivate']) {
+    document.addEventListener(type, (e) => window.events.push(`${type}:${e.target.id}`));
+  }
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

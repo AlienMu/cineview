@@ -264,7 +264,10 @@ class DragInput implements DragEngine {
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onCancel);
     window.removeEventListener('resize', this.onResize);
-    for (const s of this.scenes) for (const a of s.ordered) a.stopLoops();
+    for (const s of this.scenes) {
+      for (const a of s.ordered) a.stopLoops();
+      this.cover(s, false);
+    }
   }
 
   /** Programmatic navigation. Not a gesture: no drag events; cv-progress follows the slide. */
@@ -747,6 +750,8 @@ class DragInput implements DragEngine {
       if (active) s.removeAttribute('aria-hidden');
       else s.setAttribute('aria-hidden', 'true');
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
+      // write() covers scenes in the window; the rest follow the current scene.
+      if (!inWindow) this.cover(s, s.isStacked && i < this.index);
       s.toggleAttribute('data-cv-active', inWindow);
       for (const a of s.ordered) a.dragActive = active;
       if (!inWindow) {
@@ -772,8 +777,12 @@ class DragInput implements DragEngine {
     const travel = this.pos - this.index;
     for (let i = lo; i <= hi; i++) {
       const s = this.scenes[i]!;
-      const offset = (i - this.pos) * vh;
+      // Scene `stack` (plan v3 §9.3): once the page moves past a stacked scene it stays put and
+      // the next one slides over it; fully under it, it is covered.
+      const held = s.isStacked && this.pos > i;
+      const offset = held ? 0 : (i - this.pos) * vh;
       s.style.translate = `0 ${offset}px`;
+      this.cover(s, held && this.pos >= i + 1);
       const t = this.times[i] ?? 0;
       // The current scene departs with the page; exits run on the travel, in transition time.
       const departure =
@@ -787,11 +796,20 @@ class DragInput implements DragEngine {
           else a.showPhase(this.phaseFor(a, i, t, travel));
         }
         if (a.loopItems.length) {
-          if (!a.solved || t >= a.solved.end) a.startLoops(this.stage.clock);
+          if (!s.covered && (!a.solved || t >= a.solved.end)) a.startLoops(this.stage.clock);
           else a.stopLoops();
         }
       }
     }
+  }
+
+  /** Covered (`stack`): not painted, no loops (1.x `covered`). */
+  private cover(s: CvScene, on: boolean): void {
+    if (s.covered === on) return;
+    s.covered = on;
+    s.toggleAttribute('data-cv-covered', on);
+    s.style.visibility = on ? 'hidden' : '';
+    if (on) for (const a of s.ordered) a.stopLoops();
   }
 
   /** What drives element time right now (1.x timeline frame sources). */
