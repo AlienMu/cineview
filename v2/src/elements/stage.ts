@@ -15,6 +15,7 @@ import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../pla
 import { Clock } from '../render/clock';
 import { parseCovered } from '../render/covered';
 import { loadSplit, splitModule } from '../text/load';
+import { countModule, loadCount, usesCount } from '../text/load-count';
 import type { CvStageElement } from '../types';
 import type { CvScene } from './scene';
 
@@ -379,6 +380,7 @@ export class CvStage extends ElementBase implements CvStageElement {
     const chunks: Array<Promise<unknown>> = [];
     if (!splitModule() && animates.some((a) => a.hasAttribute('split'))) chunks.push(loadSplit());
     if (!stillsModule() && animates.some(usesStills)) chunks.push(loadStills());
+    if (!countModule() && animates.some(usesCount)) chunks.push(loadCount());
     if (chunks.length) {
       const generation = this.generation;
       await Promise.all(chunks);

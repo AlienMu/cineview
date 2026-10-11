@@ -19,6 +19,9 @@
  *
  * Fade layers carry the blur of a large picture as the opacity of a blurred copy over it
  * (media/stills.ts, plan v3 §6 F12): opacity runs on the compositor, `filter` would not.
+ *
+ * Adapted layers sit on a copy in the shadow root and rewrite their frame before it is written:
+ * count wheels turn a count into one position per wheel (text/count.ts).
  */
 import {
   evaluate,
@@ -102,6 +105,8 @@ export interface Layer {
   watch: ((p: number) => void) | null;
   /** A fade layer: its blur (px) shows as opacity, full at this much blur; 0 otherwise. */
   fade: number;
+  /** An adapted layer: rewrites each frame (into custom properties) before it is written. */
+  adapt: ((frame: Frame) => void) | null;
   /** Time layers: window on the scene timeline, assigned after the scene is solved. */
   window: Window | null;
   used: Set<Prop>;
@@ -204,6 +209,7 @@ function makeLayer(
     item,
     watch: null,
     fade,
+    adapt: null,
     window: null,
     used: fade
       ? new Set<Prop>(['opacity'])
@@ -292,6 +298,19 @@ export function buildFadeLayer(plan: LayerPlan, el: HTMLElement, blur: number): 
   return makeLayer(plan, el, false, -1, false, blur);
 }
 
+/** An adapted layer on `el`: `adapt` rewrites the plan's frames into the custom properties `vars`. */
+export function buildAdaptedLayer(
+  plan: LayerPlan,
+  el: HTMLElement,
+  adapt: (frame: Frame) => void,
+  vars: Iterable<string>
+): Layer {
+  const layer = makeLayer(plan, el, false, -1);
+  layer.adapt = adapt;
+  layer.vars = new Set(vars);
+  return layer;
+}
+
 /** Assign windows to time layers from the element's solved window; stagger children get their slice. */
 export function assignWindows(layers: readonly Layer[], solved: Solved | null): void {
   for (const layer of layers) {
@@ -344,6 +363,7 @@ export function layerCss(layer: Layer, frame: Frame): Record<string, string> {
     frame.opacity = Math.min(1, frame.blur / layer.fade);
     frame.blur = 0;
   }
+  layer.adapt?.(frame);
   const css = frameCss(frame, layer.used);
   if (!layer.target) return css;
   const out: Record<string, string> = {};

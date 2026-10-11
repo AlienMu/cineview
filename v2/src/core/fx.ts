@@ -17,6 +17,7 @@ import { cubicBezier, easeInOut, linear, pan, parseEase, settle, type Ease } fro
 import type { Report } from './errors';
 import {
   applyTrack,
+  AXIS,
   parseDeclarations,
   parseVars,
   resetFrame,
@@ -278,6 +279,57 @@ presets.set('push', (args, report) => {
 
 // Lexicon #25 blur-up: the element's pictures develop from a blurred stand-in once they arrive.
 presets.set('develop', () => ({ ...makeEffect({ tracks: {} }), asset: 'develop' }));
+
+// Lexicon #9 path drawing: each stroke draws itself. The shapes measure 1 (pathLength, set by
+// elements/animate.ts), so one dash offset draws any of them without measuring it.
+presets.set('draw', () => makeEffect({ tracks: { draw: [0, 1] }, ease: pan, duration: 1400 }));
+
+// Lexicon #13 scroll-triggered count: the number rolls up on digit wheels drawn over it (text/
+// count.ts), .17 s a digit (elements/animate.ts counts them). Reduced motion shows the number.
+presets.set('count', () =>
+  makeEffect({ tracks: { count: [0, 1] }, ease: linear, reducible: true })
+);
+
+// Lexicon #33 variable fonts: an axis is a continuous value. axis(wght 300 800, wdth 75 100); one
+// value is where the axis starts, and it ends at the text's own (wght, wdth, opsz: NaN here,
+// resolved by withOwnAxes). `axis` alone brings the weight up from 200, on the lexicon's sweep
+// curve (its weight sweep takes 2.8 s for three such legs).
+const SWEEP = cubicBezier(0.45, 0, 0.2, 1);
+const OWN_AXES: ReadonlySet<string> = new Set(['wght', 'wdth', 'opsz']);
+presets.set('axis', (args, report) => {
+  const vars: VarTrack[] = [];
+  for (const arg of args.length ? args : ['wght 200']) {
+    const [tag = '', ...values] = arg.split(/\s+/);
+    const numbers = values.map(Number);
+    const [from = 0, to = Number.NaN] = numbers;
+    if (
+      !/^[a-zA-Z\d]{4}$/.test(tag) ||
+      !numbers.length ||
+      numbers.length > 2 ||
+      !numbers.every(Number.isFinite)
+    ) {
+      report(`axis(${arg}): expected an axis and one or two numbers, such as wght 300 800`);
+    } else if (numbers.length === 1 && !OWN_AXES.has(tag)) {
+      report(`axis(${arg}): ${tag} needs a start and an end value`);
+    } else {
+      vars.push({ name: `${AXIS}${tag}`, from, to, unit: '' });
+    }
+  }
+  return makeEffect({ tracks: {}, vars, ease: SWEEP, duration: 1100 });
+});
+
+/** Axes left to the text (NaN) take its own values: `own(tag)` (lexicon #33). */
+export function withOwnAxes(e: Effect, own: (tag: string) => number): Effect {
+  const left = (v: VarTrack): boolean =>
+    v.unit !== null && (Number.isNaN(v.from) || Number.isNaN(v.to));
+  if (!e.vars.some(left)) return e;
+  const value = (name: string, n: number): number =>
+    Number.isNaN(n) ? own(name.slice(AXIS.length)) : n;
+  const vars = e.vars.map((v) =>
+    v.unit === null ? v : { ...v, from: value(v.name, v.from), to: value(v.name, v.to) }
+  );
+  return { ...e, vars };
+}
 
 // focus + wipe + push in one name (lexicon #12 + #30 + #26).
 presets.set('reveal', (args, report) => [

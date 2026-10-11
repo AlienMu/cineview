@@ -22,7 +22,9 @@ export type Prop =
   | 'sky'
   | 'opacity'
   | 'blur' // px
-  | 'clip'; // inset [top, right, bottom, left] in %
+  | 'clip' // inset [top, right, bottom, left] in %
+  | 'draw' // part of each SVG stroke drawn, 0–1 (stroke-dashoffset over pathLength 1)
+  | 'count'; // part of a count run, 0–1 (written by count layers as wheel positions)
 
 export type Clip = readonly [number, number, number, number];
 export type Value = number | Clip;
@@ -45,6 +47,8 @@ export interface Frame {
   sky: number;
   opacity: number;
   blur: number;
+  draw: number;
+  count: number;
   clip: Clip | null;
 }
 
@@ -65,6 +69,8 @@ export const IDENTITY: Readonly<Record<NumericProp, number>> = {
   sky: 0,
   opacity: 1,
   blur: 0,
+  draw: 1,
+  count: 1,
 };
 export const NO_CLIP: Clip = [0, 0, 0, 0];
 
@@ -79,11 +85,11 @@ export function isRest(frame: Frame): boolean {
 }
 
 // Per-frame paths (direct writes run these per layer per frame): named fields, no keyed access.
-// Additive: x y xp yp rotate rx ry skx sky blur; multiplicative: scale sx sy opacity.
+// Additive: x y xp yp rotate rx ry skx sky blur; multiplicative: scale sx sy opacity draw count.
 export function resetFrame(frame: Frame): void {
   frame.x = frame.y = frame.xp = frame.yp = 0;
   frame.rotate = frame.rx = frame.ry = frame.skx = frame.sky = frame.blur = 0;
-  frame.scale = frame.sx = frame.sy = frame.opacity = 1;
+  frame.scale = frame.sx = frame.sy = frame.opacity = frame.draw = frame.count = 1;
   frame.clip = null;
   if (frame.vars.size) frame.vars.clear();
 }
@@ -104,6 +110,8 @@ export function combine(a: Frame, b: Frame): void {
   a.sx *= b.sx;
   a.sy *= b.sy;
   a.opacity *= b.opacity;
+  a.draw *= b.draw;
+  a.count *= b.count;
   if (b.clip) a.clip = b.clip;
   for (const [name, value] of b.vars) a.vars.set(name, value);
 }
@@ -150,6 +158,12 @@ export function applyTrack(frame: Frame, prop: Prop, from: Value, to: Value, t: 
     case 'opacity':
       frame.opacity *= v;
       break;
+    case 'draw':
+      frame.draw *= v;
+      break;
+    case 'count':
+      frame.count *= v;
+      break;
     case 'x':
       frame.x += v;
       break;
@@ -183,8 +197,11 @@ export function applyTrack(frame: Frame, prop: Prop, from: Value, to: Value, t: 
   }
 }
 
-/** Properties the compositor can animate (Chrome, Safari 26.4+). Blur and clip-path repaint. */
-const MAIN_THREAD: ReadonlySet<Prop> = new Set<Prop>(['blur', 'clip']);
+/**
+ * Properties the compositor can animate (Chrome, Safari 26.4+). Blur, clip-path and dash offsets
+ * repaint; a count writes custom properties.
+ */
+const MAIN_THREAD: ReadonlySet<Prop> = new Set<Prop>(['blur', 'clip', 'draw', 'count']);
 export const compositorEligible = (used: ReadonlySet<Prop>): boolean => {
   for (const p of used) if (MAIN_THREAD.has(p)) return false;
   return true;
@@ -194,6 +211,11 @@ export const compositorEligible = (used: ReadonlySet<Prop>): boolean => {
 const PERSPECTIVE = 1000;
 
 const fmt = (n: number): string => String(Math.round(n * 1e4) / 1e4);
+/**
+ * The dash offset of an undrawn stroke: a hair past its length, so the dash ends before the start
+ * and a round cap leaves no dot (the gap after the dash is twice as long, see elements/animate.ts).
+ */
+const UNDRAWN = 1.001;
 const length = (px: number, pct: number): string =>
   pct ? (px ? `calc(${fmt(px)}px + ${fmt(pct)}%)` : `${fmt(pct)}%`) : `${fmt(px)}px`;
 
@@ -226,8 +248,30 @@ export function frameCss(frame: Frame, used: ReadonlySet<Prop>): Record<string, 
     const [t, r, b, l] = frame.clip ?? NO_CLIP;
     css.clipPath = `inset(${fmt(t)}% ${fmt(r)}% ${fmt(b)}% ${fmt(l)}%)`;
   }
-  for (const [name, value] of frame.vars) css[name] = value;
+  // Inherited: on a shadow layer it reaches the strokes of the slotted SVG (lexicon #9).
+  if (used.has('draw')) css.strokeDashoffset = fmt(UNDRAWN * (1 - frame.draw));
+  varsCss(frame.vars, css);
   return css;
+}
+
+/**
+ * Variable-font axes travel as custom property tracks named `--cv-axis-<tag>` (from/to, loops and
+ * the `axis` preset alike) and are written together as `font-variation-settings`, which the text
+ * inherits (lexicon #33). A main-thread property: text is laid out again every frame.
+ */
+export const AXIS = '--cv-axis-';
+
+/** Custom properties into CSS: axes as `font-variation-settings`, the rest as themselves. */
+export function varsCss(
+  vars: Iterable<readonly [string, string]>,
+  css: Record<string, unknown>
+): void {
+  let axes = '';
+  for (const [name, value] of vars) {
+    if (name.startsWith(AXIS)) axes += `${axes ? ', ' : ''}"${name.slice(AXIS.length)}" ${value}`;
+    else css[name] = value;
+  }
+  if (axes) css.fontVariationSettings = axes;
 }
 
 // ---- custom properties: from="--glow:0; --tint:#e33" -----------------------------------------------
@@ -339,6 +383,7 @@ const KEYS: Readonly<Record<string, Prop>> = {
   skewy: 'sky',
   blur: 'blur',
   clip: 'clip',
+  draw: 'draw',
 };
 
 const ANGLE: Readonly<Record<string, number>> = { '': 1, deg: 1, turn: 360, rad: 180 / Math.PI };

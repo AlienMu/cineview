@@ -37,6 +37,7 @@ const PROBES = [
   'states',
   'split',
   'stills',
+  'presets',
 ];
 const args = process.argv.slice(2);
 const engines = args.filter((a) => !a.startsWith('--'));

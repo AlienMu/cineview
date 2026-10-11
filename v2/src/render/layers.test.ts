@@ -3,6 +3,7 @@ import { identityFrame, isRest } from '../core/props';
 import { solveScene } from '../core/time';
 import {
   assignWindows,
+  buildAdaptedLayer,
   buildFadeLayer,
   buildLayers,
   buildPieceLayers,
@@ -229,5 +230,48 @@ describe('fade layers (F12)', () => {
     expect(el.style.filter).toBe('');
     const frames = layerKeyframes(layer);
     expect(frames.every((k) => Object.keys(k).sort().join() === 'offset,opacity')).toBe(true);
+  });
+});
+
+describe('main-thread layers', () => {
+  it('draw writes a dash offset that the strokes inherit, off the compositor (lexicon #9)', () => {
+    const host = document.createElement('div');
+    const [layer] = buildLayers(host, planLayers(groups([['view', fx('draw')]]), 'scene'));
+    expect(compositorLayer(layer!)).toBe(false);
+    writeLayer(layer!, 0.5, 0);
+    expect(layer!.el.style.strokeDashoffset).toBe('0.5005');
+    expect(layerKeyframes(layer!)[0]).toEqual({ offset: 0, strokeDashoffset: '1.001' });
+    writeLayer(layer!, 1, 0);
+    expect(layer!.el.style.strokeDashoffset).toBe('0');
+  });
+
+  it('adapted layers rewrite each frame into their custom properties', () => {
+    const el = document.createElement('div');
+    const [plan] = planLayers(groups([['scene', fx('count')]]), 'scene');
+    const layer = buildAdaptedLayer(
+      plan!,
+      el,
+      (frame) => frame.vars.set('--n', String(frame.count * 10)),
+      ['--n']
+    );
+    expect(compositorLayer(layer)).toBe(false);
+    expect(samplesFor(layer, 1000)).toBe(60);
+    writeLayer(layer, 0.5, 0);
+    expect(el.style.getPropertyValue('--n')).toBe('5');
+    expect(layerKeyframes(layer).at(-1)).toEqual({ offset: 1, '--n': '10' });
+  });
+
+  it('axes are written as font-variation-settings, for the text to inherit (lexicon #33)', () => {
+    const host = document.createElement('div');
+    const [layer] = buildLayers(
+      host,
+      planLayers(groups([['view', fx('axis(wght 300 800)')]]), 'scene')
+    );
+    expect(compositorLayer(layer!)).toBe(false);
+    writeLayer(layer!, 1, 0);
+    expect(layer!.el.style.fontVariationSettings).toBe('"wght" 800');
+    expect(layer!.el.style.getPropertyValue('--cv-axis-wght')).toBe('');
+    clearLayer(layer!);
+    expect(layer!.el.getAttribute('style') ?? '').toBe('');
   });
 });

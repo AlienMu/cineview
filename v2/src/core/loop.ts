@@ -11,7 +11,8 @@
  * Each item becomes one infinite WAAPI animation. `loop-duration` sets the cycle length; the
  * element's `ease` applies per segment (default ease-in-out, as 1.x loops). Custom properties with
  * numbers or colours run as an item of their own, sampled once per 60 Hz frame (an unregistered
- * property steps between keyframes; colours go around the OKLCH hue circle as in from/to).
+ * property steps between keyframes; colours go around the OKLCH hue circle as in from/to);
+ * `--cv-axis-<tag>` lists are written as variable-font axes (props.ts).
  */
 import { easeInOut, type Ease } from './ease';
 import type { Report } from './errors';
@@ -24,6 +25,7 @@ import {
   parseDeclarations,
   parseVarValue,
   resetFrame,
+  varsCss,
   varValue,
   type Clip,
   type Prop,
@@ -179,17 +181,24 @@ function varFrames(lists: VarLists, ease: Ease, duration: number): Keyframe[] {
     for (let k = 0; k < per; k++) {
       const t = ease(k / per);
       const frame: Keyframe = { offset: (i + k / per) / (n - 1), easing: 'linear' };
-      for (const [name, values] of Object.entries(lists)) {
-        frame[name] = varValue(track(name, at(values, i), at(values, i + 1)), t);
-      }
+      varsCss(
+        Object.entries(lists).map(([name, values]): [string, string] => [
+          name,
+          varValue(track(name, at(values, i), at(values, i + 1)), t),
+        ]),
+        frame
+      );
       out.push(frame);
     }
   }
   const last: Keyframe = { offset: 1 };
-  for (const [name, values] of Object.entries(lists)) {
-    const v = at(values, n - 1);
-    last[name] = 'color' in v ? v.color : `${v.n}${v.unit}`;
-  }
+  varsCss(
+    Object.entries(lists).map(([name, values]): [string, string] => {
+      const v = at(values, n - 1);
+      return [name, 'color' in v ? v.color : `${v.n}${v.unit}`];
+    }),
+    last
+  );
   out.push(last);
   return out;
 }
@@ -281,6 +290,10 @@ export function parseLoop(
     for (const e of effects) {
       for (const [p, from, to] of e.entries) props[p] = [from, to, from];
       for (const v of e.vars) {
+        if (v.unit !== null && (Number.isNaN(v.from) || Number.isNaN(v.to))) {
+          report(`${part.trim()}: a loop needs both values of each axis`);
+          continue;
+        }
         const [a, b]: VarValue[] =
           v.unit === null
             ? [{ color: v.from }, { color: v.to as string }]

@@ -9,6 +9,7 @@ import {
   parseFx,
   parseItems,
   usedProps,
+  withOwnAxes,
   type Effect,
 } from './fx';
 import { frameCss, identityFrame, mirrorFrame, parseDeclarations, parseInset } from './props';
@@ -187,6 +188,47 @@ describe('presets', () => {
     expect(develop!.asset).toBe('develop');
     expect(develop!.entries).toEqual([]);
     expect(fade!.asset).toBeNull();
+  });
+
+  it('draw is a dash offset over strokes that measure 1 (lexicon #9)', () => {
+    const [draw] = one('draw');
+    expect(draw).toMatchObject({ tracks: { draw: [0, 1] }, duration: 1400 });
+    const used = new Set(['draw'] as const);
+    expect(frameCss(at([draw!], 0), used)).toEqual({ strokeDashoffset: '1.001' });
+    expect(frameCss(at([draw!], 1), used)).toEqual({ strokeDashoffset: '0' });
+    expect(parseDeclarations('draw:25%', () => undefined)).toEqual({ draw: 0.25 });
+  });
+
+  it('count is a track for the wheels, writing no CSS itself (lexicon #13)', () => {
+    const [count] = one('count');
+    expect(count).toMatchObject({ tracks: { count: [0, 1] }, reducible: true });
+    expect(at([count!], 0.5).count).toBe(0.5);
+    expect(frameCss(at([count!], 0.5), new Set(['count'] as const))).toEqual({});
+  });
+
+  it('axis moves variable-font axes; one value starts there and ends at the text (lexicon #33)', () => {
+    const { report, messages } = collect();
+    const [axis] = parseFx('axis', report);
+    expect(axis!.vars).toEqual([{ name: '--cv-axis-wght', from: 200, to: NaN, unit: '' }]);
+    expect([axis!.duration, axis!.ease.css]).toEqual([1100, 'cubic-bezier(0.45, 0, 0.2, 1)']);
+    const own = withOwnAxes(axis!, (tag) => (tag === 'wght' ? 700 : 0));
+    expect(frameCss(at([own], 0), new Set())).toEqual({ fontVariationSettings: '"wght" 200' });
+    expect(frameCss(at([own], 1), new Set())).toEqual({ fontVariationSettings: '"wght" 700' });
+    const [both] = parseFx('axis(wght 300 800, wdth 75 100)', report);
+    expect(withOwnAxes(both!, () => 0)).toBe(both);
+    expect(frameCss(at([both!], 1), new Set())).toEqual({
+      fontVariationSettings: '"wght" 800, "wdth" 100',
+    });
+    // from/to take axes too.
+    const raw = parseFromTo('--cv-axis-opsz:12', '--cv-axis-opsz:48', null, report);
+    expect(frameCss(at([raw!], 1), new Set())).toEqual({ fontVariationSettings: '"opsz" 48' });
+    parseFx('axis(GRAD 50), axis(wght), axis(wght 1 2 3), axis(weight 300 900)', report);
+    expect(messages).toEqual([
+      'axis(GRAD 50): GRAD needs a start and an end value',
+      'axis(wght): expected an axis and one or two numbers, such as wght 300 800',
+      'axis(wght 1 2 3): expected an axis and one or two numbers, such as wght 300 800',
+      'axis(weight 300 900): expected an axis and one or two numbers, such as wght 300 800',
+    ]);
   });
 });
 

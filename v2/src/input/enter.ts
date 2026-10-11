@@ -11,6 +11,8 @@
  * - `replay` without an exit re-arms the entrance once the element is off screen;
  * - at the first measurement an element already above the viewport shows its final frame, and in
  *   the first scene anything fully on the first screen plays regardless of the bottom margin;
+ * - an element entered when the stage rebuilds shows its final frame at once: an entrance plays
+ *   once (lexicon #13), whatever changed on the page;
  * - loops run while the element is entered and on screen.
  */
 import type { CvAnimate } from '../elements/animate';
@@ -58,9 +60,14 @@ export interface Measurement {
 
 const NONE = (): void => undefined;
 
+/** Elements entered, across rebuilds of their stage. */
+const entered = new WeakSet<CvAnimate>();
+
 /** The gate machine's phase is also the element's `data-cv-phase`. */
 function setPhase(t: Track, phase: GatePhase): void {
   t.phase = phase;
+  if (phase === 'entered') entered.add(t.a);
+  else entered.delete(t.a);
   t.a.showPhase(phase);
 }
 
@@ -96,12 +103,13 @@ export class EnterController {
     const layers = a.layers.filter((l) => l.source === 'enter' || l.source === 'eye');
     // Elements on the timeline without effects still have one (el.timeline, <cv-video>, anchors).
     if (!layers.length && !a.loopItems.length && !a.timed) return;
+    const carried = entered.has(a);
     const track: Track = {
       a,
       layers,
       phase: 'idle',
       origin: 'idle',
-      measured: false,
+      measured: carried,
       first: options.first,
       eye: layers.some((l) => l.source === 'eye'),
       hasExit: layers.some((l) => l.exitEffects.length > 0),
@@ -115,9 +123,11 @@ export class EnterController {
       running: [],
       token: 0,
     };
-    for (const layer of layers) writeLayer(layer, 0, 0);
+    for (const layer of layers) writeLayer(layer, carried ? 1 : 0, 0);
     this.tracks.push(track);
     this.byElement.set(a, track);
+    // Entered before the rebuild: it stays so, without playing again.
+    if (carried) this.reveal(track);
   }
 
   /** Resolve `after` / `sequence` predecessors once every element is tracked. */

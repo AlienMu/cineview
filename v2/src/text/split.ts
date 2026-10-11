@@ -21,6 +21,7 @@
  * time source, whose pieces were timed with the scene, the extra lines or words join the last
  * piece (or pieces stay empty) instead, so a resize never replays what the reader has seen.
  */
+import { watchText } from './watch';
 
 export type SplitUnit = 'words' | 'lines';
 
@@ -99,9 +100,8 @@ export class TextSplit {
   private readonly root: HTMLElement;
   private lines: HTMLElement[] = [];
   private shown = false;
-  private observers: Array<{ disconnect(): void }> = [];
+  private unwatch: (() => void) | null = null;
   private raf = 0;
-  private removeFonts: (() => void) | null = null;
 
   /**
    * Wraps the slot in `container` (the innermost layer or the shadow root) in a source wrapper and
@@ -135,7 +135,7 @@ export class TextSplit {
     this.render(result);
     // Until the input says otherwise the copy shows, with the pieces as the layers write them.
     this.show(true);
-    this.watch();
+    this.unwatch = watchText(this.host, () => this.schedule());
     return null;
   }
 
@@ -159,10 +159,8 @@ export class TextSplit {
 
   destroy(): void {
     cancelAnimationFrame(this.raf);
-    for (const o of this.observers) o.disconnect();
-    this.observers = [];
-    this.removeFonts?.();
-    this.removeFonts = null;
+    this.unwatch?.();
+    this.unwatch = null;
   }
 
   // ---- measuring ----------------------------------------------------------------------------------
@@ -446,43 +444,6 @@ export class TextSplit {
   }
 
   // ---- measuring again ----------------------------------------------------------------------------
-
-  private watch(): void {
-    const again = (): void => this.schedule();
-    let first = true;
-    const ro = new ResizeObserver(() => {
-      // The first callback reports the size just measured.
-      if (first) first = false;
-      else again();
-    });
-    ro.observe(this.host);
-    const text = new MutationObserver(again);
-    text.observe(this.host, { childList: true, characterData: true, subtree: true });
-    const attrs = new MutationObserver(again);
-    attrs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['lang', 'data-cv-theme'],
-      subtree: true,
-    });
-    const media = [
-      '(prefers-color-scheme: dark)',
-      '(forced-colors: active)',
-      '(prefers-contrast: more)',
-    ]
-      .map((q) => matchMedia(q))
-      .filter((m) => typeof m.addEventListener === 'function');
-    for (const m of media) m.addEventListener('change', again);
-    this.observers.push(ro, text, attrs, {
-      disconnect: () => {
-        for (const m of media) m.removeEventListener('change', again);
-      },
-    });
-    const fonts = document.fonts as FontFaceSet | undefined;
-    if (fonts?.addEventListener) {
-      fonts.addEventListener('loadingdone', again);
-      this.removeFonts = (): void => fonts.removeEventListener('loadingdone', again);
-    }
-  }
 
   /** Measure again on the next frame (several triggers in one frame measure once). */
   schedule(): void {

@@ -10,11 +10,12 @@ import {
   parseExit,
   parseFromTo,
   parseFx,
+  withOwnAxes,
   type Effect,
   type Source,
 } from '../core/fx';
 import { parseLoop, type LoopItem } from '../core/loop';
-import { identityFrame, isRest } from '../core/props';
+import { AXIS, identityFrame, isRest, type VarTrack } from '../core/props';
 import {
   parseAfter,
   parseAt,
@@ -37,6 +38,7 @@ import type { Clock } from '../render/clock';
 import { stillsModule } from '../media/load-stills';
 import type { Develop, FadePlan, FocusCopy } from '../media/stills';
 import {
+  buildAdaptedLayer,
   buildFadeLayer,
   buildLayers,
   buildPieceLayers,
@@ -48,7 +50,9 @@ import {
   type LayerPlan,
   type Subject,
 } from '../render/layers';
+import type { Counter } from '../text/count';
 import { splitModule } from '../text/load';
+import { countModule } from '../text/load-count';
 import type { SplitUnit, TextSplit } from '../text/split';
 import { CvScene } from './scene';
 import type { CvAnimateElement } from '../types';
@@ -75,17 +79,45 @@ const REDUCED_DURATION = 200;
 const SPLIT_STEP: Readonly<Record<SplitUnit, number>> = { words: 40, lines: 85 };
 /** Lexicon #25: an image arrives over its stand-in in 1.2 s. */
 const DEVELOP_DURATION = 1200;
+/** Lexicon #13: a count takes .17 s a digit. */
+const COUNT_STEP = 170;
+/** What `draw` draws: the SVG shapes in the element, or in its `target` matches (lexicon #9). */
+const SHAPES = 'path, line, polyline, polygon, circle, ellipse, rect';
 
 /**
  * Keep only opacity and custom properties (values, not motion); null when nothing is left (the
- * element shows its final state at once).
+ * element shows its final state at once). Font axes move the text: they hold their end value.
  */
 function opacityOnly(e: Effect): Effect | null {
   const opacity = e.tracks.opacity;
   if (!opacity && !e.vars.length) return null;
+  const vars = e.vars.map((v) =>
+    v.name.startsWith(AXIS) ? ({ ...v, from: v.to } as VarTrack) : v
+  );
   return {
-    ...makeEffect({ tracks: opacity ? { opacity } : {}, vars: e.vars, ease: e.ease, own: e.own }),
+    ...makeEffect({ tracks: opacity ? { opacity } : {}, vars, ease: e.ease, own: e.own }),
     range: e.range,
+  };
+}
+
+/** The text's own font axes, read from its first run as styled: weight, width, optical size. */
+function ownAxes(el: HTMLElement): (tag: string) => number {
+  let style: CSSStyleDeclaration | null = null;
+  return (tag: string): number => {
+    if (!style) {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let text = walker.nextNode();
+      while (text && !text.textContent?.trim()) text = walker.nextNode();
+      style = getComputedStyle(text?.parentElement ?? el);
+    }
+    const [value, fallback] =
+      tag === 'wght'
+        ? [style.fontWeight, 400]
+        : tag === 'wdth'
+          ? [style.fontStretch, 100]
+          : [style.fontSize, 16];
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : fallback;
   };
 }
 
@@ -111,6 +143,8 @@ export interface SplitPlan {
 export interface AnimatePlan {
   layers: LayerPlan[];
   fades: FadePlan[];
+  /** `count`: the count tracks, for the layer of the copy with the wheels (text/count.ts). */
+  counts: LayerPlan[];
   /** `develop`: the crossfade (ms) from stand-ins to arrived images; null without it. */
   develop: number | null;
   /** Time effects applied to each stagger target instead of the host. */
@@ -179,6 +213,10 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   private splitTimed = false;
   /** Blurred copies over the element's images (media/stills.ts). */
   private stills: Array<Develop | FocusCopy> = [];
+  /** Digit wheels over the element's number (text/count.ts). */
+  private counter: Counter | null = null;
+  /** Undoes what `draw` set on the shapes it draws. */
+  private drawn: Array<() => void> = [];
   timed = true;
   solved: Solved | null = null;
   natives: Animation[] = [];
@@ -283,9 +321,17 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     const develop = effects.some((e) => e.asset === 'develop');
     effects = effects.filter((e) => !e.asset);
     if (ease) effects = effects.map((e) => ({ ...e, ease }));
+    if (effects.some((e) => e.tracks.count)) {
+      const digits = this.textContent?.match(/\d/g)?.length ?? 0;
+      effects = effects.map((e) => (e.tracks.count ? { ...e, duration: COUNT_STEP * digits } : e));
+    }
     const raw = parseFromTo(this.getAttribute('from'), this.getAttribute('to'), ease, report);
     if (raw) effects.push(raw);
     let exits = parseExit(this.getAttribute('exit'), ease, report);
+    // Axes left to the text take its own values (lexicon #33).
+    const own = ownAxes(this);
+    effects = effects.map((e) => withOwnAxes(e, own));
+    exits = exits.map((e) => withOwnAxes(e, own));
     const on = parseOn(this.getAttribute('on'), report);
     const loopDuration = this.getAttribute('loop-duration');
     const loops = parseLoop(
@@ -404,7 +450,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
         };
         groups.delete(timeSource);
         if (__DEV__) warnUnsafeStagger(this, staggered);
-      } else if (__DEV__) {
+      } else if (__DEV__ && !reduced) {
+        // Under reduced motion the time group may have nothing left to stagger.
         warn(this, 'stagger needs time-driven effects (scene or enter); it has no effect here');
       }
     }
@@ -435,10 +482,13 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
     }
     const layers = planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0);
+    // F12: blur on a large picture fades a blurred copy instead.
+    const fades = stillsModule()?.planFades(layers, this) ?? [];
+    const counts = countModule()?.planCounts(layers) ?? [];
     return {
       layers,
-      // F12: blur on a large picture fades a blurred copy instead.
-      fades: stillsModule()?.planFades(layers, this) ?? [],
+      fades,
+      counts,
       develop: develop ? (reduced ? REDUCED_DURATION : DEVELOP_DURATION) : null,
       staggered,
       split,
@@ -467,7 +517,58 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     if (plan.staggered) {
       this.layers.push(...buildTargetLayers(this.staggerTargets(), plan.staggered));
     }
+    this.mountCount(plan);
+    this.mountDraw();
     if (__DEV__ && plan.layers.length) warnScopedPositioning(this);
+  }
+
+  /** `count`: digit wheels over the number, on a layer of their own (text/count.ts). */
+  private mountCount(plan: AnimatePlan): void {
+    if (!plan.counts.length) return;
+    const slot = this.shadowRoot!.querySelector('slot');
+    // The stage loads the module before building elements that may need it.
+    const mod = countModule();
+    if (!slot || !mod || this.split) {
+      if (__DEV__ && this.split) warn(this, 'count has no effect on split text');
+      return;
+    }
+    const counter = new mod.Counter(this, slot, () => this.scene?.stage?.invalidate());
+    const refused = counter.mount();
+    if (refused) {
+      counter.destroy();
+      if (__DEV__) warn(this, `count: ${refused}; the number shows as it is`);
+      return;
+    }
+    this.counter = counter;
+    for (const p of plan.counts) {
+      this.layers.push(buildAdaptedLayer(p, counter.el, counter.adapt, counter.vars));
+    }
+  }
+
+  /**
+   * `draw` (lexicon #9): the shapes it draws measure 1 (pathLength) and dash 1, so the layers'
+   * dash offset (inherited, or written on stagger targets) draws any of them. The gap is 2: an
+   * undrawn offset a hair past 1 (core/props.ts) stays in it at both ends of the stroke.
+   */
+  private mountDraw(): void {
+    if (!this.layers.some((l) => l.used.has('draw'))) return;
+    const target = this.getAttribute('target');
+    const roots = target ? [...this.querySelectorAll(target)] : [this];
+    const shapes = roots.flatMap((el) =>
+      el instanceof SVGGeometryElement ? [el] : [...el.querySelectorAll<SVGElement>(SHAPES)]
+    );
+    if (__DEV__ && !shapes.length) warn(this, `draw has no shapes to draw (${SHAPES})`);
+    for (const el of shapes) {
+      const length = el.getAttribute('pathLength');
+      const dash = el.style.strokeDasharray;
+      el.setAttribute('pathLength', '1');
+      el.style.strokeDasharray = '1 2';
+      this.drawn.push(() => {
+        if (length === null) el.removeAttribute('pathLength');
+        else el.setAttribute('pathLength', length);
+        el.style.strokeDasharray = dash;
+      });
+    }
   }
 
   /**
@@ -698,6 +799,10 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.splitTimed = false;
     for (const s of this.stills) s.destroy();
     this.stills = [];
+    this.counter?.destroy();
+    this.counter = null;
+    for (const undo of this.drawn) undo();
+    this.drawn = [];
     for (const l of this.layers) {
       l.native = null;
       if (l.target) clearLayer(l);

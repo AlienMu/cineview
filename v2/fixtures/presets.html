@@ -1,0 +1,58 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>presets fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  body{font:16px/1.4 system-ui,sans-serif;color:#222;background:#fff}
+  cv-scene{display:block;min-height:100vh;padding:20px}
+  cv-animate{display:block;width:360px;margin-bottom:16px}
+  h2,p{margin:0}
+  h2{font-size:32px}
+  svg{display:block}
+  #gap{height:1400px}
+</style></head>
+<body>
+<script type="module">
+  // P3.6 presets, first set. a (on entrance): draw on a path and a circle (dr), on stagger targets
+  // (dt), without shapes (dn); count on a heading (ca), with rise and spaces between groups (cg),
+  // refused for two numbers (cx); axis to the text's own weight (ax), between two values (ax2), to
+  // its own width (ax3). b: count below the fold (cb); draw on view, round caps, starting half way
+  // (dd); count on view (cs). ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  const line = (id, y, w = 16) =>
+    `<path id="${id}" d="M20 ${y} H340" stroke="#c00" stroke-width="${w}" stroke-linecap="round" fill="none"/>`;
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a">
+      <cv-animate id="dr" fx="draw"><svg width="360" height="60">${line('drp', 30)}<circle id="drc" cx="330" cy="30" r="20" stroke="#00c" stroke-width="4" fill="none" pathLength="9"/></svg></cv-animate>
+      <cv-animate id="dt" fx="draw" target="path" stagger="150" duration="600" ease="linear"><svg width="360" height="70">${line('dt0', 10, 6)}${line('dt1', 35, 6)}${line('dt2', 60, 6)}</svg></cv-animate>
+      <cv-animate id="dn" fx="draw"><p>No shapes here.</p></cv-animate>
+      <cv-animate id="ca" fx="count"><h2>$1,234</h2></cv-animate>
+      <cv-animate id="cg" fx="count, rise"><p>Up 12 345 km</p></cv-animate>
+      <cv-animate id="cx" fx="count"><p>12 or 34</p></cv-animate>
+      <cv-animate id="ax" fx="axis"><h2>Weight</h2></cv-animate>
+      <cv-animate id="ax2" fx="axis(wght 300 800)"><p>Between two weights</p></cv-animate>
+      <cv-animate id="ax3" fx="axis(wdth 75)"><p>To its own width</p></cv-animate>
+    </cv-scene>
+    <cv-scene id="b">
+      <div id="gap"></div>
+      <cv-animate id="cb" fx="count"><h2>98.6%</h2></cv-animate>
+      <cv-animate id="dd" on="view(self)" fx="draw cover 50% cover 90%" ease="linear"><svg width="360" height="60">${line('ddp', 30, 30)}</svg></cv-animate>
+      <cv-animate id="cs" on="view(self)" fx="count cover 20% cover 60%" ease="linear"><h2>4,096</h2></cv-animate>
+      <div style="height:1200px"></div>
+    </cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.cvWarnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => {
+    window.cvWarnings.push(`${args[0]} #${args[1]?.closest?.('cv-animate')?.id ?? args[1]?.id ?? ''}`);
+    warn.apply(console, args);
+  };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>

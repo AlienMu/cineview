@@ -48,6 +48,23 @@ describe('parseLoop', () => {
     expect(hue!.keyframes.at(-1)!['--cv-hue']).toBe('0deg');
   });
 
+  it('writes font axes as font-variation-settings; a loop needs both ends of an axis', () => {
+    const messages: string[] = [];
+    const items = parseLoop('axis(wght 300 700), axis(wght 100)', 1000, null, (m) =>
+      messages.push(m)
+    );
+    const [weight] = items;
+    const [raw] = parseLoop('--cv-axis-wdth: 75 100 75', 1000, null, quiet);
+    expect(items).toHaveLength(1);
+    expect(weight!.keyframes[0]!.fontVariationSettings).toBe('"wght" 300');
+    expect(weight!.keyframes.find((k) => k.offset === 0.5)!.fontVariationSettings).toBe(
+      '"wght" 700'
+    );
+    expect(weight!.keyframes.some((k) => '--cv-axis-wght' in k)).toBe(false);
+    expect(raw!.keyframes.at(-1)!.fontVariationSettings).toBe('"wdth" 75');
+    expect(messages).toEqual(['axis(wght 100): a loop needs both values of each axis']);
+  });
+
   it('holds the last value when lists differ in length', () => {
     const [item] = parseLoop('x: 0 -100%; opacity: 0 1 1 0', null, null, quiet);
     expect(item!.keyframes).toHaveLength(4);
