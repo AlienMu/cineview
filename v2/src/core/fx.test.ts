@@ -274,6 +274,31 @@ describe('presets', () => {
     const [invert] = one('invert');
     expect([invert!.asset, invert!.entries, invert!.inks]).toEqual(['invert', [], null]);
   });
+
+  it("keyframes names the page's rule, linear unless the element eases it (plan v3 §3.3)", () => {
+    const { report, messages } = collect();
+    const [plain, quoted, ranged] = parseFx(
+      'keyframes(spin), keyframes("my spin"), keyframes(-x_1) 20% 60%',
+      report
+    );
+    expect([plain!.keyframes, plain!.entries, plain!.ease.css]).toEqual(['spin', [], 'linear']);
+    expect(quoted!.keyframes).toBe('my spin');
+    expect([ranged!.keyframes, ranged!.range]).toEqual(['-x_1', [0.2, 0.6]]);
+    expect(one('fade')[0]!.keyframes).toBeNull();
+    expect(parseFx('keyframes(), keyframes(a, b), keyframes(1x)', report)).toEqual([]);
+    expect(messages).toEqual([
+      'keyframes(): expected the name of an @keyframes rule',
+      'keyframes(a, b): expected the name of an @keyframes rule',
+      'keyframes(1x): expected the name of an @keyframes rule',
+    ]);
+  });
+
+  it('keyframes plays in fx only: exit reports it and keeps the rest', () => {
+    const { report, messages } = collect();
+    const exits = parseExit('keyframes(spin), fade', null, report);
+    expect(exits.map((e) => e.tracks)).toEqual([{ opacity: [1, 0] }]);
+    expect(messages).toEqual(['keyframes(spin) plays in fx, not exit']);
+  });
 });
 
 describe('composition within one source', () => {

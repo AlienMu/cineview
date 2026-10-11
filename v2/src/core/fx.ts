@@ -10,8 +10,8 @@
  * effect on the subject's passage through the viewport.
  *
  * Presets are the lexicon turned into functions: each carries its craft numbers (amounts, curve,
- * duration) so a short name gives a finished result. Raw values go through `from` / `to`; reusable
- * custom presets through `defineEffect()`.
+ * duration) so a short name gives a finished result. Raw values go through `from` / `to`; the
+ * page's own @keyframes through `keyframes(name)`; reusable custom presets through `defineEffect()`.
  */
 import { cubicBezier, easeInOut, linear, pan, parseEase, settle, type Ease } from './ease';
 import type { Report } from './errors';
@@ -79,6 +79,11 @@ export interface Effect {
    * images instead of the element (media/stills.ts).
    */
   inks: readonly [string, string] | null;
+  /**
+   * `keyframes(name)`: the page's @keyframes rule of that name, played on the element's outermost
+   * layer (render/keyframes.ts). The effect has no tracks.
+   */
+  keyframes: string | null;
 }
 
 interface EffectInit {
@@ -110,6 +115,7 @@ export function makeEffect(init: EffectInit): Effect {
     asset: null,
     flow: false,
     inks: null,
+    keyframes: null,
   };
 }
 
@@ -354,6 +360,22 @@ presets.set('unroll', () => ({
 // Not a track: the element blends by difference and its scene is isolated, so the blend stays
 // within the scene (elements/animate.ts). An inversion across scenes sits outside them.
 presets.set('invert', () => ({ ...makeEffect({ tracks: {} }), asset: 'invert' }));
+
+// Plan v3 §3.3: the page's own @keyframes, by name, played on a layer of its own outside the
+// others and following its progress like any preset: a source, a range, a duration. `ease` times
+// each of its segments, as animation-timing-function does; linear without it. Where entrances
+// shorten to a fade under reduced motion it is left out (it may be motion); on scroll it stays
+// (elements/animate.ts).
+const IDENT = /^-?[_a-zA-Z][\w-]*$/;
+presets.set('keyframes', (args, report) => {
+  const arg = args[0] ?? '';
+  const quoted = /^(["'])(.+)\1$/.exec(arg);
+  if (args.length !== 1 || !(quoted || IDENT.test(arg))) {
+    report(`keyframes(${args.join(', ')}): expected the name of an @keyframes rule`);
+    return [];
+  }
+  return { ...makeEffect({ tracks: {}, ease: linear }), keyframes: quoted ? quoted[2]! : arg };
+});
 
 // Lexicon #9 path drawing: each stroke draws itself. The shapes measure 1 (pathLength, set by
 // elements/animate.ts), so one dash offset draws any of them without measuring it.
@@ -697,6 +719,14 @@ function applyRange(e: Effect, r: ParsedRange): Effect {
   return { ...e, range: [a + (b - a) * x, a + (b - a) * y], viewRange: r.view ?? e.viewRange };
 }
 
+/** Effects without `keyframes()`, which plays in `fx` only: reported for `exit` and `loop`. */
+export function withoutKeyframes(effects: Effect[], list: string, report: Report): Effect[] {
+  return effects.filter((e) => {
+    if (e.keyframes) report(`keyframes(${e.keyframes}) plays in fx, not ${list}`);
+    return !e.keyframes;
+  });
+}
+
 /** `exit`: raw target values (`opacity:0; y:-40`) or presets played in reverse (`fade, rise`). */
 export function parseExit(text: string | null, ease: Ease | null, report: Report): Effect[] {
   if (!text) return [];
@@ -710,7 +740,9 @@ export function parseExit(text: string | null, ease: Ease | null, report: Report
       }),
     ];
   }
-  return parseFx(text, report).map((e) => asExit(ease ? { ...e, ease } : e));
+  return withoutKeyframes(parseFx(text, report), 'exit', report).map((e) =>
+    asExit(ease ? { ...e, ease } : e)
+  );
 }
 
 /** `from` / `to`: one effect between two raw states. */

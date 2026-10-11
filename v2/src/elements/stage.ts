@@ -14,6 +14,7 @@ import { loadStills, stillsModule, usesStills } from '../media/load-stills';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
 import { Clock } from '../render/clock';
 import { parseCovered } from '../render/covered';
+import { keyframesModule, loadKeyframes, usesKeyframes } from '../render/load-keyframes';
 import { loadSplit, splitModule } from '../text/load';
 import { countModule, loadCount, usesCount } from '../text/load-count';
 import type { CvStageElement } from '../types';
@@ -381,6 +382,7 @@ export class CvStage extends ElementBase implements CvStageElement {
     if (!splitModule() && animates.some((a) => a.hasAttribute('split'))) chunks.push(loadSplit());
     if (!stillsModule() && animates.some(usesStills)) chunks.push(loadStills());
     if (!countModule() && animates.some(usesCount)) chunks.push(loadCount());
+    if (!keyframesModule() && animates.some(usesKeyframes)) chunks.push(loadKeyframes());
     if (chunks.length) {
       const generation = this.generation;
       await Promise.all(chunks);

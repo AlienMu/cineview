@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>keyframes fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  body{font:16px/1.4 system-ui,sans-serif;color:#222;background:#fff}
+  cv-scene{display:block;min-height:100vh;padding:20px}
+  cv-animate{display:block;width:300px;height:40px;margin-bottom:10px}
+  #gap{height:1400px}
+  @keyframes pop { from { opacity: 0; transform: scale(.5) } to { opacity: 1; transform: none } }
+  @keyframes spin { from { transform: rotate(-90deg) } to { transform: none } }
+  @keyframes tint { from { background-color: rgb(255, 0, 0) } to { background-color: rgb(0, 0, 255) } }
+  @keyframes below { from { transform: translateY(100vh) } to { transform: none } }
+  @keyframes jump { 0% { translate: 0 0; animation-timing-function: steps(2, end) } 100% { translate: 100px 0 } }
+  @media (min-width: 1px) { @keyframes mq { from { color: rgb(0, 0, 0) } to { color: rgb(0, 128, 0) } } }
+  @media (max-width: 1px) { @keyframes mq { from { color: rgb(0, 0, 0) } to { color: rgb(255, 0, 0) } } }
+</style></head>
+<body>
+<script type="module">
+  // P3.8 keyframes(name). a (on entrance): a rule with a duration (k1), outside another layer of
+  // the element (k2), the rule a media query picks (k3), a missing name (k4), a rule only in a
+  // stylesheet from another origin (k5), keyframes() in exit (k6), a keyframe's own steps (k7), a
+  // rule that starts below the viewport (k8).
+  // b: a rule on view over cover 20% to 60% (kv). z: a rule on zone time (kz). The far stylesheet
+  // is loaded from localhost (the page is on 127.0.0.1), served by the probe, before the stage
+  // builds. ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  const far = document.createElement('link');
+  far.rel = 'stylesheet';
+  far.href = `http://localhost:${location.port}/far.css`;
+  await new Promise((r) => {
+    far.onload = far.onerror = r;
+    document.head.append(far);
+  });
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a">
+      <cv-animate id="k1" fx="keyframes(pop)" duration="800">Pop</cv-animate>
+      <cv-animate id="k2" fx="keyframes(spin), rise">Spin and rise</cv-animate>
+      <cv-animate id="k3" fx="keyframes(mq)"><span>Media</span></cv-animate>
+      <cv-animate id="k4" fx="keyframes(nope)">Missing</cv-animate>
+      <cv-animate id="k5" fx="keyframes(far)">Far</cv-animate>
+      <cv-animate id="k6" fx="fade" exit="keyframes(pop)">Exit</cv-animate>
+      <cv-animate id="k7" fx="keyframes(jump)" duration="1000">Jump</cv-animate>
+      <cv-animate id="k8" fx="keyframes(below)">From below</cv-animate>
+    </cv-scene>
+    <cv-scene id="b">
+      <div id="gap"></div>
+      <cv-animate id="kv" on="view(self)" fx="keyframes(tint) cover 20% cover 60%">View</cv-animate>
+      <div style="height:1200px"></div>
+    </cv-scene>
+    <cv-scene id="z" zone>
+      <cv-animate id="kz" fx="keyframes(tint)" duration="1000">Zone</cv-animate>
+    </cv-scene>
+    <cv-scene id="e"><div style="height:100vh"></div></cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>

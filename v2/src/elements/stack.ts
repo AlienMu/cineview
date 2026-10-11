@@ -90,6 +90,7 @@ export class CvStack extends CvAnimate {
     }
     return {
       layers: [],
+      rules: [],
       fades: [],
       inks: [],
       counts: [],

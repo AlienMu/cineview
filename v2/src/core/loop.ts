@@ -16,7 +16,7 @@
  */
 import { easeInOut, type Ease } from './ease';
 import type { Report } from './errors';
-import { parseFx, parseItem, splitTop } from './fx';
+import { parseFx, parseItem, splitTop, withoutKeyframes } from './fx';
 import {
   frameCss,
   IDENTITY,
@@ -283,7 +283,7 @@ export function parseLoop(
       continue;
     }
     // Any fx preset: from → to → from.
-    const effects = parseFx(part.trim(), report);
+    const effects = withoutKeyframes(parseFx(part.trim(), report), 'loop', report);
     if (!effects.length) continue;
     const props: Partial<Record<Prop, Value[]>> = {};
     const vars: VarLists = {};

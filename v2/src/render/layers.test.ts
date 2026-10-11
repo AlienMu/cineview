@@ -10,9 +10,12 @@ import {
   buildTargetLayers,
   clearLayer,
   compositorLayer,
+  exitKeyframes,
   layerKeyframes,
+  placeKeyframes,
   planLayers,
   samplesFor,
+  sceneKeyframes,
   writeLayer,
 } from './layers';
 
@@ -273,5 +276,64 @@ describe('main-thread layers', () => {
     expect(layer!.el.style.getPropertyValue('--cv-axis-wght')).toBe('');
     clearLayer(layer!);
     expect(layer!.el.getAttribute('style') ?? '').toBe('');
+  });
+});
+
+describe('keyframes layers (keyframes(name))', () => {
+  const rule: Keyframe[] = [
+    { easing: 'linear', opacity: '0', offset: 0 },
+    { easing: 'steps(2)', opacity: '.5', offset: 0.5 },
+    { easing: 'linear', opacity: '1', offset: 1 },
+  ];
+
+  it('places a rule on part of the progress, holding its ends outside it', () => {
+    expect(placeKeyframes(rule, 0, 1)).toEqual(rule);
+    const placed = placeKeyframes(rule, 0.2, 0.6);
+    expect(placed.map((k) => [+k.offset!.toFixed(4), k.opacity, k.easing])).toEqual([
+      [0, '0', 'linear'],
+      [0.2, '0', 'linear'],
+      [0.4, '.5', 'steps(2)'],
+      [0.6, '1', 'linear'],
+      [1, '1', 'linear'],
+    ]);
+    // A property the rule leaves to the element at an end is not held there.
+    const open = [{ opacity: '.5', offset: 0.5 }];
+    expect(placeKeyframes(open, 0.5, 1)).toEqual([{ opacity: '.5', offset: 0.75 }]);
+  });
+
+  it('plays the rule outermost, on its part of the scene, holding its end on exit', () => {
+    const host = document.createElement('div');
+    const [effect] = parseFx('keyframes(pop) 50% 100%', () => undefined);
+    const plan = {
+      kind: 'keyframes' as const,
+      source: 'scene' as const,
+      subject: 'scene' as const,
+      range: null,
+      effects: [effect!],
+      exitEffects: [],
+      select: 'rest' as const,
+    };
+    const [layer, time] = buildLayers(host, planLayers(groups([['scene', fx('fade')]]), 'scene'), [
+      { plan, keyframes: rule },
+    ]);
+    expect(layer!.el.parentNode).toBe(host.shadowRoot);
+    expect(layer!.el.getAttribute('part')).toBe('layer keyframes');
+    expect(time!.el.parentNode).toBe(layer!.el);
+    expect([layer!.rule !== null, time!.rule, layer!.used.size, compositorLayer(layer!)]).toEqual([
+      true,
+      null,
+      0,
+      true,
+    ]);
+    expect(layerKeyframes(layer!).map((k) => k.offset)).toEqual([0, 0.5, 0.75, 1]);
+    const window = { start: 100, end: 300, exitStart: 300, exitEnd: 400 };
+    // The layer's own holds (at 0 and its part, 50%) are placed with it: 0 → 25%, 50% → 50%.
+    expect(sceneKeyframes(layer!, window, 400).map((k) => k.offset)).toEqual([
+      0, 0.25, 0.5, 0.625, 0.75, 1,
+    ]);
+    expect(exitKeyframes(layer!)).toEqual([
+      { easing: 'linear', opacity: '1', offset: 0 },
+      { easing: 'linear', opacity: '1', offset: 1 },
+    ]);
   });
 });

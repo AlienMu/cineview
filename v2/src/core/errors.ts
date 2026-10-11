@@ -9,6 +9,8 @@ export type ErrorCode =
   | 'invalid-attribute'
   /** A preset or loop name that is not defined. */
   | 'unknown-effect'
+  /** `keyframes(name)` names no @keyframes rule in the stylesheets the page lets it read. */
+  | 'unknown-keyframes'
   /** Timing: two elements of a scene share a `name`, `after` names nothing, a cycle, unsolvable `at`. */
   | TimeErrorCode
   /** Stage or scene `unit`/`scale` (drag). */

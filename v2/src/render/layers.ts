@@ -3,9 +3,9 @@
  *
  * Shadow layers nest in a fixed order from outside in (plan v3 §4.2):
  *
- *   space (view, page) → time (scene, enter + exits) → clock (on="clock") → loop → signal
- *   (velocity, direction) → clip (clip-path from any source, innermost so the window moves with
- *   the content)
+ *   keyframes (the page's own @keyframes) → space (view, page) → time (scene, enter + exits) →
+ *   clock (on="clock") → loop → signal (velocity, direction) → clip (clip-path from any source,
+ *   innermost so the window moves with the content)
  *
  * Author children stay in light DOM behind a <slot>. Layers are blocks that size to the host, so
  * percentage sizes in author content resolve against the host (§4.3).
@@ -24,6 +24,9 @@
  * count wheels turn a count into one position per wheel (text/count.ts).
  *
  * Copy layers write their tracks on a copy's container: a duotone print (media/stills.ts).
+ *
+ * Keyframes layers play the page's own @keyframes (`keyframes(name)`, render/keyframes.ts): the
+ * rule read into keyframes is their data, for native, clock and seeked animations alike.
  */
 import {
   evaluate,
@@ -46,7 +49,7 @@ import {
 import type { Solved } from '../core/time';
 import { sameRange, type ViewRange } from '../core/view';
 
-export type LayerKind = 'space' | 'time' | 'clock' | 'loop' | 'signal' | 'clip';
+export type LayerKind = 'keyframes' | 'space' | 'time' | 'clock' | 'loop' | 'signal' | 'clip';
 
 /**
  * Whose passage through the viewport drives a view layer: the scene, the element itself, or an
@@ -54,7 +57,7 @@ export type LayerKind = 'space' | 'time' | 'clock' | 'loop' | 'signal' | 'clip';
  */
 export type Subject = 'scene' | 'self' | `#${string}`;
 
-const KIND_OF: Readonly<Record<Source, Exclude<LayerKind, 'clip' | 'loop'>>> = {
+const KIND_OF: Readonly<Record<Source, Exclude<LayerKind, 'keyframes' | 'clip' | 'loop'>>> = {
   view: 'space',
   page: 'space',
   scene: 'time',
@@ -65,6 +68,7 @@ const KIND_OF: Readonly<Record<Source, Exclude<LayerKind, 'clip' | 'loop'>>> = {
   direction: 'signal',
 };
 const RANK: Readonly<Record<LayerKind, number>> = {
+  keyframes: -1,
   space: 0,
   time: 1,
   clock: 2,
@@ -73,7 +77,8 @@ const RANK: Readonly<Record<LayerKind, number>> = {
   clip: 5,
 };
 
-export const kindOf = (source: Source): Exclude<LayerKind, 'clip' | 'loop'> => KIND_OF[source];
+export const kindOf = (source: Source): Exclude<LayerKind, 'keyframes' | 'clip' | 'loop'> =>
+  KIND_OF[source];
 
 /** Absolute window of a time layer on its scene timeline (ms). */
 export interface Window {
@@ -124,6 +129,10 @@ export interface Layer {
   last: Map<string, string>;
   /** Live native animation, when this layer runs off the main thread. */
   native: Animation | null;
+  /** A keyframes layer: the page's rule as keyframes over the layer's progress. */
+  rule: Keyframe[] | null;
+  /** A keyframes layer's paused animation of its rule, seeked by direct writes. */
+  seek: Animation | null;
 }
 
 /** What an element decides about a layer before the layer exists. */
@@ -131,6 +140,12 @@ export type LayerPlan = Pick<
   Layer,
   'kind' | 'source' | 'subject' | 'range' | 'effects' | 'exitEffects' | 'select'
 >;
+
+/** A `keyframes(name)` effect and its rule's keyframes, for a keyframes layer. */
+export interface RulePlan {
+  plan: LayerPlan;
+  keyframes: Keyframe[];
+}
 
 const LAYER_STYLE =
   ':host{display:block;position:relative}' +
@@ -227,10 +242,17 @@ function makeLayer(
     scratch: identityFrame(),
     last: new Map(),
     native: null,
+    rule: null,
+    seek: null,
   };
 }
 
-export function buildLayers(host: HTMLElement, plans: readonly LayerPlan[]): Layer[] {
+/** Shadow layers, outermost first: keyframes layers (`rules`), then `plans` in their order. */
+export function buildLayers(
+  host: HTMLElement,
+  plans: readonly LayerPlan[],
+  rules: readonly RulePlan[] = []
+): Layer[] {
   const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
   root.textContent = '';
   const style = document.createElement('style');
@@ -238,6 +260,17 @@ export function buildLayers(host: HTMLElement, plans: readonly LayerPlan[]): Lay
   root.append(style);
   let parent: ParentNode = root;
   const layers: Layer[] = [];
+  for (const { plan, keyframes } of rules) {
+    const el = document.createElement('div');
+    el.className = 'l';
+    el.setAttribute('part', 'layer keyframes');
+    parent.append(el);
+    parent = el;
+    const layer = makeLayer(plan, el, false, -1);
+    const [a, b] = plan.effects[0]?.range ?? [0, 1];
+    layer.rule = placeKeyframes(keyframes, a, b);
+    layers.push(layer);
+  }
   for (const plan of plans) {
     const el = document.createElement('div');
     el.className = 'l';
@@ -298,6 +331,21 @@ export function buildPieceLayers(
  */
 export function buildFadeLayer(plan: LayerPlan, el: HTMLElement, blur: number): Layer {
   return makeLayer(plan, el, false, -1, false, blur);
+}
+
+/**
+ * Keyframes over [a, b] of a progress: before a the first keyframe holds, after b the last
+ * (properties the rule leaves to the element's own value at its ends follow the browser's
+ * implicit keyframes).
+ */
+export function placeKeyframes(frames: readonly Keyframe[], a: number, b: number): Keyframe[] {
+  if (a === 0 && b === 1) return frames.slice();
+  const placed = frames.map((k) => ({ ...k, offset: a + (k.offset ?? 0) * (b - a) }));
+  const first = frames[0];
+  const last = frames[frames.length - 1];
+  if (a > 0 && first?.offset === 0) placed.unshift({ ...first, offset: 0, easing: 'linear' });
+  if (b < 1 && last?.offset === 1) placed.push({ ...last, offset: 1, easing: 'linear' });
+  return placed;
 }
 
 /** A copy layer: the plan's tracks, written on `el`. */
@@ -378,9 +426,22 @@ export function layerCss(layer: Layer, frame: Frame): Record<string, string> {
   return out;
 }
 
+/** One second of a keyframes layer's seeked animation stands for its whole progress. */
+const SEEK = 1000;
+
 /** Direct style write (drag input and the scroll main-thread path). Skips unchanged values. */
 export function writeLayer(layer: Layer, p: number, px: number, mirror = false): void {
   layer.watch?.(p);
+  if (layer.rule) {
+    // A keyframes layer has no exits; the rule's values are the browser's to interpolate.
+    if (!layer.seek) {
+      layer.seek = layer.el.animate(layer.rule, { duration: SEEK, fill: 'both' });
+      layer.seek.pause();
+    }
+    const t = Math.min(1, Math.max(0, p)) * SEEK;
+    if (layer.seek.currentTime !== t) layer.seek.currentTime = t;
+    return;
+  }
   const css = layerCss(layer, evaluateLayer(layer, p, px, mirror));
   const style = layer.el.style;
   for (const key in css) {
@@ -394,6 +455,8 @@ export function writeLayer(layer: Layer, p: number, px: number, mirror = false):
 
 /** Remove what writeLayer wrote (before a clock animation takes over, or when the layer goes away). */
 export function clearLayer(layer: Layer): void {
+  layer.seek?.cancel();
+  layer.seek = null;
   const style = layer.el.style;
   for (const key of layer.last.keys()) {
     if (key.startsWith('--')) style.removeProperty(key);
@@ -419,6 +482,7 @@ export const samplesFor = (layer: Layer, duration: number): number =>
 
 /** Keyframes over the layer's own progress (view and clock paths). */
 export function layerKeyframes(layer: Layer, samples = 12): Keyframe[] {
+  if (layer.rule) return layer.rule;
   return sampleKeyframes(
     layer.effects,
     layer.select,
@@ -430,6 +494,11 @@ export function layerKeyframes(layer: Layer, samples = 12): Keyframe[] {
 
 /** Keyframes of a layer's exit alone (entrance complete), for exits played on a clock. */
 export function exitKeyframes(layer: Layer, samples = 12): Keyframe[] {
+  if (layer.rule) {
+    // No exit of its own: it holds its end while the element's exits play.
+    const end = layer.rule[layer.rule.length - 1];
+    return end?.offset === 1 ? [{ ...end, offset: 0 }, { ...end }] : [];
+  }
   const frames: Keyframe[] = [];
   for (let i = 0; i <= samples; i++) {
     const px = i / samples;
@@ -445,6 +514,10 @@ export function sceneKeyframes(
   total: number,
   samplesPerSegment = 8
 ): Keyframe[] {
+  if (layer.rule) {
+    const at = (t: number): number => (total > 0 ? t / total : 0);
+    return placeKeyframes(layer.rule, at(window.start), at(window.end));
+  }
   const points = new Set<number>([0, total]);
   const addSegment = (a: number, b: number): void => {
     if (b <= a) return;

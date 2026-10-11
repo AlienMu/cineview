@@ -50,8 +50,10 @@ import {
   planLayers,
   type Layer,
   type LayerPlan,
+  type RulePlan,
   type Subject,
 } from '../render/layers';
+import { keyframesModule } from '../render/load-keyframes';
 import type { Counter } from '../text/count';
 import { splitModule } from '../text/load';
 import { countModule } from '../text/load-count';
@@ -152,6 +154,8 @@ export interface SplitPlan {
 
 export interface AnimatePlan {
   layers: LayerPlan[];
+  /** `keyframes(name)`: the page's rules, each on a layer of its own, outermost. */
+  rules: RulePlan[];
   fades: FadePlan[];
   /** `duotone`: the ink tracks and inks, for the layer of the print over the images. */
   inks: InkPlan[];
@@ -379,6 +383,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       if (!g) groups.set(source, (g = { effects: [], exits: [] }));
       return g;
     };
+    // keyframes(name): the page's rule plays on a layer of its own, outside the others.
+    const keyframed: Array<{ source: Source; effect: Effect; played: boolean }> = [];
     for (const e of effects) {
       // A named range says the item follows the viewport (plan v3 §3.4), below an explicit `on`.
       const source =
@@ -390,6 +396,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       }
       // Reduced motion: no deformation from the reader's speed or direction (plan v3 §13).
       if (reduced && SIGNALS.has(source)) continue;
+      if (e.keyframes) {
+        // Reduced motion: a clock-played rule is left out (it may be motion), but still read, so a
+        // missing one is reported all the same.
+        keyframed.push({ source, effect: e, played: !(reduced && CLOCK_PLAYED.has(source)) });
+        continue;
+      }
       const kept = reduced && CLOCK_PLAYED.has(source) ? opacityOnly(e) : e;
       if (kept) group(source).effects.push(kept);
     }
@@ -482,7 +494,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
         warn(this, 'stagger needs time-driven effects (scene or enter); it has no effect here');
       }
     }
-    const sources = [...groups.keys()];
+    const sources = [...groups.keys(), ...keyframed.filter((k) => k.played).map((k) => k.source)];
     if (staggered) sources.push(staggered.source);
     if (split) sources.push(splitSource);
     // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor);
@@ -513,8 +525,30 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     const fades = stillsModule()?.planFades(layers, this) ?? [];
     const inks = stillsModule()?.planInks(layers) ?? [];
     const counts = countModule()?.planCounts(layers) ?? [];
+    // The stage loads the reader before building elements that may need it.
+    const reader = keyframesModule();
+    const rules: RulePlan[] = [];
+    for (const { source, effect, played } of reader ? keyframed : []) {
+      const keyframes = reader!.readKeyframes(
+        this,
+        effect.keyframes!,
+        effect.ease.css ?? 'linear',
+        report
+      );
+      const layer: LayerPlan = {
+        kind: 'keyframes',
+        source,
+        subject: on?.subject ?? 'scene',
+        range: source === 'view' ? effect.viewRange : null,
+        effects: [effect],
+        exitEffects: [],
+        select: 'rest',
+      };
+      if (keyframes && played) rules.push({ plan: layer, keyframes });
+    }
     return {
       layers,
+      rules,
       fades,
       inks,
       counts,
@@ -539,8 +573,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.presetDuration = plan.duration;
     this.maxDuration = plan.maxDuration;
     this.exitPlanned = plan.hasExit;
-    this.layers = buildLayers(this, plan.layers);
-    if (plan.split) this.mountSplit(plan.split, plan.whole!);
+    this.layers = buildLayers(this, plan.layers, plan.rules);
+    if (plan.split) this.mountSplit(plan.split, plan.whole!, plan.rules);
     this.mountStills(plan);
     this.loopLayer = this.layers.find((l) => l.kind === 'loop') ?? null;
     this.loopItems = plan.loops;
@@ -619,7 +653,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
    * Draw the split copy and its piece layers; text that cannot be split (more than text, rotated,
    * vertical, right-to-left, decorated) animates as a whole instead.
    */
-  private mountSplit(plan: SplitPlan, whole: LayerPlan[]): void {
+  private mountSplit(plan: SplitPlan, whole: LayerPlan[], rules: readonly RulePlan[]): void {
     const slot = this.shadowRoot!.querySelector('slot')!;
     // Pieces on a time source are timed with the scene: their number stays until the next build.
     const rebuild = plan.timed ? null : (): void => this.scene?.stage?.invalidate();
@@ -630,7 +664,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     if (!split || refused) {
       split?.destroy();
       if (__DEV__) warn(this, `split="${plan.unit}": ${refused}; the text animates as a whole`);
-      this.layers = buildLayers(this, whole);
+      this.layers = buildLayers(this, whole, rules);
       return;
     }
     const end = identityFrame();

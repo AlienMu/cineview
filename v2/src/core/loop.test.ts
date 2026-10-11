@@ -99,4 +99,10 @@ describe('parseLoop', () => {
     expect(items).toHaveLength(1);
     expect(messages).toEqual(['Unknown preset "wobble"']);
   });
+
+  it('reports keyframes(), which plays in fx only', () => {
+    const messages: string[] = [];
+    expect(parseLoop('keyframes(spin)', null, null, (m) => messages.push(m))).toEqual([]);
+    expect(messages).toEqual(['keyframes(spin) plays in fx, not loop']);
+  });
 });
