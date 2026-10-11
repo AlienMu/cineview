@@ -10,6 +10,7 @@ import {
   parseExit,
   parseFromTo,
   parseFx,
+  turned,
   withOwnAxes,
   type Effect,
   type Source,
@@ -36,9 +37,10 @@ import {
 import { ElementBase } from '../platform';
 import type { Clock } from '../render/clock';
 import { stillsModule } from '../media/load-stills';
-import type { Develop, FadePlan, FocusCopy } from '../media/stills';
+import type { Develop, Duotone, FadePlan, FocusCopy, InkPlan } from '../media/stills';
 import {
   buildAdaptedLayer,
+  buildCopyLayer,
   buildFadeLayer,
   buildLayers,
   buildPieceLayers,
@@ -87,6 +89,7 @@ const SHAPES = 'path, line, polyline, polygon, circle, ellipse, rect';
 /**
  * Keep only opacity and custom properties (values, not motion); null when nothing is left (the
  * element shows its final state at once). Font axes move the text: they hold their end value.
+ * Duotone inks stay inks.
  */
 function opacityOnly(e: Effect): Effect | null {
   const opacity = e.tracks.opacity;
@@ -97,7 +100,14 @@ function opacityOnly(e: Effect): Effect | null {
   return {
     ...makeEffect({ tracks: opacity ? { opacity } : {}, vars, ease: e.ease, own: e.own }),
     range: e.range,
+    inks: e.inks,
   };
+}
+
+/** Whether the element's text starts at its left: vertical-lr, or lines from left to right. */
+function startsLeft(el: HTMLElement): boolean {
+  const { writingMode, direction } = getComputedStyle(el);
+  return writingMode.startsWith('horizontal') ? direction !== 'rtl' : writingMode.endsWith('lr');
 }
 
 /** The text's own font axes, read from its first run as styled: weight, width, optical size. */
@@ -143,10 +153,14 @@ export interface SplitPlan {
 export interface AnimatePlan {
   layers: LayerPlan[];
   fades: FadePlan[];
+  /** `duotone`: the ink tracks and inks, for the layer of the print over the images. */
+  inks: InkPlan[];
   /** `count`: the count tracks, for the layer of the copy with the wheels (text/count.ts). */
   counts: LayerPlan[];
   /** `develop`: the crossfade (ms) from stand-ins to arrived images; null without it. */
   develop: number | null;
+  /** `invert`: the element blends by difference, within its scene. */
+  invert: boolean;
   /** Time effects applied to each stagger target instead of the host. */
   staggered: LayerPlan | null;
   split: SplitPlan | null;
@@ -211,12 +225,14 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   /** Split text in place (`split`); null when absent or refused. */
   split: TextSplit | null = null;
   private splitTimed = false;
-  /** Blurred copies over the element's images (media/stills.ts). */
-  private stills: Array<Develop | FocusCopy> = [];
+  /** Copies over the element's images (media/stills.ts). */
+  private stills: Array<Develop | FocusCopy | Duotone> = [];
   /** Digit wheels over the element's number (text/count.ts). */
   private counter: Counter | null = null;
   /** Undoes what `draw` set on the shapes it draws. */
   private drawn: Array<() => void> = [];
+  /** `invert`: the blend, in the shadow root. */
+  private inverted: HTMLStyleElement | null = null;
   timed = true;
   solved: Solved | null = null;
   natives: Animation[] = [];
@@ -319,6 +335,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     if (easeText !== null && !ease) report(`Unknown ease "${easeText}"`);
     let effects: Effect[] = parseFx(this.getAttribute('fx'), report);
     const develop = effects.some((e) => e.asset === 'develop');
+    const invert = effects.some((e) => e.asset === 'invert');
     effects = effects.filter((e) => !e.asset);
     if (ease) effects = effects.map((e) => ({ ...e, ease }));
     if (effects.some((e) => e.tracks.count)) {
@@ -332,6 +349,16 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     const own = ownAxes(this);
     effects = effects.map((e) => withOwnAxes(e, own));
     exits = exits.map((e) => withOwnAxes(e, own));
+    // A strip whose text starts at its left unrolls the other way (lexicon #35).
+    if ([...effects, ...exits].some((e) => e.flow) && startsLeft(this)) {
+      effects = effects.map((e) => (e.flow ? turned(e) : e));
+      exits = exits.map((e) => (e.flow ? turned(e) : e));
+    }
+    // Duotone prints the element's images: without the module (no images to load it) it has none.
+    if (!stillsModule()) {
+      effects = effects.filter((e) => !e.inks);
+      exits = exits.filter((e) => !e.inks);
+    }
     const on = parseOn(this.getAttribute('on'), report);
     const loopDuration = this.getAttribute('loop-duration');
     const loops = parseLoop(
@@ -484,12 +511,15 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     const layers = planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0);
     // F12: blur on a large picture fades a blurred copy instead.
     const fades = stillsModule()?.planFades(layers, this) ?? [];
+    const inks = stillsModule()?.planInks(layers) ?? [];
     const counts = countModule()?.planCounts(layers) ?? [];
     return {
       layers,
       fades,
+      inks,
       counts,
       develop: develop ? (reduced ? REDUCED_DURATION : DEVELOP_DURATION) : null,
+      invert,
       staggered,
       split,
       whole,
@@ -519,7 +549,21 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     }
     this.mountCount(plan);
     this.mountDraw();
+    if (plan.invert) this.mountInvert();
     if (__DEV__ && plan.layers.length) warnScopedPositioning(this);
+  }
+
+  /**
+   * `invert` (lexicon #40): the element blends by difference with what its scene shows behind it,
+   * the scene isolating the blend. Its text is white unless the page says otherwise: white minus
+   * the backdrop is the inverse.
+   */
+  private mountInvert(): void {
+    const style = document.createElement('style');
+    style.textContent = ':host{mix-blend-mode:difference;color:#fff}';
+    this.shadowRoot!.append(style);
+    this.inverted = style;
+    this.scene?.isolate(this, true);
   }
 
   /** `count`: digit wheels over the number, on a layer of their own (text/count.ts). */
@@ -603,13 +647,23 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.shownPhase = null;
   }
 
-  /** Blurred copies over the element's images: fade layers (F12), then `develop` stand-ins on top. */
+  /**
+   * Copies over the element's images: duotone prints, fade layers (F12), then `develop` stand-ins
+   * on top.
+   */
   private mountStills(plan: AnimatePlan): void {
     const slot = this.shadowRoot!.querySelector('slot');
     // The stage loads the module before building elements that may need it.
     const mod = stillsModule();
     if (!slot || !mod) return;
-    const { Develop, FocusCopy, copyContainer } = mod;
+    const { Develop, Duotone, FocusCopy, copyContainer } = mod;
+    for (const { layer, inks } of plan.inks) {
+      if (__DEV__ && !this.querySelector('img')) warn(this, 'duotone has no images to print');
+      const print = new Duotone(this, copyContainer(slot, 'duotone'));
+      print.mount(inks);
+      this.stills.push(print);
+      this.layers.push(buildCopyLayer(layer, print.container));
+    }
     for (const { layer, blur } of plan.fades) {
       const copy = new FocusCopy(this, copyContainer(slot, 'focus-copy'));
       copy.mount(blur);
@@ -803,6 +857,9 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.counter = null;
     for (const undo of this.drawn) undo();
     this.drawn = [];
+    this.inverted?.remove();
+    this.inverted = null;
+    this.scene?.isolate(this, false);
     for (const l of this.layers) {
       l.native = null;
       if (l.target) clearLayer(l);

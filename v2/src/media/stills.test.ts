@@ -1,6 +1,6 @@
 import { parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
 import { planLayers } from '../render/layers';
-import { planFades, splitBlur } from './stills';
+import { planFades, planInks, splitBlur } from './stills';
 
 const fx = (text: string): Effect[] => parseFx(text, () => undefined);
 const plans = (source: Source, text: string) =>
@@ -56,5 +56,20 @@ describe('blur on large pictures (F12)', () => {
       expect(planFades(layers, el)).toEqual([]);
       expect(layers).toEqual(plans('enter', text));
     }
+  });
+});
+
+describe('duotone prints (lexicon #27)', () => {
+  it('moves duotone effects to an ink plan with their inks; the layer keeps the rest', () => {
+    const layers = plans('enter', 'duotone(mono), rise');
+    const inks = planInks(layers);
+    expect(inks).toHaveLength(1);
+    expect(inks[0]!.inks).toEqual(['#000', '#fff']);
+    expect(inks[0]!.layer.effects.map((e) => e.tracks)).toEqual([{ opacity: [0, 1] }]);
+    expect(layers[0]!.effects.map((e) => e.inks)).toEqual([null]);
+    expect(layers[0]!.effects[0]!.tracks).toEqual({ opacity: [0, 1], y: [40, 0] });
+    const plain = plans('enter', 'fade');
+    expect(planInks(plain)).toEqual([]);
+    expect(plain).toEqual(plans('enter', 'fade'));
   });
 });

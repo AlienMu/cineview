@@ -12,6 +12,7 @@ export type Prop =
   | 'y'
   | 'xp' // translate, % of the element
   | 'yp'
+  | 'xw' // translate, % of the window: the nearest size container's width (cqw)
   | 'scale'
   | 'sx'
   | 'sy'
@@ -37,6 +38,7 @@ export interface Frame {
   y: number;
   xp: number;
   yp: number;
+  xw: number;
   scale: number;
   sx: number;
   sy: number;
@@ -59,6 +61,7 @@ export const IDENTITY: Readonly<Record<NumericProp, number>> = {
   y: 0,
   xp: 0,
   yp: 0,
+  xw: 0,
   scale: 1,
   sx: 1,
   sy: 1,
@@ -85,9 +88,9 @@ export function isRest(frame: Frame): boolean {
 }
 
 // Per-frame paths (direct writes run these per layer per frame): named fields, no keyed access.
-// Additive: x y xp yp rotate rx ry skx sky blur; multiplicative: scale sx sy opacity draw count.
+// Additive: x y xp yp xw rotate rx ry skx sky blur; multiplicative: scale sx sy opacity draw count.
 export function resetFrame(frame: Frame): void {
-  frame.x = frame.y = frame.xp = frame.yp = 0;
+  frame.x = frame.y = frame.xp = frame.yp = frame.xw = 0;
   frame.rotate = frame.rx = frame.ry = frame.skx = frame.sky = frame.blur = 0;
   frame.scale = frame.sx = frame.sy = frame.opacity = frame.draw = frame.count = 1;
   frame.clip = null;
@@ -100,6 +103,7 @@ export function combine(a: Frame, b: Frame): void {
   a.y += b.y;
   a.xp += b.xp;
   a.yp += b.yp;
+  a.xw += b.xw;
   a.rotate += b.rotate;
   a.rx += b.rx;
   a.ry += b.ry;
@@ -122,6 +126,7 @@ export function mirrorFrame(frame: Frame): void {
   frame.y = -frame.y;
   frame.xp = -frame.xp;
   frame.yp = -frame.yp;
+  frame.xw = -frame.xw;
   frame.rotate = -frame.rotate;
   frame.rx = -frame.rx;
   frame.ry = -frame.ry;
@@ -176,6 +181,9 @@ export function applyTrack(frame: Frame, prop: Prop, from: Value, to: Value, t: 
     case 'yp':
       frame.yp += v;
       break;
+    case 'xw':
+      frame.xw += v;
+      break;
     case 'rotate':
       frame.rotate += v;
       break;
@@ -216,14 +224,20 @@ const fmt = (n: number): string => String(Math.round(n * 1e4) / 1e4);
  * and a round cap leaves no dot (the gap after the dash is twice as long, see elements/animate.ts).
  */
 const UNDRAWN = 1.001;
-const length = (px: number, pct: number): string =>
-  pct ? (px ? `calc(${fmt(px)}px + ${fmt(pct)}%)` : `${fmt(pct)}%`) : `${fmt(px)}px`;
+/** A translate length: px, % of the element, cqw (% of the window); one term, else their sum. */
+function length(px: number, pct: number, cqw = 0): string {
+  if (!pct && !cqw) return `${fmt(px)}px`;
+  let terms = px ? `${fmt(px)}px` : '';
+  if (pct) terms += `${terms ? ' + ' : ''}${fmt(pct)}%`;
+  if (cqw) terms += `${terms ? ' + ' : ''}${fmt(cqw)}cqw`;
+  return terms.includes(' + ') ? `calc(${terms})` : terms;
+}
 
 /** CSS for a frame. Only properties in `used` are emitted, so other author styles are left alone. */
 export function frameCss(frame: Frame, used: ReadonlySet<Prop>): Record<string, string> {
   const css: Record<string, string> = {};
-  if (used.has('x') || used.has('y') || used.has('xp') || used.has('yp')) {
-    css.translate = `${length(frame.x, frame.xp)} ${length(frame.y, frame.yp)}`;
+  if (used.has('x') || used.has('y') || used.has('xp') || used.has('yp') || used.has('xw')) {
+    css.translate = `${length(frame.x, frame.xp, frame.xw)} ${length(frame.y, frame.yp)}`;
   }
   if (used.has('scale') || used.has('sx') || used.has('sy')) {
     const sx = frame.scale * frame.sx;
@@ -439,8 +453,9 @@ export function parseDeclarations(
     const unit = m[2]!.toLowerCase();
     if (prop === 'x' || prop === 'y') {
       if (unit === '%') out[prop === 'x' ? 'xp' : 'yp'] = n;
+      else if (unit === 'cqw' && prop === 'x') out.xw = n;
       else if (unit === '' || unit === 'px') out[prop] = n;
-      else report(`${key} accepts px or %, not "${unit}"`);
+      else report(`${key} accepts px${prop === 'x' ? ', % or cqw' : ' or %'}, not "${unit}"`);
     } else if (
       prop === 'rotate' ||
       prop === 'rx' ||

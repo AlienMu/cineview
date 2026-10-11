@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>presets2 fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  body{font:16px/1.4 system-ui,sans-serif;color:#222;background:#f00}
+  cv-scene{display:block;min-height:100vh;padding:20px;background:#fff}
+  img{display:block}
+  .grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+  .grid cv-animate{flex:none}
+  #dt4{width:300px;height:100px;background:#f0f}
+  #dt4 img{width:300px;height:100px;object-fit:contain}
+  #gap{height:1400px}
+  #u{height:2400px;padding:0}
+  .hold{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:20px;padding-top:20px}
+  .win{container-type:inline-size;width:600px;overflow:clip}
+  .win2{overflow:clip}
+  .strip{display:block;height:100%}
+  .rl{writing-mode:vertical-rl;width:1800px}
+  .lr{writing-mode:vertical-lr;width:1500px}
+  .in{width:100%;height:100%;font-size:20px;background:linear-gradient(to right,#ccd,#dcc)}
+  .line{display:block;width:max-content;white-space:nowrap;font-size:48px}
+  #c{background:transparent;position:relative}
+  .stripes{display:flex}
+  .stripes i{display:block;width:200px;height:200px}
+  .k{background:#000}
+  .w{background:#fff}
+  .over,.over2{position:absolute;left:20px;width:600px}
+  .over{top:60px}
+  .over2{top:140px}
+  #inv2{color:#0f0}
+  .bar{height:40px;background:currentColor}
+</style></head>
+<body>
+<script type="module">
+  // P3.7 presets, second set. a (on entrance): duotone with the default inks (dt1, bands of black,
+  // grey and white), a named pair over a cover crop (dt2), the page's inks (dt3), over a
+  // transparent picture with letterboxing (dt4), from another origin without (dt5) and with
+  // crossorigin (dt6), arriving late (dt7). b: duotone on view (dv). u: a held scene unrolling a
+  // vertical-rl strip in a 600px container (ur), a vertical-lr strip in the stage's frame (ul), a
+  // left-to-right line (uh). c: invert over black, white and nothing (the page is red behind a
+  // transparent scene), with the default white (inv) and the page's green (inv2). Images come
+  // from /img/, which the probe serves. ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  const bands = (w, h, v) => `/img/bands.png?w=${w}&h=${h}&v=${v.join(',')}`;
+  const alternate = Array.from({ length: 12 }, (_, i) => (i % 2 ? 255 : 0));
+  const words = 'Columns run from right to left and each one top to bottom. '.repeat(14);
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a"><div class="grid">
+      <cv-animate id="dt1" fx="duotone"><img src="${bands(300, 150, [0, 128, 255])}" width="300" height="150" alt="bands"></cv-animate>
+      <cv-animate id="dt2" fx="duotone(orange)"><img src="${bands(600, 150, alternate)}" alt="crop" style="width:200px;height:150px;object-fit:cover;object-position:30% 22%"></cv-animate>
+      <cv-animate id="dt5" fx="duotone"><img src="http://localhost:${location.port}${bands(150, 75, [0, 255])}" width="150" height="75" alt="foreign"></cv-animate>
+      <cv-animate id="dt3" fx="duotone" style="--cv-duotone-dark:#202020;--cv-duotone-light:#00ff00"><img src="${bands(300, 150, [0, 255])}" width="300" height="150" alt="page inks"></cv-animate>
+      <cv-animate id="dt4" fx="duotone(orange)"><img src="/img/alpha.png?w=200&h=100" alt="alpha"></cv-animate>
+      <cv-animate id="dt6" fx="duotone"><img src="http://localhost:${location.port}${bands(150, 75, [255, 0])}" crossorigin="anonymous" width="150" height="75" alt="shared"></cv-animate>
+      <cv-animate id="dt7" fx="duotone"><img src="/img/late.png?w=150&h=75&v=0,255&hold=1" width="150" height="75" alt="late"></cv-animate>
+    </div></cv-scene>
+    <cv-scene id="b">
+      <div id="gap"></div>
+      <cv-animate id="dv" on="view(self)" fx="duotone cover 20% cover 60%" ease="linear"><img src="${bands(300, 150, [0, 255])}" width="300" height="150" alt="view"></cv-animate>
+      <div style="height:800px"></div>
+    </cv-scene>
+    <cv-scene id="u"><div class="hold">
+      <div class="win" id="w1" style="height:200px"><cv-animate id="ur" class="strip rl" fx="unroll contain 0% contain 100%"><div class="in">${words}</div></cv-animate></div>
+      <div class="win2" id="w2" style="height:150px"><cv-animate id="ul" class="strip lr" fx="unroll contain 0% contain 100%"><div class="in">${words}</div></cv-animate></div>
+      <div class="win" id="w3"><cv-animate id="uh" class="line" fx="unroll contain 0% contain 100%"><span id="uht">A line longer than its window, from left to right.</span></cv-animate></div>
+    </div></cv-scene>
+    <cv-scene id="c">
+      <div class="stripes"><i class="k"></i><i class="w"></i><i class="t"></i></div>
+      <cv-animate id="inv" class="over" fx="invert"><div class="bar"></div></cv-animate>
+      <cv-animate id="inv2" class="over2" fx="invert"><div class="bar"></div></cv-animate>
+      <div style="height:400px"></div>
+    </cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.cvWarnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => {
+    window.cvWarnings.push(`${args[0]} #${args[1]?.closest?.('cv-animate')?.id ?? args[1]?.id ?? ''}`);
+    warn.apply(console, args);
+  };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>

@@ -18,6 +18,7 @@ import type { Report } from './errors';
 import {
   applyTrack,
   AXIS,
+  isColor,
   parseDeclarations,
   parseVars,
   resetFrame,
@@ -63,8 +64,21 @@ export interface Effect {
   duration: number | null;
   /** Decorative motion dropped under prefers-reduced-motion (plan v3 §13: parallax drift). */
   reducible: boolean;
-  /** Not a track: `develop` covers the element's pictures until they arrive (media/stills.ts). */
-  asset: 'develop' | null;
+  /**
+   * Not a track: `develop` covers the element's pictures until they arrive (media/stills.ts);
+   * `invert` blends the element by difference (elements/animate.ts).
+   */
+  asset: 'develop' | 'invert' | null;
+  /**
+   * Tracks written for text that starts at its right (vertical-rl): an element whose text starts
+   * at its left plays them the other way (`unroll`, elements/animate.ts).
+   */
+  flow: boolean;
+  /**
+   * `duotone`: the dark and the light ink. The effect's tracks show the print over the element's
+   * images instead of the element (media/stills.ts).
+   */
+  inks: readonly [string, string] | null;
 }
 
 interface EffectInit {
@@ -94,6 +108,8 @@ export function makeEffect(init: EffectInit): Effect {
     duration: init.duration ?? null,
     reducible: init.reducible ?? false,
     asset: null,
+    flow: false,
+    inks: null,
   };
 }
 
@@ -113,6 +129,20 @@ export function asExit(e: Effect): Effect {
       reducible: e.reducible,
     }),
     range: [1 - e.range[1], 1 - e.range[0]],
+    flow: e.flow,
+    inks: e.inks,
+  };
+}
+
+/** The same tracks the other way (from and to swapped), timing kept. */
+export function turned(e: Effect): Effect {
+  const tracks: Tracks = {};
+  for (const [p, from, to] of e.entries) tracks[p] = [to, from];
+  return {
+    ...e,
+    tracks,
+    entries: e.entries.map(([p, from, to]) => [p, to, from] as const),
+    vars: e.vars.map((v) => ({ ...v, from: v.to, to: v.from }) as VarTrack),
   };
 }
 
@@ -279,6 +309,51 @@ presets.set('push', (args, report) => {
 
 // Lexicon #25 blur-up: the element's pictures develop from a blurred stand-in once they arrive.
 presets.set('develop', () => ({ ...makeEffect({ tracks: {} }), asset: 'develop' }));
+
+// Lexicon #27 duotone: every picture printed in the same two inks, so a set of them reads as one.
+// A named pair, a dark and a light colour, or (no arguments) the page's --cv-duotone-dark and
+// --cv-duotone-light, else blue. Each image's luminance mixes the inks (media/stills.ts); the
+// track presses the print on over the picture as the opacity of its layer, so it runs on the
+// compositor. Not motion: kept under reduced motion.
+const INKS: Readonly<Record<string, readonly [string, string]>> = {
+  blue: ['#0f1d45', '#a9cfea'],
+  orange: ['#1a120e', '#f08a2c'],
+  terracotta: ['#1d1814', '#d4673f'],
+  mono: ['#000', '#fff'],
+};
+presets.set('duotone', (args, report) => {
+  const [dark, light] = INKS.blue!;
+  let inks: readonly [string, string] = [
+    `var(--cv-duotone-dark,${dark})`,
+    `var(--cv-duotone-light,${light})`,
+  ];
+  if (args.length === 1 && INKS[args[0]!]) inks = INKS[args[0]!]!;
+  else if (args.length === 2 && args.every(isColor)) inks = [args[0]!, args[1]!];
+  else if (args.length) {
+    report(
+      `duotone(${args.join(', ')}): expected ${Object.keys(INKS).join(', ')}, or a dark and a light colour`
+    );
+  }
+  return { ...makeEffect({ tracks: { opacity: [0, 1] }, duration: 900 }), inks };
+});
+
+// Lexicon #35 vertical writing: a strip longer than its window unrolls across it, start first, as a
+// hand scroll is read. It starts moved by the window's width less its own, 100cqw − 100% (the
+// window is the nearest size container: the author's, else the stage's frame), and ends in place,
+// so nothing is measured. Written for columns from right to left (vertical-rl); a strip that starts
+// at its left (vertical-lr, left-to-right lines) runs the other way. It follows the scene's
+// passage; `contain` keeps it to a held scene's hold, as the lexicon does. Like a track (#5) it is
+// the reader's own scroll, so it stays under reduced motion.
+presets.set('unroll', () => ({
+  ...makeEffect({ tracks: { xw: [100, 0], xp: [-100, 0] }, ease: linear, own: 'view' }),
+  flow: true,
+}));
+
+// Lexicon #40 difference inversion: the element shows the inverse of what is behind it (white
+// minus the backdrop), so it reads on photos, white and black alike; mid grey is its blind spot.
+// Not a track: the element blends by difference and its scene is isolated, so the blend stays
+// within the scene (elements/animate.ts). An inversion across scenes sits outside them.
+presets.set('invert', () => ({ ...makeEffect({ tracks: {} }), asset: 'invert' }));
 
 // Lexicon #9 path drawing: each stroke draws itself. The shapes measure 1 (pathLength, set by
 // elements/animate.ts), so one dash offset draws any of them without measuring it.

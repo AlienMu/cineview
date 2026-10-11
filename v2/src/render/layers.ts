@@ -22,6 +22,8 @@
  *
  * Adapted layers sit on a copy in the shadow root and rewrite their frame before it is written:
  * count wheels turn a count into one position per wheel (text/count.ts).
+ *
+ * Copy layers write their tracks on a copy's container: a duotone print (media/stills.ts).
  */
 import {
   evaluate,
@@ -296,6 +298,11 @@ export function buildPieceLayers(
  */
 export function buildFadeLayer(plan: LayerPlan, el: HTMLElement, blur: number): Layer {
   return makeLayer(plan, el, false, -1, false, blur);
+}
+
+/** A copy layer: the plan's tracks, written on `el`. */
+export function buildCopyLayer(plan: LayerPlan, el: HTMLElement): Layer {
+  return makeLayer(plan, el, false, -1);
 }
 
 /** An adapted layer on `el`: `adapt` rewrites the plan's frames into the custom properties `vars`. */

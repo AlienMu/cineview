@@ -8,6 +8,7 @@ import {
   parseFromTo,
   parseFx,
   parseItems,
+  turned,
   usedProps,
   withOwnAxes,
   type Effect,
@@ -230,6 +231,49 @@ describe('presets', () => {
       'axis(weight 300 900): expected an axis and one or two numbers, such as wght 300 800',
     ]);
   });
+
+  it('duotone presses two inks on as opacity, kept by its exit (lexicon #27)', () => {
+    const { report, messages } = collect();
+    const [plain, named, own] = parseFx('duotone, duotone(orange), duotone(#123, red)', report);
+    expect(plain).toMatchObject({ tracks: { opacity: [0, 1] }, duration: 900 });
+    expect(plain!.inks).toEqual([
+      'var(--cv-duotone-dark,#0f1d45)',
+      'var(--cv-duotone-light,#a9cfea)',
+    ]);
+    expect(named!.inks).toEqual(['#1a120e', '#f08a2c']);
+    expect(own!.inks).toEqual(['#123', 'red']);
+    expect(asExit(own!).inks).toEqual(['#123', 'red']);
+    expect(one('fade')[0]!.inks).toBeNull();
+    parseFx('duotone(navy), duotone(#123, 4px)', report);
+    expect(messages).toEqual([
+      'duotone(navy): expected blue, orange, terracotta, mono, or a dark and a light colour',
+      'duotone(#123, 4px): expected blue, orange, terracotta, mono, or a dark and a light colour',
+    ]);
+  });
+
+  it('unroll moves a strip from 100cqw − 100% to its place, turned for a left start (lexicon #35)', () => {
+    const [unroll] = one('unroll');
+    expect(unroll).toMatchObject({
+      tracks: { xw: [100, 0], xp: [-100, 0] },
+      own: 'view',
+      flow: true,
+      reducible: false,
+    });
+    const used = usedProps([unroll!], 'rest');
+    expect(frameCss(at([unroll!], 0), used)).toEqual({ translate: 'calc(-100% + 100cqw) 0px' });
+    expect(frameCss(at([unroll!], 0.75), used)).toEqual({ translate: 'calc(-25% + 25cqw) 0px' });
+    expect(frameCss(at([unroll!], 1), used)).toEqual({ translate: '0px 0px' });
+    const left = turned(unroll!);
+    expect(left.tracks).toEqual({ xw: [0, 100], xp: [0, -100] });
+    expect(frameCss(at([left], 1), used)).toEqual({ translate: 'calc(-100% + 100cqw) 0px' });
+    expect([left.range, left.ease, left.flow]).toEqual([unroll!.range, unroll!.ease, true]);
+    expect(one('fade')[0]!.flow).toBe(false);
+  });
+
+  it('invert is an asset marker, not a track (lexicon #40)', () => {
+    const [invert] = one('invert');
+    expect([invert!.asset, invert!.entries, invert!.inks]).toEqual(['invert', [], null]);
+  });
 });
 
 describe('composition within one source', () => {
@@ -277,13 +321,18 @@ describe('declarations', () => {
         report
       )
     ).toEqual({ opacity: 0.4, yp: 100, x: -20, sx: 0.4, ry: 90, blur: 6, clip: [0, 100, 0, 0] });
+    expect(parseDeclarations('x:50cqw', report)).toEqual({ xw: 50 });
     expect(messages).toEqual([]);
   });
 
   it('reports unknown keys and units', () => {
     const { report, messages } = collect();
-    expect(parseDeclarations('color:red; x:3em; opacity', report)).toEqual({});
-    expect(messages).toHaveLength(3);
+    expect(parseDeclarations('color:red; x:3em; opacity; y:5cqw', report)).toEqual({});
+    expect(messages).toHaveLength(4);
+    expect([messages[1], messages[3]]).toEqual([
+      'x accepts px, % or cqw, not "em"',
+      'y accepts px or %, not "cqw"',
+    ]);
   });
 
   it('expands inset shorthand', () => {
@@ -303,6 +352,18 @@ describe('frameCss', () => {
       translate: '0px calc(4px + 10%)',
       transform: 'perspective(1000px) rotateY(30deg)',
     });
+  });
+
+  it('adds the window term (cqw) to x, and mirrors it', () => {
+    const frame = identityFrame();
+    frame.x = 3;
+    frame.xp = -50;
+    frame.xw = 20;
+    expect(frameCss(frame, new Set(['xw'])).translate).toBe('calc(3px + -50% + 20cqw) 0px');
+    mirrorFrame(frame);
+    expect(frame.xw).toBe(-20);
+    frame.x = frame.xp = 0;
+    expect(frameCss(frame, new Set(['xw'])).translate).toBe('-20cqw 0px');
   });
 
   it('writes per-axis scale and a clip window', () => {

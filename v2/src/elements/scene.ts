@@ -50,6 +50,9 @@ export class CvScene extends ElementBase {
   frameTime = Number.NaN;
   /** Fully under the next scene (`stack`): not painted, no loops, media released. */
   covered = false;
+  /** Elements here that blend by difference (`invert`), and the isolation that holds them. */
+  private inverts = new Set<CvAnimate>();
+  private isolation: HTMLStyleElement | null = null;
   /** Attached, but some eligible layers wait for native budget. */
   nativePending = false;
   nativeGeneration = 0;
@@ -158,6 +161,23 @@ export class CvScene extends ElementBase {
   clearTrack(): void {
     this.trackX = Number.NaN;
     this.track?.style.removeProperty('translate');
+  }
+
+  /**
+   * An element starts (true) or stops blending by difference (lexicon #40). While any does, the
+   * scene is isolated: they invert its content and its background only, not what is behind it.
+   */
+  isolate(a: CvAnimate, on: boolean): void {
+    if (on) this.inverts.add(a);
+    else this.inverts.delete(a);
+    if (this.inverts.size && !this.isolation) {
+      this.isolation = document.createElement('style');
+      this.isolation.textContent = ':host{isolation:isolate}';
+      this.shadowRoot?.append(this.isolation);
+    } else if (!this.inverts.size && this.isolation) {
+      this.isolation.remove();
+      this.isolation = null;
+    }
   }
 
   registerAnimate(a: CvAnimate): void {

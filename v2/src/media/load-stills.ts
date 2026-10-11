@@ -15,8 +15,8 @@ export function loadStills(): Promise<StillsModule> {
 /** The module once loaded; null before. */
 export const stillsModule = (): StillsModule | null => loaded;
 
-/** Whether an element may need it: images, with `develop` or a blur (focus, reveal, blur). */
+/** Whether an element may need it: images, with `develop`, `duotone` or a blur (focus, reveal, blur). */
 export const usesStills = (el: Element): boolean =>
-  /develop|focus|reveal|blur/.test(
+  /develop|duotone|focus|reveal|blur/.test(
     ['fx', 'from', 'to', 'exit'].map((name) => el.getAttribute(name) ?? '').join(' ')
   ) && el.querySelector('img') !== null;

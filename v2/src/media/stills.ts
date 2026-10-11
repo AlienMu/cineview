@@ -1,6 +1,6 @@
 /**
- * Still pictures (plan v3 §6 F12, lexicon #25 and #12). Blur over a large area is costly to
- * animate, so both effects here animate opacity only, over blurred copies of the element's images:
+ * Still pictures (plan v3 §6 F12, lexicon #25, #12 and #27). Blur over a large area is costly to
+ * animate, so the effects here animate opacity only, over copies of the element's images:
  *
  * - `develop`: a blurred stand-in covers each image until it has loaded and decoded, then fades
  *   out over the sharp image (lexicon #25: 1.2 s). The stand-in is the author's small variant
@@ -9,6 +9,8 @@
  *   and its opacity follows the blur (a fade layer, render/layers.ts). The copy is the author's
  *   pre-blurred variant (`data-cv-blurred`), else the image under a static blur. A build step that
  *   generates variants can write either attribute.
+ * - `duotone`: a print of each image in two inks sits over it, and the effect's tracks show the
+ *   print instead of the element (a copy layer, render/layers.ts).
  *
  * Copies live in the element's shadow root after the slot, so they move with its layers and cover
  * positioned images too. Each sits on its image's content box, measured against its container, and
@@ -29,10 +31,11 @@ const FILL = 'position:absolute;inset:0;display:block;width:100%;height:100%;max
 /** Attributes that decide how the copy loads, kept the same as the image's. */
 const LOADING = ['crossorigin', 'referrerpolicy', 'loading', 'decoding'];
 
-interface Copy {
+interface Copy<C extends HTMLElement = HTMLImageElement> {
   img: HTMLImageElement;
   box: HTMLElement;
-  copy: HTMLImageElement;
+  /** The copy of the image; a print's light ink. */
+  copy: C;
   /** The author's variant, which replaces the image's own source. */
   variant: string | null;
   /** A scaled copy under the copy's blurred edges (a focus copy's static blur). */
@@ -111,6 +114,32 @@ export function planFades(layers: LayerPlan[], host: HTMLElement): FadePlan[] {
   return fades;
 }
 
+/** The inks of one layer: its duotone effects, shown as a print over the images (lexicon #27). */
+export interface InkPlan {
+  layer: LayerPlan;
+  inks: readonly [string, string];
+}
+
+/**
+ * Each shadow layer's duotone effects move to an ink plan of their own (the print's layer); the
+ * layer keeps its other effects.
+ */
+export function planInks(layers: LayerPlan[]): InkPlan[] {
+  const plans: InkPlan[] = [];
+  const inked = (e: Effect): boolean => e.inks !== null;
+  layers.forEach((l, i) => {
+    const first = [...l.effects, ...l.exitEffects].find(inked);
+    if (l.select !== 'rest' || !first) return;
+    const without = (list: Effect[]): Effect[] => list.filter((e) => !inked(e));
+    layers[i] = { ...l, effects: without(l.effects), exitEffects: without(l.exitEffects) };
+    plans.push({
+      layer: { ...l, effects: l.effects.filter(inked), exitEffects: l.exitEffects.filter(inked) },
+      inks: first.inks!,
+    });
+  });
+  return plans;
+}
+
 /** A layer-sized container for copies, after everything else in the innermost layer. */
 export function copyContainer(slot: HTMLSlotElement, part: string): HTMLElement {
   const el = document.createElement('div');
@@ -121,8 +150,8 @@ export function copyContainer(slot: HTMLSlotElement, part: string): HTMLElement 
   return el;
 }
 
-class Copies {
-  protected items: Copy[] = [];
+class Copies<C extends HTMLElement = HTMLImageElement> {
+  protected items: Array<Copy<C>> = [];
   private resize: ResizeObserver | null = null;
   protected cleanups: Array<() => void> = [];
 
@@ -133,6 +162,7 @@ class Copies {
 
   /** A copy of `img`, or null when there is nothing to copy yet (an unpicked <picture>). */
   protected add(
+    this: Copies,
     img: HTMLImageElement,
     variant: string | null,
     look: string,
@@ -151,11 +181,16 @@ class Copies {
     const filler = blur ? (copy.cloneNode() as HTMLImageElement) : null;
     if (filler) box.append(filler);
     box.append(copy);
-    this.container.append(box);
     const item = { img, box, copy, variant, filler, blur };
-    this.items.push(item);
-    this.resize?.observe(img);
+    this.hold(item);
     return item;
+  }
+
+  /** Show a copy, placed by measure(). */
+  protected hold(item: Copy<C>): void {
+    this.container.append(item.box);
+    this.items.push(item);
+    this.resize?.observe(item.img);
   }
 
   /** Place the copies now and whenever an image or the element changes size. */
@@ -192,17 +227,22 @@ class Copies {
       box.width = `${width}px`;
       box.height = `${height}px`;
       box.borderRadius = s.borderRadius;
-      for (const el of [item.copy, item.filler]) {
-        if (!el) continue;
-        el.style.objectFit = s.objectFit;
-        el.style.objectPosition = s.objectPosition;
-      }
-      const scale = 1 + (4 * item.blur) / Math.max(1, Math.min(width, height));
-      if (item.filler) item.filler.style.transform = `scale(${scale})`;
+      this.fit(item, s, width, height);
     });
   }
 
-  protected drop(item: Copy): void {
+  /** Lay the copy out in its box as the image is in its own (`s`: the image's computed style). */
+  protected fit(item: Copy<C>, s: CSSStyleDeclaration, width: number, height: number): void {
+    for (const el of [item.copy, item.filler]) {
+      if (!el) continue;
+      el.style.objectFit = s.objectFit;
+      el.style.objectPosition = s.objectPosition;
+    }
+    const scale = 1 + (4 * item.blur) / Math.max(1, Math.min(width, height));
+    if (item.filler) item.filler.style.transform = `scale(${scale})`;
+  }
+
+  protected drop(item: Copy<C>): void {
     const i = this.items.indexOf(item);
     if (i < 0) return;
     this.items.splice(i, 1);
@@ -305,6 +345,89 @@ export class Develop extends Copies {
   override destroy(): void {
     this.signal.stop = true;
     super.destroy();
+  }
+}
+
+const MASK = 'mask-repeat:no-repeat;';
+
+/** A URL in CSS `url()` (JSON's quoting reads the same in CSS). */
+const cssUrl = (src: string): string => `url(${JSON.stringify(src)})`;
+
+/**
+ * Whether a mask can read the image. Masks are fetched in CORS mode: an image from another origin
+ * needs `crossorigin` (and its server's consent). data: and blob: images are the page's own.
+ */
+function maskable(img: HTMLImageElement, src: string): boolean {
+  if (img.crossOrigin !== null || /^(data|blob):/.test(src)) return true;
+  return new URL(src, location.href).origin === location.origin;
+}
+
+/**
+ * `duotone` (lexicon #27): each image printed in two inks, over its content box. The dark ink is
+ * the ground and the light ink shows through a mask made of the image's luminance, so a pixel of
+ * brightness v prints dark + v × (light − dark); the image's alpha masks both, so what is
+ * transparent stays so. The masks lie as the image does (object-fit, object-position) and follow
+ * its current source once it has loaded; until then the image shows as it is.
+ */
+export class Duotone extends Copies<HTMLElement> {
+  mount([dark, light]: readonly [string, string]): void {
+    let foreign = false;
+    for (const img of imagesOf(this.host)) {
+      let item: Copy<HTMLElement> | null = null;
+      const print = (): void => {
+        const src = img.currentSrc;
+        if (!src || !img.naturalWidth) return;
+        if (!maskable(img, src)) {
+          if (__DEV__ && !foreign) {
+            warn(img, `duotone: ${src} is from another origin; add crossorigin to print it`);
+          }
+          foreign = true;
+          return;
+        }
+        if (!item) {
+          const box = document.createElement('div');
+          box.style.cssText = `position:absolute;overflow:clip;background:${dark};${MASK}mask-mode:alpha`;
+          const ink = document.createElement('div');
+          ink.style.cssText = `position:absolute;inset:0;background:${light};${MASK}mask-mode:luminance`;
+          box.append(ink);
+          item = { img, box, copy: ink, variant: null, filler: null, blur: 0 };
+          this.hold(item);
+        }
+        for (const el of [item.box, item.copy]) el.style.setProperty('mask-image', cssUrl(src));
+        this.measure();
+      };
+      print();
+      // Loaded later, or a new candidate (a resize, a <picture> source): the print follows.
+      img.addEventListener('load', print);
+      this.cleanups.push(() => img.removeEventListener('load', print));
+    }
+    this.watch();
+  }
+
+  /** The masks take the image's object-fit as their size and its object-position. */
+  protected override fit(
+    item: Copy<HTMLElement>,
+    s: CSSStyleDeclaration,
+    width: number,
+    height: number
+  ): void {
+    const { naturalWidth: w, naturalHeight: h } = item.img;
+    const natural = `${w}px ${h}px`;
+    const fit = s.objectFit;
+    const size =
+      fit === 'cover' || fit === 'contain'
+        ? fit
+        : fit === 'none'
+          ? natural
+          : fit === 'scale-down'
+            ? w > width || h > height
+              ? 'contain'
+              : natural
+            : '100% 100%';
+    for (const el of [item.box, item.copy]) {
+      el.style.setProperty('mask-size', size);
+      el.style.setProperty('mask-position', s.objectPosition);
+    }
   }
 }
 
