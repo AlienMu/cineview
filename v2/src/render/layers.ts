@@ -16,6 +16,9 @@
  *
  * Piece layers are the words or lines of split text (text/split.ts): elements of the copy in the
  * shadow root, so every track is written on them, always on the main thread.
+ *
+ * Fade layers carry the blur of a large picture as the opacity of a blurred copy over it
+ * (media/stills.ts, plan v3 §6 F12): opacity runs on the compositor, `filter` would not.
  */
 import {
   evaluate,
@@ -97,6 +100,8 @@ export interface Layer {
   item: number;
   /** Told the progress of every direct write (split text follows its first piece). */
   watch: ((p: number) => void) | null;
+  /** A fade layer: its blur (px) shows as opacity, full at this much blur; 0 otherwise. */
+  fade: number;
   /** Time layers: window on the scene timeline, assigned after the scene is solved. */
   window: Window | null;
   used: Set<Prop>;
@@ -188,7 +193,8 @@ function makeLayer(
   el: HTMLElement | SVGElement,
   target: boolean,
   item: number,
-  piece = false
+  piece = false,
+  fade = 0
 ): Layer {
   return {
     ...plan,
@@ -197,11 +203,14 @@ function makeLayer(
     piece,
     item,
     watch: null,
+    fade,
     window: null,
-    used: new Set<Prop>([
-      ...usedProps(plan.effects, plan.select),
-      ...usedProps(plan.exitEffects, plan.select),
-    ]),
+    used: fade
+      ? new Set<Prop>(['opacity'])
+      : new Set<Prop>([
+          ...usedProps(plan.effects, plan.select),
+          ...usedProps(plan.exitEffects, plan.select),
+        ]),
     vars: new Set([
       ...usedVars(plan.effects, plan.select),
       ...usedVars(plan.exitEffects, plan.select),
@@ -275,6 +284,14 @@ export function buildPieceLayers(
   return layers;
 }
 
+/**
+ * A fade layer on `el` (the container of blurred copies): the plan's blur tracks, shown as opacity
+ * that is full at `blur` px.
+ */
+export function buildFadeLayer(plan: LayerPlan, el: HTMLElement, blur: number): Layer {
+  return makeLayer(plan, el, false, -1, false, blur);
+}
+
 /** Assign windows to time layers from the element's solved window; stagger children get their slice. */
 export function assignWindows(layers: readonly Layer[], solved: Solved | null): void {
   for (const layer of layers) {
@@ -323,6 +340,10 @@ const TARGET_VARS: Readonly<Record<string, string>> = {
 
 /** CSS for a layer at a frame; target layers rename unsafe properties to their variables. */
 export function layerCss(layer: Layer, frame: Frame): Record<string, string> {
+  if (layer.fade) {
+    frame.opacity = Math.min(1, frame.blur / layer.fade);
+    frame.blur = 0;
+  }
   const css = frameCss(frame, layer.used);
   if (!layer.target) return css;
   const out: Record<string, string> = {};

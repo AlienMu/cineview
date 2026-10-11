@@ -3,11 +3,13 @@ import { identityFrame, isRest } from '../core/props';
 import { solveScene } from '../core/time';
 import {
   assignWindows,
+  buildFadeLayer,
   buildLayers,
   buildPieceLayers,
   buildTargetLayers,
   clearLayer,
   compositorLayer,
+  layerKeyframes,
   planLayers,
   samplesFor,
   writeLayer,
@@ -197,5 +199,35 @@ describe('split pieces', () => {
         expect([text, isRest(frame)]).toEqual([text, rest]);
       }
     }
+  });
+});
+
+describe('fade layers (F12)', () => {
+  const blurOnly = (text: string): ReturnType<typeof planLayers>[number] => {
+    const [plan] = planLayers(groups([['view', fx(text)]]), 'scene');
+    return {
+      ...plan!,
+      effects: plan!.effects.map((e) => ({
+        ...e,
+        tracks: { blur: e.tracks.blur! },
+        entries: e.entries.filter(([p]) => p === 'blur'),
+      })),
+    };
+  };
+
+  it('shows the blur as opacity of the copy, full at the most blur, on the compositor', () => {
+    const el = document.createElement('div');
+    const layer = buildFadeLayer(blurOnly('focus(band)'), el, 4.5);
+    expect([...layer.used]).toEqual(['opacity']);
+    expect(compositorLayer(layer)).toBe(true);
+    // Blurred at both ends of the passage, sharp in the middle.
+    const opacity = (p: number): number => (writeLayer(layer, p, 0), Number(el.style.opacity));
+    expect(opacity(0)).toBe(1);
+    expect(opacity(0.23)).toBeCloseTo(0.5, 1);
+    expect(opacity(0.5)).toBe(0);
+    expect(opacity(1)).toBe(1);
+    expect(el.style.filter).toBe('');
+    const frames = layerKeyframes(layer);
+    expect(frames.every((k) => Object.keys(k).sort().join() === 'offset,opacity')).toBe(true);
   });
 });

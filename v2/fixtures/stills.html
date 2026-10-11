@@ -1,0 +1,85 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stills fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  body{font:16px/1.4 system-ui,sans-serif;color:#222}
+  cv-scene{display:block;min-height:100vh;padding:20px}
+  cv-animate{display:block;margin-bottom:20px}
+  img{display:block;width:100%;height:auto}
+  .small{width:300px}
+  .grid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+  .grid cv-animate{width:180px;margin:0}
+  #row{display:flex}
+  #row cv-animate{width:380px;flex:none;margin:0}
+  #row img{height:380px;object-fit:cover}
+</style></head>
+<body>
+<script type="module">
+  // P3.5 still pictures (lexicon #25 blur-up, #12 focus; plan v3 §6 F12). Images come from /img/,
+  // which the probe serves (checkered w × h; `hold=1` ones once the probe releases them; missing.png
+  // is a 404).
+  // a: develop with the author's stand-in (dv, dz positioned), with the image itself (dn, ds
+  //    srcset), already arrived (dc), failing (dx), an unpicked <picture> (dp), with rise (dg).
+  // b: focus on a large picture fades a blurred copy (fl, fv with the author's variant); small (fs)
+  //    or captioned (ft) pictures blur. row: the copy (cmpA) and real blur (cmpB, an SVG makes it
+  //    more than images) at the same progress, for the visual comparison.
+  // c: a zone's time (zf). d: reveal on entrance (rv). ?drag: drag input; ?fallback: no native output.
+  history.scrollRestoration = 'manual';
+  const q = new URLSearchParams(location.search);
+  const input = q.has('drag') ? ' input="drag"' : '';
+  const fallback = q.has('fallback') ? ' fallback' : '';
+  // The stand-in: a 16 × 12 image in one colour (magenta), so the probe can see it on screen.
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 12;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#f0f';
+  g.fillRect(0, 0, 16, 12);
+  const standin = canvas.toDataURL('image/png');
+  // Arrived before the build: in the list of available images, so complete at once.
+  await new Promise((r) => {
+    const i = new Image();
+    i.onload = i.onerror = () => i.decode().then(r, r);
+    i.src = '/img/c.png?w=600&h=400';
+  });
+  document.body.insertAdjacentHTML('afterbegin', `
+  <cv-stage id="s"${input}${fallback}>
+    <cv-scene id="a"><div class="grid">
+      <cv-animate id="dv" class="small" fx="develop"><img src="/img/a.png?w=600&h=400&hold=1" width="600" height="400" alt="a" data-cv-standin="${standin}"></cv-animate>
+      <cv-animate id="dn" class="small" fx="develop"><img src="/img/b.png?w=600&h=400&hold=1" width="600" height="400" alt="b"></cv-animate>
+      <cv-animate id="dc" class="small" fx="develop"><img src="/img/c.png?w=600&h=400" width="600" height="400" alt="c"></cv-animate>
+      <cv-animate id="dx" class="small" fx="develop"><img src="/img/missing.png?hold=1" width="600" height="400" alt="x" data-cv-standin="${standin}"></cv-animate>
+      <cv-animate id="ds" class="small" fx="develop"><img srcset="/img/s.png?w=300&h=200&hold=1 300w, /img/s.png?w=900&h=600&hold=1 900w" sizes="300px" src="/img/s.png?w=300&h=200&hold=1" width="600" height="400" alt="s"></cv-animate>
+      <cv-animate id="dp" class="small" fx="develop"><picture><source srcset="/img/p.png?w=600&h=400&hold=1"><img src="/img/p0.png?w=600&h=400" width="600" height="400" alt="p"></picture></cv-animate>
+      <cv-animate id="dg" class="small" fx="develop, rise" duration="2000"><img src="/img/g.png?w=600&h=400&hold=1" width="600" height="400" alt="g" data-cv-standin="${standin}"></cv-animate>
+      <cv-animate id="dz" class="small" fx="develop" style="position:relative;height:200px"><img src="/img/z.png?w=600&h=400&hold=1" alt="z" style="position:absolute;inset:0;height:100%;object-fit:cover" data-cv-standin="${standin}"></cv-animate>
+    </div></cv-scene>
+    <cv-scene id="b">
+      <cv-animate id="fl" on="view(self)" fx="focus(band)"><img src="/img/f.png?w=800&h=600" width="800" height="600" alt="f"></cv-animate>
+      <cv-animate id="fs" class="small" on="view(self)" fx="focus(band)"><img src="/img/f.png?w=800&h=600" width="800" height="600" alt="f"></cv-animate>
+      <cv-animate id="ft" on="view(self)" fx="focus(band)"><img src="/img/f.png?w=800&h=600" width="800" height="600" alt="f"><p>A caption blurs with its picture.</p></cv-animate>
+      <cv-animate id="fv" on="view(self)" fx="focus(band)"><img src="/img/f.png?w=800&h=600" width="800" height="600" alt="f" data-cv-blurred="/img/fb.png?w=800&h=600"></cv-animate>
+      <div id="row">
+        <cv-animate id="cmpA" on="view(#row)" fx="focus cover 45% cover 65%" ease="linear"><img src="/img/f.png?w=800&h=600" alt="copy"></cv-animate>
+        <cv-animate id="cmpB" on="view(#row)" fx="focus cover 45% cover 65%" ease="linear"><img src="/img/f.png?w=800&h=600" alt="blur"><svg width="0" height="0" style="position:absolute"></svg></cv-animate>
+      </div>
+    </cv-scene>
+    <cv-scene id="c" zone>
+      <cv-animate id="zf" fx="focus" duration="600" ease="linear"><img src="/img/f.png?w=800&h=600" width="800" height="600" alt="f"></cv-animate>
+    </cv-scene>
+    <cv-scene id="d">
+      <cv-animate id="rv" fx="reveal" duration="1600" style="width:500px"><img src="/img/f.png?w=800&h=600" width="800" height="600" alt="f"></cv-animate>
+    </cv-scene>
+  </cv-stage>`);
+  window.cvErrors = [];
+  window.cvWarnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => {
+    window.cvWarnings.push(`${args[0]} #${args[1]?.closest?.('cv-animate')?.id ?? args[1]?.id ?? ''}`);
+    warn.apply(console, args);
+  };
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(`${e.detail.code}: ${e.detail.message}`));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>

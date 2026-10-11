@@ -62,6 +62,8 @@ export interface Effect {
   duration: number | null;
   /** Decorative motion dropped under prefers-reduced-motion (plan v3 §13: parallax drift). */
   reducible: boolean;
+  /** Not a track: `develop` covers the element's pictures until they arrive (media/stills.ts). */
+  asset: 'develop' | null;
 }
 
 interface EffectInit {
@@ -90,6 +92,7 @@ export function makeEffect(init: EffectInit): Effect {
     origin: init.origin ?? null,
     duration: init.duration ?? null,
     reducible: init.reducible ?? false,
+    asset: null,
   };
 }
 
@@ -272,6 +275,9 @@ presets.set('push', (args, report) => {
     report(`push focus "${origin}" is not a position`);
   return makeEffect({ tracks: { scale: [from, to] }, ease: pan, origin, duration: 1200 });
 });
+
+// Lexicon #25 blur-up: the element's pictures develop from a blurred stand-in once they arrive.
+presets.set('develop', () => ({ ...makeEffect({ tracks: {} }), asset: 'develop' }));
 
 // focus + wipe + push in one name (lexicon #12 + #30 + #26).
 presets.set('reveal', (args, report) => [

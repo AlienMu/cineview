@@ -2,7 +2,7 @@
  * <cv-animate>: one element's effects. Attributes are read into layer plans; the shadow layers
  * themselves are built by render/layers.ts and written by whichever input drives the stage.
  */
-import { parseEase } from '../core/ease';
+import { parseEase, settle } from '../core/ease';
 import type { Report } from '../core/errors';
 import {
   evaluate,
@@ -34,7 +34,10 @@ import {
 } from '../core/timeline';
 import { ElementBase } from '../platform';
 import type { Clock } from '../render/clock';
+import { stillsModule } from '../media/load-stills';
+import type { Develop, FadePlan, FocusCopy } from '../media/stills';
 import {
+  buildFadeLayer,
   buildLayers,
   buildPieceLayers,
   buildTargetLayers,
@@ -70,6 +73,8 @@ const CLOCK_PLAYED: ReadonlySet<Source> = new Set<Source>(['enter', 'eye', 'cloc
 const REDUCED_DURATION = 200;
 /** Split text on a time source: ms between pieces unless `stagger` says (lexicon #32: 85 ms a line). */
 const SPLIT_STEP: Readonly<Record<SplitUnit, number>> = { words: 40, lines: 85 };
+/** Lexicon #25: an image arrives over its stand-in in 1.2 s. */
+const DEVELOP_DURATION = 1200;
 
 /**
  * Keep only opacity and custom properties (values, not motion); null when nothing is left (the
@@ -105,6 +110,9 @@ export interface SplitPlan {
 
 export interface AnimatePlan {
   layers: LayerPlan[];
+  fades: FadePlan[];
+  /** `develop`: the crossfade (ms) from stand-ins to arrived images; null without it. */
+  develop: number | null;
   /** Time effects applied to each stagger target instead of the host. */
   staggered: LayerPlan | null;
   split: SplitPlan | null;
@@ -169,6 +177,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   /** Split text in place (`split`); null when absent or refused. */
   split: TextSplit | null = null;
   private splitTimed = false;
+  /** Blurred copies over the element's images (media/stills.ts). */
+  private stills: Array<Develop | FocusCopy> = [];
   timed = true;
   solved: Solved | null = null;
   natives: Animation[] = [];
@@ -270,6 +280,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     const ease = parseEase(easeText);
     if (easeText !== null && !ease) report(`Unknown ease "${easeText}"`);
     let effects: Effect[] = parseFx(this.getAttribute('fx'), report);
+    const develop = effects.some((e) => e.asset === 'develop');
+    effects = effects.filter((e) => !e.asset);
     if (ease) effects = effects.map((e) => ({ ...e, ease }));
     const raw = parseFromTo(this.getAttribute('from'), this.getAttribute('to'), ease, report);
     if (raw) effects.push(raw);
@@ -422,8 +434,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     for (const e of timeEffects) {
       if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
     }
+    const layers = planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0);
     return {
-      layers: planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0),
+      layers,
+      // F12: blur on a large picture fades a blurred copy instead.
+      fades: stillsModule()?.planFades(layers, this) ?? [],
+      develop: develop ? (reduced ? REDUCED_DURATION : DEVELOP_DURATION) : null,
       staggered,
       split,
       whole,
@@ -445,6 +461,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.exitPlanned = plan.hasExit;
     this.layers = buildLayers(this, plan.layers);
     if (plan.split) this.mountSplit(plan.split, plan.whole!);
+    this.mountStills(plan);
     this.loopLayer = this.layers.find((l) => l.kind === 'loop') ?? null;
     this.loopItems = plan.loops;
     if (plan.staggered) {
@@ -483,6 +500,26 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.splitTimed = plan.timed;
     // Inputs announce the phase again for the new copy.
     this.shownPhase = null;
+  }
+
+  /** Blurred copies over the element's images: fade layers (F12), then `develop` stand-ins on top. */
+  private mountStills(plan: AnimatePlan): void {
+    const slot = this.shadowRoot!.querySelector('slot');
+    // The stage loads the module before building elements that may need it.
+    const mod = stillsModule();
+    if (!slot || !mod) return;
+    const { Develop, FocusCopy, copyContainer } = mod;
+    for (const { layer, blur } of plan.fades) {
+      const copy = new FocusCopy(this, copyContainer(slot, 'focus-copy'));
+      copy.mount(blur);
+      this.stills.push(copy);
+      this.layers.push(buildFadeLayer(layer, copy.container, blur));
+    }
+    if (plan.develop !== null) {
+      const develop = new Develop(this, copyContainer(slot, 'develop'));
+      develop.mount(plan.develop, settle.css!);
+      this.stills.push(develop);
+    }
   }
 
   /** The scene entered (true) or left (false) the activation window. */
@@ -659,6 +696,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.split?.destroy();
     this.split = null;
     this.splitTimed = false;
+    for (const s of this.stills) s.destroy();
+    this.stills = [];
     for (const l of this.layers) {
       l.native = null;
       if (l.target) clearLayer(l);

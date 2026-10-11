@@ -181,6 +181,13 @@ describe('presets', () => {
     expect(band[0]!.range).toEqual([0, 0.23]);
     expect(band[1]!.range).toEqual([0.27, 0.5]);
   });
+
+  it('develop is an asset marker, not a track (lexicon #25)', () => {
+    const [develop, fade] = one('develop, fade');
+    expect(develop!.asset).toBe('develop');
+    expect(develop!.entries).toEqual([]);
+    expect(fade!.asset).toBeNull();
+  });
 });
 
 describe('composition within one source', () => {

@@ -10,6 +10,7 @@ import { onEffectDefined, type Source } from '../core/fx';
 import { checkDragScene, checkStage } from '../dev/craft';
 import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
+import { loadStills, stillsModule, usesStills } from '../media/load-stills';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
 import { Clock } from '../render/clock';
 import { parseCovered } from '../render/covered';
@@ -373,13 +374,15 @@ export class CvStage extends ElementBase implements CvStageElement {
       return;
     }
 
-    if (
-      !splitModule() &&
-      this.ordered.some((s) => [...s.animates].some((a) => a.hasAttribute('split')))
-    ) {
+    // Chunks the elements may need, loaded before they build.
+    const animates = this.ordered.flatMap((s) => [...s.animates]);
+    const chunks: Array<Promise<unknown>> = [];
+    if (!splitModule() && animates.some((a) => a.hasAttribute('split'))) chunks.push(loadSplit());
+    if (!stillsModule() && animates.some(usesStills)) chunks.push(loadStills());
+    if (chunks.length) {
       const generation = this.generation;
-      await loadSplit();
-      // A later build (or a disconnect) superseded this one while the chunk loaded.
+      await Promise.all(chunks);
+      // A later build (or a disconnect) superseded this one while the chunks loaded.
       if (generation !== this.generation || !this.isConnected) return;
     }
 

@@ -480,7 +480,7 @@ export class TextSplit {
     const fonts = document.fonts as FontFaceSet | undefined;
     if (fonts?.addEventListener) {
       fonts.addEventListener('loadingdone', again);
-      this.removeFonts = () => fonts.removeEventListener('loadingdone', again);
+      this.removeFonts = (): void => fonts.removeEventListener('loadingdone', again);
     }
   }
 
