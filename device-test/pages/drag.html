@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="test.css">
+<title>拖动测试</title>
+<style>
+  #d1 { background: #eef4ff; } #d2 { background: #fff7ed; } #d3 { background: #f1f8ee; } #d4 { background: #141414; color: #f4f4f4; } #d4 p { color: #bbb; }
+  .scroller { height: 26svh; overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .page { position: fixed; top: 10px; right: 12px; z-index: 5; font-size: 13px; background: #fff; border-radius: 999px; padding: 2px 10px; border: 1px solid var(--line); }
+</style>
+<script>
+  window.DEVICE_TEST = { id: 'drag', title: '拖动测试 Drag', checks: [
+    { id: 'commit', text: '慢慢向上拖过半屏再松手：切到下一场；下一场的标题跟着手指一起出现。' },
+    { id: 'cancel', text: '向上拖一小段（不到三分之一）停住再松手：弹回原来这一场。' },
+    { id: 'flick', text: '快速向上轻扫一下（很短、很快）：直接切到下一场。' },
+    { id: 'back', text: '向下拖回上一场：上一场的入场倒着播回去，最后完整显示。' },
+    { id: 'regrab', text: '松手后、页面还在滑动时再按住拖动：页面接着跟手，不跳、不闪。' },
+    { id: 'count', text: '第二场的数字随手指滚动，拖回去时数字也倒回去。' },
+    { id: 'button', text: '第三场的按钮可以点（计数加一），按住按钮拖动不会翻页；灰色框里的文字可以上下滚动，滚到头之后再拖才翻页。' },
+    { id: 'blocked', text: '第四场之后的第五场设置了不能拖入：在第四场向上拖，页面不动。' },
+    { id: 'rotate', text: '横过来再竖回去：当前场景不变，画面不错位。' },
+    { id: 'smooth', text: '整体感觉：跟手、不掉帧（有卡顿请写在备注里，说明在哪一步）。' },
+  ] };
+</script>
+<script type="module" src="/v2/cineview.js"></script>
+</head>
+<body>
+<span class="page" id="page">1 / 5</span>
+<cv-stage id="stage" input="drag" design-width="750" transition-duration="600">
+  <cv-scene id="d1">
+    <div class="screen">
+      <cv-animate name="t" fx="rise(soft)" duration="600" exit="opacity:0; y:-40" exit-duration="300" ease="linear"><h1>拖动测试</h1></cv-animate>
+      <cv-animate fx="fade" duration="500" after="t" ease="linear"><p>向上拖动切到下一场。底部的「检查清单」逐项记录。</p></cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="d2">
+    <div class="screen">
+      <cv-animate name="t" fx="rise(soft)" duration="600" ease="linear"><h2>数字跟着手指</h2></cv-animate>
+      <cv-animate fx="count" duration="900" ease="linear"><span class="num">2048</span></cv-animate>
+      <p>拖回去，数字也倒回去。</p>
+    </div>
+  </cv-scene>
+  <cv-scene id="d3">
+    <div class="screen">
+      <cv-animate fx="rise(soft)" duration="600" ease="linear"><h2>按钮和可滚动区域</h2></cv-animate>
+      <button type="button" id="tap" style="font:inherit;padding:12px 18px;border-radius:10px;border:1px solid var(--line);background:#fff">点我：0</button>
+      <div class="scroller"><p>这里的文字可以上下滚动。</p><p style="height:60svh">（一段很长的内容）</p><p>到底了。</p></div>
+    </div>
+  </cv-scene>
+  <cv-scene id="d4">
+    <div class="screen">
+      <cv-animate fx="grow" duration="700" ease="linear"><h2>第四场</h2></cv-animate>
+      <p>下一场设置了 drag="off"：在这里向上拖，页面不动。</p>
+      <p><a href="#d5" style="color:#8ab4ff">用链接切到第五场</a> · <a href="index.html" style="color:#8ab4ff">回到目录</a></p>
+    </div>
+  </cv-scene>
+  <cv-scene id="d5" drag="off">
+    <div class="screen"><h2>第五场</h2><p>只能用链接或脚本进入。</p><p><a href="#d1">回到第一场</a></p></div>
+  </cv-scene>
+</cv-stage>
+<script>
+  var n = 0;
+  document.getElementById('tap').addEventListener('click', function (e) { e.currentTarget.textContent = '点我：' + (++n); });
+  document.addEventListener('cv-enter', function (e) {
+    var i = [].indexOf.call(document.querySelectorAll('cv-scene'), e.target);
+    if (i >= 0) document.getElementById('page').textContent = (i + 1) + ' / 5';
+  });
+  var blocked = 0;
+  document.addEventListener('cv-dragblocked', function () { blocked++; });
+  window.DEVICE_EXTRA = function () { return { taps: n, blocked: blocked }; };
+</script>
+<script src="harness.js"></script>
+</body>
+</html>

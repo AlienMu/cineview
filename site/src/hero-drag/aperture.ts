@@ -23,7 +23,7 @@ import {
   BLADE_COUNT,
   BLADE_HALF_SPAN,
   BLADE_ROOT_SPREAD_RAD,
-} from '../components/temporal-drag/aperture/apertureBlades';
+} from './geometry/apertureBlades';
 
 // 2026-08-15 realistic rendering: real aperture blades are near-black tempered steel (neutral-cool, slightly blue-gray tint),
 // distinguished from each other by 1px-level bright edges (chamfered metal reflections), not full saturated color.

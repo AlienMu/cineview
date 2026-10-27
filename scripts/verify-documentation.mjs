@@ -11,10 +11,13 @@ if (!files.length)
     'CONTRIBUTING.md',
     'RELEASING.md',
     'llms.txt',
-    'docs/ai/quickstart.md',
-    'docs/ai/timeline.md',
-    'docs/ai/modes.md',
-    'docs/ai/recipes.md'
+    'AGENTS.md',
+    'device-test/README.zh-CN.md',
+    ...['declarative-design', 'design-assistant', 'landing-pages', 'lexicon'].flatMap((name) => [
+      `docs/ai/${name}.md`,
+      `docs/ai/${name}.zh-CN.md`,
+    ]),
+    ...fs.readdirSync(path.join(root, 'skills/cineview-design')).filter((f) => f.endsWith('.md')).map((f) => `skills/cineview-design/${f}`)
   );
 const stripCode = (text) => text.replace(/^(```|~~~)[\s\S]*?^\1[^\n]*$/gm, '');
 function anchors(text) {

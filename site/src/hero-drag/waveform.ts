@@ -15,7 +15,7 @@ import {
   waveformAmplitude,
   waveformFlowPosition,
   WAVEFORM_SAMPLES,
-} from '../components/temporal-drag/waveform/waveformField';
+} from './geometry/waveformField';
 
 // Act 03 is the amber act (`.tp-scene--03` maps --tp-sig to --tp-sig-amber). Kept as
 // numeric channels rather than a colour string because alpha varies per column per frame:

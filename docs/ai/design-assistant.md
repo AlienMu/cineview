@@ -4,7 +4,7 @@
 
 One of Cineview's design goals is to help AI understand content relationships, the purpose of motion, and implementation limits so it can advise the person using it. A user can describe what they want to explain or provide a PRD. The AI turns that material into a reviewable visual and interaction plan, then implements it with the capabilities currently available.
 
-This guide targets local 2.0 work. It describes how an AI should assist with design; it does not mean the project includes a chat service or automatic generator. Read the [41 design references](./lexicon.md), [landing-page composition guide](./landing-pages.md), and [declaration conventions](./declarative-design.md) as needed. Check [v2 types](../../v2/src/types.ts), [element attributes](../../v2/src/jsx.ts), and the actual driver before generating code.
+It describes how an AI should assist with design; it does not mean the project includes a chat service or automatic generator. Read the [41 design references](./lexicon.md), [landing-page composition guide](./landing-pages.md), and [declaration conventions](./declarative-design.md) as needed. Check [the public types](../../src/types.ts), [element attributes](../../src/jsx.ts), and the actual driver before generating code.
 
 ## Start with a recommendation the user can picture
 
@@ -36,7 +36,7 @@ These are design entry points, not a ranking based on project usage data. Identi
 
 ## Look up the 41 references by intent
 
-Choose the relevant problem: explaining relationships, arranging browsing, treating material, emphasizing text, or coordinating color. Then consult the [complete index](./lexicon.md). Each entry links to the original and describes its purpose and the local 2.0 route or limitation.
+Choose the relevant problem: explaining relationships, arranging browsing, treating material, emphasizing text, or coordinating color. Then consult the [complete index](./lexicon.md). Each entry links to the original and describes its purpose and the implementation route or limitation.
 
 Extract relationships from the original: which word calls up which image, why cards accumulate, where a subject becomes clear, and how colors retain their roles. Apply those relationships to the user's material. Reusing a blur, translation, or fade alone does not preserve the complete design idea.
 

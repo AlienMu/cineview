@@ -210,17 +210,9 @@ const consoleIssues = [];
 // 缩写展开要跨页判断），所以在浏览器循环之前直接读源文件。
 // 四轮复审的教训：探针只看渲染 prose 就有结构性盲区。
 const SRC = 'src/content/docs';
-// The 2.0 preview pages (routed at /docs/v2) follow the same source rules.
-const SRC_V2 = 'src/content/docs-v2';
 const GROUP_LABEL = {
-  'getting-started': 'GETTING STARTED',
-  concepts: 'CONCEPTS',
-  drag: 'DRAG',
-  scroll: 'SCROLL',
-  components: 'COMPONENTS',
-  advanced: 'ADVANCED',
-  // docs-v2 groups
   start: 'GETTING STARTED',
+  concepts: 'CONCEPTS',
   elements: 'ELEMENTS',
   guides: 'GUIDES',
 };
@@ -276,7 +268,7 @@ const AI_TONE_EN = [
 ];
 const structural = [];
 for (const lang of ['zh', 'en']) {
-  for (const p of [...readdirRecursive(`${SRC}/${lang}`), ...readdirRecursive(`${SRC_V2}/${lang}`)]) {
+  for (const p of readdirRecursive(`${SRC}/${lang}`)) {
     const text = readFileSync(p, 'utf8');
     const group = p.split('/').at(-2);
     const rel = `${lang}/${p.split('/').at(-1)}`;
@@ -407,15 +399,6 @@ await page.waitForSelector('.docs-nav__link');
 const slugs = await page.$$eval('.docs-nav__link', (as) => [
   ...new Set(as.map((a) => a.getAttribute('href').replace(/^#?\/docs\//, ''))),
 ]);
-// The 2.0 preview pages: their links read `v2/<slug>`, so the same loop opens /docs/v2/<slug>.
-await page.goto(`${BASE}/docs/v2`, { waitUntil: 'load' });
-await page.waitForSelector('.docs-nav__link');
-slugs.push(
-  ...(await page.$$eval('.docs-nav__link', (as) => [
-    ...new Set(as.map((a) => a.getAttribute('href').replace(/^#?\/docs\//, ''))),
-  ]))
-);
-
 for (const lang of ['zh', 'en']) {
   // 语言直接写 localStorage（i18n 的真源，见 site/src/i18n/index.tsx:15,37），
   // 避免点 toggle 的时序不确定；随后校验 document.documentElement.lang 真的生效。

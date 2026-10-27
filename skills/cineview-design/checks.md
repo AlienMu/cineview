@@ -10,7 +10,7 @@ applies the language before the Cineview module runs, so the first frame is alre
 <h2 class="title"><span class="nb" data-i18n="film.t1">The night's photos,</span> <span class="nb" data-i18n="film.t2">cut into a film</span></h2>
 <img data-i18n-alt="diary.alt" alt="A diary page with three photos">
 <script src="lang.js"></script>          <!-- classic script, before the module boots -->
-<!-- in <head>: the head snippet, /v2/cineview.css and the module (framework.md, Load) -->
+<!-- in <head>: the head snippet, cineview.css and the module (framework.md, Load) -->
 ```
 
 ```js

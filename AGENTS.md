@@ -7,33 +7,34 @@ Cineview is intended to make animation design understandable to AI so it can adv
 ## Source of truth
 
 - Read [`DESIGN.md`](./DESIGN.md) before changing runtime behavior. It is the current architecture specification.
-- Before changing v2 declarations, configuration parsing, or animation ownership, read the [declaration and implementation conventions](./docs/ai/declarative-design.md) ([Chinese](./docs/ai/declarative-design.zh-CN.md)). Preserve grouped declarations, explicit inheritance, and the documented state owners. That guide distinguishes implemented syntax from pending designs; proposed examples do not become usable APIs until the parser and public interface support them.
+- Before changing declarations, configuration parsing, or animation ownership, read the [declaration and implementation conventions](./docs/ai/declarative-design.md) ([Chinese](./docs/ai/declarative-design.zh-CN.md)). Preserve grouped declarations, explicit inheritance, and the documented state owners. That guide distinguishes implemented syntax from pending designs; proposed examples do not become usable APIs until the parser and public interface support them.
 - Create or update a local task-flow file in `task-flows/` before a multi-file change. Record the nodes and check them as they finish. This directory is ignored and must not be committed.
 - Treat the current TypeScript source and public type declarations as authoritative. Historical review notes describe past states and do not override code.
-- The site writing rules are in [`site/src/content/docs/WRITING.md`](./site/src/content/docs/WRITING.md).
+- The site writing rules are in [`site/src/content/docs/WRITING.md`](./site/src/content/docs/WRITING.md). The documentation pages are checked by `site/tests` and `site/tools/docs-style-probe.mjs`.
 - Before designing or implementing a landing page, read the [landing-page design guide](./docs/ai/landing-pages.md) ([Chinese](./docs/ai/landing-pages.zh-CN.md)). It covers content relationships, progress sources, composition, and browser acceptance. Match its API notes to the target version.
-- For v2 landing-page design and building, the [design skill](./skills/cineview-design/SKILL.md) starts with a conversation with the user (`conversation.md`: directions, number of scenes, each scene's content and material, a storyboard) and collects references: working markup, visual directions, layouts, how the 41 references combine by mode, example structures and ways to test a page. It is a library, not a procedure. Keep it accurate when the v2 API changes (it is checked against `v2/src/jsx.ts` and `v2/src/core/fx.ts`).
-- For v2 page recommendations or PRD-to-animation work, also read the [AI design workflow](./docs/ai/design-assistant.md) ([Chinese](./docs/ai/design-assistant.zh-CN.md)). Use the [41-reference index](./docs/ai/lexicon.md) ([Chinese](./docs/ai/lexicon.zh-CN.md)) to research relevant ideas. Explain the recommended screens in ordinary language, map requirements to readable states, and check current implementation limits before generating code. The references are not 41 interchangeable presets.
+- For landing-page design and building, the [design skill](./skills/cineview-design/SKILL.md) starts with a conversation with the user (`conversation.md`: directions, number of scenes, each scene's content and material, a storyboard) and collects references: working markup, visual directions, layouts, how the 41 references combine by mode, example structures and ways to test a page. It is a library, not a procedure. Keep it accurate when the API changes (it is checked against `src/jsx.ts` and `src/core/fx.ts`).
+- For page recommendations or PRD-to-animation work, also read the [AI design workflow](./docs/ai/design-assistant.md) ([Chinese](./docs/ai/design-assistant.zh-CN.md)). Use the [41-reference index](./docs/ai/lexicon.md) ([Chinese](./docs/ai/lexicon.zh-CN.md)) to research relevant ideas. Explain the recommended screens in ordinary language, map requirements to readable states, and check current implementation limits before generating code. The references are not 41 interchangeable presets.
 
 ## Repository map
 
-- `src/components/Cineview`: mode entry points and scroll controller
-- `src/components/Scene`: scene lifecycle, layout, and scroll-zone contexts
-- `src/components/Animate`: animation semantics and mode-specific drivers
-- `src/components/Position`, `src/components/Container`, `src/components/Image`: layout, sizing, and image loading
-- `src/context/CineviewContext.tsx`: width-based conversion values
-- `src/types/index.ts`: public types
-- `site/src/content/docs`: bilingual documentation pages (1.x, at /docs)
-- `site/src/content/docs-v2`: bilingual 2.0 documentation pages (at /docs/v2), with examples in `site/public/examples/v2`
+- `src/elements`: the custom elements (`cv-stage`, `cv-scene`, `cv-animate`, `cv-stack`, `cv-video`, `cv-fixed`, `cv-pause`)
+- `src/core`: the time solver, the `fx` language and presets, properties, easing, `replay`, errors
+- `src/input`: scroll and drag inputs, visibility gates, clock-played entrances, signals
+- `src/render`, `src/media`, `src/text`: layers and output, video, split text and counts
+- `src/boot.ts`: the startup styles (`cineview.css`) and the head snippet
+- `src/types.ts`, `src/jsx.ts`: public types and element attributes
+- `gate/`, `fixtures/`: browser checks and their fixture pages; `device-test/`: real-device test pages
+- `site/src/content/docs`: bilingual documentation pages (at /docs), with examples in `site/public/examples`
+- `site/public`: the static homepage (`index.html`), the drag demo (`drag/`) and the examples
 
 ## Runtime rules
 
-- `mode` is `drag` or `scroll`. `timeline.driver` is `scene` or `clock`.
-- `designWidth` is the only responsive conversion base. Conversion follows viewport width.
-- In drag mode, `renderProgress` is written by the render path and each Scene owns its element elapsed MotionValue. Do not add a second writer or share mutable progress between Scenes.
-- In scroll mode, a valid `Scene.scroll` zone owns its zone progress. One millisecond of authored zone duration equals one pixel of real scroll distance.
-- Per-frame values use MotionValues or the existing external stores. Do not add per-frame React state updates, layout reads followed by writes, or memo dependencies that change every frame.
-- Fixed layers belong to their Scene. Cross-scene persistent UI belongs outside `Cineview`.
+- `cv-stage` `input` is `scroll` or `drag`. A scene's time source is `scene` in zones and drag scenes, `enter` in ordinary scroll; `on` chooses another.
+- `design-width` is the only responsive base: `--cv-unit` is one design pixel.
+- In a zone, 1 ms of timeline equals 1 px of scroll; the element that ends last sets the length.
+- Each frame-changing value has one writer (see [DESIGN.md](./DESIGN.md#state-ownership)). Inputs own motion; the stage's build owns structure. Do not add a second writer.
+- Per-frame code reads all geometry first, then writes; it creates no elements or listeners.
+- A scene's fixed layer belongs to its scene. UI that persists across scenes goes outside `cv-stage`.
 
 ## Documentation rules
 
@@ -87,20 +88,17 @@ Cineview is intended to make animation design understandable to AI so it can adv
 ## Verification commands
 
 ```bash
-pnpm type-check:framework
-pnpm lint
-pnpm test:coverage:framework
-pnpm build:verify
-pnpm test:site-contracts
-pnpm type-check:site
-pnpm --dir site build
+pnpm verify          # repository scope, format, lint, types, unit tests, build, site checks
+pnpm test:browser    # browser checks, Chromium and WebKit
+pnpm docs:links
+npm pack --dry-run --ignore-scripts
 ```
 
-Use `pnpm verify:framework:static` for the framework static gate. Use `pnpm verify:all` only when browser acceptance is available. `cineview` is published on npm. Use `npm pack --dry-run --ignore-scripts` and `npm view cineview` as release checks, not install prerequisites.
+`cineview` is published on npm. Use `npm pack --dry-run --ignore-scripts` and `npm view cineview` as release checks, not install prerequisites.
 
 ## Browser acceptance
 
-Unit tests, type-checking, lint, and static builds do not prove drag or scroll behavior. For changes to those paths, run a separate browser acceptance pass against the actual site route printed by Vite. Cover forward and reverse movement, large input deltas, keyboard and scrollbar input, fixed layers, and concurrent animations. Record the result in the task-flow or review evidence directory.
+Unit tests, type-checking, lint, and static builds do not prove drag or scroll behavior. For changes to those paths, run `pnpm test:browser`, plus the affected site page in a browser. Cover forward and reverse movement, large input deltas, keyboard and scrollbar input, fixed layers, and concurrent animations. Record the result in the task-flow or review evidence directory.
 
 ## Files and cleanup
 
@@ -108,5 +106,5 @@ Unit tests, type-checking, lint, and static builds do not prove drag or scroll b
 - Keep review reports, task flows, screenshots, traces, generated measurements, and local agent tooling outside Git tracking. Store new investigation helpers under `review/` or `site/scripts/`. Keep reusable verification scripts and regression tests tracked.
 - Preserve local evidence unless cleanup is explicitly requested. Run `pnpm verify:repository` before committing; never force-add ignored files.
 - Generated or local-only directories such as `coverage`, `dist`, `.playwright-cli`, `.idea`, and `.DS_Store` can be cleaned when they are untracked or regenerated, but check `git status` first.
-- Root `dist/` is required by the linked site and minimal example. Keep it while either consumer is running. After offline cleanup, rebuild it before validating or handing back a development environment; a production deployment check does not verify the local development server.
+- Root `dist/` is the built package; the site copies it into `site/public/v2/`. Rebuild it (`pnpm build`) after cleanup and before validating the site.
 - Never remove user changes or run destructive Git commands without explicit approval.

@@ -6,7 +6,7 @@
 
 <h1 align="center">Cineview</h1>
 
-<p align="center">A React animation framework built around timelines, with drag and scroll modes.</p>
+<p align="center">A landing-page framework in plain HTML: scenes with their own timelines, moved by the reader's scroll or finger.</p>
 
 <p align="center">
   <a href="./README.md">English</a> · <a href="./README.zh-CN.md">简体中文</a>
@@ -14,120 +14,103 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/dm/cineview?style=flat-square&amp;color=8A5B43" alt="npm monthly downloads" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT license" /></a>
-  <br />
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-287EA3?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React 19" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" /></a>
-  <a href="https://cineview.pages.dev/coverage.json"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fcineview.pages.dev%2Fcoverage.json&amp;style=flat-square" alt="Framework line coverage" /></a>
 </p>
 
 <p align="center">
-  <a href="https://cineview.pages.dev">Try scrolling</a> ·
-  <a href="https://cineview.pages.dev/drag">Try dragging</a> ·
+  <a href="https://cineview.pages.dev">Homepage</a> ·
   <a href="https://cineview.pages.dev/docs">Documentation</a> ·
   <a href="#ai-read-this">AI, read this</a>
 </p>
 
-Cineview is a React animation framework for landing pages and interactive presentations. Its goal is to make thoughtfully designed pages easier to build, maintain, and extend as their content changes. Scenes and timelines organize the page, with drag and scroll modes for product introductions, brand showcases, and campaigns.
+Cineview writes landing pages and interactive presentations with a handful of custom elements. A page is a series of scenes; each scene has a timeline, and each element declares where it sits on it with attributes such as `fx`, `duration` and `after`. The reader's scroll or finger moves the timeline: in an ordinary section entrances play once they are in view, and in a held scene the scroll distance is the time.
 
-Much of the work on these pages repeats: coordinating animations, recovering from interrupted gestures, and loading assets during scene changes. Cineview maintains this shared behavior in the framework, reducing the timing conflicts and animation-state problems that separate implementations can introduce. Page code can focus on content, layout, and pacing.
+The framework keeps the behavior these pages share: entrances in the right order, gestures that can be interrupted and reversed, a first screen that does not flash, videos that follow the scroll frame by frame, and reduced-motion and pause support. Page code stays content, layout and pacing.
 
-Package common sections as React components and reuse them across pages. Update copy, assets, or animation order in the relevant scene. Responsive sizing and CSS layouts adapt the same page to desktop, tablet, and phone browsers. Combine animation presets, define custom effects, or connect Canvas, SVG, and WebGL content to the existing timeline.
-
-The same conventions help with AI-assisted development. Reusing components and reading only the guides and code needed for a task can reduce tokens spent regenerating basic behavior and reconstructing an entire page. New pages build on existing components; updates stay focused on the scenes that need to change.
+There are no runtime dependencies. The elements work in a plain HTML file and inside React or other framework pages; the startup styles and a short head script keep the first screen right before the module runs.
 
 ## Features
 
-| Capability                                                                               | How to use it                                                                                                                               |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reusable scenes and components                                                           | Divide content into Scenes and package common sections as React components for product pages, campaigns, or interactive presentations.      |
-| Timeline sequencing                                                                      | Declare durations, delays, and dependencies. Dependent animations adjust when a predecessor's entrance duration changes.                    |
-| Drag and scroll modes                                                                    | Drag between full-screen scenes or scroll through a page. Connect animations to scroll progress where content needs to unfold gradually.    |
-| [Animation presets](https://cineview.pages.dev/docs/08-presets)                          | Start with fades, slides, zooms, rotations, flips, bounces, blurs, and other built-in effects.                                              |
-| [Composition and custom animations](https://cineview.pages.dev/docs/05-custom-animation) | Combine presets and custom properties on one element, define finer changes with keyframes, and use timelines to sequence separate elements. |
-| Entrances, loops, and stagger                                                            | Configure entrance, loop, and exit effects where needed. Reveal children at intervals to sequence headings, cards, or lists.                |
-| [Video control](https://cineview.pages.dev/docs/11-video-timeline)                       | Use AnimateVideo to advance video frames through dragging or scrolling, select a video interval, and coordinate it with text animations.    |
-| [Custom drawing and extensions](https://cineview.pages.dev/docs/09-use-animate-timeline) | Read animation progress with useAnimateTimeline and connect Canvas, SVG, WebGL, or your own components to the existing progress controls.   |
-| [Responsive layout](https://cineview.pages.dev/docs/05-responsive)                       | Scale dimensions from a design width, position and size content with Position and Container, and adapt layouts with CSS.                    |
-| [Resource preloading](https://cineview.pages.dev/docs/02-preload)                        | Prepare scene images in advance and handle initial loading, progress, and failures to reduce waiting for assets during scene changes.       |
-| Types and interaction                                                                    | Check component configuration with TypeScript; drag mode provides keyboard navigation and current-scene announcements.                      |
-
-**Video compatibility: WeChat's in-app browser on iOS has a known seeking issue and is not currently supported for this feature.** Videos may finish downloading without displaying frames. Copy the page link and open it in Safari or Chrome. See [AnimateVideo details](https://cineview.pages.dev/docs/04-animate-video) for the tested scope and guidance.
+| Capability | How to use it |
+| --- | --- |
+| Scenes and timelines | Split the page into `cv-scene`s. Order elements with `duration`, `delay`, `after="title -200"` or `at="20% 60%"`. |
+| Two ways to move | `cv-stage` scrolls by default; `input="drag"` shows one scene per screen and switches with the finger. |
+| Held scenes | `cv-scene zone` holds the screen while the scroll moves its time, 1 ms per pixel; scrolling back reverses it. |
+| Effect presets | `fx="rise(line)"`, `wipe`, `focus`, `reveal`, `draw`, `count`, `duotone` and more, combined with commas, or written out with `from` and `to`. |
+| Progress sources | `on` chooses what moves an effect: time once in view, the eye line, the element crossing the viewport, the page, the scene clock, scroll speed. |
+| Stacking, rows and fixed layers | `stack` and `covered` for scenes that are covered, `cv-stack` for cards, `track="x"` for sideways rows, `cv-fixed` for a scene's fixed layer. |
+| Video | `cv-video` plays a clip along the timeline, frame by frame, forward and back. |
+| Your own drawing | `el.timeline.subscribe()` drives Canvas, SVG or WebGL from an element's progress. |
+| First screen and reload | Startup styles, an asset wait and a failsafe keep the opening right; a reload in the middle of a page does not replay what the reader already sees. |
+| Accessibility | Real text stays selectable; reduced motion shortens entrances and stops loops; `cv-pause` pauses motion played on time. |
 
 ## Try it
 
-In a React 19 project, install Cineview and its peer dependencies:
-
 ```bash
-npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
+npm install cineview
 ```
 
-This example uses the `Cineview` API in 1.0.1. Version 1.0.0 uses the earlier `CineView` API; update imports and configuration when upgrading.
-
-Replace `App.tsx` with the component below and set `body { margin: 0; }` in your global stylesheet. No media files are needed.
-
-```tsx
-import { Animate, Cineview, Scene } from 'cineview';
-
-export default function App() {
-  return (
-    <Cineview mode="drag" unit="percent" scale={1}>
-      <Scene sceneId="intro" style={{ background: '#f5e8d8', padding: 40 }}>
-        <h1>Drag up to the next scene</h1>
-      </Scene>
-      <Scene sceneId="details" style={{ background: '#e8edf0', padding: 40 }}>
-        <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
-          <h2>The title appears first</h2>
-        </Animate>
-        <Animate
-          enterAnimation="slide-up"
-          duration={{ enter: 400 }}
-          timeline={{ after: 'title', delay: 100 }}
-        >
-          <p>The detail follows the title.</p>
-        </Animate>
-      </Scene>
-    </Cineview>
-  );
-}
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 1. head script (node_modules/cineview/dist/head.js), 2. startup styles, 3. the module -->
+  <script>(function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cineview@2/dist/cineview.css">
+  <script type="module" src="https://cdn.jsdelivr.net/npm/cineview@2/dist/cineview.js"></script>
+</head>
+<body>
+  <cv-stage>
+    <cv-scene>
+      <cv-animate fx="rise(line)" duration="900"><h1>One scene at a time</h1></cv-animate>
+      <cv-animate fx="rise(soft)" delay="400"><p>The title rises, then this line follows.</p></cv-animate>
+    </cv-scene>
+    <cv-scene zone>
+      <cv-animate from="scale-x:0" to="scale-x:1" duration="2400" ease="linear"><div class="bar"></div></cv-animate>
+      <cv-animate fx="fade" at="30% 60%"><p>Appears as you scroll through the held scene.</p></cv-animate>
+    </cv-scene>
+  </cv-stage>
+</body>
+</html>
 ```
 
-Drag upward to reveal the second scene: the title appears, then the description follows. Try changing the text and animation durations to make it your own. For scroll mode, start with the [interactive quick start](https://cineview.pages.dev/docs/03-quickstart).
+Scroll down: the first scene's entrances play on time, then the second scene holds while the scroll draws the bar. With a bundler, `import 'cineview'` once instead of the module script, and keep the head script and `cineview/cineview.css` in `<head>`. See [setup](https://cineview.pages.dev/docs/02-setup) for the details and [scroll and drag](https://cineview.pages.dev/docs/03-input-modes) for drag mode.
 
 ## AI, read this
 
-If you are an AI coding assistant working with Cineview, **read [llms.txt](./llms.txt) first**, then follow its links for the task at hand:
+Cineview is written so that an AI assistant can plan and build pages with it. Start from [llms.txt](./llms.txt), the reading index: it lists the guides by task and the rules that matter most.
 
-- [Landing-page design](./docs/ai/landing-pages.md): define content relationships, reading control, timing, and acceptance before selecting effects.
-- [Quick start](./docs/ai/quickstart.md): install the package and build a complete page.
-- [Timelines](./docs/ai/timeline.md): arrange animation order, durations, and delays.
-- [Modes](./docs/ai/modes.md): choose drag or scroll and check their constraints.
-- [Recipes](./docs/ai/recipes.md): add a scroll narrative or video.
-
-The implementation guides target the Cineview 1.0.1 API; the design guide labels its local experimental v2 notes separately. Check the version in the index before writing code, and use the linked types and detailed references when a property is unclear. Read only what the task needs: loading selected guides uses fewer input tokens than loading the entire documentation, leaving more context for the page being built.
+- [Landing-page design](./docs/ai/landing-pages.md): define content relationships, reading control, timing and acceptance before selecting effects.
+- [AI design workflow](./docs/ai/design-assistant.md): turn a brief or a PRD into a storyboard and recommendations.
+- [41 design references](./docs/ai/lexicon.md): what each reference is for and how it maps to the framework.
+- [Declaration conventions](./docs/ai/declarative-design.md): how attributes group, inherit and own their output.
 
 ### Design skill for your AI
 
-[`skills/cineview-design`](./skills/cineview-design/SKILL.md) has an AI assistant plan the page with you before building it (what it is for, two or three directions, how many scenes, what each scene shows and which material it needs, a storyboard and a material list), with references behind its suggestions: ways to treat video and images, line art and supporting elements, visual directions, how the 41 design references behave together in each mode, 32 layouts and example page structures. It offers options, not a template. Copy the folder into your project's `.claude/skills/` for Claude Code, or point any other assistant at `SKILL.md`. It is written for Cineview 2.0, which is in development; the [2.0 documentation](https://cineview.pages.dev/docs/v2) describes its elements and has live examples.
+[`skills/cineview-design`](./skills/cineview-design/SKILL.md) has an AI assistant plan the page with you before building it (what it is for, two or three directions, how many scenes, what each scene shows and which material it needs, a storyboard and a material list), with references behind its suggestions: ways to treat video and images, line art and supporting elements, visual directions, how the 41 design references behave together in each mode, 32 layouts and example page structures. It offers options, not a template. Copy the folder into your project's `.claude/skills/` for Claude Code, or point any other assistant at `SKILL.md`.
 
 ## Docs and examples
 
-See the [documentation](https://cineview.pages.dev/docs) for component APIs and more examples:
+The [documentation](https://cineview.pages.dev/docs) has live examples on its pages:
 
-- [Animation order](https://cineview.pages.dev/docs/04-orchestration)
-- [Video control](https://cineview.pages.dev/docs/11-video-timeline)
-- [Canvas, SVG, and WebGL](https://cineview.pages.dev/docs/09-use-animate-timeline)
-- [Responsive layout](https://cineview.pages.dev/docs/05-responsive)
-- [Resource preloading](https://cineview.pages.dev/docs/02-preload)
-- [Performance and mobile dragging](https://cineview.pages.dev/docs/01-performance)
+| Page | What it covers |
+| --- | --- |
+| [Timelines](https://cineview.pages.dev/docs/04-timeline) | `duration`, `delay`, `after`, `at`, and how long a held scene is |
+| [Progress sources](https://cineview.pages.dev/docs/05-progress-sources) | What moves an effect, the entrance rules and reduced motion |
+| [cv-animate](https://cineview.pages.dev/docs/09-animate) | Every attribute and preset, values written out, loops and custom effects |
+| [cv-video](https://cineview.pages.dev/docs/11-video) | Video on the timeline and how to prepare the file |
+| [Drag mode](https://cineview.pages.dev/docs/12-drag-mode) | Finger and time, release rules, keys and events |
+| [Migrating from 1.x](https://cineview.pages.dev/docs/14-migrating-from-1x) | The 1.x React props side by side with the 2.0 attributes |
 
-Prefer to run the source locally? The [minimal example](./examples/minimal/README.md) includes startup commands and both modes.
+Test on real devices with the pages in [`device-test/`](./device-test/README.zh-CN.md) (`pnpm device`).
 
 ## Contributing
 
-Bug reports, examples, and improvements are welcome. Start with [Contributing](./CONTRIBUTING.md) for local setup and checks. See the [Changelog](./CHANGELOG.md) for version changes and [Releases](./RELEASING.md) for publishing instructions.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the development commands and checks, and [DESIGN.md](./DESIGN.md) for the architecture.
 
 ## License
 
-[MIT](./LICENSE) © Alien.mu.
+[MIT](./LICENSE)

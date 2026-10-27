@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="test.css">
+<title>视频测试</title>
+<style>
+  .clip { display: block; width: min(100%, 360px); aspect-ratio: 9 / 16; max-height: 62svh; margin: 0 auto; border-radius: 14px; overflow: hidden; background: #111; }
+  .clip::part(video) { width: 100%; height: 100%; object-fit: cover; }
+  .time { font: 13px/1.4 ui-monospace, Menlo, monospace; color: var(--soft); text-align: center; }
+  video.plain { display: block; width: min(100%, 360px); aspect-ratio: 9 / 16; max-height: 50svh; margin: 0 auto; border-radius: 14px; background: #111; }
+</style>
+<script>
+  window.DEVICE_TEST = { id: 'video', title: '视频测试 Video', checks: [
+    { id: 'first', text: '滚到视频处：先看到封面（夜里骑车的画面），不是黑块。' },
+    { id: 'follow', text: '慢慢往下滚：视频画面跟着手指一帧帧前进；停下手指，画面停在当前这一帧。' },
+    { id: 'reverse', text: '往回滚：视频倒着走，没有卡住或跳回开头。' },
+    { id: 'jump', text: '快速甩过视频这一段再甩回来：画面能跟上并停在正确的位置（下方时间数字和画面一致）。' },
+    { id: 'tap', text: '最下面的普通视频：点播放能正常播放并有声音按钮；全屏后返回，页面位置不乱。' },
+    { id: 'wechat', text: '（只在微信里测）上面几项在微信内置浏览器里同样正常。' },
+  ] };
+</script>
+<script type="module" src="/v2/cineview.js"></script>
+</head>
+<body>
+<cv-stage design-width="1200">
+  <cv-scene>
+    <div class="screen">
+      <cv-animate fx="rise(soft)"><h1>视频测试</h1></cv-animate>
+      <p>往下滚动到视频。视频文件每一帧都是关键帧，用来测逐帧定位。</p>
+    </div>
+  </cv-scene>
+  <cv-scene id="zone" zone>
+    <div class="screen" style="align-content:start;padding-top:32px">
+      <cv-video id="clip" class="clip" src="/media/act3-edit.mp4" poster="/media/act3-edit-poster.jpg" duration="2400" ease="linear" aria-label="夜里骑车的短片，随滚动播放"></cv-video>
+      <p class="time" id="time">0.00 s</p>
+    </div>
+  </cv-scene>
+  <cv-scene>
+    <div class="screen">
+      <h2>点击播放的普通视频</h2>
+      <video class="plain" src="/media/act3-edit.mp4" poster="/media/act3-edit-poster.jpg" controls playsinline preload="metadata"></video>
+      <p><a href="index.html">回到目录</a></p>
+    </div>
+  </cv-scene>
+</cv-stage>
+<script>
+  var samples = [];
+  var clip = document.getElementById('clip');
+  var out = document.getElementById('time');
+  var tick = function () {
+    var v = clip.video;
+    if (v) {
+      out.textContent = v.currentTime.toFixed(2) + ' s';
+      var q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
+      if (samples.length < 400 && (!samples.length || Math.abs(samples[samples.length - 1][1] - v.currentTime) > 0.05))
+        samples.push([Math.round(performance.now()), +v.currentTime.toFixed(3), v.readyState, q ? q.totalVideoFrames : null]);
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  var videoEvents = [];
+  ['error', 'stalled', 'waiting'].forEach(function (t) { clip.addEventListener(t, function () { videoEvents.push([Math.round(performance.now()), t]); }); });
+  window.DEVICE_EXTRA = function () { var v = clip.video; return { samples: samples.slice(-80), videoEvents: videoEvents, readyState: v ? v.readyState : null, duration: v ? v.duration : null }; };
+</script>
+<script src="harness.js"></script>
+</body>
+</html>

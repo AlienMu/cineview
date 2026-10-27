@@ -1,138 +1,52 @@
 {
   "name": "cineview",
-  "version": "1.0.1",
-  "description": "React UI framework for creating cinematic full-screen sliding pages",
-  "main": "dist/cineview.umd.js",
-  "module": "dist/cineview.es.mjs",
-  "types": "dist/index.d.ts",
+  "version": "2.0.0",
+  "description": "A landing-page framework in plain HTML: scenes with their own timelines, moved by the reader’s scroll or finger",
+  "type": "module",
+  "main": "./dist/cineview.js",
+  "module": "./dist/cineview.js",
+  "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/cineview.es.mjs",
-      "require": "./dist/cineview.umd.js"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/cineview.js"
     },
-    "./drag": {
-      "types": "./dist/entry-drag.d.ts",
-      "require": "./dist/cineview-drag.umd.js"
-    },
-    "./scroll": {
-      "types": "./dist/entry-scroll.d.ts",
-      "require": "./dist/cineview-scroll.umd.js"
+    "./jsx": {
+      "types": "./dist/types/jsx.d.ts"
     },
     "./dev": {
-      "types": "./dist/dev/index.d.ts",
-      "import": "./dist/cineview-dev.es.mjs"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/dev/cineview.js"
     },
-    "./dev/style.css": "./dist/cineview-dev.css"
+    "./cineview.css": "./dist/cineview.css",
+    "./head.js": "./dist/head.js",
+    "./surface.json": "./dist/surface.json",
+    "./package.json": "./package.json"
   },
   "sideEffects": [
+    "./dist/cineview.js",
+    "./dist/dev/cineview.js",
+    "./dist/chunks/*.js",
+    "./dist/dev/chunks/*.js",
     "**/*.css"
   ],
   "files": [
-    "dist/**/*.js",
-    "dist/**/*.mjs",
-    "dist/**/*.d.ts",
-    "dist/**/*.css",
-    "dist/artifacts.json"
+    "dist/cineview.js",
+    "dist/cineview.css",
+    "dist/head.js",
+    "dist/surface.json",
+    "dist/chunks",
+    "dist/dev",
+    "dist/types"
   ],
-  "scripts": {
-    "dev": "vite",
-    "build": "node scripts/build-all.mjs && node scripts/minify-library-entries.mjs",
-    "build:verify": "pnpm run build && node scripts/verify-build.js",
-    "preview": "vite preview",
-    "test": "jest",
-    "test:examples": "jest --runInBand src/__tests__/site/acceptanceFixtures.test.ts && pnpm --dir examples/minimal build",
-    "test:site-contracts": "jest --runInBand src/__tests__/site",
-    "test:browser": "pnpm build && pnpm --dir site acceptance:browser",
-    "quality:duplicates": "jscpd --config .jscpd.json src",
-    "verify:failure-injection": "node scripts/verify-failure-injection.js",
-    "verify:browser-failure-injection": "pnpm --dir site acceptance:failure-injection",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:coverage:framework": "jest --config jest.framework.config.js --coverage --runInBand && node scripts/write-coverage-badge.mjs",
-    "test:coverage:watch": "jest --coverage --watch",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "format": "pnpm format:framework && pnpm format:site",
-    "format:framework": "prettier --write \"src/**/*.{ts,tsx}\" \"examples/minimal/src/**/*.{ts,tsx}\" \".github/**/*.{yml,yaml}\" \"*.{ts,js,json,md}\" \"scripts/*.{js,mjs}\"",
-    "format:site": "prettier --write \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"site/tools/{acceptance-drag,acceptance-scroll,profile-production,verify-browser-failure-injection}.mjs\"",
-    "format:check": "pnpm format:check:framework && pnpm format:check:site",
-    "format:check:framework": "prettier --check \"src/**/*.{ts,tsx}\" \"examples/minimal/src/**/*.{ts,tsx}\" \".github/**/*.{yml,yaml}\" \"*.{ts,js,json,md}\" \"scripts/*.{js,mjs}\"",
-    "format:check:site": "prettier --check \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"site/tools/{acceptance-drag,acceptance-scroll,profile-production,verify-browser-failure-injection}.mjs\"",
-    "type-check": "tsc --noEmit",
-    "type-check:framework": "tsc -p tsconfig.framework.json --noEmit",
-    "type-check:site": "pnpm --dir site type-check",
-    "type-check:examples": "pnpm --dir examples/minimal type-check",
-    "prepublishOnly": "pnpm verify:framework:static",
-    "prepare": "husky",
-    "analyze": "vite build && open stats.html",
-    "lighthouse": "lighthouse http://localhost:3000 --view",
-    "verify:repository": "node scripts/verify-repository.mjs",
-    "verify:framework:static": "pnpm verify:repository && pnpm format:check:framework && pnpm type-check:framework && pnpm type-check:examples && pnpm lint && pnpm test:coverage:framework && pnpm test:examples && pnpm quality:duplicates && pnpm build:verify && pnpm verify:failure-injection",
-    "verify:framework": "pnpm verify:framework:static && pnpm test:browser && pnpm verify:browser-failure-injection",
-    "docs:style:static": "pnpm --dir site exec node tools/docs-style-probe.mjs --static",
-    "docs:style": "pnpm --dir site exec node tools/docs-style-probe.mjs",
-    "a11y:probe": "pnpm --dir site exec node tools/a11y-probe.mjs",
-    "verify:all": "pnpm verify:framework && pnpm format:check:site && pnpm type-check && pnpm type-check:site && pnpm test:site-contracts && pnpm docs:style:static",
-    "verify": "pnpm verify:all",
-    "docs:links": "node scripts/verify-documentation.mjs",
-    "audit:all": "node scripts/audit-all.mjs",
-    "profile:browser": "pnpm --dir site profile:browser"
-  },
-  "peerDependencies": {
-    "framer-motion": "^13.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@fast-check/jest": "^2.2.0",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.0.0",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.69.0",
-    "@typescript-eslint/parser": "^8.69.0",
-    "@vitejs/plugin-react": "^6.1.1",
-    "esbuild": "^0.28.2",
-    "eslint": "^10.9.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react": "^7.0.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "fast-check": "^4.6.0",
-    "framer-motion": "^13.2.0",
-    "globals": "^16.5.0",
-    "husky": "^9.1.7",
-    "jest": "^30.5.1",
-    "jest-environment-jsdom": "^30.5.1",
-    "jscpd": "5.1.1",
-    "lint-staged": "^17.4.1",
-    "playwright": "^1.63.0",
-    "prettier": "^3.0.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "rollup-plugin-visualizer": "^7.1.1",
-    "terser": "5.46.1",
-    "ts-jest": "^29.4.12",
-    "ts-prune": "^0.10.3",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.69.0",
-    "vite": "^8.2.2",
-    "vite-plugin-compression": "^0.5.0",
-    "vite-plugin-dts": "^5.1.0"
-  },
   "keywords": [
-    "react",
-    "ui",
-    "framework",
+    "landing-page",
+    "scroll",
     "animation",
-    "fullscreen",
-    "slider",
-    "cinematic"
+    "custom-elements",
+    "web-components",
+    "timeline",
+    "drag"
   ],
   "author": "Alien.mu",
   "license": "MIT",
@@ -146,26 +60,62 @@
   },
   "packageManager": "pnpm@10.22.0",
   "browserslist": [
-    "chrome >= 85",
-    "edge >= 85",
-    "firefox >= 79",
-    "safari >= 14",
-    "ios_saf >= 14",
-    "not dead"
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 128",
+    "safari >= 16.4",
+    "ios_saf >= 16.4"
   ],
   "engines": {
     "node": ">=18.0.0"
   },
+  "scripts": {
+    "build": "node build.mjs",
+    "type-check": "tsc -p tsconfig.json",
+    "test": "jest --config jest.config.cjs --runInBand",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.ts\" \"*.{js,cjs,mjs,json,md}\" \"scripts/*.mjs\" \"device-test/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "test:browser": "node gate/checks.mjs chromium webkit",
+    "perf": "node gate/run-phase1.mjs chrome webkit",
+    "device": "node build.mjs && node device-test/serve.mjs",
+    "verify:repository": "node scripts/verify-repository.mjs",
+    "verify": "pnpm verify:repository && pnpm format:check && pnpm lint && pnpm type-check && pnpm test && pnpm build && pnpm verify:site",
+    "verify:site": "pnpm --dir site type-check && jest --config site/jest.contracts.config.js --runInBand && pnpm docs:style:static && pnpm --dir site build",
+    "docs:style:static": "pnpm --dir site exec node tools/docs-style-probe.mjs --static",
+    "docs:style": "pnpm --dir site exec node tools/docs-style-probe.mjs",
+    "docs:links": "node scripts/verify-documentation.mjs",
+    "audit:all": "node scripts/audit-all.mjs",
+    "prepublishOnly": "pnpm verify",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19.0.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.6.0",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "jest": "^30.5.1",
+    "jest-environment-jsdom": "^30.5.1",
+    "lint-staged": "^17.4.1",
+    "playwright": "^1.63.0",
+    "prettier": "^3.0.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0",
+    "vite": "^8.2.2"
+  },
   "pnpm": {
     "overrides": {
       "minimatch": ">=3.1.3"
-    }
-  },
-  "devEngines": {
-    "runtime": {
-      "name": "node",
-      "version": "^22.22.1 || >=24.0.0",
-      "onFail": "error"
     }
   }
 }

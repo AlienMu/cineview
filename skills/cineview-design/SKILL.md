@@ -1,6 +1,6 @@
 ---
 name: cineview-design
-description: Plan a Cineview 2.0 landing page with the user, then build it. Use when someone wants a landing page, wants to design scenes or motion, or brings material (video, photos, screenshots, copy) for a page. Starts with a conversation: what the page is for, how many scenes, what each scene shows and which material it needs, with suggestions and directions; then references for video, images, type, line art, styles, layouts and how the 41 references combine.
+description: Plan a Cineview landing page with the user, then build it. Use when someone wants a landing page, wants to design scenes or motion, or brings material (video, photos, screenshots, copy) for a page. Starts with a conversation: what the page is for, how many scenes, what each scene shows and which material it needs, with suggestions and directions; then references for video, images, type, line art, styles, layouts and how the 41 references combine.
 ---
 
 # Cineview design
@@ -18,8 +18,8 @@ The library is references, not templates. Its examples use neutral variables (`-
 `--accent`, ...) so they take on whatever look the page has, and a page can look like its own
 product rather than like these notes.
 
-Written for Cineview 2.0 (`cv-*` custom elements), which is not released yet. For the released
-1.x React API, see `docs/ai/quickstart.md`, `timeline.md` and `modes.md` in the repository.
+Written for cineview 2 on npm (`cv-*` custom elements). The 1.0.x versions were a different React API;
+do not mix their examples in.
 
 ## What is here
 

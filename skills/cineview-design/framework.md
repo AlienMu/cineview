@@ -1,7 +1,6 @@
-# Framework quick reference (Cineview 2.0, cv-* HTML)
+# Framework quick reference (cineview 2, cv-* HTML)
 
-Checked against `v2/src` (types in `v2/src/jsx.ts`, presets in `v2/src/core/fx.ts`). 2.0 is not
-released yet; for the released 1.x React API read `docs/ai/quickstart.md`. Full conventions:
+Checked against `src` (types in `src/jsx.ts`, presets in `src/core/fx.ts`). Full conventions:
 `docs/ai/declarative-design.md`. When this file and the source disagree, the source wins.
 
 ## Load
@@ -9,13 +8,17 @@ released yet; for the released 1.x React API read `docs/ai/quickstart.md`. Full 
 All three, in `<head>`, in this order:
 
 ```html
-<!-- 1. the head snippet (v2/dist/head.js): marks .cv-js when the browser supports the framework -->
+<!-- 1. the head snippet (dist/head.js): marks .cv-js when the browser supports the framework -->
 <script>(function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);</script>
 <!-- 2. the boot stylesheet: structure and first-screen states before the module runs -->
-<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cineview@2/dist/cineview.css">
 <!-- 3. the module -->
-<script type="module" src="/v2/cineview.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/cineview@2/dist/cineview.js"></script>
 ```
+
+To self-host, copy `node_modules/cineview/dist/` (after `npm install cineview`) and point both URLs at
+it. With a bundler, `import 'cineview'` replaces the module script; keep 1 and 2 in `<head>`, and keep
+code splitting on so the on-demand chunks stay separate.
 
 Without 1 and 2 the page paints every animated element in its finished state, then jumps to its
 start state when the module runs (a flash on every load). Browsers that fail the snippet's test get

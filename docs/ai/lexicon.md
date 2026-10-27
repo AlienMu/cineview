@@ -86,7 +86,7 @@ Check browser CSS features in the target environment. This table promises no bro
 
 ## Implementation limits and source
 
-Check sources and presets in [effect definitions](../../v2/src/core/fx.ts), structure and attributes in [JSX interfaces](../../v2/src/jsx.ts), and navigation in [public interfaces](../../v2/src/types.ts) and [Stage](../../v2/src/elements/stage.ts). Check [time solving](../../v2/src/core/time.ts) and [rendering layers](../../v2/src/render/layers.ts) for timing and composition. These implementations determine runnable code; an original reference name cannot replace that check.
+Check sources and presets in [effect definitions](../../src/core/fx.ts), structure and attributes in [JSX interfaces](../../src/jsx.ts), and navigation in [public interfaces](../../src/types.ts) and [Stage](../../src/elements/stage.ts). Check [time solving](../../src/core/time.ts) and [rendering layers](../../src/render/layers.ts) for timing and composition. These implementations determine runnable code; an original reference name cannot replace that check.
 
 Drag pagination, scroll document progress, and local native scrollers have different progress and gesture behavior. Check nested controls with pointer, keyboard, and mobile input. `on="clock"` supplies Scene-entry time and follows Stage pause; page-owned movement still needs its own pause and cleanup handling.
 

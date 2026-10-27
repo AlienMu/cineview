@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Cineview example: stacked cards and cover</title>
+<meta charset="utf-8">
+<link rel="icon" href="/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="../example.css">
+<script type="module" src="/v2/cineview.js"></script>
+<style>
+  /* the stacked cards sit 2 x step lower than the deck's box: keep room for them */
+  .deck { width: min(100%, 520px); margin-bottom: 72px; }
+  .deck .card { box-shadow: 0 10px 30px rgb(15 23 42 / 10%); }
+  .deck .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .deck .card:nth-child(2) { background: #eef4ff; }
+  .deck .card:nth-child(3) { background: #fff7ed; }
+  #next { background: #0f172a; color: #f8fafc; }
+  #next p { color: #cbd5e1; }
+</style>
+</head>
+<body>
+<cv-stage design-width="1200">
+  <cv-scene id="deck" zone stack covered="dim">
+    <div class="screen">
+      <h2 data-zh="卡片一张张叠上来">Cards arrive one after another</h2>
+      <cv-stack class="deck" step="36" duration="600" covered="recede">
+        <article class="card"><h3 data-zh="1　写下要点">1　Write the brief</h3><p data-zh="第一张一开始就在。">The first card is there from the start.</p></article>
+        <article class="card"><h3 data-zh="2　分成场景">2　Split it into scenes</h3><p data-zh="后面的卡片随滚动升起，盖住前一张。">Later cards rise with the scroll and cover the one before.</p></article>
+        <article class="card"><h3 data-zh="3　写出页面">3　Build the page</h3><p data-zh="被盖住的卡片变暗并缩小。">Covered cards dim and shrink back.</p></article>
+      </cv-stack>
+    </div>
+  </cv-scene>
+  <cv-scene id="next">
+    <div class="screen">
+      <h2 data-zh="下一场从下方盖上来">The next scene slides over it</h2>
+      <p data-zh="上一场写了 stack，所以它停在原处，被这一场盖住；covered=&quot;dim&quot; 让它在被盖住时变暗。">The scene before has stack, so it stays in place while this one covers it; covered="dim" darkens it meanwhile.</p>
+    </div>
+  </cv-scene>
+</cv-stage>
+<span class="hint" data-zh="在框内滚动">Scroll inside the frame</span>
+<script src="../example.js"></script>
+</body>
+</html>

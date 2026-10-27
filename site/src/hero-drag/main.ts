@@ -1,4 +1,4 @@
-// The 2.0 drag page (/hero/drag/): v1's /drag on cv-* elements. This module wires what v1's React
+// The drag demo (/drag/): v1's /drag experience rebuilt on cv-* elements. This module wires what v1's React
 // components did per frame: the three canvases (v1 drawing code, fed by the lane's timeline), the
 // dial's live hour, the scene-5 black layer, the embed messages, and the site language.
 import { freezeFrames, laneValues, thawFrames } from './values';

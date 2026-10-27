@@ -1,30 +1,17 @@
 {
   "name": "cineview-site",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm run build:framework && vite",
-    "predev": "node ../v2/build.mjs && node tools/copy-v2-runtime.mjs && node tools/build-hero-drag.mjs",
-    "build": "vite build",
+    "predev": "node ../build.mjs && node tools/copy-v2-runtime.mjs && node tools/build-hero-drag.mjs",
+    "dev": "vite",
     "prebuild": "node tools/copy-v2-runtime.mjs && node tools/build-hero-drag.mjs",
-    "build:framework": "pnpm --dir .. run build",
-    "build:cf": "pnpm run build:framework && pnpm run build",
+    "build": "vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit",
-    "format": "pnpm --dir .. exec prettier --write \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"site/tools/{acceptance-drag,acceptance-scroll,profile-production,verify-browser-failure-injection}.mjs\"",
-    "format:check": "pnpm --dir .. exec prettier --check \"site/src/**/*.{ts,tsx,css}\" \"site/*.{ts,json,html}\" \"site/tools/{acceptance-drag,acceptance-scroll,profile-production,verify-browser-failure-injection}.mjs\"",
-    "build:acceptance": "vite build --config vite.acceptance.config.ts",
-    "acceptance:drag": "node tools/acceptance-drag.mjs",
-    "acceptance:scroll": "node tools/acceptance-scroll.mjs",
-    "acceptance:browser": "pnpm acceptance:drag && pnpm acceptance:scroll",
-    "acceptance:failure-injection": "node tools/verify-browser-failure-injection.mjs",
-    "profile:browser": "node tools/profile-production.mjs"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "cineview": "link:../",
-    "framer-motion": "^13.0.0",
-    "lucide-react": "^1.43.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.1",
@@ -33,12 +20,10 @@
     "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "playwright": "^1.61.1",
-    "pngjs": "^7.0.0",
     "typescript": "^5.0.0",
     "vite": "^8.2.2"
   },

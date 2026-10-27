@@ -1,2 +1,2 @@
-# Run the local framework checks before publishing source changes.
-pnpm verify:framework:static
+# Run the local checks before publishing source changes.
+pnpm verify

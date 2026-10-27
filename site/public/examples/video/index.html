@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Cineview example: a video that follows the scroll</title>
+<meta charset="utf-8">
+<link rel="icon" href="/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="../example.css">
+<script type="module" src="/v2/cineview.js"></script>
+<style>
+  .layout { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+  .clip { display: block; height: min(64svh, 520px); aspect-ratio: 9 / 16; border-radius: 14px; overflow: hidden; background: #0f172a; }
+  .clip::part(video) { width: 100%; height: 100%; object-fit: cover; }
+  @media (max-width: 560px) { .layout { grid-template-columns: 1fr; gap: 14px; } .clip { height: 30svh; margin: 0 auto; } }
+</style>
+</head>
+<body>
+<cv-stage design-width="1200">
+  <cv-scene id="before"><div class="screen"><span class="tag" data-zh="cv-video">cv-video</span><h2 data-zh="往下滚动，视频跟着滚动播放">Scroll down: the video plays as you scroll</h2></div></cv-scene>
+  <cv-scene id="zone" zone>
+    <div class="screen">
+      <div class="layout">
+        <cv-video class="clip" src="/act3-edit.mp4" poster="poster.jpg" duration="2400" ease="linear" aria-label="A night ride, played by scrolling" data-zh-label="一段夜骑短片，随滚动播放"></cv-video>
+        <div>
+          <h2 data-zh="2400 像素，10 秒的视频">2400 px for a 10-second clip</h2>
+          <p data-zh="停下就停在这一帧，往回滚动就倒放。文件每一帧都是关键帧，任意位置都能马上定位。">Stop and it holds the frame; scroll back and it plays in reverse. Every frame is a keyframe, so any position seeks at once.</p>
+        </div>
+      </div>
+    </div>
+  </cv-scene>
+  <cv-scene id="after"><div class="screen"><h2 data-zh="锁定区结束">End of the zone</h2></div></cv-scene>
+</cv-stage>
+<span class="hint" data-zh="在框内滚动">Scroll inside the frame</span>
+<script src="../example.js"></script>
+</body>
+</html>

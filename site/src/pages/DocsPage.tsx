@@ -1,64 +1,13 @@
 import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { useI18n, type DictKey } from '../i18n';
 import { DocsNavigation, DocsPager, DocsShell, revealCurrentDoc } from '../components/DocsShell';
-import {
-  DOCS_BASE,
-  DOCS_DEFAULT_SLUG,
-  getDocHeadings,
-  getDocsPage,
-  headingId,
-  type DocsVersion,
-} from '../content/docs/manifest';
+import { DOCS_DEFAULT_SLUG, getDocHeadings, getDocsPage, headingId } from '../content/docs/manifest';
 import '../styles/Docs.css';
-
-const LEGACY_SLUG_MAP: Record<string, string> = {
-  // start → getting-started
-  introduction: '01-introduction',
-  installation: '02-installation',
-  quickstart: '03-quickstart',
-  // concepts
-  modes: '01-modes',
-  timeline: '02-timeline',
-  responsive: '05-responsive',
-  'dual-track': '03-two-track',
-  'fixed-layer': '04-fixed-layer',
-  // components（组件页与同名 api 页合并，指向组件页）
-  cineview: '01-cineview',
-  'cineview-api': '01-cineview',
-  scene: '02-scene',
-  'scene-api': '02-scene',
-  animate: '03-animate',
-  'animate-api': '03-animate',
-  'animate-video': '04-animate-video',
-  'animate-video-api': '04-animate-video',
-  position: '05-position',
-  'position-api': '05-position',
-  image: '06-image',
-  'image-api': '06-image',
-  container: '07-container',
-  'container-api': '07-container',
-  // api 组专属
-  types: '10-types',
-  'use-animate-timeline-api': '09-use-animate-timeline',
-  // animation 组
-  presets: '08-presets',
-  custom: '05-custom-animation',
-  'waitfor-stagger': '04-orchestration',
-  // advanced 组
-  performance: '01-performance',
-  preload: '02-preload',
-  callbacks: '03-callbacks',
-  'direction-x': '04-direction-x',
-  centerlock: '01-centerlock',
-  'scrollbar-theming': '05-scrollbar',
-  // 2026-08-27 去比喻化：页面标题从「可见性闸门」改为「可见性条件」，slug 随之对齐。
-  '03-visibility-gate': '03-visibility-conditions',
-};
 
 function childText(children: ReactNode): string {
   return Children.toArray(children)
@@ -199,28 +148,7 @@ const markdownComponents = {
   pre: CodeBlock,
 } as const;
 
-const PREVIEWS = {
-  drag: {
-    path: 'drag-basics',
-    label: 'Drag',
-    zh: '拖拽与元素时间线案例',
-    en: 'Drag and element timeline example',
-  },
-  scroll: {
-    path: 'scroll-basics',
-    label: 'Scroll',
-    zh: '常规入场与滚动时间线案例',
-    en: 'Clock entrance and scroll timeline example',
-  },
-  video: {
-    path: 'video-timeline',
-    label: 'AnimateVideo',
-    zh: '拖拽视频与文字编排案例',
-    en: 'Video and text timeline example',
-  },
-} as const;
-
-/** 2.0 examples: static pages in public/examples/v2/<name>/, embedded with `<!-- example:name -->`. */
+/** Live examples: static pages in public/examples/<name>/, embedded with `<!-- example:name -->`. */
 const EXAMPLES: Record<string, { zh: string; en: string }> = {
   'first-page': { zh: '第一个页面', en: 'A first page' },
   timeline: { zh: '锁定场景里的时间线', en: 'A timeline in a held scene' },
@@ -236,15 +164,9 @@ export default function DocsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { lang, t } = useI18n();
   const zh = lang === 'zh';
-  const docsVersion: DocsVersion =
-    pathname === '/docs/v2' || pathname.startsWith('/docs/v2/') ? 'v2' : 'v1';
-  const base = DOCS_BASE[docsVersion];
-  const resolvedSlug = slug ?? DOCS_DEFAULT_SLUG[docsVersion];
-  const mdPage = getDocsPage(resolvedSlug, lang, docsVersion);
-  const contentParts =
-    mdPage?.markdown.split(/<!-- ((?:preview:(?:drag|scroll|video))|(?:example:[a-z0-9-]+)) -->/) ??
-    [];
-  const legacyTarget = !mdPage && docsVersion === 'v1' ? LEGACY_SLUG_MAP[resolvedSlug] : undefined;
+  const resolvedSlug = slug ?? DOCS_DEFAULT_SLUG;
+  const mdPage = getDocsPage(resolvedSlug, lang);
+  const contentParts = mdPage?.markdown.split(/<!-- example:([a-z0-9-]+) -->/) ?? [];
   const headings = useMemo(() => (mdPage ? getDocHeadings(mdPage.markdown) : []), [mdPage]);
   const navigationDialog = useRef<HTMLDialogElement>(null);
 
@@ -257,7 +179,7 @@ export default function DocsPage(): React.JSX.Element {
       return;
     }
     if (headings.some((heading) => heading.id === id)) return;
-    const translatedPage = getDocsPage(resolvedSlug, zh ? 'en' : 'zh', docsVersion);
+    const translatedPage = getDocsPage(resolvedSlug, zh ? 'en' : 'zh');
     if (!translatedPage) return;
     const index = getDocHeadings(translatedPage.markdown).findIndex((heading) => heading.id === id);
     const translated = headings[index];
@@ -267,17 +189,16 @@ export default function DocsPage(): React.JSX.Element {
         { replace: true }
       );
     }
-  }, [docsVersion, hash, headings, navigate, pathname, resolvedSlug, search, zh]);
+  }, [hash, headings, navigate, pathname, resolvedSlug, search, zh]);
 
   useEffect(() => {
     const previous = document.title;
     document.title =
-      (mdPage?.title ?? (zh ? '没有找到这一页' : 'Page not found')) +
-      (docsVersion === 'v2' ? ' · Cineview 2.0 Docs' : ' · Cineview Docs');
+      (mdPage?.title ?? (zh ? '没有找到这一页' : 'Page not found')) + ' · Cineview Docs';
     return (): void => {
       document.title = previous;
     };
-  }, [docsVersion, mdPage, zh]);
+  }, [mdPage, zh]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -295,8 +216,6 @@ export default function DocsPage(): React.JSX.Element {
     });
     return (): void => cancelAnimationFrame(frame);
   }, [resolvedSlug, hash]);
-
-  if (legacyTarget) return <Navigate to={base + '/' + legacyTarget + hash} replace />;
 
   const toc = (
     <nav aria-label={t('docs.onThisPage')} className="docs-toc__links">
@@ -316,7 +235,6 @@ export default function DocsPage(): React.JSX.Element {
   return (
     <main className="docs-page" data-lang={lang}>
       <DocsShell
-        docsVersion={docsVersion}
         onOpenNavigation={() => {
           navigationDialog.current?.showModal();
           revealCurrentDoc(
@@ -330,7 +248,7 @@ export default function DocsPage(): React.JSX.Element {
             <span>{zh ? '使用指南' : 'The guide'}</span>
             <p>{zh ? '从第一个场景，到完整页面。' : 'From a first scene to a complete page.'}</p>
           </div>
-          <DocsNavigation activeSlug={resolvedSlug} docsVersion={docsVersion} />
+          <DocsNavigation activeSlug={resolvedSlug} />
           <a
             className="docs-nav__source"
             href="https://github.com/AlienMu/cineview"
@@ -345,7 +263,7 @@ export default function DocsPage(): React.JSX.Element {
           {mdPage ? (
             <>
               <nav className="docs-crumbs" aria-label={zh ? '当前位置' : 'Breadcrumb'}>
-                <Link to={base}>{t('docs.title')}</Link>
+                <Link to="/docs">{t('docs.title')}</Link>
                 <span aria-hidden="true">/</span>
                 <span>{t(('docs.group.' + mdPage.group) as DictKey)}</span>
               </nav>
@@ -367,31 +285,17 @@ export default function DocsPage(): React.JSX.Element {
               <div className="docs-article__markdown">
                 {contentParts.map((part, index) =>
                   index % 2 === 1 ? (
-                    part.startsWith('example:') ? (
-                      <div className="docs-interactive-preview" key={index}>
-                        <div className="docs-interactive-preview__header">
-                          <span>{zh ? '可操作案例' : 'Interactive example'}</span>
-                          <span>{EXAMPLES[part.slice(8)]?.[lang] ?? part.slice(8)}</span>
-                        </div>
-                        <iframe
-                          src={`/examples/v2/${part.slice(8)}/index.html?lang=${lang}`}
-                          title={EXAMPLES[part.slice(8)]?.[lang] ?? part.slice(8)}
-                          loading="lazy"
-                        />
+                    <div className="docs-interactive-preview" key={index}>
+                      <div className="docs-interactive-preview__header">
+                        <span>{zh ? '可操作案例' : 'Interactive example'}</span>
+                        <span>{EXAMPLES[part]?.[lang] ?? part}</span>
                       </div>
-                    ) : (
-                      <div className="docs-interactive-preview" key={index}>
-                        <div className="docs-interactive-preview__header">
-                          <span>{zh ? '可操作案例' : 'Interactive example'}</span>
-                          <span>{PREVIEWS[part.slice(8) as keyof typeof PREVIEWS].label}</span>
-                        </div>
-                        <iframe
-                          src={`/__docs/${PREVIEWS[part.slice(8) as keyof typeof PREVIEWS].path}?lang=${lang}`}
-                          title={PREVIEWS[part.slice(8) as keyof typeof PREVIEWS][lang]}
-                          loading="lazy"
-                        />
-                      </div>
-                    )
+                      <iframe
+                        src={`/examples/${part}/index.html?lang=${lang}`}
+                        title={EXAMPLES[part]?.[lang] ?? part}
+                        loading="lazy"
+                      />
+                    </div>
                   ) : (
                     <ReactMarkdown
                       key={index}
@@ -404,7 +308,7 @@ export default function DocsPage(): React.JSX.Element {
                   )
                 )}
               </div>
-              <DocsPager activeSlug={resolvedSlug} docsVersion={docsVersion} />
+              <DocsPager activeSlug={resolvedSlug} />
               <footer className="docs-article__footer">
                 <span>Cineview / {t('docs.title')}</span>
                 <a
@@ -425,7 +329,7 @@ export default function DocsPage(): React.JSX.Element {
                   ? '这个地址没有对应的文档。可以从目录继续查找，或回到介绍页。'
                   : 'There is no document at this address. Browse the guide or return to the introduction.'}
               </p>
-              <Link to={base + '/' + DOCS_DEFAULT_SLUG[docsVersion]}>
+              <Link to={'/docs/' + DOCS_DEFAULT_SLUG}>
                 {zh ? '打开介绍页' : 'Open the introduction'} →
               </Link>
             </div>
@@ -464,7 +368,6 @@ export default function DocsPage(): React.JSX.Element {
           </div>
           <DocsNavigation
             activeSlug={resolvedSlug}
-            docsVersion={docsVersion}
             onNavigate={() => navigationDialog.current?.close()}
           />
         </div>

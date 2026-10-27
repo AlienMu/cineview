@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="test.css">
+<title>刷新与首屏测试</title>
+<style>
+  .split { max-width: 22em; font-size: 22px; color: var(--ink); }
+  cv-pause { position: fixed; top: 10px; right: 12px; z-index: 5; font-size: 13px; background: #fff; border-radius: 999px; padding: 4px 12px; border: 1px solid var(--line); }
+  .spin { width: 56px; height: 56px; border-radius: 14px; background: var(--accent); }
+</style>
+<script>
+  window.DEVICE_TEST = { id: 'reload', title: '刷新与首屏 Reload', checks: [
+    { id: 'first', text: '第一次打开：标题直接从下方升起，没有先闪出完整标题再消失。' },
+    { id: 'midreload', text: '滚到「第三段」（拆分文字那一段）完整显示后，下拉刷新或点浏览器的刷新：回到同一位置，文字一直显示，不会先消失再一行行重新出现。' },
+    { id: 'hash', text: '点下面的「带 #third 打开」链接：直接打开在第三段，不会先看到开头再跳过去。' },
+    { id: 'replay', text: '第二段的蓝色方块只在第一次进入时放大一次；滚走再回来，它直接是完成的样子（这是 replay="false"）。' },
+    { id: 'pause', text: '右上角「暂停动效」：点一下后蓝色方块的转动停止，再点一下继续；滚动本身不受影响。' },
+    { id: 'reduced', text: '在系统设置里打开「减弱动态效果」后重新打开这一页：入场变成短暂淡入，方块不再转动，内容都能正常阅读。' },
+  ] };
+</script>
+<script type="module" src="/v2/cineview.js"></script>
+</head>
+<body>
+<cv-pause>暂停动效</cv-pause>
+<cv-stage design-width="1200">
+  <cv-scene id="first">
+    <div class="screen">
+      <cv-animate fx="rise"><h1>刷新与首屏测试</h1></cv-animate>
+      <cv-animate fx="fade"><p>先按清单第一项检查首屏，再往下滚动。</p></cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="second">
+    <div class="screen">
+      <span class="tag">第二段 replay="false"</span>
+      <cv-animate on="clock" fx="grow(strong)" duration="900" replay="false" loop="spin" loop-duration="6000"><div class="spin"></div></cv-animate>
+      <p>蓝色方块第一次进入时放大，之后一直转动；滚走再回来时直接显示完成的样子。</p>
+    </div>
+  </cv-scene>
+  <cv-scene id="third">
+    <div class="screen">
+      <span class="tag">第三段 拆分文字</span>
+      <cv-animate split="lines" fx="rise(line)" stagger="120"><p class="split">这一段文字按行依次升起。等它完整显示后刷新页面，文字应该一直显示，不会消失再重播。</p></cv-animate>
+      <cv-animate fx="rise(soft)" duration="700"><div class="card">一个普通的升起入场，刷新后同样保持显示。</div></cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="fourth">
+    <div class="screen">
+      <h2>链接</h2>
+      <p><a href="reload.html#third" onclick="location.href=this.href;location.reload();return false">带 #third 打开</a></p>
+      <p><a href="index.html">回到目录</a></p>
+    </div>
+  </cv-scene>
+</cv-stage>
+<script src="harness.js"></script>
+</body>
+</html>

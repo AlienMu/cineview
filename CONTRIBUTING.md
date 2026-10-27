@@ -1,95 +1,82 @@
 # Contributing to Cineview
 
-## Before You Change Code
+## Before you change code
 
 Read `DESIGN.md` and create a local task-flow entry in `task-flows/`. Record the
-behavioral acceptance criteria before editing multiple files. Do not introduce
-a second writer for render progress, element elapsed time, drag release, or
-native scroll offset.
+behavioral acceptance criteria before editing multiple files. Each frame-changing
+value has one writer (`DESIGN.md`, state ownership); do not add a second one.
 
 Task flows and review evidence are ignored by Git. They belong to the local
 working copy and are not required to build or test a fresh checkout.
 
-## Local Checks
+## Local checks
 
 Use pnpm 10.22.0 and Node.js `^22.22.1 || >=24.0.0` for repository development.
-The published library declares Node.js `>=18.0.0` support; the build and lint
-tools require the development versions above.
-
-Each project has its own lockfile. Install dependencies in all three directories
-before running the checks:
+The repository and the site each have a lockfile; install both before running the checks:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm --dir site install --frozen-lockfile
-pnpm --dir examples/minimal install --frozen-lockfile
-pnpm verify:framework:static
+pnpm verify          # repository scope, format, lint, types, unit tests, build, site checks
+pnpm test:browser    # browser checks in Chromium and WebKit
 pnpm docs:links
 pnpm audit:all
-pnpm --dir site build
-pnpm --dir examples/minimal build
-pnpm --dir site build:acceptance
 ```
 
-Changes to drag or scroll behavior also require a real browser run against the
-production acceptance routes. Run `pnpm test:browser`,
-`pnpm verify:browser-failure-injection`, and `pnpm profile:browser`. Unit tests, type-checking, and a successful build do not replace
-that acceptance.
+Changes to scroll, drag, first-screen or media behavior also need the browser checks and a look at
+the affected site page in a real browser. Unit tests, type-checking and a successful build do not
+replace them. Do not edit source while `pnpm test:browser` runs: the fixture server reloads changed
+modules and the run reports false failures.
 
-## Running examples and the website
+Performance changes are measured with `pnpm perf` on an idle machine, against a same-machine run of
+the previous build. Real-device changes are checked with `pnpm device` (see `device-test/`).
 
-After installing the dependencies listed in Local Checks, start a consumer:
-
-```bash
-pnpm --dir examples/minimal dev
-```
-
-For the bilingual website and documentation:
+## Running the website
 
 ```bash
 pnpm --dir site dev
 ```
 
-Both development commands build the framework before starting Vite, including on a fresh checkout without `dist/`. Use the address printed by Vite. The website serves the scroll demonstration at `/`, the drag demonstration at `/drag`, and documentation at `/docs`. Rebuild the root package with `pnpm build` after framework changes made while Vite is running; both consumers use the built package.
-
-Keep the root `dist/` directory while either consumer is running: its files are the linked package's runtime and type declarations. Coverage reports, screenshots, and temporary probes can be cleaned separately. If `dist/` is removed while the servers are stopped, the next development command rebuilds it automatically.
+The development command builds the runtime and copies it into `site/public/v2/` before starting
+Vite. Use the address it prints: the homepage is at `/`, the drag demo at `/drag/`, the examples at
+`/examples/<name>/` and the documentation at `/docs`. After changing the runtime while Vite runs,
+run `pnpm build` and `node site/tools/copy-v2-runtime.mjs`.
 
 ## Deploying the website
 
-The official site is hosted on Cloudflare Pages at [cineview.pages.dev](https://cineview.pages.dev). Its project name and build output directory are configured in [site/wrangler.jsonc](./site/wrangler.jsonc).
+The site is hosted on Cloudflare Pages at [cineview.pages.dev](https://cineview.pages.dev). Its
+project name and build output directory are in [site/wrangler.jsonc](./site/wrangler.jsonc).
 
-From the repository root, build the library and website, verify Cloudflare authentication, and deploy:
+From the repository root, build the runtime and the site, check Cloudflare authentication, and
+deploy:
 
 ```bash
-pnpm --dir site build:cf
+pnpm build && pnpm --dir site build
 npx wrangler@4.95.0 whoami
 npx wrangler@4.95.0 pages deploy --cwd site --branch main
 ```
 
-If authentication is missing, run `npx wrangler@4.95.0 login` first. The deploy command uploads a local build to the production branch. Pushing a Git commit does not deploy the site automatically.
+If authentication is missing, run `npx wrangler@4.95.0 login` first. Pushing a Git commit does not
+deploy the site. The homepage, the drag demo and the examples are static pages; `site/public/_redirects`
+sends `/docs` paths to the documentation app. After deployment, check the homepage, `/drag/`,
+direct documentation links and media requests on the public domain.
 
-The site uses [Cloudflare Pages' default SPA handling](https://developers.cloudflare.com/pages/configuration/serving-pages/). Keep the build free of a top-level `404.html` so direct visits to React Router paths receive the application entry page.
+See [Releasing](./RELEASING.md) for publishing the package.
 
-Before deploying, run the site type check and documentation contracts. After deployment, verify the homepage, `/drag`, direct documentation links, and media requests on the public domain. Keep credentials in Wrangler's local login storage or the execution environment.
+## Pull requests
 
-See [Releasing](./RELEASING.md) for published artifact records and production browser profiling.
+Explain the user-visible behavior, ownership impact and runtime cost of the change. Include focused
+regression tests. Keep formatting, type-checking, linting, unit tests, the package build and the
+browser checks green. Keep task flows, historical reports, screenshots, traces, local agent tooling
+and build outputs out of commits. Reusable checks and regression tests remain part of the source
+repository.
 
-## Pull Requests
+`pnpm verify:repository` rejects tracked files covered by `.gitignore`, including files staged with
+`git add -f`. It runs before commits. GitHub Actions workflows are excluded from this repository:
+run the verification commands locally before publishing. Save new one-off investigation scripts in
+`review/` or `site/scripts/`.
 
-Explain the user-visible behavior, ownership impact, and runtime cost of the
-change. Include focused regression tests. Keep formatting, type-checking,
-linting, coverage, duplicate-code, package-build, and failure-injection checks
-green. Keep task flows, historical reports, generated coverage, screenshots,
-traces, local agent tooling, and build outputs out of commits. Reusable checks
-and regression tests remain part of the source repository.
+## Commit scope
 
-`pnpm verify:repository` rejects tracked files covered by `.gitignore`, including
-files staged with `git add -f`. It runs before commits and in the local static gate.
-GitHub Actions workflows are excluded from this repository. Run the verification
-commands locally before publishing; pushing commits or tags does not publish a package.
-Save new one-off investigation scripts in `review/` or `site/scripts/`.
-
-## Commit Scope
-
-Prefer small commits with one reason to change. Public API changes must update
-the README, site Docs, declarations through the build, and `CHANGELOG.md`.
+Prefer small commits with one reason to change. Public API changes must update the README, the site
+documentation, the declarations (through the build), the design skill and `CHANGELOG.md`.

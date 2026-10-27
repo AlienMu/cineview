@@ -86,7 +86,7 @@
 
 ## 实现边界与源码
 
-来源与预设查[效果定义](../../v2/src/core/fx.ts)，结构与属性查[JSX 接口](../../v2/src/jsx.ts)，导航查[公开接口](../../v2/src/types.ts)与[Stage](../../v2/src/elements/stage.ts)。时序和组合分别查[时间求解](../../v2/src/core/time.ts)与[渲染层](../../v2/src/render/layers.ts)。这些当前实现决定可生成的代码，原作名称不能代替能力核查。
+来源与预设查[效果定义](../../src/core/fx.ts)，结构与属性查[JSX 接口](../../src/jsx.ts)，导航查[公开接口](../../src/types.ts)与[Stage](../../src/elements/stage.ts)。时序和组合分别查[时间求解](../../src/core/time.ts)与[渲染层](../../src/render/layers.ts)。这些当前实现决定可生成的代码，原作名称不能代替能力核查。
 
 drag 翻页、scroll 文档进度和局部原生滚动容器有不同的进度与手势。嵌套控件要单独检查指针、键盘和移动端输入。`on="clock"` 提供从 Scene 入场开始的时间，并跟随 Stage 暂停；页面自行创建的运动仍需处理暂停与清理。
 

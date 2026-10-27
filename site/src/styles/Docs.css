@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:wght@400;500;600;650;700&display=swap');
 
-.docs-page {
+:root {
   --docs-accent: #d59273;
   --docs-accent-ink: #874c34;
   --docs-paper: #fcfaf7;
@@ -12,12 +12,70 @@
   --docs-body-font: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --docs-title-font: 'Newsreader', 'Songti SC', Georgia, serif;
   --docs-code-font: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+/* Page base (the docs app is the only React page): reset, document defaults, the language
+   toggle's shared look and the route fallback. */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body {
+  font-family: var(--docs-body-font);
+  color: var(--docs-ink);
+  background: var(--docs-paper);
+  line-height: 1.6;
+}
+#root {
+  min-height: 100vh;
+  position: relative;
+}
+.lang-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  color: var(--docs-muted);
+  border: none;
+  border-radius: 999px;
+  font: 12px/1 var(--docs-code-font);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lang-toggle:hover {
+  color: var(--docs-accent-ink);
+}
+.lang-toggle__globe {
+  width: 16px;
+  height: 16px;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lang-toggle:hover .lang-toggle__globe {
+  transform: rotate(28deg);
+}
+.lang-toggle__code {
+  line-height: 1;
+}
+.route-loading {
+  padding: 4rem 1.5rem;
+  text-align: center;
+}
+
+.docs-page {
   min-height: 100svh;
   color: var(--docs-ink);
   background: var(--docs-paper);
   font: 400 17px/1.65 var(--docs-body-font);
   letter-spacing: 0;
 }
+
 .docs-page button,
 .docs-page input {
   font-family: var(--docs-body-font);
@@ -989,36 +1047,4 @@ body:has(.docs-dialog[open]) {
     scroll-behavior: auto;
     transition: none;
   }
-}
-
-/* Version switch at the top of the documentation index: the released 1.x docs and the 2.0 preview. */
-.docs-nav__versions {
-  display: flex;
-  gap: 6px;
-  margin: 0 0 22px;
-  padding: 3px;
-  border: 1px solid var(--docs-line);
-  border-radius: 8px;
-  background: var(--docs-surface);
-}
-.docs-nav__version {
-  flex: 1;
-  padding: 6px 8px;
-  border-radius: 6px;
-  color: var(--docs-muted);
-  font: 600 12px/1.4 var(--docs-body-font);
-  text-align: center;
-  text-decoration: none;
-}
-.docs-nav__version:hover {
-  color: var(--docs-ink);
-}
-.docs-nav__version.is-active {
-  background: var(--docs-paper);
-  color: var(--docs-ink);
-  box-shadow: 0 1px 2px rgb(40 35 33 / 12%);
-}
-.docs-nav__version:focus-visible {
-  outline: 2px solid var(--docs-accent-ink);
-  outline-offset: 1px;
 }

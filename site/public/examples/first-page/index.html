@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Cineview example: a first page</title>
+<meta charset="utf-8">
+<link rel="icon" href="/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="../example.css">
+<script type="module" src="/v2/cineview.js"></script>
+<style>
+  .row { display: block; overflow: clip; padding-bottom: .08em; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+</style>
+</head>
+<body>
+<cv-stage design-width="1200">
+  <cv-scene id="intro">
+    <div class="screen">
+      <cv-animate fx="fade" duration="500"><span class="tag" data-zh="第一个页面">A first page</span></cv-animate>
+      <h1>
+        <span class="row"><cv-animate fx="rise(line)" duration="900"><span data-zh="每个场景，">One scene at a time,</span></cv-animate></span>
+        <span class="row"><cv-animate fx="rise(line)" duration="900" delay="140"><span data-zh="各有自己的时间线">each on its own timeline</span></cv-animate></span>
+      </h1>
+      <cv-animate fx="rise(soft)" duration="700" delay="500">
+        <p data-zh="标题按行升起，说明随后出现。往下滚动，下一场的卡片会在完整进入画面时依次入场。">The title rises line by line, then this sentence follows. Scroll on: the cards of the next scene enter one after another once they are fully in view.</p>
+      </cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="cards">
+    <div class="screen">
+      <h2 data-zh="三张卡片，一个 stagger">Three cards, one stagger</h2>
+      <cv-animate fx="rise(soft)" target=".card" stagger="120" duration="600">
+        <div class="cards">
+          <div class="card"><h3 data-zh="标题">Title</h3><p data-zh="rise(line) 让每一行从自身的裁切里升起。">rise(line) lifts each row out of its own clip.</p></div>
+          <div class="card"><h3 data-zh="说明">Sentence</h3><p data-zh="delay 让它在标题之后出现。">delay places it after the title.</p></div>
+          <div class="card"><h3 data-zh="卡片">Cards</h3><p data-zh="target 加 stagger，让同一组元素依次入场。">target with stagger enters a group one after another.</p></div>
+        </div>
+      </cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="end">
+    <div class="screen">
+      <cv-animate fx="grow" duration="700"><h2 data-zh="往回滚动，入场会保持完成的样子">Scroll back: entrances stay finished</h2></cv-animate>
+      <p data-zh="普通滚动里，入场按时间播放一次。要让它每次回来都重播，给元素加上 replay。">In ordinary scroll an entrance plays once, on time. Add replay to an element to play it again each time it comes back.</p>
+    </div>
+  </cv-scene>
+</cv-stage>
+<span class="hint" data-zh="在框内滚动">Scroll inside the frame</span>
+<script src="../example.js"></script>
+</body>
+</html>

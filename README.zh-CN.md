@@ -6,128 +6,111 @@
 
 <h1 align="center">Cineview</h1>
 
-<p align="center">以时间线为核心，支持拖拽与滚动双模式的 React 动画框架。</p>
+<p align="center">用普通 HTML 写落地页：每个场景有自己的时间线，随读者的滚动或手指前进。</p>
 
 <p align="center">
   <a href="./README.md">English</a> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/dm/cineview?style=flat-square&amp;color=8A5B43" alt="npm monthly downloads" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT license" /></a>
-  <br />
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-287EA3?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React 19" /></a>
+  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm 版本" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT 许可证" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" /></a>
-  <a href="https://cineview.pages.dev/coverage.json"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fcineview.pages.dev%2Fcoverage.json&amp;style=flat-square" alt="Framework line coverage" /></a>
 </p>
 
 <p align="center">
-  <a href="https://cineview.pages.dev">试试滚动</a> ·
-  <a href="https://cineview.pages.dev/drag">试试拖拽</a> ·
+  <a href="https://cineview.pages.dev">首页</a> ·
   <a href="https://cineview.pages.dev/docs">查看文档</a> ·
-  <a href="#ai-看这里">AI 看这里</a>
+  <a href="#给-ai-看的">给 AI 看的</a>
 </p>
 
-Cineview 是一个面向落地页和交互展示的 React 动画框架。我们希望让设计优雅、易于维护的页面更容易开发，也能随着内容和需求变化继续扩展。框架以场景和时间线组织页面，支持拖拽与滚动双模式，适合产品介绍、品牌展示和活动页面。
+Cineview 用几个自定义元素来写落地页和交互演示。页面分成若干场景，每个场景有一条时间线；元素用 `fx`、`duration`、`after` 这样的属性声明自己在时间线上的位置。读者的滚动或手指推动时间线：普通区块里，元素进入视口后按时间入场；在停住的场景里，滚动距离就是时间。
 
-做这类页面，费时间的往往是反复处理相同的问题：动画如何衔接、手势中断后如何恢复、场景切换时如何加载资源。Cineview 将这些通用逻辑集中在框架中维护，减少每个项目重复实现时引入的时序冲突和动画状态问题。页面代码可以更多地关注内容、布局和展示节奏。
+这类页面共同需要的行为由框架负责：入场按顺序发生，手势可以中途打断、反向，首屏不闪，视频随滚动逐帧播放，减弱动态效果和暂停都已支持。页面代码只需要处理内容、版式和节奏。
 
-常用片段可以封装成 React 组件，在多个页面中复用。后续调整文案、素材或动画顺序时，修改对应场景即可。通过响应式尺寸与 CSS 布局，同一套页面可以适配电脑、平板和手机浏览器；动画预设支持组合和自定义，Canvas、SVG、WebGL 等内容也能接入现有时间线。
+它没有运行时依赖。这些元素可以直接用在普通 HTML 文件里，也可以放进 React 等框架的页面。启动样式和 head 里的一小段脚本，保证模块运行前首屏就是对的。
 
-这些约定也让 AI 辅助开发少一些重复工作。复用已有组件，再按任务读取相关文档和代码，可以减少重复生成基础逻辑、反复理解整页实现所消耗的 token。新页面沿用已有能力，已有页面按场景迭代，不用每次从头造轮子。
+## 功能
 
-## 可以做什么
+| 能力 | 怎么用 |
+| --- | --- |
+| 场景与时间线 | 用 `cv-scene` 划分页面。用 `duration`、`delay`、`after="title -200"` 或 `at="20% 60%"` 排定元素的先后。 |
+| 两种前进方式 | `cv-stage` 默认是滚动；`input="drag"` 一屏一个场景，用手指切换。 |
+| 停住的场景 | `cv-scene zone` 让画面停住，滚动推进这一场的时间，1 毫秒对应 1 像素；往回滚动就倒回去。 |
+| 效果预设 | `fx="rise(line)"`、`wipe`、`focus`、`reveal`、`draw`、`count`、`duotone` 等，用逗号组合，也可以用 `from` 和 `to` 直接写数值。 |
+| 进度来源 | `on` 决定由什么推进效果：进入视口后按时间、视线高度、元素穿过视口的位置、整页滚动、场景时钟、滚动速度。 |
+| 叠盖、横移与固定层 | `stack` 和 `covered` 处理被盖住的场景，`cv-stack` 做叠卡，`track="x"` 做横向移动，`cv-fixed` 是场景的固定层。 |
+| 视频 | `cv-video` 让视频随时间线逐帧前进和倒退。 |
+| 自己绘制 | `el.timeline.subscribe()` 按元素的进度驱动 Canvas、SVG 或 WebGL。 |
+| 首屏与刷新 | 启动样式、素材等待和兜底显示保证开场正确；在页面中间刷新时，读者已经看到的内容不会重播。 |
+| 无障碍 | 文字保持为可选中的真实文本；减弱动态效果时入场变短、循环停止；`cv-pause` 暂停按时间播放的动效。 |
 
-| 能力                                                                      | 用法                                                                                               |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 场景与组件复用                                                            | 用 Scene 拆分内容，把常用片段封装成 React 组件，复用到产品介绍、活动页或交互展示中。               |
-| 时间线编排                                                                | 声明动画时长、延迟和先后关系；前一个动画的入场时长变化后，依赖它的动画会随之调整。                 |
-| 拖拽与滚动双模式                                                          | 拖拽切换整屏场景，或让页面连续滚动；需要逐步展开内容时，让动画跟随滚动进度。                       |
-| [动画预设](https://cineview.pages.dev/docs/08-presets)                    | 使用淡入淡出、位移、缩放、旋转、翻转、弹跳、模糊等预设，快速搭出基础效果。                         |
-| [组合与自定义动画](https://cineview.pages.dev/docs/05-custom-animation)   | 在一个元素上组合预设和自定义属性，用关键帧定义更细的变化，再用时间线安排不同元素的出场顺序。       |
-| 入场、循环与交错效果                                                      | 按需配置入场、循环和退场；让一组子元素依次出现，处理标题、卡片和列表的展示节奏。                   |
-| [视频控制](https://cineview.pages.dev/docs/11-video-timeline)             | 用 AnimateVideo 让视频画面跟随拖拽或滚动，选择需要控制的片段，并与文字动画配合。                   |
-| [扩展自定义绘制](https://cineview.pages.dev/docs/09-use-animate-timeline) | 通过 useAnimateTimeline 读取动画进度，连接 Canvas、SVG、WebGL 或自己的组件，无需另写一套进度控制。 |
-| [响应式布局](https://cineview.pages.dev/docs/05-responsive)               | 根据设计稿宽度换算尺寸，用 Position 和 Container 配置位置与大小，并结合 CSS 调整布局。             |
-| [资源预加载](https://cineview.pages.dev/docs/02-preload)                  | 提前准备场景图片，处理首屏加载、加载进度和资源失败，减少切换场景时等待素材的情况。                 |
-| 类型与交互支持                                                            | 使用 TypeScript 检查组件配置；拖拽模式提供键盘导航和当前场景提示。                                 |
-
-**视频兼容性：iOS 微信内置浏览器存在已知的逐帧定位问题，暂不列为受支持环境。** 视频可能已下载却没有画面。建议复制页面链接并在 Safari 或 Chrome 打开。测试范围和处理建议见 [AnimateVideo 详情](https://cineview.pages.dev/docs/04-animate-video)。
-
-## 试试看
-
-在 React 19 项目中，安装 Cineview 及其依赖：
+## 试一试
 
 ```bash
-npm install cineview@1.0.1 react@19 react-dom@19 framer-motion@13
+npm install cineview
 ```
 
-示例使用 1.0.1 的 `Cineview` API。1.0.0 使用早期的 `CineView` API，升级时需要更新导入名称和配置。
-
-把以下内容放进 `App.tsx`，在全局样式中设置 `body { margin: 0; }`。无需准备媒体素材。
-
-```tsx
-import { Animate, Cineview, Scene } from 'cineview';
-
-export default function App() {
-  return (
-    <Cineview mode="drag" unit="percent" scale={1}>
-      <Scene sceneId="intro" style={{ background: '#f5e8d8', padding: 40 }}>
-        <h1>向上拖动，查看下一个场景</h1>
-      </Scene>
-      <Scene sceneId="details" style={{ background: '#e8edf0', padding: 40 }}>
-        <Animate animateId="title" enterAnimation="fade-in" duration={{ enter: 600 }}>
-          <h2>标题先出现</h2>
-        </Animate>
-        <Animate
-          enterAnimation="slide-up"
-          duration={{ enter: 400 }}
-          timeline={{ after: 'title', delay: 100 }}
-        >
-          <p>说明在标题之后出现。</p>
-        </Animate>
-      </Scene>
-    </Cineview>
-  );
-}
+```html
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 1. head 脚本（node_modules/cineview/dist/head.js），2. 启动样式，3. 模块 -->
+  <script>(function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cineview@2/dist/cineview.css">
+  <script type="module" src="https://cdn.jsdelivr.net/npm/cineview@2/dist/cineview.js"></script>
+</head>
+<body>
+  <cv-stage>
+    <cv-scene>
+      <cv-animate fx="rise(line)" duration="900"><h1>每个场景，各有自己的时间线</h1></cv-animate>
+      <cv-animate fx="rise(soft)" delay="400"><p>标题先升起，说明随后出现。</p></cv-animate>
+    </cv-scene>
+    <cv-scene zone>
+      <cv-animate from="scale-x:0" to="scale-x:1" duration="2400" ease="linear"><div class="bar"></div></cv-animate>
+      <cv-animate fx="fade" at="30% 60%"><p>滚过停住的这一场时出现。</p></cv-animate>
+    </cv-scene>
+  </cv-stage>
+</body>
+</html>
 ```
 
-向上拖动进入第二幕，标题先出现，说明随后跟上。试着改改文案和动画时长，做成自己的页面。想用滚动模式，可以接着试试[快速上手中的交互案例](https://cineview.pages.dev/docs/03-quickstart)。
+往下滚动：第一个场景的入场按时间播放，第二个场景停住，滚动画出进度条。使用打包工具时，用 `import 'cineview'` 代替模块脚本，head 脚本和 `cineview/cineview.css` 照样放在 `<head>` 里。详细说明见[安装与加载](https://cineview.pages.dev/docs/02-setup)，拖动模式见[滚动与拖动](https://cineview.pages.dev/docs/03-input-modes)。
 
-## AI 看这里
+## 给 AI 看的
 
-如果你是正在使用 Cineview 的 AI 编程助手，**请先阅读 [llms.txt](./llms.txt)**，再按当前任务打开其中的指南：
+Cineview 的写法便于 AI 助手规划和制作页面。从 [llms.txt](./llms.txt) 开始，它是阅读索引，按任务列出各份指南和最重要的规则。
 
-- [落地页设计](./docs/ai/landing-pages.zh-CN.md)：选择效果前，明确内容关系、阅读控制、时序和验收。
-- [快速开始](./docs/ai/quickstart.md)：安装框架，完成第一个页面。
-- [时间线](./docs/ai/timeline.md)：安排动画顺序、时长和延迟。
-- [模式选择](./docs/ai/modes.md)：选择拖拽或滚动，确认各自的限制。
-- [完整案例](./docs/ai/recipes.md)：实现滚动叙事或加入视频。
-
-实现指南对应 Cineview 1.0.1 API，设计指南单独标明本地实验中的 v2 注意事项。写代码前先确认索引中的版本，遇到不确定的参数，再沿链接查阅类型定义和详细文档。只读取当前任务需要的内容，比一次加载整套文档更省输入 token，也能为页面代码和需求留出更多上下文。
+- [落地页设计](./docs/ai/landing-pages.zh-CN.md)：先定内容关系、阅读控制、时间安排和验收方式，再选效果。
+- [AI 设计流程](./docs/ai/design-assistant.zh-CN.md)：把需求描述或 PRD 变成分镜和建议。
+- [41 条设计参考](./docs/ai/lexicon.zh-CN.md)：每条参考的用途，以及它对应框架的哪些能力。
+- [声明约定](./docs/ai/declarative-design.zh-CN.md)：属性怎样分组、继承，各自负责哪些输出。
 
 ### 给 AI 用的设计技能
 
-[`skills/cineview-design`](./skills/cineview-design/README.zh-CN.md) 让 AI 先和你一起规划页面，再动手制作：做什么用、两三个方向、做几幕、每一幕讲什么、用哪些素材，最后整理成分镜表和素材清单。它给建议时参考的资料包括：视频和图片的处理方式、线稿和辅助元素、多种视觉风格、41 种设计参考在各种模式下的搭配，还有 32 种排版和多种整页结构的例子。它只提供选项，不是模板。使用 Claude Code 的话，把这个目录复制到项目的 `.claude/skills/` 下；用其它 AI 工具，就让它先读 `SKILL.md`。技能按开发中的 Cineview 2.0 编写；[2.0 文档](https://cineview.pages.dev/docs/v2)介绍了它的元素，并附有可操作的案例。
+[`skills/cineview-design`](./skills/cineview-design/README.zh-CN.md) 让 AI 先和你一起规划页面，再动手制作：做什么用、两三个方向、做几幕、每一幕讲什么、用哪些素材，最后整理成分镜表和素材清单。它给建议时参考的资料包括：视频和图片的处理方式、线稿和辅助元素、多种视觉风格、41 种设计参考在各种模式下的搭配，还有 32 种排版和多种整页结构的例子。它只提供选项，不是模板。使用 Claude Code 的话，把这个目录复制到项目的 `.claude/skills/` 下；用其他 AI 工具，就让它先读 `SKILL.md`。
 
 ## 文档与案例
 
-组件 API 和更多示例都在[文档](https://cineview.pages.dev/docs)中，可以按需要继续阅读：
+[文档](https://cineview.pages.dev/docs)的页面里附有可以直接操作的案例：
 
-- [动画顺序](https://cineview.pages.dev/docs/04-orchestration)
-- [视频控制](https://cineview.pages.dev/docs/11-video-timeline)
-- [Canvas、SVG 与 WebGL](https://cineview.pages.dev/docs/09-use-animate-timeline)
-- [响应式布局](https://cineview.pages.dev/docs/05-responsive)
-- [资源预加载](https://cineview.pages.dev/docs/02-preload)
-- [性能与移动端拖拽](https://cineview.pages.dev/docs/01-performance)
+| 页面 | 内容 |
+| --- | --- |
+| [时间线](https://cineview.pages.dev/docs/04-timeline) | `duration`、`delay`、`after`、`at`，以及停住的场景有多长 |
+| [进度来源](https://cineview.pages.dev/docs/05-progress-sources) | 由什么推进效果、入场的条件、减弱动态效果 |
+| [cv-animate](https://cineview.pages.dev/docs/09-animate) | 全部属性和预设、直接写数值、循环、自定义效果 |
+| [cv-video](https://cineview.pages.dev/docs/11-video) | 随时间线播放的视频，以及如何准备视频文件 |
+| [拖动模式](https://cineview.pages.dev/docs/12-drag-mode) | 手指与时间、松手规则、按键和事件 |
+| [从 1.x 迁移](https://cineview.pages.dev/docs/14-migrating-from-1x) | 1.x 的 React 属性和 2.0 属性的对照 |
 
-想在本地运行源码，可以从[最小示例](./examples/minimal/README.md)开始，其中包含启动步骤和两种模式。
+用 [`device-test/`](./device-test/README.zh-CN.md) 里的测试页在真机上测试（`pnpm device`）。
 
-## 参与开发
+## 参与贡献
 
-欢迎反馈问题、分享案例或一起改进框架。本地环境和检查步骤见 [Contributing](./CONTRIBUTING.md)，版本变化见 [Changelog](./CHANGELOG.md)，发布流程见[发布说明](./RELEASING.md)。
+开发命令和检查见 [CONTRIBUTING.md](./CONTRIBUTING.md)，架构见 [DESIGN.md](./DESIGN.md)。
 
 ## 许可证
 
-[MIT](./LICENSE) © Alien.mu.
+[MIT](./LICENSE)

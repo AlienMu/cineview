@@ -2,12 +2,12 @@
 // DragTimecode (scene 4 readout, walks back to 0 over the first 65% of its exit), ProgressRing (the
 // arc's dash, mirrored on exit), Act3Media (selection, playhead, readout from the scene-3 clock).
 import { laneValues } from './values';
-import { formatTimecode } from '../components/temporal-drag/timecode';
+import { formatTimecode } from './geometry/timecode';
 import {
   ACT3_MEDIA_CLOCK_MS,
   ACT3_MEDIA_DURATION_SECONDS,
   resolveAct3MediaState,
-} from '../components/temporal-drag/act3MediaTimeline';
+} from './geometry/act3MediaTimeline';
 
 const lane = (id: string): Element | null =>
   document.querySelector(`[data-cineview-animate-id="${id}"]`);

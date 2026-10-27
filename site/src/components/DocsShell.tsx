@@ -4,14 +4,12 @@ import { version } from '../../../package.json';
 import { useI18n, type DictKey } from '../i18n';
 import { LangToggle } from './LangToggle';
 import {
-  DOC_GROUPS,
-  DOCS_BASE,
+  DOC_GROUP_ORDER,
   getDocHeadings,
   getDocsIndex,
   getDocsPage,
   type DocsGroupId,
   type DocsLang,
-  type DocsVersion,
 } from '../content/docs/manifest';
 
 interface SearchHit {
@@ -22,19 +20,19 @@ interface SearchHit {
   anchor?: string;
 }
 
-function useDocsSearch(lang: DocsLang, docsVersion: DocsVersion): (query: string) => SearchHit[] {
+function useDocsSearch(lang: DocsLang): (query: string) => SearchHit[] {
   const index = useMemo(() => {
     const hits: SearchHit[] = [];
-    for (const entry of getDocsIndex(lang, docsVersion)) {
+    for (const entry of getDocsIndex(lang)) {
       hits.push(entry);
-      const page = getDocsPage(entry.slug, lang, docsVersion);
+      const page = getDocsPage(entry.slug, lang);
       if (!page) continue;
       for (const heading of getDocHeadings(page.markdown)) {
         hits.push({ ...entry, heading: heading.text, anchor: heading.id });
       }
     }
     return hits;
-  }, [lang, docsVersion]);
+  }, [lang]);
 
   return useCallback(
     (query: string): SearchHit[] => {
@@ -68,15 +66,12 @@ export function revealCurrentDoc(navigation: HTMLElement | null): void {
 export function DocsNavigation({
   activeSlug,
   onNavigate,
-  docsVersion = 'v1',
 }: {
   activeSlug: string;
   onNavigate?: () => void;
-  docsVersion?: DocsVersion;
 }): React.JSX.Element {
   const { lang, t } = useI18n();
-  const index = getDocsIndex(lang, docsVersion);
-  const zh = lang === 'zh';
+  const index = getDocsIndex(lang);
   const navigationRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const navigation = navigationRef.current;
@@ -99,20 +94,7 @@ export function DocsNavigation({
       className="docs-navigation"
       aria-label={lang === 'zh' ? '文档导航' : 'Documentation navigation'}
     >
-      <div className="docs-nav__versions" aria-label={zh ? '文档版本' : 'Documentation version'}>
-        {(['v1', 'v2'] as const).map((v) => (
-          <Link
-            key={v}
-            to={DOCS_BASE[v]}
-            className={'docs-nav__version' + (v === docsVersion ? ' is-active' : '')}
-            aria-current={v === docsVersion ? 'true' : undefined}
-            onClick={onNavigate}
-          >
-            {v === 'v1' ? `${version}` : zh ? '2.0 预览' : '2.0 preview'}
-          </Link>
-        ))}
-      </div>
-      {DOC_GROUPS[docsVersion].map((group) => (
+      {DOC_GROUP_ORDER.map((group) => (
         <section key={group} className="docs-nav__group">
           <h2>{t(('docs.group.' + group) as DictKey)}</h2>
           <ul>
@@ -121,7 +103,7 @@ export function DocsNavigation({
               .map((entry) => (
                 <li key={entry.slug}>
                   <Link
-                    to={DOCS_BASE[docsVersion] + '/' + entry.slug}
+                    to={'/docs/' + entry.slug}
                     className={'docs-nav__link' + (entry.slug === activeSlug ? ' is-active' : '')}
                     aria-current={entry.slug === activeSlug ? 'page' : undefined}
                     onClick={onNavigate}
@@ -139,14 +121,12 @@ export function DocsNavigation({
 
 export function DocsShell({
   onOpenNavigation,
-  docsVersion = 'v1',
 }: {
   onOpenNavigation: () => void;
-  docsVersion?: DocsVersion;
 }): React.JSX.Element {
   const { lang, t } = useI18n();
   const navigate = useNavigate();
-  const search = useDocsSearch(lang, docsVersion);
+  const search = useDocsSearch(lang);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -182,12 +162,7 @@ export function DocsShell({
 
   const go = (hit: SearchHit): void => {
     dialogRef.current?.close();
-    navigate(
-      DOCS_BASE[docsVersion] +
-        '/' +
-        hit.slug +
-        (hit.anchor ? '#' + encodeURIComponent(hit.anchor) : '')
-    );
+    navigate('/docs/' + hit.slug + (hit.anchor ? '#' + encodeURIComponent(hit.anchor) : ''));
   };
 
   return (
@@ -230,12 +205,10 @@ export function DocsShell({
             />
             <span>Cineview</span>
           </Link>
-          <Link className="docs-shell__section" to={DOCS_BASE[docsVersion]}>
+          <Link className="docs-shell__section" to="/docs">
             {t('docs.title')}
           </Link>
-          <span className="docs-shell__version">
-            {docsVersion === 'v1' ? `v${version}` : zh ? '2.0 预览' : '2.0 preview'}
-          </span>
+          <span className="docs-shell__version">v{version}</span>
           <div className="docs-shell__actions">
             <button
               type="button"
@@ -362,15 +335,9 @@ export function DocsShell({
   );
 }
 
-export function DocsPager({
-  activeSlug,
-  docsVersion = 'v1',
-}: {
-  activeSlug: string;
-  docsVersion?: DocsVersion;
-}): React.JSX.Element | null {
+export function DocsPager({ activeSlug }: { activeSlug: string }): React.JSX.Element | null {
   const { lang, t } = useI18n();
-  const index = getDocsIndex(lang, docsVersion);
+  const index = getDocsIndex(lang);
   const at = index.findIndex((entry) => entry.slug === activeSlug);
   if (at < 0) return null;
   const prev = index[at - 1];
@@ -378,7 +345,7 @@ export function DocsPager({
   return (
     <nav className="docs-pager" aria-label={lang === 'zh' ? '相邻文档' : 'Adjacent pages'}>
       {prev ? (
-        <Link to={DOCS_BASE[docsVersion] + '/' + prev.slug} className="docs-pager__link">
+        <Link to={'/docs/' + prev.slug} className="docs-pager__link">
           <span className="docs-pager__label">← {t('docs.prev')}</span>
           <span className="docs-pager__title">{prev.title}</span>
         </Link>
@@ -386,10 +353,7 @@ export function DocsPager({
         <span />
       )}
       {next && (
-        <Link
-          to={DOCS_BASE[docsVersion] + '/' + next.slug}
-          className="docs-pager__link docs-pager__link--next"
-        >
+        <Link to={'/docs/' + next.slug} className="docs-pager__link docs-pager__link--next">
           <span className="docs-pager__label">{t('docs.next')} →</span>
           <span className="docs-pager__title">{next.title}</span>
         </Link>

@@ -1,48 +1,35 @@
 # Cineview
 
-> A landing-page framework built on scene timelines, with scroll and drag modes. Organize content into scenes, declare each element's duration and dependencies, and let the reader's scroll or finger move through them. The released 1.x is a React library; 2.0 (cv-* custom elements in plain HTML) is in development in this repository.
+> A landing-page framework in plain HTML. A page is a series of scenes, each with its own timeline, made of custom elements (cv-stage, cv-scene, cv-animate, cv-stack, cv-video, cv-fixed, cv-pause); the reader's scroll or finger moves through them. No runtime dependencies; it also works inside React or other framework pages.
 
-Cineview's authoring goal is to help AI understand animation design and advise users. A plain-language brief or PRD should become a scene plan with content relationships, readable states, progress sources, and checked implementation routes. This documentation goal does not imply a built-in AI service.
+Cineview's authoring goal is to help AI understand animation design and advise users. A plain-language brief or PRD should become a scene plan with content relationships, readable states, progress sources and checked implementation routes. This documentation goal does not imply a built-in AI service.
 
-The quick start, timelines, modes, and recipes target cineview@1.0.1, React 19, and Framer Motion 13. Import `Cineview` with this capitalization. The earlier cineview@1.0.0 uses a different API; do not combine examples from those versions. The landing-page design guide separates shared design principles from local experimental v2 notes. In a different checkout, confirm package.json and public types before applying API guidance.
+The package on npm is cineview@2.0.0 and later. The published 1.0.x versions were a different React API that this repository no longer contains; do not combine examples from them.
 
 ## Read by task
 
-- [Design skill](skills/cineview-design/SKILL.md) ([Chinese guide](skills/cineview-design/README.zh-CN.md)): plan a 2.0 landing page with the user first (what it is for, directions, how many scenes, each scene's content and material, a storyboard), then build it. References: working markup for video, images, type, line art and custom drawing; visual directions; 32 layouts; how the 41 references behave together in each mode; example page structures; ways to test a page.
-- [2.0 AI design workflow](docs/ai/design-assistant.md) ([Chinese](docs/ai/design-assistant.zh-CN.md)): longer guidance on user recommendations, common page requests, PRD extraction, storyboards, element treatment, and a worked image/text sequence.
-- [41 design references and 2.0 routes](docs/ai/lexicon.md) ([Chinese](docs/ai/lexicon.zh-CN.md)): numbered original references with purpose, content relationships, framework primitives, page-owned work, and missing capabilities. Look up relevant entries rather than asking users to choose from the whole catalog.
-- [Landing-page design](docs/ai/landing-pages.md) ([Chinese](docs/ai/landing-pages.zh-CN.md)): reader goals, content relationships, progress sources, overlap and holding states, composition, media framing, and acceptance.
-- [2.0 declaration and implementation conventions](docs/ai/declarative-design.md) ([Chinese](docs/ai/declarative-design.zh-CN.md)): grouped declarations, separator rules, configuration scope, progress and output ownership, extension points, and verification. For local v2 development; named threshold configuration is a pending design, not an implemented API.
-- [Quick start](docs/ai/quickstart.md): installation, core concepts, a complete drag App, and local development.
-- [Timelines](docs/ai/timeline.md): durations, delays, after dependencies, drivers, and timing calculations.
-- [Modes](docs/ai/modes.md): drag versus scroll, fixed drag navigation height, scroll zones, and mode-specific parameters.
-- [Recipes](docs/ai/recipes.md): complete scroll narrative and video Apps, asset requirements, and expected behavior.
+- [Design skill](skills/cineview-design/SKILL.md) ([Chinese guide](skills/cineview-design/README.zh-CN.md)): plan a landing page with the user first (what it is for, directions, how many scenes, each scene's content and material, a storyboard), then build it. References: working markup for video, images, type, line art and custom drawing; visual directions; 32 layouts; how the 41 references behave together in each mode; example page structures; ways to test a page.
+- [AI design workflow](docs/ai/design-assistant.md) ([Chinese](docs/ai/design-assistant.zh-CN.md)): user recommendations, common page requests, PRD extraction, storyboards, element treatment and a worked image/text sequence.
+- [41 design references and implementation routes](docs/ai/lexicon.md) ([Chinese](docs/ai/lexicon.zh-CN.md)): numbered original references with purpose, content relationships, framework primitives, page-owned work and missing capabilities. Look up relevant entries rather than asking users to choose from the whole catalog.
+- [Landing-page design](docs/ai/landing-pages.md) ([Chinese](docs/ai/landing-pages.zh-CN.md)): reader goals, content relationships, progress sources, overlap and holding states, composition, media framing and acceptance.
+- [Declaration and implementation conventions](docs/ai/declarative-design.md) ([Chinese](docs/ai/declarative-design.zh-CN.md)): grouped declarations, separator rules, configuration scope, progress and output ownership, extension points and verification. Named threshold configuration is a pending design, not an implemented API.
+- [Documentation](site/src/content/docs/en/start/01-overview.md) ([Chinese](site/src/content/docs/zh/start/01-overview.md)): setup, input modes, timelines, progress sources, the first screen, states and events, every element and attribute, drag mode, custom drawing and migration from 1.x. Served at https://cineview.pages.dev/docs with live examples from site/public/examples/.
 
-For landing pages, read the design guide first and define the scene plan. Then use quick start for the released React API. Load only the other guides needed for the task: modes for selecting an interaction, timeline for sequencing elements, and recipes for complete implementations. This uses fewer input tokens than loading all documentation each time. Reuse unchanged material already in context; open detailed references when the task needs them or a property requires verification.
-
-For local v2 page work, start with the design skill; open the AI design workflow, the selected design references and the declaration conventions when the task needs more depth. Check v2/src/types.ts, v2/src/jsx.ts, the parser, and the input driver. Parsing alone does not prove an effect is driven: verify it in a browser. Keep implemented behavior separate from pending syntax. The v2 guides do not replace 1.x examples or DESIGN.md.
+For a landing page, start with the design skill and agree on the scene plan. Open the documentation pages for exact attributes and behavior, and the other guides only when the task needs more depth. Check src/types.ts, src/jsx.ts, the parser and the input driver before relying on a detail. Parsing alone does not prove an effect is driven: verify it in a browser.
 
 ## Essential rules
 
-The API rules below describe the released React implementation. Local v2 work follows the v2 guides and source linked above.
-
-- Each Scene owns its element timeline; there is no page-wide after sequence.
-- `timeline.after` references an `animateId` in the same Scene and waits for its entrance to finish, then adds the follower's delay.
-- `mode` is `drag` or `scroll`. `timeline.driver` is `scene` or `clock`; a driver is not another page mode.
-- Drag navigation stays one viewport high. `Scene.layout.height` sizes inner content only.
-- In a scroll zone, 1ms of authored scene-driven duration equals 1px of real scroll distance.
-- Use `Scene.scroll={{ zoneId: 'film' }}`. Omit removed fields: root zoneTrigger, Scene.scroll.trigger, Animate.timeline.zoneId, and goToZone align.
-- AnimateVideo has its own smaller API; its timeline accepts delay and after, not driver or phase.
-- Keep the root dist directory while repository development consumers run. Their dev commands build the linked package before starting Vite.
+- Load three things in <head>, in order: the head script (dist/head.js), cineview.css, then the module. Without the first two, animated elements flash on load.
+- Each scene owns its timeline; there is no page-wide after sequence. `after` names an element of the same scene and waits for its entrance to end.
+- `cv-stage input` is `scroll` (default) or `drag`. In ordinary scroll, entrances play on time once an element is in view (`enter`); in a zone (`cv-scene zone`) and in drag scenes, the reader's scroll or finger is the time (`scene`). `on` chooses another source; `enter` and `eye` are refused inside a zone.
+- In a zone, 1 ms of timeline equals 1 px of scroll; the element that ends last sets the zone's length.
+- `rise`, `grow` and `focus` already fade: adding `fade` to them puts two effects on one property.
+- Content stays real text; every authoring error dispatches a `cv-error` event with a stable code. Listen for it while building a page.
 
 ## Authoritative references
 
-- [Package and version](package.json): dependency versions and published exports.
-- [Public types](src/types/index.ts): exact configuration names and mode restrictions.
-- [AnimateVideo types](src/components/Animate/AnimateVideo.tsx): supported video properties.
-- [Architecture](DESIGN.md): implementation ownership and framework contribution rules.
-- [English documentation source](site/src/content/docs/en/getting-started/01-introduction.md): detailed Markdown documentation; sibling folders contain component and concept references.
-- [Chinese documentation source](site/src/content/docs/zh/getting-started/01-introduction.md): aligned Chinese reference.
-- [Interactive documentation](https://cineview.pages.dev/docs): browser examples and guides.
-- [2.0 documentation source](site/src/content/docs-v2/en/start/01-overview.md) ([Chinese](site/src/content/docs-v2/zh/start/01-overview.md)): the 2.0 elements, timelines, progress sources, first screen, events and migration from 1.x, served at /docs/v2 with live examples in site/public/examples/v2/.
-- [Contributing](CONTRIBUTING.md): development commands, checks, and cleanup requirements.
+- [Package and version](package.json): exports and files.
+- [Public types](src/types.ts) and [element attributes](src/jsx.ts): exact names and unions.
+- [Effect presets](src/core/fx.ts): every `fx` preset and its arguments.
+- [Architecture](DESIGN.md): state ownership, the build, inputs, first screen and verification.
+- [Contributing](CONTRIBUTING.md): development commands, checks and cleanup requirements.

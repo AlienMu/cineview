@@ -54,14 +54,10 @@ stats.html
 # Local acceptance artifacts (screenshots / traces written by verification scripts)
 output
 .playwright-cli
-examples/performance-test/acceptance-shots
-examples/performance-test/dist-acceptance
 
 # One-off probe + screenshot scripts kept out of the repo
 /.probe-*.mjs
-/.v1-*
 shot*.cjs
-examples/performance-test/profile-browser.mjs
 
 # Review evidence and task history remain local, including quantitative data.
 /review/
@@ -74,8 +70,6 @@ test-results/
 n9-shots/
 playwright-report/
 blob-report/
-site/.v1-acceptance/
-/examples/performance-test/stress/stress-fps.json
 
 # Historical reports and plans, retained only in existing working copies.
 /.workflow-execution-plan.md
@@ -100,20 +94,14 @@ site/.v1-acceptance/
 /site/act5-scroll-drive-probe.mjs
 /site/scene5-*.mjs
 
-# Generated from a successful framework coverage run for the website badge.
-site/public/coverage.json
-# 2.0 runtime copied for /hero/ (site/tools/copy-v2-runtime.mjs)
+# The runtime copied for the site's static pages (site/tools/copy-v2-runtime.mjs)
 site/public/v2/
-site/public/hero/drag/drag.js
+site/public/drag/drag.js
 
-# Production browser acceptance build.
-site/dist-acceptance/
 
-# Cineview 2.0 prototype build outputs
-v2/.size/
-v2/fixtures-dist/
-v2/dist/
-# Skill validation pages (local test builds of the design skill)
-site/public/skill-build/
-site/public/skill-build-2/
-site/public/skill-moto/
+# Fixture builds and size measurements
+.size/
+fixtures-dist/
+dist/
+# Link the Node-resolution types check uses (build.mjs)
+types-test/nodenext/node_modules/

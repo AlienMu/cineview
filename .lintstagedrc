@@ -1,4 +1,3 @@
 {
-  "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
-  "src/**/*.{ts,tsx}": ["jest --bail --findRelatedTests"]
+  "src/**/*.ts": ["eslint --fix", "prettier --write", "jest --config jest.config.cjs --bail --findRelatedTests --passWithNoTests"]
 }

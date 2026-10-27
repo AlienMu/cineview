@@ -4,9 +4,9 @@
 
 Read this guide before selecting effects for a landing page. Define what the reader needs to understand, connect the content, and then select the interaction and timing. Each Scene needs useful content and a complete readable state.
 
-One of Cineview's design goals is to help AI understand those decisions and give users grounded recommendations. For local 2.0 recommendations and PRD work, start with the [AI design workflow](./design-assistant.md), then consult the [41 design references and implementation routes](./lexicon.md) as needed. Users can describe a goal while the AI recommends screens, explains tradeoffs, and checks available capabilities.
+One of Cineview's design goals is to help AI understand those decisions and give users grounded recommendations. For recommendations and PRD work, start with the [AI design workflow](./design-assistant.md), then consult the [41 design references and implementation routes](./lexicon.md) as needed. Users can describe a goal while the AI recommends screens, explains tradeoffs, and checks available capabilities.
 
-The design method applies across versions. The existing [quick start](./quickstart.md), [modes](./modes.md), [timeline](./timeline.md), and [recipes](./recipes.md) describe the released `cineview@1.0.1` React API. The [experimental v2 notes](#experimental-v2-notes) apply only to the local `v2/` implementation. Confirm the target version before generating code.
+The [implementation notes](#implementation-notes) describe the current runtime. Check the public types before generating code.
 
 ## Start with a scene brief
 
@@ -86,20 +86,20 @@ A overlaps the title by 100ms; B overlaps A by 150ms. After 1900ms the reader ca
 
 At 0% of this local time, the image and body are readable. At 25%, the title is entering; at 50%, it has completed and A has started; at 75%, A is nearly complete and B is entering; at 100%, everything is complete. These percentages describe element time, not pagination distance. Define departure and cancellation separately.
 
-## Experimental v2 notes
+## Implementation notes
 
-Use [v2 public types](../../v2/src/types.ts), [element attributes](../../v2/src/jsx.ts), and the current implementation for local v2 work. Root `package.json` still describes the published 1.x package. These attributes and effects are not a claim about its exports.
+Use the [public types](../../src/types.ts), [element attributes](../../src/jsx.ts) and the current implementation.
 
 - Drag Scene time continues after a committed release. Use scroll `zone` or an appropriate position timeline when stopping must hold a reading sequence. `view` effects track geometry, including movement during page settling.
 - `focus(band)` expresses a central clear band; ordinary `focus` expresses blur-to-clear arrival. `push` supplies scaling around one origin, so a complete Ken Burns sequence still needs focal-point movement, long observation timing, dissolves, and shared pause.
 - `track="x"` measures overflow. `cv-stack` and Scene `stack` provide stacking geometry. Labels, image registration, and matching intervals remain page design work.
-- `after` references an entrance in the same Scene and timing domain. Negative offsets create time overlap and include the follower's delay. In ordinary scroll, the root's visibility starts the whole dependency run; offscreen followers also advance and may finish before the reader reaches them. Layout determines which elements appear together. Check [timing semantics](../../v2/src/core/time.ts).
+- `after` references an entrance in the same Scene and timing domain. Negative offsets create time overlap and include the follower's delay. In ordinary scroll, the root's visibility starts the whole dependency run; offscreen followers also advance and may finish before the reader reaches them. Layout determines which elements appear together. Check [timing semantics](../../src/core/time.ts).
 - Shared effect outputs and overlapping loop items add translation and rotation, and multiply scale and opacity. For clip and variables with the same name, the last declaration supplies the value. Loops retain their individual periods. Disjoint loops remain native; overlapping loops and shared named ranges use direct composition. Different progress sources have a fixed nesting order.
 - Use supported properties and variables with `from`/`to` or `defineEffect`. Use `keyframes(name)` for multi-step or other browser-interpolable CSS; it is unavailable in `exit` and `loop`. Register custom effects before mounting. Arbitrary SVG path morphing needs a suitable interpolator.
 - `timeline.subscribe` reports time-based frames, not position values from pure `view`, `page`, or signal sources. Custom drawing must use the intended source and handle entrance, departure, and cancellation.
 - `on="clock"` starts when its Scene becomes current, holds with Stage pause, and replays on reentry. Its timing and dependencies are solved separately and do not add scroll-zone distance. Structural rebuilds retain the current clock entrance's start time. Ordinary-scroll enter/eye roots still start from visibility.
 
-These details are defined in [effects](../../v2/src/core/fx.ts), [rendering layers](../../v2/src/render/layers.ts), and [time subscriptions](../../v2/src/core/timeline.ts). Recheck them when that implementation changes.
+These details are defined in [effects](../../src/core/fx.ts), [rendering layers](../../src/render/layers.ts), and [time subscriptions](../../src/core/timeline.ts). Recheck them when that implementation changes.
 
 ## Give AI a reusable brief
 

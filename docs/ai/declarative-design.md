@@ -4,7 +4,7 @@ Use this guide when designing Cineview 2.0 declarations, adding configuration, o
 
 ## Version and implementation status
 
-The root package and [DESIGN.md](../../DESIGN.md) describe the 1.0.1 React implementation. Local 2.0 work uses custom elements under `v2/`. Check [public types](../../v2/src/types.ts), [JSX attributes](../../v2/src/jsx.ts), and the corresponding parser before writing an application example.
+The package is a set of custom elements; [DESIGN.md](../../DESIGN.md) describes its architecture. Check [public types](../../src/types.ts), [JSX attributes](../../src/jsx.ts), and the corresponding parser before writing an application example.
 
 This guide records implemented behavior and design conventions separately. The named `threshold` syntax in [Threshold design](#threshold-design) is pending implementation. Recording that direction does not make the syntax available or authorize a runtime migration. Source and public types determine what an application can use.
 
@@ -14,7 +14,7 @@ This guide records implemented behavior and design conventions separately. The n
 
 ## Declare related behavior together
 
-Keep content in HTML and ordinary CSS. Use elements for responsibilities and attributes for configuration: `cv-stage` selects input, `cv-scene` groups content, and `cv-animate` declares an element's effect and timing. Use kebab-case attribute names. These names do not replace the 1.x React property names.
+Keep content in HTML and ordinary CSS. Use elements for responsibilities and attributes for configuration: `cv-stage` selects input, `cv-scene` groups content, and `cv-animate` declares an element's effect and timing. Use kebab-case attribute names.
 
 Group settings that describe one behavior. For a new compound setting with several meanings or units, prefer comma-separated named entries such as `name:value`. Keep independent concerns separate: `threshold` decides whether a release changes pages; `transition-duration` controls the reference transition time.
 
@@ -43,7 +43,7 @@ First describe what stays visible, what changes, and how the completed scene rea
 | Timing relationship    | `duration`, `delay`, `name`, `after`, `at`, and supported sequencing |
 | Layout and persistence | Scene structure, CSS, fixed elements, and stacking components        |
 
-In a page that has loaded the local 2.0 module, these declarations let the explanation start before the title finishes:
+In a page that has loaded the module, these declarations let the explanation start before the title finishes:
 
 ```html
 <cv-stage input="drag" transition-duration="800">
@@ -60,7 +60,7 @@ In a page that has loaded the local 2.0 module, these declarations let the expla
 
 `after` references an entrance in the same Scene. A negative offset creates overlap. It schedules animation; layout determines whether the elements appear as cards, captions, or another composition. Page transition distance and element elapsed time remain separate. Completing a drag can continue unfinished element time; a scroll zone holds its corresponding time when scrolling stops.
 
-In the same layer, translation and rotation add; opacity and scale multiply. Clip and same-name variables have their own replacement rules. Different progress sources use separate rendering layers. Review the combined middle states and assign each output property a clear owner. The [layer implementation](../../v2/src/render/layers.ts) defines the actual composition order.
+In the same layer, translation and rotation add; opacity and scale multiply. Clip and same-name variables have their own replacement rules. Different progress sources use separate rendering layers. Review the combined middle states and assign each output property a clear owner. The [layer implementation](../../src/render/layers.ts) defines the actual composition order.
 
 `on="clock"` uses real time from current-Scene entry, follows Stage pause, and restarts on reentry. Its own solved windows, including `after` and `at`, do not add scroll-zone distance. An `after` reference cannot cross between input-driven and autonomous-clock timelines. In ordinary scroll, the root's visibility starts its entire dependency chain; offscreen followers also advance. Keep a separate root when content must wait until the reader reaches it.
 
@@ -95,9 +95,9 @@ Implementation status: pending. The intended 2.0 declaration groups named settin
 
 Keep one short/long decision: at or below `time`, use `short`; above it, use `long`. Setting `long:35%` leaves short-swipe handling active. Keep small-movement, cancellation, and fast-reversal protections when implementing this change. Release eligibility and animation speed remain separate.
 
-The implementation still uses fixed 8% / 50% / 300ms defaults when `threshold` is absent. Setting the current positional `threshold="0.3 0.15 1000"` selects the older speed/distance rule: slow ratio, fast ratio, and release speed in px/s. That path replaces short/long classification. The named syntax and per-field inheritance are not parsed yet. Check [drag rules](../../v2/src/input/drag-rules.ts) and [release handling](../../v2/src/input/drag.ts).
+The implementation still uses fixed 8% / 50% / 300ms defaults when `threshold` is absent. Setting the current positional `threshold="0.3 0.15 1000"` selects the older speed/distance rule: slow ratio, fast ratio, and release speed in px/s. That path replaces short/long classification. The named syntax and per-field inheritance are not parsed yet. Check [drag rules](../../src/input/drag-rules.ts) and [release handling](../../src/input/drag.ts).
 
-A future implementation must update parsing, normalized types, JSX descriptions, examples, and migration notes together. Define valid values and diagnostics for malformed declarations. Verify that changing `long` preserves the short-swipe result and that a Scene override preserves omitted Stage fields. Keep 1.x APIs intact in this 2.0 change.
+A future implementation must update parsing, normalized types, JSX descriptions, examples, and migration notes together. Define valid values and diagnostics for malformed declarations. Verify that changing `long` preserves the short-swipe result and that a Scene override preserves omitted Stage fields.
 
 ## Handle invalid declarations and consecutive changes
 
@@ -138,7 +138,7 @@ The owner that starts asynchronous work also ends it. Cancel pending frames, rem
 
 Start with existing effects, CSS, and independent containers. Use `from`/`to` for supported properties and variables, `defineEffect` for reusable effects, and `keyframes(name)` for suitable multi-step browser animations. Read the current restrictions before using an extension in `exit` or `loop`. Arbitrary SVG path morphing requires an appropriate interpolator.
 
-Custom drawing must subscribe to the source it actually needs and dispose of its work. `timeline.subscribe` supplies time-based frames; pure `view`, `page`, or signal elements do not expose those position values through that time API. Keep the author content semantic and selectable. Follow [the extension and composition notes](./landing-pages.md#experimental-v2-notes).
+Custom drawing must subscribe to the source it actually needs and dispose of its work. `timeline.subscribe` supplies time-based frames; pure `view`, `page`, or signal elements do not expose those position values through that time API. Keep the author content semantic and selectable. Follow [the extension and composition notes](./landing-pages.md#implementation-notes).
 
 Prefer an existing helper and a local change. Add an abstraction when a concrete repeated responsibility requires it. Use explicit inputs and cleanup rather than introducing another global progress owner.
 

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="test.css">
+<title>滚动测试</title>
+<style>
+  .row { display: flex; gap: 14px; padding: 0 22px; }
+  .row .card { flex: 0 0 72vw; height: 50svh; display: grid; place-items: center; font-size: 22px; }
+  .deck { width: 100%; } .deck .card { min-height: 34svh; }
+  .chapter { margin: 12px; padding: 6px 12px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; display: inline-block; }
+</style>
+<script>
+  window.DEVICE_TEST = { id: 'scroll', title: '滚动测试 Scroll', checks: [
+    { id: 'entrances', text: '往下滚动：每一段的标题和文字在完整进入屏幕后淡入或升起，没有卡顿、没有先闪一下再出现。' },
+    { id: 'zone', text: '「锁定区」：画面停住，蓝色进度条和三个步骤跟着手指走；停下手指画面也停；往回滚，画面倒回去。' },
+    { id: 'deck', text: '「叠卡」：卡片一张张从下面升上来叠在前一张上，被盖住的卡片变暗并缩小。' },
+    { id: 'row', text: '「横移」：卡片排成一行，往下滚动时整行向左移动，走完后页面继续往下。' },
+    { id: 'fixed', text: '「固定层」：黑色小标签「第五段」在这一段里停在屏幕顶部，这一段结束时被带走。' },
+    { id: 'reverse', text: '滚回顶部再滚下来：已出现过的内容保持显示，没有空白或闪烁。' },
+    { id: 'fling', text: '用力快速滑动（大幅甩动）到底再甩回顶部：页面不卡死，最后停下的地方内容完整。' },
+    { id: 'toolbar', text: '浏览器地址栏收起和展开时，页面没有跳动或留出空白。' },
+  ] };
+</script>
+<script type="module" src="/v2/cineview.js"></script>
+</head>
+<body>
+<cv-stage design-width="1200">
+  <cv-scene id="s1">
+    <div class="screen">
+      <cv-animate fx="fade" duration="500"><span class="tag">1 / 6 普通入场</span></cv-animate>
+      <cv-animate fx="rise(soft)" duration="800"><h1>滚动测试</h1></cv-animate>
+      <cv-animate fx="rise(soft)" duration="700" delay="300"><p>往下滚动。每一段完整进入屏幕后入场。底部的「检查清单」可以逐项记录结果。</p></cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="s2">
+    <div class="screen">
+      <cv-animate fx="fade"><span class="tag">2 / 6 after 链</span></cv-animate>
+      <cv-animate name="a" fx="rise(soft)" duration="600"><h2>第一个出现</h2></cv-animate>
+      <cv-animate name="b" fx="rise(soft)" duration="600" after="a -200"><div class="card">第二个，比第一个早 200 毫秒开始</div></cv-animate>
+      <cv-animate fx="rise(soft)" duration="600" after="b +200"><div class="card">第三个，等第二个结束再过 200 毫秒</div></cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="s3" zone>
+    <div class="screen">
+      <span class="tag">3 / 6 锁定区</span>
+      <h2>画面停住，滚动推进时间</h2>
+      <div class="bar"><cv-animate from="scale-x:0" to="scale-x:1" duration="2400" ease="linear"><span></span></cv-animate></div>
+      <cv-animate fx="rise(soft)" at="10% 30%"><div class="card">步骤一</div></cv-animate>
+      <cv-animate fx="rise(soft)" at="40% 60%"><div class="card">步骤二</div></cv-animate>
+      <cv-animate fx="rise(soft)" at="70% 90%"><div class="card">步骤三</div></cv-animate>
+    </div>
+  </cv-scene>
+  <cv-scene id="s4" zone>
+    <div class="screen">
+      <span class="tag">4 / 6 叠卡</span>
+      <cv-stack class="deck" step="44" duration="700" covered="recede">
+        <article class="card"><h2>卡片一</h2><p>一开始就在。</p></article>
+        <article class="card"><h2>卡片二</h2><p>随滚动升起。</p></article>
+        <article class="card"><h2>卡片三</h2><p>被盖住的卡片变暗缩小。</p></article>
+      </cv-stack>
+    </div>
+  </cv-scene>
+  <cv-scene id="s5">
+    <cv-fixed><span class="chapter">第五段 固定层</span></cv-fixed>
+    <div class="screen">
+      <span class="tag">5 / 6 固定层</span>
+      <h2>这一段比一屏长</h2>
+      <p>继续往下滚，顶部的黑色小标签在这一段里停在原处。</p>
+      <div style="height:90svh"></div>
+      <p>这一段的结尾。</p>
+    </div>
+  </cv-scene>
+  <cv-scene id="s6" track="x">
+    <div style="height:100svh;display:flex;align-items:center">
+      <div class="row">
+        <div class="card">横移 一</div><div class="card">横移 二</div><div class="card">横移 三</div><div class="card">横移 四</div>
+      </div>
+    </div>
+  </cv-scene>
+  <cv-scene id="s7">
+    <div class="screen">
+      <cv-animate fx="grow"><h2>最后一段</h2></cv-animate>
+      <p>现在滚回顶部，再滚下来，看已出现的内容是否保持显示。</p>
+      <p><a href="index.html">回到目录</a></p>
+    </div>
+  </cv-scene>
+</cv-stage>
+<script src="harness.js"></script>
+</body>
+</html>

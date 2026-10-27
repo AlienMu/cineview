@@ -2,15 +2,36 @@
 
 All notable changes to Cineview are documented here.
 
-## Unreleased
+## 2.0.0
 
-- Reverse video seeking when dragging back from a fully entered Scene. Restore
-  the departure position when the return is cancelled, including videos that
-  continued playing beyond a partial scrub range.
-- Update the interactive video example and bilingual guides to cover reverse
-  departure and cancellation.
-- Rewrite the README around maintainable landing pages, responsive web layouts,
-  extensibility, and component reuse in AI-assisted development.
+Cineview is now a set of custom elements for plain HTML: `cv-stage`, `cv-scene`, `cv-animate`,
+`cv-stack`, `cv-video`, `cv-fixed` and `cv-pause`. The package has no runtime dependencies; React and
+Framer Motion are no longer required.
+
+### Breaking
+
+- The 1.x React API (`Cineview`, `Scene`, `Animate`, `AnimateVideo`, `Position`, `Image`,
+  `Container`, the hooks and callback props) is removed. Props become attributes and callbacks
+  become events; [migrating from 1.x](https://cineview.pages.dev/docs/14-migrating-from-1x) maps
+  them side by side.
+- The package is ESM only. Load `dist/head.js`'s snippet, `cineview.css` and `cineview.js` in
+  `<head>`, or `import 'cineview'` with a bundler.
+- Entrances in ordinary scroll play once; `replay` plays them again on every return.
+
+### Added
+
+- Scroll and drag inputs, held scenes (`zone`), stacked scenes, sideways rows, decks, fixed layers.
+- An `fx` preset library, `from`/`to` values, `keyframes(name)`, `defineEffect`, loops, split text,
+  counts and picture treatments.
+- Progress sources: `enter`, `enter(partial)`, `eye`, `view`, `page`, `clock`, `velocity`,
+  `direction`.
+- `replay="false"`: after one complete entrance, later entrances show the final state.
+- `--cv-veil` sets the colour of the veil over covered scenes and covered `cv-stack` cards.
+- Startup styles and a first-screen asset wait; content already shown before the runtime takes
+  over (the 4 s failsafe, or a reload in the middle of a page) is not hidden and played again.
+- `cv-error` events with stable codes in production; craft warnings in the development build.
+- A design skill for AI assistants (`skills/cineview-design`) and real-device test pages
+  (`device-test/`).
 
 ## 1.0.1 — 2026-09-27
 

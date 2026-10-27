@@ -14,20 +14,20 @@ import {
   scatterOrigin,
   WORD_BAND,
   WORD_DECOR_BOX,
-} from '../components/temporal-drag/clapperboard/particleField';
+} from './geometry/particleField';
 import {
   CLAPPER_BOARD_DOT_PAD,
   CLAPPER_EXTENT,
   CLAPPER_MAX_OPEN_RAD,
   CLAPPER_WORD_DOT_PAD,
-} from '../components/temporal-drag/clapperboard/fitGeometry';
+} from './geometry/fitGeometry';
 import {
   hoverAnchor,
   letterRamp,
   makeWalk,
   stepHover,
   stepWalk,
-} from '../components/temporal-drag/clapperboard/wordMotion';
+} from './geometry/wordMotion';
 
 // Dark-gold grade only. The teal that used to colour the body/value particles is
 // gone by decree ("change colour to dark gold, no teal"): three golds plus a warm white

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Cineview 真机测试</title>
+<link rel="stylesheet" href="test.css">
+<style>
+  main { padding: 28px 20px 60px; display: grid; gap: 14px; max-width: 640px; margin: 0 auto; }
+  a.test { display: block; text-decoration: none; color: inherit; }
+  a.test .card { display: grid; gap: 4px; } a.test b { font-size: 18px; }
+  input { font: inherit; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+  .info { font: 13px/1.5 ui-monospace, Menlo, monospace; color: var(--soft); word-break: break-all; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cineview 真机测试</h1>
+  <p>按顺序打开四个测试。每个页面底部有「检查清单」：逐项点「正常」或「有问题」，有问题时在备注里写看到了什么，最后点「提交结果」。页面也会自动上报报错和帧率。</p>
+  <label>会话名（换设备或换浏览器时改一下，例如 iphone13-safari）<input id="session"></label>
+  <a class="test" href="scroll.html"><div class="card"><b>1. 滚动</b><span>普通入场、after 链、锁定区、叠卡、固定层、横移、快速甩动</span></div></a>
+  <a class="test" href="drag.html"><div class="card"><b>2. 拖动</b><span>切换、回弹、轻扫、往回拖、中途再抓住、按钮、旋转</span></div></a>
+  <a class="test" href="video.html"><div class="card"><b>3. 视频</b><span>随滚动逐帧、倒放、跳转、点击播放</span></div></a>
+  <a class="test" href="reload.html"><div class="card"><b>4. 刷新与首屏</b><span>首屏、在中间刷新、#hash、replay、暂停、减弱动态效果</span></div></a>
+  <p class="info" id="info"></p>
+</main>
+<script>
+  var input = document.getElementById('session');
+  var guess = /MicroMessenger/i.test(navigator.userAgent) ? 'wechat' : /Firefox|FxiOS/i.test(navigator.userAgent) ? 'firefox' : /Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad/i.test(navigator.userAgent) ? 'iphone' : 'desktop';
+  var stored = ''; try { stored = localStorage.getItem('device-session') || ''; } catch (e) {}
+  input.value = stored || guess + '-' + new Date().toISOString().slice(5, 10);
+  var save = function () { try { localStorage.setItem('device-session', input.value.trim()); } catch (e) {} };
+  input.addEventListener('change', save); save();
+  document.getElementById('info').textContent = navigator.userAgent + ' | ' + innerWidth + '×' + innerHeight + ' @' + devicePixelRatio + 'x';
+</script>
+</body>
+</html>

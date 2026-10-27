@@ -1,3 +1,4 @@
-# Cloudflare Pages provides SPA fallback when no top-level 404.html exists.
-# React Router handles /docs, /docs/*, and /drag without redirect rules.
-# https://developers.cloudflare.com/pages/configuration/serving-pages/
+# Cloudflare Pages: the homepage, /drag/ and /examples/* are static pages (each directory's
+# index.html); the docs are the React app in docs.html.
+/docs      /docs.html  200
+/docs/*    /docs.html  200

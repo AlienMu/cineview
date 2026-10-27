@@ -1,364 +1,190 @@
 # Cineview architecture
 
-This document describes the current implementation of Cineview 1.0.1 for contributors.
-Use the [public types](./src/types/index.ts) for exact property names and unions,
-and the [documentation](./site/src/content/docs/en/getting-started/01-introduction.md) for application examples.
-Historical reviews record earlier states; they do not override the current source.
+This document describes the current implementation for contributors. Use the
+[public types](./src/types.ts) and the [element attributes](./src/jsx.ts) for exact names, and the
+[documentation](./site/src/content/docs/en/start/01-overview.md) for page examples. Historical
+reviews record earlier states; they do not override the current source.
 
 ## Contents
 
-- [Component structure](#component-structure)
+- [Elements](#elements)
 - [State ownership](#state-ownership)
-- [Drag mode](#drag-mode)
-- [Scroll mode](#scroll-mode)
-- [Animation timing](#animation-timing)
-- [Layout and responsive sizing](#layout-and-responsive-sizing)
-- [Assets and readiness](#assets-and-readiness)
+- [Building a stage](#building-a-stage)
+- [Layers and output](#layers-and-output)
+- [Scroll input](#scroll-input)
+- [Drag input](#drag-input)
+- [Time](#time)
+- [First screen](#first-screen)
+- [Media and text](#media-and-text)
 - [Accessibility](#accessibility)
-- [Errors and cleanup](#errors-and-cleanup)
+- [Errors](#errors)
 - [Package boundaries](#package-boundaries)
 - [Verification](#verification)
 - [Changing the architecture](#changing-the-architecture)
 
-## Component structure
+## Elements
 
-A `Cineview` contains `Scene` elements. A Scene owns its layout, animation registry,
-asset lifecycle, and fixed elements. `Animate` controls an element's animation;
-`AnimateVideo` connects video playback or seeking to an animation timeline.
-`Position` places content, `Container` defines box dimensions and spacing, and
-`Image` integrates image loading with scene readiness.
+The runtime is a set of custom elements, defined when the module loads (`src/index.ts`,
+`src/elements/define.ts`). Content stays in the light DOM; each element attaches a shadow root only
+for the structure it owns.
 
-[CineviewDispatch](./src/components/Cineview/CineviewDispatch.tsx) selects the drag or
-scroll implementation from the `mode` discriminant. Mode-specific public types
-reject configuration that belongs to the other mode. The default mode is `drag`.
-Application callbacks are grouped under `callbacks`; scene layout and behavior
-are grouped under `layout`, `transition`, `assets`, `drag`, `scroll`, and `callbacks`.
+| Element | File | Role |
+| --- | --- | --- |
+| `cv-stage` | `elements/stage.ts` | The page: collects scenes, builds them, hands motion to an input |
+| `cv-scene` | `elements/scene.ts` | One scene: solves its timeline; in scroll input, the sticky shell of a zone |
+| `cv-animate` | `elements/animate.ts` | One element's effects, read from attributes into layer plans |
+| `cv-stack` | `elements/stack.ts` | Cards that arrive one after another |
+| `cv-video` | `elements/video.ts` | A video whose time follows the element's timeline |
+| `cv-fixed` | `elements/fixed.ts` | A scene's fixed layer |
+| `cv-pause` | `elements/pause.ts` | A toggle that pauses motion played on time |
 
-The implementations share conversion and scene contexts but retain separate input
-controllers. Do not combine their progress state just because both modes animate
-the same properties.
-
-| Responsibility                     | Implementation                                                                                                                                                  |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Drag entry and scene stack         | [Cineview](./src/components/Cineview/Cineview.tsx), [DragSceneStack](./src/components/Cineview/DragSceneStack.tsx)                                              |
-| Scroll entry and native offset     | [DirectScrollCineview](./src/components/Cineview/DirectScrollCineview.tsx), [useNativeScrollController](./src/components/Cineview/useNativeScrollController.ts) |
-| Scene lifecycle and mode selection | [Scene](./src/components/Scene/Scene.tsx)                                                                                                                       |
-| Animation semantics                | [animateSemantics](./src/components/Animate/animateSemantics.ts), [animateTimeline](./src/components/Animate/animateTimeline.tsx)                               |
-| Width-based conversion             | [CineviewContext](./src/context/CineviewContext.tsx)                                                                                                            |
+Registration flows upward on connect (animate to scene to stage). Any change invalidates the stage,
+which rebuilds once per microtask.
 
 ## State ownership
 
-Each frequently updated value has one writer. Consumers subscribe to MotionValues
-or the existing external stores instead of duplicating the value in React state.
+Each value that changes every frame has one writer.
 
-| Value                    | Owner and rule                                                                                                                            |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Drag render progress     | The render path writes `renderProgress`. Input handlers submit intent; they must not add another writer.                                  |
-| Element elapsed time     | Each Scene owns its `elementElapsedMotion`. Never share a mutable elapsed value between Scenes.                                           |
-| Drag release             | The active drag transaction owns its release directive and terminal result.                                                               |
-| Scroll offset            | The native scroll controller coordinates the root's real scroll position and programmatic movement.                                       |
-| Zone progress            | A valid `Scene.scroll` declaration owns its local progress and duration budget.                                                           |
-| Fixed element visibility | The containing Scene owns clipping and visibility.                                                                                        |
-| Asset lifetime           | The loading/cache owner controls acquisition, completion, and release. Stale asynchronous completions must not revive released resources. |
+| Value | Owner and rule |
+| --- | --- |
+| Structure: scene order, solved windows, layers | The stage's build (`stage.build()`). Inputs read it; they never edit it. |
+| Scroll motion | `input/scroll.ts` owns every write for scroll input: zone time, view and page progress, stacked scenes, rows, decks. |
+| Drag motion | `input/drag.ts` owns the page position and each scene's element time. Pointer and key handlers record intent; the frame loop is the only writer. |
+| Entrances played on time | `input/enter.ts` owns the gate machine (`data-cv-phase`) and the clock animations of `enter`, `eye` and `clock` roots and their followers. |
+| Loops and clock animations | `render/clock.ts`, one per stage, also the pause owner. |
+| A scrub video's playback | `media/ownership.ts`, a pure reducer; `media/driver.ts` applies its decisions. |
+| First-screen readiness | `assets/first-screen.ts` (the asset wait) and `boot.ts` (the CSS that runs before the module). |
 
-Per-frame code must not trigger React renders, rebuild configuration objects, or
-alternate layout reads and writes. Subscribe once to stable inputs, write visual
-properties through the existing animation driver, and dispose of subscriptions.
-Read geometry during the existing measurement phase, then publish the resulting
-snapshot for consumers.
+Per-frame code reads first (scroll offset, rects), then writes, and never alternates the two. It
+writes styles directly or through native animations; it does not create elements or listeners per
+frame. Every subscription and animation started by a build is disposed by the next build or by
+disconnection.
 
-Each animation driver subscribes once to its visual progress source. It schedules
-one callback in Motion's pre-render phase to update its property MotionValues from
-the latest progress and variants. Repeated changes before that phase share the
-callback. Replacing the source or unmounting cancels pending work; a variant change
-at stationary progress also refreshes the outputs. Numeric opacity and scale
-retain each driver's existing interpolation rules.
+## Building a stage
 
-## Drag mode
+A build (`elements/stage.ts`):
 
-Users move between scenes with pointer gestures, supported keyboard input, or
-`goToScene`. Each navigation frame remains one viewport high. `Scene.layout.height`
-only sizes the inner content box; it cannot change the full-screen navigation
-height or add native vertical scrolling. Scene transition progress and element animation elapsed time are
-related but distinct. A scene can have no element animation and still transition;
-an element's authored duration must not become the scene transition duration.
+1. Orders the scenes and reads stage attributes.
+2. Loads the optional modules the elements need (split text, stills, counts, keyframes); a module
+   that fails is reported and its elements keep their whole-element fallback.
+3. Plans and builds each `cv-animate` for its scene's time source, refusing sources the scene
+   cannot drive, then solves each scene's timeline.
+4. Creates the input (`input/scroll.ts`, or the drag module loaded on demand) and, when scenes have
+   `on="clock"` elements, a clock-source entrance controller.
+5. Marks the elements live (`data-cv-live`) in the same task as the input's first writes, so the
+   boot state hands over without a frame in between, then dispatches `cv-ready`.
 
-The drag engine prepares the source and candidate scenes before committing a
-transition. Its snapshot defines the geometry, mapping, and animation bounds used
-throughout that transaction. A new gesture can interrupt a settling transition;
-resumption must start from the displayed frame rather than an outdated target.
+## Layers and output
 
-[useDragSceneEngine](./src/components/Scene/useDragSceneEngine.ts) coordinates the
-transaction. [dragPreparedState](./src/components/Scene/dragPreparedState.ts) records
-prepared values, and [useElementTrack](./src/components/Scene/useElementTrack.ts)
-maintains the Scene's element timing. Preserve this separation when modifying
-thresholds, release animation, or reverse input.
+`render/layers.ts` builds, inside each `cv-animate`'s shadow root, one layer per progress source, in
+a fixed order from outside in. Within one layer, translation and rotation add and opacity and scale
+multiply (`core/props.ts`); different sources compose through nesting.
 
-`dragConfig` defines direction, threshold, transition duration, and the `unit` /
-`scale` mapping. Scene-level drag configuration can specialize the behavior.
-Check normalization in the implementation rather than inferring a unit from a
-number. Callback ordering follows official scene arrival and departure; a
-candidate preview must not be reported as a committed scene change.
+Output takes one of three paths:
 
-Release decisions use recent pointer velocity, not acceleration. A native pointer
-sample older than 100ms is treated as stationary at release, so a held gesture
-does not retain a previous flick or reversal. This matches Motion's velocity
-window. With default thresholds, a stationary release needs more than 30% of the
-viewport length; a release at 1000px/s or faster needs more than 15%.
+- Native scroll-driven animations for compositor properties when the browser supports
+  `ScrollTimeline`/`ViewTimeline` (scroll input, not `fallback`).
+- Clock animations (WAAPI) for entrances and loops played on time.
+- Direct style writes from the input's frame loop for everything else: drag, the fallback path,
+  blur and clip in zones, signals.
 
-When children are reordered, explicit React keys identify their Scenes; `sceneId`
-is the fallback identity, followed by position for unlabelled Scenes. Reconcile
-the active index before committing the virtualized neighbor window so a retained
-Scene keeps its local content. Programmatic navigation completion uses its
-configured duration and current callbacks; unrelated parent renders do not
-restart the completion timer.
+## Scroll input
 
-Only the active scene should expose interactive content to assistive technology.
-Neighboring scenes may remain mounted for smooth movement and preloading. Their
-presence in the DOM does not make them active.
+The document scrolls natively (`input/scroll.ts`). A zone (`cv-scene zone`) is a spacer with a
+sticky shell; its time is the scroll offset within it, 1 ms per pixel. `track="x"` rows, stacked
+scenes and decks are written from the same offset. Ordinary scenes play their entrances on time
+through visibility gates (`input/gates.ts`): fully in view with a margin, or across the eye line,
+or any overlap for `enter(partial)`. An activation window of about one viewport around the screen
+limits events and media.
 
-## Scroll mode
+## Drag input
 
-Ordinary scenes remain in document flow. The root provides a real scroll range,
-so wheel, keyboard, touch, scrollbar, and imperative navigation must produce
-consistent scene and zone state. Scroll mode does not reuse drag thresholds or
-drag release state.
+Each scene fills the screen (`input/drag.ts`, loaded on demand). The page position follows the
+finger and settles on release; the incoming scene's element time follows the finger
+(`unit`/`scale`) and continues on time after release. Release rules are pure functions in
+`input/drag-rules.ts`. One time base per frame: the tick reads `performance.now()` once, because
+tweens start from it and a rAF timestamp can lag it by seconds in a lazily loaded iframe. Only the
+current scene and its neighbours are rendered.
 
-A Scene with a valid `scroll={{ zoneId }}` declaration
-adds a local animation interval. Its authored scene-driven duration determines
-the additional real scroll distance: one millisecond equals one CSS pixel.
-Viewport height and `designWidth` do not rescale that duration budget.
+## Time
 
-Declaring `scroll` enables the single center-lock behavior. There is no root
-`zoneTrigger` or Scene `trigger` option. `goToZone` targets the start of the zone;
-its only navigation option is `animated`. Child Animate elements always inherit
-the owning Scene's zone; there is no element-level zone override.
+`core/time.ts` solves each scene's timeline: `duration`, `delay`, `after` with offsets, `sequence`,
+stagger tails and `at` shares. Unsolvable declarations are reported and ignored; the solver never
+throws. A zone's length is where its last element ends. `core/timeline.ts` is the read-only
+`el.timeline` each element exposes; it publishes time sources only.
 
-[sceneScrollBudget](./src/components/Scene/sceneScrollBudget.ts) derives the budget
-from registered animations. [useScrollZoneRegistry](./src/components/Cineview/useScrollZoneRegistry.ts)
-collects zones, while [useScrollSceneLayout](./src/components/Cineview/useScrollSceneLayout.ts)
-and [useScrollSceneSnapshots](./src/components/Cineview/useScrollSceneSnapshots.ts)
-provide measured layout and scene state. Animations consume this published state.
-They must not each independently measure or write the root's scroll offset.
+`replay` (`core/replay.ts`) decides whether an entrance plays again: omitted keeps the source's own
+rule, `replay` plays on every return, `replay="false"` shows the final state after one complete
+entrance while followers keep their own windows.
 
-Input at a zone boundary must retain the correct order of approach, animation,
-and departure in both directions. Large deltas and reverse movement need browser
-acceptance; a unit test of interpolation alone cannot prove those transitions.
+## First screen
 
-Scene height can come from authored layout or measured content. Refresh layout
-when application content changes dimensions. The scroll ref adds `goToZone` to
-the shared navigation API; use an existing registered zone identifier.
+Before the module runs, `cineview.css` (generated from `boot.ts`) sets structure and the first
+scene's initial states: single default presets play as CSS animations that the runtime adopts at
+their elapsed time; other time-sourced elements start hidden, with a 4 s CSS failsafe that shows
+them. Content the reader already saw before the runtime took over (the failsafe, or another scene
+painted as written after a reload) is adopted at its end instead of being hidden and played again.
+`assets/first-screen.ts` holds the opening scene's entrances until its `preload` assets settle, at
+most `first-scene-timeout`.
 
-A `Position fixed` element belongs to its Scene and is clipped to that Scene's
-visible area. In a locked zone, the Scene shell supplies sticky positioning;
-fixed children keep the center-lock coordinate when zone activity ends. Scene
-transition timing continues to use its own scroll offset. Place cross-scene
-navigation and persistent application controls outside `Cineview`.
+## Media and text
 
-## Animation timing
-
-`timeline.driver` is `scene` or `clock`. The scene driver derives animation time
-from the owning Scene's progress. The clock driver advances with elapsed time
-when the scene's activation conditions allow it. Switching drivers must not
-create two writers for one property.
-
-Animation duration and delay contribute to the scene-driven timing bounds.
-Dependency references are resolved through the Scene animation registry. Cycles
-are invalid. `after` waits for the predecessor's entrance completion, then adds
-the follower's delay; it does not wait for an exit or loop. For a phased scroll
-animation, the effective entrance interval determines this completion.
-
-Scroll phase fractions and dependency offsets are solved together for a finite
-zone budget. Every entrance must have a reachable interval of at least 1px; a
-phased exit also needs at least 1px after its entrance. A follower's phase cannot
-start before its dependency and delay. If a phase makes these constraints
-impossible, report `INVALID_ANIMATION` and ignore that phase while retaining
-duration, delay, and dependencies. Compute this only when registrations change.
-
-Preserve initial frames while authored variants are still pending;
-an unresolved declaration is not an instruction to display the final frame.
-
-Manual animation controls and automatic triggers share the existing control
-logic. Do not start a second animation while a manual operation owns the same
-property. Stagger timing applies to the supported child structure; additional
-wrappers can change which children receive timing offsets.
-
-The scroll and drag drivers consume the same authored animation semantics but
-translate progress independently. Clock-driven effects must not extend a scroll
-zone merely because they run for a long time.
-
-`AnimateVideo` owns its timeline and media operations through its existing media
-controller. Scene exit and unmount release resources according to the component's
-configuration. Reentry reacquires media; asynchronous loading must respect the
-current resource generation. Video seeking is a browser/media operation and
-requires a real browser test with a real asset.
-
-When video metadata or a cached blob arrives after a drag entrance completes, the
-media controller initializes the active video's position from the completed frame
-once. Later idle frames do not override native playback or user pauses, and an
-inactive Scene does not start playback from that initialization.
-Replacing a usable native video with its cached copy retains its playback position
-and whether the user paused it; old-node events remain isolated by media generation.
-
-In drag mode, backward departure seeks from the video's actual position at
-departure toward the authored scrub range start, using the existing exit progress.
-This does not require a visual `exitAnimation`. Reversing or cancelling the gesture
-restores that position; a cancelled return resumes native playback only if it was
-playing before departure. Forward departure pauses at the current frame. The
-media controller retains the departure position until cancellation or departure
-completes and reads Scene activity to distinguish the two; it does not write Scene progress. Scroll and visibility exit frames
-retain their existing pause behavior.
-
-## Layout and responsive sizing
-
-`designWidth` is the design-coordinate base and maximum layout width in CSS pixels
-(default 750). The stage shrinks to its available parent width and centers when
-it fits. Optional `minWidth` stops shrinking below its CSS-pixel value; a smaller
-parent exposes a focusable horizontal scrolling area. Invalid minimums (negative,
-non-finite, or greater than `designWidth`) are ignored with a development diagnostic.
-
-Both modes publish their measured content width to `CineviewContext`, including
-any native scrollbar gutter. Numeric lengths use `contentWidth / designWidth` on
-both axes. The provider adds no window listener or per-frame measurement. Drag
-input uses the existing measured root dimensions; scroll observes its root and
-scene wrappers through its existing coalesced resize measurement. Default Scene
-width is `100%`; explicit CSS `vw` still refers to the browser viewport.
-Only an explicitly authored viewport-unit span becomes a Scene CSS size override.
-Measured intrinsic spans drive the shell and timeline, never the Scene's authored
-width/height. Percentage content resolves against the root viewport to avoid
-feeding child measurements back into its size.
-
-Equal minimum and design widths give a fixed layout. Browser zoom remains native;
-these bounds apply to CSS layout pixels. Horizontal overflow scrolling is separate
-from scene navigation; a horizontal drag gesture remains scene input.
-
-`Position` owns placement; `Container` owns dimensions and internal spacing.
-Their numeric convenience properties use the design conversion. Use ordinary
-CSS through supported style and class properties for viewport-relative layout
-or constraints; do not widen public numeric types to accept arbitrary strings.
-Scene layout properties have their own public types.
-
-A design canvas is useful for a fixed composition, but scaling all text from a
-large desktop width makes mobile text unreadable. Website content can use media
-queries to set readable font sizes, wrap text, and reorganize controls while
-retaining the framework's numeric coordinate system.
-
-Do not add an independent conversion factor inside a component. Read conversion
-values from `CineviewContext`. Preserve consistent conversion between initial,
-animated, and restored styles.
-
-## Assets and readiness
-
-Scene assets participate in preload and first-screen readiness. The first screen
-can render its loading or error state while assets resolve. The first-screen
-timeout prevents an indefinitely pending startup; it is not a performance
-promise for every network or device.
-
-The ref API exposes navigation, current scene index, layout refresh, preload, and
-performance metrics. `onReady` provides the usable ref after the runtime reaches
-its readiness condition. Verify readiness by observing content and using the API,
-not by comparing jsdom execution time with a browser paint budget.
-
-Preloading neighboring scenes must respect the cache's existing ownership and
-release rules. Network completion after navigation must not alter an obsolete
-scene transaction. Tests should cover cancellation, failure, exit, and reentry.
+`cv-video` drives a `<video>` through `media/driver.ts`, fetching the file whole into a shared blob
+cache (`media/cache.ts`) so every frame is seekable. Split text (`text/split.ts`) keeps the author's
+text in the light DOM and animates an `aria-hidden` mirror measured from the browser's own line
+breaks; it is re-measured when size, fonts or text change (`text/watch.ts`). Counts, stills and
+keyframes are separate chunks loaded before a build that uses them.
 
 ## Accessibility
 
-Drag mode provides a labelled region, keyboard navigation, and a live scene
-announcement. Inactive scene content uses `inert` and `aria-hidden` so off-screen
-controls do not remain in the tab order or accessibility tree.
+Content stays real, selectable text. Reduced motion keeps only the opacity change of entrances
+played on time (at most 200 ms), stops loops and rate effects, and leaves motion that follows the
+reader's own scroll or finger. `cv-pause` and `stage.pause()` hold everything played on time (WCAG
+2.2.2). Drag scenes outside the current one are `inert`; scene changes are announced in a polite
+live region.
 
-A browser assertion must identify the announced current scene and inspect that
-scene and its ancestors for hidden state. Testing whether an inactive descendant
-contains `document.body` cannot detect a hidden active scene. The assertion must
-fail when the scene is missing, inert, or inside an `aria-hidden="true"` ancestor.
+## Errors
 
-Reduced-motion handling follows the existing animation scheduling rules; it does
-not imply that every directly controlled scrub animation becomes static.
-Applications still need meaningful text, labels, focus order, and sufficient
-contrast. Chrome viewport emulation does not establish compatibility with every
-mobile browser or assistive technology.
-
-## Errors and cleanup
-
-Public error codes are defined in the types. They cover empty scenes, invalid
-component structure or animation configuration, circular dependencies, image or
-animation asset failures, and first-screen timeout.
-
-Report errors through the existing callback and fallback behavior. Only suppress
-a fallback where the error contract supports recovery; do not silently continue
-with inconsistent state. Avoid duplicating reports from both controller and
-renderer for the same failure.
-
-Unmounting must cancel pending animation work, remove browser listeners, release
-resource references, and dispose of MotionValue subscriptions. Keep generation
-or transaction checks around asynchronous completions. Cancellation tests must
-verify the resulting state as well as whether cleanup functions were called.
+An authoring error is reported in production too, as a bubbling, cancelable `cv-error` on the
+element at fault with a stable `code` (`core/errors.ts`); the development build also logs it.
+Whatever cannot be read is ignored and the rest of the page keeps working. Craft warnings
+(`dev/`) exist only in the development build, behind `__DEV__`, so their text is not shipped.
 
 ## Package boundaries
 
-[package.json](./package.json) defines the published surface. The root entry
-supports ESM and CommonJS. The `cineview/drag` and `cineview/scroll` subpaths expose
-CommonJS entries. `cineview/dev` exposes an ESM development panel, with
-its stylesheet imported separately from `cineview/dev/style.css`.
-
-`monitor` starts the page-level performance sampler. Applications can render
-`PerfPanel` from `cineview/dev` and import its stylesheet when they need an
-on-page display. Scroll mode exposes layout diagnostics while `debug` is true;
-`debug` does not start sampling or render the panel.
-
-The development panel has a separate ESM entry. The full and scroll UMD entries
-have gzip budgets of 62 KB and 54 KB; the drag entry has a 50 KB budget. Build
-verification reads these limits from `scripts/build-all.mjs`.
-
-React, React DOM, and Framer Motion are peer dependencies. The library build
-keeps them external. Build verification checks declared entries, types, assets,
-and package contents. Tests and acceptance evidence remain in the repository and
-are excluded from the npm package by the files allowlist.
-
-The root, site, and minimal example have separate lockfiles.
-Install and audit all three. Production browser fixtures live in `site/src/acceptance`
-and have an independent build entry that imports `dist/cineview.es.mjs`. A clean root audit says nothing about vulnerabilities
-in another project's lockfile. See [Contributing](./CONTRIBUTING.md) for development
-versions and deployment commands, and [release records](./RELEASING.md) for artifact
-correspondence.
+`build.mjs` builds the package into `dist/`: the production module (`cineview.js`, minified, with
+on-demand chunks), the development build (`dev/`), `cineview.css`, `head.js` with its content
+security policy hash, `surface.json` (the authoring surface as data, from `surface.mjs`) and the
+type declarations, checked by compiling `types-test/usage.tsx` against them. The build fails when
+the initial module and its static imports exceed 44 KiB gzip, or the drag chunk exceeds 12 KiB.
+The package has no runtime dependencies; `package.json` `files` lists only `dist/` output.
 
 ## Verification
 
-Run the framework static gate before publishing or integrating runtime changes:
-
 ```bash
-pnpm verify:framework:static
+pnpm verify          # repository scope, format, lint, types, unit tests, build, site checks
+pnpm test:browser    # browser checks in Chromium and WebKit (gate/checks.mjs)
 pnpm docs:links
-pnpm audit:all
 ```
 
-For website changes, also run formatting, site types, documentation contracts,
-static documentation style checks, and a production site build. Keep the English
-and Chinese page trees, section counts, slugs, and frontmatter eyebrows aligned.
+Unit tests (`src/**/*.test.ts`) cover parsing, solving and the input rules; they do not prove
+motion. Browser checks (`gate/probes/`, run by `gate/checks.mjs` against `fixtures/`) cover each
+element and source in both inputs, on the native and fallback paths, forward and reverse,
+cancellation, reload and the first screen. Do not edit source while they run: the fixture server
+reloads changed modules and the run reports false failures.
 
-Browser acceptance uses the built library and production fixtures. Cover forward
-and reverse movement, large deltas, keyboard and scrollbar input, fixed elements,
-concurrent animations, cancellation, and media exit/reentry where affected.
-Inject deliberate failures to establish that a gate exits unsuccessfully when
-its contract is violated.
-
-Use the production browser profiler for actual paint, readiness, frame intervals,
-and long tasks. Record browser, machine, viewport, workload, and raw results.
-Frame rate is diagnostic data, not a universal release guarantee. jsdom tests
-verify behavior and metric shape; they do not measure browser rendering speed.
+Performance is measured with `gate/run-phase1.mjs` on an idle machine; record the browser, machine,
+load and raw results, and compare against a same-machine control before calling a regression.
+Real devices are tested with `device-test/` (`pnpm device`).
 
 ## Changing the architecture
 
-Create or update a local, Git-ignored task-flow before a multi-file change. Describe observable
-behavior, the state owner, and acceptance criteria. Update this document alongside
-any ownership or public behavior change, and keep its links valid.
+Create or update a local, Git-ignored task flow before a multi-file change. Describe observable
+behavior, the state owner and acceptance criteria. Update this document alongside any ownership or
+public behavior change, and keep its links valid.
 
-Use focused tests to reproduce a defect, then run the relevant static and browser
-gates. [AGENT_SELF_REVIEW.md](./AGENT_SELF_REVIEW.md) requires independent browser
-review for visual, interaction, accessibility, and runtime performance work.
-Record limitations explicitly. Review reports, task flows, screenshots, traces,
-and generated measurements remain local and must not be committed. Keep reusable
-verification scripts and regression tests in the repository. Preserve local
-evidence and user-owned files unless cleanup is explicitly requested.
+Use focused tests to reproduce a defect, then run the relevant static and browser gates.
+[AGENT_SELF_REVIEW.md](./AGENT_SELF_REVIEW.md) requires independent browser review for visual,
+interaction, accessibility and runtime performance work. Record limitations explicitly. Review
+reports, task flows, screenshots, traces and generated measurements remain local and must not be
+committed. Keep reusable verification scripts and regression tests in the repository.

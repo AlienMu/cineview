@@ -1,0 +1,265 @@
+/**
+ * <cv-scene>: one shot. Owns its timeline (solved from its animates in document order) and, in
+ * scroll input, the sticky shell of a zone. `stack`: the scene holds while the next one covers it
+ * (scroll: sticky; drag: it stays put while the next one slides over it); `covered="dim|recede"`
+ * is how it looks meanwhile (render/covered.ts). `track="x"`: the content lays out in a row that
+ * moves sideways along scene time, 1 px per ms until its end meets the scene's (lexicon #5); in
+ * scroll input the scene is a zone at least that long. `theme="name"`: at eye level the scene lends
+ * the stage its palette as `data-cv-theme` (lexicon #41).
+ */
+import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
+import type { ErrorCode } from '../core/errors';
+import { ElementBase } from '../platform';
+import type { CoverLook } from '../render/covered';
+import { assignWindows } from '../render/layers';
+import type { CvAnimate } from './animate';
+import { CvStage } from './stage';
+
+export class CvScene extends ElementBase {
+  static readonly observedAttributes = ['zone', 'sequence', 'stack', 'covered', 'track', 'theme'];
+
+  stage: CvStage | null = null;
+  animates = new Set<CvAnimate>();
+  solution: SceneSolution = { entranceEnd: 0, total: 0, byIndex: [], errors: [] };
+  /** Animates on the timeline, in the solver's index order. */
+  timed: CvAnimate[] = [];
+  /** Autonomous clock elements have a separate solver and never grow the scroll budget. */
+  clocks: CvAnimate[] = [];
+  ordered: CvAnimate[] = [];
+  shell: HTMLElement | null = null;
+  /** The row a `track="x"` scene lays its content out in (display: contents otherwise). */
+  track: HTMLElement | null = null;
+  /** How far the row moves (px): its width beyond the scene's, measured at build. */
+  travel = 0;
+  /** Row offset last written; NaN when nothing is written. */
+  private trackX = Number.NaN;
+  private trackRo: ResizeObserver | null = null;
+  /** Author's height while a scroll zone owns the inline height. */
+  private zoneHeight: [string, string] | null = null;
+  /** Darkens the scene while the next one covers it (`covered`). */
+  veil: HTMLElement | null = null;
+  /** `covered`, read at build; null when absent. */
+  cover: CoverLook | null = null;
+  /** Covering progress last written directly; NaN when nothing is written. */
+  coverProgress = Number.NaN;
+  /** Document offset and height, measured in refresh(). */
+  docTop = 0;
+  height = 0;
+  timeline: AnimationTimeline | null = null;
+  nativeAttached = false;
+  /** Inside the activation window (scroll: about one viewport around). */
+  active = false;
+  /** Zone time last reported as cv-progress (scroll); NaN before the first report. */
+  zoneTime = Number.NaN;
+  /** Zone time last published to element timelines (scroll). */
+  frameTime = Number.NaN;
+  /** Fully under the next scene (`stack`): not painted, no loops, media released. */
+  covered = false;
+  /** Elements here that blend by difference (`invert`), and the isolation that holds them. */
+  private inverts = new Set<CvAnimate>();
+  private isolation: HTMLStyleElement | null = null;
+  /** Attached, but some eligible layers wait for native budget. */
+  nativePending = false;
+  nativeGeneration = 0;
+
+  get isZone(): boolean {
+    return this.hasAttribute('zone') || this.isTrack;
+  }
+
+  get isTrack(): boolean {
+    return this.getAttribute('track') === 'x';
+  }
+
+  get isStacked(): boolean {
+    return this.hasAttribute('stack');
+  }
+
+  connectedCallback(): void {
+    if (!this.shadowRoot) {
+      const root = this.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent =
+        ':host{display:block;position:relative}' +
+        // The shell is as tall as the scene (a <cv-fixed> frame covers it), a zone's one screen.
+        '.shell{position:relative;height:100%;min-height:inherit}' +
+        ':host([zone]) .shell,:host([track=x]) .shell{position:sticky;top:0;height:100svh;min-height:0}' +
+        '.track{display:contents}' +
+        ':host([track=x]) .shell{overflow-x:clip}' +
+        ':host([track=x]) .track{display:flex;width:max-content;height:100%}' +
+        '.veil{display:none;position:absolute;inset:0;z-index:2147483647;background:var(--cv-veil,#000);opacity:0;pointer-events:none}' +
+        ':host([stack][covered]) .veil{display:block}' +
+        // Recede toward the middle of what shows of it: a held scene shows its last screen.
+        ':host([stack][covered=recede]){transform-origin:50% max(50%,calc(100% - 50svh))}';
+      const shell = document.createElement('div');
+      shell.className = 'shell';
+      shell.setAttribute('part', 'shell');
+      const track = document.createElement('div');
+      track.className = 'track';
+      track.setAttribute('part', 'track');
+      track.append(document.createElement('slot'));
+      // Scene-local fixed layers must not inherit the moving row's transform/containing block.
+      const fixed = document.createElement('slot');
+      fixed.name = 'cv-fixed';
+      shell.append(track, fixed);
+      const veil = document.createElement('div');
+      veil.className = 'veil';
+      root.append(style, shell, veil);
+      this.shell = shell;
+      this.track = track;
+      this.veil = veil;
+    }
+    const stage = this.closest('cv-stage');
+    if (stage instanceof CvStage) {
+      this.stage = stage;
+      stage.registerScene(this);
+    } else if (stage) {
+      void customElements.whenDefined('cv-stage').then(() => {
+        if (this.isConnected && !this.stage) this.connectedCallback();
+      });
+    }
+  }
+
+  attributeChangedCallback(name: string, before: string | null, after: string | null): void {
+    if (before === after) return;
+    // A palette, not geometry: no rebuild.
+    if (name === 'theme') this.stage?.themeChanged(this);
+    else this.stage?.invalidate();
+  }
+
+  disconnectedCallback(): void {
+    this.watchTrack(false);
+    this.setZoneDuration(null);
+    this.stage?.unregisterScene(this);
+    this.stage = null;
+  }
+
+  /** Pair the scroll budget's height with restoration when the zone stops owning it. */
+  setZoneDuration(total: number | null): void {
+    if (total !== null) {
+      this.zoneHeight ??= [this.style.height, this.style.getPropertyPriority('height')];
+      this.style.height = `calc(100svh + ${total}px)`;
+    } else if (this.zoneHeight) {
+      this.style.setProperty('height', ...this.zoneHeight);
+      this.zoneHeight = null;
+    }
+  }
+
+  /** The row's width beyond the scene's (layout px); 0 without `track="x"`. Reads layout. */
+  measureTravel(): number {
+    if (!this.isTrack || !this.track || !this.shell) return 0;
+    // Drag skips scenes outside its window (content-visibility): lay this one out to measure it.
+    const skipped = this.style.contentVisibility;
+    this.style.contentVisibility = 'visible';
+    const travel = Math.max(0, this.track.offsetWidth - this.shell.offsetWidth);
+    this.style.contentVisibility = skipped;
+    return travel;
+  }
+
+  /** A new travel (content or viewport width) changes the scene's length: rebuild. */
+  watchTrack(on: boolean): void {
+    if (!on) {
+      this.trackRo?.disconnect();
+      this.trackRo = null;
+      return;
+    }
+    if (this.trackRo || !this.track || !this.shell) return;
+    this.trackRo = new ResizeObserver(() => {
+      if (Math.abs(this.measureTravel() - this.travel) > 0.5) this.stage?.invalidate();
+    });
+    this.trackRo.observe(this.track);
+    this.trackRo.observe(this.shell);
+  }
+
+  /** The row at scene time t: 1 px per ms to the left until its end meets the scene's end. */
+  writeTrack(t: number): void {
+    const x = -Math.min(Math.max(t, 0), this.travel);
+    if (x === this.trackX) return;
+    this.trackX = x;
+    this.track!.style.translate = x ? `${x}px 0` : '';
+  }
+
+  clearTrack(): void {
+    this.trackX = Number.NaN;
+    this.track?.style.removeProperty('translate');
+  }
+
+  /**
+   * An element starts (true) or stops blending by difference (lexicon #40). While any does, the
+   * scene is isolated: they invert its content and its background only, not what is behind it.
+   */
+  isolate(a: CvAnimate, on: boolean): void {
+    if (on) this.inverts.add(a);
+    else this.inverts.delete(a);
+    if (this.inverts.size && !this.isolation) {
+      this.isolation = document.createElement('style');
+      this.isolation.textContent = ':host{isolation:isolate}';
+      this.shadowRoot?.append(this.isolation);
+    } else if (!this.inverts.size && this.isolation) {
+      this.isolation.remove();
+      this.isolation = null;
+    }
+  }
+
+  registerAnimate(a: CvAnimate): void {
+    this.animates.add(a);
+    this.stage?.invalidate();
+  }
+
+  unregisterAnimate(a: CvAnimate): void {
+    this.animates.delete(a);
+    this.stage?.invalidate();
+  }
+
+  /**
+   * Solve the timeline in document order. Drag runs exits on the page travel instead of scene time
+   * (1.x two-track), so they stay off the total there. A track lasts at least its travel.
+   */
+  solve(
+    exitsOnTimeline: boolean,
+    report?: (message: string, element: Element, code?: ErrorCode) => void
+  ): Array<{ error: TimeError; element: Element }> {
+    const forElement =
+      (a: CvAnimate) =>
+      (message: string, code?: ErrorCode): void =>
+        report?.(message, a, code);
+    this.ordered = [...this.animates]
+      .filter((a) => !a.sourceRejected)
+      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    this.timed = this.ordered.filter((a) => a.timed);
+    const sequence = this.getAttribute('sequence');
+    this.solution = solveScene(
+      this.timed.map((a) => a.timeSpec('scene', forElement(a))),
+      {
+        sequence: sequence === null ? null : parseMs(sequence, 0, (m) => report?.(m, this)),
+        exitsOnTimeline,
+        span: this.travel,
+      }
+    );
+    for (const a of this.ordered) a.solved = null;
+    this.timed.forEach((a, i) => {
+      a.solved = this.solution.byIndex[i] ?? null;
+    });
+    for (const a of this.ordered) assignWindows(a.layers, a.solved);
+    this.clocks = this.ordered.filter((a) => a.clocked);
+    const clockSolution = solveScene(
+      this.clocks.map((a) => a.timeSpec('clock', forElement(a))),
+      {
+        sequence: sequence === null ? null : parseMs(sequence, 0, (m) => report?.(m, this)),
+        exitsOnTimeline: false,
+      }
+    );
+    for (const a of this.ordered) a.clockSolved = null;
+    this.clocks.forEach((a, i) => {
+      a.clockSolved = clockSolution.byIndex[i] ?? null;
+      assignWindows(a.layers, a.clockSolved, 'clock');
+    });
+    const errors = this.solution.errors.map((error) => ({
+      error,
+      element: this.timed[error.index] ?? this,
+    }));
+    errors.push(
+      ...clockSolution.errors.map((error) => ({ error, element: this.clocks[error.index] ?? this }))
+    );
+    return errors;
+  }
+}
