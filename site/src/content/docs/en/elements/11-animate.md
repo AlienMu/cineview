@@ -20,7 +20,7 @@ eyebrow: ELEMENTS / ANIMATE
 | `split` | `lines`, `words` | Play each line or word on its own |
 | `target`, `stagger` | `target=".card" stagger="120"` | Play matching descendants one after another |
 | `loop`, `loop-duration` | `loop="float"` | A loop after the entrance, running only on screen |
-| `replay` | No value | In ordinary scroll, play the entrance again each time it comes back into view |
+| `replay` | `replay`, `replay="false"` | Whether the entrance plays again; see [replay](#Replay) |
 | `margin` | `50 30` | An entrance margin for this element only |
 
 ## Effect presets
@@ -67,6 +67,20 @@ The children of `cv-animate` stay where they are, slotted into blocks in its sha
 - Layout for the children (grid, flex, gap) goes on an inner element, not on the `cv-animate`.
 - Set the transform origin with `::part(layer)`: `.bar::part(layer) { transform-origin: left center; }`.
 - Paint what moves (a line, for example) on an inner element.
+
+## Replay
+
+`replay` decides whether an entrance plays again:
+
+| Written | Behavior |
+| --- | --- |
+| Omitted | The source's own rule: in ordinary scroll an entrance plays once, and an `on="clock"` element plays again each time its scene becomes current |
+| `replay` or `replay="true"` | Plays again on every return; in ordinary scroll the element re-arms once it leaves the viewport |
+| `replay="false"` | After one complete entrance, later triggers show its final state; elements that follow it keep their own timing |
+
+```html
+<cv-animate name="title" on="clock" fx="rise(soft)" replay="false"><h2>Rises only on the first visit</h2></cv-animate>
+```
 
 ## Split text
 

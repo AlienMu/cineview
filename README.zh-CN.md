@@ -104,9 +104,9 @@ Cineview 的写法便于 AI 助手规划和制作页面。从 [llms.txt](./llms.
 | --- | --- |
 | [时间线](https://cineview.pages.dev/docs/05-timeline) | `duration`、`delay`、`after`、`at`，以及停住的场景有多长 |
 | [进度来源](https://cineview.pages.dev/docs/06-progress-sources) | 由什么推进效果、入场的条件、减弱动态效果 |
-| [cv-animate](https://cineview.pages.dev/docs/10-animate) | 全部属性和预设、直接写数值、循环、自定义效果 |
-| [cv-video](https://cineview.pages.dev/docs/12-video) | 随时间线播放的视频，以及如何准备视频文件 |
-| [拖动模式](https://cineview.pages.dev/docs/13-drag-mode) | 手指与时间、松手规则、按键和事件 |
+| [cv-animate](https://cineview.pages.dev/docs/11-animate) | 全部属性和预设、直接写数值、循环、自定义效果 |
+| [cv-video](https://cineview.pages.dev/docs/13-video) | 随时间线播放的视频，以及如何准备视频文件 |
+| [拖动模式](https://cineview.pages.dev/docs/16-drag-mode) | 手指与时间、松手规则、按键和事件 |
 
 用 [`device-test/`](./device-test/README.zh-CN.md) 里的测试页在真机上测试（`pnpm device`）。
 

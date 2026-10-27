@@ -66,10 +66,4 @@ cv-stage[data-cv-direction="backward"] ~ .bar { translate: 0 0; }
 
 ## 舞台的脚本接口
 
-| 成员 | 作用 |
-| --- | --- |
-| `stage.ready` | 第一次构建完成时兑现的 Promise |
-| `stage.current` | 当前场景的序号，构建前是 -1 |
-| `stage.goTo(target, { animated })` | 按序号或 id 跳到某个场景 |
-| `stage.pause()`、`stage.play()` | 暂停和继续按时间播放的动效（入场和循环） |
-| `stage.refresh()` | 页面布局有了舞台察觉不到的变化后，重新测量 |
+`stage.ready`、`stage.current`、`stage.goTo()`、`stage.pause()`、`stage.play()` 和 `stage.refresh()` 的说明见 [cv-stage](/docs/09-stage)。

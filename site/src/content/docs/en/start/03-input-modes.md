@@ -27,7 +27,7 @@ A locked zone is as long as the element that ends last; [timelines](/docs/05-tim
 </cv-stage>
 ```
 
-Each scene fills the screen. While the finger moves, the next scene's entrance follows it; on release the page switches past the threshold and springs back short of it. The Up and Down arrow keys, Page Up, Page Down, Home and End switch scenes too. [Drag mode](/docs/13-drag-mode) covers it in full.
+Each scene fills the screen. While the finger moves, the next scene's entrance follows it; on release the page switches past the threshold and springs back short of it. The Up and Down arrow keys, Page Up, Page Down, Home and End switch scenes too. [Drag mode](/docs/16-drag-mode) covers it in full.
 
 ## Which one
 

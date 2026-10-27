@@ -18,6 +18,7 @@ What moves an effect is its progress source. Each kind of scene has a default so
 | `on` | Moved by | Suits |
 | --- | --- | --- |
 | `enter` | Time, once the element is fully in view | Entrances in ordinary sections |
+| `enter(partial)` | Time, once any part of the element is in view | Elements that always stay partly off screen; ordinary scroll only |
 | `eye` | Time, once the element crosses the line at 45% of the viewport | Tall elements |
 | `view(self)`, `view(#id)` | The element (or `#id` in the same scene) crossing the viewport | Scroll-following motion outside locked zones |
 | `page` | The whole page's scroll position | A reading progress bar |
@@ -34,7 +35,7 @@ Limits:
 
 In ordinary scroll, `enter` waits until the element is fully in view, with its bottom edge clear of the screen's bottom by a margin; nearing the top or the bottom of the screen plays its exit, if it has one. The margin is 50 design pixels by default. Set it with `margin` on `cv-stage` or on one element: `margin="50"`, or `margin="50 30"` for separate entrance and exit margins.
 
-An element taller than the viewport minus the entrance margin enters when its top crosses the middle of the screen and exits when its bottom rises above 70% of the viewport height. A smaller element that always stays partly off screen (a decoration that overflows the screen, for example) never qualifies; use `clock` or `eye` for it.
+An element taller than the viewport minus the entrance margin enters when its top crosses the middle of the screen and exits when its bottom rises above 70% of the viewport height. A smaller element that always stays partly off screen (a decoration that overflows the screen, for example) never qualifies; use `enter(partial)` for it: it enters on any overlap with the viewport and exits once wholly out, without margins. It is refused in locked zones, sideways rows and drag mode; for playback when the scene starts, use `clock`.
 
 ## Reduced motion
 

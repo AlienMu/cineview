@@ -27,7 +27,7 @@ eyebrow: GETTING STARTED / INPUT MODES
 </cv-stage>
 ```
 
-每个场景占满一屏。手指拖动时，下一场的入场跟着手指走；松手时超过门槛就切换，不够就弹回。键盘的上下方向键、Page Up、Page Down、Home、End 也能切换。完整说明见[拖动模式](/docs/13-drag-mode)。
+每个场景占满一屏。手指拖动时，下一场的入场跟着手指走；松手时超过门槛就切换，不够就弹回。键盘的上下方向键、Page Up、Page Down、Home、End 也能切换。完整说明见[拖动模式](/docs/16-drag-mode)。
 
 ## 怎么选
 

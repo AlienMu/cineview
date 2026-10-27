@@ -104,9 +104,9 @@ The [documentation](https://cineview.pages.dev/docs) has live examples on its pa
 | --- | --- |
 | [Timelines](https://cineview.pages.dev/docs/05-timeline) | `duration`, `delay`, `after`, `at`, and how long a held scene is |
 | [Progress sources](https://cineview.pages.dev/docs/06-progress-sources) | What moves an effect, the entrance rules and reduced motion |
-| [cv-animate](https://cineview.pages.dev/docs/10-animate) | Every attribute and preset, values written out, loops and custom effects |
-| [cv-video](https://cineview.pages.dev/docs/12-video) | Video on the timeline and how to prepare the file |
-| [Drag mode](https://cineview.pages.dev/docs/13-drag-mode) | Finger and time, release rules, keys and events |
+| [cv-animate](https://cineview.pages.dev/docs/11-animate) | Every attribute and preset, values written out, loops and custom effects |
+| [cv-video](https://cineview.pages.dev/docs/13-video) | Video on the timeline and how to prepare the file |
+| [Drag mode](https://cineview.pages.dev/docs/16-drag-mode) | Finger and time, release rules, keys and events |
 
 Test on real devices with the pages in [`device-test/`](./device-test/README.zh-CN.md) (`pnpm device`).
 

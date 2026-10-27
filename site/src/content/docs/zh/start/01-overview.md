@@ -36,4 +36,4 @@ Cineview 用一组自定义元素（`cv-*`）在普通 HTML 里写落地页。�
 1. [安装与加载](/docs/02-setup)：从 npm 安装或从 CDN 引入，在 `<head>` 里放三样东西。
 2. [滚动与拖动](/docs/03-input-modes)：决定页面怎么前进。
 3. [与 AI 一起设计](/docs/04-working-with-ai)：让 AI 助手先商定分场和素材，再写页面。
-4. [cv-animate](/docs/10-animate)：效果预设和属性的完整列表。
+4. [cv-animate](/docs/11-animate)：效果预设和属性的完整列表。

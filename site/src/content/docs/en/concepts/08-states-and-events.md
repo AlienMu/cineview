@@ -66,10 +66,4 @@ The page keeps running after an error: the part that cannot be read is ignored a
 
 ## The stage's script interface
 
-| Member | Does |
-| --- | --- |
-| `stage.ready` | A Promise that settles when the first build is done |
-| `stage.current` | The current scene's index, -1 before the first build |
-| `stage.goTo(target, { animated })` | Go to a scene by index or id |
-| `stage.pause()`, `stage.play()` | Pause and resume motion played on time (entrances and loops) |
-| `stage.refresh()` | Measure again after a layout change the stage cannot see |
+`stage.ready`, `stage.current`, `stage.goTo()`, `stage.pause()`, `stage.play()` and `stage.refresh()` are described in [cv-stage](/docs/09-stage).

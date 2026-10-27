@@ -20,7 +20,7 @@ eyebrow: ELEMENTS / ANIMATE
 | `split` | `lines`、`words` | 按行或按词分别播放 |
 | `target`、`stagger` | `target=".card" stagger="120"` | 对匹配的子元素依次播放 |
 | `loop`、`loop-duration` | `loop="float"` | 入场结束后的循环，只在屏幕内运行 |
-| `replay` | 无值 | 普通滚动里，每次重新进入视口都重播入场 |
+| `replay` | `replay`、`replay="false"` | 入场要不要再播一次，见[重播](#重播) |
 | `margin` | `50 30` | 只对这个元素生效的入场边距 |
 
 ## 效果预设
@@ -67,6 +67,20 @@ eyebrow: ELEMENTS / ANIMATE
 - 给子元素排版（grid、flex、gap）要写在里面的一个元素上，不要写在 `cv-animate` 上。
 - 要设置变形原点，用 `::part(layer)`：`.bar::part(layer) { transform-origin: left center; }`。
 - 要画出会动的东西（例如一条线），画在里面的元素上。
+
+## 重播
+
+`replay` 决定入场要不要再播一次：
+
+| 写法 | 表现 |
+| --- | --- |
+| 不写 | 按来源原来的规则：普通滚动里入场只播一次，`on="clock"` 的元素每次回到场景都重播 |
+| `replay` 或 `replay="true"` | 每次回来都重播；普通滚动里，元素离开视口后重新布防 |
+| `replay="false"` | 完整播过一次之后，再次触发时直接显示结束的样子；接在它后面的元素照原来的时间播放 |
+
+```html
+<cv-animate name="title" on="clock" fx="rise(soft)" replay="false"><h2>只在第一次进入时升起</h2></cv-animate>
+```
 
 ## 拆分文字
 

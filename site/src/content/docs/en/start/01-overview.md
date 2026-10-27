@@ -36,4 +36,4 @@ Cineview writes landing pages in plain HTML with a set of custom elements (`cv-*
 1. [Setup](/docs/02-setup): install from npm or load from a content delivery network (CDN), three files in `<head>`.
 2. [Scroll and drag](/docs/03-input-modes): decide how the page moves forward.
 3. [Working with AI](/docs/04-working-with-ai): have an AI assistant agree on scenes and material before it writes the page.
-4. [cv-animate](/docs/10-animate): every effect preset and attribute.
+4. [cv-animate](/docs/11-animate): every effect preset and attribute.
