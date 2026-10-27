@@ -12,11 +12,11 @@ eyebrow: ELEMENTS / STAGE AND SCENE
 | `input` | `scroll` | `scroll` or `drag`; see [scroll and drag](/docs/03-input-modes) |
 | `design-width` | `750` | The design width in px. The stage's content area is at most this wide, centered; `--cv-unit` scales from it |
 | `margin` | `50` | Entrance margin in design px; two values set entrance and exit separately |
-| `first-scene-timeout` | `3000` | The longest first-screen wait for assets; see [first screen](/docs/06-first-screen) |
+| `first-scene-timeout` | `3000` | The longest first-screen wait for assets; see [first screen](/docs/07-first-screen) |
 | `paused` | `false` | Pauses motion played on time: entrances and loops |
 | `fallback` | `false` | Turns off the browser's native scroll timelines and computes scroll motion in script; for testing |
 | `transition-duration` | `800` | Drag mode: how long the switch after release takes, in ms |
-| `threshold` | Not set | Drag mode: when a release switches; see [drag mode](/docs/12-drag-mode) |
+| `threshold` | Not set | Drag mode: when a release switches; see [drag mode](/docs/13-drag-mode) |
 | `unit`, `scale` | `time`, `10` | Drag mode: how finger distance becomes time |
 
 ### Design width and units
@@ -33,13 +33,13 @@ The content area is at most `design-width` wide, so a full-width page sets it la
 
 | Attribute | Notes |
 | --- | --- |
-| `zone` | A locked zone: the screen holds and the scroll distance moves the scene's time; see [timelines](/docs/04-timeline) |
+| `zone` | A locked zone: the screen holds and the scroll distance moves the scene's time; see [timelines](/docs/05-timeline) |
 | `track="x"` | The content lays out in a row that moves sideways with the scroll |
 | `stack` | The scene stays in place while the next one slides over it |
 | `covered` | How it looks while covered: `dim` darkens, `recede` darkens and shrinks |
 | `theme` | While this scene is current, the stage's `data-cv-theme` takes this value |
 | `sequence` | Elements without `after` each follow the one before; the value is the gap in ms |
-| `preload` | The first screen waits for this scene's assets; see [first screen](/docs/06-first-screen) |
+| `preload` | The first screen waits for this scene's assets; see [first screen](/docs/07-first-screen) |
 | `drag="off"` | Drag mode: the scene cannot be dragged into, only reached by a link or a script |
 | `unit`, `scale` | Drag mode: a mapping for this scene only |
 

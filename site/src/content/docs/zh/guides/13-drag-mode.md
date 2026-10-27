@@ -45,4 +45,4 @@ eyebrow: GUIDES / DRAG MODE
 
 只有当前场景和前后各一场会被渲染，其余场景加上 `inert` 并跳过绘制。进入和离开这个范围时，场景派发 `cv-activate` 和 `cv-deactivate`，可以在这里开始或停止自己的绘制。
 
-拖动的过程会派发 `cv-dragstart`、`cv-dragend`、`cv-dragcancel`，字段见[状态与事件](/docs/07-states-and-events)。`cv-progress` 的 `kind: 'page'` 给出页面的位置，用来做页码或进度指示。
+拖动的过程会派发 `cv-dragstart`、`cv-dragend`、`cv-dragcancel`，字段见[状态与事件](/docs/08-states-and-events)。`cv-progress` 的 `kind: 'page'` 给出页面的位置，用来做页码或进度指示。

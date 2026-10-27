@@ -16,7 +16,7 @@ eyebrow: GETTING STARTED / INPUT MODES
 | `<cv-scene track="x">` | 内容排成一行，随滚动横向移动 |
 | `<cv-scene stack>` | 这一场停在原处，下一场从下方盖上来 |
 
-锁定区的长度由这一场里最晚结束的元素决定，例子见[时间线](/docs/04-timeline)。
+锁定区的长度由这一场里最晚结束的元素决定，例子见[时间线](/docs/05-timeline)。
 
 ## 拖动
 
@@ -27,7 +27,7 @@ eyebrow: GETTING STARTED / INPUT MODES
 </cv-stage>
 ```
 
-每个场景占满一屏。手指拖动时，下一场的入场跟着手指走；松手时超过门槛就切换，不够就弹回。键盘的上下方向键、Page Up、Page Down、Home、End 也能切换。完整说明见[拖动模式](/docs/12-drag-mode)。
+每个场景占满一屏。手指拖动时，下一场的入场跟着手指走；松手时超过门槛就切换，不够就弹回。键盘的上下方向键、Page Up、Page Down、Home、End 也能切换。完整说明见[拖动模式](/docs/13-drag-mode)。
 
 ## 怎么选
 

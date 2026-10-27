@@ -12,11 +12,11 @@ eyebrow: ELEMENTS / STAGE AND SCENE
 | `input` | `scroll` | `scroll` 或 `drag`，见[滚动与拖动](/docs/03-input-modes) |
 | `design-width` | `750` | 设计稿宽度（像素）。舞台的内容区最宽到这个宽度并居中；`--cv-unit` 按它换算 |
 | `margin` | `50` | 入场边距（设计像素），可写两个值分别给入场和退场 |
-| `first-scene-timeout` | `3000` | 首屏等待素材的最长时间，见[首屏](/docs/06-first-screen) |
+| `first-scene-timeout` | `3000` | 首屏等待素材的最长时间，见[首屏](/docs/07-first-screen) |
 | `paused` | `false` | 暂停按时间播放的动效：入场和循环 |
 | `fallback` | `false` | 关闭浏览器原生的滚动时间线，改由脚本逐帧计算；用于测试 |
 | `transition-duration` | `800` | 拖动模式：松手后切换的时长（毫秒） |
-| `threshold` | 未设置 | 拖动模式：切换门槛，见[拖动模式](/docs/12-drag-mode) |
+| `threshold` | 未设置 | 拖动模式：切换门槛，见[拖动模式](/docs/13-drag-mode) |
 | `unit`、`scale` | `time`、`10` | 拖动模式：手指距离怎么换算成时间 |
 
 ### 设计宽度和单位
@@ -33,13 +33,13 @@ h1 { font-size: calc(var(--cv-unit) * 64); }
 
 | 属性 | 说明 |
 | --- | --- |
-| `zone` | 锁定区：画面停住，滚动距离推进这一场的时间，见[时间线](/docs/04-timeline) |
+| `zone` | 锁定区：画面停住，滚动距离推进这一场的时间，见[时间线](/docs/05-timeline) |
 | `track="x"` | 内容排成一行，随滚动横向移动 |
 | `stack` | 这一场停在原处，下一场从下方盖上来 |
 | `covered` | 被盖住时的样子：`dim` 变暗，`recede` 变暗并缩小 |
 | `theme` | 这一场作为当前场景时，舞台的 `data-cv-theme` 取这个值 |
 | `sequence` | 没写 `after` 的元素依次接在前一个之后，值是间隔毫秒数 |
-| `preload` | 首屏等待这一场的素材，见[首屏](/docs/06-first-screen) |
+| `preload` | 首屏等待这一场的素材，见[首屏](/docs/07-first-screen) |
 | `drag="off"` | 拖动模式：不能拖进这一场，只能用链接或脚本切换过去 |
 | `unit`、`scale` | 拖动模式：只对这一场生效的换算 |
 

@@ -12,8 +12,7 @@ Framer Motion are no longer required.
 
 - The 1.x React API (`Cineview`, `Scene`, `Animate`, `AnimateVideo`, `Position`, `Image`,
   `Container`, the hooks and callback props) is removed. Props become attributes and callbacks
-  become events; [migrating from 1.x](https://cineview.pages.dev/docs/14-migrating-from-1x) maps
-  them side by side.
+  become events.
 - The package is ESM only. Load `dist/head.js`'s snippet, `cineview.css` and `cineview.js` in
   `<head>`, or `import 'cineview'` with a bundler.
 - Entrances in ordinary scroll play once; `replay` plays them again on every return.

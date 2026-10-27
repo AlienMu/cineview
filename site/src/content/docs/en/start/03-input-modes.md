@@ -16,7 +16,7 @@ On a scrolling page the scenes follow document order, and several kinds can be m
 | `<cv-scene track="x">` | The content lays out in a row that moves sideways with the scroll |
 | `<cv-scene stack>` | The scene stays in place while the next one slides over it |
 
-A locked zone is as long as the element that ends last; [timelines](/docs/04-timeline) has an example.
+A locked zone is as long as the element that ends last; [timelines](/docs/05-timeline) has an example.
 
 ## Drag
 
@@ -27,7 +27,7 @@ A locked zone is as long as the element that ends last; [timelines](/docs/04-tim
 </cv-stage>
 ```
 
-Each scene fills the screen. While the finger moves, the next scene's entrance follows it; on release the page switches past the threshold and springs back short of it. The Up and Down arrow keys, Page Up, Page Down, Home and End switch scenes too. [Drag mode](/docs/12-drag-mode) covers it in full.
+Each scene fills the screen. While the finger moves, the next scene's entrance follows it; on release the page switches past the threshold and springs back short of it. The Up and Down arrow keys, Page Up, Page Down, Home and End switch scenes too. [Drag mode](/docs/13-drag-mode) covers it in full.
 
 ## Which one
 

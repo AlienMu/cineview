@@ -1,6 +1,6 @@
 ---
 title: 与 AI 一起设计
-eyebrow: GUIDES / WORKING WITH AI
+eyebrow: GETTING STARTED / WORKING WITH AI
 ---
 
 仓库里有一份给 AI 助手用的设计技能：`skills/cineview-design/`。它让 AI 先和用户商定页面，再写代码。

@@ -12,9 +12,9 @@ eyebrow: ELEMENTS / ANIMATE
 | `fx` | `rise(soft), wipe(left)` | 效果预设，可用逗号写多个 |
 | `from`、`to` | `from="opacity:0; y:40"` | 直接写起止数值 |
 | `duration`、`delay` | `600` | 时长和等待，单位毫秒；锁定区里也是滚动像素 |
-| `name`、`after` | `after="title -200"` | 接在同一场景另一个元素的入场之后，见[时间线](/docs/04-timeline) |
+| `name`、`after` | `after="title -200"` | 接在同一场景另一个元素的入场之后，见[时间线](/docs/05-timeline) |
 | `at` | `20% 60%` | 按这一场长度的比例放置 |
-| `on` | `clock` | 进度来源，见[进度来源](/docs/05-progress-sources) |
+| `on` | `clock` | 进度来源，见[进度来源](/docs/06-progress-sources) |
 | `ease` | `linear` | 缓动 |
 | `exit`、`exit-duration` | `exit="opacity:0; y:-16"` | 离开时的样子和时长，可以写数值，也可以写预设 |
 | `split` | `lines`、`words` | 按行或按词分别播放 |
@@ -45,7 +45,7 @@ eyebrow: ELEMENTS / ANIMATE
 | `invert` | 无 | 与背后的内容做差值混合 |
 | `unroll` | 无 | 竖排长条随滚动展开 |
 | `keyframes` | 页面里 `@keyframes` 的名字 | 按元素的进度播放自己的关键帧 |
-| `fade-in`、`slide-up`、`zoom-in`、`rotate-in`、`blur-in` | 无 | 1.x 的预设，数值与 1.x 相同 |
+| `fade-in`、`slide-up`、`zoom-in`、`rotate-in`、`blur-in` | 无 | 简单入场：淡入、上移一整个自身高度、从 0 放大、旋转进入、去模糊 |
 
 参数的程度词只有 `soft` 和 `strong`，不写参数就是中间值；写 `normal` 会报错。`rise`、`grow`、`focus` 已经带有淡入，再加 `fade` 会让同一个属性叠两次。改动不同属性的预设可以放心组合，如 `rise(soft), wipe(left)`。
 

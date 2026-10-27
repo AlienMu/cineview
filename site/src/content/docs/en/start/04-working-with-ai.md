@@ -1,6 +1,6 @@
 ---
 title: Working with AI
-eyebrow: GUIDES / WORKING WITH AI
+eyebrow: GETTING STARTED / WORKING WITH AI
 ---
 
 The repository has a design skill for AI assistants: `skills/cineview-design/`. With it, an assistant agrees on the page with the user before writing code.

@@ -64,4 +64,4 @@ const stop = el.timeline.subscribe((frame) => {
 });
 ```
 
-`frame.progress` 从 0 到 1，`frame.phase` 是 `idle`、`entering`、`entered`、`exiting` 或 `exited`。用它驱动自己画的内容见[自定义绘制](/docs/13-custom-drawing)。
+`frame.progress` 从 0 到 1，`frame.phase` 是 `idle`、`entering`、`entered`、`exiting` 或 `exited`。用它驱动自己画的内容见[自定义绘制](/docs/14-custom-drawing)。

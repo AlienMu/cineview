@@ -45,4 +45,4 @@ eyebrow: CONCEPTS / FIRST SCREEN
 cv-stage, cv-scene { display: block; }
 ```
 
-需要连当前场景的配色一起恢复时，可以在 `<head>` 里用一小段脚本记录并预先套用，做法见[与 AI 一起设计](/docs/15-working-with-ai)里提到的设计技能（`checks.md` 中的 K3）。
+需要连当前场景的配色一起恢复时，可以在 `<head>` 里用一小段脚本记录并预先套用，做法见[与 AI 一起设计](/docs/04-working-with-ai)里提到的设计技能（`checks.md` 中的 K3）。

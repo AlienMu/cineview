@@ -65,4 +65,4 @@ document.addEventListener('cv-error', (e) => {
 });
 ```
 
-错误代码的含义见[状态与事件](/docs/07-states-and-events)。
+错误代码的含义见[状态与事件](/docs/08-states-and-events)。

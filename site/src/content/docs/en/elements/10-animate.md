@@ -12,9 +12,9 @@ eyebrow: ELEMENTS / ANIMATE
 | `fx` | `rise(soft), wipe(left)` | Effect presets, several separated by commas |
 | `from`, `to` | `from="opacity:0; y:40"` | Start and end values written out |
 | `duration`, `delay` | `600` | Length and wait in ms; in a locked zone, also px of scroll |
-| `name`, `after` | `after="title -200"` | Follow another element's entrance in the same scene; see [timelines](/docs/04-timeline) |
+| `name`, `after` | `after="title -200"` | Follow another element's entrance in the same scene; see [timelines](/docs/05-timeline) |
 | `at` | `20% 60%` | Place by share of the scene's length |
-| `on` | `clock` | The progress source; see [progress sources](/docs/05-progress-sources) |
+| `on` | `clock` | The progress source; see [progress sources](/docs/06-progress-sources) |
 | `ease` | `linear` | Easing |
 | `exit`, `exit-duration` | `exit="opacity:0; y:-16"` | What leaving looks like and how long it takes; values or presets |
 | `split` | `lines`, `words` | Play each line or word on its own |
@@ -45,7 +45,7 @@ eyebrow: ELEMENTS / ANIMATE
 | `invert` | None | A difference blend against what is behind |
 | `unroll` | None | A long vertical-writing strip unrolls with the scroll |
 | `keyframes` | The name of a `@keyframes` rule on the page | Plays your own keyframes on the element's progress |
-| `fade-in`, `slide-up`, `zoom-in`, `rotate-in`, `blur-in` | None | The 1.x presets, with the 1.x values |
+| `fade-in`, `slide-up`, `zoom-in`, `rotate-in`, `blur-in` | None | Simple entrances: fade, slide up a full height, zoom from 0, rotate in, unblur |
 
 The size words are `soft` and `strong`; without an argument a preset takes its middle value, and `normal` is reported as an error. `rise`, `grow` and `focus` fade in already, so adding `fade` puts two effects on one property. Presets that change different properties combine cleanly, as in `rise(soft), wipe(left)`.
 

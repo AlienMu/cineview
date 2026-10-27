@@ -65,4 +65,4 @@ document.addEventListener('cv-error', (e) => {
 });
 ```
 
-The error codes are listed in [states and events](/docs/07-states-and-events).
+The error codes are listed in [states and events](/docs/08-states-and-events).

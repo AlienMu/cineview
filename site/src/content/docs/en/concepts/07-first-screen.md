@@ -45,4 +45,4 @@ On reload the browser restores the scroll position and the stage builds at that 
 cv-stage, cv-scene { display: block; }
 ```
 
-To restore the current scene's palette as well, a short script in `<head>` can save it and apply it early; the design skill described in [working with AI](/docs/15-working-with-ai) has the recipe (K3 in `checks.md`).
+To restore the current scene's palette as well, a short script in `<head>` can save it and apply it early; the design skill described in [working with AI](/docs/04-working-with-ai) has the recipe (K3 in `checks.md`).

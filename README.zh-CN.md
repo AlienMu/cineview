@@ -14,8 +14,12 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm 版本" /></a>
+  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/dm/cineview?style=flat-square&amp;color=8A5B43" alt="npm 月下载量" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT 许可证" /></a>
+  <br />
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" /></a>
+  <a href="./package.json"><img src="https://img.shields.io/badge/dependencies-0-2c7a4b?style=flat-square" alt="无运行时依赖" /></a>
+  <a href="https://cineview.pages.dev/coverage.json"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fcineview.pages.dev%2Fcoverage.json&amp;style=flat-square" alt="行覆盖率" /></a>
 </p>
 
 <p align="center">
@@ -98,12 +102,11 @@ Cineview 的写法便于 AI 助手规划和制作页面。从 [llms.txt](./llms.
 
 | 页面 | 内容 |
 | --- | --- |
-| [时间线](https://cineview.pages.dev/docs/04-timeline) | `duration`、`delay`、`after`、`at`，以及停住的场景有多长 |
-| [进度来源](https://cineview.pages.dev/docs/05-progress-sources) | 由什么推进效果、入场的条件、减弱动态效果 |
-| [cv-animate](https://cineview.pages.dev/docs/09-animate) | 全部属性和预设、直接写数值、循环、自定义效果 |
-| [cv-video](https://cineview.pages.dev/docs/11-video) | 随时间线播放的视频，以及如何准备视频文件 |
-| [拖动模式](https://cineview.pages.dev/docs/12-drag-mode) | 手指与时间、松手规则、按键和事件 |
-| [从 1.x 迁移](https://cineview.pages.dev/docs/14-migrating-from-1x) | 1.x 的 React 属性和 2.0 属性的对照 |
+| [时间线](https://cineview.pages.dev/docs/05-timeline) | `duration`、`delay`、`after`、`at`，以及停住的场景有多长 |
+| [进度来源](https://cineview.pages.dev/docs/06-progress-sources) | 由什么推进效果、入场的条件、减弱动态效果 |
+| [cv-animate](https://cineview.pages.dev/docs/10-animate) | 全部属性和预设、直接写数值、循环、自定义效果 |
+| [cv-video](https://cineview.pages.dev/docs/12-video) | 随时间线播放的视频，以及如何准备视频文件 |
+| [拖动模式](https://cineview.pages.dev/docs/13-drag-mode) | 手指与时间、松手规则、按键和事件 |
 
 用 [`device-test/`](./device-test/README.zh-CN.md) 里的测试页在真机上测试（`pnpm device`）。
 

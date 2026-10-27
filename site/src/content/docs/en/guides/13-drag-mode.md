@@ -45,4 +45,4 @@ With `threshold`, three numbers set the rule (slow share, fast share, speed), as
 
 Only the current scene and one on each side are rendered; the others get `inert` and are skipped. A scene entering or leaving that range dispatches `cv-activate` or `cv-deactivate`, a good place to start or stop drawing of your own.
 
-A drag dispatches `cv-dragstart`, `cv-dragend` and `cv-dragcancel`; [states and events](/docs/07-states-and-events) lists their fields. `cv-progress` with `kind: 'page'` gives the page position, for page numbers or a progress indicator.
+A drag dispatches `cv-dragstart`, `cv-dragend` and `cv-dragcancel`; [states and events](/docs/08-states-and-events) lists their fields. `cv-progress` with `kind: 'page'` gives the page position, for page numbers or a progress indicator.

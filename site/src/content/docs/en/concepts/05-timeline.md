@@ -64,4 +64,4 @@ const stop = el.timeline.subscribe((frame) => {
 });
 ```
 
-`frame.progress` runs from 0 to 1; `frame.phase` is `idle`, `entering`, `entered`, `exiting` or `exited`. [Custom drawing](/docs/13-custom-drawing) uses it to drive a canvas.
+`frame.progress` runs from 0 to 1; `frame.phase` is `idle`, `entering`, `entered`, `exiting` or `exited`. [Custom drawing](/docs/14-custom-drawing) uses it to drive a canvas.

@@ -27,13 +27,13 @@ Cineview writes landing pages in plain HTML with a set of custom elements (`cv-*
 
 ## Three ideas
 
-- Timelines: the elements of a scene sit on one timeline through `duration`, `delay` and `after`. See [timelines](/docs/04-timeline).
-- Progress sources: what moves a timeline. In ordinary scroll an element plays on time once it is in view; in a locked zone the scroll distance is the time; in drag mode the finger moves it. See [progress sources](/docs/05-progress-sources).
+- Timelines: the elements of a scene sit on one timeline through `duration`, `delay` and `after`. See [timelines](/docs/05-timeline).
+- Progress sources: what moves a timeline. In ordinary scroll an element plays on time once it is in view; in a locked zone the scroll distance is the time; in drag mode the finger moves it. See [progress sources](/docs/06-progress-sources).
 - Attributes carry the design: effects, durations and order are attributes. Scripts read state, listen to events or subscribe to a timeline only when a page needs them.
 
 ## Where to start
 
-1. [Setup](/docs/02-setup): build the runtime and load three files in order.
+1. [Setup](/docs/02-setup): install from npm or load from a content delivery network (CDN), three files in `<head>`.
 2. [Scroll and drag](/docs/03-input-modes): decide how the page moves forward.
-3. [cv-animate](/docs/09-animate): every effect preset and attribute.
-4. [Working with AI](/docs/15-working-with-ai): have an AI assistant agree on scenes and material before it writes the page.
+3. [Working with AI](/docs/04-working-with-ai): have an AI assistant agree on scenes and material before it writes the page.
+4. [cv-animate](/docs/10-animate): every effect preset and attribute.

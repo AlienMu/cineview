@@ -14,8 +14,12 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/v/cineview?style=flat-square&amp;color=8A5B43&amp;logo=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/cineview"><img src="https://img.shields.io/npm/dm/cineview?style=flat-square&amp;color=8A5B43" alt="npm monthly downloads" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-555?style=flat-square" alt="MIT license" /></a>
+  <br />
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" /></a>
+  <a href="./package.json"><img src="https://img.shields.io/badge/dependencies-0-2c7a4b?style=flat-square" alt="No runtime dependencies" /></a>
+  <a href="https://cineview.pages.dev/coverage.json"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fcineview.pages.dev%2Fcoverage.json&amp;style=flat-square" alt="Line coverage" /></a>
 </p>
 
 <p align="center">
@@ -98,12 +102,11 @@ The [documentation](https://cineview.pages.dev/docs) has live examples on its pa
 
 | Page | What it covers |
 | --- | --- |
-| [Timelines](https://cineview.pages.dev/docs/04-timeline) | `duration`, `delay`, `after`, `at`, and how long a held scene is |
-| [Progress sources](https://cineview.pages.dev/docs/05-progress-sources) | What moves an effect, the entrance rules and reduced motion |
-| [cv-animate](https://cineview.pages.dev/docs/09-animate) | Every attribute and preset, values written out, loops and custom effects |
-| [cv-video](https://cineview.pages.dev/docs/11-video) | Video on the timeline and how to prepare the file |
-| [Drag mode](https://cineview.pages.dev/docs/12-drag-mode) | Finger and time, release rules, keys and events |
-| [Migrating from 1.x](https://cineview.pages.dev/docs/14-migrating-from-1x) | The 1.x React props side by side with the 2.0 attributes |
+| [Timelines](https://cineview.pages.dev/docs/05-timeline) | `duration`, `delay`, `after`, `at`, and how long a held scene is |
+| [Progress sources](https://cineview.pages.dev/docs/06-progress-sources) | What moves an effect, the entrance rules and reduced motion |
+| [cv-animate](https://cineview.pages.dev/docs/10-animate) | Every attribute and preset, values written out, loops and custom effects |
+| [cv-video](https://cineview.pages.dev/docs/12-video) | Video on the timeline and how to prepare the file |
+| [Drag mode](https://cineview.pages.dev/docs/13-drag-mode) | Finger and time, release rules, keys and events |
 
 Test on real devices with the pages in [`device-test/`](./device-test/README.zh-CN.md) (`pnpm device`).
 
