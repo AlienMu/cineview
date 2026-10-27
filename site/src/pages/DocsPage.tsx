@@ -1,12 +1,17 @@
 import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { useI18n, type DictKey } from '../i18n';
 import { DocsNavigation, DocsPager, DocsShell, revealCurrentDoc } from '../components/DocsShell';
-import { DOCS_DEFAULT_SLUG, getDocHeadings, getDocsPage, headingId } from '../content/docs/manifest';
+import {
+  DOCS_DEFAULT_SLUG,
+  getDocHeadings,
+  getDocsPage,
+  headingId,
+} from '../content/docs/manifest';
 import '../styles/Docs.css';
 
 function childText(children: ReactNode): string {
@@ -158,6 +163,32 @@ const EXAMPLES: Record<string, { zh: string; en: string }> = {
   video: { zh: '随滚动播放的视频', en: 'A video that follows the scroll' },
 };
 
+/**
+ * Pages renamed since 2.0.0 went live (renumbered when the 1.x migration page was removed and the
+ * element reference was split): links in the wild, including the README in the npm package, keep
+ * working.
+ */
+const MOVED_SLUGS: Record<string, string> = {
+  '04-timeline': '05-timeline',
+  '05-progress-sources': '06-progress-sources',
+  '06-first-screen': '07-first-screen',
+  '07-states-and-events': '08-states-and-events',
+  '08-stage-and-scene': '09-stage',
+  '09-stage-and-scene': '09-stage',
+  '09-animate': '11-animate',
+  '10-animate': '11-animate',
+  '10-stack-fixed-pause': '12-stack',
+  '11-stack-fixed-pause': '12-stack',
+  '11-video': '13-video',
+  '12-video': '13-video',
+  '12-drag-mode': '16-drag-mode',
+  '13-drag-mode': '16-drag-mode',
+  '13-custom-drawing': '17-custom-drawing',
+  '14-custom-drawing': '17-custom-drawing',
+  '15-working-with-ai': '04-working-with-ai',
+  '14-migrating-from-1x': '01-overview',
+};
+
 export default function DocsPage(): React.JSX.Element {
   const { slug } = useParams<{ slug?: string }>();
   const { hash, pathname, search } = useLocation();
@@ -216,6 +247,9 @@ export default function DocsPage(): React.JSX.Element {
     });
     return (): void => cancelAnimationFrame(frame);
   }, [resolvedSlug, hash]);
+
+  const moved = !mdPage ? MOVED_SLUGS[resolvedSlug] : undefined;
+  if (moved) return <Navigate to={'/docs/' + moved + search + hash} replace />;
 
   const toc = (
     <nav aria-label={t('docs.onThisPage')} className="docs-toc__links">
