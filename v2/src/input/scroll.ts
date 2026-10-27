@@ -61,7 +61,7 @@ export class ScrollInput implements InputEngine {
   /** Real px per design px (stage width / design-width), for visibility margins. */
   private unit = 1;
   private docHeight = 0;
-  private frameQueued = false;
+  private raf = 0;
   private destroyed = false;
   private nativeIo: IntersectionObserver | null = null;
   private activeIo: IntersectionObserver;
@@ -143,6 +143,7 @@ export class ScrollInput implements InputEngine {
     // Activation window (plan v3 §7, scroll): about one viewport around; events and media only.
     this.activeIo = new IntersectionObserver(
       (entries) => {
+        if (this.destroyed) return;
         for (const entry of entries) {
           const s = entry.target as CvScene;
           if (entry.isIntersecting) this.inView.add(s);
@@ -157,6 +158,7 @@ export class ScrollInput implements InputEngine {
     // one; in a gap between scenes (other content) the last one stays current.
     this.centerIo = new IntersectionObserver(
       (entries) => {
+        if (this.destroyed) return;
         for (const entry of entries) {
           const i = this.scenes.indexOf(entry.target as CvScene);
           if (entry.isIntersecting) this.atCenter.add(i);
@@ -172,7 +174,11 @@ export class ScrollInput implements InputEngine {
   }
 
   destroy(): void {
+    if (this.destroyed) return;
     this.destroyed = true;
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.fullFrame = false;
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('load', this.onLoad);
@@ -183,6 +189,8 @@ export class ScrollInput implements InputEngine {
     this.ro.disconnect();
     this.enter.destroy();
     for (const s of this.scenes) {
+      this.detachNative(s);
+      s.timeline = null;
       s.active = false;
       s.covered = false;
       s.removeAttribute('data-cv-covered');
@@ -206,6 +214,7 @@ export class ScrollInput implements InputEngine {
   }
 
   refresh(): void {
+    this.stage.sizeFrame();
     this.vh = window.innerHeight;
     this.vw = window.innerWidth;
     const design = Number(this.stage.getAttribute('design-width')) || 750;
@@ -245,6 +254,17 @@ export class ScrollInput implements InputEngine {
     }
   }
 
+  /** A sticky Scene's visible rect is not its original document position. */
+  goTo(index: number, options: { animated?: boolean } = {}): void {
+    if (this.destroyed) return;
+    const scene = this.scenes[Math.max(0, Math.min(this.scenes.length - 1, Math.round(index)))];
+    if (scene)
+      window.scrollTo({
+        top: scene.docTop,
+        behavior: options.animated === false ? 'instant' : 'smooth',
+      });
+  }
+
   currentIndex(): number {
     const y = window.scrollY + this.vh / 2;
     let index = 0;
@@ -255,6 +275,7 @@ export class ScrollInput implements InputEngine {
   }
 
   private onResize = (): void => {
+    if (this.destroyed) return;
     // A height-only change during a gesture is the mobile browser bar; measuring mid-gesture
     // makes view progress jump, so wait until scrolling settles.
     if (window.innerWidth === this.vw && performance.now() - this.lastScroll < GESTURE_QUIET_MS) {
@@ -267,6 +288,7 @@ export class ScrollInput implements InputEngine {
   };
 
   private onLoad = (): void => {
+    if (this.destroyed) return;
     this.refresh();
     this.queueFrame();
   };
@@ -278,6 +300,7 @@ export class ScrollInput implements InputEngine {
    * independence from a busy main thread (phase-0 blocking test).
    */
   private onScroll = (): void => {
+    if (this.destroyed) return;
     const now = performance.now();
     this.lastScroll = now;
     const y = window.scrollY;
@@ -316,11 +339,12 @@ export class ScrollInput implements InputEngine {
 
   /** `settle`: only the signals have something left to do (they slow down after the reader stops). */
   private queueFrame(settle = false): void {
+    if (this.destroyed) return;
     if (!settle) this.fullFrame = true;
-    if (this.frameQueued) return;
-    this.frameQueued = true;
-    requestAnimationFrame(() => {
-      this.frameQueued = false;
+    if (this.raf) return;
+    this.raf = requestAnimationFrame(() => {
+      this.raf = 0;
+      if (this.destroyed) return;
       const full = this.fullFrame;
       this.fullFrame = false;
       if (full) this.frame();
@@ -374,7 +398,11 @@ export class ScrollInput implements InputEngine {
       const t = zone ? Math.min(Math.max(y - s.docTop, 0), s.solution.total) : 0;
       for (const a of s.ordered) {
         // Zone loops run once the entrance is complete (1.x: playable phase and visible).
-        if (zone && a.loopItems.length) loops.push({ a, on: !a.solved || t >= a.solved.end });
+        if (zone && a.loopItems.length && (!a.clocked || a.timed))
+          loops.push({
+            a,
+            on: (!a.solved || t >= a.solved.end) && (!a.clocked || a.clockComplete),
+          });
         for (const layer of a.layers) {
           // Native layers are driven by the compositor; skip them without further work.
           if (layer.native) continue;
@@ -515,7 +543,7 @@ export class ScrollInput implements InputEngine {
   /** An element's current frame (el.timeline read): zone elements only; others keep their own. */
   frameOf(a: CvAnimate): TimelineFrame | null {
     const s = a.scene;
-    if (!s?.isZone || this.destroyed) return null;
+    if (!s?.isZone || this.destroyed || !a.timed) return null;
     return zoneFrame(a, Math.min(Math.max(window.scrollY - s.docTop, 0), s.solution.total));
   }
 
@@ -567,6 +595,7 @@ export class ScrollInput implements InputEngine {
     }
     this.nativeIo = new IntersectionObserver(
       (entries) => {
+        if (this.destroyed) return;
         for (const entry of entries) {
           const s = entry.target as CvScene;
           if (entry.isIntersecting) this.inNative.add(s);
@@ -612,7 +641,7 @@ export class ScrollInput implements InputEngine {
   }
 
   private attachNative(s: CvScene): void {
-    if (s.nativeAttached && !s.nativePending) return;
+    if (this.destroyed || (s.nativeAttached && !s.nativePending)) return;
     s.nativeAttached = true;
     s.nativePending = false;
     const generation = ++s.nativeGeneration;
@@ -620,7 +649,7 @@ export class ScrollInput implements InputEngine {
     const jobs = this.pendingNative(s);
     // Create in idle time, a little at a time; a stale batch from an earlier attach never runs.
     const step = (deadline?: IdleDeadlineLike): void => {
-      if (!s.nativeAttached || s.nativeGeneration !== generation) return;
+      if (this.destroyed || !s.nativeAttached || s.nativeGeneration !== generation) return;
       let made = 0;
       while (jobs.length && (deadline ? deadline.timeRemaining() > 2 : made < ATTACH_CHUNK)) {
         if (this.live >= this.budget) {

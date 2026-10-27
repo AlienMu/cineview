@@ -29,14 +29,20 @@ export class CvPause extends ElementBase {
     if (!this.hasAttribute('tabindex')) this.tabIndex = 0;
     this.addEventListener('click', this.toggle);
     this.addEventListener('keydown', this.onKey);
+    // The stage may be connected after this control (`for=` names it) or built later; `cv-ready`
+    // marks the moment it exists, and a click re-reads it as well (see toggle).
+    document.addEventListener('cv-ready', this.onReady);
     this.watch();
   }
 
   disconnectedCallback(): void {
     this.removeEventListener('click', this.toggle);
     this.removeEventListener('keydown', this.onKey);
+    document.removeEventListener('cv-ready', this.onReady);
     this.watch(null);
   }
+
+  private onReady = (): void => this.watch();
 
   attributeChangedCallback(): void {
     if (this.isConnected) this.watch();
@@ -70,6 +76,8 @@ export class CvPause extends ElementBase {
   private toggle = (): void => {
     const stage = this.stage;
     if (!stage) return;
+    // Rebind on use: the stage found now may differ from the one watched at connect time.
+    this.watch(stage);
     stage.toggleAttribute('paused');
   };
 

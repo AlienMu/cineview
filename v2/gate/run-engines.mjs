@@ -2,11 +2,10 @@ import { writeFile } from 'node:fs/promises';
 import { measure } from './harness.mjs';
 
 /**
- * Gate in WebKit and Firefox (plan v3 §11): no CPU throttling there, so fixed-N same-machine comparisons.
- * Long frame = rAF gap > 50 ms (applied to 1.x the same way). Firefox has no scroll-driven animations,
- * so 2.0 runs its direct-write path automatically.
+ * WebKit gate: no CPU throttling, so use fixed-N same-machine comparisons.
+ * Long frame = rAF gap > 50 ms (applied to both implementations).
  */
-export async function runEngines(output, { runs = 3, engines = ['webkit', 'firefox'], v1 = true } = {}) {
+export async function runEngines(output, { runs = 3, engines = ['webkit'], v1 = true } = {}) {
   const rows = [];
   const cases = [];
   for (const engine of engines) {
@@ -33,5 +32,5 @@ export async function runEngines(output, { runs = 3, engines = ['webkit', 'firef
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  await runEngines(process.argv[2] ?? 'review/v2-phase0-gate-20261008/engines.json', { engines: (process.argv[3] ?? 'webkit,firefox').split(',') });
+  await runEngines(process.argv[2] ?? 'review/v2-phase0-gate-20261008/engines.json', { engines: (process.argv[3] ?? 'webkit').split(',') });
 }

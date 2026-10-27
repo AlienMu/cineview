@@ -753,6 +753,64 @@ describe('videoPlaybackOwnership', () => {
     expect(stale.state.status).toBe('framework-scrub');
   });
 
+  it('restores a cancelled departure while its active entrance is still partial', () => {
+    const entered = dispatch(createVideoPlaybackOwnershipState(1), {
+      type: 'timeline-frame',
+      frame: continuationFrame(0.73),
+      duration: 4,
+      scrubRange: [0, 1],
+      dragSceneActive: true,
+    }).state;
+    const outgoing = dispatch(entered, {
+      type: 'timeline-frame',
+      frame: { progress: 0.1, signedProgress: -0.1, phase: 'exiting', source: 'gesture' },
+      duration: 4,
+      currentTime: 0.85,
+      scrubRange: [0, 1],
+      dragSceneActive: true,
+    }).state;
+    const restored = dispatch(outgoing, {
+      type: 'timeline-frame',
+      frame: continuationFrame(0.73),
+      duration: 4,
+      scrubRange: [0, 1],
+      dragSceneActive: true,
+    });
+    expect(restored.commands).toEqual([{ type: 'seek', time: 0.85 }]);
+    expect(restored.state.outgoing).toBeNull();
+    const inactive = dispatch(outgoing, {
+      type: 'timeline-frame',
+      frame: continuationFrame(0.73),
+      duration: 4,
+      scrubRange: [0, 1],
+      dragSceneActive: false,
+    });
+    expect(inactive.state.outgoing).toBe(outgoing.outgoing);
+  });
+
+  it('seeds an active partial entrance once when metadata arrives after input stops', () => {
+    const event = {
+      type: 'timeline-frame' as const,
+      frame: {
+        progress: 0.73,
+        signedProgress: 0.73,
+        phase: 'entering' as const,
+        source: 'idle' as const,
+      },
+      duration: 4,
+      scrubRange: [0, 1] as const,
+      dragSceneActive: true,
+    };
+    const initial = dispatch(createVideoPlaybackOwnershipState(1), event);
+    expect(initial.commands).toEqual([{ type: 'seek', time: 0.73 }]);
+    expect(dispatch(initial.state, event).commands).toEqual([]);
+    expect(
+      dispatch(createVideoPlaybackOwnershipState(1), { ...event, dragSceneActive: false }).commands
+    ).toEqual([]);
+    const paused = dispatch(initial.state, { type: 'media-pause', activationId: 1 }).state;
+    expect(dispatch(paused, event).commands).toEqual([]);
+  });
+
   it('normalizes non-finite scrub inputs to deterministic range endpoints', () => {
     expect(mapVideoScrubProgress(0.5, 10, [Number.NaN, 8])).toBe(4);
     expect(mapVideoScrubProgress(0.5, 10, [2, Number.NaN])).toBe(6);

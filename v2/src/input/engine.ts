@@ -11,7 +11,7 @@ export interface InputEngine {
   refresh(): void;
   destroy(): void;
   currentIndex(): number;
-  /** Inputs that page (drag) navigate themselves; scroll input leaves this to the stage. */
+  /** Navigate using the input's measured Scene positions. */
   goTo?(index: number, options?: { animated?: boolean }): void;
   /**
    * An element's frame when its time comes from this input (drag, zones), computed on read:

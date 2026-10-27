@@ -21,7 +21,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(here, 'src/index.ts');
@@ -29,7 +29,7 @@ const BUDGET_KIB = { initial: 40, drag: 12 };
 /** Baseline browsers (plan v3 §2). */
 const TARGET = ['chrome111', 'edge111', 'firefox128', 'safari16.4', 'ios16.4'];
 
-async function bundle(outdir, dev) {
+export async function bundle(outdir, dev) {
   await rm(outdir, { recursive: true, force: true });
   const result = await build({
     entryPoints: { cineview: ENTRY },
@@ -52,6 +52,35 @@ async function bundle(outdir, dev) {
 }
 
 /** gzip sizes of the initial graph (static imports from the entry) and of each lazy chunk. */
+/**
+ * gzip size a lazy chunk ADDS: every output reachable from the first output whose inputs match
+ * `entry`, its static imports included, MINUS what the initial graph already loads. The graph is
+ * shared, so counting shared chunks here would charge the same bytes twice (review F-15).
+ */
+async function lazyGraphKiB(metafile, entry, initialPaths) {
+  const outputs = metafile.outputs;
+  const start = Object.entries(outputs).find(([, o]) =>
+    (o.inputs ? Object.keys(o.inputs) : []).some((i) => entry.test(i))
+  );
+  if (!start) {
+    console.error(`budget: no output takes an input matching ${entry}`);
+    return 0;
+  }
+  const seen = new Set();
+  const walk = (k) => {
+    if (seen.has(k)) return;
+    seen.add(k);
+    for (const i of outputs[k]?.imports ?? []) if (i.kind === 'import-statement') walk(i.path);
+  };
+  walk(start[0]);
+  let bytes = 0;
+  for (const k of seen) {
+    if (initialPaths.has(k)) continue;
+    bytes += gzipSync(await readFile(k), { level: 9 }).byteLength;
+  }
+  return +(bytes / 1024).toFixed(2);
+}
+
 async function sizes(metafile) {
   const outputs = metafile.outputs;
   const entry = Object.keys(outputs).find((k) => outputs[k].entryPoint);
@@ -70,59 +99,65 @@ async function sizes(metafile) {
     if (!k.endsWith('.js') || initial.has(k)) continue;
     lazy[relative(here, k)] = +((await gz(k)) / 1024).toFixed(2);
   }
-  return { initialKiB: +(initialBytes / 1024).toFixed(2), lazyKiB: lazy };
+  return { initialKiB: +(initialBytes / 1024).toFixed(2), lazyKiB: lazy, initial };
 }
 
-const prod = await bundle(join(here, 'dist'), false);
-await bundle(join(here, 'dist/dev'), true);
-// Public declarations, then a compile check of their use (internals unreachable, React 19 JSX).
-{
-  const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
-  execFileSync(process.execPath, [tsc, '-p', join(here, 'tsconfig.types.json')], {
-    stdio: 'inherit',
-  });
-  execFileSync(process.execPath, [tsc, '-p', join(here, 'types-test/tsconfig.json')], {
-    stdio: 'inherit',
-  });
-}
-const report = await sizes(prod);
-const dragKiB = Object.entries(report.lazyKiB)
-  .filter(([k]) => /\/drag-/.test(k))
-  .reduce((a, [, v]) => a + v, 0);
-// Boot stylesheet and head snippet, generated from the same preset definitions as the runtime.
-{
-  const out = join(here, 'dist/.boot.mjs');
-  await build({
-    entryPoints: [join(here, 'src/boot.ts')],
-    outfile: out,
-    bundle: true,
-    format: 'esm',
-    platform: 'neutral',
-    define: { __DEV__: 'false' },
-    logLevel: 'warning',
-  });
-  const { bootCss, HEAD_SNIPPET } = await import(`${out}?${Date.now()}`);
-  await rm(out);
-  await writeFile(join(here, 'dist/cineview.css'), `${bootCss()}\n`);
-  const hash = createHash('sha256').update(HEAD_SNIPPET).digest('base64');
-  await writeFile(
-    join(here, 'dist/head.js'),
-    `// Inline in <head>, before cineview.css. CSP: script-src 'sha256-${hash}'\n${HEAD_SNIPPET}\n`
-  );
+async function main() {
+  const prod = await bundle(join(here, 'dist'), false);
+  await bundle(join(here, 'dist/dev'), true);
+  // Public declarations, then a compile check of their use (internals unreachable, React 19 JSX).
+  {
+    const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+    execFileSync(process.execPath, [tsc, '-p', join(here, 'tsconfig.types.json')], {
+      stdio: 'inherit',
+    });
+    execFileSync(process.execPath, [tsc, '-p', join(here, 'types-test/tsconfig.json')], {
+      stdio: 'inherit',
+    });
+  }
+  const report = await sizes(prod);
+  // The drag chunk is the one whose inputs include src/input/drag.ts; a name prefix would report 0
+  // silently if the chunk were renamed (review F-15). Its static imports load with it.
+  const dragKiB = await lazyGraphKiB(prod, /(^|\/)input\/drag\.ts$/, report.initial);
+  // Boot stylesheet and head snippet, generated from the same preset definitions as the runtime.
+  {
+    const out = join(here, 'dist/.boot.mjs');
+    await build({
+      entryPoints: [join(here, 'src/boot.ts')],
+      outfile: out,
+      bundle: true,
+      format: 'esm',
+      platform: 'neutral',
+      define: { __DEV__: 'false' },
+      logLevel: 'warning',
+    });
+    const { bootCss, HEAD_SNIPPET } = await import(`${out}?${Date.now()}`);
+    await rm(out);
+    await writeFile(join(here, 'dist/cineview.css'), `${bootCss()}\n`);
+    const surface = await import(`${pathToFileURL(join(here, 'surface.mjs')).href}`);
+    await surface.buildSurface();
+    const hash = createHash('sha256').update(HEAD_SNIPPET).digest('base64');
+    await writeFile(
+      join(here, 'dist/head.js'),
+      `// Inline in <head>, before cineview.css. CSP: script-src 'sha256-${hash}'\n${HEAD_SNIPPET}\n`
+    );
+  }
+
+  const over = [];
+  if (report.initialKiB > BUDGET_KIB.initial) over.push(`initial ${report.initialKiB} KiB`);
+  if (dragKiB > BUDGET_KIB.drag) over.push(`drag ${dragKiB} KiB`);
+
+  if (process.argv.includes('--json')) {
+    console.log(JSON.stringify({ ...report, dragKiB, budget: BUDGET_KIB, over }, null, 1));
+  } else {
+    console.log(
+      `initial ${report.initialKiB} KiB gzip (budget ${BUDGET_KIB.initial}), drag ${dragKiB} KiB (budget ${BUDGET_KIB.drag})`
+    );
+  }
+  if (over.length) {
+    console.error(`Over budget: ${over.join(', ')}`);
+    process.exit(1);
+  }
 }
 
-const over = [];
-if (report.initialKiB > BUDGET_KIB.initial) over.push(`initial ${report.initialKiB} KiB`);
-if (dragKiB > BUDGET_KIB.drag) over.push(`drag ${dragKiB} KiB`);
-
-if (process.argv.includes('--json')) {
-  console.log(JSON.stringify({ ...report, dragKiB, budget: BUDGET_KIB, over }, null, 1));
-} else {
-  console.log(
-    `initial ${report.initialKiB} KiB gzip (budget ${BUDGET_KIB.initial}), drag ${dragKiB} KiB (budget ${BUDGET_KIB.drag})`
-  );
-}
-if (over.length) {
-  console.error(`Over budget: ${over.join(', ')}`);
-  process.exit(1);
-}
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

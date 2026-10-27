@@ -1,5 +1,6 @@
-import { easeInOut, pan } from './ease';
-import { parseLoop } from './loop';
+import { identityFrame } from './props';
+import { easeInOut, linear, pan } from './ease';
+import { evaluateLoops, loopsOverlap, parseLoop } from './loop';
 
 const quiet = (): void => undefined;
 const props = (k: Keyframe): string[] =>
@@ -60,7 +61,7 @@ describe('parseLoop', () => {
     expect(weight!.keyframes.find((k) => k.offset === 0.5)!.fontVariationSettings).toBe(
       '"wght" 700'
     );
-    expect(weight!.keyframes.some((k) => '--cv-axis-wght' in k)).toBe(false);
+    expect(weight!.keyframes[0]!['--cv-axis-wght']).toBe('300');
     expect(raw!.keyframes.at(-1)!.fontVariationSettings).toBe('"wdth" 75');
     expect(messages).toEqual(['axis(wght 100): a loop needs both values of each axis']);
   });
@@ -104,5 +105,57 @@ describe('parseLoop', () => {
     const messages: string[] = [];
     expect(parseLoop('keyframes(spin)', null, null, (m) => messages.push(m))).toEqual([]);
     expect(messages).toEqual(['keyframes(spin) plays in fx, not loop']);
+  });
+});
+
+describe('loop composition', () => {
+  const frame = (text: string, time: number, duration: number | null = 1000) =>
+    evaluateLoops(parseLoop(text, duration, linear, quiet), time, identityFrame(), identityFrame());
+
+  it.each([0, -1])(
+    'rejects a nonpositive loop period (%s) before native or direct playback',
+    (period) => {
+      const messages: string[] = [];
+      expect(
+        parseLoop('float, float(strong)', period, linear, (message) => messages.push(message))
+      ).toEqual([]);
+      expect(messages).toEqual(['loop-duration must be greater than 0']);
+    }
+  );
+
+  it('adds translations/rotations and multiplies opacity/scale independently of declaration order', () => {
+    const text = 'float, float(strong), pulse, pulse(strong), breathe, breathe(strong), sway, spin';
+    for (const source of [text, text.split(', ').reverse().join(', ')]) {
+      const f = frame(source, 500);
+      expect(f.y).toBeCloseTo(-24);
+      expect(f.scale).toBeCloseTo(1.04 * 1.08);
+      expect(f.opacity).toBeCloseTo(0.6 * 0.4);
+      expect(f.rotate).toBeCloseTo(180);
+    }
+  });
+
+  it('keeps independent periods and uses native output only when properties do not overlap', () => {
+    expect(frame('sway, spin', 1000, null).rotate).toBeCloseTo(47.4);
+    expect(frame('sway, spin', 10000, null).rotate).toBeCloseTo(90);
+    expect(loopsOverlap(parseLoop('float, pulse, breathe', null, null, quiet))).toBe(false);
+    expect(loopsOverlap(parseLoop('float, float(strong)', null, null, quiet))).toBe(true);
+    expect(
+      loopsOverlap(parseLoop('axis(wght 300 700), axis(wdth 75 100)', null, null, quiet))
+    ).toBe(true);
+  });
+
+  it('retains mixed units, independent font axes and later-owner variables/clip', () => {
+    const items = [
+      ...parseLoop('x: 0 -100% 0', 1000, linear, quiet),
+      ...parseLoop('x: 0 20px 0', 1000, linear, quiet),
+    ];
+    const f = evaluateLoops(items, 250, identityFrame(), identityFrame());
+    expect(f.x).toBe(10);
+    expect(f.xp).toBe(-50);
+    const axes = frame('axis(wght 300 700), axis(wdth 75 100)', 250);
+    expect(axes.vars.get('--cv-axis-wght')).toBe('500');
+    expect(axes.vars.get('--cv-axis-wdth')).toBe('87.5');
+    expect(frame('hue(90deg), hue(180deg)', 250).vars.get('--cv-hue')).toBe('90deg');
+    expect(frame('wipe(left), wipe(right)', 250).clip).toEqual([0, 0, 0, 50]);
   });
 });

@@ -124,8 +124,10 @@ try {
   const dragEarly = await page.evaluate(() => ({
     a: window.seen('a'),
     s1: document.getElementById('s1').getBoundingClientRect().top,
+    s2: document.getElementById('s2').getBoundingClientRect().top,
   }));
   check(dragEarly.a > 0 && dragEarly.a < 1 && dragEarly.s1 >= 699, 'drag: CSS-first entrance and parked second scene before the module', JSON.stringify(dragEarly));
+  check(dragEarly.s2 >= 699, 'drag: later scene backgrounds stay off screen before the module', JSON.stringify(dragEarly));
   await page.evaluate(() => window.ready);
   await page.waitForTimeout(1400);
   const ds = await page.evaluate(() => window.samples);

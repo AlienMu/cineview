@@ -2,12 +2,18 @@
 
 This file is the repository guide for coding agents. Read it before making code or documentation changes.
 
+Cineview is intended to make animation design understandable to AI so it can advise users and turn their goals or PRDs into readable, implementable page plans. This is an authoring and documentation goal; it is not a claim that the project includes a hosted AI service.
+
 ## Source of truth
 
 - Read [`DESIGN.md`](./DESIGN.md) before changing runtime behavior. It is the current architecture specification.
+- Before changing v2 declarations, configuration parsing, or animation ownership, read the [declaration and implementation conventions](./docs/ai/declarative-design.md) ([Chinese](./docs/ai/declarative-design.zh-CN.md)). Preserve grouped declarations, explicit inheritance, and the documented state owners. That guide distinguishes implemented syntax from pending designs; proposed examples do not become usable APIs until the parser and public interface support them.
 - Create or update a local task-flow file in `task-flows/` before a multi-file change. Record the nodes and check them as they finish. This directory is ignored and must not be committed.
 - Treat the current TypeScript source and public type declarations as authoritative. Historical review notes describe past states and do not override code.
 - The site writing rules are in [`site/src/content/docs/WRITING.md`](./site/src/content/docs/WRITING.md).
+- Before designing or implementing a landing page, read the [landing-page design guide](./docs/ai/landing-pages.md) ([Chinese](./docs/ai/landing-pages.zh-CN.md)). It covers content relationships, progress sources, composition, and browser acceptance. Match its API notes to the target version.
+- For v2 landing-page design and building, the [design skill](./skills/cineview-design/SKILL.md) starts with a conversation with the user (`conversation.md`: directions, number of scenes, each scene's content and material, a storyboard) and collects references: working markup, visual directions, layouts, how the 41 references combine by mode, example structures and ways to test a page. It is a library, not a procedure. Keep it accurate when the v2 API changes (it is checked against `v2/src/jsx.ts` and `v2/src/core/fx.ts`).
+- For v2 page recommendations or PRD-to-animation work, also read the [AI design workflow](./docs/ai/design-assistant.md) ([Chinese](./docs/ai/design-assistant.zh-CN.md)). Use the [41-reference index](./docs/ai/lexicon.md) ([Chinese](./docs/ai/lexicon.zh-CN.md)) to research relevant ideas. Explain the recommended screens in ordinary language, map requirements to readable states, and check current implementation limits before generating code. The references are not 41 interchangeable presets.
 
 ## Repository map
 
@@ -17,7 +23,8 @@ This file is the repository guide for coding agents. Read it before making code 
 - `src/components/Position`, `src/components/Container`, `src/components/Image`: layout, sizing, and image loading
 - `src/context/CineviewContext.tsx`: width-based conversion values
 - `src/types/index.ts`: public types
-- `site/src/content/docs`: bilingual documentation pages
+- `site/src/content/docs`: bilingual documentation pages (1.x, at /docs)
+- `site/src/content/docs-v2`: bilingual 2.0 documentation pages (at /docs/v2), with examples in `site/public/examples/v2`
 
 ## Runtime rules
 
@@ -30,6 +37,8 @@ This file is the repository guide for coding agents. Read it before making code 
 
 ## Documentation rules
 
+- Default to the `humanizer:humanizer` skill when drafting or revising user-facing prose, including Hero copy, site text, documentation, and project descriptions. Read the installed skill and use embedded mode so the deliverable contains only the final prose. Preserve the intended voice, supported facts, uncertainty, and code/API meaning; do not invent claims. Keep technical documentation direct and adapt promotional copy to its audience.
+- Hero and brand copy should explain the product's purpose or a concrete action. Avoid empty promises about attention or anticipation, such as “让下一屏，值得期待”, “让人停下来”, or “值得多看一眼”. Use composition and visuals to create interest; do not replace clear product language with another abstract slogan.
 - Keep English and Chinese page trees, slugs, section counts, and frontmatter eyebrows aligned.
 - State the user-visible behavior before explaining implementation details.
 - For documentation, use task-oriented writing and progressive disclosure: explain what the reader can do, show a usable example, then provide API details. Check code examples against current types and runtime behavior.

@@ -20,6 +20,9 @@
 
 export type StaggerFrom = 'first' | 'last' | 'center';
 
+/** Report an unreadable declaration; the caller attaches the element and its code. */
+export type TimeReport = (message: string, code?: 'invalid-attribute' | 'bad-at') => void;
+
 export interface TimeSpec {
   name: string | null;
   /** Entrance duration (ms). At least 1 ms on the timeline, as in 1.x. */
@@ -60,7 +63,8 @@ export interface Solved {
   predecessor: number;
 }
 
-export type TimeErrorCode = 'duplicate-name' | 'missing-after' | 'cycle' | 'unbounded-at';
+export type TimeErrorCode =
+  'duplicate-name' | 'missing-after' | 'cycle' | 'unbounded-at' | 'bad-at';
 
 export interface TimeError {
   code: TimeErrorCode;
@@ -79,48 +83,78 @@ export interface SceneSolution {
 
 // ---- attribute parsing ------------------------------------------------------------------------
 
-/** `600`, `600ms`, `0.6s` → ms. Returns `fallback` for missing or unreadable values. */
-export function parseMs(text: string | null, fallback: number): number {
+/**
+ * `600`, `600ms`, `0.6s` → ms. A missing value returns `fallback` silently; an unreadable one is
+ * reported and then falls back, so a typo (`duration="fast"`) never looks like a working value.
+ */
+export function parseMs(text: string | null, fallback: number, report?: TimeReport): number {
   if (text === null) return fallback;
   const m = /^\s*(-?\d*\.?\d+)\s*(ms|s)?\s*$/.exec(text);
-  if (!m) return fallback;
+  if (!m) {
+    report?.(`"${text.trim()}": expected a time such as 600, 600ms or 0.6s; using ${fallback}`);
+    return fallback;
+  }
   const n = Number(m[1]) * (m[2] === 's' ? 1000 : 1);
   return Number.isFinite(n) ? n : fallback;
 }
 
 /** `title`, `title -400`, `title + 120ms`. */
-export function parseAfter(text: string | null): TimeSpec['after'] {
-  if (!text) return null;
+export function parseAfter(text: string | null, report?: TimeReport): TimeSpec['after'] {
+  if (!text?.trim()) return null;
   const m = /^\s*([\w-]+)\s*(?:([+-])\s*(\d*\.?\d+\s*(?:ms|s)?))?\s*$/.exec(text);
-  if (!m) return null;
-  const offset = m[3] ? parseMs(m[3], 0) * (m[2] === '-' ? -1 : 1) : 0;
+  if (!m) {
+    report?.(`after="${text}": expected a name with an optional time offset, such as "title -400"`);
+    return null;
+  }
+  const offset = m[3] ? parseMs(m[3], 0, report) * (m[2] === '-' ? -1 : 1) : 0;
   return { name: m[1]!, offset };
 }
 
 /** `40`, `40 center`, `last 60ms`. Count is filled in by the caller. */
-export function parseStagger(text: string | null): { each: number; from: StaggerFrom } | null {
+export function parseStagger(
+  text: string | null,
+  report?: TimeReport
+): { each: number; from: StaggerFrom } | null {
   if (text === null) return null;
   let each = 40;
   let from: StaggerFrom = 'first';
   for (const token of text.trim().split(/\s+/)) {
     if (!token) continue;
     if (token === 'first' || token === 'last' || token === 'center') from = token;
-    else each = Math.max(0, parseMs(token, each));
+    else each = Math.max(0, parseMs(token, each, report));
   }
   return { each, from };
 }
 
-/** `20% 80%`, `20%` (start only), `auto 80%` (end only). */
-export function parseAt(text: string | null): TimeSpec['at'] {
+/**
+ * `20% 80%`, `20%` (start only), `auto 80%` (end only).
+ *
+ * Every value must carry `%`: `at="20 80"` is a typo, not a fraction. A bad token is reported and
+ * the whole `at` is ignored (the element keeps its chain timing), so the scene's solved total stays
+ * finite — an unreadable `at` used to poison every window in the scene.
+ */
+export function parseAt(text: string | null, report?: TimeReport): TimeSpec['at'] {
   if (!text) return null;
+  let bad = false;
   const read = (token: string | undefined): number | undefined => {
     if (token === undefined || token === 'auto') return undefined;
     const m = /^(\d*\.?\d+)%$/.exec(token);
-    return m ? Math.min(Math.max(Number(m[1]) / 100, 0), 1) : Number.NaN;
+    if (!m) {
+      bad = true;
+      return undefined;
+    }
+    return Math.min(Math.max(Number(m[1]) / 100, 0), 1);
   };
   const [a, b] = text.trim().split(/\s+/);
   const start = read(a);
   const end = read(b);
+  if (bad) {
+    report?.(
+      `at="${text.trim()}": expected percentages such as "20% 80%"; the whole \`at\` is ignored`,
+      'bad-at'
+    );
+    return null;
+  }
   const at: { start?: number; end?: number } = {};
   if (start !== undefined) at.start = start;
   if (end !== undefined) at.end = end;
@@ -150,7 +184,11 @@ const maximum = (...exprs: Expr[]): Expr => {
   return [...byFraction.values()];
 };
 const valueAt = (e: Expr, total: number): number =>
-  e.reduce((m, t) => Math.max(m, t.f * total + t.c), Number.NEGATIVE_INFINITY);
+  e.reduce((m, t) => {
+    const v = t.f * total + t.c;
+    // A non-finite term never wins: Math.max(x, NaN) is NaN, which would poison the whole scene.
+    return Number.isFinite(v) ? Math.max(m, v) : m;
+  }, Number.NEGATIVE_INFINITY);
 
 const nonNegative = (n: number): number => (Number.isFinite(n) ? Math.max(0, n) : 0);
 
@@ -286,7 +324,13 @@ export function solveScene(specs: readonly TimeSpec[], options: SolveOptions = {
     const before = invalidAt.size;
     for (const e of extents) {
       for (const t of e) {
-        const required = t.f < 1 ? t.c / (1 - t.f) : t.c <= 0 ? 0 : Number.POSITIVE_INFINITY;
+        const required = !Number.isFinite(t.f)
+          ? Number.POSITIVE_INFINITY
+          : t.f < 1
+            ? t.c / (1 - t.f)
+            : t.c <= 0
+              ? 0
+              : Number.POSITIVE_INFINITY;
         if (Number.isFinite(required)) total = Math.max(total, required);
         else if (t.owner !== -1) invalidAt.add(t.owner);
       }
@@ -305,7 +349,12 @@ export function solveScene(specs: readonly TimeSpec[], options: SolveOptions = {
     const start = valueAt(starts[i]!, total);
     const end = valueAt(completions[i]!, total);
     const exitDuration = nonNegative(spec.exitDuration);
-    const pinned = spec.at !== null && !invalidAt.has(i) && exitsOnTimeline;
+    const pinned =
+      spec.at !== null &&
+      !invalidAt.has(i) &&
+      Number.isFinite(spec.at.start ?? 0) &&
+      Number.isFinite(spec.at.end ?? 1) &&
+      exitsOnTimeline;
     let exitStart = end;
     let exitEnd = end + exitDuration;
     if (exitDuration > 0 && pinned) {
@@ -326,6 +375,17 @@ export function solveScene(specs: readonly TimeSpec[], options: SolveOptions = {
 
   let entranceEnd = 0;
   for (const s of byIndex) entranceEnd = Math.max(entranceEnd, s.end);
+  // Last line of defence: a non-finite total would make a zone one screen tall and freeze its time.
+  if (!Number.isFinite(entranceEnd) || !Number.isFinite(total)) {
+    let safe = 0;
+    for (const s of byIndex) if (Number.isFinite(s.end)) safe = Math.max(safe, s.end);
+    errors.push({
+      code: 'bad-at',
+      index: -1,
+      message: 'scene time did not solve to a finite total; timing restarts from entrances',
+    });
+    return { entranceEnd: safe, total: safe, byIndex, errors };
+  }
   return { entranceEnd, total: Math.max(total, entranceEnd), byIndex, errors };
 }
 

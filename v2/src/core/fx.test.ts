@@ -7,6 +7,7 @@ import {
   parseExit,
   parseFromTo,
   parseFx,
+  parseItem,
   parseItems,
   turned,
   usedProps,
@@ -213,16 +214,27 @@ describe('presets', () => {
     expect(axis!.vars).toEqual([{ name: '--cv-axis-wght', from: 200, to: NaN, unit: '' }]);
     expect([axis!.duration, axis!.ease.css]).toEqual([1100, 'cubic-bezier(0.45, 0, 0.2, 1)']);
     const own = withOwnAxes(axis!, (tag) => (tag === 'wght' ? 700 : 0));
-    expect(frameCss(at([own], 0), new Set())).toEqual({ fontVariationSettings: '"wght" 200' });
-    expect(frameCss(at([own], 1), new Set())).toEqual({ fontVariationSettings: '"wght" 700' });
+    expect(frameCss(at([own], 0), new Set())).toEqual({
+      fontVariationSettings: '"wght" 200',
+      '--cv-axis-wght': '200',
+    });
+    expect(frameCss(at([own], 1), new Set())).toEqual({
+      fontVariationSettings: '"wght" 700',
+      '--cv-axis-wght': '700',
+    });
     const [both] = parseFx('axis(wght 300 800, wdth 75 100)', report);
     expect(withOwnAxes(both!, () => 0)).toBe(both);
     expect(frameCss(at([both!], 1), new Set())).toEqual({
       fontVariationSettings: '"wght" 800, "wdth" 100',
+      '--cv-axis-wght': '800',
+      '--cv-axis-wdth': '100',
     });
     // from/to take axes too.
     const raw = parseFromTo('--cv-axis-opsz:12', '--cv-axis-opsz:48', null, report);
-    expect(frameCss(at([raw!], 1), new Set())).toEqual({ fontVariationSettings: '"opsz" 48' });
+    expect(frameCss(at([raw!], 1), new Set())).toEqual({
+      fontVariationSettings: '"opsz" 48',
+      '--cv-axis-opsz': '48',
+    });
     parseFx('axis(GRAD 50), axis(wght), axis(wght 1 2 3), axis(weight 300 900)', report);
     expect(messages).toEqual([
       'axis(GRAD 50): GRAD needs a start and an end value',
@@ -510,5 +522,11 @@ describe('defineEffect', () => {
   it('refuses invalid names and built-ins', () => {
     expect(() => defineEffect('Swing', {})).toThrow(TypeError);
     expect(() => defineEffect('rise', {})).toThrow(/built-in/);
+  });
+
+  it('keeps one level of nested parentheses in a preset argument', () => {
+    const item = parseItem('duotone(oklch(.2 .05 250), oklch(.9 .05 250))');
+    expect(item?.name).toBe('duotone');
+    expect(item?.args).toEqual(['oklch(.2 .05 250)', 'oklch(.9 .05 250)']);
   });
 });

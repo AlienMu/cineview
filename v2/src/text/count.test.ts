@@ -112,9 +112,11 @@ describe('count (lexicon #13)', () => {
   it('refuses text without exactly one number in one run', () => {
     const refusal = (html: string): string | null => {
       const { el, slot, layer } = host(html);
-      const reason = new Counter(el, slot, () => undefined).mount();
+      const counter = new Counter(el, slot, () => undefined);
+      const reason = counter.mount();
       // Refused, the slot stays where it was.
       if (reason) expect(slot.parentElement).toBe(layer);
+      counter.destroy();
       return reason;
     };
     expect(refusal('soon')).toMatch(/no number/);
@@ -123,5 +125,46 @@ describe('count (lexicon #13)', () => {
     expect(refusal('12 or 34')).toMatch(/more than one number/);
     expect(refusal('<b>12</b> or <i>34</i>')).toMatch(/only run of text/);
     expect(refusal('1234567890123456')).toMatch(/more than 15 digits/);
+  });
+});
+
+describe('count text lifetime', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => {
+    document.body.replaceChildren();
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  it('keeps observing an invalid value until it becomes a number', async () => {
+    const { el, slot } = host('');
+    const rebuild = jest.fn();
+    const counter = new Counter(el, slot, rebuild);
+    expect(counter.mount()).toMatch(/no number/);
+    el.textContent = 'Loading';
+    await jest.advanceTimersByTimeAsync(40);
+    expect(rebuild).not.toHaveBeenCalled();
+    el.textContent = '512';
+    await jest.advanceTimersByTimeAsync(40);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    counter.destroy();
+  });
+
+  it('coalesces synchronous text changes and stops pending recovery on destroy', async () => {
+    const { el, slot } = host('128');
+    const rebuild = jest.fn();
+    const counter = new Counter(el, slot, rebuild);
+    counter.mount();
+    el.textContent = '';
+    el.textContent = '256';
+    await jest.advanceTimersByTimeAsync(40);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    rebuild.mockClear();
+    el.textContent = '';
+    counter.destroy();
+    await jest.advanceTimersByTimeAsync(40);
+    el.textContent = '512';
+    await jest.advanceTimersByTimeAsync(40);
+    expect(rebuild).not.toHaveBeenCalled();
   });
 });

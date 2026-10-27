@@ -112,7 +112,8 @@ export class TextSplit {
     private readonly host: HTMLElement,
     slot: HTMLSlotElement,
     readonly unit: SplitUnit,
-    private readonly rebuild: (() => void) | null
+    private readonly rebuild: (() => void) | null,
+    private readonly axes: readonly string[] = []
   ) {
     const container = slot.parentNode as HTMLElement | ShadowRoot;
     if (container instanceof HTMLElement) container.style.position = 'relative';
@@ -202,15 +203,17 @@ export class TextSplit {
 
   private read(): Model | string {
     const host = this.host;
-    const origin = this.src.getBoundingClientRect();
+    const source = this.src.getBoundingClientRect();
     const width = this.src.offsetWidth;
     const height = this.src.offsetHeight;
     if (!width || !height) return { pieces: [], lines: [] };
-    const sx = origin.width / width;
-    const sy = origin.height / height;
+    const sx = source.width / width;
+    const sy = source.height / height;
     // Rotation and skew make client rects bounding boxes: refuse rather than misplace.
     if (Math.abs(sx - sy) > 0.01 * Math.max(sx, sy)) return 'it is rotated or skewed';
     const scale = sx || 1;
+    // Pieces use the absolute copy's coordinates, including the host's padding.
+    const origin = this.root.getBoundingClientRect();
     const hostStyle = getComputedStyle(host);
     if (hostStyle.writingMode !== 'horizontal-tb') return 'vertical writing is not supported';
     if (hostStyle.direction === 'rtl') return 'right-to-left text is not supported';
@@ -440,6 +443,19 @@ export class TextSplit {
       css += `background-size:${bw}px ${bh}px;background-position:${bl - f.left}px ${bt - f.top}px;background-repeat:no-repeat;`;
     }
     span.style.cssText = css;
+    if (this.axes.length) {
+      // Preserve each run's unanimated axes; animated tags inherit their piece's current value.
+      const settings = new Map<string, string>();
+      for (const match of span.style.fontVariationSettings.matchAll(
+        /["']([^"']{4})["']\s+(-?[\d.]+)/g
+      )) {
+        settings.set(match[1]!, match[2]!);
+      }
+      for (const name of this.axes) settings.set(name.slice('--cv-axis-'.length), `var(${name})`);
+      span.style.fontVariationSettings = [...settings]
+        .map(([tag, value]) => `"${tag}" ${value}`)
+        .join(', ');
+    }
     return span;
   }
 

@@ -32,7 +32,7 @@ const center = async (page, id) => {
 };
 /**
  * Press at (x, y), move by dy in `steps` moves `gap` ms apart, optionally hold, release.
- * Ownership starts on the first move and rebases there, so the page travels dy * (steps - 1) / steps.
+ * Ownership starts past the 1 px direction gate; sparse samples retain the remaining distance.
  */
 const drag = async (page, from, dy, { steps = 10, gap = 16, hold = 0, release = true } = {}) => {
   await page.mouse.move(from.x, from.y);
@@ -49,28 +49,54 @@ const settle = (page, ms = 600) => page.waitForTimeout(ms);
 const rebuilt = (page) =>
   page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
+const parked = (page) => page.evaluate(() => [...document.querySelectorAll('cv-scene')]
+  .filter((s) => getComputedStyle(s).contentVisibility === 'hidden')
+  .every((s) => { const r = s.getBoundingClientRect(); return r.bottom <= 0 || r.top >= innerHeight; }));
+
 try {
   let page = await open();
   const plain = await center(page, 'plain');
+  check(await parked(page), 'scenes outside the window are off screen, including their backgrounds');
+  await page.evaluate(() => document.getElementById('s').goTo(3, { animated: false }));
+  check(await parked(page), 'far navigation parks the old scenes and their backgrounds');
+  await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+  check(await parked(page), 'return navigation parks the later scenes and their backgrounds');
+  await state(page);
 
-  // Held short drag: below the slow threshold, no velocity → cancel.
+  // A browser may coalesce a quick drag into one movement event.
+  await drag(page, { x: plain.x, y: 0.75 * H }, -0.5 * H, { steps: 1, gap: 0 });
+  await settle(page);
+  let sparse = await state(page);
+  check(sparse.index === 1, 'one movement sample beyond half a screen commits forward', JSON.stringify(sparse));
+  await page.evaluate(() => document.getElementById('s').goTo(1, { animated: false }));
+  await state(page);
+  await drag(page, { x: plain.x, y: 0.25 * H }, 0.5 * H, { steps: 1, gap: 0 });
+  await settle(page);
+  sparse = await state(page);
+  check(sparse.index === 0, 'one movement sample beyond half a screen commits backward', JSON.stringify(sparse));
+  await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+  await state(page);
+
+  // Long drag below half a screen cancels.
   await drag(page, plain, -0.2 * H, { hold: 200 });
   await settle(page);
   let st = await state(page);
   check(st.index === 0 && st.events.join() === 'cv-dragstart:s,cv-dragcancel:s', 'held 20% drag cancels', JSON.stringify(st));
   check(st.clicks === 0, 'click suppressed after a drag', JSON.stringify(st));
 
-  // Element time follows the finger: 45% of a screen at unit=time scale=10 → 450 ms of 1000.
+  // Element time follows the finger: half a screen, less the 1 px direction gate.
   await drag(page, plain, -0.5 * H, { release: false, hold: 50 });
   const mid = await page.evaluate(() =>
     Number(getComputedStyle(document.getElementById('a1').shadowRoot.querySelector('.l')).opacity)
   );
-  check(Math.abs(mid - 0.45) < 0.03, 'incoming element time follows the finger (unit/scale)', String(mid));
+  check(Math.abs(mid - (0.5 - 1 / H)) < 0.03, 'incoming element time follows the finger (unit/scale)', String(mid));
+  await page.waitForTimeout(150);
+  await page.mouse.move(plain.x, plain.y - 0.55 * H);
   await page.waitForTimeout(150);
   await page.mouse.up();
   await settle(page);
   st = await state(page);
-  check(st.index === 1 && st.events.join() === 'cv-dragstart:s,cv-leave:s0,cv-enter:s1,cv-dragend:s', 'held 50% drag commits; enter/leave on commit', JSON.stringify(st));
+  check(st.index === 1 && st.events.join() === 'cv-dragstart:s,cv-leave:s0,cv-enter:s1,cv-dragend:s', 'held 55% drag commits; enter/leave on commit', JSON.stringify(st));
   const live = await page.evaluate(() => document.getElementById('s').shadowRoot?.querySelector('[aria-live]')?.textContent);
   check(live === 'One, 2 / 4', 'scene change announced', String(live));
   const win = await page.evaluate(() =>
@@ -78,14 +104,74 @@ try {
   );
   check(win === 'iv av iv ih', 'window: current active, neighbours rendered inert, rest skipped', win);
 
-  // Back to 0, then: a fast short flick commits (~17%: past the fast ratio, short of the slow one).
+  // Back to 0, then: a short swipe commits by direction.
   await page.keyboard.press('Home');
   await settle(page);
   await state(page);
   await drag(page, plain, -0.22 * H, { steps: 4, gap: 8 });
   await settle(page);
   st = await state(page);
-  check(st.index === 1, 'fast 17% flick commits', JSON.stringify(st));
+  check(st.index === 1, 'fast 22% flick commits', JSON.stringify(st));
+
+  await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+  await state(page);
+  await drag(page, { x: plain.x, y: 600 }, -24, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 0, 'short 3% swipe cancels after tightening the default minimum', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 600 }, -63, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 0, 'short swipe just below 8% cancels', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 600 }, -64, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 1, 'short swipe at 8% commits below the former 15% minimum', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 400 }, 63, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 1, 'reverse short swipe below 8% cancels', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 400 }, 64, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 0, 'short swipe at 8% commits backward', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 600 }, -4, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 0 && !st.events.some(e => e.startsWith('cv-enter')), '4px finger jitter does not page', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 600 }, -0.4 * H, { hold: 200 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 0, 'held 40% long drag cancels', JSON.stringify(st));
+  await drag(page, { x: plain.x, y: 600 }, -(0.5 * H + 1), { hold: 200 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 1, 'held drag at exactly 50% page travel commits', JSON.stringify(st));
+
+  // An explicit threshold retains its authored speed/distance behavior, even an empty attr.
+  await page.evaluate(() => {
+    const stage = document.getElementById('s');
+    stage.goTo(0, { animated: false });
+    stage.setAttribute('threshold', '');
+  });
+  await rebuilt(page);
+  await state(page);
+  await drag(page, { x: plain.x, y: 600 }, -24, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 0, 'explicit stage threshold retains the legacy short-swipe minimum', JSON.stringify(st));
+  await page.evaluate(() => document.getElementById('s0').setAttribute('threshold', '0.02 0.02 1000'));
+  await state(page);
+  await drag(page, { x: plain.x, y: 600 }, -24, { steps: 1, gap: 0 });
+  await settle(page);
+  st = await state(page);
+  check(st.index === 1, 'scene threshold overrides the stage threshold', JSON.stringify(st));
+  await page.evaluate(() => {
+    document.getElementById('s0').removeAttribute('threshold');
+    document.getElementById('s').removeAttribute('threshold');
+  });
+  await rebuilt(page);
+  await state(page);
 
   // Keyboard paging.
   await page.keyboard.press('ArrowDown');
@@ -118,7 +204,23 @@ try {
   await rebuilt(page);
   await settle(page, 200);
   await state(page);
-  await drag(page, plain, -0.5 * H, { hold: 150 });
+  await drag(page, { x: plain.x, y: 600 }, -64, { steps: 1, gap: 0 });
+  await page.waitForFunction(() => {
+    const travel = -Number(document.getElementById('s0').style.translate.split(' ')[1]?.replace('px', '')) / innerHeight;
+    return travel > 0.6 && travel < 0.9;
+  });
+  await page.mouse.move(plain.x, 400);
+  await page.mouse.down();
+  const shortRegrab = await page.evaluate(() => -Number(document.getElementById('s0').style.translate.split(' ')[1]?.replace('px', '')) / innerHeight);
+  await page.mouse.move(plain.x, 464);
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await settle(page, 1800);
+  st = await state(page);
+  check(shortRegrab > 0.5 && shortRegrab < 1, 'short re-grab starts beyond half the page while still in flight', String(shortRegrab));
+  check(st.index === 0 && !st.events.some(e => e.startsWith('cv-enter')), 'short re-grab toward the current scene cancels despite the inherited page position', JSON.stringify(st));
+
+  await drag(page, plain, -0.55 * H, { hold: 200 });
   await page.waitForTimeout(150);
   const regrab = await page.evaluate(() => {
     const s1 = document.getElementById('s1');

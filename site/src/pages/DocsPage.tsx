@@ -6,7 +6,14 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { useI18n, type DictKey } from '../i18n';
 import { DocsNavigation, DocsPager, DocsShell, revealCurrentDoc } from '../components/DocsShell';
-import { getDocHeadings, getDocsPage, headingId } from '../content/docs/manifest';
+import {
+  DOCS_BASE,
+  DOCS_DEFAULT_SLUG,
+  getDocHeadings,
+  getDocsPage,
+  headingId,
+  type DocsVersion,
+} from '../content/docs/manifest';
 import '../styles/Docs.css';
 
 const LEGACY_SLUG_MAP: Record<string, string> = {
@@ -192,7 +199,6 @@ const markdownComponents = {
   pre: CodeBlock,
 } as const;
 
-const DEFAULT_SLUG = '01-introduction';
 const PREVIEWS = {
   drag: {
     path: 'drag-basics',
@@ -214,16 +220,31 @@ const PREVIEWS = {
   },
 } as const;
 
+/** 2.0 examples: static pages in public/examples/v2/<name>/, embedded with `<!-- example:name -->`. */
+const EXAMPLES: Record<string, { zh: string; en: string }> = {
+  'first-page': { zh: '第一个页面', en: 'A first page' },
+  timeline: { zh: '锁定场景里的时间线', en: 'A timeline in a held scene' },
+  stack: { zh: '叠卡与覆盖', en: 'Stacked cards and cover' },
+  drag: { zh: '拖动模式', en: 'Drag mode' },
+  drawing: { zh: '用时间线驱动 Canvas', en: 'A canvas on the timeline' },
+  video: { zh: '随滚动播放的视频', en: 'A video that follows the scroll' },
+};
+
 export default function DocsPage(): React.JSX.Element {
   const { slug } = useParams<{ slug?: string }>();
   const { hash, pathname, search } = useLocation();
   const navigate = useNavigate();
   const { lang, t } = useI18n();
   const zh = lang === 'zh';
-  const resolvedSlug = slug ?? DEFAULT_SLUG;
-  const mdPage = getDocsPage(resolvedSlug, lang);
-  const contentParts = mdPage?.markdown.split(/<!-- preview:(drag|scroll|video) -->/) ?? [];
-  const legacyTarget = !mdPage ? LEGACY_SLUG_MAP[resolvedSlug] : undefined;
+  const docsVersion: DocsVersion =
+    pathname === '/docs/v2' || pathname.startsWith('/docs/v2/') ? 'v2' : 'v1';
+  const base = DOCS_BASE[docsVersion];
+  const resolvedSlug = slug ?? DOCS_DEFAULT_SLUG[docsVersion];
+  const mdPage = getDocsPage(resolvedSlug, lang, docsVersion);
+  const contentParts =
+    mdPage?.markdown.split(/<!-- ((?:preview:(?:drag|scroll|video))|(?:example:[a-z0-9-]+)) -->/) ??
+    [];
+  const legacyTarget = !mdPage && docsVersion === 'v1' ? LEGACY_SLUG_MAP[resolvedSlug] : undefined;
   const headings = useMemo(() => (mdPage ? getDocHeadings(mdPage.markdown) : []), [mdPage]);
   const navigationDialog = useRef<HTMLDialogElement>(null);
 
@@ -236,7 +257,7 @@ export default function DocsPage(): React.JSX.Element {
       return;
     }
     if (headings.some((heading) => heading.id === id)) return;
-    const translatedPage = getDocsPage(resolvedSlug, zh ? 'en' : 'zh');
+    const translatedPage = getDocsPage(resolvedSlug, zh ? 'en' : 'zh', docsVersion);
     if (!translatedPage) return;
     const index = getDocHeadings(translatedPage.markdown).findIndex((heading) => heading.id === id);
     const translated = headings[index];
@@ -246,16 +267,17 @@ export default function DocsPage(): React.JSX.Element {
         { replace: true }
       );
     }
-  }, [hash, headings, navigate, pathname, resolvedSlug, search, zh]);
+  }, [docsVersion, hash, headings, navigate, pathname, resolvedSlug, search, zh]);
 
   useEffect(() => {
     const previous = document.title;
     document.title =
-      (mdPage?.title ?? (zh ? '没有找到这一页' : 'Page not found')) + ' · Cineview Docs';
+      (mdPage?.title ?? (zh ? '没有找到这一页' : 'Page not found')) +
+      (docsVersion === 'v2' ? ' · Cineview 2.0 Docs' : ' · Cineview Docs');
     return (): void => {
       document.title = previous;
     };
-  }, [mdPage, zh]);
+  }, [docsVersion, mdPage, zh]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -274,7 +296,7 @@ export default function DocsPage(): React.JSX.Element {
     return (): void => cancelAnimationFrame(frame);
   }, [resolvedSlug, hash]);
 
-  if (legacyTarget) return <Navigate to={'/docs/' + legacyTarget + hash} replace />;
+  if (legacyTarget) return <Navigate to={base + '/' + legacyTarget + hash} replace />;
 
   const toc = (
     <nav aria-label={t('docs.onThisPage')} className="docs-toc__links">
@@ -294,6 +316,7 @@ export default function DocsPage(): React.JSX.Element {
   return (
     <main className="docs-page" data-lang={lang}>
       <DocsShell
+        docsVersion={docsVersion}
         onOpenNavigation={() => {
           navigationDialog.current?.showModal();
           revealCurrentDoc(
@@ -307,7 +330,7 @@ export default function DocsPage(): React.JSX.Element {
             <span>{zh ? '使用指南' : 'The guide'}</span>
             <p>{zh ? '从第一个场景，到完整页面。' : 'From a first scene to a complete page.'}</p>
           </div>
-          <DocsNavigation activeSlug={resolvedSlug} />
+          <DocsNavigation activeSlug={resolvedSlug} docsVersion={docsVersion} />
           <a
             className="docs-nav__source"
             href="https://github.com/AlienMu/cineview"
@@ -322,7 +345,7 @@ export default function DocsPage(): React.JSX.Element {
           {mdPage ? (
             <>
               <nav className="docs-crumbs" aria-label={zh ? '当前位置' : 'Breadcrumb'}>
-                <Link to="/docs">{t('docs.title')}</Link>
+                <Link to={base}>{t('docs.title')}</Link>
                 <span aria-hidden="true">/</span>
                 <span>{t(('docs.group.' + mdPage.group) as DictKey)}</span>
               </nav>
@@ -344,17 +367,31 @@ export default function DocsPage(): React.JSX.Element {
               <div className="docs-article__markdown">
                 {contentParts.map((part, index) =>
                   index % 2 === 1 ? (
-                    <div className="docs-interactive-preview" key={index}>
-                      <div className="docs-interactive-preview__header">
-                        <span>{zh ? '可操作案例' : 'Interactive example'}</span>
-                        <span>{PREVIEWS[part as keyof typeof PREVIEWS].label}</span>
+                    part.startsWith('example:') ? (
+                      <div className="docs-interactive-preview" key={index}>
+                        <div className="docs-interactive-preview__header">
+                          <span>{zh ? '可操作案例' : 'Interactive example'}</span>
+                          <span>{EXAMPLES[part.slice(8)]?.[lang] ?? part.slice(8)}</span>
+                        </div>
+                        <iframe
+                          src={`/examples/v2/${part.slice(8)}/index.html?lang=${lang}`}
+                          title={EXAMPLES[part.slice(8)]?.[lang] ?? part.slice(8)}
+                          loading="lazy"
+                        />
                       </div>
-                      <iframe
-                        src={`/__docs/${PREVIEWS[part as keyof typeof PREVIEWS].path}?lang=${lang}`}
-                        title={PREVIEWS[part as keyof typeof PREVIEWS][lang]}
-                        loading="lazy"
-                      />
-                    </div>
+                    ) : (
+                      <div className="docs-interactive-preview" key={index}>
+                        <div className="docs-interactive-preview__header">
+                          <span>{zh ? '可操作案例' : 'Interactive example'}</span>
+                          <span>{PREVIEWS[part.slice(8) as keyof typeof PREVIEWS].label}</span>
+                        </div>
+                        <iframe
+                          src={`/__docs/${PREVIEWS[part.slice(8) as keyof typeof PREVIEWS].path}?lang=${lang}`}
+                          title={PREVIEWS[part.slice(8) as keyof typeof PREVIEWS][lang]}
+                          loading="lazy"
+                        />
+                      </div>
+                    )
                   ) : (
                     <ReactMarkdown
                       key={index}
@@ -367,7 +404,7 @@ export default function DocsPage(): React.JSX.Element {
                   )
                 )}
               </div>
-              <DocsPager activeSlug={resolvedSlug} />
+              <DocsPager activeSlug={resolvedSlug} docsVersion={docsVersion} />
               <footer className="docs-article__footer">
                 <span>Cineview / {t('docs.title')}</span>
                 <a
@@ -388,7 +425,7 @@ export default function DocsPage(): React.JSX.Element {
                   ? '这个地址没有对应的文档。可以从目录继续查找，或回到介绍页。'
                   : 'There is no document at this address. Browse the guide or return to the introduction.'}
               </p>
-              <Link to={'/docs/' + DEFAULT_SLUG}>
+              <Link to={base + '/' + DOCS_DEFAULT_SLUG[docsVersion]}>
                 {zh ? '打开介绍页' : 'Open the introduction'} →
               </Link>
             </div>
@@ -427,6 +464,7 @@ export default function DocsPage(): React.JSX.Element {
           </div>
           <DocsNavigation
             activeSlug={resolvedSlug}
+            docsVersion={docsVersion}
             onNavigate={() => navigationDialog.current?.close()}
           />
         </div>

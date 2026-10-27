@@ -275,7 +275,7 @@ export function frameCss(frame: Frame, used: ReadonlySet<Prop>): Record<string, 
  */
 export const AXIS = '--cv-axis-';
 
-/** Custom properties into CSS: axes as `font-variation-settings`, the rest as themselves. */
+/** Custom properties into CSS; axes also form `font-variation-settings` for text inheritance. */
 export function varsCss(
   vars: Iterable<readonly [string, string]>,
   css: Record<string, unknown>
@@ -283,7 +283,8 @@ export function varsCss(
   let axes = '';
   for (const [name, value] of vars) {
     if (name.startsWith(AXIS)) axes += `${axes ? ', ' : ''}"${name.slice(AXIS.length)}" ${value}`;
-    else css[name] = value;
+    // Keep individual axes inherited too: split glyphs override only animated tags.
+    css[name] = value;
   }
   if (axes) css.fontVariationSettings = axes;
 }

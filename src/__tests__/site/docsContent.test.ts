@@ -208,3 +208,83 @@ describe('docs bilingual content contract', () => {
     expect(problems).toEqual([]);
   });
 });
+
+/**
+ * The 2.0 preview documentation (site/src/content/docs-v2, routed at /docs/v2): the same contract as
+ * the 1.x pages, plus its own groups, its /docs/v2/<slug> links and its embedded examples
+ * (`<!-- example:name -->` needs site/public/examples/v2/<name>/index.html).
+ */
+describe('docs 2.0 bilingual content contract', () => {
+  const V2_ROOT = join(__dirname, '../../../site/src/content/docs-v2');
+  const EXAMPLES_ROOT = join(__dirname, '../../../site/public/examples/v2');
+  const V2_GROUPS = new Set(['start', 'concepts', 'elements', 'guides']);
+  const perLang = new Map<string, string[]>(
+    LANGS.map((lang) => [lang, collectMarkdownFiles(join(V2_ROOT, lang))])
+  );
+  const read = (lang: string, file: string): string =>
+    readFileSync(join(V2_ROOT, lang, file), 'utf8');
+
+  it('keeps zh and en trees isomorphic, in known groups, with unique slugs', () => {
+    const zh = new Set(perLang.get('zh'));
+    const en = new Set(perLang.get('en'));
+    const problems = [
+      ...[...en].filter((file) => !zh.has(file)).map((file) => `en has, zh missing: ${file}`),
+      ...[...zh].filter((file) => !en.has(file)).map((file) => `zh has, en missing: ${file}`),
+    ];
+    for (const [lang, files] of perLang) {
+      const seen = new Map<string, string>();
+      for (const file of files) {
+        const [group, name, extra] = file.split('/');
+        if (extra !== undefined || !name)
+          problems.push(`${lang}/${file}: path must be {group}/{slug}.md`);
+        else if (!V2_GROUPS.has(group)) problems.push(`${lang}/${file}: unknown group ${group}`);
+        else if (!/^[a-z0-9-]+\.md$/.test(name)) problems.push(`${lang}/${file}: slug format`);
+        const slug = (name ?? '').replace(/\.md$/, '');
+        if (seen.has(slug))
+          problems.push(`${lang}: slug "${slug}" in ${seen.get(slug)} and ${group}`);
+        seen.set(slug, group);
+      }
+    }
+    expect(problems).toEqual([]);
+    expect(perLang.get('en')).not.toHaveLength(0);
+  });
+
+  it('declares titles and matching eyebrows, and keeps heading structure aligned', () => {
+    const problems: string[] = [];
+    for (const file of perLang.get('en') ?? []) {
+      const en = read('en', file);
+      const zh = read('zh', file);
+      if (!readFrontmatterTitle(en) || !readFrontmatterTitle(zh))
+        problems.push(`${file}: missing title`);
+      const ebEn = readFrontmatterField(en, 'eyebrow');
+      const ebZh = readFrontmatterField(zh, 'eyebrow');
+      if (!ebEn || ebEn !== ebZh) problems.push(`${file}: eyebrow ${ebZh} / ${ebEn}`);
+      if (headingShape(en).join(',') !== headingShape(zh).join(','))
+        problems.push(`${file}: heading structure differs`);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('resolves every /docs/v2/<slug> link and every embedded example', () => {
+    const problems: string[] = [];
+    for (const lang of LANGS) {
+      const known = new Set(
+        (perLang.get(lang) ?? []).map((file) => file.split('/')[1].replace(/\.md$/, ''))
+      );
+      for (const file of perLang.get(lang) ?? []) {
+        const source = read(lang, file);
+        for (const match of source.matchAll(/\]\(\/docs\/v2\/([a-z0-9-]+)(?:#[^)]*)?\)/g))
+          if (!known.has(match[1]))
+            problems.push(`${lang}/${file}: dead link /docs/v2/${match[1]}`);
+        for (const match of source.matchAll(/<!-- example:([a-z0-9-]+) -->/g)) {
+          try {
+            statSync(join(EXAMPLES_ROOT, match[1], 'index.html'));
+          } catch {
+            problems.push(`${lang}/${file}: missing example ${match[1]}`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+});

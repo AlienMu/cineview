@@ -1,0 +1,355 @@
+/* v1's site base, which /drag had from the React app (site/src/design/tokens.css: tokens and
+   resets; site/src/design/global.css: the language toggle). Copied so the 2.0 page matches. */
+
+:root {
+  /* — 基础色:暖白 / 暖墨 / 胶片线 — */
+  --film-white: #fcf8f1;
+  --film-white-2: #f5e9da;
+  --ink: #1a1814;
+  --ink-soft: #665346;
+  --ink-mute: #947b68;
+  --frame-line: #d9c1a9;
+  --frame-line-soft: #eadbca;
+
+  /* — 柔彩首页 palette；具体 Scene 在 global.css 中覆盖 — */
+  /* 非首页页面与滚动条使用的静态默认色。 */
+  /* 与 LUT 停靠 0（design/lut.ts）同步：2026-08-16 参照胶带边缘 accent 家族
+   * （#ca8a4c hue≈33°）调亮——top #f8e3c6 / bot #f9eee0（用户两轮判白/冷后
+   * 的第三版）。旧 --lut-* 四族死 token 已删（历史在 git）。 */
+  --bg-grad-top: #f7dfbd;
+  --bg-grad-bot: #fcf1e3;
+  --accent: #d59273; /* 当前镜头色,随滚动被 JS 覆写 */
+  --accent-ink: #9e6344;
+
+  /* — REC 常驻指示(时间码胶囊专用,不随镜头色变)— */
+  --rec: #c4453f;
+  --rec-glow: rgba(196, 69, 63, 0.32);
+
+  /* — 字体 — */
+  --font-display: 'Fraunces', 'Songti SC', Georgia, serif;
+  --font-body:
+    'Inter', 'PingFang SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* — 字号刻度 — */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+  --text-4xl: 4rem;
+  --text-5xl: 5.5rem;
+  --text-6xl: 7.5rem;
+
+  /* — 间距 — */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  /* — 结构 — */
+  --content-max: 1080px;
+
+  /* — 阴影（编辑派：柔和、浅层）— */
+  --shadow-sm: 0 1px 3px rgba(26, 24, 20, 0.05);
+  --shadow: 0 8px 30px rgba(26, 24, 20, 0.08);
+  --shadow-lg: 0 24px 60px rgba(26, 24, 20, 0.12);
+
+  /* — 动效 — */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--film-white);
+  line-height: 1.6;
+  font-size: var(--text-base);
+}
+
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+
+code,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.lang-toggle {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  color: var(--ink-mute);
+  /* 2026-08-09 用户指令「去掉按钮的背景」：删 background + backdrop-filter
+   * （原「暖白半透明药丸 + 毛玻璃」），只留图标+文字。
+   * 2026-08-29：药丸轮廓本身还在（radius 999px），但**无框无底色**——
+   * hover 也不出边框，只加深字色。 */
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+
+  transition: color 0.25s var(--ease-out);
+}
+
+.lang-toggle:hover {
+  color: var(--accent-ink);
+}
+
+.lang-toggle__globe {
+  width: 16px;
+  height: 16px;
+  display: block;
+  transition: transform 0.5s var(--ease-out);
+}
+
+.lang-toggle:hover .lang-toggle__globe {
+  transform: rotate(28deg);
+}
+
+.lang-toggle__code {
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .lang-toggle {
+    top: var(--space-2);
+    right: var(--space-4);
+  }
+}
+
+/* The v1 page shell (site/src/design/global.css: .drag-document / .drag-page) and the few places
+   where v2's elements need what v1's wrappers had. Everything visual stays in drag.css (v1's). */
+
+html,
+body.drag-document {
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  background: #0c0a0c;
+  overscroll-behavior: none;
+}
+
+.drag-page {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #0c0a0c;
+  overscroll-behavior: none;
+}
+
+.drag-page > .drag-temporal {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  max-width: 750px;
+  margin-inline: auto;
+}
+
+/* v1: the black layer (z 1) sits above the container's background and below every scene frame.
+   The v2 stage is fixed at inset 0; lift it over the layer so the frames stay on top. */
+.drag-temporal > cv-stage {
+  z-index: 2;
+  max-width: 750px;
+  margin-inline: auto;
+}
+
+/* Deferred (embedded, before cineview-activate): the dark shell only, as v1. */
+.drag-deferred .drag-temporal > cv-stage {
+  visibility: hidden;
+}
+
+/* v1 Scenes were 100% x 100%, overflow hidden. */
+.drag-temporal cv-scene.tp-scene {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* v1's lane wrapper was a block div; the loop lanes had one more motion div (.cv-loopbox). */
+.drag-temporal cv-animate {
+  display: block;
+}
+
+.drag-temporal .cv-loopbox {
+  width: 100%;
+  height: 100%;
+}
+
+/* Scene 3's monitor: v1 styled the lane wrapper and its <video> (temporal-scenes-03-05.css:87);
+   in 2.0 the lane is a <cv-video> and the <video> is in its shadow root, so the same rule goes to
+   the host and to its video part. */
+.drag-temporal .s03-preview__surface > cv-video[data-cineview-animate-id='s03-preview-media'] {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #050506;
+}
+
+.drag-temporal .s03-preview__surface > cv-video[data-cineview-animate-id='s03-preview-media']::part(video) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #050506;
+}
+
+/* In the homepage's phone (about 280px wide) v1 wrapped its two buttons into two rows; keep them
+   side by side there with a little less padding (an optimisation over v1, owner 10-25). */
+@media (max-width: 340px) {
+  .drag-temporal .s01-actions {
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+
+  .drag-temporal .s01-actions .tp-btn {
+    padding-inline: 12px;
+  }
+}
+
+/* Stepped clock hands (v1: 60 stops a turn, each held for 92% of its step). */
+@keyframes tp-step-turn {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+
+.drag-temporal [data-loop="s01-hand-second-sweep"] > .cv-loopbox {
+  animation: tp-step-turn 60s steps(60, jump-none) infinite;
+}
+
+.drag-temporal [data-loop="s01-hand-minute-advance"] > .cv-loopbox {
+  animation: tp-step-turn 3600s steps(60, jump-none) infinite;
+}
+
+/* Film grain jitter (v1: 9 stops in 0.5 s, held between). */
+@keyframes tp-grain {
+  0%, 24.9% { translate: 0 0; }
+  25%, 49.9% { translate: -3% 1%; }
+  50%, 74.9% { translate: 2% -2%; }
+  75%, 99.9% { translate: -1% 2%; }
+}
+
+.drag-temporal [data-loop$="-texture-grain"] > .cv-loopbox {
+  animation: tp-grain 0.5s linear infinite;
+}
+
+/* Loops run in the current scene only (v1), and not at all under reduced motion. */
+.drag-temporal cv-scene:not([data-cv-current]) .cv-loopbox {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drag-temporal .cv-loopbox {
+    animation: none !important;
+  }
+}
+/* v1 keyframe-array lanes, played by keyframes(lane id) */
+@keyframes s03-v1-clip-2-demo {
+  0% { opacity: 1; translate: 0% 0; }
+  11% { translate: 0% 0; }
+  100% { opacity: 1; translate: -22.222% 0; }
+}
+
+@keyframes s03-v1-clip-2-selection {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  99.5% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes s03-v1-clip-3-demo {
+  0% { opacity: 1; translate: 0% 0; }
+  11% { translate: 0% 0; }
+  100% { opacity: 1; translate: -44.444% 0; }
+}
+
+@keyframes s03-v1-clip-3-selection {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  99.5% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes s03-v1-clip-4-demo {
+  0% { opacity: 1; translate: 0% 0; }
+  11% { translate: 0% 0; }
+  100% { opacity: 1; translate: -66.667% 0; }
+}
+
+@keyframes s03-v1-clip-4-selection {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  99.5% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes s03-v1-clip-5-demo {
+  0% { opacity: 1; translate: 0% 0; }
+  11% { translate: 0% 0; }
+  100% { opacity: 1; translate: -88.889% 0; }
+}
+
+@keyframes s03-v1-clip-5-selection {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  99.5% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes s04-main-timecode {
+  0% { opacity: 0; scale: 0.92; filter: blur(6px); }
+  54.545% { opacity: 1; scale: 1; filter: blur(0px); }
+  100% { opacity: 1; scale: 1; filter: blur(0px); }
+}

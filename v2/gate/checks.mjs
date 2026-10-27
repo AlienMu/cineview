@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '../..');
-const base = 'http://127.0.0.1:4360';
+const base = process.env.CV_BASE ?? 'http://127.0.0.1:4360';
 const PROBES = [
   'first',
   'enter',
@@ -49,7 +49,7 @@ const only = args
   ?.slice(7)
   .split(',');
 const probes = only ? PROBES.filter((p) => only.includes(p)) : PROBES;
-const out = join(root, 'review/v2-phase1-checks');
+const out = process.env.CV_CHECK_OUT ?? join(root, 'review/v2-phase1-checks');
 mkdirSync(out, { recursive: true });
 
 const up = async () => {
@@ -67,6 +67,7 @@ if (!(await up())) {
   );
   server = spawn(process.execPath, [vite, '--config', join(root, 'v2/vite.config.mjs')], {
     cwd: root,
+    env: { ...process.env, CV_PORT: new URL(base).port || '4360' },
     stdio: 'ignore',
   });
   for (let i = 0; i < 150 && !(await up()); i++) await new Promise((r) => setTimeout(r, 200));
@@ -101,7 +102,7 @@ try {
     for (const probe of probes) {
       const { code, text } = await run(probe, engine);
       const lines = text.split('\n');
-      const fails = lines.filter((l) => l.startsWith('FAIL'));
+      const fails = lines.filter((l) => /^FAIL(?:\s|:)/.test(l));
       const result = {
         pass: code === 0,
         ok: lines.filter((l) => l.startsWith('ok')).length,

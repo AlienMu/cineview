@@ -31,6 +31,7 @@
 import {
   evaluate,
   sampleKeyframes,
+  samplePoints,
   usedProps,
   usedVars,
   type Effect,
@@ -39,10 +40,15 @@ import {
 } from '../core/fx';
 import {
   combine,
+  IDENTITY,
+  NO_CLIP,
+  parseVarValue,
+  varValue,
   compositorEligible,
   frameCss,
   identityFrame,
   mirrorFrame,
+  resetFrame,
   type Frame,
   type Prop,
 } from '../core/props';
@@ -77,6 +83,17 @@ const RANK: Readonly<Record<LayerKind, number>> = {
   clip: 5,
 };
 
+const SOURCE_RANK: Readonly<Record<Source, number>> = {
+  page: 0,
+  view: 1,
+  scene: 2,
+  enter: 3,
+  eye: 4,
+  clock: 5,
+  velocity: 6,
+  direction: 7,
+};
+
 export const kindOf = (source: Source): Exclude<LayerKind, 'keyframes' | 'clip' | 'loop'> =>
   KIND_OF[source];
 
@@ -88,7 +105,15 @@ export interface Window {
   exitEnd: number;
 }
 
+interface SharedOutput {
+  layers: Layer[];
+  frame: Frame;
+  output: Layer;
+}
+
 export interface Layer {
+  /** Named ranges on one subject compose before their shared style output. */
+  shared: SharedOutput | null;
   kind: LayerKind;
   source: Source;
   /** For view sources: whose passage drives it. */
@@ -158,7 +183,7 @@ const hasTracks = (effects: readonly Effect[], clip: boolean): boolean =>
     (e) => e.entries.some(([p]) => (p === 'clip') === clip) || (!clip && e.vars.length > 0)
   );
 
-/** View effects split by named range, in order of first use: one native timeline range each. */
+/** Logical view ranges retain authored order for replacement tracks. */
 function byRange(
   effects: readonly Effect[]
 ): Array<{ range: ViewRange | null; effects: Effect[] }> {
@@ -173,8 +198,8 @@ function byRange(
 
 /**
  * Plans for one element: one layer per source for non-clip tracks, plus one clip layer per source
- * that has clip tracks. Exits join the time layer of their source. View effects get one layer per
- * named range, since a native animation runs over a single range.
+ * that has clip tracks. Exits join the time layer of their source. View effects retain one logical plan per
+ * named range; multiple ranges share one composed direct output.
  */
 export function planLayers(
   groups: ReadonlyMap<Source, { effects: Effect[]; exits: Effect[] }>,
@@ -204,9 +229,9 @@ export function planLayers(
       if (hasTracks(all, true)) plans.push({ ...plan, kind: 'clip', select: 'clip' });
     }
   }
-  // Canonical order; clip layers keep their sources' order among themselves.
+  // Canonical source order; ranges retain authored order for replacement tracks.
   return plans.sort(
-    (a, b) => RANK[a.kind] - RANK[b.kind] || RANK[kindOf(a.source)] - RANK[kindOf(b.source)]
+    (a, b) => RANK[a.kind] - RANK[b.kind] || SOURCE_RANK[a.source] - SOURCE_RANK[b.source]
   );
 }
 
@@ -220,6 +245,7 @@ function makeLayer(
 ): Layer {
   return {
     ...plan,
+    shared: null,
     el,
     target,
     piece,
@@ -247,6 +273,27 @@ function makeLayer(
   };
 }
 
+/** Bind logical range layers that target the same box to a single composed output. */
+function shareOutputs(layers: readonly Layer[]): void {
+  const byElement = new Map<HTMLElement | SVGElement, Layer[]>();
+  for (const layer of layers) {
+    const group = byElement.get(layer.el);
+    if (group) group.push(layer);
+    else byElement.set(layer.el, [layer]);
+  }
+  for (const members of byElement.values()) {
+    if (members.length < 2) continue;
+    const output = members[0]!;
+    const shared = { layers: members, frame: identityFrame(), output };
+    output.used = new Set(members.flatMap((l) => [...l.used]));
+    output.vars = new Set(members.flatMap((l) => [...l.vars]));
+    for (const layer of members) {
+      layer.shared = shared;
+      layer.last = output.last;
+    }
+  }
+}
+
 /** Shadow layers, outermost first: keyframes layers (`rules`), then `plans` in their order. */
 export function buildLayers(
   host: HTMLElement,
@@ -271,7 +318,21 @@ export function buildLayers(
     layer.rule = placeKeyframes(keyframes, a, b);
     layers.push(layer);
   }
+  let previous: Layer | null = null;
   for (const plan of plans) {
+    // Ranges differ in progress, not in transform nesting. Compose them in one physical box.
+    if (
+      previous &&
+      plan.source === 'view' &&
+      plan.kind === 'space' &&
+      previous.source === plan.source &&
+      previous.kind === plan.kind
+    ) {
+      const layer = makeLayer(plan, previous.el, false, -1);
+      layers.push(layer);
+      previous = layer;
+      continue;
+    }
     const el = document.createElement('div');
     el.className = 'l';
     el.setAttribute('part', `layer ${plan.kind}`);
@@ -279,9 +340,11 @@ export function buildLayers(
     if (origin) el.style.transformOrigin = origin;
     parent.append(el);
     parent = el;
-    layers.push(makeLayer(plan, el, false, -1));
+    previous = makeLayer(plan, el, false, -1);
+    layers.push(previous);
   }
   parent.append(document.createElement('slot'));
+  shareOutputs(layers);
   return layers;
 }
 
@@ -322,6 +385,7 @@ export function buildPieceLayers(
       layers.push(makeLayer({ ...plan, effects, select: 'all' }, el, false, k, true));
     });
   }
+  shareOutputs(layers);
   return layers;
 }
 
@@ -367,9 +431,14 @@ export function buildAdaptedLayer(
 }
 
 /** Assign windows to time layers from the element's solved window; stagger children get their slice. */
-export function assignWindows(layers: readonly Layer[], solved: Solved | null): void {
+export function assignWindows(
+  layers: readonly Layer[],
+  solved: Solved | null,
+  source: Source | null = null
+): void {
   for (const layer of layers) {
-    if (!solved || kindOf(layer.source) !== 'time') {
+    if (source && layer.source !== source) continue;
+    if (!solved || (source ? layer.kind === 'loop' : kindOf(layer.source) !== 'time')) {
       layer.window = null;
       continue;
     }
@@ -395,10 +464,17 @@ export function assignWindows(layers: readonly Layer[], solved: Solved | null): 
  * Evaluate a layer at entrance progress p and exit progress px (0 = no exit in play); `mirror`
  * reverses the result (a velocity layer while the reader moves backward).
  */
-export function evaluateLayer(layer: Layer, p: number, px: number, mirror = false): Frame {
-  evaluate(layer.effects, p, layer.frame, layer.select);
+export function evaluateLayer(
+  layer: Layer,
+  p: number,
+  px: number,
+  mirror = false,
+  beforeP = false,
+  beforePx = false
+): Frame {
+  evaluate(layer.effects, p, layer.frame, layer.select, beforeP);
   if (px > 0 && layer.exitEffects.length) {
-    evaluate(layer.exitEffects, px, layer.scratch, layer.select);
+    evaluate(layer.exitEffects, px, layer.scratch, layer.select, beforePx);
     combine(layer.frame, layer.scratch);
   }
   if (mirror) mirrorFrame(layer.frame);
@@ -442,7 +518,18 @@ export function writeLayer(layer: Layer, p: number, px: number, mirror = false):
     if (layer.seek.currentTime !== t) layer.seek.currentTime = t;
     return;
   }
-  const css = layerCss(layer, evaluateLayer(layer, p, px, mirror));
+  const frame = evaluateLayer(layer, p, px, mirror);
+  if (layer.shared) {
+    const group = layer.shared;
+    resetFrame(group.frame);
+    for (const member of group.layers) combine(group.frame, member.frame);
+    writeFrame(group.output, group.frame);
+  } else writeFrame(layer, frame);
+}
+
+/** Write a previously composed frame without evaluating a second progress source. */
+export function writeFrame(layer: Layer, frame: Frame): void {
+  const css = layerCss(layer, frame);
   const style = layer.el.style;
   for (const key in css) {
     const value = css[key]!;
@@ -471,7 +558,7 @@ export function clearLayer(layer: Layer): void {
  * split pieces each run over a narrow window that a dozen samples would not draw.
  */
 export const compositorLayer = (layer: Layer): boolean =>
-  !layer.piece && compositorEligible(layer.used) && layer.vars.size === 0;
+  !layer.piece && !layer.shared && compositorEligible(layer.used) && layer.vars.size === 0;
 
 /**
  * Keyframe samples for a clock-played layer of `duration` ms. An unregistered custom property
@@ -493,18 +580,74 @@ export function layerKeyframes(layer: Layer, samples = 12): Keyframe[] {
 }
 
 /** Keyframes of a layer's exit alone (entrance complete), for exits played on a clock. */
-export function exitKeyframes(layer: Layer, samples = 12): Keyframe[] {
+export function exitKeyframes(layer: Layer, samples = 12, entrance = 1): Keyframe[] {
   if (layer.rule) {
-    // No exit of its own: it holds its end while the element's exits play.
+    // A rule has no exit of its own. An interrupted rule holds its displayed frame.
+    if (entrance < 1) {
+      const style = getComputedStyle(layer.el),
+        frame: Keyframe = {};
+      const keys = new Set(layer.rule.flatMap((k) => Object.keys(k)));
+      for (const key of keys) {
+        if (key === 'offset' || key === 'easing' || key === 'composite') continue;
+        frame[key] = key.startsWith('--')
+          ? style.getPropertyValue(key)
+          : (style as unknown as Record<string, string>)[key];
+      }
+      return [
+        { ...frame, offset: 0 },
+        { ...frame, offset: 1 },
+      ];
+    }
     const end = layer.rule[layer.rule.length - 1];
     return end?.offset === 1 ? [{ ...end, offset: 0 }, { ...end }] : [];
   }
-  const frames: Keyframe[] = [];
-  for (let i = 0; i <= samples; i++) {
-    const px = i / samples;
-    frames.push({ offset: px, ...layerCss(layer, evaluateLayer(layer, 1, px)) });
+  const from = identityFrame(),
+    base = identityFrame(),
+    end = identityFrame();
+  if (entrance < 1) {
+    combine(from, evaluateLayer(layer, entrance, 0));
+    combine(base, evaluateLayer(layer, 1, 0));
+    combine(end, evaluateLayer(layer, 1, 1));
   }
-  return frames;
+  return samplePoints(layer.exitEffects, samples).map(({ offset, before }) => {
+    const frame = evaluateLayer(layer, 1, offset, false, false, before);
+    if (entrance < 1) {
+      const rest = 1 - offset;
+      for (const prop of Object.keys(IDENTITY) as Array<keyof typeof IDENTITY>)
+        frame[prop] += (from[prop] - base[prop]) * rest;
+      if (from.clip || base.clip) {
+        const a = from.clip ?? NO_CLIP,
+          b = base.clip ?? NO_CLIP,
+          clip = frame.clip ?? NO_CLIP;
+        frame.clip = [0, 1, 2, 3].map(
+          (i) => clip[i]! + (a[i]! - b[i]!) * rest
+        ) as unknown as typeof NO_CLIP;
+      }
+      for (const [name, value] of from.vars) {
+        if (value === base.vars.get(name)) continue;
+        const a = parseVarValue(value),
+          b = parseVarValue(base.vars.get(name) ?? ''),
+          c = parseVarValue(frame.vars.get(name) ?? '');
+        if (
+          a &&
+          b &&
+          c &&
+          'n' in a &&
+          'n' in b &&
+          'n' in c &&
+          a.unit === b.unit &&
+          b.unit === c.unit
+        )
+          frame.vars.set(name, `${c.n + (a.n - b.n) * rest}${c.unit}`);
+        else if (a && 'color' in a && end.vars.has(name))
+          frame.vars.set(
+            name,
+            varValue({ name, from: a.color, to: end.vars.get(name)!, unit: null }, offset)
+          );
+      }
+    }
+    return { offset, ...layerCss(layer, frame) };
+  });
 }
 
 /** Keyframes for a time layer over a whole scene timeline of length `total` ms. */
@@ -518,25 +661,49 @@ export function sceneKeyframes(
     const at = (t: number): number => (total > 0 ? t / total : 0);
     return placeKeyframes(layer.rule, at(window.start), at(window.end));
   }
-  const points = new Set<number>([0, total]);
-  const addSegment = (a: number, b: number): void => {
+  const points = new Map<
+    number,
+    { p?: number; px?: number; beforeP?: boolean; beforePx?: boolean }
+  >([
+    [0, {}],
+    [total, {}],
+  ]);
+  const addSegment = (effects: Effect[], a: number, b: number, exit: boolean): void => {
     if (b <= a) return;
-    for (let i = 0; i <= samplesPerSegment; i++) points.add(a + ((b - a) * i) / samplesPerSegment);
+    for (const { offset, before } of samplePoints(effects, samplesPerSegment)) {
+      const t = offset === 1 ? b : a + (b - a) * offset;
+      const step = points.get(t) ?? {};
+      step[exit ? 'px' : 'p'] = offset;
+      if (before) step[exit ? 'beforePx' : 'beforeP'] = true;
+      points.set(t, step);
+    }
   };
-  addSegment(window.start, window.end);
-  if (layer.exitEffects.length) addSegment(window.exitStart, window.exitEnd);
-  const times = [...points].filter((t) => t >= 0 && t <= total).sort((a, b) => a - b);
-  return times.map((t) => ({
+  addSegment(layer.effects, window.start, window.end, false);
+  if (layer.exitEffects.length)
+    addSegment(layer.exitEffects, window.exitStart, window.exitEnd, true);
+  const times = [...points.keys()].filter((t) => t >= 0 && t <= total).sort((a, b) => a - b);
+  const frame = (t: number, beforeP = false, beforePx = false): Keyframe => ({
     offset: total > 0 ? t / total : 0,
     ...layerCss(
       layer,
       evaluateLayer(
         layer,
-        progressIn(t, window.start, window.end),
-        layer.exitEffects.length ? progressIn(t, window.exitStart, window.exitEnd) : 0
+        points.get(t)!.p ?? progressIn(t, window.start, window.end),
+        layer.exitEffects.length
+          ? (points.get(t)!.px ?? progressIn(t, window.exitStart, window.exitEnd))
+          : 0,
+        false,
+        beforeP,
+        beforePx
       )
     ),
-  }));
+  });
+  return times.flatMap((t) => {
+    const step = points.get(t)!;
+    return step.beforeP || step.beforePx
+      ? [frame(t, step.beforeP, step.beforePx), frame(t)]
+      : [frame(t)];
+  });
 }
 
 export function progressIn(t: number, a: number, b: number): number {

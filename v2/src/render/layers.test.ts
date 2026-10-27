@@ -1,4 +1,13 @@
-import { evaluate, parseExit, parseFromTo, parseFx, type Effect, type Source } from '../core/fx';
+import { linear } from '../core/ease';
+import {
+  evaluate,
+  makeEffect,
+  parseExit,
+  parseFromTo,
+  parseFx,
+  type Effect,
+  type Source,
+} from '../core/fx';
 import { identityFrame, isRest } from '../core/props';
 import { solveScene } from '../core/time';
 import {
@@ -51,6 +60,16 @@ describe('planLayers', () => {
       ['space:all:3', 'space:entry:2', 'clip:exit:1']
     );
     expect(plans.every((p) => p.subject === '#hero')).toBe(true);
+  });
+
+  it('orders different sources canonically when declarations arrive in reverse order', () => {
+    const source = [
+      ['view', fx('drift')],
+      ['page', [makeEffect({ tracks: { rotate: [0, 90] }, ease: linear })]],
+    ] as Array<[Source, Effect[]]>;
+    const a = planLayers(groups(source), 'scene');
+    const b = planLayers(groups([...source].reverse()), 'scene');
+    expect(a.map((p) => p.source)).toEqual(b.map((p) => p.source));
   });
 
   it('gives custom properties a layer of their own source, kept off the compositor', () => {
@@ -173,6 +192,49 @@ describe('split pieces', () => {
     expect(els[5]!.style.opacity).toBe('0');
   });
 
+  it('publishes animated axes for split fragments without losing individual axis values', () => {
+    const [plan] = planLayers(
+      groups([
+        [
+          'scene',
+          fx('axis(wght 300 700), axis(wdth 75 100)').map((effect) => ({
+            ...effect,
+            ease: linear,
+          })),
+        ],
+      ]),
+      'scene'
+    );
+    const [layer] = buildPieceLayers(pieces(1), [plan!], true);
+    writeLayer(layer!, 0.5, 0);
+    expect(layer!.el.style.getPropertyValue('--cv-axis-wght')).toBe('500');
+    expect(layer!.el.style.getPropertyValue('--cv-axis-wdth')).toBe('87.5');
+    expect(layerKeyframes(layer!, 12)[6]!['--cv-axis-wght']).toBe('500');
+  });
+
+  it('composes different view ranges once on the same piece and ordinary element', () => {
+    const entry = makeEffect({ tracks: { y: [0, 20], opacity: [1, 0.5] }, ease: linear });
+    const exit = makeEffect({ tracks: { y: [0, 10], opacity: [1, 0.2] }, ease: linear });
+    for (const reversed of [false, true]) {
+      const plans = [
+        { ...planLayers(groups([['view', [entry]]]), 'scene')[0]! },
+        { ...planLayers(groups([['view', [exit]]]), 'scene')[0]! },
+      ];
+      if (reversed) plans.reverse();
+      const layers = buildPieceLayers(pieces(1), plans, false);
+      for (const l of layers) writeLayer(l, 0.5, 0);
+      // One piece spans the entire progress; both tracks are at their midpoint.
+      expect(layers[0]!.el.style.translate).toBe('0px 15px');
+      expect(+layers[0]!.el.style.opacity).toBeCloseTo(0.75 * 0.6);
+      const whole = buildLayers(document.createElement('div'), plans);
+      for (const l of whole) writeLayer(l, 0.5, 0);
+      expect(whole[0]!.el).toBe(whole[1]!.el);
+      expect(whole[0]!.el.style.translate).toBe('0px 15px');
+      expect(+whole[0]!.el.style.opacity).toBeCloseTo(0.75 * 0.6);
+      expect(compositorLayer(whole[0]!)).toBe(false);
+    }
+  });
+
   it('makes time-driven pieces stagger items, with the effect origin on each piece', () => {
     const plan = {
       ...planLayers(groups([['scene', fx('rise(line)')]]), 'scene')[0]!,
@@ -273,9 +335,130 @@ describe('main-thread layers', () => {
     expect(compositorLayer(layer!)).toBe(false);
     writeLayer(layer!, 1, 0);
     expect(layer!.el.style.fontVariationSettings).toBe('"wght" 800');
-    expect(layer!.el.style.getPropertyValue('--cv-axis-wght')).toBe('');
+    expect(layer!.el.style.getPropertyValue('--cv-axis-wght')).toBe('800');
     clearLayer(layer!);
     expect(layer!.el.getAttribute('style') ?? '').toBe('');
+  });
+});
+
+describe('sampled effect timing', () => {
+  const opacityAt = (frames: Keyframe[], p: number): number => {
+    const after = frames.findIndex((f) => f.offset! > p);
+    if (after < 0) return Number(frames[frames.length - 1]!.opacity);
+    const a = frames[Math.max(0, after - 1)]!;
+    const b = frames[after]!;
+    const k = (p - a.offset!) / (b.offset! - a.offset!);
+    return Number(a.opacity) + (Number(b.opacity) - Number(a.opacity)) * k;
+  };
+  const layerFor = (source: Source, effects: Effect[], exits: Effect[] = []) =>
+    buildLayers(
+      document.createElement('div'),
+      planLayers(groups([[source, effects, exits]]), 'scene')
+    )[0]!;
+  const fade = (range: readonly [number, number], ease = linear) =>
+    makeEffect({ tracks: { opacity: [0, 1] }, range, ease });
+
+  it.each(['view', 'clock'] as const)(
+    'holds a narrow %s effect until its authored start',
+    (source) => {
+      const frames = layerKeyframes(layerFor(source, [fade([0.49, 0.5])]));
+      for (const [p, opacity] of [
+        [0.45, 0],
+        [0.49, 0],
+        [0.495, 0.5],
+        [0.5, 1],
+        [0.7, 1],
+      ]) {
+        expect(opacityAt(frames, p!)).toBeCloseTo(opacity!, 8);
+      }
+    }
+  );
+
+  it('samples easing inside a short interval and composes overlapping effects there', () => {
+    const curve = layerKeyframes(layerFor('view', [fade([0.49, 0.5], (t) => t * t)]));
+    expect(opacityAt(curve, 0.495)).toBeCloseTo(0.25, 8);
+    const combined = layerKeyframes(layerFor('view', [fade([0.49, 0.5]), fade([0.495, 0.505])]));
+    expect(opacityAt(combined, 0.49)).toBe(0);
+    expect(opacityAt(combined, 0.4975)).toBeCloseTo(0.75 * 0.25, 8);
+  });
+
+  it('starts an interrupted clock exit at the displayed entrance value and reaches its authored end', () => {
+    const layer = layerFor(
+      'enter',
+      [makeEffect({ tracks: { opacity: [0, 1], y: [20, 0] }, ease: linear })],
+      parseExit('opacity:0; y:-16', linear, () => undefined)
+    );
+    const frames = exitKeyframes(layer, 12, 0.5);
+    expect(+frames[0]!.opacity!).toBeCloseTo(0.5);
+    expect(frames[0]!.translate).toBe('0px 10px');
+    expect(+frames.at(-1)!.opacity!).toBe(0);
+    expect(frames.at(-1)!.translate).toBe('0px -16px');
+  });
+
+  it('retains the boundary of an exit played on a clock', () => {
+    const layer = layerFor(
+      'enter',
+      [fade([0, 1])],
+      parseExit('fade 49% 50%', linear, () => undefined)
+    );
+    const frames = exitKeyframes(layer);
+    expect(opacityAt(frames, 0.49)).toBe(1);
+    expect(opacityAt(frames, 0.505)).toBeCloseTo(0.5, 8);
+    expect(opacityAt(frames, 0.6)).toBe(0);
+  });
+
+  it('maps effect boundaries into entrance and exit scene windows', () => {
+    const layer = layerFor(
+      'scene',
+      [fade([0.49, 0.5])],
+      parseExit('fade 49% 50%', linear, () => undefined)
+    );
+    const frames = sceneKeyframes(
+      layer,
+      { start: 100, end: 300, exitStart: 400, exitEnd: 600 },
+      800
+    );
+    expect(opacityAt(frames, 190 / 800)).toBe(0);
+    expect(opacityAt(frames, 199 / 800)).toBeCloseTo(0.5, 8);
+    expect(opacityAt(frames, 490 / 800)).toBe(1);
+    expect(opacityAt(frames, 501 / 800)).toBeCloseTo(0.5, 8);
+  });
+
+  it('keeps a zero-length effect as a step instead of interpolating toward it', () => {
+    const frames = layerKeyframes(layerFor('view', [fade([0.49, 0.49])]));
+    expect(frames.filter((f) => f.offset === 0.49).map((f) => Number(f.opacity))).toEqual([0, 1]);
+    expect(opacityAt(frames, 0.48)).toBe(0);
+    expect(opacityAt(frames, 0.49)).toBe(1);
+  });
+
+  it('keeps an exit step without undoing an entrance that completed at a step', () => {
+    const layer = layerFor(
+      'scene',
+      [fade([1, 1])],
+      parseExit('fade 50% 50%', linear, () => undefined)
+    );
+    const frames = sceneKeyframes(
+      layer,
+      { start: 100, end: 300, exitStart: 400, exitEnd: 600 },
+      800
+    );
+    expect(opacityAt(frames, 299 / 800)).toBe(0);
+    expect(opacityAt(frames, 300 / 800)).toBe(1);
+    expect(frames.filter((f) => f.offset === 500 / 800).map((f) => Number(f.opacity))).toEqual([
+      1, 0,
+    ]);
+    expect(opacityAt(frames, 499 / 800)).toBe(1);
+    expect(opacityAt(frames, 500 / 800)).toBe(0);
+  });
+
+  it.each([0.37, 0.49, 1 / 3])('keeps step values when scene mapping rounds progress %s', (p) => {
+    const layer = layerFor('scene', [fade([p, p])]);
+    const start = 53.7,
+      end = 690.9,
+      total = 1000;
+    const offset = (start + (end - start) * p) / total;
+    const frames = sceneKeyframes(layer, { start, end, exitStart: end, exitEnd: end }, total);
+    expect(frames.filter((f) => f.offset === offset).map((f) => Number(f.opacity))).toEqual([0, 1]);
   });
 });
 

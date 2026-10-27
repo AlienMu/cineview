@@ -102,6 +102,9 @@ site/.v1-acceptance/
 
 # Generated from a successful framework coverage run for the website badge.
 site/public/coverage.json
+# 2.0 runtime copied for /hero/ (site/tools/copy-v2-runtime.mjs)
+site/public/v2/
+site/public/hero/drag/drag.js
 
 # Production browser acceptance build.
 site/dist-acceptance/
@@ -110,3 +113,7 @@ site/dist-acceptance/
 v2/.size/
 v2/fixtures-dist/
 v2/dist/
+# Skill validation pages (local test builds of the design skill)
+site/public/skill-build/
+site/public/skill-build-2/
+site/public/skill-moto/

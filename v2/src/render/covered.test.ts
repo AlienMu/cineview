@@ -1,5 +1,12 @@
 import { viewProgress } from '../core/view';
-import { clearCover, COVER_RANGE, coverKeyframes, parseCovered, writeCover } from './covered';
+import {
+  clearCover,
+  COVER_RANGE,
+  coverKeyframes,
+  parseCovered,
+  withVeilColour,
+  writeCover,
+} from './covered';
 
 describe('parseCovered', () => {
   it('reads dim and recede; absent is null', () => {
@@ -74,5 +81,17 @@ describe('COVER_RANGE', () => {
     expect(viewProgress(200, 1400, vh, COVER_RANGE)).toBe(0.75);
     // A shorter one has entered once its bottom is on screen.
     expect(viewProgress(400, 400, vh, COVER_RANGE)).toBe(1);
+  });
+});
+
+describe('withVeilColour', () => {
+  it('keeps the preset strength without a page colour', () => {
+    expect(withVeilColour({ veil: 0.5, scale: 1 }, '')).toEqual({ veil: 0.5, scale: 1 });
+    expect(withVeilColour({ veil: 0.3, scale: 0.92 }, '  ')).toEqual({ veil: 0.3, scale: 0.92 });
+  });
+  it('lets the colour carry the strength: the veil opacity is the progress alone', () => {
+    const look = withVeilColour({ veil: 0.3, scale: 0.92 }, ' rgb(154 102 64 / 30%) ');
+    expect(look).toEqual({ veil: 1, scale: 0.92 });
+    expect(coverKeyframes(look).veil).toEqual([{ opacity: 0 }, { opacity: 1 }]);
   });
 });

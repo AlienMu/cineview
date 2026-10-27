@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm run build:framework && vite",
+    "predev": "node ../v2/build.mjs && node tools/copy-v2-runtime.mjs && node tools/build-hero-drag.mjs",
     "build": "vite build",
+    "prebuild": "node tools/copy-v2-runtime.mjs && node tools/build-hero-drag.mjs",
     "build:framework": "pnpm --dir .. run build",
     "build:cf": "pnpm run build:framework && pnpm run build",
     "preview": "vite preview",

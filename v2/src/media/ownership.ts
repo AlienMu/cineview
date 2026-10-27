@@ -286,7 +286,11 @@ function reduceTimelineFrame(
 
   // 2.0: a cancelled forward departure restores its frame too (1.x only did this for reverse ones and
   // re-scrubbed a forward one to the range end, losing a native tail's position and playback).
-  if (state.outgoing && frame.phase === 'entered') {
+  if (
+    state.outgoing &&
+    (frame.phase === 'entered' ||
+      (frame.phase === 'entering' && event.dragSceneActive !== undefined))
+  ) {
     // A committed departure can publish a terminal entered frame while the
     // Scene switches roles. Only the still-active Scene can cancel its return.
     if (event.dragSceneActive === false) return result(state);
@@ -303,15 +307,15 @@ function reduceTimelineFrame(
   ) {
     return result(state);
   }
-  // Metadata or the cached blob may arrive after the drag transaction finishes.
-  // Seed that new media generation from the completed frame once; later idle
+  // Metadata or the cached blob may arrive after input stops at a partial entrance.
+  // Seed that new media generation from its current frame once; later idle
   // frames must still leave native playback and user pauses alone.
-  const needsCompletedFrame =
-    frame.phase === 'entered' &&
+  const needsInitialFrame =
+    (frame.phase === 'entering' || frame.phase === 'entered') &&
     state.status === 'framework-scrub' &&
     state.lastSeekTime === null &&
     event.dragSceneActive !== false;
-  if (!state.outgoing && !isScrubSource(frame.source) && !needsCompletedFrame) {
+  if (!state.outgoing && !isScrubSource(frame.source) && !needsInitialFrame) {
     return result(state);
   }
   if (!canReclaimTerminalState(state, frame)) return result(state);

@@ -12,6 +12,7 @@ import VideoTimelinePreviewPage from './pages/VideoTimelinePreviewPage';
 const DocsPage = lazy(() => import('./pages/DocsPage'));
 const VideoDragAcceptancePage = lazy(() => import('./pages/VideoDragAcceptancePage'));
 const HorizontalScrollFixture = lazy(() => import('./pages/HorizontalScrollFixture'));
+const HeroPreviewPage = lazy(() => import('./pages/HeroPreviewPage'));
 
 export default function App(): import('react').JSX.Element {
   const { lang } = useI18n();
@@ -26,11 +27,12 @@ export default function App(): import('react').JSX.Element {
   // The /docs toggle is mounted by DocsShell in the app bar; must exclude here, otherwise both would render.
   const isDocs = pathname === '/docs' || pathname.startsWith('/docs/');
   const isDocsPreview = pathname.startsWith('/__docs/');
+  const isHeroPreview = pathname === '/__design/hero';
 
   return (
     <>
       <BackgroundRibbon />
-      {isDrag || isAcceptance || isDocs || isDocsPreview ? null : <LangToggle />}
+      {isDrag || isAcceptance || isDocs || isDocsPreview || isHeroPreview ? null : <LangToggle />}
       <Suspense
         fallback={
           <div className="route-loading" role="status">
@@ -44,10 +46,13 @@ export default function App(): import('react').JSX.Element {
           <Route path="/__acceptance/video-drag" element={<VideoDragAcceptancePage />} />
           <Route path="/__acceptance/horizontal-scroll" element={<HorizontalScrollFixture />} />
           <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/v2" element={<DocsPage />} />
+          <Route path="/docs/v2/:slug" element={<DocsPage />} />
           <Route path="/docs/:slug" element={<DocsPage />} />
           <Route path="/__docs/scroll-basics" element={<ScrollBasicsPreviewPage />} />
           <Route path="/__docs/drag-basics" element={<DragBasicsPreviewPage />} />
           <Route path="/__docs/video-timeline" element={<VideoTimelinePreviewPage />} />
+          <Route path="/__design/hero" element={<HeroPreviewPage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Suspense>

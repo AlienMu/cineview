@@ -4,6 +4,7 @@
  */
 import { parseEase, settle } from '../core/ease';
 import type { Report } from '../core/errors';
+import type { TimeReport } from '../core/time';
 import {
   evaluate,
   makeEffect,
@@ -15,7 +16,7 @@ import {
   type Effect,
   type Source,
 } from '../core/fx';
-import { parseLoop, type LoopItem } from '../core/loop';
+import { evaluateLoops, loopsOverlap, parseLoop, type LoopItem } from '../core/loop';
 import { AXIS, identityFrame, isRest, type VarTrack } from '../core/props';
 import {
   parseAfter,
@@ -46,7 +47,7 @@ import {
   buildPieceLayers,
   buildTargetLayers,
   clearLayer,
-  kindOf,
+  writeFrame,
   planLayers,
   type Layer,
   type LayerPlan,
@@ -62,7 +63,7 @@ import { CvScene } from './scene';
 import type { CvAnimateElement } from '../types';
 
 /** Sources whose effects sit on the scene timeline (plan v3 §3.5). */
-const ON_TIMELINE: ReadonlySet<Source> = new Set<Source>(['scene', 'enter', 'eye']);
+const ON_TIMELINE: ReadonlySet<Source> = new Set<Source>(['scene', 'enter', 'eye', 'clock']);
 const SIGNALS: ReadonlySet<Source> = new Set<Source>(['velocity', 'direction']);
 const SOURCES: ReadonlySet<string> = new Set<Source>([
   'scene',
@@ -134,8 +135,9 @@ function ownAxes(el: HTMLElement): (tag: string) => number {
 }
 
 /** An entrance or exit played on the clock (enter / eye sources), for elements that follow it. */
-export type ClockEvent =
-  { type: 'enter' | 'exit'; start: number; duration: number } | { type: 'reveal' | 'reset' };
+export type ClockEvent = (
+  { type: 'enter' | 'exit'; start: number; duration: number } | { type: 'reveal' | 'reset' }
+) & { source?: 'visibility' | 'clock' };
 
 export interface PlanContext {
   /** Time source for time presets here: scene time in zones and drag scenes, enter elsewhere. */
@@ -172,8 +174,12 @@ export interface AnimatePlan {
   whole: LayerPlan[] | null;
   /** Takes part in the scene timeline (counts toward the total, can be an `after` target). */
   timed: boolean;
+  /** Autonomous Scene-entry clock, excluded from input-driven Scene length. */
+  clocked: boolean;
   /** Longest preset default among time effects; used when `duration` is not set. */
   duration: number | null;
+  clockDuration: number | null;
+  clockMaxDuration: number;
   /** Upper bound on the entrance duration (reduced motion on a clock-played entrance). */
   maxDuration: number;
   hasExit: boolean;
@@ -215,6 +221,8 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   ];
 
   scene: CvScene | null = null;
+  /** Invalid explicit source/context: keep content, exclude animation from input and timing. */
+  sourceRejected = false;
   /** Drag: the element's scene is the current one (undefined under scroll input). */
   dragActive: boolean | undefined = undefined;
   /** The latest published frame (drag, zones; clock runs compute theirs on read). */
@@ -223,7 +231,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   private view: CvTimeline | null = null;
   private shownPhase: string | null = null;
   /** A clock-played entrance or exit in progress: start in clock time (render/clock.ts). */
-  private run: { kind: 'enter' | 'exit'; start: number; duration: number } | null = null;
+  private run: {
+    kind: 'enter' | 'exit';
+    start: number;
+    duration: number;
+    source: 'visibility' | 'clock';
+  } | null = null;
   private runRaf = 0;
   layers: Layer[] = [];
   /** Split text in place (`split`); null when absent or refused. */
@@ -238,15 +251,21 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   /** `invert`: the blend, in the shadow root. */
   private inverted: HTMLStyleElement | null = null;
   timed = true;
+  clocked = false;
+  clockComplete = false;
+  clockSolved: Solved | null = null;
   solved: Solved | null = null;
   natives: Animation[] = [];
   /** Loop layer and its items (empty under reduced motion). */
   loopLayer: Layer | null = null;
   loopItems: LoopItem[] = [];
   private loopAnimations: Animation[] = [];
+  private loopFrame: (() => void) | null = null;
   /** Resolved `view(#id)` subjects. */
   private subjects = new Map<string, Element>();
   private presetDuration: number | null = null;
+  private clockPresetDuration: number | null = null;
+  private clockMaxDuration = Number.POSITIVE_INFINITY;
   private maxDuration = Number.POSITIVE_INFINITY;
   private exitPlanned = false;
 
@@ -283,29 +302,44 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     this.scene = null;
   }
 
-  timeSpec(): TimeSpec {
-    const stagger = parseStagger(this.getAttribute('stagger'));
+  timeSpec(source: 'scene' | 'clock' = 'scene', report?: TimeReport): TimeSpec {
+    const clock = source === 'clock';
+    const stagger = parseStagger(this.getAttribute('stagger'), report);
     return {
       name: this.getAttribute('name'),
       duration: Math.min(
-        parseMs(this.getAttribute('duration'), this.presetDuration ?? 600),
-        this.maxDuration
+        parseMs(
+          this.getAttribute('duration'),
+          (clock ? this.clockPresetDuration : this.presetDuration) ?? 600,
+          report
+        ),
+        clock ? this.clockMaxDuration : this.maxDuration
       ),
-      delay: Math.max(0, parseMs(this.getAttribute('delay'), 0)),
-      after: parseAfter(this.getAttribute('after')),
-      at: parseAt(this.getAttribute('at')),
+      delay: Math.max(0, parseMs(this.getAttribute('delay'), 0, report)),
+      after: parseAfter(this.getAttribute('after'), report),
+      at: parseAt(this.getAttribute('at'), report),
       // 1.x default: 600 ms, counted only when an exit is declared.
-      exitDuration: this.exitPlanned ? parseMs(this.getAttribute('exit-duration'), 600) : 0,
+      exitDuration: this.exitPlanned ? parseMs(this.getAttribute('exit-duration'), 600, report) : 0,
       stagger:
-        this.splitStagger(stagger) ??
-        (stagger && { ...stagger, count: this.staggerTargets().length }),
+        this.splitStagger(stagger, source) ??
+        (stagger && this.layers.some((l) => l.item >= 0 && (l.source === 'clock') === clock)
+          ? { ...stagger, count: this.staggerTargets().length }
+          : null),
     };
   }
 
   /** Split text on a time source: its pieces are the stagger items. */
-  private splitStagger(stagger: ReturnType<typeof parseStagger>): TimeSpec['stagger'] | null {
+  private splitStagger(
+    stagger: ReturnType<typeof parseStagger>,
+    source: 'scene' | 'clock'
+  ): TimeSpec['stagger'] | null {
     const split = this.split;
-    if (!split || !this.splitTimed) return null;
+    if (
+      !split ||
+      !this.splitTimed ||
+      !this.layers.some((l) => l.piece && (l.source === 'clock') === (source === 'clock'))
+    )
+      return null;
     return {
       ...(stagger ?? { each: SPLIT_STEP[split.unit], from: 'first' }),
       count: split.pieces.length,
@@ -367,7 +401,7 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     const loopDuration = this.getAttribute('loop-duration');
     const loops = parseLoop(
       this.getAttribute('loop'),
-      loopDuration === null ? null : parseMs(loopDuration, 3000),
+      loopDuration === null ? null : parseMs(loopDuration, 3000, report),
       ease,
       report
     );
@@ -405,12 +439,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       const kept = reduced && CLOCK_PLAYED.has(source) ? opacityOnly(e) : e;
       if (kept) group(source).effects.push(kept);
     }
-    const timeSource = on && kindOf(on.source) === 'time' ? on.source : context.timeSource;
+    const timeSource = on && ON_TIMELINE.has(on.source) ? on.source : context.timeSource;
     const clockPlayed = reduced && CLOCK_PLAYED.has(on?.source ?? timeSource);
     if (clockPlayed) exits = exits.map(opacityOnly).filter((e): e is Effect => e !== null);
     let hasExit = false;
     if (exits.length) {
-      if (on && kindOf(on.source) !== 'time') {
+      if (on && !ON_TIMELINE.has(on.source)) {
         if (__DEV__) warn(this, `exit has no effect with on="${on.source}": exits follow time`);
       } else {
         group(timeSource).exits.push(...exits);
@@ -500,9 +534,11 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     // No effects at all still makes a timeline (progress for el.timeline, a video, an anchor);
     // a loop alone does not (1.x: loops add no zone distance).
     const timed = sources.length
-      ? sources.some((s) => ON_TIMELINE.has(s))
-      : !this.hasAttribute('loop') && (!on || ON_TIMELINE.has(on.source));
-    if (__DEV__ && !timed) {
+      ? sources.some((s) => ON_TIMELINE.has(s) && s !== 'clock')
+      : !this.hasAttribute('loop') &&
+        (!on || (ON_TIMELINE.has(on.source) && on.source !== 'clock'));
+    const clocked = sources.includes('clock') || (!sources.length && on?.source === 'clock');
+    if (__DEV__ && !timed && !clocked) {
       const ignored = TIMING_ATTRIBUTES.filter((a) => this.hasAttribute(a));
       if (ignored.length) {
         warn(
@@ -511,14 +547,22 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
         );
       }
     }
-    let duration: number | null = null;
-    const timeEffects = [
-      ...(staggered?.effects ?? []),
-      ...(split?.timed ? split.plans.flatMap((p) => p.effects) : []),
-      ...sources.flatMap((s) => (ON_TIMELINE.has(s) ? (groups.get(s)?.effects ?? []) : [])),
-    ];
-    for (const e of timeEffects) {
-      if (e.duration !== null) duration = Math.max(duration ?? 0, e.duration);
+    let duration: number | null = null,
+      clockDuration: number | null = null;
+    for (const source of new Set(sources)) {
+      if (!ON_TIMELINE.has(source)) continue;
+      const effects = [
+        ...(staggered?.source === source ? staggered.effects : []),
+        ...(split?.timed
+          ? split.plans.filter((p) => p.source === source).flatMap((p) => p.effects)
+          : []),
+        ...(groups.get(source)?.effects ?? []),
+      ];
+      for (const e of effects)
+        if (e.duration !== null) {
+          if (source === 'clock') clockDuration = Math.max(clockDuration ?? 0, e.duration);
+          else duration = Math.max(duration ?? 0, e.duration);
+        }
     }
     const layers = planLayers(groups, on?.subject ?? 'scene', !reduced && loops.length > 0);
     // F12: blur on a large picture fades a blurred copy instead.
@@ -558,7 +602,10 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       split,
       whole,
       timed,
+      clocked,
       duration,
+      clockDuration,
+      clockMaxDuration: reduced ? REDUCED_DURATION : Number.POSITIVE_INFINITY,
       maxDuration: clockPlayed ? REDUCED_DURATION : Number.POSITIVE_INFINITY,
       hasExit,
       // Reduced motion: loops stop and show their static frame (plan v3 §13).
@@ -568,13 +615,30 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
 
   build(plan: AnimatePlan): void {
     this.release();
+    this.sourceRejected = false;
     this.subjects.clear();
     this.timed = plan.timed;
+    this.clocked = plan.clocked;
+    this.clockComplete = false;
     this.presetDuration = plan.duration;
+    this.clockPresetDuration = plan.clockDuration;
+    this.clockMaxDuration = plan.clockMaxDuration;
     this.maxDuration = plan.maxDuration;
     this.exitPlanned = plan.hasExit;
     this.layers = buildLayers(this, plan.layers, plan.rules);
-    if (plan.split) this.mountSplit(plan.split, plan.whole!, plan.rules);
+    if (plan.split) {
+      const axes = [
+        ...new Set(
+          [
+            ...[...plan.layers, ...plan.split.plans].flatMap((p) =>
+              [...p.effects, ...p.exitEffects].flatMap((e) => e.vars.map((v) => v.name))
+            ),
+            ...plan.loops.flatMap((item) => item.vars),
+          ].filter((name) => name.startsWith(AXIS))
+        ),
+      ];
+      this.mountSplit(plan.split, plan.whole!, plan.rules, axes);
+    }
     this.mountStills(plan);
     this.loopLayer = this.layers.find((l) => l.kind === 'loop') ?? null;
     this.loopItems = plan.loops;
@@ -611,13 +675,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       return;
     }
     const counter = new mod.Counter(this, slot, () => this.scene?.stage?.invalidate());
+    this.counter = counter;
     const refused = counter.mount();
     if (refused) {
-      counter.destroy();
       if (__DEV__) warn(this, `count: ${refused}; the number shows as it is`);
       return;
     }
-    this.counter = counter;
     for (const p of plan.counts) {
       this.layers.push(buildAdaptedLayer(p, counter.el, counter.adapt, counter.vars));
     }
@@ -653,13 +716,18 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
    * Draw the split copy and its piece layers; text that cannot be split (more than text, rotated,
    * vertical, right-to-left, decorated) animates as a whole instead.
    */
-  private mountSplit(plan: SplitPlan, whole: LayerPlan[], rules: readonly RulePlan[]): void {
+  private mountSplit(
+    plan: SplitPlan,
+    whole: LayerPlan[],
+    rules: readonly RulePlan[],
+    axes: readonly string[]
+  ): void {
     const slot = this.shadowRoot!.querySelector('slot')!;
     // Pieces on a time source are timed with the scene: their number stays until the next build.
     const rebuild = plan.timed ? null : (): void => this.scene?.stage?.invalidate();
     // The stage loads the module before building; without it (not yet loaded) the text stays whole.
     const mod = splitModule();
-    const split = mod && new mod.TextSplit(this, slot, plan.unit, rebuild);
+    const split = mod && new mod.TextSplit(this, slot, plan.unit, rebuild, axes);
     const refused = split ? split.mount() : 'it is still loading';
     if (!split || refused) {
       split?.destroy();
@@ -668,10 +736,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       return;
     }
     const end = identityFrame();
-    split.atRest = plan.plans.every((p) => {
-      evaluate(p.effects, 1, end, 'all');
-      return isRest(end);
-    });
+    split.atRest =
+      axes.length === 0 &&
+      plan.plans.every((p) => {
+        evaluate(p.effects, 1, end, 'all');
+        return isRest(end) && end.vars.size === 0;
+      });
     const pieces = buildPieceLayers(split.pieces, plan.plans, plan.timed);
     if (!plan.timed && pieces[0]) pieces[0].watch = (p): void => split.progress(p);
     this.layers.push(...pieces);
@@ -740,9 +810,12 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   get timeline(): CvTimeline {
     if (!this.view) {
       const frame = (): TimelineFrame =>
-        this.run
-          ? this.clockFrame()
-          : (this.scene?.stage?.engine?.frameOf?.(this) ?? this.lastFrame);
+        this.sourceRejected
+          ? IDLE_FRAME
+          : this.run
+            ? this.clockFrame()
+            : ((this.clocked && !this.timed ? null : this.scene?.stage?.engine?.frameOf?.(this)) ??
+              this.lastFrame);
       this.view = {
         get frame(): TimelineFrame {
           return frame();
@@ -785,8 +858,9 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   /** `data-cv-phase`: the timeline phase, plus `waiting` (for a predecessor) on the clock. */
   showPhase(phase: TimelinePhase | 'waiting'): void {
     if (phase === this.shownPhase) return;
+    const splitPhase = phase === 'exiting' && this.shownPhase === 'entering' ? 'entering' : phase;
     this.shownPhase = phase;
-    if (this.splitTimed) this.split?.phase(phase);
+    if (this.splitTimed) this.split?.phase(splitPhase);
     this.setAttribute('data-cv-phase', phase);
   }
 
@@ -799,15 +873,20 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
       this.publish(
         event.type === 'reset'
           ? IDLE_FRAME
-          : { progress: 1, signedProgress: 1, phase: 'entered', source: 'visibility' }
+          : {
+              progress: 1,
+              signedProgress: 1,
+              phase: 'entered',
+              source: event.source ?? 'visibility',
+            }
       );
       return;
     }
-    const clock = this.scene?.stage?.clock;
     this.run = {
       kind: event.type,
-      start: clock ? clock.now(event.start) : event.start,
+      start: event.start,
       duration: event.duration,
+      source: event.source ?? 'visibility',
     };
     this.tickRun();
   }
@@ -818,13 +897,13 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
     if (now < run.start) {
       // Inside its delay: the starting frame.
       return run.kind === 'enter'
-        ? { ...IDLE_FRAME, phase: 'entering', source: 'visibility' }
-        : { ...IDLE_FRAME, phase: 'exiting', source: 'visibility' };
+        ? { ...IDLE_FRAME, phase: 'entering', source: run.source }
+        : { ...IDLE_FRAME, phase: 'exiting', source: run.source };
     }
     const p = run.duration > 0 ? Math.min(1, (now - run.start) / run.duration) : 1;
     const phase =
       run.kind === 'enter' ? (p >= 1 ? 'entered' : 'entering') : p >= 1 ? 'exited' : 'exiting';
-    return { progress: p, signedProgress: p, phase, source: 'visibility' };
+    return { progress: p, signedProgress: p, phase, source: run.source };
   }
 
   private tickRun = (): void => {
@@ -857,13 +936,22 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   }
 
   get looping(): boolean {
-    return this.loopAnimations.length > 0;
+    return this.loopAnimations.length > 0 || this.loopFrame !== null;
   }
 
   /** Start the loops (idempotent). They run until stopLoops(); the clock pauses them with the stage. */
   startLoops(clock: Clock): void {
     const layer = this.loopLayer;
-    if (!layer || this.loopAnimations.length) return;
+    if (!layer || this.looping) return;
+    if (loopsOverlap(this.loopItems)) {
+      layer.used = new Set(this.loopItems.flatMap((item) => item.used));
+      const start = clock.now();
+      this.loopFrame = clock.subscribe((time) => {
+        evaluateLoops(this.loopItems, time - start, layer.frame, layer.scratch);
+        writeFrame(layer, layer.frame);
+      });
+      return;
+    }
     for (const item of this.loopItems) {
       this.loopAnimations.push(
         clock.add(
@@ -874,8 +962,26 @@ export class CvAnimate extends ElementBase implements CvAnimateElement {
   }
 
   stopLoops(): void {
+    this.loopFrame?.();
+    this.loopFrame = null;
+    if (this.loopLayer) clearLayer(this.loopLayer);
     for (const a of this.loopAnimations) a.cancel();
     this.loopAnimations = [];
+  }
+
+  /** Stop this declaration without building a replacement or removing author content. */
+  rejectSource(): void {
+    this.sourceRejected = true;
+    this.release();
+    this.subjects.clear();
+    this.dragActive = undefined;
+    this.timed = this.clocked = this.clockComplete = false;
+    this.solved = this.clockSolved = null;
+    this.loopItems = [];
+    this.loopLayer = null;
+    this.layers = buildLayers(this, []);
+    this.clockEvent({ type: 'reset' });
+    this.showPhase('idle');
   }
 
   /** Stop animations and undo writes on author elements (shadow layers are simply replaced). */

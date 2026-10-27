@@ -9,7 +9,7 @@ import type { Report } from '../core/errors';
 import type { ViewRange } from '../core/view';
 
 export interface CoverLook {
-  /** Veil opacity at full cover (the veil is black). */
+  /** Veil opacity at full cover (black by default; 1 when the page sets `--cv-veil`). */
   veil: number;
   /** Scene scale at full cover. */
   scale: number;
@@ -39,6 +39,15 @@ export function parseCovered(
     return null;
   }
   return reducedMotion ? { ...look, scale: 1 } : look;
+}
+
+/**
+ * A page colour for the veil (`--cv-veil` on the scene or above it, read when the stage builds):
+ * its own alpha is the strength at full cover, so the veil's opacity is the covering progress
+ * alone. Without one the veil stays black at the look's strength.
+ */
+export function withVeilColour(look: CoverLook, colour: string): CoverLook {
+  return colour.trim() ? { ...look, veil: 1 } : look;
 }
 
 /** The scene's look at covering progress p (direct writes: fallback, drag, held next scene). */

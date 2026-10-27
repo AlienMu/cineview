@@ -15,12 +15,13 @@ const check = (ok, label, detail = '') => {
 };
 const H = 800;
 const near = (a, b, tol = 0.15) => Math.abs(a - b) <= tol;
-const open = async (query) => {
+const open = async (query, prepare = null, waitForMetadata = true) => {
   const page = await browser.newPage({ viewport: { width: 400, height: H } });
+  if (prepare) await prepare(page);
   await page.goto(`${base}/video.html?${query}`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => window.ready);
   // Blob preloaded and metadata loaded.
-  await page.waitForFunction(() => { const m = window.media(); return m && m.ready >= 1; }, {}, { timeout: 10000 });
+  if (waitForMetadata) await page.waitForFunction(() => { const m = window.media(); return m && m.ready >= 1; }, {}, { timeout: 10000 });
   return page;
 };
 const media = (page) => page.evaluate(() => window.media());
@@ -47,15 +48,44 @@ try {
   let page = await open('mode=drag');
   let m = await media(page);
   check(m.src.startsWith('blob:'), 'preloaded blob replaces the network source', JSON.stringify(m));
-  // 45% of a screen into scene 1 → 450 ms of 1000 → 1.8 s of 4 s.
+  // Half a screen, less the 1 px direction gate → about 500 ms of 1000 → 2 s of 4 s.
   await press(page, 600, -0.5 * H, { release: false });
   await page.waitForTimeout(150);
   m = await media(page);
-  check(near(m.t, 1.8) && m.paused, 'gesture scrubs the incoming video', JSON.stringify(m));
+  check(near(m.t, (0.5 - 1 / H) * 4) && m.paused, 'gesture scrubs the incoming video', JSON.stringify(m));
+  await page.mouse.move(200, 600 - 0.55 * H);
+  await page.waitForTimeout(150);
   await page.mouse.up();
   await page.waitForTimeout(1200);
   m = await media(page);
   check(near(m.t, 4, 0.1) && m.paused, 'continuation scrubs to the end after release', JSON.stringify(m));
+  await page.close();
+
+  // Cancelling a partial entrance keeps its decoded video node, including at a boundary.
+  page = await open('mode=drag&range=0,1');
+  await page.evaluate(() => {
+    document.getElementById('s').goTo(1);
+  });
+  await page.waitForTimeout(500);
+  const partialNodeTime = await page.evaluate(() => {
+    window.partialNode = document.getElementById('v').video;
+    return window.partialNode.currentTime;
+  });
+  await press(page, 400, 80, { hold: 150 });
+  await page.waitForTimeout(800);
+  const cancelledPartial = await page.evaluate(() => {
+    const host = document.getElementById('v');
+    return { sameNode: host.video === window.partialNode, time: host.video.currentTime, ready: host.video.readyState, frame: host.timeline.frame };
+  });
+  check(cancelledPartial.sameNode && cancelledPartial.ready >= 2 && near(cancelledPartial.time, partialNodeTime, 0.08),
+    'partial entrance cancellation preserves the decoded node and departure frame', JSON.stringify({ partialNodeTime, cancelledPartial }));
+  await page.evaluate(() => document.getElementById('s').goTo(0));
+  await page.waitForFunction(() => document.getElementById('s').current === 0);
+  await page.evaluate(() => document.getElementById('s').goTo(1));
+  await page.waitForFunction(() => document.getElementById('s').current === 1 && !window.media().paused && window.media().t > 1);
+  const reenteredPartial = await page.evaluate(() => ({ fresh: document.getElementById('v').video !== window.partialNode, ...window.media() }));
+  check(reenteredPartial.fresh && !reenteredPartial.paused && reenteredPartial.t > 1,
+    'committed reentry still creates a fresh activation and plays the native tail', JSON.stringify(reenteredPartial));
   await page.close();
 
   // ---- drag, short range: native tail, departures --------------------------------------
@@ -99,6 +129,42 @@ try {
   check(m.src.startsWith('blob:'), 'back in the window the blob is re-attached', JSON.stringify(m));
   const errors = await page.evaluate(() => window.cvErrors);
   check(errors.length === 0, 'no cv-error', JSON.stringify(errors));
+  await page.close();
+
+  // Actual metadata can arrive after cancellation and an idle resize frame.
+  let releaseMetadata;
+  const metadataGate = new Promise(resolve => { releaseMetadata = resolve; });
+  page = await open('mode=drag&range=0,1&preload=none', async (page) => {
+    await page.route('**/media/clip.webm', async (route) => {
+      const response = await route.fetch();
+      await metadataGate;
+      await route.fulfill({ response });
+    });
+  }, false);
+  await page.evaluate(() => document.getElementById('s').goTo(1));
+  await page.waitForTimeout(500);
+  await press(page, 400, 80, { hold: 150 });
+  await page.waitForTimeout(80);
+  await page.setViewportSize({ width: 401, height: H });
+  await page.waitForTimeout(80);
+  check((await media(page)).ready === 0, 'real media stays pending until the partial entrance is idle');
+  releaseMetadata();
+  // Seeking after loadeddata can temporarily return readyState to HAVE_METADATA.
+  // Wait for the restored frame to decode and capture media/timeline in the same task.
+  const restored = await page.waitForFunction(() => {
+    const host = document.getElementById('v');
+    const m = window.media();
+    const partial = host.timeline.frame;
+    return m.ready >= 2 && !host.video.seeking && Math.abs(m.t - partial.progress) < 0.05
+      ? { m, partial } : false;
+  }, {}, { timeout: 10000 });
+  const restoredFrame = await restored.jsonValue();
+  m = restoredFrame.m;
+  const partial = restoredFrame.partial;
+  check(partial.phase === 'entering' && partial.source === 'idle' && partial.progress > 0.2,
+    'cancelled partial entrance stays at its idle timeline frame', JSON.stringify(partial));
+  check(m.ready >= 2 && m.paused && near(m.t, partial.progress, 0.05),
+    'late metadata restores a partial entrance after cancellation and resize', JSON.stringify({ m, partial }));
   await page.close();
 
   // ---- zone ----------------------------------------------------------------------------

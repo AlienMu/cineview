@@ -194,6 +194,10 @@ export const en: Dict = {
   'docs.group.scroll': 'Scroll mode',
   'docs.group.components': 'Component reference',
   'docs.group.advanced': 'Advanced use',
+  'docs.group.v2-start': 'Getting started',
+  'docs.group.v2-concepts': 'Core concepts',
+  'docs.group.v2-elements': 'Element reference',
+  'docs.group.v2-guides': 'Guides',
 
   // ── Common ──
   'common.timecode': 'Timecode',

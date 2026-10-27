@@ -1,4 +1,4 @@
-import { chromium, firefox, webkit } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import os from 'node:os';
 
 /**
@@ -6,40 +6,49 @@ import os from 'node:os';
  *
  * Chrome: CDP CPU throttle, touch input, LoAF + longtask, rAF cadence,
  * trace PipelineReporter states (presented/dropped), LayerTree count/area,
- * Performance.getMetrics (heap, nodes). WebKit/Firefox: pointer/wheel input,
+ * Performance.getMetrics (heap, nodes). WebKit: pointer/wheel input,
  * rAF cadence; a "long frame" there is a rAF gap > 50 ms (applied to 1.x too).
  */
 
 const PAGES = { v1: '/v1/index.html', v2: '/v2.html', plain: '/plain.html', 'v1-heavy': '/v1/heavy.html', 'v2-heavy': '/v2-heavy.html' };
-const ENGINES = { chrome: chromium, webkit, firefox };
+const ENGINES = { chrome: chromium, webkit };
 /** Chrome, or another Chromium build at CV_CHROMIUM (cloud container). */
 const CHROME = process.env.CV_CHROMIUM ? { executablePath: process.env.CV_CHROMIUM } : { channel: 'chrome' };
 
-const INIT = () => {
-  const m = (window.measure = { frames: [], loaf: [], long: [], active: false, last: 0 });
+export const INIT = () => {
+  const m = (window.measure = { frames: [], loaf: [], long: [], active: false, last: 0, raf: 0 });
+  const supported = {
+    loaf: PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame') ?? false,
+    longtask: PerformanceObserver.supportedEntryTypes?.includes('longtask') ?? false,
+  };
   try {
     new PerformanceObserver((list) => {
       if (!m.active) return;
       for (const e of list.getEntries()) {
-        m.loaf.push({ d: e.duration, b: e.blockingDuration, scripts: e.scripts?.length ?? 0, render: e.renderStart ? e.startTime + e.duration - e.renderStart : 0 });
+        if (e.startTime >= m.started) m.loaf.push({ d: e.duration, b: e.blockingDuration, scripts: e.scripts?.length ?? 0, render: e.renderStart ? e.startTime + e.duration - e.renderStart : 0 });
       }
     }).observe({ type: 'long-animation-frame' });
   } catch {}
   try {
     new PerformanceObserver((list) => {
-      if (m.active) for (const e of list.getEntries()) m.long.push(e.duration);
+      if (m.active) for (const e of list.getEntries()) if (e.startTime >= m.started) m.long.push(e.duration);
     }).observe({ type: 'longtask' });
   } catch {}
   window.startMeasure = () => {
+    cancelAnimationFrame(m.raf);
     m.frames = []; m.loaf = []; m.long = []; m.last = 0; m.active = true; m.started = performance.now();
-    const tick = (t) => { if (!m.active) return; if (m.last) m.frames.push(t - m.last); m.last = t; requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
+    const tick = (t) => { if (!m.active) return; if (m.last) m.frames.push(t - m.last); m.last = t; m.raf = requestAnimationFrame(tick); };
+    m.raf = requestAnimationFrame(tick);
   };
   window.stopMeasure = () => {
     m.active = false;
+    cancelAnimationFrame(m.raf);
+    m.raf = 0;
     const f = m.frames.slice().sort((a, b) => a - b);
     const sum = f.reduce((a, b) => a + b, 0);
     return {
+      supported,
+      raw: { rafGaps: [...m.frames], loaf: [...m.loaf], longTasks: [...m.long] },
       elapsed: performance.now() - m.started,
       frames: f.length,
       hz: f.length ? (1000 * f.length) / sum : 0,
@@ -73,7 +82,7 @@ function windows(events) {
   return out;
 }
 
-function frameStates(traceBuffer) {
+export function frameStates(traceBuffer) {
   const events = JSON.parse(traceBuffer.toString()).traceEvents ?? [];
   const out = { presented: 0, partial: 0, dropped: 0, droppedSmooth: 0, noUpdate: 0, compositorAnim: 0, mainAnim: 0, displayed: 0, displayedSpanMs: 0 };
   let first = Infinity;
@@ -207,7 +216,7 @@ async function measureOnce({ impl, config, engine = 'chrome', cpuRate = 4, trace
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 3,
-    // Mobile emulation only in Chrome (CDP touch); WebKit/Firefox use desktop mode so wheel and mouse drag work.
+    // Mobile emulation only in Chrome (CDP touch); WebKit uses desktop mode so wheel and mouse drag work.
     isMobile: engine === 'chrome',
     hasTouch: engine === 'chrome',
   });

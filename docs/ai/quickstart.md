@@ -58,11 +58,12 @@ The title occupies 0–600ms; the explanation occupies 700–1100ms. With this p
 
 ## Generate the next page
 
-1. Select [drag or scroll](./modes.md) from the intended interaction.
-2. Divide content into Scenes and assign stable `sceneId` values.
-3. Declare explicit entrance durations. Add `animateId` only where an element needs an identity, such as an `after` target.
-4. Calculate the [timeline](./timeline.md) before adding media or additional effects.
-5. Use a [complete recipe](./recipes.md) for scroll zones or video. Include its required assets in the deliverable.
+1. Read the [landing-page design guide](./landing-pages.md) and define reader goals, content relationships, readable states, and stop/reverse behavior.
+2. Select [drag or scroll](./modes.md) from the intended interaction.
+3. Divide content into Scenes and assign stable `sceneId` values.
+4. Declare explicit entrance durations. Add `animateId` only where an element needs an identity, such as an `after` target.
+5. Calculate the [timeline](./timeline.md) before adding media or additional effects.
+6. Use a [complete recipe](./recipes.md) for scroll zones or video. Include its required assets in the deliverable.
 
 Keep persistent navigation outside `Cineview`. Prefer ordinary CSS for typography and spacing. Add `data-cineview-ignore-drag` to controls that need their own drag interaction. `designWidth` is the framework's only responsive conversion base; it follows viewport width, including for vertical design coordinates.
 

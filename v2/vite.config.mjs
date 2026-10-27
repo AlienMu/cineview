@@ -1,12 +1,16 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 // Serves 2.0 fixtures (v2/src) and 1.x fixtures (root dist, React) side by side for the gate.
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 export default defineConfig({
   root: here('./fixtures'),
   resolve: {
-    alias: { cineview: here('../dist/cineview.es.mjs'), '@v2': here('./src/index.ts') },
+    alias: {
+      cineview: here('../dist/cineview.es.mjs'),
+      '@v2': process.env.CV_V2_ENTRY ? resolve(process.env.CV_V2_ENTRY) : here('./src/index.ts'),
+    },
     dedupe: ['react', 'react-dom', 'framer-motion'],
   },
   esbuild: { jsx: 'automatic' },
@@ -22,6 +26,8 @@ export default defineConfig({
   build: {
     outDir: here('./fixtures-dist'),
     emptyOutDir: true,
-    rollupOptions: { input: { v2: here('./fixtures/v2.html'), v1: here('./fixtures/v1/index.html') } },
+    rollupOptions: {
+      input: { v2: here('./fixtures/v2.html'), v1: here('./fixtures/v1/index.html') },
+    },
   },
 });

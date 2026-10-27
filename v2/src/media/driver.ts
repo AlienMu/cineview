@@ -374,11 +374,16 @@ export class VideoDriver {
   }
 
   private publish(frame: TimelineFrame): void {
+    const previous = this.latest;
     this.latest = frame;
     const video = this.video;
     if (!video) return;
     const o = this.ownership;
-    if (frame.phase === 'entering' && (o.status === 'ended' || o.outgoing)) {
+    const dragSceneActive = this.sceneActive?.();
+    // Cancelling within the active scene returns to its partial entrance on the same decoded node.
+    const cancelledDeparture =
+      dragSceneActive === true && previous.phase === 'exiting' && o.outgoing !== null;
+    if (frame.phase === 'entering' && (o.status === 'ended' || o.outgoing) && !cancelledDeparture) {
       // A new entrance after the browser finished or after a departure: a new activation on a
       // new node, so late events from the old one cannot touch it.
       this.activationId++;
@@ -396,7 +401,7 @@ export class VideoDriver {
       frame,
       duration: video.duration,
       currentTime: video.currentTime,
-      dragSceneActive: this.sceneActive?.(),
+      dragSceneActive,
       scrubRange: this.options.range,
     });
   }

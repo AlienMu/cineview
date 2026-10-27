@@ -1,19 +1,30 @@
 # Cineview
 
-> React animation framework centered on scene timelines, with drag and scroll modes. Organize content into Scenes, declare animation durations and dependencies, and advance them through gestures, scrolling, or elapsed time.
+> A landing-page framework built on scene timelines, with scroll and drag modes. Organize content into scenes, declare each element's duration and dependencies, and let the reader's scroll or finger move through them. The released 1.x is a React library; 2.0 (cv-* custom elements in plain HTML) is in development in this repository.
 
-These guides target cineview@1.0.1, React 19, and Framer Motion 13. Import `Cineview` with this capitalization. The earlier cineview@1.0.0 uses a different API; do not combine examples from those versions. In a different checkout, confirm package.json and public types before applying these guides.
+Cineview's authoring goal is to help AI understand animation design and advise users. A plain-language brief or PRD should become a scene plan with content relationships, readable states, progress sources, and checked implementation routes. This documentation goal does not imply a built-in AI service.
+
+The quick start, timelines, modes, and recipes target cineview@1.0.1, React 19, and Framer Motion 13. Import `Cineview` with this capitalization. The earlier cineview@1.0.0 uses a different API; do not combine examples from those versions. The landing-page design guide separates shared design principles from local experimental v2 notes. In a different checkout, confirm package.json and public types before applying API guidance.
 
 ## Read by task
 
+- [Design skill](skills/cineview-design/SKILL.md) ([Chinese guide](skills/cineview-design/README.zh-CN.md)): plan a 2.0 landing page with the user first (what it is for, directions, how many scenes, each scene's content and material, a storyboard), then build it. References: working markup for video, images, type, line art and custom drawing; visual directions; 32 layouts; how the 41 references behave together in each mode; example page structures; ways to test a page.
+- [2.0 AI design workflow](docs/ai/design-assistant.md) ([Chinese](docs/ai/design-assistant.zh-CN.md)): longer guidance on user recommendations, common page requests, PRD extraction, storyboards, element treatment, and a worked image/text sequence.
+- [41 design references and 2.0 routes](docs/ai/lexicon.md) ([Chinese](docs/ai/lexicon.zh-CN.md)): numbered original references with purpose, content relationships, framework primitives, page-owned work, and missing capabilities. Look up relevant entries rather than asking users to choose from the whole catalog.
+- [Landing-page design](docs/ai/landing-pages.md) ([Chinese](docs/ai/landing-pages.zh-CN.md)): reader goals, content relationships, progress sources, overlap and holding states, composition, media framing, and acceptance.
+- [2.0 declaration and implementation conventions](docs/ai/declarative-design.md) ([Chinese](docs/ai/declarative-design.zh-CN.md)): grouped declarations, separator rules, configuration scope, progress and output ownership, extension points, and verification. For local v2 development; named threshold configuration is a pending design, not an implemented API.
 - [Quick start](docs/ai/quickstart.md): installation, core concepts, a complete drag App, and local development.
 - [Timelines](docs/ai/timeline.md): durations, delays, after dependencies, drivers, and timing calculations.
 - [Modes](docs/ai/modes.md): drag versus scroll, fixed drag navigation height, scroll zones, and mode-specific parameters.
 - [Recipes](docs/ai/recipes.md): complete scroll narrative and video Apps, asset requirements, and expected behavior.
 
-Read quick start first. Then load only the guides needed for the task: modes for selecting an interaction, timeline for sequencing elements, and recipes for complete implementations. This uses fewer input tokens than loading all documentation each time. Reuse unchanged material already in context; open detailed references when the task needs them or a property requires verification.
+For landing pages, read the design guide first and define the scene plan. Then use quick start for the released React API. Load only the other guides needed for the task: modes for selecting an interaction, timeline for sequencing elements, and recipes for complete implementations. This uses fewer input tokens than loading all documentation each time. Reuse unchanged material already in context; open detailed references when the task needs them or a property requires verification.
+
+For local v2 page work, start with the design skill; open the AI design workflow, the selected design references and the declaration conventions when the task needs more depth. Check v2/src/types.ts, v2/src/jsx.ts, the parser, and the input driver. Parsing alone does not prove an effect is driven: verify it in a browser. Keep implemented behavior separate from pending syntax. The v2 guides do not replace 1.x examples or DESIGN.md.
 
 ## Essential rules
+
+The API rules below describe the released React implementation. Local v2 work follows the v2 guides and source linked above.
 
 - Each Scene owns its element timeline; there is no page-wide after sequence.
 - `timeline.after` references an `animateId` in the same Scene and waits for its entrance to finish, then adds the follower's delay.
@@ -33,4 +44,5 @@ Read quick start first. Then load only the guides needed for the task: modes for
 - [English documentation source](site/src/content/docs/en/getting-started/01-introduction.md): detailed Markdown documentation; sibling folders contain component and concept references.
 - [Chinese documentation source](site/src/content/docs/zh/getting-started/01-introduction.md): aligned Chinese reference.
 - [Interactive documentation](https://cineview.pages.dev/docs): browser examples and guides.
+- [2.0 documentation source](site/src/content/docs-v2/en/start/01-overview.md) ([Chinese](site/src/content/docs-v2/zh/start/01-overview.md)): the 2.0 elements, timelines, progress sources, first screen, events and migration from 1.x, served at /docs/v2 with live examples in site/public/examples/v2/.
 - [Contributing](CONTRIBUTING.md): development commands, checks, and cleanup requirements.

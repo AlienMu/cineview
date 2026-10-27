@@ -7,7 +7,7 @@
  */
 export type TimelinePhase = 'idle' | 'entering' | 'entered' | 'exiting' | 'exited';
 export type TimelineSource =
-  'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility';
+  'idle' | 'gesture' | 'continuation' | 'programmatic' | 'scroll' | 'visibility' | 'clock';
 
 /** One atomic sample of an element's timeline: progress, phase and what drives it. */
 export interface TimelineFrame {

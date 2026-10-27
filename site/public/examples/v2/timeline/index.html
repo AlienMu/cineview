@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Cineview 2.0 example: a timeline in a locked zone</title>
+<meta charset="utf-8">
+<link rel="icon" href="/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(s){if(s&&s("selector(:has(*))")&&s("width:1lh")&&s("color:color-mix(in srgb,red,red)"))document.documentElement.classList.add("cv-js")})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<link rel="stylesheet" href="../example.css">
+<script type="module" src="/v2/cineview.js"></script>
+<style>
+  .track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .bar { display: block; height: 100%; }
+  .bar span { display: block; height: 100%; background: var(--accent); }
+  .bar::part(layer) { transform-origin: left center; }
+  .steps { display: grid; gap: 8px; }
+  .step { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .step b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .step code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<cv-stage design-width="1200">
+  <cv-scene id="before">
+    <div class="screen">
+      <span class="tag" data-zh="锁定区">Locked zone</span>
+      <h2 data-zh="往下滚动，下一场会停住，滚动只推进它的时间">Scroll down: the next scene holds while the scroll moves its time</h2>
+    </div>
+  </cv-scene>
+  <cv-scene id="zone" zone>
+    <div class="screen">
+      <h2 data-zh="一条时间线，三个步骤">One timeline, three steps</h2>
+      <div class="track"><cv-animate class="bar" from="scale-x:0" to="scale-x:1" duration="2400" ease="linear"><span></span></cv-animate></div>
+      <div class="steps">
+        <cv-animate name="a" fx="rise(soft)" duration="600"><div class="step"><b data-zh="0 至 600 毫秒">0 to 600 ms</b><span data-zh="第一步，从起点开始">Step one, from the start</span></div></cv-animate>
+        <cv-animate name="b" fx="rise(soft)" duration="600" after="a"><div class="step"><b data-zh="600 至 1200 毫秒">600 to 1200 ms</b><code>after="a"</code></div></cv-animate>
+        <cv-animate name="c" fx="rise(soft)" duration="600" after="b +200"><div class="step"><b data-zh="1400 至 2000 毫秒">1400 to 2000 ms</b><code>after="b +200"</code></div></cv-animate>
+      </div>
+      <p data-zh="进度条的 duration 是 2400，这一场占 2400 像素的滚动距离。往回滚动，画面会倒回去。">The bar's duration is 2400, so this scene takes 2400 px of scrolling. Scroll back and it runs backwards.</p>
+    </div>
+  </cv-scene>
+  <cv-scene id="after">
+    <div class="screen"><h2 data-zh="锁定区结束后，页面继续正常滚动">After the zone, the page scrolls on as usual</h2></div>
+  </cv-scene>
+</cv-stage>
+<span class="hint" data-zh="在框内滚动">Scroll inside the frame</span>
+<script src="../example.js"></script>
+</body>
+</html>

@@ -132,7 +132,8 @@ try {
   await page.mouse.move(200, 600);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) {
-    await page.mouse.move(200, 600 - (0.5 * H * i) / 10);
+    // Commit comfortably past the long-swipe boundary: direction locking consumes a few pixels.
+    await page.mouse.move(200, 600 - (0.55 * H * i) / 10);
     await page.waitForTimeout(16);
   }
   await page.waitForTimeout(150);

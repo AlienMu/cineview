@@ -19,7 +19,14 @@ const STYLE =
   '::slotted(*){pointer-events:auto}';
 
 export class CvFixed extends ElementBase {
+  private slotBefore: string | null | undefined;
+
   connectedCallback(): void {
+    // Keep direct Scene children in its stationary shell without an additional author API.
+    if (this.parentElement?.localName === 'cv-scene' && !this.getAttribute('slot')) {
+      this.slotBefore = this.getAttribute('slot');
+      this.slot = 'cv-fixed';
+    }
     if (this.shadowRoot) return;
     const root = this.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
@@ -29,5 +36,13 @@ export class CvFixed extends ElementBase {
     layer.setAttribute('part', 'layer');
     layer.append(document.createElement('slot'));
     root.append(style, layer);
+  }
+
+  disconnectedCallback(): void {
+    if (this.slotBefore !== undefined && this.slot === 'cv-fixed') {
+      if (this.slotBefore === null) this.removeAttribute('slot');
+      else this.setAttribute('slot', this.slotBefore);
+    }
+    this.slotBefore = undefined;
   }
 }

@@ -14,7 +14,16 @@
 import { parseDocSource } from './frontmatter';
 
 export type DocsGroupId =
-  'getting-started' | 'concepts' | 'drag' | 'scroll' | 'components' | 'advanced';
+  | 'getting-started'
+  | 'concepts'
+  | 'drag'
+  | 'scroll'
+  | 'components'
+  | 'advanced'
+  | 'v2-start'
+  | 'v2-concepts'
+  | 'v2-elements'
+  | 'v2-guides';
 
 /**
  * Group order for sidebar and routing. drag / scroll groups carry dedicated chapters for their respective engines,
@@ -36,6 +45,25 @@ export const DOC_GROUP_ORDER: DocsGroupId[] = [
   'components',
   'advanced',
 ];
+
+/**
+ * Two sets of pages share the shell: `v1` documents the released 1.x React package at /docs, `v2`
+ * the 2.0 preview (cv-* custom elements) at /docs/v2, stored in ../docs-v2/{zh,en}/{dir}/{slug}.md.
+ * A v2 group id is `v2-` plus its directory name.
+ */
+export type DocsVersion = 'v1' | 'v2';
+
+export const DOC_GROUPS: Record<DocsVersion, DocsGroupId[]> = {
+  v1: DOC_GROUP_ORDER,
+  v2: ['v2-start', 'v2-concepts', 'v2-elements', 'v2-guides'],
+};
+
+export const DOCS_BASE: Record<DocsVersion, string> = { v1: '/docs', v2: '/docs/v2' };
+
+export const DOCS_DEFAULT_SLUG: Record<DocsVersion, string> = {
+  v1: '01-introduction',
+  v2: '01-overview',
+};
 
 export type DocsLang = 'zh' | 'en';
 
@@ -68,25 +96,40 @@ const rawDocFiles = import.meta.glob<string>('./{zh,en}/*/*.md', {
   eager: true,
 });
 
+const rawV2DocFiles = import.meta.glob<string>('../docs-v2/{zh,en}/*/*.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+
 const pages = new Map<string, DocsPageMeta>();
 
-for (const [path, source] of Object.entries(rawDocFiles)) {
-  // path format: './zh/start/introduction.md'
-  const segments = /^\.\/(zh|en)\/([a-z-]+)\/([a-z0-9-]+)\.md$/.exec(path);
-  if (!segments) continue;
-  const [, lang, group, slug] = segments;
-  const parsed = parseDocSource(source);
-  pages.set(`${lang}/${slug}`, {
-    slug,
-    group: group as DocsGroupId,
-    title: parsed.title,
-    eyebrow: parsed.eyebrow,
-    markdown: parsed.markdown,
-  });
+function collect(files: Record<string, string>, docsVersion: DocsVersion): void {
+  for (const [path, source] of Object.entries(files)) {
+    // path format: './zh/start/introduction.md' (v1), '../docs-v2/zh/start/01-overview.md' (v2)
+    const segments = /\/(zh|en)\/([a-z-]+)\/([a-z0-9-]+)\.md$/.exec(path);
+    if (!segments) continue;
+    const [, lang, dir, slug] = segments;
+    const parsed = parseDocSource(source);
+    pages.set(`${docsVersion}/${lang}/${slug}`, {
+      slug,
+      group: (docsVersion === 'v2' ? `v2-${dir}` : dir) as DocsGroupId,
+      title: parsed.title,
+      eyebrow: parsed.eyebrow,
+      markdown: parsed.markdown,
+    });
+  }
 }
 
-export function getDocsPage(slug: string, lang: DocsLang): DocsPageMeta | null {
-  return pages.get(`${lang}/${slug}`) ?? null;
+collect(rawDocFiles, 'v1');
+collect(rawV2DocFiles, 'v2');
+
+export function getDocsPage(
+  slug: string,
+  lang: DocsLang,
+  docsVersion: DocsVersion = 'v1'
+): DocsPageMeta | null {
+  return pages.get(`${docsVersion}/${lang}/${slug}`) ?? null;
 }
 
 export interface DocsIndexEntry {
@@ -97,10 +140,10 @@ export interface DocsIndexEntry {
 }
 
 /** Sidebar index: group order per DOC_GROUP_ORDER, within-group by slug lexicographic order. */
-export function getDocsIndex(lang: DocsLang): DocsIndexEntry[] {
-  return DOC_GROUP_ORDER.flatMap((group) =>
+export function getDocsIndex(lang: DocsLang, docsVersion: DocsVersion = 'v1'): DocsIndexEntry[] {
+  return DOC_GROUPS[docsVersion].flatMap((group) =>
     [...pages.entries()]
-      .filter(([key, meta]) => key.startsWith(`${lang}/`) && meta.group === group)
+      .filter(([key, meta]) => key.startsWith(`${docsVersion}/${lang}/`) && meta.group === group)
       .map(([, meta]) => meta)
       .sort((a, b) => a.slug.localeCompare(b.slug))
       .map((meta) => ({ slug: meta.slug, group: meta.group, title: meta.title }))

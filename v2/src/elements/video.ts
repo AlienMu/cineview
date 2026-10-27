@@ -86,7 +86,15 @@ export class CvVideo extends CvAnimate implements CvVideoElement {
 
   /** The node lives in the innermost layer, next to the slot; rebuilt layers get it back. */
   override build(plan: AnimatePlan): void {
+    const rejected = this.sourceRejected;
     super.build(plan);
+    if (rejected) this.driver?.warmUp();
+    this.place();
+  }
+
+  override rejectSource(): void {
+    super.rejectSource();
+    this.driver?.release();
     this.place();
   }
 

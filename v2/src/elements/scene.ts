@@ -8,6 +8,7 @@
  * the stage its palette as `data-cv-theme` (lexicon #41).
  */
 import { parseMs, solveScene, type SceneSolution, type TimeError } from '../core/time';
+import type { ErrorCode } from '../core/errors';
 import { ElementBase } from '../platform';
 import type { CoverLook } from '../render/covered';
 import { assignWindows } from '../render/layers';
@@ -22,6 +23,8 @@ export class CvScene extends ElementBase {
   solution: SceneSolution = { entranceEnd: 0, total: 0, byIndex: [], errors: [] };
   /** Animates on the timeline, in the solver's index order. */
   timed: CvAnimate[] = [];
+  /** Autonomous clock elements have a separate solver and never grow the scroll budget. */
+  clocks: CvAnimate[] = [];
   ordered: CvAnimate[] = [];
   shell: HTMLElement | null = null;
   /** The row a `track="x"` scene lays its content out in (display: contents otherwise). */
@@ -31,6 +34,8 @@ export class CvScene extends ElementBase {
   /** Row offset last written; NaN when nothing is written. */
   private trackX = Number.NaN;
   private trackRo: ResizeObserver | null = null;
+  /** Author's height while a scroll zone owns the inline height. */
+  private zoneHeight: [string, string] | null = null;
   /** Darkens the scene while the next one covers it (`covered`). */
   veil: HTMLElement | null = null;
   /** `covered`, read at build; null when absent. */
@@ -81,7 +86,7 @@ export class CvScene extends ElementBase {
         '.track{display:contents}' +
         ':host([track=x]) .shell{overflow-x:clip}' +
         ':host([track=x]) .track{display:flex;width:max-content;height:100%}' +
-        '.veil{display:none;position:absolute;inset:0;z-index:2147483647;background:#000;opacity:0;pointer-events:none}' +
+        '.veil{display:none;position:absolute;inset:0;z-index:2147483647;background:var(--cv-veil,#000);opacity:0;pointer-events:none}' +
         ':host([stack][covered]) .veil{display:block}' +
         // Recede toward the middle of what shows of it: a held scene shows its last screen.
         ':host([stack][covered=recede]){transform-origin:50% max(50%,calc(100% - 50svh))}';
@@ -92,7 +97,10 @@ export class CvScene extends ElementBase {
       track.className = 'track';
       track.setAttribute('part', 'track');
       track.append(document.createElement('slot'));
-      shell.append(track);
+      // Scene-local fixed layers must not inherit the moving row's transform/containing block.
+      const fixed = document.createElement('slot');
+      fixed.name = 'cv-fixed';
+      shell.append(track, fixed);
       const veil = document.createElement('div');
       veil.className = 'veil';
       root.append(style, shell, veil);
@@ -120,8 +128,20 @@ export class CvScene extends ElementBase {
 
   disconnectedCallback(): void {
     this.watchTrack(false);
+    this.setZoneDuration(null);
     this.stage?.unregisterScene(this);
     this.stage = null;
+  }
+
+  /** Pair the scroll budget's height with restoration when the zone stops owning it. */
+  setZoneDuration(total: number | null): void {
+    if (total !== null) {
+      this.zoneHeight ??= [this.style.height, this.style.getPropertyPriority('height')];
+      this.style.height = `calc(100svh + ${total}px)`;
+    } else if (this.zoneHeight) {
+      this.style.setProperty('height', ...this.zoneHeight);
+      this.zoneHeight = null;
+    }
   }
 
   /** The row's width beyond the scene's (layout px); 0 without `track="x"`. Reads layout. */
@@ -194,16 +214,21 @@ export class CvScene extends ElementBase {
    * Solve the timeline in document order. Drag runs exits on the page travel instead of scene time
    * (1.x two-track), so they stay off the total there. A track lasts at least its travel.
    */
-  solve(exitsOnTimeline: boolean): Array<{ error: TimeError; element: Element }> {
-    this.ordered = [...this.animates].sort((a, b) =>
-      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
-    );
+  solve(
+    exitsOnTimeline: boolean,
+    report?: (message: string, element: Element, code?: ErrorCode) => void
+  ): Array<{ error: TimeError; element: Element }> {
+    const forElement = (a: CvAnimate) => (message: string, code?: ErrorCode) =>
+      report?.(message, a, code);
+    this.ordered = [...this.animates]
+      .filter((a) => !a.sourceRejected)
+      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
     this.timed = this.ordered.filter((a) => a.timed);
     const sequence = this.getAttribute('sequence');
     this.solution = solveScene(
-      this.timed.map((a) => a.timeSpec()),
+      this.timed.map((a) => a.timeSpec('scene', forElement(a))),
       {
-        sequence: sequence === null ? null : parseMs(sequence, 0),
+        sequence: sequence === null ? null : parseMs(sequence, 0, (m) => report?.(m, this)),
         exitsOnTimeline,
         span: this.travel,
       }
@@ -213,9 +238,26 @@ export class CvScene extends ElementBase {
       a.solved = this.solution.byIndex[i] ?? null;
     });
     for (const a of this.ordered) assignWindows(a.layers, a.solved);
-    return this.solution.errors.map((error) => ({
+    this.clocks = this.ordered.filter((a) => a.clocked);
+    const clockSolution = solveScene(
+      this.clocks.map((a) => a.timeSpec('clock', forElement(a))),
+      {
+        sequence: sequence === null ? null : parseMs(sequence, 0, (m) => report?.(m, this)),
+        exitsOnTimeline: false,
+      }
+    );
+    for (const a of this.ordered) a.clockSolved = null;
+    this.clocks.forEach((a, i) => {
+      a.clockSolved = clockSolution.byIndex[i] ?? null;
+      assignWindows(a.layers, a.clockSolved, 'clock');
+    });
+    const errors = this.solution.errors.map((error) => ({
       error,
       element: this.timed[error.index] ?? this,
     }));
+    errors.push(
+      ...clockSolution.errors.map((error) => ({ error, element: this.clocks[error.index] ?? this }))
+    );
+    return errors;
   }
 }

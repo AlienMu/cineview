@@ -160,13 +160,14 @@ export class Counter {
 
   /** Find the number and draw the copy. A reason when there is none to count. */
   mount(): string | null {
+    // Keep watching an invalid value: async content can replace it with a number later.
+    this.unwatch = watchText(this.host, () => this.schedule());
     const found = find(this.host);
     if (typeof found === 'string') return found;
     this.found = found;
     this.slot.replaceWith(this.el);
     this.source.append(this.slot);
     this.draw();
-    this.unwatch = watchText(this.host, () => this.schedule());
     return null;
   }
 
@@ -251,7 +252,11 @@ export class Counter {
       this.raf = 0;
       if (!this.host.isConnected) return;
       const found = find(this.host);
-      if (typeof found === 'string' || found.digits !== this.found!.digits) {
+      if (typeof found === 'string') {
+        if (this.found) this.rebuild();
+        return;
+      }
+      if (found.digits !== this.found?.digits) {
         this.rebuild();
         return;
       }

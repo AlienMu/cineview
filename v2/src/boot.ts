@@ -109,7 +109,7 @@ export function bootCss(): string {
     'cv-stage[input=drag]{position:fixed;inset:0;overflow:hidden}' +
     'cv-stage[input=drag]>cv-scene{position:absolute;inset:0}' +
     'cv-stage[input=drag]>cv-scene:nth-of-type(2){translate:0 100%}' +
-    'cv-stage[input=drag]>cv-scene:nth-of-type(n+3){content-visibility:hidden}' +
+    'cv-stage[input=drag]>cv-scene:nth-of-type(n+3){content-visibility:hidden;translate:0 200%}' +
     `@keyframes cv-failsafe{from{opacity:0}to{opacity:1}}` +
     `.cv-js ${FIRST} ${animated}:not([on]):not([data-cv-live]){animation:cv-failsafe 1ms ${FAILSAFE_DELAY}ms both}`;
   let rules = '';
@@ -144,8 +144,17 @@ function elapsedOf(a: Animation): number {
   return local - Number(a.effect?.getTiming().delay ?? 0);
 }
 
+/** The failsafe reveal on this element (waiting, or done), or null. */
+function failsafeOf(el: Element): Animation | null {
+  for (const a of el.getAnimations?.() ?? [])
+    if ((a as CSSAnimation).animationName === 'cv-failsafe') return a;
+  return null;
+}
+
 /** When the CSS-first entrance started (performance.now() scale); null when none runs. */
 let bootStart: number | null = null;
+/** The failsafe had shown the first scene before the elements upgraded. */
+let revealed = false;
 const shifted = new Set<HTMLElement>();
 
 /**
@@ -167,15 +176,24 @@ export function captureBoot(): () => void {
   for (const a of running) {
     if (a) bootStart = Math.min(bootStart ?? now, now - elapsedOf(a));
   }
+  const failsafes = els.map(failsafeOf);
+  revealed = failsafes.some((a) => a !== null && elapsedOf(a) >= 0);
   return () => {
-    if (bootStart === null) return;
-    const elapsed = performance.now() - bootStart;
+    const elapsed = bootStart === null ? 0 : performance.now() - bootStart;
     for (const [i, el] of els.entries()) {
       const a = bootAnimation(el);
       // The same animation kept running: a negative delay would move it ahead of the clock.
-      if (!a || a === running[i]) continue;
-      el.style.animationDelay = `${-elapsed}ms`;
-      shifted.add(el);
+      if (a && a !== running[i] && bootStart !== null) {
+        el.style.animationDelay = `${-elapsed}ms`;
+        shifted.add(el);
+        continue;
+      }
+      // A restarted failsafe would hide what it had already shown: keep it at its end.
+      const f = failsafeOf(el);
+      if (revealed && f && f !== failsafes[i]) {
+        el.style.animationDelay = '-1ms';
+        shifted.add(el);
+      }
     }
   };
 }
@@ -185,8 +203,18 @@ export function captureBoot(): () => void {
  * elements in the same task, which drops the CSS animation.
  */
 export function adoptBoot(): number {
-  const offset = bootStart === null ? 0 : performance.now() - bootStart;
+  // The failsafe had shown the first scene, when the module arrived or while optional modules
+  // loaded: the reader already sees it, so its entrance is adopted at the end instead of being
+  // hidden and played again.
+  const shown =
+    revealed ||
+    [...document.querySelectorAll(`${FIRST} cv-animate:not([data-cv-live])`)].some((el) => {
+      const a = failsafeOf(el);
+      return a !== null && elapsedOf(a) >= 0;
+    });
+  const offset = shown ? 1e9 : bootStart === null ? 0 : performance.now() - bootStart;
   bootStart = null;
+  revealed = false;
   for (const el of shifted) el.style.removeProperty('animation-delay');
   shifted.clear();
   return offset;

@@ -1,7 +1,7 @@
 /**
- * The arithmetic of a drag transaction, kept pure (1.x semantics; site docs: drag gestures,
- * two-track timelines, callbacks).
+ * The arithmetic of a drag transaction: default swipe rules and authored 1.x thresholds.
  */
+import type { Report } from '../core/errors';
 
 export interface Threshold {
   /** Displacement ratio needed when released at rest. */
@@ -15,9 +15,22 @@ export interface Threshold {
 export const DEFAULT_THRESHOLD: Threshold = { slow: 0.3, fast: 0.15, velocity: 1000 };
 
 /** `threshold="0.3 0.15 1000"`: slow ratio, fast ratio, flick velocity (px/s). */
-export function parseThreshold(text: string | null, fallback: Threshold): Threshold {
-  if (text === null) return fallback;
-  const [a, b, c] = text.trim().split(/\s+/).map(Number);
+export function parseThreshold(
+  text: string | null,
+  fallback: Threshold,
+  report?: Report
+): Threshold {
+  if (!text?.trim()) return fallback;
+  const values = text.trim().split(/\s+/).map(Number);
+  const [a, b, c] = values;
+  if (
+    values.length > 3 ||
+    values.some((n, i) => !Number.isFinite(n) || n <= 0 || (i < 2 && n >= 1))
+  ) {
+    report?.(
+      `threshold="${text}": expected up to three numbers: slow ratio (0–1), fast ratio (0–1), velocity > 0; invalid fields use their defaults`
+    );
+  }
   const ratio = (n: number | undefined, d: number): number =>
     n !== undefined && Number.isFinite(n) && n > 0 && n < 1 ? n : d;
   const slow = ratio(a, fallback.slow);
@@ -40,19 +53,28 @@ export const REVERSAL_SPEED = 600;
 
 /**
  * Commit or cancel at release. `r` is the signed displacement (+ toward the next scene),
- * `velocity` the signed release velocity in the same sense (px/s). Exactly at the threshold
- * cancels (1.x). pointercancel never commits.
+ * `velocity` the signed release velocity in the same sense (px/s). An authored threshold keeps
+ * the 1.x speed/distance rule. Otherwise a <=300ms short swipe needs >=8% viewport-height
+ * net finger movement; a longer drag needs >=50% page travel. Both ignore movement <=5px.
+ * Short re-grabs toward the current scene cancel.
+ * pointercancel never commits; fast reversals retain the existing cancellation behavior.
  */
 export function shouldCommit(
   r: number,
   velocity: number,
-  t: Threshold,
-  pointerCancel: boolean
+  t: Threshold | null,
+  pointerCancel: boolean,
+  gesture?: { duration: number; displacement: number; viewport: number }
 ): boolean {
   if (pointerCancel) return false;
   const travel = Math.abs(r);
   const reversal = travel > 0.001 && r * velocity < 0 && Math.abs(velocity) > REVERSAL_SPEED;
-  return travel > thresholdAt(Math.abs(velocity), t) && !reversal;
+  if (reversal) return false;
+  if (t) return travel > thresholdAt(Math.abs(velocity), t);
+  if (!gesture || Math.abs(gesture.displacement) <= 5) return false;
+  return gesture.duration <= 300
+    ? Math.abs(gesture.displacement) >= gesture.viewport * 0.08 && r * gesture.displacement > 0
+    : travel >= 0.5;
 }
 
 /** Page settle durations (ms): the rest of the slide, a capped snap-back, an edge bounce. */

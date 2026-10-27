@@ -164,12 +164,22 @@ export function evaluate(
   effects: readonly Effect[],
   p: number,
   frame: Frame,
-  select: Select
+  select: Select,
+  before = false
 ): void {
   resetFrame(frame);
   for (const e of effects) {
     const [a, b] = e.range;
-    const q = b <= a ? (p >= b ? 1 : 0) : p <= a ? 0 : p >= b ? 1 : (p - a) / (b - a);
+    const q =
+      b <= a
+        ? p > b || (!before && p === b)
+          ? 1
+          : 0
+        : p <= a
+          ? 0
+          : p >= b
+            ? 1
+            : (p - a) / (b - a);
     const t = e.ease(q);
     for (const [prop, from, to] of e.entries) {
       if (selects(select, prop)) applyTrack(frame, prop, from, to, t);
@@ -667,7 +677,9 @@ export interface ParsedItem {
 
 /** One item: `name(args) range`. Null when it cannot be read. */
 export function parseItem(item: string): ParsedItem | null {
-  const m = /^([a-z][a-z0-9-]*)\s*(?:\(([^()]*)\))?\s*(.*)$/.exec(item);
+  // One level of nested parentheses, so a functional-notation colour such as
+  // `duotone(oklch(.2 .05 250), oklch(.9 .05 250))` stays one item.
+  const m = /^([a-z][a-z0-9-]*)\s*(?:\(((?:[^()]|\([^()]*\))*)\))?\s*(.*)$/.exec(item);
   const range = m ? parseRange(m[3]!) : null;
   if (!m || !range) return null;
   const parts = m[2] === undefined ? [] : splitTop(m[2]).map((s) => s.trim());
@@ -759,6 +771,41 @@ export function parseFromTo(
   return makeEffect({ tracks, vars, ease: ease ?? easeInOut });
 }
 
+/** Sample within each authored range; duplicate offsets preserve a step's left and right values. */
+export function samplePoints(
+  effects: readonly Effect[],
+  samples = 12
+): Array<{ offset: number; before: boolean }> {
+  const points = new Set<number>();
+  const steps = new Set<number>();
+  const add = (p: number): void => {
+    if (p >= 0 && p <= 1) points.add(p);
+  };
+  for (let i = 0; i <= samples; i++) add(i / samples);
+  for (const {
+    range: [a, b],
+  } of effects) {
+    if (b <= a) {
+      if (b >= 0 && b <= 1) {
+        points.add(b);
+        steps.add(b);
+      }
+    } else {
+      for (let i = 0; i <= samples; i++) add(i === samples ? b : a + ((b - a) * i) / samples);
+    }
+  }
+  return [...points]
+    .sort((a, b) => a - b)
+    .flatMap((offset) =>
+      steps.has(offset)
+        ? [
+            { offset, before: true },
+            { offset, before: false },
+          ]
+        : [{ offset, before: false }]
+    );
+}
+
 /** Sample effects into WAAPI keyframes (native and clock paths). */
 export function sampleKeyframes(
   effects: readonly Effect[],
@@ -767,11 +814,8 @@ export function sampleKeyframes(
   frame: Frame,
   samples = 12
 ): Keyframe[] {
-  const frames: Keyframe[] = [];
-  for (let i = 0; i <= samples; i++) {
-    const p = i / samples;
-    evaluate(effects, p, frame, select);
-    frames.push({ offset: p, ...css(frame) });
-  }
-  return frames;
+  return samplePoints(effects, samples).map(({ offset, before }) => {
+    evaluate(effects, offset, frame, select, before);
+    return { offset, ...css(frame) };
+  });
 }

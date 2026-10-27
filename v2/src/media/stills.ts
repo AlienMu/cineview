@@ -206,8 +206,27 @@ class Copies<C extends HTMLElement = HTMLImageElement> {
     if (!this.items.length) return;
     // The container shares the layers' transforms with the images: undo their scale.
     const c = this.container.getBoundingClientRect();
-    const sx = this.container.offsetWidth ? c.width / this.container.offsetWidth : 1;
-    const sy = this.container.offsetHeight ? c.height / this.container.offsetHeight : 1;
+    // offsetWidth/Height round fractional layout pixels and would mistake that rounding for scale.
+    const style = getComputedStyle(this.container);
+    const borderBox = style.boxSizing === 'border-box';
+    const width =
+      px(style.width) +
+      (borderBox
+        ? 0
+        : px(style.paddingLeft) +
+          px(style.paddingRight) +
+          px(style.borderLeftWidth) +
+          px(style.borderRightWidth));
+    const height =
+      px(style.height) +
+      (borderBox
+        ? 0
+        : px(style.paddingTop) +
+          px(style.paddingBottom) +
+          px(style.borderTopWidth) +
+          px(style.borderBottomWidth));
+    const sx = width ? c.width / width : 1;
+    const sy = height ? c.height / height : 1;
     const reads = this.items.map(({ img }) => ({
       r: img.getBoundingClientRect(),
       s: getComputedStyle(img),

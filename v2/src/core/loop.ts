@@ -3,21 +3,23 @@
  * space and time, so a loop runs around wherever the element has arrived).
  *
  *   loop="float"                                   a loop preset
- *   loop="pulse(strong), breathe"                  several, each its own animation
+ *   loop="pulse(strong), breathe"                  several, each its own period
  *   loop="push(in)"                                any fx preset, played there and back
  *   loop="opacity: 1 .45 1; scale: 1 1.45 1"       raw keyframe lists (1.x loopAnimation arrays)
  *   loop="--glow: 0 1 0; --tint: #e33 #36c #e33"   custom properties, for author CSS to consume
  *
- * Each item becomes one infinite WAAPI animation. `loop-duration` sets the cycle length; the
+ * Disjoint items use native animations. Overlapping outputs are evaluated and composed once per clock tick. `loop-duration` sets the cycle length; the
  * element's `ease` applies per segment (default ease-in-out, as 1.x loops). Custom properties with
  * numbers or colours run as an item of their own, sampled once per 60 Hz frame (an unregistered
  * property steps between keyframes; colours go around the OKLCH hue circle as in from/to);
  * `--cv-axis-<tag>` lists are written as variable-font axes (props.ts).
  */
-import { easeInOut, type Ease } from './ease';
+import { easeInOut, parseEase, type Ease } from './ease';
 import type { Report } from './errors';
 import { parseFx, parseItem, splitTop, withoutKeyframes } from './fx';
 import {
+  applyTrack,
+  combine,
   frameCss,
   IDENTITY,
   identityFrame,
@@ -27,6 +29,7 @@ import {
   resetFrame,
   varsCss,
   varValue,
+  type Frame,
   type Clip,
   type Prop,
   type Value,
@@ -40,6 +43,8 @@ export interface LoopItem {
   duration: number;
   /** Custom properties the item writes. */
   vars: string[];
+  used: Prop[];
+  sample(progress: number, frame: Frame): void;
 }
 
 /** Interpolable custom property lists: numbers in one unit, or colours. */
@@ -230,6 +235,82 @@ function frames(lists: Lists): Keyframe[] {
   return out;
 }
 
+/** Keep numeric tracks for overlapping loops, whose outputs share ordinary effect semantics. */
+function makeItem(lists: Lists, values: VarLists, curve: Ease, keyframes: Keyframe[]): LoopItem {
+  const numeric = Object.entries(lists.props) as Array<[Prop, Value[]]>;
+  const custom = Object.entries(lists.custom);
+  const n = Math.max(
+    2,
+    ...numeric.map(([, v]) => v.length),
+    ...custom.map(([, v]) => v.length),
+    ...Object.values(values).map((v) => v.length)
+  );
+  const variables = Object.entries(values).map(([name, list]) => {
+    const tracks: VarTrack[] = [];
+    for (let i = 0; i < n - 1; i++) {
+      const a = list[Math.min(i, list.length - 1)]!,
+        b = list[Math.min(i + 1, list.length - 1)]!;
+      tracks.push(
+        'color' in a
+          ? { name, from: a.color, to: (b as { color: string }).color, unit: null }
+          : { name, from: a.n, to: (b as { n: number }).n, unit: a.unit }
+      );
+    }
+    return { name, tracks };
+  });
+  return {
+    keyframes,
+    duration: lists.duration,
+    vars: [...custom.map(([name]) => name), ...variables.map(({ name }) => name)],
+    used: numeric.map(([prop]) => prop),
+    sample(progress, frame) {
+      resetFrame(frame);
+      const at = Math.min(1, Math.max(0, progress)) * (n - 1);
+      const i = Math.min(n - 2, Math.floor(at)),
+        t = curve(at - i);
+      for (const [prop, list] of numeric)
+        applyTrack(
+          frame,
+          prop,
+          list[Math.min(i, list.length - 1)]!,
+          list[Math.min(i + 1, list.length - 1)]!,
+          t
+        );
+      for (const { name, tracks } of variables) frame.vars.set(name, varValue(tracks[i]!, t));
+      for (const [name, list] of custom)
+        frame.vars.set(name, list[Math.min(t < 0.5 ? i : i + 1, list.length - 1)]!);
+    },
+  };
+}
+
+/** True when independent native animations would replace each other's CSS output. */
+export function loopsOverlap(items: readonly LoopItem[]): boolean {
+  const seen = new Set<string>();
+  for (const item of items) {
+    for (const key of Object.keys(item.keyframes[0] ?? {})) {
+      if (key === 'offset' || key === 'easing') continue;
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+  }
+  return false;
+}
+
+/** Each item keeps its own period; fold evaluated frames once before writing the loop layer. */
+export function evaluateLoops(
+  items: readonly LoopItem[],
+  elapsed: number,
+  frame: Frame,
+  scratch: Frame
+): Frame {
+  resetFrame(frame);
+  for (const item of items) {
+    item.sample((Math.max(0, elapsed) % item.duration) / item.duration, scratch);
+    combine(frame, scratch);
+  }
+  return frame;
+}
+
 /**
  * Parse `loop`. `duration` is `loop-duration` (ms) or null for each item's own default; `ease` is
  * the element's ease (its CSS form is used per segment).
@@ -241,12 +322,23 @@ export function parseLoop(
   report: Report
 ): LoopItem[] {
   if (!text || !text.trim()) return [];
+  if (duration !== null && duration <= 0) {
+    report('loop-duration must be greater than 0');
+    return [];
+  }
   const easing = ease?.css ?? easeInOut.css ?? 'ease-in-out';
   const items: LoopItem[] = [];
   const addVars = (lists: VarLists, cycle: number): void => {
     if (!Object.keys(lists).length) return;
     const keyframes = varFrames(lists, ease ?? easeInOut, cycle);
-    items.push({ keyframes, duration: cycle, vars: Object.keys(lists) });
+    items.push(
+      makeItem(
+        { props: {}, custom: {}, easing: 'linear', duration: cycle },
+        lists,
+        ease ?? easeInOut,
+        keyframes
+      )
+    );
   };
   if (text.includes(':')) {
     const { vars, ...raw } = parseRaw(text, report);
@@ -256,11 +348,8 @@ export function parseLoop(
       Object.keys(raw.custom).length ||
       !Object.keys(vars).length
     ) {
-      items.push({
-        keyframes: frames({ ...raw, easing, duration: 0 }),
-        duration: cycle,
-        vars: Object.keys(raw.custom),
-      });
+      const lists = { ...raw, easing, duration: cycle };
+      items.push(makeItem(lists, {}, ease ?? easeInOut, frames(lists)));
     }
     addVars(vars, cycle);
     return items;
@@ -275,11 +364,12 @@ export function parseLoop(
     const loop = LOOPS[item.name];
     if (loop) {
       const lists = loop(item.args, report);
-      items.push({
-        keyframes: frames({ ...lists, easing: ease ? easing : (lists.easing ?? easing) }),
+      const cycle = {
+        ...lists,
+        easing: ease ? easing : (lists.easing ?? easing),
         duration: duration ?? lists.duration,
-        vars: [],
-      });
+      };
+      items.push(makeItem(cycle, {}, ease ?? parseEase(cycle.easing) ?? easeInOut, frames(cycle)));
       continue;
     }
     // Any fx preset: from → to → from.
@@ -307,11 +397,8 @@ export function parseLoop(
     const own = effects.reduce((m, e) => Math.max(m, e.duration ?? 0), 0) || 1500;
     const cycle = duration ?? own * 2;
     if (Object.keys(props).length) {
-      items.push({
-        keyframes: frames({ props, custom: {}, easing, duration: 0 }),
-        duration: cycle,
-        vars: [],
-      });
+      const lists = { props, custom: {}, easing, duration: cycle };
+      items.push(makeItem(lists, {}, ease ?? easeInOut, frames(lists)));
     }
     addVars(vars, cycle);
   }

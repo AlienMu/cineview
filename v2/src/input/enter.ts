@@ -1,24 +1,17 @@
 /**
- * Entrances played on a clock outside zones (`enter` and `eye` sources), driven by the visibility
- * gates in gates.ts. Per element:
- *
- * - the entrance starts when the element passes its enter gate, after its own delay;
- * - with `after`, it starts no earlier than its predecessor's actual start plus the solved lead
- *   (1.x: a follower waits for the predecessor's entrance at least once; an element that becomes
- *   visible later only waits its own delay);
- * - leaving the gate while still waiting cancels the attempt;
- * - a declared exit plays when the element leaves; entering again replays the entrance;
- * - `replay` without an exit re-arms the entrance once the element is off screen;
- * - at the first measurement an element already above the viewport shows its final frame, and in
- *   the first scene anything fully on the first screen plays regardless of the bottom margin;
- * - an element entered when the stage rebuilds shows its final frame at once: an entrance plays
- *   once (lexicon #13), whatever changed on the page;
- * - loops run while the element is entered and on screen.
+ * Clock-played entrances: enter/eye roots use visibility gates; on="clock" roots use current-Scene
+ * entry. Followers share the root's trigger and solved offsets, including offscreen followers.
+ * Pending root cancellation and replay reset the dependency run together. A declared exit starts
+ * at the displayed frame. Clock time, native playback and Stage pause use one document timeline.
+ * Scene-entry clocks have their own solved windows and never contribute scroll-zone distance.
  */
-import type { CvAnimate } from '../elements/animate';
+import type { ClockEvent, CvAnimate } from '../elements/animate';
+import type { CvScene } from '../elements/scene';
+import type { Solved } from '../core/time';
 import type { Clock } from '../render/clock';
 import {
   clearLayer,
+  progressIn,
   exitKeyframes,
   layerKeyframes,
   samplesFor,
@@ -29,6 +22,10 @@ import { gateAction, gates, type GatePhase, type Gates } from './gates';
 
 interface Track {
   a: CvAnimate;
+  solved: Solved | null;
+  primary: boolean;
+  autonomous: boolean;
+  onScreen: boolean;
   layers: Layer[];
   phase: GatePhase;
   /** Phase to return to when a waiting attempt is abandoned. */
@@ -50,6 +47,7 @@ interface Track {
   delay: number;
   running: Animation[];
   token: number;
+  retained: { start: number; unseen: boolean } | undefined;
 }
 
 export interface Measurement {
@@ -60,15 +58,19 @@ export interface Measurement {
 
 const NONE = (): void => undefined;
 
-/** Elements entered, across rebuilds of their stage. */
-const entered = new WeakSet<CvAnimate>();
+/** Actual entrance origins retained across structural rebuilds, including unfinished followers. */
+const retainedRuns = new WeakMap<CvAnimate, { start: number; unseen: boolean }>();
+
+/** A rejected declaration must not restore its previous visibility run after being corrected. */
+export function forgetRetainedRun(a: CvAnimate): void {
+  retainedRuns.delete(a);
+}
 
 /** The gate machine's phase is also the element's `data-cv-phase`. */
 function setPhase(t: Track, phase: GatePhase): void {
   t.phase = phase;
-  if (phase === 'entered') entered.add(t.a);
-  else entered.delete(t.a);
-  t.a.showPhase(phase);
+  if (t.autonomous) t.a.clockComplete = phase === 'entered';
+  if (t.primary) t.a.showPhase(phase);
 }
 
 /** `margin="50"` or `margin="50 30"`: enter and exit margins in design px (1.x default 50). */
@@ -89,10 +91,18 @@ export interface FirstScreen {
 export class EnterController {
   private tracks: Track[] = [];
   private byElement = new Map<CvAnimate, Track>();
+  private activeScene: CvScene | null = null;
+  private sceneStartedAt = 0;
+
+  /** Keep the current autonomous run when structure rebuilds without a Scene change. */
+  snapshot(): { scene: CvScene; start: number } | null {
+    return this.activeScene ? { scene: this.activeScene, start: this.sceneStartedAt } : null;
+  }
 
   constructor(
     private clock: Clock,
-    private firstScreen: FirstScreen = { held: () => false, offset: 0 }
+    private firstScreen: FirstScreen = { held: () => false, offset: 0 },
+    private source: 'visibility' | 'clock' = 'visibility'
   ) {}
 
   get size(): number {
@@ -100,16 +110,27 @@ export class EnterController {
   }
 
   add(a: CvAnimate, options: { first: boolean; margins: [number, number] }): void {
-    const layers = a.layers.filter((l) => l.source === 'enter' || l.source === 'eye');
+    const autonomous = this.source === 'clock';
+    if (autonomous ? !a.clocked : a.clocked && !a.timed) return;
+    const layers = a.layers.filter((l) =>
+      autonomous
+        ? l.source === 'clock' && l.kind !== 'loop'
+        : l.source === 'enter' || l.source === 'eye'
+    );
     // Elements on the timeline without effects still have one (el.timeline, <cv-video>, anchors).
-    if (!layers.length && !a.loopItems.length && !a.timed) return;
-    const carried = entered.has(a);
+    if (!layers.length && !a.loopItems.length && !a.timed && !autonomous) return;
+    const retained = autonomous ? undefined : retainedRuns.get(a);
+    retainedRuns.delete(a);
     const track: Track = {
       a,
+      solved: autonomous ? a.clockSolved : a.solved,
+      primary: !autonomous || !a.timed,
+      autonomous,
+      onScreen: false,
       layers,
       phase: 'idle',
       origin: 'idle',
-      measured: carried,
+      measured: !!retained,
       first: options.first,
       eye: layers.some((l) => l.source === 'eye'),
       hasExit: layers.some((l) => l.exitEffects.length > 0),
@@ -122,26 +143,70 @@ export class EnterController {
       delay: a.timeSpec().delay,
       running: [],
       token: 0,
+      retained,
     };
-    for (const layer of layers) writeLayer(layer, carried ? 1 : 0, 0);
+    for (const layer of layers) writeLayer(layer, 0, 0);
     this.tracks.push(track);
     this.byElement.set(a, track);
-    // Entered before the rebuild: it stays so, without playing again.
-    if (carried) this.reveal(track);
   }
 
   /** Resolve `after` / `sequence` predecessors once every element is tracked. */
   link(): void {
     for (const t of this.tracks) {
       const scene = t.a.scene;
-      const solved = t.a.solved;
+      const solved = t.solved;
       if (!scene || !solved || solved.predecessor < 0) continue;
-      const leader = scene.timed[solved.predecessor];
+      const leader = (t.autonomous ? scene.clocks : scene.timed)[solved.predecessor];
       const pred = leader ? this.byElement.get(leader) : undefined;
-      if (!pred || !leader?.solved) continue;
+      if (!pred?.solved) continue;
       t.predecessor = pred;
-      t.lead = solved.start - leader.solved.start;
+      t.lead = solved.start - pred.solved.start;
     }
+    const now = this.clock.now();
+    for (const t of this.tracks) {
+      // Restoring the highest retained node also enrolls its descendants from the same origin.
+      if (t.retained && !t.predecessor?.retained) this.begin(t, now, now, t.retained.start);
+    }
+    for (const t of this.tracks) {
+      if (t.retained) t.unseen = t.retained.unseen;
+      t.retained = undefined;
+    }
+  }
+
+  /** Scene-entry clocks are independent of element visibility and real scroll distance. */
+  activateScene(scene: CvScene | null, origin?: number): void {
+    if (this.source !== 'clock' || scene === this.activeScene) return;
+    if (scene && this.firstScreen.held() && this.tracks.some((t) => t.first && t.a.scene === scene))
+      return;
+    const previous = this.activeScene;
+    this.activeScene = scene;
+    const now = this.clock.now();
+    this.sceneStartedAt = origin ?? now;
+    for (const t of this.tracks) {
+      if (t.a.scene !== previous || t.startedAt === null) continue;
+      if (t.hasExit) this.exit(t);
+      else {
+        const elapsed = now - t.startedAt;
+        for (const layer of t.layers) {
+          const w = layer.window,
+            base = t.solved;
+          writeLayer(
+            layer,
+            w && base ? progressIn(elapsed, w.start - base.start, w.end - base.start) : 1,
+            0
+          );
+        }
+        this.cancel(t);
+        t.a.stopLoops();
+        setPhase(t, 'idle');
+      }
+    }
+    for (const t of this.tracks)
+      if (t.a.scene === scene && !t.predecessor) this.begin(t, now, this.sceneStartedAt);
+  }
+
+  private event(t: Track, event: ClockEvent): void {
+    if (t.primary) t.a.clockEvent({ ...event, source: this.source });
   }
 
   /** Read phase: rects of tracked elements whose scenes are near the viewport. */
@@ -157,7 +222,7 @@ export class EnterController {
 
   /** Write phase: advance each measured element's gate machine. `unit` converts design px. */
   apply(measurements: readonly Measurement[], vh: number, unit: number): void {
-    const now = performance.now();
+    const now = this.clock.now();
     const held = this.firstScreen.held();
     for (const { track: t, top, bottom } of measurements) {
       // The first scene waits for its assets; it is measured afresh once they are ready.
@@ -170,7 +235,8 @@ export class EnterController {
         exitMargin: t.margins[1] * unit,
         eye: t.eye,
       });
-      if (g.onScreen) t.unseen = false;
+      t.onScreen = g.onScreen;
+      if (g.onScreen && (!t.predecessor || (g.enter && !g.exit))) t.unseen = false;
       if (!t.measured) {
         t.measured = true;
         if (g.above && !t.eye) {
@@ -191,16 +257,42 @@ export class EnterController {
 
   private step(t: Track, g: Gates, now: number): void {
     const inGate = g.enter && !g.exit;
+    // A dependency shares its root's run. Its own visibility cannot postpone or cancel it.
+    if (t.predecessor) {
+      if (
+        t.startedAt !== null &&
+        !t.unseen &&
+        t.hasExit &&
+        (t.phase === 'entered' || (t.phase === 'entering' && (t.startedAt ?? now) <= now)) &&
+        g.exit &&
+        !g.enter
+      )
+        this.exit(t);
+      // Back in view after leaving: resume this run where it stands (exit keeps its start). A run
+      // that never started keeps waiting for its root.
+      else if (
+        t.startedAt !== null &&
+        gateAction(t.phase, g.enter, g.exit, { hasExit: t.hasExit, replay: true }) === 'enter'
+      )
+        this.begin(t, now, now, t.startedAt);
+      return;
+    }
     // Waiting (for a predecessor, or inside its own delay) is revalidated every measurement.
     const pending = t.phase === 'waiting' || (t.phase === 'entering' && (t.startedAt ?? 0) > now);
     if (pending && !inGate) {
       this.cancel(t);
+      this.resetFollowers(t);
       setPhase(t, t.origin);
       for (const layer of t.layers) writeLayer(layer, 0, 0);
       return;
     }
-    if (t.replay && !t.hasExit && t.phase === 'entered' && !g.onScreen) {
-      // Re-arm off screen, so the next entry plays again.
+    if (
+      t.replay &&
+      !t.hasExit &&
+      (t.phase === 'entered' || t.phase === 'entering') &&
+      !g.onScreen
+    ) {
+      // Re-arm the root; followers keep this run until a new root entry replaces it.
       this.cancel(t);
       setPhase(t, 'idle');
       for (const layer of t.layers) writeLayer(layer, 0, 0);
@@ -217,19 +309,19 @@ export class EnterController {
   private loops(t: Track, g: Gates): void {
     if (!t.a.loopItems.length) return;
     const active = (t.phase === 'entered' || !t.layers.length) && g.onScreen;
-    if (active) t.a.startLoops(this.clock);
+    if (active && (!t.a.clocked || t.a.clockComplete)) t.a.startLoops(this.clock);
     else t.a.stopLoops();
   }
 
   private cancel(t: Track): void {
     t.token++;
-    if (t.running.length || t.startedAt !== null) t.a.clockEvent({ type: 'reset' });
+    if (t.running.length || t.startedAt !== null) this.event(t, { type: 'reset' });
     for (const a of t.running) a.cancel();
     t.running = [];
     t.startedAt = null;
   }
 
-  /** Final frame at once (already scrolled past). Followers then wait only their own delay. */
+  /** Final frame at once for an already passed dependency run. */
   private reveal(t: Track): void {
     this.cancel(t);
     for (const layer of t.layers) {
@@ -237,25 +329,49 @@ export class EnterController {
       writeLayer(layer, 1, 0);
     }
     setPhase(t, 'entered');
+    t.unseen = true;
     t.startedAt = Number.NEGATIVE_INFINITY;
-    t.a.clockEvent({ type: 'reveal' });
-    this.release(t, performance.now());
+    this.event(t, { type: 'reveal' });
+    this.release(t, this.clock.now());
   }
 
   /** `origin`: when the entrance counts as started (earlier than now when adopting a CSS entrance). */
-  private begin(t: Track, now: number, origin = now): void {
+  private begin(t: Track, now: number, origin = now, retainedStart?: number): void {
     const pred = t.predecessor;
-    if (pred && pred.startedAt === null) {
+    if (retainedStart === undefined && pred && pred.startedAt === null) {
       setPhase(t, 'waiting');
       return;
     }
-    const startAt = pred ? Math.max(origin + t.delay, pred.startedAt! + t.lead) : origin + t.delay;
+    if (
+      retainedStart === Number.NEGATIVE_INFINITY ||
+      (retainedStart === undefined && pred?.startedAt === Number.NEGATIVE_INFINITY)
+    ) {
+      this.reveal(t);
+      return;
+    }
+    const startAt =
+      retainedStart ??
+      (pred
+        ? pred.startedAt! + t.lead
+        : origin + (t.autonomous ? (t.solved?.start ?? t.delay) : t.delay));
     this.cancel(t);
+    this.resetFollowers(t);
+    t.measured = true;
+    t.unseen = t.predecessor ? true : !t.onScreen;
     t.startedAt = startAt;
     setPhase(t, 'entering');
-    const base = t.a.solved;
+    const base = t.solved;
     const duration = base ? base.end - base.start : 600;
-    t.a.clockEvent({ type: 'enter', start: startAt, duration });
+    this.event(t, { type: 'enter', start: startAt, duration });
+    if (now >= startAt + duration) {
+      for (const layer of t.layers) {
+        clearLayer(layer);
+        writeLayer(layer, 1, 0);
+      }
+      this.complete(t);
+      this.release(t, now);
+      return;
+    }
     if (!t.layers.length) {
       // Nothing to draw: an empty animation keeps the element's time (and the stage's pause).
       t.running.push(this.clock.add(t.a.animate(null, { duration, delay: startAt - now })));
@@ -278,32 +394,67 @@ export class EnterController {
     const token = t.token;
     void Promise.all(t.running.map((a) => a.finished)).then(() => {
       if (t.token !== token) return;
-      setPhase(t, 'entered');
-      // Loops wait for the entrance (1.x); the next measurement starts them while on screen.
-      const r = t.a.getBoundingClientRect();
-      if (t.a.loopItems.length && r.bottom > 0 && r.top < innerHeight) t.a.startLoops(this.clock);
+      this.complete(t);
     }, NONE);
     this.release(t, now);
   }
 
-  /** Followers waiting on this element's start can be scheduled now. */
+  private complete(t: Track): void {
+    setPhase(t, 'entered');
+    if (!t.a.loopItems.length) return;
+    if (t.autonomous) {
+      if (t.a.scene === this.activeScene && (!t.a.timed || t.a.timeline.phase === 'entered'))
+        t.a.startLoops(this.clock);
+    } else {
+      const r = t.a.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < innerHeight && (!t.a.clocked || t.a.clockComplete))
+        t.a.startLoops(this.clock);
+    }
+  }
+
+  /** Enroll every follower in this dependency run, regardless of its visibility. */
   private release(t: Track, now: number): void {
+    for (const f of this.tracks) if (f.predecessor === t) this.begin(f, now);
+  }
+
+  private resetFollowers(t: Track): void {
     for (const f of this.tracks)
-      if (f.predecessor === t && f.phase === 'waiting') this.begin(f, now);
+      if (f.predecessor === t) {
+        this.cancel(f);
+        setPhase(f, f.origin);
+        for (const layer of f.layers) writeLayer(layer, 0, 0);
+        this.resetFollowers(f);
+      }
   }
 
   private exit(t: Track): void {
+    const base = t.solved;
+    const startedAt = t.startedAt;
+    const elapsed = startedAt === null ? 0 : this.clock.now() - startedAt;
+    // Snapshot before cancelling native output. Sampling itself only touches the value model.
+    const frames = t.layers.map((layer) => {
+      const w = layer.window;
+      const duration = w ? w.exitEnd - w.exitStart : (base?.exitDuration ?? 0);
+      const p =
+        t.phase === 'entered'
+          ? 1
+          : w && base
+            ? progressIn(elapsed, w.start - base.start, w.end - base.start)
+            : 1;
+      return exitKeyframes(layer, samplesFor(layer, duration), p);
+    });
     this.cancel(t);
+    // Leaving ends this output, not the run: a follower coming back resumes from the same start.
+    t.startedAt = startedAt;
     t.a.stopLoops();
     setPhase(t, 'exiting');
-    const base = t.a.solved;
     const exitDuration = base?.exitDuration ?? 0;
-    t.a.clockEvent({ type: 'exit', start: performance.now(), duration: exitDuration });
+    this.event(t, { type: 'exit', start: this.clock.now(), duration: exitDuration });
     t.origin = 'exited';
     if (!t.layers.length && exitDuration > 0) {
       t.running.push(this.clock.add(t.a.animate(null, { duration: exitDuration })));
     }
-    for (const layer of t.layers) {
+    for (const [index, layer] of t.layers.entries()) {
       const w = layer.window;
       const duration = w ? w.exitEnd - w.exitStart : (base?.exitDuration ?? 0);
       if (duration <= 0) {
@@ -311,7 +462,7 @@ export class EnterController {
         continue;
       }
       clearLayer(layer);
-      const animation = layer.el.animate(exitKeyframes(layer, samplesFor(layer, duration)), {
+      const animation = layer.el.animate(frames[index]!, {
         duration,
         delay: w && base ? w.exitStart - base.exitStart : 0,
         fill: 'both',
@@ -329,9 +480,17 @@ export class EnterController {
   /** Stop everything (stage teardown). */
   destroy(): void {
     for (const t of this.tracks) {
+      if (
+        !t.autonomous &&
+        t.startedAt !== null &&
+        (t.phase === 'entered' || t.phase === 'entering')
+      )
+        retainedRuns.set(t.a, { start: t.startedAt, unseen: t.unseen });
       this.cancel(t);
+      for (const layer of t.layers) clearLayer(layer);
       t.a.stopLoops();
     }
+    this.activeScene = null;
     this.tracks = [];
     this.byElement.clear();
   }

@@ -187,6 +187,10 @@ export const zh = {
   'docs.group.scroll': '滚动模式',
   'docs.group.components': '组件参考',
   'docs.group.advanced': '进阶用法',
+  'docs.group.v2-start': '开始使用',
+  'docs.group.v2-concepts': '核心概念',
+  'docs.group.v2-elements': '元素参考',
+  'docs.group.v2-guides': '场景做法',
 
   // ── Common ──
   'common.timecode': '时间码',

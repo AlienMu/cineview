@@ -28,6 +28,7 @@
   <cv-stage id="s"${input} design-width="${q.get('dw') ?? 375}"${timeout}>
     ${scene0}
     <cv-scene id="s1" style="height:${input ? '' : '1200px'}"><div class="box"></div></cv-scene>
+    ${input ? '<cv-scene id="s2" style="background:#23314c"><div class="box"></div></cv-scene>' : ''}
   </cv-stage>`);
   window.timeouts = [];
   document.addEventListener('cv-timeout', (e) => {

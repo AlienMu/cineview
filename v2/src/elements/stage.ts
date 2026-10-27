@@ -12,8 +12,9 @@ import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
 import { loadStills, stillsModule, usesStills } from '../media/load-stills';
 import { ElementBase, onReducedMotionChange, prefersReducedMotion } from '../platform';
+import { EnterController, forgetRetainedRun } from '../input/enter';
 import { Clock } from '../render/clock';
-import { parseCovered } from '../render/covered';
+import { parseCovered, withVeilColour } from '../render/covered';
 import { keyframesModule, loadKeyframes, usesKeyframes } from '../render/load-keyframes';
 import { loadSplit, splitModule } from '../text/load';
 import { countModule, loadCount, usesCount } from '../text/load-count';
@@ -42,6 +43,7 @@ export class CvStage extends ElementBase implements CvStageElement {
   engine: InputEngine | null = null;
   /** Entrances played on time and loops; paused together. */
   readonly clock = new Clock();
+  private autonomous: EnterController | null = null;
   /** The first-screen gate, created by the first build and kept across rebuilds. */
   firstScreen: FirstScreenGate | null = null;
   /**
@@ -162,16 +164,19 @@ export class CvStage extends ElementBase implements CvStageElement {
   }
 
   /**
-   * Make the frame a size container once the content has been laid out in it. WebKit drops the
-   * page's scroll offset when content is first laid out inside a new size container (the content
-   * is skipped while the container is sized, so the page is briefly short): a restored or linked
-   * position would be lost.
+   * Lay out content before enabling inline-size containment. WebKit briefly drops a slotted
+   * container's height on structural changes and clamps document scroll. Reserve the measured
+   * height between builds; release it while uncontained so legitimate shrinkage still works.
+   * Called only during build/geometry refresh, never from the frame loop.
    */
-  private sizeFrame(): void {
+  sizeFrame(): void {
     const frame = this.frame;
-    if (!frame || frame.classList.contains('sized')) return;
+    if (!frame) return;
+    frame.classList.remove('sized');
+    frame.style.minHeight = '';
     void frame.offsetWidth;
     frame.classList.add('sized');
+    if (this.input === 'scroll') frame.style.minHeight = `${frame.offsetHeight}px`;
   }
 
   /** Pause entrances played on time and loops (scroll and drag still move scenes). */
@@ -245,6 +250,7 @@ export class CvStage extends ElementBase implements CvStageElement {
     this.markLinks();
     this.showTheme(index);
     const scene = this.ordered[index];
+    this.autonomous?.activateScene(scene ?? null);
     if (__DEV__ && scene && this.input === 'drag') {
       requestAnimationFrame(() => checkDragScene(scene));
     }
@@ -347,25 +353,49 @@ export class CvStage extends ElementBase implements CvStageElement {
     requestAnimationFrame(() => (live.textContent = text));
   }
 
+  announceCurrent(): void {
+    const scene = this.ordered[this.current];
+    if (!scene) return;
+    const name =
+      scene.getAttribute('aria-label') ?? scene.querySelector('h1,h2,h3')?.textContent?.trim();
+    const count = `${this.current + 1} / ${this.ordered.length}`;
+    this.announce(name ? `${name}, ${count}` : count);
+  }
+
   private teardown(): void {
     this.generation++;
-    this.engine?.destroy();
+    const engine = this.engine;
     this.engine = null;
+    engine?.destroy();
+    this.autonomous?.destroy();
+    this.autonomous = null;
     for (const s of this.scenes) for (const a of s.animates) a.cancelNatives();
   }
 
   private async build(): Promise<void> {
-    const resumeAt = this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
+    let resumeAt = this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
+    const previous = this.ordered;
+    const current = resumeAt === undefined ? null : previous[resumeAt];
+    const clockResume = this.autonomous?.snapshot();
     this.teardown();
+    if (!this.isConnected) return;
     this.errorsBefore = this.errorsNow;
     this.errorsNow = new WeakMap();
     const input = this.input;
+    const declaredInput = this.getAttribute('input');
+    if (declaredInput !== null && declaredInput !== 'drag' && declaredInput !== 'scroll') {
+      this.report(`input="${declaredInput}": expected drag or scroll; using scroll`, this);
+    }
     const dw = Number(this.getAttribute('design-width'));
     if (dw > 0) this.style.setProperty('--cv-dw', String(dw));
     else this.style.removeProperty('--cv-dw');
     this.ordered = [...this.scenes].sort((a, b) =>
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
     );
+    const retained = current ? this.ordered.indexOf(current) : -1;
+    if (retained >= 0) resumeAt = retained;
+    const scenesChanged =
+      previous.length !== this.ordered.length || previous.some((s, i) => s !== this.ordered[i]);
     if (!this.ordered.length) {
       // Still parsing: scenes may follow (an async module can run before the markup is in).
       if (document.readyState === 'loading') {
@@ -385,9 +415,17 @@ export class CvStage extends ElementBase implements CvStageElement {
     if (!keyframesModule() && animates.some(usesKeyframes)) chunks.push(loadKeyframes());
     if (chunks.length) {
       const generation = this.generation;
-      await Promise.all(chunks);
+      const results = await Promise.allSettled(chunks);
       // A later build (or a disconnect) superseded this one while the chunks loaded.
       if (generation !== this.generation || !this.isConnected) return;
+      // A module that failed to load is reported; its elements keep their whole-element fallback.
+      for (const result of results)
+        if (result.status === 'rejected')
+          this.report(
+            `optional module failed to load: ${String(result.reason)}`,
+            this,
+            'asset-failed'
+          );
     }
 
     this.sizeFrame();
@@ -396,21 +434,36 @@ export class CvStage extends ElementBase implements CvStageElement {
     for (const scene of this.ordered) {
       const timeSource: Source = input === 'drag' || scene.isZone ? 'scene' : 'enter';
       for (const a of scene.animates) {
+        const on = a.getAttribute('on')?.trim();
+        if (
+          input === 'scroll' &&
+          (scene.isZone ? on === 'enter' || on === 'eye' : on === 'scene')
+        ) {
+          forgetRetainedRun(a);
+          a.rejectSource();
+          this.report(
+            `on="${on}" is not supported ${scene.isZone ? 'in a scroll zone; use on="scene"' : 'in ordinary scroll; use on="enter" or on="eye"'}. Use on="clock" for playback at Scene entry.`,
+            a
+          );
+          continue;
+        }
         a.build(a.plan({ timeSource, reducedMotion }, (m, code) => this.report(m, a, code)));
       }
       const track = scene.getAttribute('track');
       if (track !== null && !scene.isTrack) this.report(`track="${track}": expected x`, scene);
       scene.travel = scene.measureTravel();
       scene.watchTrack(scene.isTrack);
-      for (const { error, element } of scene.solve(input === 'scroll')) {
+      for (const { error, element } of scene.solve(input === 'scroll', (m, el, code) =>
+        this.report(m, el, code)
+      )) {
         this.report(error.message, element, error.code);
       }
-      scene.cover = parseCovered(scene.getAttribute('covered'), reducedMotion, (m, code) =>
+      const cover = parseCovered(scene.getAttribute('covered'), reducedMotion, (m, code) =>
         this.report(m, scene, code)
       );
-      if (input === 'scroll' && scene.isZone) {
-        scene.style.height = `calc(100svh + ${scene.solution.total}px)`;
-      }
+      scene.cover =
+        cover && withVeilColour(cover, getComputedStyle(scene).getPropertyValue('--cv-veil'));
+      scene.setZoneDuration(input === 'scroll' && scene.isZone ? scene.solution.total : null);
     }
 
     const first = this.firstBuild();
@@ -423,10 +476,35 @@ export class CvStage extends ElementBase implements CvStageElement {
         this.startFirstScreen(
           resumeAt ?? this.sceneIndexOf(decodeURIComponent(location.hash.slice(1))) ?? 0
         );
+      // Reindexing retained scenes is not a navigation transaction.
+      if (resumeAt !== undefined) this.current = -1;
       this.engine = createDragEngine(this, resumeAt);
+      if (resumeAt !== undefined && scenesChanged) this.announceCurrent();
     } else {
       if (first) this.startFirstScreen(0);
       this.engine = new ScrollInput(this);
+    }
+    if (this.ordered.some((s) => s.clocks.length)) {
+      this.autonomous = new EnterController(
+        this.clock,
+        {
+          held: () => this.firstScreen?.held ?? false,
+          offset: 0,
+        },
+        'clock'
+      );
+      this.ordered.forEach((s, i) => {
+        for (const a of s.clocks) this.autonomous!.add(a, { first: i === 0, margins: [0, 0] });
+      });
+      this.autonomous.link();
+      const scene = this.ordered[this.current] ?? null;
+      this.autonomous.activateScene(
+        scene,
+        clockResume?.scene === scene ? clockResume.start : undefined
+      );
+      this.firstScreen?.whenReleased(() =>
+        this.autonomous?.activateScene(this.ordered[this.current] ?? null)
+      );
     }
     // Same task as the engine's first writes and clock animations: the CSS-first entrance and the
     // hidden boot state hand over without a frame in between.

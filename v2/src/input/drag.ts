@@ -94,6 +94,9 @@ interface Lane {
 interface Press {
   id: number;
   x0: number;
+  /** Original press coordinates/time, unaffected by ownership or later movement samples. */
+  readonly startY: number;
+  readonly startTime: number;
   y0: number;
   y: number;
   t: number;
@@ -154,6 +157,7 @@ class DragInput implements DragEngine {
   private signals = new Signals();
   /** Some element follows velocity or direction: frames continue until the signals rest. */
   private hasSignals: boolean;
+  private restoreScenes: Array<() => void> = [];
 
   constructor(
     private stage: CvStage,
@@ -167,7 +171,9 @@ class DragInput implements DragEngine {
     this.times = this.scenes.map(() => 0);
     this.heads = this.scenes.map(() => null);
     this.transition = Math.max(0, Number(stage.getAttribute('transition-duration') ?? 800) || 0);
-    this.threshold = parseThreshold(stage.getAttribute('threshold'), DEFAULT_THRESHOLD);
+    this.threshold = parseThreshold(stage.getAttribute('threshold'), DEFAULT_THRESHOLD, (m) =>
+      stage.report(m, stage)
+    );
     const root = parseMapping(stage.getAttribute('unit'), stage.getAttribute('scale'), {
       unit: 'time',
       scale: 10,
@@ -176,6 +182,7 @@ class DragInput implements DragEngine {
     const invalid = 'unit/scale: expected unit="time|percent" and a scale >= 0';
     if (root.invalid) stage.report(invalid, stage, 'invalid-drag-config');
     for (const s of this.scenes) {
+      parseThreshold(s.getAttribute('threshold'), this.threshold, (m) => stage.report(m, s));
       if (parseMapping(s.getAttribute('unit'), s.getAttribute('scale'), this.mapping).invalid) {
         stage.report(invalid, s, 'invalid-drag-config');
       }
@@ -188,6 +195,30 @@ class DragInput implements DragEngine {
     }
     if (!stage.hasAttribute('tabindex')) stage.tabIndex = 0;
     for (const s of this.scenes) {
+      // Restore only our writes; unrelated author style changes survive a mode switch.
+      const styles = [
+        'position',
+        'top',
+        'right',
+        'bottom',
+        'left',
+        'height',
+        'overflow-x',
+        'overflow-y',
+        'clip-path',
+        'will-change',
+        'translate',
+        'content-visibility',
+        'visibility',
+      ].map((p) => [p, s.style.getPropertyValue(p), s.style.getPropertyPriority(p)] as const);
+      const attrs = ['inert', 'aria-hidden'].map((p) => [p, s.getAttribute(p)] as const);
+      this.restoreScenes.push(() => {
+        for (const [p, value, priority] of styles) s.style.setProperty(p, value, priority);
+        for (const [p, value] of attrs) {
+          if (value === null) s.removeAttribute(p);
+          else s.setAttribute(p, value);
+        }
+      });
       Object.assign(s.style, {
         position: 'absolute',
         inset: '0',
@@ -274,6 +305,7 @@ class DragInput implements DragEngine {
   }
 
   destroy(): void {
+    if (this.destroyed) return;
     this.destroyed = true;
     cancelAnimationFrame(this.raf);
     this.stage.removeEventListener('pointerdown', this.onDown);
@@ -287,6 +319,7 @@ class DragInput implements DragEngine {
     for (const s of this.scenes) {
       for (const a of s.ordered) {
         a.stopLoops();
+        a.dragActive = undefined;
         if (isDeck(a)) a.clearWrites();
       }
       this.cover(s, false);
@@ -294,7 +327,11 @@ class DragInput implements DragEngine {
       if (s.cover) clearCover(s, s.veil!);
       s.coverProgress = Number.NaN;
       s.clearTrack();
+      s.active = false;
+      s.removeAttribute('data-cv-active');
     }
+    for (const restore of this.restoreScenes) restore();
+    this.endSession('cancel');
   }
 
   /** Programmatic navigation. Not a gesture: no drag events; cv-progress follows the slide. */
@@ -303,6 +340,7 @@ class DragInput implements DragEngine {
     if (this.press?.owning) return;
     if (target === this.index && !this.lane) return;
     this.endSession('cancel');
+    if (this.destroyed) return;
     this.lane = null;
     this.frozenHeads = false;
     const from = this.index;
@@ -316,7 +354,13 @@ class DragInput implements DragEngine {
     }
     const side: Side = target > this.index ? 1 : -1;
     if (Math.abs(target - this.index) > 1) {
-      // Jump next to the target first; scenes between are outside the window anyway.
+      // Jump next to the target first; scenes between are outside the window anyway. They are
+      // marked departed (in the travel direction) so their phase reads "exited", not a stale 0.
+      for (let i = Math.min(from, target) + 1; i < Math.max(from, target); i++) {
+        this.departed.set(i, side);
+        this.times[i] = this.total(i);
+        this.heads[i] = null;
+      }
       this.index = target - side;
       this.pos = this.reported = this.index;
       this.applyWindow();
@@ -346,13 +390,17 @@ class DragInput implements DragEngine {
   private onDown = (e: PointerEvent): void => {
     if (e.button !== 0 || e.isPrimary === false || e.defaultPrevented) return;
     const target = e.target as Element;
+    // A new press ends whatever the previous gesture left behind, whatever the target is: a
+    // touch drag emits no click, and the next tap may land on a control inside the stage.
+    this.suppressClick = false;
     if (target.closest?.(INTERACTIVE)) return;
     if (this.press) this.release(this.press);
-    this.suppressClick = false;
     const froze = this.freeze();
     this.press = {
       id: e.pointerId,
       x0: e.clientX,
+      startY: e.clientY,
+      startTime: e.timeStamp,
       y0: e.clientY,
       y: e.clientY,
       t: e.timeStamp,
@@ -382,12 +430,10 @@ class DragInput implements DragEngine {
         p.rejected.add(side);
         return;
       }
-      // Ownership starts on this frame: rebase so the slop never reaches the page or element time.
+      // Discard only the 1 px direction gate, not a whole coalesced movement sample.
       p.owning = true;
-      p.y0 = e.clientY;
-      p.y = e.clientY;
-      p.t = e.timeStamp;
-      p.v = 0;
+      p.y0 += Math.sign(dy);
+      p.y = p.y0;
       this.takeOver(p);
       p.target.setPointerCapture?.(p.id);
       if (!this.session) {
@@ -397,7 +443,6 @@ class DragInput implements DragEngine {
           direction: side === 1 ? 'forward' : 'backward',
         });
       }
-      return;
     }
     const dt = Math.max(e.timeStamp - p.t, 1);
     p.v = (-(e.clientY - p.y) / dt) * 1000;
@@ -419,12 +464,15 @@ class DragInput implements DragEngine {
     this.release(p);
   };
 
-  private onClick = (e: Event): void => {
+  private onClick = (e: MouseEvent): void => {
     if (this.suppressClick) {
-      e.stopPropagation();
-      e.preventDefault();
       this.suppressClick = false;
-      return;
+      // Keyboard and assistive activation have no preceding pointerdown and detail 0.
+      if (e.detail !== 0) {
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
     }
     // Hash links to a scene page instead of jumping (plan v3 §9.2).
     const link = (e.target as Element).closest?.('a[href^="#"]');
@@ -597,11 +645,20 @@ class DragInput implements DragEngine {
     const now = performance.now();
     const v = now - p.t > VELOCITY_WINDOW_MS ? 0 : p.v;
     const r = this.pos - this.index;
-    const threshold = parseThreshold(
-      this.scenes[this.index]?.getAttribute('threshold') ?? null,
-      this.threshold
-    );
-    if (r !== 0 && shouldCommit(r, v, threshold, p.cancelled)) {
+    const scene = this.scenes[this.index];
+    const authored = scene?.getAttribute('threshold') ?? null;
+    const threshold =
+      authored !== null || this.stage.hasAttribute('threshold')
+        ? parseThreshold(authored, this.threshold, (m) => this.stage.report(m, scene ?? this.stage))
+        : null;
+    if (
+      r !== 0 &&
+      shouldCommit(r, v, threshold, p.cancelled, {
+        duration: now - p.startTime,
+        displacement: p.startY - p.y,
+        viewport: this.vh,
+      })
+    ) {
       const target = this.index + (r > 0 ? 1 : -1);
       this.lane = {
         kind: 'commit',
@@ -676,12 +733,15 @@ class DragInput implements DragEngine {
   // ---- frame loop: the only writer -----------------------------------------------------------------
 
   private loop = (): void => {
-    if (this.raf) return;
+    if (this.destroyed || this.raf) return;
     this.raf = requestAnimationFrame(this.tick);
   };
 
-  private tick = (now: number): void => {
+  private tick = (): void => {
     this.raf = 0;
+    // One time base per frame: tweens, freezes and resumes start from performance.now(), and a rAF
+    // timestamp can trail it by seconds (a lazily loaded iframe), so a release would never land.
+    const now = performance.now();
     // What drove time in this frame, before a landing lane or a finished playhead is cleared.
     this.tickSource = this.source();
     let busy = this.press?.owning ?? false;
@@ -693,11 +753,14 @@ class DragInput implements DragEngine {
         this.lane = null;
         // The landing value, against the scene being left; the new scene starts at rest.
         this.reportProgress();
+        if (this.destroyed) return;
         this.land(lane);
+        if (this.destroyed) return;
         this.reported = this.pos;
       } else busy = true;
     }
     this.reportProgress();
+    if (this.destroyed) return;
     if (!this.frozenHeads) {
       for (let i = 0; i < this.heads.length; i++) {
         const h = this.heads[i];
@@ -741,7 +804,7 @@ class DragInput implements DragEngine {
     this.applyWindow();
     if (from !== target) {
       this.stage.setCurrent(target);
-      this.stage.announce(this.label(target));
+      this.stage.announceCurrent();
     }
   }
 
@@ -779,13 +842,6 @@ class DragInput implements DragEngine {
     this.stage.dispatchEvent(new CustomEvent(type, { bubbles: true, detail }));
   }
 
-  private label(i: number): string {
-    const s = this.scenes[i]!;
-    const name = s.getAttribute('aria-label') ?? s.querySelector('h1,h2,h3')?.textContent?.trim();
-    const count = `${i + 1} / ${this.scenes.length}`;
-    return name ? `${name}, ${count}` : count;
-  }
-
   /** Current scene ±1 stay rendered; the rest are inert and skipped (plan v3 §7, drag). */
   private applyWindow(): void {
     this.scenes.forEach((s, i) => {
@@ -797,6 +853,8 @@ class DragInput implements DragEngine {
       s.style.contentVisibility = inWindow ? 'visible' : 'hidden';
       // write() covers scenes in the window; the rest follow the current scene.
       if (!inWindow) {
+        // content-visibility skips descendants, but still paints the scene's own background.
+        s.style.translate = `0 ${(i - this.pos) * this.vh}px`;
         const behind = s.isStacked && i < this.index;
         this.cover(s, behind);
         this.coverLook(s, behind ? 1 : 0);
@@ -859,8 +917,13 @@ class DragInput implements DragEngine {
           if (a.subscribed) a.sendFrame(this.frameFor(a, i, t, travel));
           else a.showPhase(this.phaseFor(a, i, t, travel));
         }
-        if (a.loopItems.length) {
-          if (!s.covered && (!a.solved || t >= a.solved.end)) a.startLoops(this.stage.clock);
+        if (a.loopItems.length && (!a.clocked || a.timed)) {
+          if (
+            !s.covered &&
+            (!a.clocked || (a.timed && a.clockComplete)) &&
+            (!a.solved || t >= a.solved.end)
+          )
+            a.startLoops(this.stage.clock);
           else a.stopLoops();
         }
       }
@@ -922,7 +985,7 @@ class DragInput implements DragEngine {
   /** el.timeline read: frames are sent only to subscribed elements. */
   frameOf(a: CvAnimate): TimelineFrame | null {
     const i = a.scene ? this.scenes.indexOf(a.scene) : -1;
-    if (i < 0 || this.destroyed) return null;
+    if (i < 0 || this.destroyed || !a.timed) return null;
     return this.frameFor(a, i, this.times[i] ?? 0, this.pos - this.index);
   }
 
@@ -936,6 +999,7 @@ class DragInput implements DragEngine {
     const base = a.solved;
     const exitDuration = base?.exitDuration ?? 0;
     for (const layer of a.layers) {
+      if (layer.source === 'clock') continue;
       if (isSignal(layer.source)) {
         writeSignal(layer, this.signals);
         continue;

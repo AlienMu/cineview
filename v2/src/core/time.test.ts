@@ -38,6 +38,16 @@ describe('attribute parsing', () => {
     expect(parseAfter('a b')).toBeNull();
   });
 
+  it('reports a malformed after without treating an empty declaration as an error', () => {
+    const report = jest.fn();
+    expect(parseAfter('leader + nope', report)).toBeNull();
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('after="leader + nope"'));
+    report.mockClear();
+    expect(parseAfter('', report)).toBeNull();
+    expect(parseAfter(null, report)).toBeNull();
+    expect(report).not.toHaveBeenCalled();
+  });
+
   it('reads stagger and at', () => {
     expect(parseStagger('')).toEqual({ each: 40, from: 'first' });
     expect(parseStagger('80 center')).toEqual({ each: 80, from: 'center' });
@@ -46,7 +56,49 @@ describe('attribute parsing', () => {
     expect(parseAt('20% 80%')).toEqual({ start: 0.2, end: 0.8 });
     expect(parseAt('20%')).toEqual({ start: 0.2 });
     expect(parseAt('auto 80%')).toEqual({ end: 0.8 });
-    expect(parseAt('nope')!.start).toBeNaN();
+    // A value without `%` is a typo: reported, and the whole `at` is ignored (never NaN).
+    const reported: string[] = [];
+    expect(parseAt('nope', (m) => reported.push(m))).toBeNull();
+    expect(reported).toHaveLength(1);
+    expect(parseAt('20% 80', (m) => reported.push(m))).toBeNull();
+    expect(reported).toHaveLength(2);
+  });
+
+  it('reports unreadable times instead of silently substituting the fallback', () => {
+    const reported: string[] = [];
+    expect(parseMs('fast', 600, (m) => reported.push(m))).toBe(600);
+    expect(reported).toHaveLength(1);
+    expect(parseMs(null, 600, (m) => reported.push(m))).toBe(600);
+    expect(reported).toHaveLength(1);
+  });
+
+  it('solves siblings that both start at zero to the later entrance', () => {
+    const solved = solveScene(
+      [
+        {
+          name: 'a',
+          duration: 400,
+          delay: 0,
+          after: null,
+          at: null,
+          exitDuration: 0,
+          stagger: null,
+        },
+        {
+          name: 'b',
+          duration: 300,
+          delay: 0,
+          after: null,
+          at: null,
+          exitDuration: 0,
+          stagger: null,
+        },
+      ],
+      { exitsOnTimeline: true }
+    );
+    expect(Number.isFinite(solved.total)).toBe(true);
+    // No `after`/`sequence`: both start at 0, so the scene is as long as the later one.
+    expect(solved.total).toBe(400);
   });
 });
 
@@ -307,5 +359,22 @@ describe('solveScene: 2.0 additions', () => {
     ]);
     expect(s.errors.map((e) => e.code)).toEqual(['duplicate-name']);
     expect(s.byIndex[2]!.start).toBe(100);
+  });
+
+  it('keeps the scene total finite when a non-finite `at` reaches the solver', () => {
+    const spec = (at: { start?: number; end?: number }) => ({
+      name: null,
+      duration: 400,
+      delay: 0,
+      after: null,
+      at,
+      exitDuration: 0,
+      stagger: null,
+    });
+    const solved = solveScene([spec({ start: 0.2, end: Number.NaN })], { exitsOnTimeline: true });
+    expect(Number.isFinite(solved.total)).toBe(true);
+    expect(solved.total).toBe(400);
+    expect(Number.isFinite(solved.byIndex[0]!.start)).toBe(true);
+    expect(Number.isFinite(solved.byIndex[0]!.end)).toBe(true);
   });
 });

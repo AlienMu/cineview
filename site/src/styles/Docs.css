@@ -990,3 +990,35 @@ body:has(.docs-dialog[open]) {
     transition: none;
   }
 }
+
+/* Version switch at the top of the documentation index: the released 1.x docs and the 2.0 preview. */
+.docs-nav__versions {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 22px;
+  padding: 3px;
+  border: 1px solid var(--docs-line);
+  border-radius: 8px;
+  background: var(--docs-surface);
+}
+.docs-nav__version {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--docs-muted);
+  font: 600 12px/1.4 var(--docs-body-font);
+  text-align: center;
+  text-decoration: none;
+}
+.docs-nav__version:hover {
+  color: var(--docs-ink);
+}
+.docs-nav__version.is-active {
+  background: var(--docs-paper);
+  color: var(--docs-ink);
+  box-shadow: 0 1px 2px rgb(40 35 33 / 12%);
+}
+.docs-nav__version:focus-visible {
+  outline: 2px solid var(--docs-accent-ink);
+  outline-offset: 1px;
+}

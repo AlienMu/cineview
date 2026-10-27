@@ -40,6 +40,7 @@ export interface CvStageAttributes {
   margin?: Num;
   'first-scene-timeout'?: Num;
   'transition-duration'?: Num;
+  /** Override default short-swipe/long-drag release with slow ratio, fast ratio, speed (px/s). */
   threshold?: string;
   unit?: 'time' | 'percent';
   scale?: Num;
@@ -59,6 +60,7 @@ export interface CvSceneAttributes {
   /** Present: wait for the scene's images and videos on the first screen; or a URL list. */
   preload?: Flag | string;
   drag?: 'off';
+  /** Override this scene's drag release: slow ratio, fast ratio, speed (px/s). */
   threshold?: string;
   unit?: 'time' | 'percent';
   scale?: Num;
@@ -70,6 +72,7 @@ export interface CvAnimateAttributes {
   to?: string;
   exit?: string;
   'exit-duration'?: Num;
+  /** clock: real time from current-Scene entry, replayed on reentry without adding zone distance. */
   on?: string;
   ease?: string;
   name?: string;

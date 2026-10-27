@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" aria-hidden="true">
+      <rect width="640" height="400" fill="#fbf4e6"/>
+      <rect data-landmark="document" x="80" y="40" width="480" height="320" rx="8" fill="#ffffff" stroke="#24342e" stroke-width="2"/>
+      <rect data-landmark="state" x="100" y="80" width="48" height="48" fill="#b84a30"/>
+      <text data-landmark="heading" x="160" y="100" fill="#24342e" font-family="system-ui,sans-serif" font-size="22">Source document</text>
+      <text data-landmark="source" x="100" y="158" fill="#24342e" font-family="system-ui,sans-serif" font-size="18">Field notes</text>
+      <path d="M100 190H520 M100 220H480 M100 250H500 M100 280H420" fill="none" stroke="#6b7971" stroke-width="5"/>
+      
+      
+    </svg>

@@ -99,12 +99,17 @@ Drag upward to reveal the second scene: the title appears, then the description 
 
 If you are an AI coding assistant working with Cineview, **read [llms.txt](./llms.txt) first**, then follow its links for the task at hand:
 
+- [Landing-page design](./docs/ai/landing-pages.md): define content relationships, reading control, timing, and acceptance before selecting effects.
 - [Quick start](./docs/ai/quickstart.md): install the package and build a complete page.
 - [Timelines](./docs/ai/timeline.md): arrange animation order, durations, and delays.
 - [Modes](./docs/ai/modes.md): choose drag or scroll and check their constraints.
 - [Recipes](./docs/ai/recipes.md): add a scroll narrative or video.
 
-These guides target the Cineview 1.0.1 API. Check the version in the index before writing code, and use the linked types and detailed references when a property is unclear. Read only what the task needs: loading selected guides uses fewer input tokens than loading the entire documentation, leaving more context for the page being built.
+The implementation guides target the Cineview 1.0.1 API; the design guide labels its local experimental v2 notes separately. Check the version in the index before writing code, and use the linked types and detailed references when a property is unclear. Read only what the task needs: loading selected guides uses fewer input tokens than loading the entire documentation, leaving more context for the page being built.
+
+### Design skill for your AI
+
+[`skills/cineview-design`](./skills/cineview-design/SKILL.md) has an AI assistant plan the page with you before building it (what it is for, two or three directions, how many scenes, what each scene shows and which material it needs, a storyboard and a material list), with references behind its suggestions: ways to treat video and images, line art and supporting elements, visual directions, how the 41 design references behave together in each mode, 32 layouts and example page structures. It offers options, not a template. Copy the folder into your project's `.claude/skills/` for Claude Code, or point any other assistant at `SKILL.md`. It is written for Cineview 2.0, which is in development; the [2.0 documentation](https://cineview.pages.dev/docs/v2) describes its elements and has live examples.
 
 ## Docs and examples
 
