@@ -72,7 +72,7 @@
            its lower half here, and one line leads into the next act (it enters when it comes into view
            and leaves when it goes; replay brings it back). The reel is drawn once, with the headline. -->
       <cv-scene id="bridge" class="act-bridge" theme="time">
-        <section class="bridge" aria-labelledby="bridge-line">
+        <section class="bridge">
           <div class="reel" aria-hidden="true">
             <svg class="reel-spin" viewBox="0 0 1000 1000" focusable="false">
             <defs>
@@ -100,14 +100,6 @@
             </g>
           </svg>
           </div>
-          <!-- Two rows, the second starting where the first ends. They follow the scroll: as the line
-               comes into view the first row slides in from the left and the second from the right
-               (cover 10% to 42%, while the line is in the lower part of the screen), and as it rises they slide
-               back out the same ways (cover 56% to 74%, above the middle and still below the bar). -->
-          <h2 class="bridge-line" id="bridge-line"><span class="sr" data-i18n="bridge">分镜和放映之间，只差一条时间线。</span>
-            <cv-animate class="bridge-row bridge-row-1" on="view(self)" fx="keyframes(bridge-in-l) cover 10% cover 42%" ease="linear" aria-hidden="true"><cv-animate class="bridge-out" on="view(self)" fx="keyframes(bridge-out-l) cover 56% cover 74%" ease="linear"><span data-i18n="bridge1">分镜和放映之间，</span></cv-animate></cv-animate>
-            <cv-animate class="bridge-row bridge-row-2" on="view(self)" fx="keyframes(bridge-in-r) cover 10% cover 42%" ease="linear" aria-hidden="true"><cv-animate class="bridge-out" on="view(self)" fx="keyframes(bridge-out-r) cover 56% cover 74%" ease="linear"><span data-i18n="bridge2">只差一条时间线。</span></cv-animate></cv-animate>
-          </h2>
         </section>
       </cv-scene>
 

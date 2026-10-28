@@ -167,7 +167,7 @@
 
   /* The bridge between Act 1 and Act 2: the reel's centre sits on the boundary (the bridge's top
      edge), so its upper half shows under the opening and its lower half here, cut only by the
-     screen's right edge. One line leads into Act 2. Not a held scene: as tall as it needs. */
+     screen's right edge. Not a held scene: as tall as it needs. */
   .act-bridge {
     position: relative;
     z-index: 0;
@@ -253,64 +253,6 @@
   :root:not(.cv-js) .reel .reel-fills,
   .is-static .reel .reel-fills {
     opacity: 1;
-  }
-
-  /* Two rows, the second beginning where the first ends (two max-content columns). */
-  .bridge-line {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    grid-template-columns: max-content max-content;
-    row-gap: calc(8 * var(--u));
-    margin: 0;
-    color: var(--ink);
-    font: 400 calc(72 * var(--u))/1.25 var(--font-zh);
-  }
-
-  .bridge-row {
-    display: block;
-  }
-
-  .bridge-row-1 {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .bridge-row-2 {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .bridge-out {
-    display: block;
-  }
-
-  /* Played by the view (entry, exit): in from the sides, out to the sides. */
-  @keyframes bridge-in-l {
-    from { translate: calc(-360 * var(--u)) 0; opacity: 0; }
-    to { translate: 0 0; opacity: 1; }
-  }
-
-  @keyframes bridge-in-r {
-    from { translate: calc(360 * var(--u)) 0; opacity: 0; }
-    to { translate: 0 0; opacity: 1; }
-  }
-
-  @keyframes bridge-out-l {
-    from { translate: 0 0; opacity: 1; }
-    to { translate: calc(-360 * var(--u)) 0; opacity: 0; }
-  }
-
-  @keyframes bridge-out-r {
-    from { translate: 0 0; opacity: 1; }
-    to { translate: calc(360 * var(--u)) 0; opacity: 0; }
-  }
-
-  :root[lang="en"] .bridge-line {
-    font-family: var(--font-latin);
-    font-size: calc(58 * var(--u));
-    font-weight: 300;
-    letter-spacing: -0.02em;
   }
 
   .reel-flange { fill: color-mix(in srgb, var(--ground), var(--brass) 14%); }
@@ -2998,26 +2940,7 @@
 
 
 
-    .bridge-line,
-    :root[lang="en"] .bridge-line {
-      grid-template-columns: 1fr;
-      font-size: 28px;
-    }
-
-    .bridge-row-2 {
-      grid-column: 1;
-      padding-left: 1.5em;
-    }
-
-    :root[lang="en"] .bridge-line {
-      font-size: 22px;
-    }
-
-    .bridge-row {
-      white-space: nowrap;
-    }
-
-    /* On a phone the reel lies under the line: a watermark, so the text keeps its contrast. */
+    /* On a phone the reel is a faint watermark. */
     .act-bridge .reel {
       opacity: 0.32;
     }
