@@ -1,6 +1,6 @@
 {
   "name": "cineview",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A landing-page framework in plain HTML: scenes with their own timelines, moved by the reader’s scroll or finger",
   "type": "module",
   "main": "./dist/cineview.js",

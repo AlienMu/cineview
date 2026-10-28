@@ -6,7 +6,8 @@
 | --- | --- | --- |
 | 1.0.0 | 2026-09-08 | The 1.x React API (`CineView` spelling). Tag `npm/v1.0.0` records the verified source commit `ba0adf440c8a52be97db827b02f43089019b1750`. |
 | 1.0.1 | 2026-09-27 | The 1.x React API (`Cineview` spelling). |
-| 2.0.0 | Not published yet | The custom elements in this repository. |
+| 2.0.0 | 2026-10-28 | The custom elements in this repository. Tag `v2.0.0`. |
+| 2.0.1 | Not published yet | Fixes to entrances, the first clock activation, clock-driven video, stack masks and first-screen assets. |
 
 The 1.x source is no longer in this repository's working tree; it stays in the Git history before
 the 2.0 move. A published version cannot be replaced: a change to the library needs a new version.

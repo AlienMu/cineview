@@ -2,6 +2,25 @@
 
 All notable changes to Cineview are documented here.
 
+## 2.0.1
+
+### Fixed
+
+- An element that starts after another (`after`) follows its own `replay` setting. A loop that
+  starts once its entrance ends starts again when the element comes back into view.
+- On load, the first entrance played on the clock (`clock`) starts at the right time, also when
+  first-screen assets arrive late.
+- A `cv-video` played on the clock moves to the right frame on every frame, including after its
+  metadata arrives late.
+- In `cv-stack`, the veil over covered cards needs a container card (`article`, `div`). A card that
+  is an `img` or an `svg` itself now gets a diagnostic.
+- First-screen assets report no error after their page is gone. Videos and pictures still loading
+  release their event listeners at once.
+
+### Changed
+
+- The tests cover 90% of the source lines (77% in 2.0.0).
+
 ## 2.0.0
 
 Cineview is now a set of custom elements for plain HTML: `cv-stage`, `cv-scene`, `cv-animate`,
