@@ -19,7 +19,7 @@ All notable changes to Cineview are documented here.
 
 ### Changed
 
-- The tests cover 90% of the source lines (77% in 2.0.0).
+- The tests cover 90% of the source lines (72% in 2.0.0).
 
 ## 2.0.0
 
