@@ -190,8 +190,9 @@ export function DocsShell({
               <path d="M4 6h16M4 12h12M4 18h16" />
             </svg>
           </button>
-          <Link
-            to="/"
+          {/* The homepage is a static page outside this app: load it, not a route. */}
+          <a
+            href="/"
             className="docs-shell__brand"
             aria-label={zh ? 'Cineview 首页' : 'Cineview home'}
           >
@@ -204,7 +205,7 @@ export function DocsShell({
               aria-hidden="true"
             />
             <span>Cineview</span>
-          </Link>
+          </a>
           <Link className="docs-shell__section" to="/docs">
             {t('docs.title')}
           </Link>
