@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>我们要结婚了 · 十月二十九日 · 重庆解放碑</title>
+    <meta
+      name="description"
+      content="二〇二六年十月二十九日上午，重庆解放碑。不用带礼物，带一枝花来就好。"
+    />
+    <meta name="theme-color" content="#f7ecdb" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%23a85a4a' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3Cpath d='M16 13c0-4 2-6 0-8-2 2 0 4 0 8M19 16c4 0 6 2 8 0-2-2-4 0-8 0M16 19c0 4-2 6 0 8 2-2 0-4 0-8M13 16c-4 0-6-2-8 0 2 2 4 0 8 0'/%3E%3C/g%3E%3C/svg%3E"
+    />
+    <!-- 1. head snippet: mark .cv-js when the browser meets the baseline. -->
+    <script>
+      (function (s) {
+        if (s && s('selector(:has(*))') && s('width:1lh') && s('color:color-mix(in srgb,red,red)'))
+          document.documentElement.classList.add('cv-js');
+      })(window.CSS && CSS.supports);
+    </script>
+    <!-- 2. boot stylesheet, 3. the engine (both vendored, no network needed).
+         The engine ships as one classic script so the page also runs when opened straight
+         from disk: module scripts are blocked under file:// by CORS. -->
+    <link rel="stylesheet" href="vendor/cineview.css" />
+    <link rel="stylesheet" href="style.css" />
+    <script defer src="vendor/cineview.bundle.js"></script>
+  </head>
+  <body>
+    <!-- Reading progress. Lives outside the stage so it keeps painting on every act. -->
+    <div class="progress" aria-hidden="true">
+      <span class="progress-fill" id="progress-fill"></span>
+    </div>
+
+    <header class="bar">
+      <a class="brand" href="#open">我们的婚礼</a>
+      <nav class="nav" aria-label="主导航">
+        <a href="#day">这一天</a>
+        <a href="#place">在哪儿</a>
+        <a href="#flower">送花</a>
+      </nav>
+      <p class="bar-date"><time datetime="2026-10-29">10.29</time></p>
+    </header>
+
+    <cv-stage id="invite" input="scroll" design-width="1920">
+      <!-- 01. Opening: the branch draws itself, the two lines rise out of their clips. -->
+      <cv-scene id="open" class="act-open" theme="morning" preload>
+        <section class="hero" aria-labelledby="hero-title">
+          <cv-animate
+            class="hero-branch"
+            on="clock"
+            fx="draw"
+            target=".branch *"
+            duration="2800"
+            aria-hidden="true"
+          >
+            <svg class="branch" viewBox="0 0 1200 820" preserveAspectRatio="xMidYMax meet" focusable="false">
+              <g class="branch-stems">
+                <path d="M878 830 C 862 700 812 632 796 540 C 780 448 806 372 788 268" />
+                <path d="M812 604 C 742 588 690 556 628 528" />
+                <path d="M800 434 C 872 412 922 380 972 332" />
+                <path d="M803 340 C 758 316 726 300 690 296" />
+              </g>
+              <g class="branch-leaves">
+                <path d="M782 690 C 752 676 726 682 712 700 C 736 716 764 712 782 690 Z" />
+                <path d="M776 596 C 746 584 720 592 708 610 C 732 624 760 618 776 596 Z" />
+                <path d="M796 508 C 826 496 852 502 864 520 C 840 534 812 528 796 508 Z" />
+                <path d="M792 400 C 762 388 736 396 724 414 C 748 428 776 422 792 400 Z" />
+                <path d="M700 556 C 676 540 652 542 640 558 C 662 574 686 572 700 556 Z" />
+                <path d="M906 396 C 932 396 950 412 950 434 C 926 434 908 418 906 396 Z" />
+              </g>
+              <g class="branch-bloom">
+                <path d="M788 268 C 762 250 758 222 788 206 C 818 222 814 250 788 268 Z" transform="rotate(0 788 268)" />
+                <path d="M788 268 C 762 250 758 222 788 206 C 818 222 814 250 788 268 Z" transform="rotate(72 788 268)" />
+                <path d="M788 268 C 762 250 758 222 788 206 C 818 222 814 250 788 268 Z" transform="rotate(144 788 268)" />
+                <path d="M788 268 C 762 250 758 222 788 206 C 818 222 814 250 788 268 Z" transform="rotate(216 788 268)" />
+                <path d="M788 268 C 762 250 758 222 788 206 C 818 222 814 250 788 268 Z" transform="rotate(288 788 268)" />
+                <circle cx="788" cy="268" r="12" />
+              </g>
+              <g class="branch-bloom branch-bloom--small">
+                <path d="M628 528 C 608 514 606 492 628 480 C 650 492 648 514 628 528 Z" transform="rotate(0 628 528)" />
+                <path d="M628 528 C 608 514 606 492 628 480 C 650 492 648 514 628 528 Z" transform="rotate(72 628 528)" />
+                <path d="M628 528 C 608 514 606 492 628 480 C 650 492 648 514 628 528 Z" transform="rotate(144 628 528)" />
+                <path d="M628 528 C 608 514 606 492 628 480 C 650 492 648 514 628 528 Z" transform="rotate(216 628 528)" />
+                <path d="M628 528 C 608 514 606 492 628 480 C 650 492 648 514 628 528 Z" transform="rotate(288 628 528)" />
+                <circle cx="628" cy="528" r="9" />
+              </g>
+              <g class="branch-bloom branch-bloom--small">
+                <path d="M972 332 C 952 318 950 296 972 284 C 994 296 992 318 972 332 Z" transform="rotate(0 972 332)" />
+                <path d="M972 332 C 952 318 950 296 972 284 C 994 296 992 318 972 332 Z" transform="rotate(72 972 332)" />
+                <path d="M972 332 C 952 318 950 296 972 284 C 994 296 992 318 972 332 Z" transform="rotate(144 972 332)" />
+                <path d="M972 332 C 952 318 950 296 972 284 C 994 296 992 318 972 332 Z" transform="rotate(216 972 332)" />
+                <path d="M972 332 C 952 318 950 296 972 284 C 994 296 992 318 972 332 Z" transform="rotate(288 972 332)" />
+                <circle cx="972" cy="332" r="9" />
+              </g>
+              <g class="branch-buds">
+                <path d="M690 296 C 682 282 686 268 696 262 C 706 272 702 288 690 296 Z" />
+                <circle cx="690" cy="296" r="4" />
+              </g>
+            </svg>
+          </cv-animate>
+
+          <div class="hero-copy">
+            <p class="kicker">邀请函 <span class="kicker-rule" aria-hidden="true"></span> 十月二十九日</p>
+            <h1 class="hero-title" id="hero-title">
+              <span class="clip"
+                ><cv-animate fx="rise(line)" duration="950"
+                  ><span class="nb">我们要结婚了</span></cv-animate
+                ></span
+              >
+            </h1>
+            <p class="hero-sub">
+              <span class="clip"
+                ><cv-animate fx="rise(line)" duration="900" delay="700"
+                  ><span class="nb">二〇二六年十月二十九日，上午，重庆解放碑。</span></cv-animate
+                ></span
+              >
+            </p>
+            <div class="hero-actions">
+              <cv-animate fx="fade" duration="700" delay="1100">
+                <div class="actions-row">
+                  <a class="primary" href="#flower"
+                    ><span>我要送花</span
+                    ><span class="arrow" aria-hidden="true"
+                      ><svg viewBox="0 0 16 16" focusable="false"
+                        ><path
+                          d="M3.5 8h8.5M8.5 4.5 12 8l-3.5 3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        /></svg></span
+                  ></a>
+                  <a class="link" href="#day">先看这一天的安排</a>
+                </div>
+              </cv-animate>
+            </div>
+            <p class="hero-names">
+              <cv-animate fx="fade" duration="800" delay="1300">
+                <span class="names"><span class="ph">新郎名字</span> <span class="amp">·</span> <span class="ph">新娘名字</span></span>
+              </cv-animate>
+            </p>
+          </div>
+
+          <p class="scroll-hint" id="scroll-hint">往下看</p>
+        </section>
+      </cv-scene>
+
+      <!-- 02. A held scene (2400 ms): each point of the day lit in turn as you scroll. -->
+      <cv-scene id="day" class="act-day" zone theme="morning">
+        <section class="day" aria-labelledby="day-title">
+          <div class="day-copy">
+            <cv-animate on="clock" fx="fade, rise(soft)" duration="800">
+              <div class="day-copy-in">
+                <p class="eyebrow">这一天</p>
+                <h2 class="day-title" id="day-title">
+                  <span class="nb">从上午十点，</span><span class="nb">到吃完这顿饭</span>
+                </h2>
+                <p class="day-text">
+                  我们想在碑下见你一面。来了先把花放到花台，再找个位置坐下；仪式不长，之后有茶点和午饭。
+                </p>
+              </div>
+            </cv-animate>
+          </div>
+
+          <ol class="day-list" aria-label="这一天的安排">
+            <cv-animate
+              class="day-stem"
+              from="scale-y:0"
+              to="scale-y:1"
+              duration="2400"
+              ease="linear"
+              aria-hidden="true"
+              ><span class="stem"></span></cv-animate
+            >
+            <li class="point">
+              <cv-animate fx="fade, rise(soft)" at="2% 14%" duration="340">
+                <div class="point-in">
+                  <span class="point-dot" aria-hidden="true"></span>
+                  <span class="point-time">09:30</span>
+                  <span class="point-name">花台开放</span>
+                  <span class="point-note">先把花放好，我们会替你插上</span>
+                </div>
+              </cv-animate>
+            </li>
+            <li class="point">
+              <cv-animate fx="fade, rise(soft)" at="16% 28%" duration="340">
+                <div class="point-in">
+                  <span class="point-dot" aria-hidden="true"></span>
+                  <span class="point-time">10:00</span>
+                  <span class="point-name">入场签到</span>
+                  <span class="point-note">在门口写下你的名字</span>
+                </div>
+              </cv-animate>
+            </li>
+            <li class="point">
+              <cv-animate fx="fade, rise(soft)" at="30% 44%" duration="340">
+                <div class="point-in">
+                  <span class="point-dot" aria-hidden="true"></span>
+                  <span class="point-time">10:30</span>
+                  <span class="point-name">仪式</span>
+                  <span class="point-note">大约二十分钟，站着就好</span>
+                </div>
+              </cv-animate>
+            </li>
+            <li class="point">
+              <cv-animate fx="fade, rise(soft)" at="46% 60%" duration="340">
+                <div class="point-in">
+                  <span class="point-dot" aria-hidden="true"></span>
+                  <span class="point-time">11:15</span>
+                  <span class="point-name">合影与茶点</span>
+                  <span class="point-note">在碑前拍照，别怕挤</span>
+                </div>
+              </cv-animate>
+            </li>
+            <li class="point">
+              <cv-animate fx="fade, rise(soft)" at="62% 76%" duration="340">
+                <div class="point-in">
+                  <span class="point-dot" aria-hidden="true"></span>
+                  <span class="point-time">12:00</span>
+                  <span class="point-name">午宴</span>
+                  <span class="point-note">就在旁边，走两步就到</span>
+                </div>
+              </cv-animate>
+            </li>
+          </ol>
+        </section>
+      </cv-scene>
+
+      <!-- 03. A held scene (2000 ms): the map draws itself as you scroll. -->
+      <cv-scene id="place" class="act-place" zone theme="morning">
+        <section class="place" aria-labelledby="place-title">
+          <div class="place-copy">
+            <cv-animate on="clock" fx="fade, rise(soft)" duration="800">
+              <div class="place-copy-in">
+                <p class="eyebrow">在哪儿</p>
+                <h2 class="place-title" id="place-title">
+                  <span class="nb">解放碑，</span><span class="nb">碑下见</span>
+                </h2>
+                <p class="place-text">
+                  重庆市渝中区民族路 177 号，解放碑步行街。轻轨 2 号线临江门站 A 口出来，走六分钟；开车的话停大都会东方广场车库。
+                </p>
+                <p class="place-actions">
+                  <button type="button" class="secondary" id="copy-addr">
+                    <span id="copy-label">复制地址</span>
+                  </button>
+                  <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+                </p>
+              </div>
+            </cv-animate>
+          </div>
+
+          <figure class="place-figure">
+            <cv-animate
+              class="map"
+              fx="draw"
+              target=".map-lines *"
+              duration="2000"
+              ease="linear"
+              aria-label="一张简图：从临江门站 A 口沿民族路步行到解放碑，约六分钟"
+            >
+              <svg viewBox="0 0 720 640" preserveAspectRatio="xMidYMid meet" focusable="false" aria-hidden="true">
+                <g class="map-lines">
+                  <circle class="ring" cx="392" cy="286" r="52" />
+                  <circle class="ring" cx="392" cy="286" r="104" />
+                  <circle class="ring" cx="392" cy="286" r="158" />
+                  <path class="street" d="M-10 372 C 150 366 262 380 392 378 C 520 376 626 368 730 374" />
+                  <path class="street" d="M246 -10 C 252 120 240 210 244 330 C 248 440 254 540 250 650" />
+                  <path class="street street--thin" d="M392 130 L 392 442" />
+                  <path class="street street--thin" d="M240 286 L 544 286" />
+                  <path class="river" d="M-10 556 C 120 540 208 566 320 556 C 440 546 520 574 730 556" />
+                  <path class="river-line" d="M-10 576 C 120 562 210 586 320 576 C 442 566 524 594 730 576" />
+                  <path
+                    class="walk"
+                    d="M212 470 C 250 448 262 420 286 396 C 312 370 350 348 386 318"
+                  />
+                  <path class="monument" d="M392 250 L 414 272 L 392 294 L 370 272 Z" />
+                  <path class="monument" d="M392 262 L 392 282 M382 272 L 402 272" />
+                  <path class="cross" d="M212 470 l -12 -12 M212 470 l 12 12 M212 470 l -12 12 M212 470 l 12 -12" />
+                  <circle class="mark-a" cx="212" cy="470" r="7" />
+                  <circle class="mark-b" cx="392" cy="294" r="5" />
+                </g>
+              </svg>
+            </cv-animate>
+            <figcaption class="map-caption">
+              <span class="map-key"><i class="dot dot-a" aria-hidden="true"></i>临江门站 A 口</span>
+              <span class="map-key"><i class="dot dot-b" aria-hidden="true"></i>解放碑</span>
+              <span class="map-key map-key--note">步行约 6 分钟</span>
+            </figcaption>
+          </figure>
+        </section>
+      </cv-scene>
+
+      <!-- 04. Flowers: three things to bring, in the order they happen. -->
+      <cv-scene id="flower" class="act-flower" theme="dusk">
+        <section class="flower" aria-labelledby="flower-title">
+          <div class="flower-head">
+            <cv-animate fx="fade, rise(soft)" duration="800">
+              <div class="flower-head-in">
+                <p class="eyebrow">送花</p>
+                <h2 class="flower-title" id="flower-title">
+                  <span class="nb">不用带礼物，</span><span class="nb">带一枝花就好</span>
+                </h2>
+                <p class="flower-text">
+                  我们想用大家带来的花，把花台填满。什么花都行，一枝就够；如果你来不了，也可以托朋友带一枝。
+                </p>
+              </div>
+            </cv-animate>
+          </div>
+
+          <div class="flower-cards">
+            <cv-animate class="fcard" fx="fade, rise(soft)" duration="700">
+              <article class="fcard-in">
+                <p class="fcard-num">1</p>
+                <h3 class="fcard-name">挑一枝</h3>
+                <p class="fcard-text">
+                  路过花店时，挑一枝你看着顺眼的。玫瑰、洋桔梗、一把小雏菊，或者干脆一段带叶子的枝条，都可以。
+                </p>
+              </article>
+            </cv-animate>
+            <cv-animate class="fcard" fx="fade, rise(soft)" duration="700" delay="160">
+              <article class="fcard-in">
+                <p class="fcard-num">2</p>
+                <h3 class="fcard-name">写一句话</h3>
+                <p class="fcard-text">
+                  花台上有一叠卡片。写下想对我们说的话，字丑没关系，别写太久，后面的人还等着笔。
+                </p>
+              </article>
+            </cv-animate>
+            <cv-animate class="fcard" fx="fade, rise(soft)" duration="700" delay="320">
+              <article class="fcard-in">
+                <p class="fcard-num">3</p>
+                <h3 class="fcard-name">放上花台</h3>
+                <p class="fcard-text">
+                  进门左手边就是花台，交给那儿的朋友。我们会把每一枝都留着，仪式结束后一起带走。
+                </p>
+              </article>
+            </cv-animate>
+          </div>
+
+          <cv-animate class="flower-note" fx="fade" duration="700" delay="480">
+            <p class="note-in">
+              <span class="note-label">来不了？</span>
+              花可以寄到「重庆市渝中区民族路 177 号」，收件人写<span class="ph">联系人名字</span>，电话<span class="ph">联系方式</span>。十月二十八日前寄到，我们替你摆上。
+            </p>
+          </cv-animate>
+        </section>
+      </cv-scene>
+
+      <!-- 05. Closing. -->
+      <cv-scene id="end" class="act-end" theme="dusk">
+        <section class="end" aria-labelledby="end-title">
+          <cv-animate class="end-branch" on="clock" fx="draw" target=".end-branch-svg *" duration="2200" aria-hidden="true">
+            <svg class="end-branch-svg" viewBox="0 0 600 300" preserveAspectRatio="xMidYMax meet" focusable="false">
+              <path d="M300 300 C 296 240 306 200 300 160 C 294 120 300 80 298 40" />
+              <path d="M300 200 C 268 190 246 170 232 148" />
+              <path d="M300 200 C 332 190 354 170 368 148" />
+              <path d="M298 46 C 280 34 278 14 298 4 C 318 14 316 34 298 46 Z" />
+              <path d="M232 148 C 218 138 218 120 232 112 C 246 120 246 138 232 148 Z" />
+              <path d="M368 148 C 354 138 354 120 368 112 C 382 120 382 138 368 148 Z" />
+            </svg>
+          </cv-animate>
+          <cv-animate fx="fade, rise(soft)" duration="900">
+            <div class="end-in">
+              <h2 class="end-title" id="end-title"><span class="nb">十月二十九日，</span><span class="nb">见</span></h2>
+              <p class="end-text">有什么想问的，直接找我们。到了找不到地方，也打电话。</p>
+              <div class="end-actions">
+                <a class="primary" href="#flower">我要送花<span class="arrow" aria-hidden="true"
+                  ><svg viewBox="0 0 16 16" focusable="false"
+                    ><path
+                      d="M3.5 8h8.5M8.5 4.5 12 8l-3.5 3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    /></svg></span
+                ></a>
+                <a class="link" href="#day">再看一遍时间</a>
+              </div>
+              <p class="end-names"><span class="ph">新郎名字</span> <span class="amp">·</span> <span class="ph">新娘名字</span></p>
+            </div>
+          </cv-animate>
+          <footer class="foot">
+            <p>二〇二六年十月二十九日 · 重庆解放碑</p>
+            <p class="foot-small">这个页面用 Cineview 做成，滚动即时间。</p>
+          </footer>
+        </section>
+      </cv-scene>
+    </cv-stage>
+
+    <script defer src="page.js"></script>
+  </body>
+</html>

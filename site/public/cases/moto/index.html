@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>途岚 Wander 400 · 400cc 复古街车</title>
+<meta name="description" content="途岚 Wander 400，一台 400cc 复古街车。好骑，好看，2.98 万起。预约试驾，来骑一程。">
+<meta name="theme-color" content="#13251b">
+<link rel="icon" href="data:,">
+<!-- Cineview 2.0: head snippet, boot stylesheet, module (framework.md, Load) -->
+<script>(function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);</script>
+<link rel="stylesheet" href="/v2/cineview.css">
+<script type="module" src="/v2/cineview.js"></script>
+<!-- Fonts load without blocking the first paint; self-host them before launch (Google Fonts is not reachable in mainland China) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Noto+Serif+SC:wght@300;400&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="moto.css">
+</head>
+<body>
+<header class="bar">
+  <a class="mark" href="#open" aria-label="途岚摩托，回到开头" data-i18n-label="bar.home"><span class="mark-zh">途岚</span><span class="mark-en">TULAN</span></a>
+  <div class="langs" role="group" aria-label="语言" data-i18n-label="bar.langs">
+    <button type="button" data-set-lang="zh" aria-pressed="true">中文</button><span class="langs-sep" aria-hidden="true">/</span><button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+  </div>
+</header>
+
+<main>
+<cv-stage design-width="1920">
+
+  <!-- 1 Opening: letterboxed night ride, scrubbed by scroll; the screen closes at the end -->
+  <cv-scene id="open" zone>
+    <div class="cine">
+      <div class="cine-frame">
+        <cv-animate class="curtain" from="clip:inset(0% 0% 0% 0%)" to="clip:inset(51% 0% 51% 0%)" at="80% 100%" duration="400" ease="ease-in-out">
+          <cv-video class="clip" src="material/standin-city.mp4" poster="material/standin-city.jpg" at="0% 80%" duration="2600" ease="linear"
+                    aria-label="占位视频：城市夜骑，随滚动播放" data-i18n-label="open.video"></cv-video>
+          <span class="tag tag-video" data-i18n="ph.video">占位视频 · 正式宣传片到后替换</span>
+        </cv-animate>
+      </div>
+      <div class="cine-caption">
+        <cv-animate class="cap" from="opacity:1" to="opacity:0" at="7% 15%" ease="linear">
+          <div class="cap-in">
+            <cv-animate on="clock" fx="rise(soft)" duration="1600" delay="250">
+              <h1 class="name"><span class="name-brand" data-i18n="name.brand">途岚</span><span class="name-model">Wander 400</span></h1>
+            </cv-animate>
+          </div>
+        </cv-animate>
+        <cv-animate class="cap" from="opacity:0; y:14" to="opacity:1; y:0" at="20% 30%" ease="ease-out" exit="opacity:0" exit-duration="420">
+          <p class="line"><span class="nb" data-i18n="open.l1">下班以后，</span><span class="sp"> </span><span class="nb" data-i18n="open.l2">绕远一点回家。</span></p>
+        </cv-animate>
+      </div>
+      <cv-animate class="cue" from="opacity:1" to="opacity:0" at="0% 6%" ease="linear">
+        <p class="cue-in"><span data-i18n="open.cue">向下滑动</span><span class="cue-line" aria-hidden="true"></span></p>
+      </cv-animate>
+    </div>
+  </cv-scene>
+
+  <!-- 2 Looks: the side view rises, then four close-ups, one per screen, focusing in -->
+  <cv-scene id="look">
+    <section class="look" aria-labelledby="look-title">
+      <cv-animate class="hero-shot" fx="rise" duration="1300">
+        <div class="ph ph-side"><p class="ph-label"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.side">棚拍图 · 侧面全车</span></p></div>
+      </cv-animate>
+      <cv-animate fx="rise(soft)" duration="1200" delay="250">
+        <h2 class="title" id="look-title" data-i18n="look.title">停下来，也好看。</h2>
+      </cv-animate>
+      <ol class="details">
+        <li class="detail">
+          <cv-animate class="detail-shot" fx="focus" duration="1500">
+            <div class="ph ph-detail"><p class="ph-label"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.d1">棚拍图 · 仪表特写</span></p></div>
+          </cv-animate>
+          <cv-animate fx="rise(soft)" duration="1100" delay="400">
+            <p class="detail-cap"><span class="detail-n">01</span><span class="detail-name" data-i18n="d1.name">仪表</span><span class="detail-text" data-i18n="d.text">说明占位，看过棚拍图后补写</span></p>
+          </cv-animate>
+        </li>
+        <li class="detail">
+          <cv-animate class="detail-shot" fx="focus" duration="1500">
+            <div class="ph ph-detail"><p class="ph-label"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.d2">棚拍图 · 油箱特写</span></p></div>
+          </cv-animate>
+          <cv-animate fx="rise(soft)" duration="1100" delay="400">
+            <p class="detail-cap"><span class="detail-n">02</span><span class="detail-name" data-i18n="d2.name">油箱</span><span class="detail-text" data-i18n="d.text">说明占位，看过棚拍图后补写</span></p>
+          </cv-animate>
+        </li>
+        <li class="detail">
+          <cv-animate class="detail-shot" fx="focus" duration="1500">
+            <div class="ph ph-detail"><p class="ph-label"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.d3">棚拍图 · 座椅特写</span></p></div>
+          </cv-animate>
+          <cv-animate fx="rise(soft)" duration="1100" delay="400">
+            <p class="detail-cap"><span class="detail-n">03</span><span class="detail-name" data-i18n="d3.name">座椅</span><span class="detail-text" data-i18n="d.text">说明占位，看过棚拍图后补写</span></p>
+          </cv-animate>
+        </li>
+        <li class="detail">
+          <cv-animate class="detail-shot" fx="focus" duration="1500">
+            <div class="ph ph-detail"><p class="ph-label"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.d4">棚拍图 · 排气特写</span></p></div>
+          </cv-animate>
+          <cv-animate fx="rise(soft)" duration="1100" delay="400">
+            <p class="detail-cap"><span class="detail-n">04</span><span class="detail-name" data-i18n="d4.name">排气</span><span class="detail-text" data-i18n="d.text">说明占位，看过棚拍图后补写</span></p>
+          </cv-animate>
+        </li>
+      </ol>
+    </section>
+  </cv-scene>
+
+  <!-- 3 Easy to ride: a line opens into the mountain road; title, then four specs like subtitles; the screen closes again -->
+  <cv-scene id="ride" zone>
+    <div class="cine">
+      <div class="cine-frame">
+        <cv-animate class="curtain" from="clip:inset(49.6% 0% 49.6% 0%)" to="clip:inset(0% 0% 0% 0%)" at="0% 10%" duration="300" ease="ease-in-out"
+                    exit="clip:inset(51% 0% 51% 0%)" exit-duration="450">
+          <cv-video class="clip" src="material/standin-road.mp4" poster="material/standin-road.jpg" at="8% 86%" duration="3000" ease="linear"
+                    aria-label="占位视频：山路骑行，随滚动播放" data-i18n-label="ride.video"></cv-video>
+          <span class="tag tag-video" data-i18n="ph.video">占位视频 · 正式宣传片到后替换</span>
+        </cv-animate>
+      </div>
+      <div class="cine-caption">
+        <cv-animate class="cap" fx="keyframes(subtitle)" at="11% 30%" duration="300">
+          <h2 class="line line-title"><span data-i18n="ride.title">比你想的好骑。</span></h2>
+        </cv-animate>
+        <cv-animate class="cap" fx="keyframes(subtitle)" at="30% 44%" duration="300">
+          <p class="spec"><span class="spec-k" data-i18n="s1.k">座高</span><span class="spec-v"><b class="tag" data-i18n="ph.value">数值待填</b><span class="spec-u">mm</span></span></p>
+        </cv-animate>
+        <cv-animate class="cap" fx="keyframes(subtitle)" at="44% 58%" duration="300">
+          <p class="spec"><span class="spec-k" data-i18n="s2.k">整备质量</span><span class="spec-v"><b class="tag" data-i18n="ph.value">数值待填</b><span class="spec-u">kg</span></span></p>
+        </cv-animate>
+        <cv-animate class="cap" fx="keyframes(subtitle)" at="58% 72%" duration="300">
+          <p class="spec"><span class="spec-k" data-i18n="s3.k">最大马力</span><span class="spec-v"><b class="tag" data-i18n="ph.value">数值待填</b><span class="spec-u" data-i18n="s3.u">单位照参数表</span></span></p>
+        </cv-animate>
+        <cv-animate class="cap" fx="keyframes(subtitle)" at="72% 86%" duration="300">
+          <p class="spec"><span class="spec-k" data-i18n="s4.k">最大扭矩</span><span class="spec-v"><b class="tag" data-i18n="ph.value">数值待填</b><span class="spec-u">N·m</span></span></p>
+        </cv-animate>
+      </div>
+    </div>
+  </cv-scene>
+
+  <!-- 4 Affordable: the front three-quarter view pushes in slowly as it passes; the price under it -->
+  <cv-scene id="price">
+    <section class="price" aria-labelledby="price-title">
+      <div class="price-shot">
+        <cv-animate class="push" fx="push(1, 1.08, center)" on="view(self)" ease="linear">
+          <div class="ph ph-front"><p class="ph-label"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.front">棚拍图 · 前 45 度</span></p></div>
+        </cv-animate>
+      </div>
+      <cv-animate fx="rise(soft)" duration="1200">
+        <p class="price-kicker" data-i18n="price.kicker">你的第一台大排量</p>
+      </cv-animate>
+      <cv-animate fx="rise(soft)" duration="1400" delay="200">
+        <h2 class="price-num" id="price-title"><span class="price-pre" data-i18n="price.pre"></span><span class="price-fig" data-i18n="price.fig">2.98</span><span class="price-unit" data-i18n="price.unit">万起</span></h2>
+      </cv-animate>
+      <cv-animate fx="fade" duration="900" delay="700">
+        <p class="price-note" data-i18n="price.note">以上市公布价格为准</p>
+      </cv-animate>
+    </section>
+  </cv-scene>
+
+  <!-- 5 Book a test ride -->
+  <cv-scene id="book">
+    <section class="close" aria-labelledby="close-title">
+      <cv-animate fx="fade" duration="1200">
+        <p class="close-mark"><span class="close-logo" data-i18n="close.logo">途岚</span><b class="tag" data-i18n="ph.logo">logo 占位</b></p>
+      </cv-animate>
+      <cv-animate fx="rise(soft)" duration="1300" delay="150">
+        <h2 class="title" id="close-title" data-i18n="close.title">来骑一程。</h2>
+      </cv-animate>
+      <cv-animate fx="rise(soft)" duration="1300" delay="350">
+        <p class="close-text" data-i18n="close.text">好不好骑，坐上去就知道。</p>
+      </cv-animate>
+      <cv-animate fx="rise(soft)" duration="1200" delay="600">
+        <div class="cta-row">
+          <a class="cta" href="#book" data-placeholder-link aria-describedby="cta-note" data-i18n="close.cta">预约试驾</a>
+          <p class="cta-note" id="cta-note"><b class="tag" data-i18n="ph.tag">占位</b><span data-i18n="ph.link">预约链接待补</span></p>
+        </div>
+      </cv-animate>
+    </section>
+    <footer class="foot">
+      <p data-i18n="foot.co">© 途岚摩托 · 公司全称待补</p>
+      <p data-i18n="foot.icp">备案号待补（页面放在官网域名下时需要）</p>
+    </footer>
+  </cv-scene>
+
+</cv-stage>
+</main>
+<script src="lang.js"></script>
+</body>
+</html>

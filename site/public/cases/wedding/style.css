@@ -1,0 +1,947 @@
+/* Wedding invitation — warm paper, one drawn branch.
+   Sizes are design px at 1920 wide, scaled by --u (see the framework's units). */
+
+:root {
+  --u: calc(min(100vw, 177.78vh) / 1920);
+  --m: calc(150 * var(--u));
+
+  --font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+  --font-body: "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", -apple-system, system-ui, sans-serif;
+
+  --ground: #f7ecdb;
+  --ground-deep: #f0e2cb;
+  --surface: #fffaf1;
+  --ink: #35251d;
+  --ink-soft: #6b5142;
+  --ink-faint: #9c8371;
+  --accent: #a85a4a;
+  --accent-soft: #c98a70;
+  --leaf: #7b8a63;
+  --line: #d9bfa1;
+  --line-soft: #e6d3ba;
+  --radius: 14px;
+}
+
+/* The closing act is dusk: same paper, lower light. */
+cv-stage[data-cv-theme="dusk"] {
+  --ground: #2b1f1a;
+  --ground-deep: #241a16;
+  --surface: #37271f;
+  --ink: #f5e6d3;
+  --ink-soft: #cbb39b;
+  --ink-faint: #9b8271;
+  --accent: #e8a887;
+  --accent-soft: #c47a5d;
+  --leaf: #93a37a;
+  --line: #5b4436;
+  --line-soft: #473428;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: max(15px, calc(19 * var(--u)));
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.7s ease;
+  overflow-x: clip;
+}
+
+/* Theme colours live on the stage; body follows it so the page edge never flashes. */
+cv-stage {
+  display: block;
+  background: var(--ground);
+  transition: background-color 0.7s ease;
+}
+
+.nb {
+  display: inline-block;
+}
+
+.ph {
+  color: var(--accent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---------- top bar ---------- */
+
+.bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: calc(40 * var(--u));
+  padding: calc(26 * var(--u)) var(--m);
+  background: color-mix(in srgb, var(--ground) 84%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  transition: background-color 0.7s ease, border-color 0.7s ease, color 0.7s ease;
+}
+
+/* The bar is a sibling of the stage, so it cannot read the stage's theme variables;
+   follow the dusk act by matching the stage's data attribute instead. */
+html:has(cv-stage[data-cv-theme="dusk"]) body {
+  background: #2b1f1a;
+}
+
+html:has(cv-stage[data-cv-theme="dusk"]) .bar,
+html:has(cv-stage[data-cv-theme="dusk"]) .progress {
+  --ground: #2b1f1a;
+  --line: #5b4436;
+  --ink: #f5e6d3;
+  --ink-soft: #cbb39b;
+  --accent: #e8a887;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: max(15px, calc(26 * var(--u)));
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.nav {
+  display: flex;
+  gap: calc(34 * var(--u));
+  margin-left: auto;
+}
+
+.nav a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: max(13px, calc(17 * var(--u)));
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+  transition: color 0.25s ease, border-color 0.25s ease;
+}
+
+.nav a:hover,
+.nav a:focus-visible {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.bar-date {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: max(14px, calc(19 * var(--u)));
+  color: var(--accent);
+  letter-spacing: 0.14em;
+}
+
+/* ---------- shared bits ---------- */
+
+.eyebrow {
+  margin: 0 0 calc(22 * var(--u));
+  color: var(--accent);
+  font-size: max(12px, calc(15 * var(--u)));
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.primary,
+.secondary,
+.link {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  padding: calc(16 * var(--u)) calc(30 * var(--u));
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff6ea;
+  text-decoration: none;
+  font-size: max(14px, calc(18 * var(--u)));
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
+  transition: transform 0.25s ease, background-color 0.25s ease;
+}
+
+.primary:hover,
+.primary:focus-visible {
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--accent) 86%, #000);
+}
+
+.primary .arrow svg {
+  width: calc(18 * var(--u));
+  height: calc(18 * var(--u));
+  min-width: 14px;
+  min-height: 14px;
+  display: block;
+}
+
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  padding: calc(14 * var(--u)) calc(26 * var(--u));
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-size: max(13px, calc(17 * var(--u)));
+  transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.secondary:hover,
+.secondary:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.link {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: max(13px, calc(17 * var(--u)));
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 2px;
+  background: none;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.clip {
+  display: block;
+  overflow: clip;
+  overflow-clip-margin: calc(10 * var(--u));
+  padding-bottom: 0.08em;
+}
+
+/* ---------- 01 opening ---------- */
+
+.act-open {
+  background: var(--ground);
+}
+
+.progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 40;
+  pointer-events: none;
+}
+
+/* The bar is painted by page.js: the runtime's page-source timeline never attaches here. */
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: background-color 0.7s ease;
+}
+
+.hero {
+  position: relative;
+  display: grid;
+  align-content: center;
+  min-height: 100svh;
+  padding: calc(190 * var(--u)) var(--m) calc(120 * var(--u));
+  overflow: clip;
+}
+
+.hero-branch {
+  position: absolute;
+  right: calc(-40 * var(--u));
+  bottom: 0;
+  width: min(58%, calc(1120 * var(--u)));
+  height: min(96svh, calc(880 * var(--u)));
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.branch {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.branch-stems path {
+  stroke: var(--ink-soft);
+  stroke-width: 2.4;
+  opacity: 0.75;
+}
+
+.branch-leaves path {
+  stroke: var(--leaf);
+  stroke-width: 2;
+  fill: color-mix(in srgb, var(--leaf) 16%, transparent);
+}
+
+.branch-bloom path {
+  stroke: var(--accent-soft);
+  stroke-width: 2.2;
+  fill: color-mix(in srgb, var(--accent-soft) 20%, transparent);
+}
+
+.branch-bloom circle {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.branch-buds path,
+.branch-buds circle {
+  stroke: var(--accent-soft);
+  stroke-width: 1.8;
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: min(100%, calc(1180 * var(--u)));
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: calc(20 * var(--u));
+  margin: 0 0 calc(40 * var(--u));
+  color: var(--accent);
+  font-size: max(12px, calc(16 * var(--u)));
+  letter-spacing: 0.28em;
+}
+
+.kicker-rule {
+  display: block;
+  width: calc(86 * var(--u));
+  height: 1px;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.hero-title {
+  margin: 0 0 calc(34 * var(--u));
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: calc(132 * var(--u));
+  line-height: 1.16;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.hero-sub {
+  margin: 0 0 calc(46 * var(--u));
+  color: var(--ink-soft);
+  font-size: max(16px, calc(26 * var(--u)));
+  line-height: 1.9;
+}
+
+.actions-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(30 * var(--u));
+}
+
+.hero-names {
+  margin: calc(58 * var(--u)) 0 0;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-size: max(15px, calc(22 * var(--u)));
+  letter-spacing: 0.16em;
+}
+
+.amp {
+  color: var(--accent);
+  margin: 0 0.28em;
+}
+
+.scroll-hint {
+  position: absolute;
+  left: var(--m);
+  bottom: calc(48 * var(--u));
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: max(12px, calc(15 * var(--u)));
+  letter-spacing: 0.24em;
+  z-index: 1;
+}
+
+.scroll-hint::after {
+  content: "";
+  display: block;
+  width: 1px;
+  height: calc(52 * var(--u));
+  margin-top: calc(14 * var(--u));
+  background: linear-gradient(var(--ink-faint), transparent);
+}
+
+/* ---------- 02 the day ---------- */
+
+.day {
+  display: grid;
+  grid-template-columns: minmax(0, 560fr) minmax(0, 1040fr);
+  align-items: center;
+  gap: calc(110 * var(--u));
+  height: 100svh;
+  padding: calc(180 * var(--u)) var(--m) calc(100 * var(--u));
+}
+
+.day-title,
+.place-title,
+.flower-title,
+.end-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.day-title {
+  font-size: calc(86 * var(--u));
+  line-height: 1.22;
+  margin-bottom: calc(30 * var(--u));
+}
+
+.day-text,
+.place-text,
+.flower-text {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: max(15px, calc(21 * var(--u)));
+  line-height: 1.95;
+}
+
+.day-list {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 calc(56 * var(--u));
+  list-style: none;
+  display: grid;
+  gap: calc(30 * var(--u));
+}
+
+.day-stem {
+  position: absolute;
+  left: calc(9 * var(--u));
+  top: calc(14 * var(--u));
+  bottom: 0;
+  width: 1px;
+}
+
+.day-stem .stem {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(var(--line), color-mix(in srgb, var(--line) 20%, transparent));
+}
+
+.day-stem::part(layer) {
+  transform-origin: top center;
+}
+
+.point-in {
+  position: relative;
+  display: grid;
+  grid-template-columns: calc(120 * var(--u)) minmax(0, 1fr);
+  grid-template-areas:
+    "time name"
+    "time note";
+  column-gap: calc(24 * var(--u));
+  row-gap: calc(4 * var(--u));
+  padding-bottom: calc(6 * var(--u));
+}
+
+.point-dot {
+  position: absolute;
+  left: calc(-56 * var(--u) + 4 * var(--u));
+  top: calc(16 * var(--u));
+  width: calc(11 * var(--u));
+  height: calc(11 * var(--u));
+  min-width: 6px;
+  min-height: 6px;
+  border-radius: 50%;
+  background: var(--ground);
+  border: 1.5px solid var(--accent);
+}
+
+.point-time {
+  grid-area: time;
+  font-family: var(--font-display);
+  font-size: max(16px, calc(26 * var(--u)));
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+.point-name {
+  grid-area: name;
+  font-family: var(--font-display);
+  font-size: max(17px, calc(30 * var(--u)));
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.point-note {
+  grid-area: note;
+  color: var(--ink-soft);
+  font-size: max(13px, calc(17 * var(--u)));
+  line-height: 1.7;
+}
+
+/* ---------- 03 place ---------- */
+
+.place {
+  display: grid;
+  grid-template-columns: minmax(0, 640fr) minmax(0, 820fr);
+  align-items: center;
+  gap: calc(90 * var(--u));
+  height: 100svh;
+  padding: calc(180 * var(--u)) var(--m) calc(100 * var(--u));
+}
+
+.place-title {
+  font-size: calc(94 * var(--u));
+  line-height: 1.2;
+  margin-bottom: calc(30 * var(--u));
+}
+
+.place-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(20 * var(--u));
+  margin: calc(38 * var(--u)) 0 0;
+}
+
+.copy-status {
+  color: var(--accent);
+  font-size: max(12px, calc(15 * var(--u)));
+}
+
+.place-figure {
+  margin: 0;
+  display: grid;
+  gap: calc(22 * var(--u));
+  justify-items: stretch;
+}
+
+.map {
+  display: block;
+}
+
+.map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-lines .ring {
+  stroke: color-mix(in srgb, var(--line) 70%, transparent);
+  stroke-width: 1;
+}
+
+.map-lines .street {
+  stroke: color-mix(in srgb, var(--ink-soft) 26%, transparent);
+  stroke-width: 2;
+}
+
+.map-lines .street--thin {
+  stroke-width: 1.2;
+  stroke-dasharray: 6 10;
+}
+
+.map-lines .river {
+  stroke: color-mix(in srgb, var(--leaf) 34%, transparent);
+  stroke-width: 14;
+  opacity: 0.4;
+}
+
+.map-lines .river-line {
+  stroke: color-mix(in srgb, var(--leaf) 55%, transparent);
+  stroke-width: 1.4;
+}
+
+.map-lines .walk {
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-dasharray: 9 9;
+}
+
+.map-lines .monument {
+  stroke: var(--ink);
+  stroke-width: 2.2;
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.map-lines .cross {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.map-lines .mark-a {
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: var(--ground);
+}
+
+.map-lines .mark-b {
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: var(--ground);
+}
+
+.map-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(12 * var(--u)) calc(30 * var(--u));
+  color: var(--ink-soft);
+  font-size: max(12px, calc(15 * var(--u)));
+}
+
+.map-key {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(9 * var(--u));
+}
+
+.map-key--note {
+  color: var(--ink-faint);
+}
+
+.dot {
+  width: calc(9 * var(--u));
+  height: calc(9 * var(--u));
+  min-width: 6px;
+  min-height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-a {
+  border: 1.5px solid var(--accent);
+}
+
+.dot-b {
+  background: var(--accent);
+}
+
+/* ---------- 04 flowers ---------- */
+
+.flower {
+  min-height: 100svh;
+  padding: calc(230 * var(--u)) var(--m) calc(150 * var(--u));
+  display: grid;
+  align-content: center;
+  gap: calc(76 * var(--u));
+}
+
+.flower-title {
+  font-size: calc(98 * var(--u));
+  line-height: 1.18;
+  margin-bottom: calc(28 * var(--u));
+}
+
+.flower-text {
+  max-width: calc(860 * var(--u));
+}
+
+.flower-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(34 * var(--u));
+}
+
+.fcard-in {
+  height: 100%;
+  padding: calc(40 * var(--u)) calc(34 * var(--u)) calc(36 * var(--u));
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.3s ease;
+}
+
+.fcard-in:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line-soft));
+}
+
+.fcard-num {
+  margin: 0 0 calc(18 * var(--u));
+  font-family: var(--font-display);
+  font-size: max(14px, calc(18 * var(--u)));
+  color: var(--accent);
+  letter-spacing: 0.2em;
+}
+
+.fcard-name {
+  margin: 0 0 calc(16 * var(--u));
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: max(19px, calc(34 * var(--u)));
+  color: var(--ink);
+}
+
+.fcard-text {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: max(14px, calc(18 * var(--u)));
+  line-height: 1.9;
+}
+
+.note-in {
+  margin: 0;
+  padding: calc(30 * var(--u)) calc(34 * var(--u));
+  border-left: 2px solid var(--accent-soft);
+  color: var(--ink-soft);
+  font-size: max(14px, calc(18 * var(--u)));
+  line-height: 1.9;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.note-label {
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  margin-right: 0.8em;
+}
+
+/* ---------- 05 end ---------- */
+
+.end {
+  position: relative;
+  min-height: 100svh;
+  padding: calc(200 * var(--u)) var(--m) calc(80 * var(--u));
+  display: grid;
+  align-content: center;
+  overflow: clip;
+}
+
+.end-branch {
+  position: absolute;
+  left: 50%;
+  bottom: calc(120 * var(--u));
+  width: calc(520 * var(--u));
+  height: calc(260 * var(--u));
+  transform: translateX(-50%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.end-branch-svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--accent-soft);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.end-in {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: calc(26 * var(--u));
+}
+
+.end-title {
+  font-size: calc(120 * var(--u));
+  line-height: 1.14;
+}
+
+.end-text {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: max(15px, calc(21 * var(--u)));
+}
+
+.end-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(28 * var(--u));
+  margin-top: calc(16 * var(--u));
+}
+
+.end-names {
+  margin: calc(30 * var(--u)) 0 0;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-size: max(14px, calc(20 * var(--u)));
+  letter-spacing: 0.16em;
+}
+
+.foot {
+  position: absolute;
+  left: var(--m);
+  right: var(--m);
+  bottom: calc(40 * var(--u));
+  display: flex;
+  justify-content: space-between;
+  gap: calc(20 * var(--u));
+  flex-wrap: wrap;
+  color: var(--ink-faint);
+  font-size: max(11px, calc(14 * var(--u)));
+  letter-spacing: 0.1em;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  padding-top: calc(20 * var(--u));
+}
+
+.foot p {
+  margin: 0;
+}
+
+/* ---------- narrow ---------- */
+
+@media (max-width: 980px) {
+  :root {
+    --m: calc(220 * var(--u));
+  }
+
+  .bar {
+    padding: calc(22 * var(--u)) var(--m);
+    gap: calc(20 * var(--u));
+  }
+
+  .nav {
+    gap: calc(24 * var(--u));
+  }
+
+  .bar-date {
+    display: none;
+  }
+
+  .hero,
+  .day,
+  .place,
+  .flower,
+  .end {
+    padding-left: var(--m);
+    padding-right: var(--m);
+  }
+
+  .hero-title {
+    font-size: calc(158 * var(--u));
+  }
+
+  .hero-branch {
+    width: 86%;
+    right: calc(-90 * var(--u));
+    opacity: 0.5;
+  }
+
+  .day,
+  .place {
+    grid-template-columns: minmax(0, 1fr);
+    gap: calc(46 * var(--u));
+    align-content: center;
+    height: auto;
+    min-height: 100svh;
+    padding-top: calc(150 * var(--u));
+    padding-bottom: calc(90 * var(--u));
+  }
+
+  .day-title,
+  .place-title,
+  .flower-title {
+    font-size: calc(160 * var(--u));
+  }
+
+  .end-title {
+    font-size: calc(190 * var(--u));
+  }
+
+  .day-list {
+    padding-left: calc(46 * var(--u));
+    gap: calc(22 * var(--u));
+  }
+
+  .day-stem {
+    left: calc(6 * var(--u));
+  }
+
+  .point-dot {
+    left: calc(-46 * var(--u) + 2 * var(--u));
+  }
+
+  /* One column: time, then the name, then the note, so the time is never clipped. */
+  .point-in {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "time"
+      "name"
+      "note";
+    row-gap: 0;
+  }
+
+  .point-time {
+    font-size: max(14px, calc(20 * var(--u)));
+    letter-spacing: 0.1em;
+  }
+
+  .point-name {
+    font-size: max(16px, calc(24 * var(--u)));
+  }
+
+  .flower {
+    padding-top: calc(160 * var(--u));
+    gap: calc(46 * var(--u));
+  }
+
+  /* The 860u cap is ~175px on a phone; let the paragraph use the full column. */
+  .flower-text {
+    max-width: none;
+  }
+
+  .flower-cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: calc(22 * var(--u));
+  }
+
+  .foot {
+    position: static;
+    margin-top: calc(70 * var(--u));
+  }
+
+  .end {
+    align-content: center;
+    padding-bottom: calc(60 * var(--u));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  body,
+  cv-stage,
+  .bar {
+    transition: none;
+  }
+}
