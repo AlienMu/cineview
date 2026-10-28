@@ -110,11 +110,6 @@
     pointer-events: auto;
   }
 
-  /* In the dark the accent is a light clay: the main button's label turns dark to stay readable. */
-  :root:has(cv-stage[data-cv-theme="night"]) .primary {
-    color: #1d140f;
-  }
-
   /* Restoring after a reload: the act's colours at once (no transition), the content hidden until
      the page is back in place, then a short fade in. */
   :root.restoring {
@@ -2502,12 +2497,47 @@
   }
 
 
+  /* The closing buttons sit on the dark ground of the last act. The main one is a light pill (the
+     night ink) around a deep clay disc, with a faint clay glow; hover brightens it instead of
+     deepening it. Fixed colours, so the pill does not flip with the theme as the act scrolls away. */
+  .primary.on-dark {
+    background: #f3e6d6;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 45%),
+      0 14px 32px -18px rgb(232 160 122 / 50%);
+    color: #1d140f;
+  }
+
+  .primary.on-dark .arrow {
+    background: var(--clay-deep);
+    color: #f3e6d6;
+  }
+
+  .primary.on-dark:hover {
+    background: var(--paper);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 55%),
+      0 14px 36px -16px rgb(232 160 122 / 65%);
+  }
+
   .secondary.on-dark {
     color: var(--ink);
   }
 
+  /* No draw-on here; the dash pattern only left a notch where the outline starts. */
   .secondary.on-dark .outline rect {
     stroke: var(--brass);
+    stroke-dasharray: none;
+  }
+
+  /* Hover lights the pill faintly and turns the label and the outline light clay. */
+  .secondary.on-dark:hover {
+    background: rgb(243 230 214 / 8%);
+    color: var(--clay);
+  }
+
+  .secondary.on-dark:hover .outline rect {
+    stroke: var(--clay);
   }
 
   /* The device: v1's phone (Scene5Cinema.css .phone-mockup), nearly the screen's height, 332:720,
