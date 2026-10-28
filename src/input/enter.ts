@@ -201,7 +201,12 @@ export class EnterController {
     const previous = this.activeScene;
     this.activeScene = scene;
     const now = this.clock.now();
-    this.sceneStartedAt = origin ?? now;
+    const offset = this.tracks.some((t) => t.first && t.a.scene === scene)
+      ? this.firstScreen.offset
+      : 0;
+    this.sceneStartedAt = origin ?? now - offset;
+    // Only the opening activation adopts boot progress; returning starts a fresh visit.
+    if (scene) this.firstScreen.offset = 0;
     for (const t of this.tracks) {
       if (t.a.scene !== previous || t.startedAt === null) continue;
       if (t.hasExit) this.exit(t);
@@ -225,7 +230,7 @@ export class EnterController {
       if (t.a.scene !== scene || t.predecessor) continue;
       // Shown as written before the runtime (a reload at this scene): it starts finished.
       if (this.firstScreen.shown?.has(t.a)) this.reveal(t);
-      else this.enterOrReveal(t, now, this.sceneStartedAt);
+      else this.begin(t, now, this.sceneStartedAt);
     }
   }
 
@@ -334,15 +339,8 @@ export class EnterController {
       hasExit: t.hasExit && !t.unseen,
       replay: true,
     });
-    if (action === 'enter') this.enterOrReveal(t, now);
+    if (action === 'enter') this.begin(t, now);
     else if (action === 'exit') this.exit(t);
-  }
-
-  /** A new entrance: played, or shown at its end once a complete one happened (replay="false"). */
-  private enterOrReveal(t: Track, now: number, origin = now): void {
-    if (t.replay === 'once' && t.done)
-      this.reveal(t, origin + (t.autonomous ? (t.solved?.start ?? t.delay) : t.delay));
-    else this.begin(t, now, origin);
   }
 
   private loops(t: Track, g: Gates): void {
@@ -398,6 +396,12 @@ export class EnterController {
       (pred
         ? pred.startedAt! + t.lead
         : origin + (t.autonomous ? (t.solved?.start ?? t.delay) : t.delay));
+    // Every entry path, including dependency release and retained runs, uses this element's policy.
+    if (t.replay === 'once' && t.done) {
+      this.reveal(t, startAt);
+      if (t.autonomous) this.complete(t);
+      return;
+    }
     this.cancel(t);
     this.resetFollowers(t);
     t.measured = true;

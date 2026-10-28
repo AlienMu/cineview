@@ -11,9 +11,9 @@ The first screen is the riskiest part of a page: the module has not run, picture
 
 - When every animated element of the first scene uses one built-in preset without arguments (`fx="rise"`, `fx="fade"`), those entrances play in CSS from the first frame. The module picks them up where they are; nothing restarts.
 - Otherwise the first scene's animated elements start hidden and the runtime shows them. If the module has not run within 4 seconds, CSS shows them by itself so the content stays readable.
-- When the module arrives after those 4 seconds, content already shown stays in its finished state instead of hiding and entering again.
+- When the module arrives after those 4 seconds, content already shown stays in its finished state, including `on="clock"` entrances. Later returns follow the element's `replay` setting.
 
-Elements with `delay`, `after`, `at`, `stagger`, `split`, `from`, `to`, `duration`, `ease` or `target`, and scenes with `preload`, `zone`, `track` or `sequence`, take the second path. An element with `on` takes neither: before the module runs it shows as the HTML has it.
+Elements with `delay`, `after`, `at`, `stagger`, `split`, `from`, `to`, `duration`, `ease` or `target`, and scenes with `preload`, `zone`, `track` or `sequence`, take the second path. An explicit time source (`enter`, `enter(partial)`, `eye`, `clock` or `scene`) also takes the hidden path with the 4-second reveal. Position sources (`view`, `page`, `velocity` and `direction`) keep their authored appearance before the module runs.
 
 All of this needs the head script and `cineview.css`; [setup](/docs/02-setup) shows how to load them.
 

@@ -87,14 +87,14 @@ designed with `--u` can set `design-width="1920"`; a drag page designed for phon
 | `after` | `title`, `title -120`, `title +80` | Start when that element's entrance ends; minus overlaps, plus waits. Same scene. |
 | `name` | `title` | The name `after` refers to. |
 | `at` | `20% 60%`, `20%`, `auto 80%` | Place the window as a share of the scene's length; every value carries `%`. |
-| `on` | `scene`, `enter`, `eye`, `view(self)`, `view(#id)`, `page`, `clock`, `velocity`, `direction` | Progress source (see below). |
+| `on` | `scene`, `enter`, `enter(partial)`, `eye`, `view(self)`, `view(#id)`, `page`, `clock`, `velocity`, `direction` | Progress source (see below). |
 | `ease` | `linear`, `ease-in-out`, `cubic-bezier(...)` | Easing. |
 | `split` | `lines`, `words` | Animate each line/word (real text stays, copies are aria-hidden). |
 | `stagger` | ms | Delay between split pieces or targets. |
 | `target` | `.lines *` | Apply the effect to matching descendants (e.g. strokes for `draw`). |
 | `loop` | `float`, `sway`, `pulse`, `breathe`, `spin`, any fx preset (played there and back), raw lists `opacity: 1 .45 1`, `--name: 0 1 0` | A loop after the entrance (on screen only). Several, comma separated. |
 | `loop-duration` | ms | Loop period. |
-| `replay` | flag | Play the entrance again each time the element comes back into view. |
+| `replay` | omitted, flag / `true`, `false` | Omitted keeps the source's rule; flag / `true` plays on return; `false` shows the end after one complete entrance. Each follower keeps its own window and replay setting. |
 | `margin` | px | Visibility gate margin. |
 
 How `cv-animate` wraps its content: the children stay in the light DOM, but they are slotted into
@@ -117,6 +117,11 @@ blocks in the host's shadow root (one block per progress source). So:
 `delay`, `after`, `name`, `at`, `ease`. In a zone the cards rise one after another along scene
 time and settle on the deck; in ordinary scroll they stick `step` px apart (native sticky).
 
+`--cv-veil` on the stack or an ancestor colors covered cards; its alpha is the strength at full
+cover. Use HTML container cards (`article`, `div`); put images, video and SVG inside them. Direct
+media/SVG cards report `invalid-attribute` and fall back to default darkening for the whole stack.
+The color uses the card's `::after`; custom pseudo-elements and filters belong on an inner element.
+
 ### cv-video
 
 Everything `cv-animate` takes, plus `src`, `poster`, `range="from to"` (seconds of the file to
@@ -134,6 +139,7 @@ its shadow root: style it with `cv-video::part(video) { object-fit: cover; }`.
 |---|---|---|
 | `scene` (default in a zone or drag) | the scene's time: scroll in a zone, finger in drag | demos the reader scrubs |
 | `enter` (default in ordinary scroll) | a clock, once the element is fully in view | entrances in content-tall sections; not inside a zone |
+| `enter(partial)` | a clock, as soon as any part is visible | large or partly visible content in ordinary scroll; not in zones, rows or drag |
 | `eye` | a clock, when the element crosses 45% of the screen | tall elements, reading position; not inside a zone |
 | `view(self)`, `view(#id)` | the element (or `#id` in the same scene) crossing the viewport | scroll-following motion outside zones |
 | `page` | the whole document's scroll | a reading-progress bar |
@@ -141,8 +147,9 @@ its shadow root: style it with `cv-video::part(video) { object-fit: cover; }`.
 | `velocity`, `direction` | scroll speed / direction signals | `skew`, direction-aware chrome |
 
 Inside a zone, elements follow the scene's time (`scene`, the default there) or play on their own
-clock (`on="clock"`, e.g. copy that simply appears when the zone becomes current); `enter`
-and `eye` are refused there with a `cv-error`.
+clock (`on="clock"`, e.g. copy that simply appears when the zone becomes current); `enter`,
+`enter(partial)` and `eye` are refused there with a `cv-error`. Clock entrances restart on scene
+return unless `replay="false"` has already completed one entrance; they follow Stage pause.
 
 View ranges (with `on="view(self)"` or `view(#id)`) go after an fx item, not in `at`:
 `fx="keyframes(in) cover 10% cover 42%"`, `fx="fade entry"`. The names are `cover`, `contain`,

@@ -302,7 +302,7 @@ function source(copy: HTMLImageElement, img: HTMLImageElement, variant: string |
 const px = (value: string): number => parseFloat(value) || 0;
 
 /** Settles once `img` has loaded and decoded, or failed; true when it can be shown. */
-function arrival(img: HTMLImageElement, signal: { stop: boolean }): Promise<boolean> {
+function arrival(img: HTMLImageElement, signal: AbortSignal): Promise<boolean> {
   const decoded = (): Promise<boolean> =>
     img.decode().then(
       () => true,
@@ -314,16 +314,18 @@ function arrival(img: HTMLImageElement, signal: { stop: boolean }): Promise<bool
     const done = (): void => {
       img.removeEventListener('load', done);
       img.removeEventListener('error', done);
+      signal.removeEventListener('abort', done);
       resolve();
     };
     img.addEventListener('load', done);
     img.addEventListener('error', done);
-  }).then(() => (signal.stop ? false : decoded()));
+    signal.addEventListener('abort', done, { once: true });
+  }).then(() => (signal.aborted ? false : decoded()));
 }
 
 /** `develop`: stand-ins over the images that have not arrived, until they have (lexicon #25). */
 export class Develop extends Copies {
-  private signal = { stop: false };
+  private readonly cancellation = new AbortController();
 
   /** `duration`, `easing`: the crossfade once an image arrives (ms, CSS). */
   mount(duration: number, easing: string): void {
@@ -332,13 +334,13 @@ export class Develop extends Copies {
       if (img.complete) continue;
       const item = this.add(img, img.getAttribute('data-cv-standin'), STANDIN);
       if (!item) continue;
-      const signal = this.signal;
+      const signal = this.cancellation.signal;
       // Wait for the stand-in too when it is the image itself, so the fade never starts on a blank.
       void Promise.all([
         arrival(img, signal),
         item.variant ? true : arrival(item.copy, signal),
       ]).then(([shown]) => {
-        if (signal.stop || !this.items.includes(item)) return;
+        if (signal.aborted || !this.items.includes(item)) return;
         if (!shown) {
           if (__DEV__) warn(img, `develop: ${img.currentSrc || img.src} did not load`);
           // The author's stand-in keeps the place; a copy of a broken image shows nothing.
@@ -362,7 +364,7 @@ export class Develop extends Copies {
   }
 
   override destroy(): void {
-    this.signal.stop = true;
+    this.cancellation.abort();
     super.destroy();
   }
 }

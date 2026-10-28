@@ -89,6 +89,19 @@ export class CvStack extends CvAnimate {
     this.curve = ease ?? settle;
     this.look = parseCovered(this.getAttribute('covered'), context.reducedMotion, report);
     this.veil = this.look ? getComputedStyle(this).getPropertyValue('--cv-veil').trim() : '';
+    if (
+      this.veil &&
+      [...this.children].some(
+        (card) =>
+          card instanceof SVGElement ||
+          card.matches('img,video,canvas,iframe,object,embed,input,textarea,select')
+      )
+    ) {
+      report(
+        '--cv-veil requires HTML container cards, such as <article> or <div>; wrap media inside them. Using the default covered look.'
+      );
+      this.veil = '';
+    }
     const step = this.getAttribute('step');
     this.step = step === null ? 0 : parseFloat(step);
     if (!(this.step >= 0)) {

@@ -3,6 +3,7 @@ import { CvScene } from './scene';
 import { CvStage } from './stage';
 import { CvStack } from './stack';
 import { CvFixed } from './fixed';
+import { CvPause } from './pause';
 import { defineEffect } from '../core/fx';
 import { platform } from '../platform';
 
@@ -48,6 +49,7 @@ beforeAll(() => {
   customElements.define('cv-animate', CvAnimate);
   customElements.define('cv-stack', CvStack);
   customElements.define('cv-fixed', CvFixed);
+  customElements.define('cv-pause', CvPause);
   Object.defineProperty(window, 'IntersectionObserver', { configurable: true, value: Observer });
   Object.defineProperty(window, 'ResizeObserver', {
     configurable: true,
@@ -708,4 +710,47 @@ describe('operation boundaries', () => {
       expect(stage.engine).toBeNull();
     }
   );
+});
+
+describe('late first-screen clock adoption', () => {
+  it.each(['scroll', 'drag'] as const)(
+    'keeps a failsafe-revealed clock visible on first %s activation, then replays on return',
+    async (input) => {
+      const boot = await import('../boot');
+      jest.spyOn(boot, 'adoptBoot').mockReturnValue(1e9);
+      jest.spyOn(CvScene.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: CvScene
+      ) {
+        return new DOMRect(0, this.id === 'second' ? 800 : 0, 1024, 800);
+      });
+      const stage = await stageWith(
+        input,
+        '<cv-scene id="first"><cv-animate on="clock" fx="fade" duration="600">Shown</cv-animate></cv-scene><cv-scene id="second"></cv-scene>'
+      );
+      const a = stage.querySelector('cv-animate') as CvAnimate;
+      expect(stage.current).toBe(0);
+      expect(a.timeline.progress).toBe(1);
+      expect(a.getAttribute('data-cv-phase')).toBe('entered');
+      stage.setCurrent(1);
+      stage.setCurrent(0);
+      expect(a.timeline.progress).toBeLessThan(1);
+      expect(a.getAttribute('data-cv-phase')).toBe('entering');
+    }
+  );
+});
+
+it('keeps a connected pause control in sync with the real stage and external playback calls', async () => {
+  const stage = await stageWith('drag', '<cv-scene><cv-pause></cv-pause></cv-scene>');
+  const button = stage.querySelector('cv-pause')!;
+  button.dispatchEvent(new MouseEvent('click'));
+  expect(stage.paused).toBe(true);
+  expect(button.getAttribute('aria-pressed')).toBe('true');
+  expect(button.shadowRoot!.textContent).toBe('Play motion');
+  stage.play();
+  expect(button.getAttribute('aria-pressed')).toBe('false');
+  button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+  expect(stage.paused).toBe(true);
+  button.remove();
+  stage.play();
+  expect(button.getAttribute('aria-pressed')).toBe('false');
 });

@@ -39,3 +39,16 @@ eyebrow: ELEMENTS / STACK
 ```css
 .deck { --cv-veil: rgb(200 120 80 / 45%); }
 ```
+
+彩色遮罩要求卡片使用 `article` 或 `div` 等 HTML 容器，图片、视频和 SVG 放在容器内部：
+
+```html
+<cv-stack class="deck" covered="dim" step="36">
+  <article class="card"><img src="photo.jpg" alt="一幅风景"></article>
+  <article class="card"><svg viewBox="0 0 400 240" aria-label="一个圆" role="img"><circle cx="200" cy="120" r="80" /></svg></article>
+</cv-stack>
+```
+
+如果设置了 `--cv-veil`，却直接用媒体或 SVG 作为卡片，整个 stack 会派发 `invalid-attribute` 的 `cv-error`，并使用默认变暗效果。给媒体加上外层容器即可使用颜色。
+
+彩色遮罩使用卡片的 `::after`。自定义伪元素和滤镜放在内部元素上：卡片的位置、移动、缩放、可见性和默认变暗滤镜由 stack 控制。

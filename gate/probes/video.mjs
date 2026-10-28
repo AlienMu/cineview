@@ -175,6 +175,27 @@ try {
   check(near(m.t, 2, 0.1) && m.paused, 'zone: scroll scrubs the video', JSON.stringify(m));
   await page.close();
 
+  // Explicit on="clock" publishes a different source from visibility entrances. Check progress
+  // against real decoded media in the middle and at the end, with Stage pause held between.
+  page = await open('mode=clock&preload=none', async (page) => {
+    await page.addInitScript(() => document.addEventListener('cv-ready', () => document.getElementById('s').pause(), { once: true }));
+  });
+  await page.evaluate(() => document.getElementById('s').play());
+  await page.waitForFunction(() => document.getElementById('v').timeline.progress > 0.35);
+  await page.evaluate(() => document.getElementById('s').pause());
+  await page.waitForTimeout(150);
+  const clockMid = await page.evaluate(() => ({ progress: document.getElementById('v').timeline.progress, ...window.media() }));
+  check(clockMid.progress < 1 && near(clockMid.t, clockMid.progress * 4, 0.08) && clockMid.paused,
+    'explicit clock: decoded media follows the ongoing timeline', JSON.stringify(clockMid));
+  await page.waitForTimeout(200);
+  const clockHeld = await media(page);
+  check(near(clockHeld.t, clockMid.t, 0.01), 'explicit clock: Stage pause holds the video', JSON.stringify(clockHeld));
+  await page.evaluate(() => document.getElementById('s').play());
+  await page.waitForTimeout(1100);
+  m = await media(page);
+  check(near(m.t, 4, 0.1) && m.paused, 'explicit clock: resume scrubs to the final frame', JSON.stringify(m));
+  await page.close();
+
   // ---- enter (clock) -------------------------------------------------------------------
   page = await open('mode=enter&preload=none');
   await page.waitForTimeout(1300);

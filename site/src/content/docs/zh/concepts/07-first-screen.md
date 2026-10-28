@@ -11,9 +11,9 @@ eyebrow: CONCEPTS / FIRST SCREEN
 
 - 第一个场景里的元素都只用一个内置预设、且没有写参数时（例如 `fx="rise"`、`fx="fade"`），这些入场直接用 CSS 从第一帧开始播放。模块到达后接着播，不会重来。
 - 其他情况下，第一个场景里的动画元素先隐藏，由运行时显示出来。如果 4 秒内模块都没有运行，CSS 会自己把它们显示出来，保证内容可读。
-- 模块晚于这 4 秒才到时，已经显示出来的内容直接停在完成的样子，不会再隐藏、重新入场一次。
+- 模块晚于这 4 秒才到时，已经显示出来的内容直接停在完成的样子，`on="clock"` 入场也一样。后续回场遵循元素的 `replay` 设置。
 
-写了 `delay`、`after`、`at`、`stagger`、`split`、`from`、`to`、`duration`、`ease` 或 `target` 的元素，以及 `preload`、`zone`、`track`、`sequence` 的场景，都按第二种情况处理。写了 `on` 的元素不在这两种处理之内，模块运行前按 HTML 原样显示。
+写了 `delay`、`after`、`at`、`stagger`、`split`、`from`、`to`、`duration`、`ease` 或 `target` 的元素，以及 `preload`、`zone`、`track`、`sequence` 的场景，都按第二种情况处理。显式时间来源（`enter`、`enter(partial)`、`eye`、`clock`、`scene`）也先隐藏，4 秒后由 CSS 显示。位置来源（`view`、`page`、`velocity`、`direction`）在模块运行前按 HTML 原样显示。
 
 这一切的前提是加载了 head 里那段脚本和 `cineview.css`，写法见[安装与加载](/docs/02-setup)。
 

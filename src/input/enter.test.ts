@@ -277,11 +277,11 @@ it('starts an element the reader already saw before the runtime at its end, foll
 });
 
 describe('replay on clock entrances', () => {
-  function clockPair(replay: string | null) {
+  function clockPair(replay: string | null, followerReplay = '', tail = false) {
     const scene = document.createElement('cv-scene') as CvScene;
     scene.id = 'clock-scene';
     const r = replay === null ? '' : ` replay="${replay}"`;
-    scene.innerHTML = `<cv-animate name="A" on="clock" fx="fade" duration="1000"${r}>A</cv-animate><cv-animate name="B" on="clock" fx="fade" duration="400" after="A -200">B</cv-animate>`;
+    scene.innerHTML = `<cv-animate name="A" on="clock" fx="fade" duration="1000"${r}>A</cv-animate><cv-animate name="B" on="clock" fx="fade" duration="400" after="A -200" ${followerReplay}>B</cv-animate>${tail ? '<cv-animate name="C" on="clock" fx="fade" duration="300" after="B -100">C</cv-animate>' : ''}`;
     const nodes = [...scene.querySelectorAll('cv-animate')] as CvAnimate[];
     for (const a of nodes) {
       a.scene = scene;
@@ -320,6 +320,68 @@ describe('replay on clock entrances', () => {
     // Only B plays, starting 800 ms into this scene visit (A's 1000 ms less 200).
     expect(delays()).toEqual([800]);
     expect(b!.getAttribute('data-cv-phase')).toBe('entering');
+    controller.destroy();
+  });
+
+  it.each([null, 'false'])(
+    'keeps a completed once follower visible and its tail on time (root replay %s)',
+    (replay) => {
+      const {
+        nodes: [a, b, c],
+        clock,
+        controller,
+        scene,
+        other,
+      } = clockPair(replay, 'replay="false"', true);
+      // Adopt an elapsed run: the real completion path records all three entrances.
+      controller.activateScene(scene, clock.now() - 2000);
+      expect([a!, b!, c!].map((a) => a.timeline.progress)).toEqual([1, 1, 1]);
+      controller.activateScene(other);
+      (HTMLElement.prototype.animate as jest.Mock).mockClear();
+      controller.activateScene(scene);
+      expect(b!.getAttribute('data-cv-phase')).toBe('entered');
+      expect(b!.timeline.progress).toBe(1);
+      expect(c!.getAttribute('data-cv-phase')).toBe('entering');
+      // Skipping B's output still retains B's start at 800 and C's at 1100.
+      expect(delays()).toEqual(replay === 'false' ? [1100] : [0, 1100]);
+      jest.advanceTimersByTime(1000);
+      expect(c!.timeline.progress).toBe(0);
+      controller.destroy();
+    }
+  );
+
+  it('resumes an autonomous loop when a completed once follower returns', () => {
+    const {
+      nodes: [, b],
+      clock,
+      controller,
+      scene,
+      other,
+    } = clockPair(null, 'replay="false" loop="pulse"');
+    const start = jest.spyOn(b!, 'startLoops');
+    controller.activateScene(scene, clock.now() - 2000);
+    expect(start).toHaveBeenCalledTimes(1);
+    controller.activateScene(other);
+    controller.activateScene(scene);
+    expect(b!.timeline.progress).toBe(1);
+    expect(start).toHaveBeenCalledTimes(2);
+    controller.destroy();
+  });
+
+  it('replays an interrupted once follower until it has completed', () => {
+    const {
+      nodes: [, b],
+      controller,
+      scene,
+      other,
+    } = clockPair(null, 'replay="false"');
+    controller.activateScene(scene);
+    jest.advanceTimersByTime(1000);
+    controller.activateScene(other);
+    (HTMLElement.prototype.animate as jest.Mock).mockClear();
+    controller.activateScene(scene);
+    expect(b!.getAttribute('data-cv-phase')).toBe('entering');
+    expect(delays()).toEqual([0, 800]);
     controller.destroy();
   });
 

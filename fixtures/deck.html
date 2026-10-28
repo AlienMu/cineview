@@ -29,6 +29,21 @@
       <cv-animate fx="fade"><cv-stack><div></div><div></div></cv-stack></cv-animate>
     </cv-scene>
   </cv-stage>`);
+  if (q.has('tint')) {
+    const kind = q.get('tint');
+    const picture = kind.includes('img')
+      ? `<img class="picture" alt="White card" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='240'%3E%3Crect width='400' height='240' fill='white'/%3E%3C/svg%3E">`
+      : '<svg class="picture" viewBox="0 0 400 240" role="img" aria-label="White card"><rect width="400" height="240" fill="white"/></svg>';
+    const card = kind.startsWith('direct')
+      ? picture.replace('class="picture"', 'id="c0" class="card picture"')
+      : `<article id="c0" class="card">${picture}<span class="ink" aria-hidden="true"></span></article>`;
+    document.getElementById('s').innerHTML = `<cv-scene id="z" zone>
+      <cv-stack id="kz" covered="dim" step="40" duration="600" ease="linear" style="--cv-veil:rgb(255 0 0 / 60%)">${card}<article class="card">Next</article></cv-stack>
+    </cv-scene><cv-scene>End</cv-scene>`;
+    const style = document.createElement('style');
+    style.textContent = '#kz .card{width:400px;height:240px;border:0;background:white;margin:0} .picture{display:block;width:400px;height:240px} .ink{position:absolute;left:20px;top:8px;width:60px;height:12px;background:black}';
+    document.head.append(style);
+  }
   window.cvErrors = [];
   window.warnings = [];
   const warn = console.warn;

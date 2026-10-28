@@ -8,12 +8,12 @@
 </style></head>
 <body>
 <script type="module">
-  // ?mode=drag|zone|enter, ?range=from,to (seconds), ?preload=none
+  // ?mode=drag|zone|enter|clock, ?range=from,to (seconds), ?preload=none
   const q = new URLSearchParams(location.search);
   const mode = q.get('mode') ?? 'drag';
   const range = q.has('range') ? ` range="${q.get('range')}"` : '';
   const preload = q.has('preload') ? ` preload="${q.get('preload')}"` : '';
-  const video = `<cv-video id="v" src="/media/clip.webm" duration="1000"${range}${preload}></cv-video>`;
+  const video = `<cv-video id="v" src="/media/clip.webm" duration="1000"${mode === 'clock' ? ' on="clock"' : ''}${range}${preload}></cv-video>`;
   document.body.insertAdjacentHTML('afterbegin',
     mode === 'drag'
       ? `<cv-stage id="s" input="drag" transition-duration="400">

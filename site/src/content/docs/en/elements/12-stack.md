@@ -39,3 +39,16 @@ Covered cards darken by default. With `--cv-veil` set on the `cv-stack` or an an
 ```css
 .deck { --cv-veil: rgb(200 120 80 / 45%); }
 ```
+
+For a colored veil, use HTML container cards such as `article` or `div`. Put images, videos and SVG inside the container:
+
+```html
+<cv-stack class="deck" covered="dim" step="36">
+  <article class="card"><img src="photo.jpg" alt="A landscape"></article>
+  <article class="card"><svg viewBox="0 0 400 240" aria-label="A circle" role="img"><circle cx="200" cy="120" r="80" /></svg></article>
+</cv-stack>
+```
+
+If a direct media or SVG card is used with `--cv-veil`, the stack reports an `invalid-attribute` `cv-error` and uses the default darkening for the whole stack. Wrap the media to use the color.
+
+The colored veil uses each card's `::after`. Keep custom pseudo-elements and filters on an inner element: the stack controls the card's position, movement, scale, visibility and default darkening filter.

@@ -158,7 +158,8 @@ function isScrubSource(source: AnimateTimelineFrame['source']): boolean {
     source === 'continuation' ||
     source === 'programmatic' ||
     source === 'scroll' ||
-    source === 'visibility'
+    source === 'visibility' ||
+    source === 'clock'
   );
 }
 

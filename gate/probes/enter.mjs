@@ -105,6 +105,30 @@ for (const mode of ['native', 'fallback']) {
     console.log(`FAIL ${mode}: ${e.message}`);
   }
 }
+// A once follower retains its final frame on return while its normal tail keeps its original
+// start window. Cover visibility roots and scene-entry clocks in scroll and drag.
+for (const query of ['chain=enter', 'chain=clock', 'chain=clock&drag']) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  try {
+    await page.goto(`${base}/enter.html?${query}`);
+    await page.evaluate(() => window.ready);
+    await page.waitForTimeout(800);
+    check((await layerState(page, 'sub')).opacity === 1, `${query}: once follower completes its first entrance`);
+    await page.evaluate(() => document.getElementById('s').goTo(1, { animated: false }));
+    await page.waitForFunction(() => document.getElementById('s').current === 1);
+    await page.waitForTimeout(100);
+    await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+    await page.waitForFunction(() => document.getElementById('s').current === 0);
+    await page.waitForTimeout(80);
+    const follower = await layerState(page, 'sub'), tail = await layerState(page, 'tail');
+    check(follower.opacity === 1 && tail.opacity === 0,
+      `${query}: once follower stays visible without advancing its tail`, JSON.stringify({ follower, tail }));
+    await page.waitForTimeout(700);
+    check((await layerState(page, 'tail')).opacity === 1, `${query}: tail finishes on its scheduled run`);
+    check((await page.evaluate(() => window.cvErrors)).length === 0, `${query}: no cv-error`);
+  } catch (e) { failed++; console.log(`FAIL ${query}: ${e.stack}`); }
+  await page.close();
+}
 await browser.close();
 console.log(failed ? `FAILED ${failed}` : 'PASS');
 process.exit(failed ? 1 : 0);

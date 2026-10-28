@@ -27,6 +27,17 @@
       <cv-animate id="pg" on="page" from="opacity:0" ease="linear"><div class="box"></div></cv-animate>
     </cv-scene>
   </cv-stage>`);
+  if (q.has('chain')) {
+    const stage = document.getElementById('s');
+    if (q.has('drag')) stage.setAttribute('input', 'drag');
+    if (q.has('fallback')) stage.setAttribute('fallback', '');
+    const source = q.get('chain') === 'clock' ? ' on="clock"' : '';
+    stage.innerHTML = `<cv-scene id="s0" style="height:100vh;padding-top:100px">
+      <cv-animate id="title" name="A" fx="fade" duration="300" replay${source}><div class="box"></div></cv-animate>
+      <cv-animate id="sub" name="B" fx="fade" duration="200" after="A -100" delay="50" replay="false"${source}><div class="box"></div></cv-animate>
+      <cv-animate id="tail" fx="fade" duration="200" after="B -50"${source}><div class="box"></div></cv-animate>
+    </cv-scene><cv-scene id="s1" style="height:100vh">Next</cv-scene>`;
+  }
   if (q.has('at')) scrollTo(0, Number(q.get('at')));
   window.events = [];
   for (const type of ['cv-activate', 'cv-deactivate']) document.addEventListener(type, (e) => window.events.push(`${type}:${e.target.id}`));

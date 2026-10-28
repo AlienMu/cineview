@@ -504,11 +504,13 @@ export class CvStage extends ElementBase implements CvStageElement {
       this.engine = new ScrollInput(this);
     }
     if (this.ordered.some((s) => s.clocks.length)) {
+      // Scroll observers are asynchronous: establish the opening scene before the first paint.
+      if (this.current < 0) this.setCurrent(this.engine.currentIndex());
       this.autonomous = new EnterController(
         this.clock,
         {
           held: (): boolean => this.firstScreen?.held ?? false,
-          offset: 0,
+          offset: this.bootOffset,
           shown: this.shown,
         },
         'clock'

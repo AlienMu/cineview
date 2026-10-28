@@ -136,6 +136,56 @@ try {
   failed++;
   console.log(`FAIL probe crashed: ${e.stack ?? e}`);
 }
+// Color is painted over an HTML container's media and content. A direct media card reports
+// the documented container requirement and uses the existing default dimming instead.
+const pixel = async (page, x, y) => {
+  const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } });
+  return page.evaluate(async (b64) => {
+    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+    const canvas = new OffscreenCanvas(1, 1), context = canvas.getContext('2d');
+    context.drawImage(bitmap, 0, 0);
+    return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  }, shot.toString('base64'));
+};
+for (const query of ['tint=img', 'tint=svg&fallback', 'tint=img&drag', 'tint=direct-img', 'tint=direct-svg&drag']) {
+  const page = await browser.newPage({ viewport: { width: 400, height: H } });
+  try {
+    await page.goto(`${base}/deck.html?${query}`);
+    await page.evaluate(() => window.ready);
+    await page.evaluate(async () => {
+      await Promise.all([...document.images].map(img => img.decode()));
+      const stage = document.getElementById('s');
+      if (stage.input === 'drag') { stage.goTo(1, { animated: false }); stage.goTo(0, { animated: false }); }
+      else scrollTo(0, document.getElementById('z').solution.total);
+    });
+    await page.waitForTimeout(800);
+    const direct = query.includes('direct');
+    const edge = await pixel(page, 380, 12);
+    const want = direct ? [128, 128, 128] : [255, 102, 102];
+    check(edge.every((v, i) => Math.abs(v - want[i]) <= 2), `${query}: real covered-card pixels match the look`, JSON.stringify({ edge, want }));
+    const errors = await page.evaluate(() => window.cvErrors);
+    check(direct ? errors.length === 1 && errors[0].includes('--cv-veil requires HTML container cards') : errors.length === 0,
+      `${query}: container requirement has the documented diagnostic`, JSON.stringify(errors));
+    if (!direct) {
+      const ink = await pixel(page, 40, 12);
+      check(ink.every((v, i) => Math.abs(v - [153, 0, 0][i]) <= 2), `${query}: color covers inner content too`, JSON.stringify(ink));
+      if (!query.includes('drag')) {
+        await page.evaluate(() => scrollTo(0, 0));
+        await page.waitForTimeout(150);
+        const clear = await pixel(page, 380, 12);
+        check(clear.every(v => v === 255), `${query}: reverse scrolling removes the color`, JSON.stringify(clear));
+      }
+    }
+    const released = await page.evaluate(() => {
+      const stack = document.getElementById('kz'), cards = [...stack.children];
+      stack.remove();
+      return !stack.hasAttribute('data-cv-veil') && cards.every(card =>
+        !card.style.getPropertyValue('--cv-cover') && !card.style.filter && !card.style.translate && !card.style.position);
+    });
+    check(released, `${query}: disconnect clears owned card styles`);
+  } catch (e) { failed++; console.log(`FAIL ${query}: ${e.stack}`); }
+  await page.close();
+}
 await browser.close();
 console.log(failed ? `FAILED ${failed}` : 'PASS');
 process.exit(failed ? 1 : 0);

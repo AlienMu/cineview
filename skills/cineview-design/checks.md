@@ -84,7 +84,8 @@ In `<head>`, before any stylesheet:
 :root[data-boot-theme="night"] { --ground: #15100d; --ink: #f3e6d6; /* ...the night tokens... */ }
 ```
 
-In the page script:
+In the page script, wait for the custom element to be defined before reading `stage.ready`. Install
+the visibility timeout first so a failed module still leaves the page readable:
 
 ```js
 const stage = document.querySelector('cv-stage'), root = document.documentElement;
@@ -97,18 +98,19 @@ let queued = 0;
 addEventListener('scroll', () => { if (!queued) queued = requestAnimationFrame(() => { queued = 0; save(); }); }, { passive: true });
 addEventListener('pagehide', save);
 if (root.classList.contains('restoring')) {
-  const saved = JSON.parse(sessionStorage.getItem('place') || 'null');
   const show = () => { root.classList.remove('restoring'); root.removeAttribute('data-boot-theme'); };
-  stage.ready.then(() => {
+  setTimeout(show, 2500);                                       // a cap, even if the module never runs
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem('place') || 'null'); } catch {}
+  customElements.whenDefined('cv-stage').then(() => stage.ready).then(() => {
     const s = saved && document.getElementById(saved.id);
     if (s) scrollTo(0, s.offsetTop + saved.offset);
     requestAnimationFrame(() => requestAnimationFrame(show));   // let the stage read the new place
   });
-  setTimeout(show, 2500);                                       // a cap, in case ready never comes
 }
 if (!root.classList.contains('restoring') && root.hasAttribute('data-boot-theme')) {
   // opened from a #scene link: hand the palette over to the stage once it has set data-cv-theme
-  stage.ready.then(() => requestAnimationFrame(() => requestAnimationFrame(() => root.removeAttribute('data-boot-theme'))));
+  customElements.whenDefined('cv-stage').then(() => stage.ready).then(() => requestAnimationFrame(() => requestAnimationFrame(() => root.removeAttribute('data-boot-theme'))));
 }
 ```
 
@@ -135,7 +137,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 await page.addInitScript(() => { window.__cv = []; addEventListener('cv-error', (e) => window.__cv.push(e.detail.code)); });
 await page.goto(url, { waitUntil: 'domcontentloaded' });         // not 'load': videos preload whole files
-await page.evaluate(() => document.querySelector('cv-stage').ready);
+await page.evaluate(async () => { await customElements.whenDefined('cv-stage'); await document.querySelector('cv-stage').ready; });
 ```
 
 - First load: sample `requestAnimationFrame` frames from the start and check that no animated

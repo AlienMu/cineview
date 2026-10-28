@@ -88,6 +88,10 @@ Output takes one of three paths:
 - Direct style writes from the input's frame loop for everything else: drag, the fallback path,
   blur and clip in zones, signals.
 
+For stack cards, a custom `--cv-veil` uses the HTML card's `::after`; media and SVG belong inside
+a container card. A direct media/SVG card reports an authoring error and the stack keeps its default
+darkening. The build validates this once; the input still owns all covering progress writes.
+
 ## Scroll input
 
 The document scrolls natively (`input/scroll.ts`). A zone (`cv-scene zone`) is a spacer with a
@@ -123,14 +127,16 @@ Before the module runs, `cineview.css` (generated from `boot.ts`) sets structure
 scene's initial states: single default presets play as CSS animations that the runtime adopts at
 their elapsed time; other time-sourced elements start hidden, with a 4 s CSS failsafe that shows
 them. Content the reader already saw before the runtime took over (the failsafe, or another scene
-painted as written after a reload) is adopted at its end instead of being hidden and played again.
+painted as written after a reload) is adopted at its end instead of being hidden and played again. The opening clock activation adopts the same boot
+progress; later visits use the element's replay setting.
 `assets/first-screen.ts` holds the opening scene's entrances until its `preload` assets settle, at
 most `first-scene-timeout`.
 
 ## Media and text
 
 `cv-video` drives a `<video>` through `media/driver.ts`, fetching the file whole into a shared blob
-cache (`media/cache.ts`) so every frame is seekable. Split text (`text/split.ts`) keeps the author's
+cache (`media/cache.ts`) so every frame is seekable. Explicit `clock` frames use the same scrub reducer as the input-driven
+frames; native tail playback and user pauses keep their existing ownership. Split text (`text/split.ts`) keeps the author's
 text in the light DOM and animates an `aria-hidden` mirror measured from the browser's own line
 breaks; it is re-measured when size, fonts or text change (`text/watch.ts`). Counts, stills and
 keyframes are separate chunks loaded before a build that uses them.

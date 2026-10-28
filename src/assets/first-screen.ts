@@ -28,7 +28,7 @@ export class FirstScreenGate {
   private timer = 0;
   private loaded = 0;
   private total = 0;
-  private disposed = false;
+  private readonly cancellation = new AbortController();
 
   constructor(
     private stage: FirstScreenHost,
@@ -42,7 +42,7 @@ export class FirstScreenGate {
     this.held = true;
     for (const w of waits) {
       void w.then(() => {
-        if (this.disposed) return;
+        if (this.cancellation.signal.aborted) return;
         this.loaded++;
         // 1.x onLoadProgress.
         this.stage.dispatchEvent(
@@ -76,12 +76,12 @@ export class FirstScreenGate {
   }
 
   dispose(): void {
-    this.disposed = true;
+    this.cancellation.abort();
     this.preempt();
   }
 
   private release(): void {
-    if (!this.held || this.disposed) return;
+    if (!this.held || this.cancellation.signal.aborted) return;
     clearTimeout(this.timer);
     this.held = false;
     const listeners = this.listeners;
@@ -90,7 +90,7 @@ export class FirstScreenGate {
   }
 
   private timeout(): void {
-    if (!this.held || this.disposed) return;
+    if (!this.held || this.cancellation.signal.aborted) return;
     const event = new CustomEvent('cv-timeout', {
       bubbles: true,
       cancelable: true,
@@ -110,9 +110,10 @@ export class FirstScreenGate {
     const urls = (scene.getAttribute('preload') ?? '').split(/[\s,]+/).filter(Boolean);
     for (const url of new Set([...scrub, ...urls.filter((u) => inferMediaKind(u))])) {
       waits.push(
-        preloadMedia(url, 'video').catch(() =>
-          this.stage.report(`preload: video failed to load: ${url}`, undefined, 'asset-failed')
-        )
+        preloadMedia(url, 'video').catch(() => {
+          if (!this.cancellation.signal.aborted)
+            this.stage.report(`preload: video failed to load: ${url}`, undefined, 'asset-failed');
+        })
       );
     }
     for (const url of urls) {
@@ -131,7 +132,7 @@ export class FirstScreenGate {
       () => undefined,
       () => {
         // decode() also rejects for images that loaded but cannot be decoded off-thread (SVG).
-        if (img.complete && img.naturalWidth > 0) return;
+        if (this.cancellation.signal.aborted || (img.complete && img.naturalWidth > 0)) return;
         this.stage.report(
           `preload: image failed to load: ${img.currentSrc || img.src}`,
           img,
@@ -147,7 +148,8 @@ export class FirstScreenGate {
       const done = (failed: boolean): void => {
         video.removeEventListener('loadeddata', ok);
         video.removeEventListener('error', fail);
-        if (failed)
+        this.cancellation.signal.removeEventListener('abort', ok);
+        if (failed && !this.cancellation.signal.aborted)
           this.stage.report(
             `preload: video failed to load: ${video.currentSrc || video.src}`,
             video,
@@ -159,6 +161,7 @@ export class FirstScreenGate {
       const fail = (): void => done(true);
       video.addEventListener('loadeddata', ok);
       video.addEventListener('error', fail);
+      this.cancellation.signal.addEventListener('abort', ok, { once: true });
       if (video.preload === 'none') video.preload = 'auto';
       if (video.networkState === HTMLMediaElement.NETWORK_EMPTY) video.load();
     });

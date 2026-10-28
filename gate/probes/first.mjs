@@ -90,6 +90,32 @@ try {
   check(fs.a === 1 && fs.b === 1, 'failsafe reveal without the runtime', JSON.stringify(fs));
   await page.close();
 
+  // The failsafe already showed the page before a late module: never hide it again, including
+  // explicit clocks in both inputs. A later scene return still uses the normal replay rule.
+  for (const query of ['case=mixed', 'case=mixed&clock', 'case=drag-boot&clock']) {
+    page = await open(`${query}&delay=4700`);
+    await page.waitForTimeout(4300);
+    const shown = await page.evaluate(() => window.seen('a'));
+    await page.evaluate(() => window.ready);
+    await page.waitForTimeout(200);
+    const late = await page.evaluate(() => ({
+      min: Math.min(...window.samples.filter(x => x.live).map(x => x.o)),
+      opacity: window.seen('a'),
+      errors: window.cvErrors,
+    }));
+    check(shown === 1 && late.min === 1 && late.opacity === 1 && !late.errors.length,
+      `${query}: late runtime adopts the visible failsafe without a flash`, JSON.stringify(late));
+    if (query.includes('clock')) {
+      await page.evaluate(() => document.getElementById('s').goTo(1, { animated: false }));
+      await page.waitForFunction(() => document.getElementById('s').current === 1);
+      await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+      await page.waitForFunction(() => document.getElementById('s').current === 0);
+      const returned = await page.evaluate(() => window.seen('a'));
+      check(returned < 1, `${query}: a later return plays the clock entrance`, String(returned));
+    }
+    await page.close();
+  }
+
   // Preload: the entrance waits for the image.
   page = await open('case=preload', { imageDelay: 700 });
   await page.evaluate(() => window.ready);
