@@ -114,6 +114,10 @@ Cineview 的写法便于 AI 助手规划和制作页面。从 [llms.txt](./llms.
 
 开发命令和检查见 [CONTRIBUTING.md](./CONTRIBUTING.md)，架构见 [DESIGN.md](./DESIGN.md)。
 
+## 友情链接
+
+- [LINUX DO](https://linux.do)：真诚、友善、团结、专业，共建你我引以为荣之社区。
+
 ## 许可证
 
 [MIT](./LICENSE)

@@ -114,6 +114,10 @@ Test on real devices with the pages in [`device-test/`](./device-test/README.zh-
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the development commands and checks, and [DESIGN.md](./DESIGN.md) for the architecture.
 
+## Friends
+
+- [LINUX DO](https://linux.do): a Chinese developer community.
+
 ## License
 
 [MIT](./LICENSE)
