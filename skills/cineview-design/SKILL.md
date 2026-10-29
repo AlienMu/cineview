@@ -1,6 +1,6 @@
 ---
 name: cineview-design
-description: Plan a Cineview landing page with the user, then build it. Use when someone wants a landing page, wants to design scenes or motion, or brings material (video, photos, screenshots, copy) for a page. Starts with a conversation: what the page is for, how many scenes, what each scene shows and which material it needs, with suggestions and directions; then references for video, images, type, line art, styles, layouts and how the 41 references combine.
+description: "Plan a Cineview landing page with the user, then build it. Use when someone wants a landing page, wants to design scenes or motion, or brings material (video, photos, screenshots, copy) for a page. Starts with a conversation: what the page is for, how many scenes, what each scene shows and which material it needs, with suggestions and directions; then references for video, images, type, line art, styles, layouts and how the 41 references combine."
 ---
 
 # Cineview design
