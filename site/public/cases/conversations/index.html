@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>两段做落地页的对话 · Cineview</title>
+<meta name="description" content="婚礼邀请页的对话是 DeepSeek 写的，摩托车介绍页的对话是 Claude Opus 写的。两段都按原文整理。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cineview">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:url" content="https://cineview.pages.dev/cases/conversations/">
+<meta property="og:title" content="两段做落地页的对话 · Cineview 案例">
+<meta property="og:description" content="婚礼邀请页的对话是 DeepSeek 写的，摩托车介绍页的对话是 Claude Opus 写的。两段都按原文整理。">
+<meta property="og:image" content="https://cineview.pages.dev/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Cineview：说一句你要什么，让 AI 写出会动的落地页">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:creator" content="@AlienMu777">
+<meta name="theme-color" content="#fffaf3">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+<a class="brand" href="/">Cineview</a>
+<nav class="jump" aria-label="两段对话">
+<a class="ds" href="#wedding">婚礼<span>DeepSeek</span></a>
+<a class="op" href="#moto">摩托车<span>Opus</span></a>
+</nav>
+</header>
+<main>
+<section class="intro">
+<p class="eyebrow">Cineview 案例</p>
+<h1>两段做落地页的对话</h1>
+<p class="lead">两个 AI 都读过 Cineview 的<a href="https://github.com/AlienMu/cineview/tree/main/skills/cineview-design">设计技能</a>，然后和用户对话、做落地页。婚礼邀请页这段是 DeepSeek 写的，摩托车介绍页这段是 Claude Opus 写的。</p>
+<p class="how">对话按原文整理。灰色小字是整理时加的，写的是 AI 在两条消息之间用工具做了什么，或者对话以外的背景。DeepSeek 用选择题提问，这里按它发出的样子列出选项，用户选的那项有标记。摩托车那段每轮开头的「已定」清单默认收起，点开能看全文。</p>
+<div class="cards">
+<a class="card ds" href="#wedding"><span class="tag">DeepSeek 写的</span><strong>婚礼邀请页</strong><span>deepseek-v4.1-flash · 2026-10-28</span><span>用户是真人，开场只发了仓库链接和一句「帮我做一份落地页」</span></a>
+<a class="card op" href="#moto"><span class="tag">Opus 写的</span><strong>摩托车介绍页</strong><span>claude-opus-5.5 · 2026-10-27</span><span>用户由 AI 按事先定好的设定扮演</span></a>
+</div>
+</section>
+<section class="conv ds" id="wedding" aria-labelledby="wedding-title">
+<header class="conv-head">
+<p class="tag">DeepSeek 写的</p>
+<h2 id="wedding-title">婚礼邀请页</h2>
+<dl class="facts"><div><dt>AI</dt><dd>DeepSeek，模型 ID 是 deepseek-v4.1-flash，推理强度 high，在 DeepSeek Harness 网页版里运行。</dd></div><div><dt>用户</dt><dd>真人直接对话，没有事先定好的设定。开场只发了仓库链接和一句「帮我做一份落地页」，没有要求按技能走。</dd></div><div><dt>技能</dt><dd>这个 harness 的技能列表里没有 cineview-design。AI 自己克隆了仓库，用 sed 把技能文件当普通文件读。</dd></div><div><dt>全局规则</dt><dd>用户给 DeepSeek Harness 设过一份全局规则，其中要求动手前先写一行【目标】和【我准备读的最小文件清单】，信息够了就停，用最少的步骤，删除一律改成移到废纸篓（规则 A2）。DeepSeek 消息里的【目标】和「按 A2」都来自这份规则。</dd></div><div><dt>时间</dt><dd>2026 年 10 月 28 日 14:22 到 14:59</dd></div><div><dt>做出的页面</dt><dd><a href="/cases/wedding/">/cases/wedding/</a></dd></div></dl>
+</header>
+<div class="thread">
+<div class="msg user"><p class="who"><b>用户</b><span>14:22</span></p><div class="body"><p>https://github.com/AlienMu/cineview，看这个网站，帮我做一份落地页</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:22</span></p><div class="body"><p>我先看看这个项目是什么。</p></div></div>
+<p class="note">AI 用 gh 查看仓库信息，浅克隆了仓库，读了 README、首页 index.html，以及技能里的 SKILL.md 和 conversation.md。</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:23</span></p><div class="body"><div class="ask"><p class="ask-tag">选择题</p><div class="q"><p class="q-head">这份落地页是给谁的</p><p>我看了仓库：Cineview 是个「普通 HTML + 自定义元素」的落地页框架，官网本身就是一个滚动/拖动的多幕页面。你要做的这一份是给谁用的？</p><ul class="opts"><li class="chosen"><b>给 Cineview 自己：重做一版官网首页（推荐）</b><em>用户选了这项</em><span>沿用框架和分镜思路，换一套视觉与叙事，产出可直接跑的 index.html。</span></li><li><b>给我自己的产品/项目</b><span>告诉我产品是什么、要读者记住什么、有哪些素材，我按同样的分镜方法做。</span></li><li><b>只要一个通用模板/样例页</b><span>不绑定具体业务，做一份能改文案就能用的多幕落地页样板。</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:24</span></p><div class="body"><p><span class="pick">这份落地页是给谁的：</span>给 Cineview 自己：重做一版官网首页（推荐）</p></div></div>
+<p class="note">AI 接着读了首页的场景结构和技能里的 references.md、styles.md、framework.md，用 ffprobe 查看仓库里的两段视频，并截了两帧来看。</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:25</span></p><div class="body"><p>我已经看过仓库了：站点本身是一套「编辑纸感 + 胶片」的九幕滚动页，字体用 Fraunces 和 Noto Serif，米色底配陶土色，用的是 <code>cv-scene</code> 和 <code>cv-zone</code>，还有 <code>cv-stack</code>、<code>track=&quot;x&quot;</code>，以及自绘 Canvas 的放映机。</p>
+<p>【目标】按 skill 的流程，先确定方向和场次，再生成分镜表，等你确认后才写代码。<br />
+【我准备读的最小文件清单】已经读完，暂时不需要再读。</p><div class="ask"><p class="ask-tag">选择题，一次 2 题</p><div class="q"><p class="q-head">1/2 · 方向</p><p>视觉方向选哪个？（我推荐 A，因为现站已经是 B，重做一版最好拉开距离，而且暗底更能突出滚动逐帧的画面）</p><ul class="opts"><li class="chosen"><b>A. 夜场放映（推荐）</b><em>用户选了这项</em><span>5 幕，近黑底 + 一束光。幅合“电影/分镜”主题，与现有米色官网形成对照，也能展示主题切换、拖动模式。</span></li><li><b>B. 纸质剪辑台</b><span>4 幕，大衬线字 + 细线稿，安静、耗得多，像杂志开头。和现站同一气质，安全但重复。</span></li><li><b>C. 场记板（海报式）</b><span>5 幕，黑底大字、场记板和数字编号，按一下切一幕。最“开场”的感觉，但容易压过内容。</span></li></ul></div><div class="q"><p class="q-head">2/2 · 交付形式</p><p>产物放哪里、怎么跑？</p><ul class="opts"><li class="chosen"><b>独立可跑的一套文件（推荐）</b><em>用户选了这项</em><span>workspace 里建 landing/ 目录，index.html + CSS + 少量 JS，运行时用 npm/cdn 的 cineview@2，不引入构建。</span></li><li><b>改成仓库里的官网首页</b><span>直接替换仓库里的 site/public/index.html，需要先装依赖、跑 vite 才能预览。</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:25</span></p><div class="body"><p><span class="pick">方向：</span>A. 夜场放映（推荐）</p><p><span class="pick">交付形式：</span>独立可跑的一套文件（推荐）</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:26</span></p><div class="body"><div class="ask"><p class="ask-tag">选择题</p><div class="q"><p class="q-head">分镜确认</p><p>分镜表如下（方向：夜场放映，近黑底 + 一束暖光；亮字用 Fraunces + Noto Serif SC，代码/时间码用等宽）。确认后我就写文件：</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>场景</th>
+<th>说一件事</th>
+<th>读者看到</th>
+<th>模式</th>
+<th>素材</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>顶栏</td>
+<td>导航</td>
+<td>品牌、文档、GitHub、语言按钮</td>
+<td>固定</td>
+<td>无</td>
+</tr>
+<tr>
+<td>1</td>
+<td>开场</td>
+<td>用分镜写落地页</td>
+<td>黑屏上一束放映光扫过，两行大字从光里升起，场号 01</td>
+<td>普通场景，进入时播放</td>
+<td>无（CSS 光束）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>一页的诞生</td>
+<td>一个场景就是一条时间线</td>
+<td>左侧一张页面线稿，滚动时标题→副文→按钮→图片依次上台，下方时间轴同步填充</td>
+<td>定格 zone，滚动逐帧</td>
+<td>线稿自绘 SVG</td>
+</tr>
+<tr>
+<td>3</td>
+<td>胶片</td>
+<td>画面可以跟着滚动逐帧走</td>
+<td>一条竖向胶片，中间一格是夜骑短片，滚动时逐帧前进、往回倒</td>
+<td>定格 zone + cv-video</td>
+<td>media/ride.mp4 + 海报</td>
+</tr>
+<tr>
+<td>4</td>
+<td>中场亮灯</td>
+<td>滚动与拖动，同一份场景</td>
+<td>整个页面翻成米白纸感，两张卡片：左滚动、右拖动，卡片往上叠</td>
+<td>定格 zone + 卡片堆</td>
+<td>无</td>
+</tr>
+<tr>
+<td>5</td>
+<td>收尾</td>
+<td>开始用</td>
+<td>灯又暗下来，一行安装命令、两个按钮、页脚</td>
+<td>普通场景</td>
+<td>无</td>
+</tr>
+</tbody>
+</table></div>
+<p>素材清单：全部用仓里现成的（ride.mp4 竖版 10s、video.mp4 横版 10s 作背景光、ride-poster.jpg 等），不需要你再给东西。</p><ul class="opts"><li><b>就这个，开始写（推荐）</b><span>按下面的分镜表开工，素材用仓里现有的两段视频和海报。</span></li><li><b>大方向可以，但要改一处</b><span>比如少一幕、换成拖动模式开场、或中间不亮灯。你说改哪里。</span></li><li><b>幕数太多，压到 4 幕</b><span>我把第 3、4 幕的顺序或内容换一下，让节奏更紧。</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:26</span></p><div class="body"><p class="cancel">取消了这个问题，没有选择</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:26</span></p><div class="body"><p>既然你跳过了确认，我就按已经定下的方案开工：夜场放映、6 个场景（含顶栏）、独立可运行的一套文件。</p></div></div>
+<p class="note">AI 建了 landing/ 目录，准备下载 cineview@2 的包。</p>
+<div class="msg user"><p class="who"><b>用户</b><span>14:26</span></p><div class="body"><p>你知道我要做什么吗？</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:27</span></p><div class="body"><p>说实话，我现在不太确定，正在按自己假设推进，所以先停下来说清。</p>
+<p>我<strong>已经确认</strong>的：你发的是 Cineview 仓库，它在做一个「普通 HTML + <code>cv-*</code> 自定义元素」的落地页框架，站点本身就是一个滚动、拖动的多幕页面。我问「这份落地页给谁」，你选的是「给 Cineview 自己：重做一版官网首页」，所以我把任务理解成：<strong>给 Cineview 做一版新的官网首页落地页</strong>，用 <code>cv-scene</code> 那一套，独立于仓库、在 workspace 下新建 <code>landing/</code>，视觉方向夜场放映。</p>
+<p>我<strong>在猜</strong>的部分：要不要双语、要不要保留原站九个场景里的哪些内容（设计技能、AI 讨论、扩展 Canvas、拖拽演示），还是你其实只想要一个「长这样的落地页」的样板，内容你自己再换。</p>
+<p>另外，我上一轮没等你确认分镜就建好目录、准备拉包了，这一步做得太快。</p>
+<p>所以我问一句：<strong>你要的是「Cineview 官网首页的新版」，还是「用这套框架做的一份落地页（内容我按 Cineview 填，但结构可复用）」？</strong> 顺带说一下要不要中英双语，我就照这个往下做。</p></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:27</span></p><div class="body"><p>我想用这个框架做一款内容</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:27</span></p><div class="body"><p>明白，那就不是重做 Cineview 官网，而是<strong>用 Cineview 这套框架给你自己的内容做一页</strong>。我再问清一件最关键的事就开始：</p><div class="ask"><p class="ask-tag">选择题</p><div class="q"><p class="q-head">这页内容是什么</p><p>你要做的是什么内容？（选一个最接近的，或者直接告诉我具体在讲什么）</p><ul class="opts"><li><b>产品介绍页（推荐，最好套）</b><span>比如一个产品/工具/APP 的介绍页：它解决什么、几个核心功能、一张截图或一段短片、最后怎么用上。</span></li><li><b>叙事/故事页</b><span>把一件事、一个人、一个项目讲成一个故事，顺序往下读，图片和文字交替。</span></li><li><b>长文/报告页</b><span>一份报告、一篇长文或一份提案，重点是让读者读得下去、且能看出结构。</span></li><li class="chosen"><b>活动页</b><em>用户选了这项</em><span>活动、发布会、婚礼、展览这类，重点时间地点和报名。</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:28</span></p><div class="body"><p><span class="pick">这页内容是什么：</span>活动页</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:28</span></p><div class="body"><div class="ask"><p class="ask-tag">选择题</p><div class="q"><p class="q-head">活动是什么</p><p>这个活动具体是什么？（名称、时间、地点、做什么、想让读者看完去干什么）</p>
+<p>如果你只是想要一份“能跑起来、能改文案”的活动页样例，也直接说。</p><ul class="opts"><li class="chosen"><b>我来说具体信息</b><em>用户选了这项</em><span>真实的名称、时间、地点、报名链接告诉我；没有的话我先用占位文案，你后面换。</span></li><li><b>你先按一个样例做（推荐）</b><span>比如「城市夜骑」「独立短片放映夜」，我做一套像真实存在、能直接用的活动页，你拿来改名字和时间就行。</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:28</span></p><div class="body"><p><span class="pick">活动是什么：</span>我来说具体信息</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:28</span></p><div class="body"><p>好，请把活动信息发给我。需要的就是这几项，你把知道的都写进来，缺的我会标出来再问你：</p>
+<ol>
+<li><strong>活动名称</strong>：叫什么，有没有英文名。</li>
+<li><strong>时间和地点</strong>：哪天几点、在哪个城市、具体地址。</li>
+<li><strong>活动是什么</strong>：一两句话讲清做什么，比如放映、演出、市集、分享会。</li>
+<li><strong>议程</strong>：有没有时间表或环节，比如 19:00 入场、19:30 放映、21:00 交流。</li>
+<li><strong>想让读者看完做什么</strong>：比如报名、买票、加入群，有没有链接。</li>
+<li><strong>谁办的</strong>：主办方名称、logo、以前的照片都行，没有就提一声。</li>
+<li><strong>素材</strong>：有没有现场照片、海报、短片，文件在哪个路径；没有的话我改用线条画和排版来做。</li>
+<li><strong>语言</strong>：只做中文，还是中英双语。</li>
+</ol>
+<p>这些信息发给我之后，我会像刚才那样先给出一个分镜表，包含 5 到 6 个场景、每个场景具体展示什么；你确认之后我再写代码。</p></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:29</span></p><div class="body"><p>1、我们的婚礼。2、重庆、1029、解放碑。3、结婚。4、早上到中午。5、送花。6、我们。7、没有。8、中文</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:29</span></p><div class="body"><p>明白了：婚礼邀请页，时间是 10 月 29 日重庆解放碑，从早上到中午，读者看完要做的事是「送花」。素材没有，画面就由我画。</p>
+<p>写代码之前，我还需要确认三件事，你回几条短回答就行：</p><div class="ask"><p class="ask-tag">选择题，一次 3 题</p><div class="q"><p class="q-head">1/3 · 送花</p><p>「送花」具体指什么？这决定最后一幕是不是要放按钮。</p><ul class="opts"><li class="chosen"><b>请宾客送花当贺礼（花是主题）</b><em>用户选了这项</em><span>页面最后一幕放一个「送花」按钮，点开是花的选择/地址或祝福入口。花也是全页的主视觉。</span></li><li><b>只写一句「带一枝花来」</b><span>没有按钮，只是在文案里写一句「带一枝花来就好」。重点放在邀请和时间地点。</span></li><li><b>另有一套，我再说</b><span>你告诉我送花具体怎么操作（链接、微信、现场），我字不改直接放。</span></li></ul></div><div class="q"><p class="q-head">2/3 · 文案细节</p><p>名字、具体时间、解放碑具体哪里、着装颜色，这些有吗？</p><ul class="opts"><li><b>我现在补给你</b><span>两位的名字、具体几点到几点、解放碑哪个位置、有没有穿什么颜色的提示。</span></li><li class="chosen"><b>先用占位，后面我自己改（推荐）</b><em>用户选了这项</em><span>我用「我们」「两个名字占位」「上午 10:00—12:00」「解放碑」这类写法，你之后改字就行。</span></li></ul></div><div class="q"><p class="q-head">3/3 · 视觉</p><p>选一个视觉方向？</p><ul class="opts"><li class="chosen"><b>A. 暖纸与花枝（推荐）</b><em>用户选了这项</em><span>米白纸底、手绘花枝慢慢生长、字用大衬线。温、安静，适合上午的婚礼。</span></li><li><b>B. 黑金请柬</b><span>深色底 + 一点金、像晚宴请柬。但你的婚礼是上午，会有点错位。</span></li><li><b>C. 素白极简</b><span>几乎纯白、细黑字、大量空白，花只作小标点。很干净，但滚动戏会少。</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>用户</b><span>14:30</span></p><div class="body"><p><span class="pick">送花：</span>请宾客送花当贺礼（花是主题）</p><p><span class="pick">文案细节：</span>先用占位，后面我自己改（推荐）</p><p><span class="pick">视觉：</span>A. 暖纸与花枝（推荐）</p></div></div>
+<p class="divider">开始制作</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:30</span></p><div class="body"><p>【目标】用 Cineview 做一份「婚礼邀请 + 送花」落地页，暖纸与花枝方向，放在 <code>landing/</code>。<br />
+【最小文件清单】先确认运行时怎么拿到，也就是能否把 cineview@2 的 dist 放到本地，然后就直接写页面。</p></div></div>
+<p class="note">AI 从 jsDelivr 下载 cineview@2 的运行时放进 landing/vendor/，读了技能里的 line-art.md 和 type.md，又翻看首页的 home.css 和运行时代码里停住场景的写法。</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:36</span></p><div class="body"><p>【目标】现在开始写文件：<code>landing/index.html</code>、<code>landing/style.css</code>、<code>landing/page.js</code>；运行时使用已放到本地的 <code>vendor/</code>。<br />
+【最小文件清单】不再读别的，直接写。</p></div></div>
+<p class="note">AI 写了 index.html、style.css、page.js，起了本地服务器，用 Playwright 按桌面和手机宽度截图检查。</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:40</span></p><div class="body"><p>发现几处需要修复：移动端标题因 <code>hero-copy</code> 宽度被限被挤断，时间列宽不够，导致「09:30」被截断；深色幕的顶栏仍是米色。</p></div></div>
+<p class="note">AI 改了样式、index.html 和 page.js，又做了多轮截图检查，包括不同宽度和不开 JS。中途压缩过一次上下文。</p>
+<div class="msg user"><p class="who"><b>用户</b><span>14:54</span></p><div class="body"><p>需要看看，打开页面报错的问题</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:54</span></p><div class="body"><p>【目标】复现“打开页面报错”——我之前的测试都是通过 http 打开的，最可能是直接双击用 file:// 打开触发的错误。先只验证这一条假设。</p></div></div>
+<p class="note">AI 用 file:// 打开页面，复现了报错，用 esbuild 把运行时打成一个普通脚本并改了引用，再用 file:// 和 http 各测一遍。它想把旧文件移到废纸篓，被沙箱拒绝，改为移到 vendor/_esm-unused/。</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:59</span></p><div class="body"><p>已修好。你遇到的报错来自<strong>双击用 file:// 直接打开</strong>：页面引了 <code>&lt;script type=&quot;module&quot;&gt;</code>，浏览器一行都不执行就直接 CORS 拦下，控制台红字就是这两条：</p>
+<pre><code>Access to script at 'file:///…/vendor/cineview.js' from origin 'null' has been blocked by CORS policy
+Access to script at 'file:///…/page.js' from origin 'null' has been blocked by CORS policy
+Failed to load resource: net::ERR_FAILED
+</code></pre>
+<p>模块脚本在 file:// 下一律被拦，跟框架无关，是浏览器协议限制。</p>
+<h4>改法</h4>
+<p>把引擎从 ESM 多文件（<code>cineview.js</code> + <code>chunks/</code> 8 个分块）用 esbuild 打成一个 IIFE 经典脚本，页面改用 <code>&lt;script defer&gt;</code>：</p>
+<ul>
+<li>新增 vendor/cineview.bundle.js（155.7kb，含全部动态 chunk）</li>
+<li>index.html 改为 <code>&lt;script defer src=&quot;vendor/cineview.bundle.js&quot;&gt;&lt;/script&gt;</code>，index.html 的 page.js 也去掉 <code>type=&quot;module&quot;</code></li>
+<li>旧的 ESM 文件移到 vendor/_esm-unused/，没有删（要真删你按 A2 自己挪去废纸篓）</li>
+</ul>
+<h4>验证</h4>
+<div class="table"><table>
+<thead>
+<tr>
+<th>打开方式</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file://</code> 直接双击</td>
+<td>无任何 console / 请求错误，滚到结尾 theme 切到 dusk，进度条 100%</td>
+</tr>
+<tr>
+<td><code>http://127.0.0.1:4173</code></td>
+<td>同上，无错误</td>
+</tr>
+<tr>
+<td>390px 移动端</td>
+<td>无横向溢出，无错误</td>
+</tr>
+</tbody>
+</table></div>
+<p>两种方式都完整跑完 8900px 全页滚动，截图里深色收尾幕正常。</p>
+<p>顺带说一句副作用：以后改 <code>vendor/</code> 里的引擎源码需要重新 bundle，别直接改 <code>_esm-unused/</code> 里的文件——它们已经不被引用了。</p></div></div>
+<p class="note">这个页面后来放到了 <a href="/cases/wedding/">/cases/wedding/</a>。</p>
+</div>
+</section>
+<section class="conv op" id="moto" aria-labelledby="moto-title">
+<header class="conv-head">
+<p class="tag">Opus 写的</p>
+<h2 id="moto-title">摩托车介绍页</h2>
+<dl class="facts"><div><dt>AI</dt><dd>Claude Opus，模型 ID 是 claude-opus-5.5，在 Claude Code 里作为子 agent 运行。</dd></div><div><dt>用户</dt><dd>由协调测试的 AI（同样是 Claude Opus）按事先定好的设定扮演，只回答被问到的内容，回答简短。</dd></div><div><dt>用户设定</dt><dd>小摩托车品牌「途岚」的市场负责人。新车是一台 400cc 复古街车，下个月上市，2.98 万起。读者是 25 到 35 岁、第一次换大排量的年轻人，想让他们记住好骑、好看、不贵。素材有 6 张棚拍图、1 段 30 秒宣传片和一份参数表，没有用户评价。品牌色墨绿配米白，中文为主，也要英文，手机为主。偶尔给含糊的回答，偶尔说「你定」。</dd></div><div><dt>技能</dt><dd>测试要求 AI 只读 skills/cineview-design/ 里的技能，按技能和用户对话，不看首页源码、之前的测试页面和评审记录。分镜和素材清单定下来之前不写文件。</dd></div><div><dt>时间</dt><dd>2026 年 10 月 27 日</dd></div><div><dt>做出的页面</dt><dd><a href="/cases/moto/">/cases/moto/</a></dd></div></dl>
+</header>
+<div class="thread">
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>做一个摩托车介绍页</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 1 轮</span></p><div class="body"><p>动手之前，我先一次问一个问题，每个问题都附上我的建议，你回「好」就按建议走。想省事也可以直接说「你来定」，我会把整套方案一次列出来给你确认。</p>
+<p><strong>问题 1：这页是做什么用的，给谁看？</strong></p>
+<p>我建议选 <strong>A. 介绍一款车型</strong>：给打算买车的人看，让他们对这台车动心，然后去预约试驾或找经销商。「摩托车介绍页」大多是这个用途。</p>
+<p>另外两种可能：</p>
+<ul>
+<li><strong>B. 车行、租车或改装店的页面</strong>：给附近的车友看，让他们知道你们有哪些车、提供什么服务、店在哪里。</li>
+<li><strong>C. 一台车的故事</strong>：可以是你自己的车、一次改装，或者一款经典车型的来历。给朋友和车友圈看，重点是细节和经历，没有购买这一步。</li>
+</ul>
+<p>回复「好」，或者选 B、C，也可以直接讲讲你的情况。如果手上已经有照片、视频、参数或文案，可以一起发过来，我先看完素材再接着问。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>A，我们是途岚摩托，新车下个月上市，一台400cc的复古街车。主要给25到35岁、第一次换大排量的年轻人看。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 2 轮</span></p><div class="body"><details class="decided"><summary>已定（1 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页，车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+</ol></details>
+<p><strong>问题 2：读者看完这页，应该记住什么，然后去做什么？</strong></p>
+<p>我建议 <strong>A. 记住「这台车适合当第一台大排量」，然后预约试驾。</strong> 第一次换大排量的人最常犹豫的是「我驾驭得了吗」。页面先打消这个顾虑，再请他们亲自来骑一次。</p>
+<p>其他选择：</p>
+<ul>
+<li><strong>B. 记住它的样子（复古设计和做工细节），然后留下手机号，等上市通知。</strong> 适合外观是最大卖点、价格和配置还没公开的情况。</li>
+<li><strong>C. 记住上市价和首发优惠，然后交定金预订。</strong> 适合上市前就开放预订的情况。</li>
+</ul>
+<p>回复「好」，或者选 B 或 C。也可以混着来，比如用 A 的重点，最后放 C 的预订按钮。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>想让他们记住好骑、好看、不贵。价格是2.98万起。最后让他们预约试驾就行。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 3 轮</span></p><div class="body"><details class="decided"><summary>已定（2 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：记住好骑、好看、不贵（2.98 万起），看完去预约试驾。</li>
+</ol></details>
+<p><strong>问题 3：现在手上有哪些素材？</strong></p>
+<p>每个卖点最好都有素材来证明。我建议按卖点准备这些：</p>
+<ul>
+<li><strong>好骑</strong>：一段 5 到 15 秒的骑行视频，不需要声音。视频可以跟着滚动播放，往下滑车就往前开，往回滑就倒回去。再加几项新手最在意的真实参数，比如座高、整备质量。</li>
+<li><strong>好看</strong>：一张正侧面全车照，加 3 到 6 张细节特写，比如油箱、大灯、仪表、座垫。如果有外景照或其他配色的图，也一起发。</li>
+<li><strong>不贵</strong>：2.98 万起已经有了。如果分几个版本，或者有分期、首发权益，也告诉我。</li>
+<li><strong>其他</strong>：车型名称，还有 logo（最好是 SVG 格式）。</li>
+</ul>
+<p>直接发原始文件就行，裁切和压缩我来做。有的暂时没有也没关系，告诉我就好。比如视频上市前拍不出来，「好骑」可以先用骑行照片加参数，视频到了再换上。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>有6张棚拍图，侧面、前45度、仪表、油箱、排气、座椅。还有一段30秒的宣传片，城市夜骑加山路。参数表有排量、马力、扭矩、座高、重量。没有用户评价。车型叫「途岚 Wander 400」。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 4 轮</span></p><div class="body"><details class="decided"><summary>已定（3 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：记住好骑、好看、不贵（2.98 万起），看完去预约试驾。</li>
+<li>素材：车型名「途岚 Wander 400」，6 张棚拍图（侧面、前 45 度、仪表、油箱、排气、座椅），一段 30 秒宣传片（城市夜骑和山路），一份参数表（排量、马力、扭矩、座高、重量）。没有用户评价。</li>
+</ol></details>
+<p>这些素材能撑起三个卖点：「好看」用棚拍图，「好骑」用山路镜头和参数，「不贵」用价格。没有用户评价，页面就不放评价区，也不会编评价。宣传片 30 秒偏长，我会从里面剪出城市夜骑和山路各一段，每段 8 秒左右。剪辑和转码我来做。</p>
+<p><strong>问题 4：整页走哪个方向，分几幕？</strong></p>
+<p><strong>A. 跟着骑一程（5 幕）</strong>：宣传片撑起整页。读者往下滑，画面里的车就往前开，往回滑就倒回去。<br />
+1 开场：城市夜骑镜头随滚动播放，车名像电影片头字幕一样出现 · 2 好看：先出现侧面全车照，继续往下滑，油箱、仪表、排气、座椅四张特写依次出现，每张配一句说明 · 3 好骑：山路镜头随滚动播放，座高、重量等参数一项项出现 · 4 不贵：「2.98 万起」大字，旁边是前 45 度照片 · 5 预约试驾</p>
+<p><strong>B. 照片为主，干净利落（4 幕）</strong>：普通的上下滚动页面，视频只在背景里循环播放，页面更轻。<br />
+1 前 45 度照片，配车名和一句话 · 2 好看：四张特写拼成一组 · 3 好骑：参数做成大号数字，背景循环播放山路镜头 · 4 价格和预约试驾放在同一屏</p>
+<p><strong>C. 手机上一屏一屏划（6 幕）</strong>：每屏一张图配一句话，手指往上划就切到下一屏，最后一屏是预约试驾。适合大多数人用手机从小红书、朋友圈点进来的情况。缺点是参数这类要细看的内容放不了太多。</p>
+<p>我推荐 A。宣传片是你们最有冲击力的素材，读者自己滑动让车跑起来，比用文字说「好骑」更有说服力。顺序上先用外观让人心动，再讲好骑打消顾虑，最后报价格。</p>
+<p>A 有一个前提：如果宣传片剪得很碎，一两秒就换一个镜头，跟着滚动播放会一跳一跳的，那样我会建议改用 B 的做法。方便的话先把宣传片发我，我看过就能确认。</p>
+<p>回复「好」，或者选 B、C，也可以从几个方向里各取一部分拼起来。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>好，选A。宣传片我晚点发你，镜头不算碎，基本都是三四秒一个。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 5 轮</span></p><div class="body"><details class="decided"><summary>已定（4 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：好骑、好看、不贵（2.98 万起），看完预约试驾。</li>
+<li>素材：车型名「途岚 Wander 400」；6 张棚拍图；一段 30 秒宣传片，拍的是城市夜骑和山路，三四秒一个镜头，稍后发来；参数表，有排量、马力、扭矩、座高、重量；没有用户评价。</li>
+<li>方向：A「跟着骑一程」，共 5 幕：开场夜骑、好看、好骑、不贵、预约试驾。</li>
+</ol></details>
+<p>三四秒一个镜头正合适。8 秒左右的一段里有两三个镜头，滑过剪辑点时就像电影切镜头，不会一跳一跳的。宣传片到了我先看画幅和时长，再告诉你夜骑和山路各用哪几秒。</p>
+<p><strong>第 1 幕（共 5 幕）：开场</strong><br />
+这一幕要让人记住车名，一打开页面就想骑。</p>
+<p><strong>问题 5：开场画面怎么安排？</strong></p>
+<p>我建议 <strong>A. 宽银幕开场</strong>：画面上下留黑边，像在影院看电影。一打开先看到夜色里的第一帧，下方黑边上浮现「途岚 Wander 400」。往下滑，车在城市里开起来，车名淡出，同一个位置换成一句话。手机竖着看时，画面是屏幕中间横着的一条，不用另剪竖版。<br />
+理由：这样最接近你选的「片头字幕」。文字放在黑边上，画面里的路灯和霓虹再亮也不影响阅读。</p>
+<p>其他做法：</p>
+<ul>
+<li><strong>B. 全屏铺满</strong>：视频占满整个屏幕，车名放在左下角，下方加一层渐暗衬托文字。在电脑上冲击力最强。但手机竖屏只能显示横版画面中间不到三分之一，车一开动就容易跑出画面，最好另有竖版素材。</li>
+<li><strong>C. 先字后画</strong>：一打开是黑底上的大字「WANDER 400」。往下滑，字越放越大冲出屏幕，夜骑画面从后面露出来，接着随滚动播放。第一屏不用等视频加载，代价是开场要多滑一段。</li>
+</ul>
+<p>回复「好」，或者选 B、C，也可以说说你心里想要的样子。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>A吧。不过我们主要是手机上看，然后整体想要有高级感。</p></div></div>
+<p class="note">第 5 轮之后会话重启，原来的 agent 没法继续。从第 6 轮起换成一个新的 Opus agent：它同样只读技能，拿到前 5 轮的对话记录后接着聊，用户的设定不变。</p>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 6 轮</span></p><div class="body"><details class="decided"><summary>已定（6 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：好骑、好看、不贵（2.98 万起），看完预约试驾。</li>
+<li>素材：车型名「途岚 Wander 400」；6 张棚拍图；一段 30 秒宣传片，拍的是城市夜骑和山路，三四秒一个镜头，稍后发来；参数表，有排量、马力、扭矩、座高、重量；没有用户评价。</li>
+<li>方向：A「跟着骑一程」，共 5 幕：开场夜骑、好看、好骑、不贵、预约试驾。</li>
+<li>第 1 幕：宽银幕开场。夜骑画面上下是黑边，车名在下方黑边上浮现。往下滑，车开起来，车名淡出，换成一句话（这句话还没写）。</li>
+<li>设备：主要在手机上看。每一幕先按手机竖屏设计，电脑上跟着适配。</li>
+</ol></details>
+<p>主要用手机看，方向 A 也不用改。手机上往下滑，车一样往前开，往回滑就倒回去。第 1 幕在手机上是这样的：夜骑画面占满屏幕宽度，高度大约是屏幕的三分之一，上下都是黑色，车名在画面下方的黑色里。电脑上我会把画面裁成电影那种更扁的比例。手机屏幕窄，再裁画面就太小了，所以手机上保留完整的横版画面。</p>
+<p><strong>整体风格</strong><br />
+「高级感」会决定后面每一幕的颜色、字体和动作快慢，所以先把它定下来，再回到第 1 幕写那句话。那句话的语气也要跟着风格走。</p>
+<p><strong>问题 6：你说的「高级感」，更接近哪一种？</strong></p>
+<p>我建议 <strong>A. 暗调电影感</strong>：整页都是深色，从开场的黑一路延续下去。文字是米白色，中文标题用笔画细的宋体，英文车名用拉开字距的大写字母。全页只用一个点缀色，从车身颜色里取，用在价格和预约按钮上。动作都放慢，以淡入和缓慢推近为主，不弹跳。每屏只放一样东西，留足空白。<br />
+理由：开场是黑的，夜骑画面也暗，整页用深色，从头到尾不会断开。在手机上，深色页面里那条横版画面像影院里的银幕。同样一条画面放在浅色页面上，更像文章里插的一段视频。</p>
+<p>其他做法：</p>
+<ul>
+<li><strong>B. 明亮留白</strong>：浅暖灰底配黑色细字，大片留白，像高端汽车的产品画册。开场还是黑色宽银幕，滑到第 2 幕时，整页像开了灯一样转成浅色。如果棚拍图是白底，这种最顺。</li>
+<li><strong>C. 复古画册</strong>：米黄的纸色底，大号宋体标题，配细线和小字注释，像老牌摩托车的产品目录，复古味最浓。它也要在第 2 幕从黑转成浅色。缺点是偏文艺、节奏慢，和夜骑、山路的速度感有点距离。</li>
+</ul>
+<p>A 有个前提：棚拍图最好是黑底或深灰底。如果是白底，放进深色页面会像一块块白色方框，这时要么请修图换成深色背景，要么改选 B。方便的话先把 6 张棚拍图发我，我看一眼背景就能确认。如果途岚有品牌色、字体或 logo，也一起发来，有品牌规范就按品牌规范来。</p>
+<p>回复「好」，或者选 B、C。也可以发一个你觉得够高级的品牌页面或广告给我参考。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>品牌色是墨绿配米白。棚拍图的背景我不太确定，你先按你推荐的来吧。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 7 轮</span></p><div class="body"><details class="decided"><summary>已定（7 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：好骑、好看、不贵（2.98 万起），看完预约试驾。</li>
+<li>素材：车型名「途岚 Wander 400」；6 张棚拍图；一段 30 秒宣传片，拍的是城市夜骑和山路，三四秒一个镜头，稍后发来；参数表，有排量、马力、扭矩、座高、重量；没有用户评价。</li>
+<li>方向：A「跟着骑一程」，共 5 幕：开场夜骑、好看、好骑、不贵、预约试驾。</li>
+<li>第 1 幕：宽银幕开场。夜骑画面上下是黑边，车名在下方黑边上浮现。往下滑，车开起来，车名淡出，换成一句话（这句话还没写）。</li>
+<li>设备：主要在手机上看。每一幕先按手机竖屏设计，电脑上跟着适配。</li>
+<li>风格：A 暗调电影感。整页深色，文字米白，中文标题用细宋体，英文车名用拉开字距的大写字母。动作慢，不弹跳，每屏只放一样东西。品牌色是墨绿配米白。字体你没提，我先按这套来。</li>
+</ol></details>
+<p>棚拍图的背景不确定也没关系，等图到了我先看。是深色背景就直接用。如果是白底，我再回来跟你商量，到时候可以请修图换成深色背景。</p>
+<p><strong>问题 7：品牌的墨绿用在哪里？</strong></p>
+<p>米白正好是 A 里文字的颜色，直接用上就行。墨绿有几种用法。</p>
+<p>我建议 <strong>A. 墨绿铺满整页</strong>：整页底色就是墨绿，文字全用米白，预约按钮是米白色块配墨绿字，整页只有这两种颜色。开场视频上下的「黑边」也会变成墨绿。墨绿本身很深，影院感还在。如果你们的墨绿偏亮，我会把底色压深一点，让视频周围够暗。<br />
+理由：每一屏都是途岚的颜色，页面一看就是你们家的。墨绿配米白本身也带复古味，跟复古街车很搭。</p>
+<p>其他做法：</p>
+<ul>
+<li><strong>B. 开场纯黑，第 2 幕起换成墨绿</strong>：开场保留真正的黑边。片头字幕结束、滑到第 2 幕时，整页底色在一秒内从黑色过渡到墨绿，之后一直是墨绿底米白字。这样开场最像电影，变色那一下也像「片头放完，车登场」。代价是第一屏没有墨绿。</li>
+<li><strong>C. 整页黑底，墨绿只做点缀</strong>：墨绿只用在细线和小标签上，按钮用米白。好处是如果棚拍图是黑底，车会像直接停在页面上，几乎看不出照片的边。缺点是墨绿和黑色深浅差不多，放在黑底上很难分辨，读者几乎注意不到品牌色。</li>
+</ul>
+<p>如果有墨绿和米白的标准色值（比如 #1F3D2E 这样的一串），发我就按色值来。没有的话我先取接近的颜色，等页面做出来你看过再调。</p>
+<p>回复「好」，或者选 B、C。颜色定了，我们就回到第 1 幕写那句话。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>你定吧，我也说不好。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 8 轮</span></p><div class="body"><details class="decided"><summary>已定（8 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：好骑、好看、不贵（2.98 万起），看完预约试驾。</li>
+<li>素材：车型名「途岚 Wander 400」；6 张棚拍图，背景颜色等图到了我先看；一段 30 秒宣传片，拍的是城市夜骑和山路，三四秒一个镜头，稍后发来；参数表，有排量、马力、扭矩、座高、重量；没有用户评价。</li>
+<li>方向：A「跟着骑一程」，共 5 幕：开场夜骑、好看、好骑、不贵、预约试驾。</li>
+<li>第 1 幕：宽银幕开场。夜骑画面上下留出墨绿色的边，车名在下方的边上浮现。往下滑，车开起来，车名淡出，换成一句话（这句话还没写）。</li>
+<li>设备：主要在手机上看。每一幕先按手机竖屏设计，电脑上跟着适配。</li>
+<li>风格：A 暗调电影感。整页深色，文字米白，中文标题用细宋体，英文车名用拉开字距的大写字母。动作慢，不弹跳，每屏只放一样东西。字体你没提，我先按这套来。</li>
+<li>配色（按我的建议）：整页墨绿底、米白字，开场视频上下的边也是墨绿。预约按钮是米白色块配墨绿字，整页只用这两种颜色。色值先取接近的，页面做出来你看过再调。</li>
+</ol></details>
+<p><strong>第 1 幕（共 5 幕）：开场</strong></p>
+<p><strong>问题 8：车名淡出后，换上哪句话？</strong></p>
+<p>这句话用细宋体，出现在车名原来的位置，像电影的第一句字幕。手机上要一行放得下，十个字左右最合适。</p>
+<p>我建议 <strong>A.「下班以后，绕远一点回家。」</strong><br />
+理由：开场是城市夜骑，这句话正好对上画面。Wander 就是「随处走走」的意思，这句话没提车名，却把车名的意思说出来了。下班回家是 25 到 35 岁的人每天都有的时刻。这句话语气平静，不喊口号，符合你要的高级感。</p>
+<p>其他写法：</p>
+<ul>
+<li><strong>B.「从街灯，骑到山岚。」</strong>：把「途岚」的「岚」放进句子里，也提前带出第 3 幕的山路。这句最有诗意，读者要多想半秒才懂。</li>
+<li><strong>C.「你的第一台大排量。」</strong>：直接对第一次换大排量的人说话，读者一眼就知道这台车是给谁的。这句最直白，电影感弱一些。</li>
+</ul>
+<p>回复「好」，或者选 B、C，也可以改几个字，或者自己写一句。</p>
+<p>后面的问题如果也想交给我，回一句「剩下的你定」就行。我会按我的建议把每一幕排好，和素材清单一起发给你确认。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>好，就用这句。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 9 轮</span></p><div class="body"><details class="decided"><summary>已定（8 项）</summary><ol>
+<li>用途和读者：途岚摩托新款 400cc 复古街车的介绍页。车下个月上市，页面给 25 到 35 岁、第一次换大排量的年轻人看。</li>
+<li>记住什么、做什么：好骑、好看、不贵（2.98 万起），看完预约试驾。</li>
+<li>素材：车型名「途岚 Wander 400」；6 张棚拍图，背景颜色等图到了我先看；一段 30 秒宣传片，拍的是城市夜骑和山路，三四秒一个镜头，稍后发来；参数表，有排量、马力、扭矩、座高、重量；没有用户评价。</li>
+<li>方向：A「跟着骑一程」，共 5 幕：开场夜骑、好看、好骑、不贵、预约试驾。</li>
+<li>第 1 幕：宽银幕开场。夜骑画面上下留出墨绿色的边，车名在下方的边上浮现。往下滑，车开起来，车名淡出，同一个位置换成「下班以后，绕远一点回家。」</li>
+<li>设备：主要在手机上看。每一幕先按手机竖屏设计，电脑上跟着适配。</li>
+<li>风格：A 暗调电影感。整页深色，文字米白，中文标题用细宋体，英文车名用拉开字距的大写字母。动作慢，不弹跳，每屏只放一样东西。字体你没提，我先按这套来。</li>
+<li>配色（按我的建议）：整页墨绿底、米白字，开场视频上下的边也是墨绿。预约按钮是米白色块配墨绿字，整页只用这两种颜色。色值先取接近的，页面做出来你看过再调。</li>
+</ol></details>
+<p><strong>第 1 幕（共 5 幕）：开场</strong><br />
+第 1 幕只剩最后一件事要定。在这一幕里往下滑，页面会先停住不动，滑动只是让视频往前播，大约滑三屏播完。播完以后，就要把读者交给第 2 幕的侧面全车照。</p>
+<p><strong>问题 9：夜骑视频播完后，怎么切到第 2 幕？</strong></p>
+<p>我建议 <strong>A. 银幕合上</strong>：视频播到最后，上下的墨绿边慢慢向中间合拢。画面越收越扁，最后变成一条细线消失，像电影片头放完。这时屏幕上只剩墨绿，再往下滑，侧面全车照从下面升上来。往回滑，银幕会重新打开。<br />
+理由：开场就是片头，银幕一合上，读者就知道片头结束了，车要正式登场。合拢只有一个慢动作，画面干净，符合你要的高级感。代价是开场要多滑半屏左右。</p>
+<p>其他做法：</p>
+<ul>
+<li><strong>B. 直接滑走</strong>：视频播完，开场像普通网页一样往上滑走，第 2 幕从下面跟上来。这种最简单，滑起来也最顺手。缺点是开场和第 2 幕之间没有转场，电影感弱一些。</li>
+<li><strong>C. 盖过去</strong>：视频停在最后一帧，第 2 幕从下面滑上来，像一页纸盖住开场，被盖住的画面慢慢变暗。这种翻页的感觉更像画册，和电影感的开场不太搭。</li>
+</ul>
+<p>回复「好」，或者选 B、C。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>好。剩下的你定吧，排好了连素材清单一起发我看看。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 10 轮</span></p><div class="body"><p>第 1 幕的转场用 A，银幕合上。剩下的我按建议排好了。前面定下的第 1 幕、风格和配色不变，其余都是我替你定的，哪里不合适直接说。</p>
+<p><strong>途岚 Wander 400 介绍页</strong><br />
+给 25 到 35 岁、第一次换大排量的年轻人看。看完记住好骑、好看、2.98 万起，然后预约试驾。</p>
+<p><strong>分镜</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>幕</th>
+<th>这一幕说什么</th>
+<th>读者在手机上看到</th>
+<th>滑动方式</th>
+<th>用到的素材</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 开场</td>
+<td>记住车名，一打开就想骑</td>
+<td>屏幕中间一条横向的夜骑画面，上下是墨绿。画面下方浮现「途岚 Wander 400」，往下滑车开起来，车名换成「下班以后，绕远一点回家。」播完后上下的墨绿合拢，画面收成一条线消失</td>
+<td>页面停住，滑动播放视频，约 3 屏</td>
+<td>宣传片里的城市夜骑，约 8 秒</td>
+</tr>
+<tr>
+<td>2 好看</td>
+<td>外观和做工经得起细看</td>
+<td>侧面全车照从下面升上来，下方是「停下来，也好看。」再往下是四张特写，从车头看到车尾：仪表、油箱、座椅、排气。一屏一张，从模糊对焦到清晰，下方各配一句说明</td>
+<td>正常往下滚</td>
+<td>侧面图和四张特写。缺：四句说明</td>
+</tr>
+<tr>
+<td>3 好骑</td>
+<td>第一台大排量也驾驭得了</td>
+<td>墨绿中间出现一条线，向上下打开成山路画面，往下滑车在山路上开。下方先出现「比你想的好骑。」，再像字幕一样依次换成座高、整备质量、最大马力、最大扭矩四个数字。播完银幕再次合上</td>
+<td>页面停住，滑动播放视频，约 3 屏</td>
+<td>宣传片里的山路，约 8 秒；参数表</td>
+</tr>
+<tr>
+<td>4 不贵</td>
+<td>2.98 万起</td>
+<td>前 45 度照片铺满屏宽，往下滑时慢慢推近一点。下方一行小字「你的第一台大排量」，再下面是大字「2.98 万起」</td>
+<td>正常往下滚</td>
+<td>前 45 度图</td>
+</tr>
+<tr>
+<td>5 预约试驾</td>
+<td>来骑一次</td>
+<td>墨绿底上，途岚 logo 下面是标题「来骑一程。」和一句「好不好骑，坐上去就知道。」，最下面是米白色的「预约试驾」按钮</td>
+<td>正常往下滚</td>
+<td>缺：按钮链接、logo</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么这样排</strong></p>
+<ul>
+<li>第 3 幕重复开场的银幕：打开、播放、合上，跟开场前后呼应。两段视频中间隔着一段正常滚动的照片，页面不会一直停住不动。</li>
+<li>参数只放四项。座高和重量回答「我驾驭得了吗」，马力和扭矩是买车时大家都会比的动力数字。排量车名里已经有了，不单独放。</li>
+</ul>
+<p><strong>整页设定</strong></p>
+<ul>
+<li>风格：暗调电影感。墨绿底、米白字，按钮是米白底墨绿字，整页只用这两种颜色。动作都放慢，不弹跳。</li>
+<li>字体：中文用思源宋体的细体，免费可商用。英文车名用拉开字距的大写衬线字。</li>
+<li>设备：手机竖屏优先。电脑上两段视频裁成更扁的电影比例，照片放在中间，四周留出墨绿。</li>
+<li>语言和声音：只做中文版，全程静音。</li>
+<li>测试：我先在模拟的 iPhone 和安卓浏览器里测好，再把链接发你。跟着滑动播放的视频在微信里最容易出问题，这一项要请你用真手机在微信里打开确认。</li>
+</ul>
+<p><strong>素材清单</strong></p>
+<p>已经有、还没发我的，请发原文件。微信里直接发会被压缩，图片勾选「原图」，视频当文件发，或者用网盘。</p>
+<ul>
+<li><strong>宣传片</strong>：30 秒原片，声音不用。我选好夜骑和山路各用哪几秒，先发你看。剪辑、转码成跟着滑动不卡的格式、做封面图，都由我来。</li>
+<li><strong>6 张棚拍图</strong>：原图，不用裁。我先看背景颜色，如果是白底再找你商量。</li>
+<li><strong>参数表</strong>：发原表。重量请注明是整备质量还是干重，马力和扭矩最好带上对应转速。页面上的数字和单位照表上写。</li>
+</ul>
+<p>还没有的：</p>
+<ul>
+<li><strong>四张特写的说明</strong>：我看图先写四句，每句十来个字。说到材质、工艺的地方要你确认。有产品手册或卖点资料的话发我，我从里面找真实的说法。没有资料，就只写照片里看得见的东西。</li>
+<li><strong>预约试驾的去处</strong>：按钮点开去哪里。你们现有的预约页面或在线表单都行，发我链接。还没有的话，先放一个预约电话，点一下就能拨打。</li>
+<li><strong>logo</strong>：SVG 最好，AI、EPS、PDF 也行。没有的话先用文字「途岚」代替。</li>
+<li><strong>品牌色值</strong>：墨绿和米白各一个色值，比如 #1F3D2E。没有的话我先取接近的颜色。</li>
+<li><strong>页脚</strong>：公司全称，放在最后一幕下面。如果页面放在你们官网的域名下，页脚还要放备案号。</li>
+<li><strong>上市日期</strong>：定了告诉我，页面要在那之前做好。如果页面上线时价格还没正式公布，我在价格下面加一行小字「以上市公布价格为准」。</li>
+</ul>
+<p>回复「好」，我就开始搭页面。素材没到的地方先放标明的占位，到了再换上。想改哪一幕，告诉我幕号和想法就行。</p></div></div>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>整体可以，就按这个来。只有一点：要有英文版，中文为主。素材我这两天发你。</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>第 11 轮</span></p><div class="body"><p><strong>已定</strong>：分镜和素材清单按上一条来，另加英文版，中文为主。</p>
+<p>整页设定里原来写的是「只做中文版」，现在改成下面这样。这些都是我替你定的，哪里不合适直接说。</p>
+<p><strong>英文版怎么做</strong></p>
+<ul>
+<li>切换：中文和英文分开，一次只显示一种。打开默认是中文，右上角有个小小的「EN」，点一下换成英文，再点「中文」换回来。下次打开还是上次选的语言。英文版也有单独的链接，发给外国朋友或媒体，对方打开就是英文。</li>
+<li>读者：我先按在国内、看英文更方便的人来写，比如外籍车友。价格照样写人民币，预约试驾也走同一个入口。如果英文版主要给海外的人看，告诉我，第 4 幕的价格和第 5 幕的预约都要改。</li>
+<li>字体：英文用 Cormorant Garamond，一款细衬线字，跟思源宋体的细体气质接近，也免费可商用。车名那种拉开字距的大写字母也用它。</li>
+<li>换行：英文句子比中文长，手机上有的要分两行。我按意思断，比如开场那句断在「After work,」后面。两种语言我都会在手机宽度下一屏一屏检查。</li>
+</ul>
+<p><strong>英文文案</strong><br />
+英文按英文读者的说话习惯写，不逐字翻译。</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>幕</th>
+<th>中文</th>
+<th>英文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>途岚 Wander 400</td>
+<td>Tulan Wander 400</td>
+</tr>
+<tr>
+<td>1</td>
+<td>下班以后，绕远一点回家。</td>
+<td>After work, take the long way home.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>停下来，也好看。</td>
+<td>Looks just as good standing still.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>比你想的好骑。</td>
+<td>Easier to ride than you think.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>座高、整备质量、最大马力、最大扭矩</td>
+<td>Seat height, Curb weight, Max power, Max torque</td>
+</tr>
+<tr>
+<td>4</td>
+<td>你的第一台大排量</td>
+<td>Your first big bike</td>
+</tr>
+<tr>
+<td>4</td>
+<td>2.98 万起</td>
+<td>From ¥29,800</td>
+</tr>
+<tr>
+<td>5</td>
+<td>来骑一程。</td>
+<td>Come for a ride.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>好不好骑，坐上去就知道。</td>
+<td>You'll know once you're in the saddle.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>预约试驾</td>
+<td>Book a test ride</td>
+</tr>
+</tbody>
+</table></div>
+<p>第 2 幕四张特写的说明，我写好中文再配上英文，一起发你确认。上线前最好请一位英文母语的人把英文读一遍。</p>
+<p><strong>素材清单补充</strong></p>
+<ul>
+<li><strong>途岚的英文名</strong>：logo 上有英文就照 logo 写。没有的话，告诉我英文版里品牌名怎么写，确认之前我先用拼音 Tulan。</li>
+<li><strong>英文的预约入口</strong>：预约页面或表单有英文版，就把链接一起发我。没有的话，英文版的按钮也先跳到中文表单，按钮下面用小字注明表单是中文。</li>
+<li><strong>英文参数表</strong>：有就一起发。没有的话，参数名我按行业通用的英文写，数字和单位照中文表。</li>
+</ul>
+<p>素材这两天发来就行。英文文案想改随时告诉我，不耽误搭页面。我这就开始搭：先按手机竖屏搭好五幕和中英文切换，素材没到的地方放标明的占位，到了再换上。第一版做好后发你链接，手机上直接就能打开看。</p></div></div>
+<p class="divider">开始制作</p>
+<div class="msg user"><p class="who"><b>用户（AI 扮演）</b></p><div class="body"><p>好，开始搭吧。宣传片还没剪好，先用这两段占位视频：site/public/skill-moto/material/standin-city.mp4（城市夜骑，5 秒）和 standin-road.mp4（山路，5 秒），都是横版 540x304、每帧关键帧，正式片到了再换。棚拍图、logo、预约链接、四句特写说明都先放标明的占位。</p></div></div>
+<p class="note">协调 AI 在同一条消息里另外交代了制作要求，这部分不是用户的话：页面放在 site/public/skill-moto/，框架从站点的 /v2/ 加载；做完按技能里的 checks.md，在 400x860、1280x710、1920x1080 三种尺寸下中英文各查一遍报错、溢出、动效、刷新和帧率；大约 50 分钟内做完，最后用 300 字以内汇报。</p>
+<div class="msg ai"><p class="who"><b>Opus</b><span>做完后的汇报</span></p><div class="body"><p>页面：http://127.0.0.1:4380/skill-moto/index.html</p>
+<p>自查：三种尺寸各测了中文和英文，另外测了 WebKit 和减少动态。没有报错，没有横向溢出，首屏不闪。视频和字幕跟着滑动走，往回滑会倒回去。中途刷新停在原处。帧间隔 P95 16.8ms。已修的问题：rise(normal) 报错；图片高度没按屏幕高度限制，1280x710 上第 2 幕开头一屏空白，1920 上价格被挤出首屏；英文标题末词落单；第 3 幕合上后留一条 1px 线。真机和微信没测。</p>
+<p>占位：两段视频、6 张棚拍图、4 句特写说明、参数值、logo、预约链接、品牌色值、页脚、英文品牌名（暂用 Tulan）。字体现在从 Google Fonts 加载，上线前要改成自托管。</p>
+<p>技能问题：</p>
+<ol>
+<li>framework.md 原来写了 rise(normal)，实际会报错。现在已改正。</li>
+<li>只写了 enter 要整块进屏才播，没提醒大图会因此迟迟不出现。</li>
+<li>zone 滑到最后一像素时 exit 只到 99.99%，clip 收到正好 50% 会留线，要写 51%。</li>
+<li>没讲字体怎么加载。国内打不开 Google Fonts，中文字体还要子集化。</li>
+</ol></div></div>
+<p class="note">这个页面后来放到了 <a href="/cases/moto/">/cases/moto/</a>。</p>
+</div>
+</section>
+</main>
+<footer class="foot">
+<a href="/">Cineview</a>
+<a href="/docs">文档</a>
+<a href="https://github.com/AlienMu/cineview">GitHub</a>
+</footer>
+</body>
+</html>
