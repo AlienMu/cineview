@@ -1,6 +1,7 @@
 // Wedding invitation. The timeline is declared in the markup; this file only does the
 // page-owned parts: copying the address, hiding the scroll hint, and reporting cv-error.
 const stage = document.getElementById('invite');
+const t = (key) => (window.weddingLang ? window.weddingLang.t(key) : key);
 
 // Every cv-error is a mistake in the page; surface it while developing.
 stage.addEventListener('cv-error', (event) => {
@@ -79,10 +80,10 @@ stage.addEventListener('cv-error', (event) => {
         document.execCommand('copy');
         field.remove();
       }
-      if (label) label.textContent = '已复制';
-      announce('地址已复制');
+      if (label) label.textContent = t('copy.done');
+      announce(t('copy.ok'));
     } catch {
-      announce('复制失败，请手动选择地址');
+      announce(t('copy.fail'));
     }
   });
 }

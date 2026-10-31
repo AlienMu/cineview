@@ -25,6 +25,18 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%23a85a4a' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3Cpath d='M16 13c0-4 2-6 0-8-2 2 0 4 0 8M19 16c4 0 6 2 8 0-2-2-4 0-8 0M16 19c0 4-2 6 0 8 2-2 0-4 0-8M13 16c-4 0-6-2-8 0 2 2 4 0 8 0'/%3E%3C/g%3E%3C/svg%3E"
     />
+    <!-- Language before first paint: the CSS sizes the display type per language, so the attribute
+         has to be right before the stylesheets are applied. Without JS the page stays Chinese. -->
+    <script>
+      (function () {
+        try {
+          var asked = new URLSearchParams(location.search).get('lang');
+          var kept = localStorage.getItem('wedding-lang');
+          var lang = asked === 'zh' || asked === 'en' ? asked : kept === 'zh' || kept === 'en' ? kept : 'en';
+          document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        } catch (e) {}
+      })();
+    </script>
     <!-- 1. head snippet: mark .cv-js when the browser meets the baseline. -->
     <script>
       (function (s) {
@@ -46,12 +58,16 @@
     </div>
 
     <header class="bar">
-      <a class="brand" href="#open">我们的婚礼</a>
-      <nav class="nav" aria-label="主导航">
-        <a href="#day">这一天</a>
-        <a href="#place">在哪儿</a>
-        <a href="#flower">送花</a>
+      <a class="brand" href="#open" data-i18n="bar.brand">我们的婚礼</a>
+      <nav class="nav" aria-label="主导航" data-i18n-label="bar.nav">
+        <a href="#day" data-i18n="nav.day">这一天</a>
+        <a href="#place" data-i18n="nav.place">在哪儿</a>
+        <a href="#flower" data-i18n="nav.flower">送花</a>
       </nav>
+      <div class="langs" role="group" aria-label="语言" data-i18n-label="bar.langs">
+        <button type="button" lang="zh-CN" data-set-lang="zh" aria-pressed="false">中文</button>
+        <button type="button" lang="en" data-set-lang="en" aria-pressed="true">EN</button>
+      </div>
       <p class="bar-date"><time datetime="2026-10-29">10.29</time></p>
     </header>
 
@@ -114,18 +130,18 @@
           </cv-animate>
 
           <div class="hero-copy">
-            <p class="kicker">邀请函 <span class="kicker-rule" aria-hidden="true"></span> 十月二十九日</p>
+            <p class="kicker"><span data-i18n="open.kicker1">邀请函</span> <span class="kicker-rule" aria-hidden="true"></span> <span data-i18n="open.kicker2">十月二十九日</span></p>
             <h1 class="hero-title" id="hero-title">
               <span class="clip"
                 ><cv-animate fx="rise(line)" duration="950"
-                  ><span class="nb">我们要结婚了</span></cv-animate
+                  ><span class="nb" data-i18n="open.title">我们要结婚了</span></cv-animate
                 ></span
               >
             </h1>
             <p class="hero-sub">
               <span class="clip"
                 ><cv-animate fx="rise(line)" duration="900" delay="700"
-                  ><span class="nb">二〇二六年十月二十九日，上午，重庆解放碑。</span></cv-animate
+                  ><span class="nb" data-i18n="open.sub">二〇二六年十月二十九日，上午，重庆解放碑。</span></cv-animate
                 ></span
               >
             </p>
@@ -133,7 +149,7 @@
               <cv-animate fx="fade" duration="700" delay="1100">
                 <div class="actions-row">
                   <a class="primary" href="#flower"
-                    ><span>我要送花</span
+                    ><span data-i18n="cta.flowers">我要送花</span
                     ><span class="arrow" aria-hidden="true"
                       ><svg viewBox="0 0 16 16" focusable="false"
                         ><path
@@ -145,18 +161,18 @@
                           stroke-linejoin="round"
                         /></svg></span
                   ></a>
-                  <a class="link" href="#day">先看这一天的安排</a>
+                  <a class="link" href="#day" data-i18n="open.link">先看这一天的安排</a>
                 </div>
               </cv-animate>
             </div>
             <p class="hero-names">
               <cv-animate fx="fade" duration="800" delay="1300">
-                <span class="names"><span class="ph">新郎名字</span> <span class="amp">·</span> <span class="ph">新娘名字</span></span>
+                <span class="names"><span class="ph" data-i18n="ph.groom">新郎名字</span> <span class="amp">·</span> <span class="ph" data-i18n="ph.bride">新娘名字</span></span>
               </cv-animate>
             </p>
           </div>
 
-          <p class="scroll-hint" id="scroll-hint">往下看</p>
+          <p class="scroll-hint" id="scroll-hint" data-i18n="open.cue">往下看</p>
         </section>
       </cv-scene>
 
@@ -166,18 +182,18 @@
           <div class="day-copy">
             <cv-animate on="clock" fx="fade, rise(soft)" duration="800">
               <div class="day-copy-in">
-                <p class="eyebrow">这一天</p>
+                <p class="eyebrow" data-i18n="day.eyebrow">这一天</p>
                 <h2 class="day-title" id="day-title">
-                  <span class="nb">从上午十点，</span><span class="nb">到吃完这顿饭</span>
+                  <span class="nb" data-i18n="day.t1">从上午十点，</span><span class="nb" data-i18n="day.t2">到吃完这顿饭</span>
                 </h2>
-                <p class="day-text">
+                <p class="day-text" data-i18n="day.text">
                   我们想在碑下见你一面。来了先把花放到花台，再找个位置坐下；仪式不长，之后有茶点和午饭。
                 </p>
               </div>
             </cv-animate>
           </div>
 
-          <ol class="day-list" aria-label="这一天的安排">
+          <ol class="day-list" aria-label="这一天的安排" data-i18n-label="day.list">
             <cv-animate
               class="day-stem"
               from="scale-y:0"
@@ -192,8 +208,8 @@
                 <div class="point-in">
                   <span class="point-dot" aria-hidden="true"></span>
                   <span class="point-time">09:30</span>
-                  <span class="point-name">花台开放</span>
-                  <span class="point-note">先把花放好，我们会替你插上</span>
+                  <span class="point-name" data-i18n="point1.name">花台开放</span>
+                  <span class="point-note" data-i18n="point1.note">先把花放好，我们会替你插上</span>
                 </div>
               </cv-animate>
             </li>
@@ -202,8 +218,8 @@
                 <div class="point-in">
                   <span class="point-dot" aria-hidden="true"></span>
                   <span class="point-time">10:00</span>
-                  <span class="point-name">入场签到</span>
-                  <span class="point-note">在门口写下你的名字</span>
+                  <span class="point-name" data-i18n="point2.name">入场签到</span>
+                  <span class="point-note" data-i18n="point2.note">在门口写下你的名字</span>
                 </div>
               </cv-animate>
             </li>
@@ -212,8 +228,8 @@
                 <div class="point-in">
                   <span class="point-dot" aria-hidden="true"></span>
                   <span class="point-time">10:30</span>
-                  <span class="point-name">仪式</span>
-                  <span class="point-note">大约二十分钟，站着就好</span>
+                  <span class="point-name" data-i18n="point3.name">仪式</span>
+                  <span class="point-note" data-i18n="point3.note">大约二十分钟，站着就好</span>
                 </div>
               </cv-animate>
             </li>
@@ -222,8 +238,8 @@
                 <div class="point-in">
                   <span class="point-dot" aria-hidden="true"></span>
                   <span class="point-time">11:15</span>
-                  <span class="point-name">合影与茶点</span>
-                  <span class="point-note">在碑前拍照，别怕挤</span>
+                  <span class="point-name" data-i18n="point4.name">合影与茶点</span>
+                  <span class="point-note" data-i18n="point4.note">在碑前拍照，别怕挤</span>
                 </div>
               </cv-animate>
             </li>
@@ -232,8 +248,8 @@
                 <div class="point-in">
                   <span class="point-dot" aria-hidden="true"></span>
                   <span class="point-time">12:00</span>
-                  <span class="point-name">午宴</span>
-                  <span class="point-note">就在旁边，走两步就到</span>
+                  <span class="point-name" data-i18n="point5.name">午宴</span>
+                  <span class="point-note" data-i18n="point5.note">就在旁边，走两步就到</span>
                 </div>
               </cv-animate>
             </li>
@@ -247,16 +263,16 @@
           <div class="place-copy">
             <cv-animate on="clock" fx="fade, rise(soft)" duration="800">
               <div class="place-copy-in">
-                <p class="eyebrow">在哪儿</p>
+                <p class="eyebrow" data-i18n="place.eyebrow">在哪儿</p>
                 <h2 class="place-title" id="place-title">
-                  <span class="nb">解放碑，</span><span class="nb">碑下见</span>
+                  <span class="nb" data-i18n="place.t1">解放碑，</span><span class="nb" data-i18n="place.t2">碑下见</span>
                 </h2>
-                <p class="place-text">
+                <p class="place-text" data-i18n="place.text">
                   重庆市渝中区民族路 177 号，解放碑步行街。轻轨 2 号线临江门站 A 口出来，走六分钟；开车的话停大都会东方广场车库。
                 </p>
                 <p class="place-actions">
                   <button type="button" class="secondary" id="copy-addr">
-                    <span id="copy-label">复制地址</span>
+                    <span id="copy-label" data-i18n="copy.label">复制地址</span>
                   </button>
                   <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
                 </p>
@@ -271,7 +287,7 @@
               target=".map-lines *"
               duration="2000"
               ease="linear"
-              aria-label="一张简图：从临江门站 A 口沿民族路步行到解放碑，约六分钟"
+              aria-label="一张简图：从临江门站 A 口沿民族路步行到解放碑，约六分钟" data-i18n-label="place.map"
             >
               <svg viewBox="0 0 720 640" preserveAspectRatio="xMidYMid meet" focusable="false" aria-hidden="true">
                 <g class="map-lines">
@@ -297,9 +313,9 @@
               </svg>
             </cv-animate>
             <figcaption class="map-caption">
-              <span class="map-key"><i class="dot dot-a" aria-hidden="true"></i>临江门站 A 口</span>
-              <span class="map-key"><i class="dot dot-b" aria-hidden="true"></i>解放碑</span>
-              <span class="map-key map-key--note">步行约 6 分钟</span>
+              <span class="map-key"><i class="dot dot-a" aria-hidden="true"></i><span data-i18n="map.a">临江门站 A 口</span></span>
+              <span class="map-key"><i class="dot dot-b" aria-hidden="true"></i><span data-i18n="map.b">解放碑</span></span>
+              <span class="map-key map-key--note" data-i18n="map.note">步行约 6 分钟</span>
             </figcaption>
           </figure>
         </section>
@@ -311,11 +327,11 @@
           <div class="flower-head">
             <cv-animate fx="fade, rise(soft)" duration="800">
               <div class="flower-head-in">
-                <p class="eyebrow">送花</p>
+                <p class="eyebrow" data-i18n="flower.eyebrow">送花</p>
                 <h2 class="flower-title" id="flower-title">
-                  <span class="nb">不用带礼物，</span><span class="nb">带一枝花就好</span>
+                  <span class="nb" data-i18n="flower.t1">不用带礼物，</span><span class="nb" data-i18n="flower.t2">带一枝花就好</span>
                 </h2>
-                <p class="flower-text">
+                <p class="flower-text" data-i18n="flower.text">
                   我们想用大家带来的花，把花台填满。什么花都行，一枝就够；如果你来不了，也可以托朋友带一枝。
                 </p>
               </div>
@@ -326,8 +342,8 @@
             <cv-animate class="fcard" fx="fade, rise(soft)" duration="700">
               <article class="fcard-in">
                 <p class="fcard-num">1</p>
-                <h3 class="fcard-name">挑一枝</h3>
-                <p class="fcard-text">
+                <h3 class="fcard-name" data-i18n="card1.name">挑一枝</h3>
+                <p class="fcard-text" data-i18n="card1.text">
                   路过花店时，挑一枝你看着顺眼的。玫瑰、洋桔梗、一把小雏菊，或者干脆一段带叶子的枝条，都可以。
                 </p>
               </article>
@@ -335,8 +351,8 @@
             <cv-animate class="fcard" fx="fade, rise(soft)" duration="700" delay="160">
               <article class="fcard-in">
                 <p class="fcard-num">2</p>
-                <h3 class="fcard-name">写一句话</h3>
-                <p class="fcard-text">
+                <h3 class="fcard-name" data-i18n="card2.name">写一句话</h3>
+                <p class="fcard-text" data-i18n="card2.text">
                   花台上有一叠卡片。写下想对我们说的话，字丑没关系，别写太久，后面的人还等着笔。
                 </p>
               </article>
@@ -344,8 +360,8 @@
             <cv-animate class="fcard" fx="fade, rise(soft)" duration="700" delay="320">
               <article class="fcard-in">
                 <p class="fcard-num">3</p>
-                <h3 class="fcard-name">放上花台</h3>
-                <p class="fcard-text">
+                <h3 class="fcard-name" data-i18n="card3.name">放上花台</h3>
+                <p class="fcard-text" data-i18n="card3.text">
                   进门左手边就是花台，交给那儿的朋友。我们会把每一枝都留着，仪式结束后一起带走。
                 </p>
               </article>
@@ -354,8 +370,7 @@
 
           <cv-animate class="flower-note" fx="fade" duration="700" delay="480">
             <p class="note-in">
-              <span class="note-label">来不了？</span>
-              花可以寄到「重庆市渝中区民族路 177 号」，收件人写<span class="ph">联系人名字</span>，电话<span class="ph">联系方式</span>。十月二十八日前寄到，我们替你摆上。
+              <span class="note-label" data-i18n="note.label">来不了？</span><span data-i18n="note.text1">花可以寄到「重庆市渝中区民族路 177 号」，收件人写</span><span class="ph" data-i18n="ph.contact">联系人名字</span><span data-i18n="note.text2">，电话</span><span class="ph" data-i18n="ph.phone">联系方式</span><span data-i18n="note.text3">。十月二十八日前寄到，我们替你摆上。</span>
             </p>
           </cv-animate>
         </section>
@@ -376,10 +391,10 @@
           </cv-animate>
           <cv-animate fx="fade, rise(soft)" duration="900">
             <div class="end-in">
-              <h2 class="end-title" id="end-title"><span class="nb">十月二十九日，</span><span class="nb">见</span></h2>
-              <p class="end-text">有什么想问的，直接找我们。到了找不到地方，也打电话。</p>
+              <h2 class="end-title" id="end-title"><span class="nb" data-i18n="end.t1">十月二十九日，</span><span class="nb" data-i18n="end.t2">见</span></h2>
+              <p class="end-text" data-i18n="end.text">有什么想问的，直接找我们。到了找不到地方，也打电话。</p>
               <div class="end-actions">
-                <a class="primary" href="#flower">我要送花<span class="arrow" aria-hidden="true"
+                <a class="primary" href="#flower"><span data-i18n="cta.flowers">我要送花</span><span class="arrow" aria-hidden="true"
                   ><svg viewBox="0 0 16 16" focusable="false"
                     ><path
                       d="M3.5 8h8.5M8.5 4.5 12 8l-3.5 3.5"
@@ -390,19 +405,20 @@
                       stroke-linejoin="round"
                     /></svg></span
                 ></a>
-                <a class="link" href="#day">再看一遍时间</a>
+                <a class="link" href="#day" data-i18n="end.link">再看一遍时间</a>
               </div>
-              <p class="end-names"><span class="ph">新郎名字</span> <span class="amp">·</span> <span class="ph">新娘名字</span></p>
+              <p class="end-names"><span class="ph" data-i18n="ph.groom">新郎名字</span> <span class="amp">·</span> <span class="ph" data-i18n="ph.bride">新娘名字</span></p>
             </div>
           </cv-animate>
           <footer class="foot">
-            <p>二〇二六年十月二十九日 · 重庆解放碑</p>
-            <p class="foot-small">这个页面用 Cineview 做成，滚动即时间。</p>
+            <p data-i18n="foot.date">二〇二六年十月二十九日 · 重庆解放碑</p>
+            <p class="foot-small" data-i18n="foot.note">这个页面用 Cineview 做成，滚动即时间。</p>
           </footer>
         </section>
       </cv-scene>
     </cv-stage>
 
+    <script defer src="lang.js"></script>
     <script defer src="page.js"></script>
   </body>
 </html>

@@ -945,3 +945,134 @@ html:has(cv-stage[data-cv-theme="dusk"]) .progress {
     transition: none;
   }
 }
+
+/* ---------- language switch ---------- */
+
+.langs {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+}
+
+.langs button {
+  appearance: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 calc(8 * var(--u));
+  color: var(--ink-soft);
+  font: 400 max(13px, calc(16 * var(--u))) / 1 var(--font-body);
+  letter-spacing: 0.12em;
+}
+
+.langs button[data-set-lang="en"] {
+  font-family: var(--font-display);
+  letter-spacing: 0.2em;
+}
+
+.langs button:hover,
+.langs button:focus-visible {
+  color: var(--ink);
+}
+
+.langs button[aria-pressed="true"] {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 1px;
+}
+
+/* English runs longer than Chinese: give the display type room, and let long lines wrap. */
+html[lang="en"] .hero-title {
+  font-size: calc(104 * var(--u));
+  line-height: 1.2;
+}
+
+html[lang="en"] .day-title,
+html[lang="en"] .place-title,
+html[lang="en"] .flower-title {
+  font-size: calc(74 * var(--u));
+}
+
+html[lang="en"] .end-title {
+  font-size: calc(96 * var(--u));
+}
+
+html[lang="en"] .kicker {
+  letter-spacing: 0.2em;
+}
+
+html[lang="en"] .point-name,
+html[lang="en"] .fcard-name {
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 980px) {
+  html[lang="en"] .hero-title {
+    font-size: calc(118 * var(--u));
+  }
+
+  html[lang="en"] .day-title,
+  html[lang="en"] .place-title,
+  html[lang="en"] .flower-title {
+    font-size: calc(112 * var(--u));
+  }
+
+  html[lang="en"] .end-title {
+    font-size: calc(128 * var(--u));
+  }
+
+  html[lang="en"] .kicker {
+    letter-spacing: 0.14em;
+  }
+
+  .langs button {
+    padding: 0 calc(4 * var(--u));
+    letter-spacing: 0.08em;
+  }
+}
+
+/* On a phone the bar keeps the name and the switch; the three links move to the page itself. */
+.langs button { white-space: nowrap; flex: none; }
+.ph { white-space: nowrap; }
+
+/* English labels run wider than the Chinese ones; on a small phone the bar keeps the switch. */
+@media (max-width: 480px) {
+  html[lang="en"] .nav { display: none; }
+}
+
+/* English titles are two lines by design: one block per line, so the seam never loses its space. */
+html[lang="en"] .day-title .nb,
+html[lang="en"] .place-title .nb,
+html[lang="en"] .flower-title .nb,
+html[lang="en"] .end-title .nb {
+  display: block;
+}
+
+html[lang="en"] .day-title,
+html[lang="en"] .place-title,
+html[lang="en"] .flower-title {
+  font-size: calc(60 * var(--u));
+}
+
+html[lang="en"] .end-title {
+  font-size: calc(84 * var(--u));
+}
+
+html[lang="en"] .day,
+html[lang="en"] .place {
+  grid-template-columns: minmax(0, 760fr) minmax(0, 840fr);
+}
+
+@media (max-width: 980px) {
+  html[lang="en"] .day-title,
+  html[lang="en"] .place-title,
+  html[lang="en"] .flower-title {
+    font-size: calc(104 * var(--u));
+  }
+
+  html[lang="en"] .end-title {
+    font-size: calc(112 * var(--u));
+  }
+}
