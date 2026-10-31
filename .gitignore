@@ -97,6 +97,7 @@ blob-report/
 # The runtime copied for the site's static pages (site/tools/copy-v2-runtime.mjs)
 site/public/v2/
 site/public/drag/drag.js
+site/public/site-language.js
 
 
 # Fixture builds and size measurements

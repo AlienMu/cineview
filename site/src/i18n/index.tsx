@@ -8,18 +8,11 @@ import {
   type ReactNode,
 } from 'react';
 import { en } from './en';
+import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from './language';
 import type { Dict, DictKey, Lang } from './types';
 import { zh } from './zh';
 
 const DICTS: Record<Lang, Dict> = { zh, en };
-const STORAGE_KEY = 'cineview-site-lang';
-
-function guessDefaultLang(): Lang {
-  if (typeof window === 'undefined') return 'en';
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === 'zh' || stored === 'en') return stored;
-  return 'en';
-}
 
 interface I18nContextValue {
   lang: Lang;
@@ -31,12 +24,12 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }): import('react').JSX.Element {
-  const [lang, setLangState] = useState<Lang>(guessDefaultLang);
+  const [lang, setLangState] = useState<Lang>(resolveLanguage);
 
   useEffect(() => {
     const syncLanguage = (event: StorageEvent): void => {
-      if (event.key === STORAGE_KEY && (event.newValue === 'zh' || event.newValue === 'en')) {
-        setLangState(event.newValue);
+      if (event.key === LANGUAGE_STORAGE_KEY || event.key === null) {
+        setLangState(resolveLanguage());
       }
     };
     window.addEventListener('storage', syncLanguage);
@@ -44,12 +37,14 @@ export function I18nProvider({ children }: { children: ReactNode }): import('rea
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, lang);
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   }, [lang]);
 
-  const setLang = useCallback((next: Lang) => setLangState(next), []);
-  const toggleLang = useCallback(() => setLangState((p) => (p === 'zh' ? 'en' : 'zh')), []);
+  const setLang = useCallback((next: Lang) => {
+    saveLanguage(next);
+    setLangState(next);
+  }, []);
+  const toggleLang = useCallback(() => setLang(lang === 'zh' ? 'en' : 'zh'), [lang, setLang]);
 
   const t = useCallback((key: DictKey): string => DICTS[lang][key] ?? DICTS.en[key] ?? key, [lang]);
 

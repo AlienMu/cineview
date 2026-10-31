@@ -8,6 +8,8 @@ import { mountWaveform } from './waveform';
 import { readDialEpoch } from './dial';
 import { media, ring, timecode } from './frames';
 import { mountDust } from './dust';
+import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '../i18n/language';
+import type { Lang } from '../i18n/types';
 
 const lane = (id: string): Element | null =>
   document.querySelector(`[data-cineview-animate-id="${id}"]`);
@@ -155,50 +157,61 @@ function replaceText(root: Element, map: Record<string, string>): void {
   }
 }
 
-function translate(): void {
+function translate(lang: Lang): void {
   for (const [sel, en, zh] of ZH_TEXT) {
     const el = document.querySelector(sel);
     if (!el) continue;
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode())
-      if (n.textContent?.trim() === en) n.textContent = zh;
+      if (n.textContent?.trim() === (lang === 'zh' ? en : zh))
+        n.textContent = lang === 'zh' ? zh : en;
   }
+  const words = (map: Record<string, string>): Record<string, string> =>
+    lang === 'zh' ? map : Object.fromEntries(Object.entries(map).map(([en, zh]) => [zh, en]));
   for (const sel of ['.s03-preview__subtitles', '.s03-tracks']) {
     const el = document.querySelector(sel);
-    if (el) replaceText(el, ZH_WORDS);
+    if (el) replaceText(el, words(ZH_WORDS));
   }
   const credits = document.querySelector('.s05-credits');
-  if (credits) replaceText(credits, ZH_CREDITS);
-  for (const [sel, label] of ZH_LABELS)
-    document.querySelector(sel)?.setAttribute('aria-label', label);
-  const toggle = document.querySelector('.lang-toggle');
-  toggle?.setAttribute('title', '切换语言');
+  if (credits) replaceText(credits, words(ZH_CREDITS));
 }
 
-// v1's language toggle (scene 1, top right): the page is v1's English-first film copy; the toggle
-// switches the site language (same key as the homepage) and reloads so every scene reads it.
+// Apply text in place so a manual switch also works when storage is unavailable.
 function language(): void {
-  let lang = 'zh';
-  try {
-    if (localStorage.getItem('cineview-site-lang') === 'en') lang = 'en';
-  } catch {
-    /* storage may be blocked */
-  }
-  document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
-  if (lang === 'zh') translate();
+  let lang: Lang = 'en'; // The static markup contains English.
   const button = document.querySelector<HTMLButtonElement>('.lang-toggle');
   const code = button?.querySelector('.lang-toggle__code');
-  if (code) code.textContent = lang === 'zh' ? 'EN' : 'ZH';
+  const title = button?.getAttribute('title') ?? '';
+  const labels = ZH_LABELS.map(([selector, zh]) => {
+    const element = document.querySelector(selector);
+    return { element, zh, en: element?.getAttribute('aria-label') ?? '' };
+  });
+  const apply = (next: Lang): void => {
+    if (next !== lang) translate(next);
+    lang = next;
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+    if (code) code.textContent = lang === 'zh' ? 'EN' : 'ZH';
+    button?.setAttribute('title', lang === 'zh' ? '切换语言' : title);
+    for (const { element, en, zh } of labels)
+      element?.setAttribute('aria-label', lang === 'zh' ? zh : en);
+  };
+  apply(resolveLanguage());
   button?.addEventListener('click', () => {
     const next = lang === 'zh' ? 'en' : 'zh';
-    try {
-      localStorage.setItem('cineview-site-lang', next);
-    } catch {
-      /* storage may be blocked */
-    }
+    saveLanguage(next);
+    apply(next);
     if (window.parent !== window)
       window.parent.postMessage(`cineview-embed-lang:${next}`, location.origin);
-    location.reload();
+  });
+  window.addEventListener('storage', (event) => {
+    if (event.key === LANGUAGE_STORAGE_KEY || event.key === null) apply(resolveLanguage());
+  });
+  window.addEventListener('message', (event) => {
+    if (window.parent === window || event.origin !== location.origin || event.source !== window.parent)
+      return;
+    if (typeof event.data !== 'string' || !event.data.startsWith('cineview-site-lang:')) return;
+    const next = event.data.slice('cineview-site-lang:'.length);
+    if (next === 'zh' || next === 'en') apply(next);
   });
 }
 

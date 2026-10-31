@@ -2,6 +2,7 @@
 // parts: Act 1's highlight and ink (measured paths the v2 loop cannot express) and the language
 // switch. Act 2's timing is declared in the markup; the script only translates its labels.
 import '/v2/cineview.js';
+import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-language.js';
 
 {
   const root = document.documentElement;
@@ -312,7 +313,8 @@ import '/v2/cineview.js';
   const SIGNAL_DELAY_MS = 1000;
 
   const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
-  let lang = 'zh';
+  let lang = resolveLanguage();
+  let prepareCopyChange = () => {};
   let heroInView = true;
   let entryDone = false;
   let entryTimer = 0;
@@ -674,6 +676,7 @@ import '/v2/cineview.js';
 
   // Text changes in place: the v2 text watcher re-measures split lines, so nothing replays.
   function applyCopy() {
+    prepareCopyChange();
     const copy = COPY[lang];
     root.lang = copy.lang;
     hero.dataset.lang = lang;
@@ -700,24 +703,33 @@ import '/v2/cineview.js';
     langButtons.forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.setLang === lang));
     });
-    try {
-      localStorage.setItem('cineview-site-lang', lang);
-    } catch {}
     measure();
     loadFonts().then(measure);
   }
 
+  function syncDragLanguage() {
+    const dragFrame = document.getElementById('drag-frame');
+    dragFrame?.contentWindow?.postMessage(`cineview-site-lang:${lang}`, location.origin);
+  }
+
   langButtons.forEach((button) => {
     button.addEventListener('click', () => {
+      // Clicking the already-selected language also makes an automatic choice explicit.
+      saveLanguage(button.dataset.setLang);
       if (button.dataset.setLang === lang) return;
       lang = button.dataset.setLang;
       applyCopy();
-      // The drag page in the phone reads the language when it loads: load it again.
-      const dragFrame = document.getElementById('drag-frame');
-      try {
-        if (dragFrame && dragFrame.contentWindow) dragFrame.contentWindow.location.reload();
-      } catch {}
+      syncDragLanguage();
     });
+  });
+
+  addEventListener('storage', (event) => {
+    if (event.key !== LANGUAGE_STORAGE_KEY && event.key !== null) return;
+    const next = resolveLanguage();
+    if (next === lang) return;
+    lang = next;
+    applyCopy();
+    syncDragLanguage();
   });
 
   if (reducedQuery.addEventListener) reducedQuery.addEventListener('change', applyStatic);
@@ -1017,10 +1029,11 @@ import '/v2/cineview.js';
     addEventListener('message', (e) => {
       if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
       if (e.data === 'cineview-embed-ready') {
-        // A ready frame is a fresh one (first load, or reloaded for a language change): it starts
+        // A ready frame is a fresh one (first load or a frame reload): it starts
         // as the dark shell, so it needs activating again if the act is on screen.
         ready = true;
         active = false;
+        syncDragLanguage();
         sync();
       } else if (typeof e.data === 'string' && e.data.startsWith('cineview-embed-lang:')) {
         // The phone's own toggle: the page follows, so one screen shows one language.
@@ -1068,6 +1081,7 @@ import '/v2/cineview.js';
     // document counts as ready; otherwise its load event does.
     const loaded = () => {
       ready = true;
+      syncDragLanguage();
       sync();
     };
     if (frame.contentDocument && frame.contentDocument.readyState === 'complete' && frame.contentWindow.location.href !== 'about:blank') loaded();
@@ -1098,10 +1112,16 @@ import '/v2/cineview.js';
     const reset = () => {
       clearTimeout(timer);
       for (const el of targets) {
-        if (el.dataset.full !== undefined) el.textContent = el.dataset.full;
+        const target = el.matches('code') ? el : el.querySelector('code') || el;
+        if (target.dataset.full !== undefined) {
+          target.textContent = target.dataset.full;
+          delete target.dataset.full;
+        }
         el.classList.remove('is-typing', 'is-waiting', 'is-typed');
       }
     };
+    // Stop the previous language's reveal before any entry point replaces the copy.
+    prepareCopyChange = reset;
     const play = () => {
       if (played || isStatic()) return;
       played = true;
@@ -1135,11 +1155,6 @@ import '/v2/cineview.js';
     new IntersectionObserver(([e]) => {
       if (e.isIntersecting && e.intersectionRatio > 0.35) play();
     }, { threshold: [0, 0.35, 0.6] }).observe(method);
-    // A language change rewrites the text: show it whole.
-    document.querySelectorAll('[data-set-lang]').forEach((b) => b.addEventListener('click', () => {
-      reset();
-      played = true;
-    }));
   }
 
   // Where the reader is: the scene at the eye line, the offset into it, and the act's theme, kept
@@ -1252,11 +1267,7 @@ import '/v2/cineview.js';
     }
   }
 
-  // The site remembers the reader's language (site/src/i18n, same key).
-  try {
-    const stored = localStorage.getItem('cineview-site-lang');
-    if (stored === 'en' || stored === 'zh') lang = stored;
-  } catch {}
+  // Apply the selected copy before the entrance without creating a saved preference.
   if (lang !== 'zh') applyCopy();
 
   root.classList.toggle('is-static', isStatic());
