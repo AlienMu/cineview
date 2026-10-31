@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>两段做落地页的对话 · Cineview</title>
-<meta name="description" content="婚礼邀请页的对话是 DeepSeek 写的，摩托车介绍页的对话是 Claude Opus 写的。两段都按原文整理。">
+<title>Two landing-page conversations · Cineview</title>
+<meta name="description" content="A wedding invitation page made with DeepSeek and a motorcycle intro page made with Claude Opus, with both planning conversations as they happened.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Cineview">
-<meta property="og:locale" content="zh_CN">
+<meta property="og:locale" content="en_US">
 <meta property="og:url" content="https://cineview.pages.dev/cases/conversations/">
-<meta property="og:title" content="两段做落地页的对话 · Cineview 案例">
-<meta property="og:description" content="婚礼邀请页的对话是 DeepSeek 写的，摩托车介绍页的对话是 Claude Opus 写的。两段都按原文整理。">
+<meta property="og:title" content="Two landing-page conversations · Cineview case · Cineview">
+<meta property="og:description" content="A wedding invitation page made with DeepSeek and a motorcycle intro page made with Claude Opus, with both planning conversations as they happened.">
 <meta property="og:image" content="https://cineview.pages.dev/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -24,11 +24,548 @@
 <body>
 <header class="bar">
 <a class="brand" href="/">Cineview</a>
-<nav class="jump" aria-label="两段对话">
-<a class="ds" href="#wedding">婚礼<span>DeepSeek</span></a>
-<a class="op" href="#moto">摩托车<span>Opus</span></a>
+<nav class="jump" aria-label="Conversations">
+<a class="ds" href="#wedding" data-jump="wedding"><span data-en="Wedding" data-zh="婚礼">Wedding</span><span>DeepSeek</span></a>
+<a class="op" href="#moto" data-jump="moto"><span data-en="Motorcycle" data-zh="摩托车">Motorcycle</span><span>Opus</span></a>
 </nav>
+<div class="langs" role="group" aria-label="Page language">
+<button type="button" data-set-lang="zh" lang="zh-CN" aria-pressed="false">中文</button>
+<button type="button" data-set-lang="en" lang="en" aria-pressed="true">EN</button>
+</div>
 </header>
+<div data-page="en">
+<main>
+<section class="intro">
+<p class="eyebrow">Cineview case</p>
+<h1>Two landing-page conversations</h1>
+<p class="lead">Both AIs had read Cineview’s <a href="https://github.com/AlienMu/cineview/tree/main/skills/cineview-design">design skill</a> and then talked with a user to make a landing page. The wedding invitation is DeepSeek’s conversation; the motorcycle page is Claude Opus’s.</p>
+<p class="how">The dialogue is as it happened. The grey notes were added here: they say what the AI did with tools between messages, or give background. DeepSeek asked with multiple-choice forms, listed as it sent them, with the user’s pick marked. The recap at the start of each moto round is folded; open it for the full list.</p>
+<div class="cards">
+<a class="card ds" href="#wedding" data-jump="wedding"><span class="tag">DeepSeek wrote this</span><strong>Wedding invitation</strong><span>deepseek-v4.1-flash · 2026-10-28</span><span>A real person; the first message was a repo link and “help me make a landing page”</span></a>
+<a class="card op" href="#moto" data-jump="moto"><span class="tag">Opus wrote this</span><strong>Motorcycle intro page</strong><span>claude-opus-5.5 · 2026-10-27</span><span>The user was played by an AI from a setup written beforehand</span></a>
+</div>
+</section>
+<section class="conv ds" id="wedding" aria-labelledby="wedding-title">
+<header class="conv-head">
+<p class="tag">DeepSeek wrote this</p>
+<h2 id="wedding-title">Wedding invitation</h2>
+<dl class="facts"><div><dt>AI</dt><dd>DeepSeek, model ID deepseek-v4.1-flash, high reasoning effort, running in the DeepSeek Harness web app.</dd></div><div><dt>User</dt><dd>A real person, talking directly, with no setup written beforehand. The first message was a repo link and “help me make a landing page”; they never asked for the skill to be followed.</dd></div><div><dt>Skill</dt><dd>This harness’s skill list did not include cineview-design. The AI cloned the repo itself and read the skill files as ordinary files with sed.</dd></div><div><dt>Global rules</dt><dd>The user had given DeepSeek Harness a global rule set: before acting, write one line of a goal and the smallest list of files to read; stop once there is enough information; use the fewest steps; never delete, only move to the Trash (rule A2). The goal lines and the “按 A2” in DeepSeek’s messages come from it.</dd></div><div><dt>Time</dt><dd>2026-10-28, 14:22 to 14:59</dd></div><div><dt>Page</dt><dd><a href="/cases/wedding/">/cases/wedding/</a></dd></div></dl>
+</header>
+<div class="thread">
+<div class="msg user"><p class="who"><b>User</b><span>14:22</span></p><div class="body"><p>https://github.com/AlienMu/cineview, take a look at this site and make me a landing page</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:22</span></p><div class="body"><p>Let me look at what this project is first.</p></div></div>
+<p class="note">The AI looked at the repo with gh, shallow-cloned it, and read the README, the homepage index.html, and the skill’s SKILL.md and conversation.md.</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:23</span></p><div class="body"><div class="ask"><p class="ask-tag">Multiple choice</p><div class="q"><p class="q-head">Who is this landing page for?</p><p>I looked at the repo: Cineview is a landing-page framework of plain HTML plus custom elements, and the site itself is a multi-scene page that scrolls and drags. Who is the page you want to make for?</p><ul class="opts"><li class="chosen"><b>For Cineview itself: redo the homepage (recommended)</b><em>Picked by the user</em><span>Keep the framework and the storyboard approach, change the visuals and the story, and produce an index.html that runs as it is.</span></li><li><b>For my own product or project</b><span>Tell me what the product is, what the reader should remember, and what material you have; I'll use the same storyboard method.</span></li><li><b>Just a general template or sample page</b><span>Not tied to any business: a multi-scene landing-page template whose copy you can change and use.</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:24</span></p><div class="body"><p><span class="pick">Who is this landing page for? </span>For Cineview itself: redo the homepage (recommended)</p></div></div>
+<p class="note">The AI then read the homepage’s scene structure and the skill’s references.md, styles.md and framework.md, looked at the repo’s two videos with ffprobe, and pulled two frames to look at.</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:25</span></p><div class="body"><p>I've been through the repo: the site is a nine-scene scroll page with an editorial-paper feel and film, Fraunces and Noto Serif, a cream ground with clay accents, using <code>cv-scene</code> and <code>cv-zone</code>, plus <code>cv-stack</code>, <code>track=&quot;x&quot;</code>, and a projector drawn on a Canvas.</p>
+<p>【Goal】Follow the skill's order: settle the direction and the scenes first, then write the storyboard, and only write code once you confirm.<br />
+【Smallest file list I plan to read】Already read; nothing more for now.</p><div class="ask"><p class="ask-tag">Multiple choice, 2 questions</p><div class="q"><p class="q-head">1/2 · Direction</p><p>Which visual direction? (I recommend A: the current site is already B, so a remake should move away from it, and a dark ground shows the frame-by-frame footage better)</p><ul class="opts"><li class="chosen"><b>A. Night screening (recommended)</b><em>Picked by the user</em><span>5 acts, near-black ground plus a single beam of light. Fits the film/storyboard theme, sets itself apart from the cream homepage, and can show a theme change and drag mode.</span></li><li><b>B. Paper editing table</b><span>4 acts, large serif type plus fine line drawings, quiet and more work, like the opening of a magazine. The same mood as the current site: safe but repetitive.</span></li><li><b>C. Clapperboard (poster style)</b><span>5 acts, big type on black, a clapperboard and numbered slates, one tap per act. The strongest opening feeling, but it can overpower the content.</span></li></ul></div><div class="q"><p class="q-head">2/2 · Delivery</p><p>Where do the files go, and how do you run them?</p><ul class="opts"><li class="chosen"><b>A standalone set of files (recommended)</b><em>Picked by the user</em><span>Create a landing/ directory in the workspace: index.html + CSS + a little JS, with cineview@2 from npm/cdn at runtime and no build step.</span></li><li><b>Replace the homepage in the repo</b><span>Replace site/public/index.html directly; you'd have to install dependencies and run vite to preview.</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:25</span></p><div class="body"><p><span class="pick">Direction: </span>A. Night screening (recommended)</p><p><span class="pick">Delivery: </span>A standalone set of files (recommended)</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:26</span></p><div class="body"><div class="ask"><p class="ask-tag">Multiple choice</p><div class="q"><p class="q-head">Storyboard check</p><p>Here is the storyboard (direction: night screening, near-black ground plus one warm beam; headings in Fraunces + Noto Serif SC, code and timecodes monospaced). Once you confirm, I'll write the files:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scene</th>
+<th>Says one thing</th>
+<th>What the reader sees</th>
+<th>Mode</th>
+<th>Material</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Top bar</td>
+<td>Navigation</td>
+<td>Brand, docs, GitHub, language buttons</td>
+<td>Fixed</td>
+<td>None</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Opening</td>
+<td>Write a landing page with a storyboard</td>
+<td>A beam of projector light sweeps across black, two lines of large type rise out of it, slate number 01</td>
+<td>Ordinary scene, plays on enter</td>
+<td>None (CSS beam)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>How a page is born</td>
+<td>A scene is a timeline</td>
+<td>A page wireframe on the left; on scroll the title, subline, button and image come on one after another, with a timeline filling in below</td>
+<td>Paused zone, frame by frame with scroll</td>
+<td>Wireframe drawn as SVG</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Film strip</td>
+<td>The picture can step frame by frame with scroll</td>
+<td>A vertical film strip with a night-ride clip in the middle frame; scrolling steps it forward and back</td>
+<td>Paused zone + cv-video</td>
+<td>media/ride.mp4 + poster</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Lights up</td>
+<td>Scroll and drag, the same scene</td>
+<td>The whole page turns to cream paper, two cards: scroll on the left, drag on the right, cards stack upward</td>
+<td>Paused zone + card stack</td>
+<td>None</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Closing</td>
+<td>Start using it</td>
+<td>The lights dim again, one install command, two buttons, a footer</td>
+<td>Ordinary scene</td>
+<td>None</td>
+</tr>
+</tbody>
+</table></div>
+<p>Material list: everything comes from the repo (ride.mp4 portrait 10s, video.mp4 landscape 10s as the background light, ride-poster.jpg and so on). You don't need to send anything.</p><ul class="opts"><li><b>That's the one, start writing (recommended)</b><span>Build from the storyboard below, using the two videos and the poster already in the repo.</span></li><li><b>The direction is fine, but change one thing</b><span>For example drop an act, open in drag mode, or skip the lights-up moment. Tell me what to change.</span></li><li><b>Too many acts, cut it to 4</b><span>I'll swap the order or the content of acts 3 and 4 to tighten the pace.</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:26</span></p><div class="body"><p class="cancel">The user cancelled this question without choosing</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:26</span></p><div class="body"><p>Since you skipped the check, I'll start on what's already settled: night screening, 6 scenes (top bar included), one standalone set of files.</p></div></div>
+<p class="note">The AI created a landing/ directory and prepared to download the cineview@2 package.</p>
+<div class="msg user"><p class="who"><b>User</b><span>14:26</span></p><div class="body"><p>Do you know what I'm trying to make?</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:27</span></p><div class="body"><p>Honestly, I'm not sure right now, and I've been going on my own assumptions, so let me stop and lay it out.</p>
+<p>What I <strong>have confirmed</strong>: you sent the Cineview repo, which is building a landing-page framework of plain HTML plus <code>cv-*</code> custom elements, and the site itself is a multi-scene page that scrolls and drags. I asked &quot;who is this landing page for&quot; and you picked &quot;for Cineview itself: redo the homepage&quot;, so I understood the task as: <strong>make a new homepage landing page for Cineview</strong>, with the <code>cv-scene</code> set, separate from the repo, a new <code>landing/</code> under the workspace, visual direction night screening.</p>
+<p>What I'm <strong>guessing</strong>: whether you want two languages, which of the nine scenes of the original site to keep (the design skill, the AI discussion, the Canvas extension, the drag demo), or whether you really just want a sample page &quot;that looks like this&quot;, with the content swapped out yourself.</p>
+<p>Also, last round I made the directory and started fetching the package before you confirmed the storyboard. That step was too fast.</p>
+<p>So, one question: <strong>do you want &quot;a new version of the Cineview homepage&quot;, or &quot;a landing page built with this framework, where I fill in Cineview's content but the structure can be reused&quot;?</strong> Tell me about Chinese and English too, and I'll go from there.</p></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:27</span></p><div class="body"><p>I want to make a piece of content with this framework</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:27</span></p><div class="body"><p>Right, so this isn't a remake of the Cineview homepage, but <strong>one page for your own content, built with Cineview</strong>. One more thing to settle and I'll start:</p><div class="ask"><p class="ask-tag">Multiple choice</p><div class="q"><p class="q-head">What is this page about?</p><p>What content do you want to make? (Pick the closest, or just tell me what it's about)</p><ul class="opts"><li><b>Product page (recommended, easiest to fit)</b><span>For example an introduction to a product, tool or app: what it solves, a few core features, one screenshot or a short clip, and how to start using it.</span></li><li><b>Narrative or story page</b><span>Tell one thing, one person or one project as a story, read in order, with images and text alternating.</span></li><li><b>Long read or report page</b><span>A report, a long article or a proposal; the point is that a reader can get through it and see the structure.</span></li><li class="chosen"><b>Event page</b><em>Picked by the user</em><span>An event, launch, wedding or exhibition; the time, the place and signing up matter most.</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:28</span></p><div class="body"><p><span class="pick">What is this page about? </span>Event page</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:28</span></p><div class="body"><div class="ask"><p class="ask-tag">Multiple choice</p><div class="q"><p class="q-head">What is the event?</p><p>What exactly is the event? (Name, time, place, what happens, what you want the reader to do afterwards)</p>
+<p>If you just want a sample event page you can run and edit, say so too.</p><ul class="opts"><li class="chosen"><b>I'll give you the details</b><em>Picked by the user</em><span>Tell me the real name, time, place and sign-up link; if you don't have them I'll use placeholder copy for you to change later.</span></li><li><b>Make a sample first (recommended)</b><span>For example &quot;city night ride&quot; or &quot;an indie short film night&quot;: I'll make an event page that looks real and works, and you change the name and the time.</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:28</span></p><div class="body"><p><span class="pick">What is the event? </span>I'll give you the details</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:28</span></p><div class="body"><p>Good. Send me the event details. These are the items; write down whatever you know and I'll mark what's missing and ask again:</p>
+<ol>
+<li><strong>Event name</strong>: what it's called, and whether it has an English name.</li>
+<li><strong>Time and place</strong>: which day, what time, which city, the exact address.</li>
+<li><strong>What the event is</strong>: one or two sentences on what happens, for example a screening, a show, a market, a talk.</li>
+<li><strong>Programme</strong>: is there a schedule or parts, for example doors at 19:00, screening at 19:30, chat at 21:00.</li>
+<li><strong>What you want the reader to do afterwards</strong>: sign up, buy a ticket, join a group; is there a link.</li>
+<li><strong>Who runs it</strong>: the organiser's name, a logo, photos from before, anything; say if there isn't one.</li>
+<li><strong>Material</strong>: any photos, posters or clips, and where the files are; if there are none I'll use line drawings and type.</li>
+<li><strong>Language</strong>: Chinese only, or Chinese and English.</li>
+</ol>
+<p>Once I have these I'll give you a storyboard first, as before, with 5 or 6 scenes and what each one shows; I'll write the code after you confirm.</p></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:29</span></p><div class="body"><p>1. Our wedding. 2. Chongqing, 1029, Jiefangbei. 3. Getting married. 4. Morning to noon. 5. Bring flowers. 6. Us. 7. None. 8. Chinese</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:29</span></p><div class="body"><p>Got it: a wedding invitation page, 29 October at Jiefangbei in Chongqing, from morning to noon, and what you want the reader to do is &quot;bring flowers&quot;. There's no material, so I'll draw it.</p>
+<p>Before I write code I need to settle three things; a few short answers are enough:</p><div class="ask"><p class="ask-tag">Multiple choice, 3 questions</p><div class="q"><p class="q-head">1/3 · Bring flowers</p><p>What does &quot;bring flowers&quot; mean exactly? It decides whether the last act has a button.</p><ul class="opts"><li class="chosen"><b>Guests bring flowers as a gift (flowers are the theme)</b><em>Picked by the user</em><span>The last act has a &quot;bring flowers&quot; button; it opens flower choices, an address, or a place to leave a message. Flowers are the main visual of the whole page too.</span></li><li><b>Just one line: &quot;bring a flower&quot;</b><span>No button, just a line in the copy: &quot;just bring a flower&quot;. The invitation, the time and the place carry the page.</span></li><li><b>Something else, I'll explain</b><span>Tell me how bringing flowers actually works (a link, WeChat, on the day) and I'll put it in word for word.</span></li></ul></div><div class="q"><p class="q-head">2/3 · Copy details</p><p>Do you have the names, the exact time, where at Jiefangbei, and a dress colour?</p><ul class="opts"><li><b>I'll send them now</b><span>The two names, the exact hours, where at Jiefangbei, and whether there's a colour to wear.</span></li><li class="chosen"><b>Use placeholders, I'll change them later (recommended)</b><em>Picked by the user</em><span>I'll write &quot;us&quot;, two placeholder names, &quot;10:00 to 12:00 in the morning&quot;, &quot;Jiefangbei&quot;; you change the words later.</span></li></ul></div><div class="q"><p class="q-head">3/3 · Look</p><p>Pick a visual direction?</p><ul class="opts"><li class="chosen"><b>A. Warm paper and a branch (recommended)</b><em>Picked by the user</em><span>Cream paper ground, a hand-drawn branch growing slowly, large serif type. Warm and quiet, right for a morning wedding.</span></li><li><b>B. Black and gold invitation</b><span>A dark ground with a little gold, like a dinner invitation. But your wedding is in the morning, so it would sit slightly off.</span></li><li><b>C. Plain white minimal</b><span>Almost pure white, fine black type, plenty of space, the flower only as a small mark. Very clean, but there is less to do with scrolling.</span></li></ul></div></div></div></div>
+<div class="msg user"><p class="who"><b>User</b><span>14:30</span></p><div class="body"><p><span class="pick">Bring flowers: </span>Guests bring flowers as a gift (flowers are the theme)</p><p><span class="pick">Copy details: </span>Use placeholders, I'll change them later (recommended)</p><p><span class="pick">Look: </span>A. Warm paper and a branch (recommended)</p></div></div>
+<p class="divider">Building the page</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:30</span></p><div class="body"><p>【Goal】Build a wedding-invitation-plus-flowers landing page with Cineview, in the warm paper and branch direction, in <code>landing/</code>.<br />
+【Smallest file list】First settle how to get the runtime, that is whether cineview@2's dist can be put locally, then write the page straight away.</p></div></div>
+<p class="note">The AI downloaded the cineview@2 runtime from jsDelivr into landing/vendor/, read the skill’s line-art.md and type.md, and looked again at the homepage home.css and the runtime code for pausing a scene.</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:36</span></p><div class="body"><p>【Goal】Start writing the files now: <code>landing/index.html</code>, <code>landing/style.css</code>, <code>landing/page.js</code>, with the runtime from the local <code>vendor/</code>.<br />
+【Smallest file list】Nothing more to read; write.</p></div></div>
+<p class="note">The AI wrote index.html, style.css and page.js, started a local server, and checked the page with Playwright at desktop and phone widths.</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:40</span></p><div class="body"><p>A few things need fixing: on mobile the title is squeezed and broken because <code>hero-copy</code> has a capped width, the time column is too narrow and cuts off &quot;09:30&quot;, and the top bar is still cream on the dark act.</p></div></div>
+<p class="note">The AI changed the styles, index.html and page.js, then ran more screenshot checks, including other widths and with JS off. It compressed its context once along the way.</p>
+<div class="msg user"><p class="who"><b>User</b><span>14:54</span></p><div class="body"><p>Have a look, the page throws an error when I open it</p></div></div>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:54</span></p><div class="body"><p>【Goal】Reproduce &quot;the page throws an error when opened&quot;: my tests so far all went over http, so the likeliest trigger is opening it by double-clicking, over file://. Check that one assumption first.</p></div></div>
+<p class="note">The AI opened the page over file://, reproduced the error, bundled the runtime into one plain script with esbuild and updated the references, then tested over both file:// and http. It tried to move the old files to the Trash, the sandbox refused, and it moved them to vendor/_esm-unused/ instead.</p>
+<div class="msg ai"><p class="who"><b>DeepSeek</b><span>14:59</span></p><div class="body"><p>Fixed. The error you hit comes from <strong>opening the file by double-clicking, over file://</strong>: the page loads <code>&lt;script type=&quot;module&quot;&gt;</code>, and the browser blocks it before running a single line, so the console shows these two lines in red:</p>
+<pre><code>Access to script at 'file:///…/vendor/cineview.js' from origin 'null' has been blocked by CORS policy
+Access to script at 'file:///…/page.js' from origin 'null' has been blocked by CORS policy
+Failed to load resource: net::ERR_FAILED
+</code></pre>
+<p>Module scripts are always blocked under file://. It has nothing to do with the framework; it is the browser's protocol rule.</p>
+<h4>The fix</h4>
+<p>Bundle the engine from several ESM files (<code>cineview.js</code> plus 8 files under <code>chunks/</code>) into one classic IIFE script with esbuild, and load it with <code>&lt;script defer&gt;</code>:</p>
+<ul>
+<li>New <code>vendor/cineview.bundle.js</code> (155.7kb, all the dynamic chunks inside)</li>
+<li><code>index.html</code> now loads <code>&lt;script defer src=&quot;vendor/cineview.bundle.js&quot;&gt;&lt;/script&gt;</code>, and page.js in <code>index.html</code> drops <code>type=&quot;module&quot;</code> too</li>
+<li>The old ESM files moved to <code>vendor/_esm-unused/</code>; nothing was deleted (to really delete them, move them to the Trash yourself, per A2)</li>
+</ul>
+<h4>Checks</h4>
+<div class="table"><table>
+<thead>
+<tr>
+<th>How it was opened</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Double-click, <code>file://</code></td>
+<td>No console or request errors; scrolled to the end the theme switches to dusk and the progress bar reads 100%</td>
+</tr>
+<tr>
+<td><code>http://127.0.0.1:4173</code></td>
+<td>Same, no errors</td>
+</tr>
+<tr>
+<td>390px mobile</td>
+<td>No horizontal overflow, no errors</td>
+</tr>
+</tbody>
+</table></div>
+<p>Both ways scrolled the whole 8900px page, and the dark closing act looks right in the screenshots.</p>
+<p>One side effect: from now on, changing the engine source under <code>vendor/</code> needs a new bundle. Don't edit the files in <code>_esm-unused/</code>; they are no longer referenced.</p></div></div>
+<p class="note">The page later went to <a href="/cases/wedding/">/cases/wedding/</a>.</p>
+</div>
+</section>
+<section class="conv op" id="moto" aria-labelledby="moto-title">
+<header class="conv-head">
+<p class="tag">Opus wrote this</p>
+<h2 id="moto-title">Motorcycle intro page</h2>
+<dl class="facts"><div><dt>AI</dt><dd>Claude Opus, model ID claude-opus-5.5, running as a sub-agent inside Claude Code.</dd></div><div><dt>User</dt><dd>Played by the AI running the test (also Claude Opus) from a setup written beforehand. It answered only what it was asked, briefly.</dd></div><div><dt>User setup</dt><dd>Marketing lead at a small motorcycle brand, Tulan. The new bike is a 400cc retro street bike, on sale next month, from ¥29,800. The readers are 25 to 35 and buying their first bigger bike; the page should leave them with easy to ride, good looking, not expensive. Material: six studio photos, one 30-second promo, a spec sheet; no user reviews. Brand colours dark green and off-white; Chinese first, English too; phone first. Occasionally a vague answer, occasionally “you decide”.</dd></div><div><dt>Skill</dt><dd>The test asked the AI to read only the skill in skills/cineview-design/ and to talk it through with the user, without opening the homepage source, the earlier test pages or the review notes. No files until the storyboard and material list were settled.</dd></div><div><dt>Time</dt><dd>2026-10-27</dd></div><div><dt>Page</dt><dd><a href="/cases/moto/">/cases/moto/</a></dd></div></dl>
+</header>
+<div class="thread">
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Make a motorcycle intro page</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 1</span></p><div class="body"><p>Before I start, I'll ask one question at a time, each with my suggestion; reply &quot;yes&quot; and we go with it. If you'd rather not, just say &quot;you decide&quot; and I'll lay out the whole plan for you to confirm.</p>
+<p><strong>Question 1: what is this page for, and who reads it?</strong></p>
+<p>I suggest <strong>A. Introducing one model</strong>: for people thinking of buying, so they warm to the bike and then book a test ride or find a dealer. That's what most motorcycle intro pages are for.</p>
+<p>Two other possibilities:</p>
+<ul>
+<li><strong>B. A page for a shop, rental or customiser</strong>: for riders nearby, to show which bikes you have, what you offer, and where you are.</li>
+<li><strong>C. The story of one bike</strong>: your own bike, a build, or where a classic model came from. For friends and the riding circle; the details and the story matter, and there's no purchase.</li>
+</ul>
+<p>Reply &quot;yes&quot;, or pick B or C, or just tell me about your case. If you already have photos, video, specs or copy, send them along and I'll look at the material before asking more.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>A. We're Tulan Motorcycles, the new bike launches next month, a 400cc retro street bike. It's mainly for people 25 to 35 who are moving up to a bigger bike for the first time.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 2</span></p><div class="body"><details class="decided"><summary>Decided (1 item)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+</ol></details>
+<p><strong>Question 2: what should the reader remember, and then do?</strong></p>
+<p>I suggest <strong>A. Remember &quot;this is a good first bigger bike&quot;, then book a test ride.</strong> What people moving up worry about most is &quot;can I handle it&quot;. The page takes that worry away first, then invites them to ride it once themselves.</p>
+<p>Other choices:</p>
+<ul>
+<li><strong>B. Remember how it looks (retro design and finish), then leave a phone number for launch news.</strong> Fits when looks are the main selling point and the price and specs aren't public yet.</li>
+<li><strong>C. Remember the launch price and the launch offer, then pay a deposit.</strong> Fits when orders open before launch.</li>
+</ul>
+<p>Reply &quot;yes&quot;, or pick B or C. You can mix them too, for example take A's point and end with C's booking button.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>I want them to remember easy to ride, good looking, not expensive. The price starts at 29,800. At the end, just get them to book a test ride.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 3</span></p><div class="body"><details class="decided"><summary>Decided (2 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+</ol></details>
+<p><strong>Question 3: what material do you have?</strong></p>
+<p>Each selling point is best backed by material. I'd prepare it per point:</p>
+<ul>
+<li><strong>Easy to ride</strong>: a 5 to 15 second riding clip, no sound needed. The clip can play with the scroll: scroll down and the bike moves forward, scroll back and it reverses. Add the numbers a beginner cares about, such as seat height and wet weight.</li>
+<li><strong>Good looking</strong>: one full side-on shot plus 3 to 6 detail close-ups, for example the tank, the headlight, the instruments, the seat. Send any location shots or other colourways too.</li>
+<li><strong>Not expensive</strong>: you already have from ¥29,800. If there are versions, instalments or launch benefits, tell me.</li>
+<li><strong>Other</strong>: the model name, and a logo (SVG is best).</li>
+</ul>
+<p>Send the original files; I'll do the cropping and compression. Missing some for now is fine, just tell me. For example, if the clip can't be shot before launch, &quot;easy to ride&quot; can use riding photos and the specs for now, and the clip goes in later.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Six studio photos: side, front 45°, instruments, tank, exhaust, seat. And a 30-second promo, a city night ride plus a mountain road. The spec sheet has displacement, power, torque, seat height, weight. No user reviews. The model is called &quot;Tulan Wander 400&quot;.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 4</span></p><div class="body"><details class="decided"><summary>Decided (3 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+<li>Material: the model name &quot;Tulan Wander 400&quot;, six studio photos (side, front 45°, instruments, tank, exhaust, seat), one 30-second promo (city night ride and mountain road), a spec sheet (displacement, power, torque, seat height, weight). No user reviews.</li>
+</ol></details>
+<p>That material can carry the three points: the studio photos for &quot;good looking&quot;, the mountain road footage and the specs for &quot;easy to ride&quot;, the price for &quot;not expensive&quot;. With no reviews, the page has no review section and makes none up. 30 seconds is long, so I'll cut one city night section and one mountain road section, about 8 seconds each. The cutting and transcoding are mine to do.</p>
+<p><strong>Question 4: which direction for the whole page, and how many acts?</strong></p>
+<p><strong>A. Ride along (5 acts)</strong>: the promo carries the page. Scrolling down moves the bike forward, scrolling back reverses it.<br />
+1 Opening: city night footage plays with the scroll, the name arrives like title cards. 2 Good looking: the side-on shot, then four close-ups in order, each with a line. 3 Easy to ride: mountain road footage with the scroll, the numbers appearing one by one. 4 Not expensive: &quot;from ¥29,800&quot; large, with the front 45° photo. 5 Book a test ride.</p>
+<p><strong>B. Photos first, clean (4 acts)</strong>: an ordinary scrolling page, the video looping in the background only, lighter to run.<br />
+1 The front 45° photo with the name and one line. 2 Good looking: four close-ups as a group. 3 Easy to ride: the numbers set large over the looping mountain road. 4 Price and booking on one screen.</p>
+<p><strong>C. Screen by screen on a phone (6 acts)</strong>: one picture and one line per screen, swipe up for the next, booking on the last. Fits most people arriving from Xiaohongshu or a WeChat post. The cost is that specs and other things to read closely don't fit.</p>
+<p>I recommend A. The promo is your strongest material, and letting the reader scroll the bike forward says &quot;easy to ride&quot; better than words. The order warms them with the looks, then takes away the worry about handling, then gives the price.</p>
+<p>A has one condition: if the promo cuts very fast, a new shot every second or two, playing it with the scroll will stutter. In that case I'd use B instead. If you can, send the promo first; I'll confirm after seeing it.</p>
+<p>Reply &quot;yes&quot;, or pick B or C, or take parts from several directions.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Yes, A. I'll send the promo later; it isn't cut that fast, mostly three or four seconds a shot.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 5</span></p><div class="body"><details class="decided"><summary>Decided (4 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+<li>Material: the model name &quot;Tulan Wander 400&quot;; six studio photos; a 30-second promo shot on a city night ride and a mountain road, a new shot every three or four seconds, to come later; a spec sheet with displacement, power, torque, seat height and weight; no user reviews.</li>
+<li>Direction: A &quot;ride along&quot;, 5 acts: opening night ride, good looking, easy to ride, not expensive, book a test ride.</li>
+</ol></details>
+<p>Three or four seconds a shot is right. An 8-second piece holds two or three shots, so crossing a cut feels like a film cut, not a stutter. When the promo arrives I'll look at the frame and the length, then tell you which seconds to use for the night ride and which for the road.</p>
+<p><strong>Act 1 of 5: opening</strong><br />
+This act is about the name: it should make someone want to ride as soon as the page opens.</p>
+<p><strong>Question 5: how should the opening look?</strong></p>
+<p>I suggest <strong>A. Widescreen opening</strong>: black bars above and below, like watching a film. It opens on the first frame of the night, and the name &quot;Tulan Wander 400&quot; rises on the lower bar. Scroll down and the bike starts through the city, the name fades, and a line takes its place. On a phone held upright the picture is a strip across the middle, with no vertical cut needed.<br />
+Why: it comes closest to the title cards you chose. The type sits on the black bar, so the street lights and neon don't fight it.</p>
+<p>Other ways:</p>
+<ul>
+<li><strong>B. Full bleed</strong>: the video fills the screen, the name in the lower left, a dark gradient behind the text. The strongest on a desktop. But a phone in portrait shows less than a third of the width, and the bike leaves the frame as soon as it moves; a vertical cut would be better.</li>
+<li><strong>C. Words first</strong>: the page opens on &quot;WANDER 400&quot; in large type on black. Scroll down and the type grows and leaves the screen while the night ride comes out from behind it, then plays with the scroll. The first screen doesn't wait for the video, at the cost of a longer opening scroll.</li>
+</ul>
+<p>Reply &quot;yes&quot;, or pick B or C, or describe what you have in mind.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>A, I guess. But we mostly look at it on a phone, and overall we want it to feel premium.</p></div></div>
+<p class="note">The session restarted after round 5 and the original agent could not continue. From round 6 a new Opus agent carried on: it read only the skill, took the first five rounds of the transcript, and kept the same user setup.</p>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 6</span></p><div class="body"><details class="decided"><summary>Decided (6 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+<li>Material: the model name &quot;Tulan Wander 400&quot;; six studio photos; a 30-second promo shot on a city night ride and a mountain road, a new shot every three or four seconds, to come later; a spec sheet with displacement, power, torque, seat height and weight; no user reviews.</li>
+<li>Direction: A &quot;ride along&quot;, 5 acts: opening night ride, good looking, easy to ride, not expensive, book a test ride.</li>
+<li>Act 1: widescreen opening. The night-ride picture has black bars above and below, and the name rises on the lower bar. Scrolling starts the ride, the name fades out, and a line takes its place (not written yet).</li>
+<li>Device: mostly phones. Each act is designed for a phone in portrait first, then adapted for desktop.</li>
+</ol></details>
+<p>Mostly on a phone, direction A still stands. Scrolling down on a phone moves the bike forward and scrolling back reverses it. On a phone, act 1 looks like this: the night ride fills the width, about a third of the screen high, black above and below, the name on the black below it. On a desktop I'll crop to a wider cinematic frame. A phone screen is narrow, so cropping further would make the picture too small; on a phone the full landscape frame stays.</p>
+<p><strong>Overall style</strong><br />
+&quot;Premium&quot; decides the colour, the type and the pace of every act that follows, so settle it first and then come back to the line for act 1. That line's tone has to follow the style too.</p>
+<p><strong>Question 6: which kind of &quot;premium&quot; do you mean?</strong></p>
+<p>I suggest <strong>A. Dark cinematic</strong>: the whole page dark, continuing from the black of the opening. Text off-white, Chinese headings in a light Song serif, the English bike name in spaced capitals. One accent colour only, taken from the bike, for the price and the booking button. Motion slow, mostly fades and slow pushes, no bouncing. One thing per screen, with space around it.<br />
+Why: the opening is black and the night footage is dark; a dark page carries through without a break. On a phone, the landscape strip inside a dark page reads like a cinema screen. The same strip on a light page reads more like a video embedded in an article.</p>
+<p>Other ways:</p>
+<ul>
+<li><strong>B. Bright and open</strong>: a light warm grey ground with fine black type and a lot of space, like a high-end car brochure. The opening is still a black widescreen; at act 2 the page turns light, as if the lights came on. If the studio photos are on white, this is the smoothest fit.</li>
+<li><strong>C. Retro catalogue</strong>: a cream paper ground, large Song serif headings, fine rules and small captions, like a catalogue from an old motorcycle maker; the most retro of the three. It also turns light at act 2. The cost is that it is literary and slower, a little away from the speed of a night ride and a mountain road.</li>
+</ul>
+<p>A has one condition: the studio photos should be on black or dark grey. On white, they would sit in a dark page like white boxes, and then either retouching changes the background or we choose B. If you can, send the six photos; one look at the background settles it. If Tulan has brand colours, a typeface or a logo, send those too; brand guidelines win.</p>
+<p>Reply &quot;yes&quot;, or pick B or C. You can also send a brand page or an ad that feels premium to you.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>The brand colours are dark green and off-white. I'm not sure about the studio photo backgrounds; go with what you recommend for now.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 7</span></p><div class="body"><details class="decided"><summary>Decided (7 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+<li>Material: the model name &quot;Tulan Wander 400&quot;; six studio photos; a 30-second promo shot on a city night ride and a mountain road, a new shot every three or four seconds, to come later; a spec sheet with displacement, power, torque, seat height and weight; no user reviews.</li>
+<li>Direction: A &quot;ride along&quot;, 5 acts: opening night ride, good looking, easy to ride, not expensive, book a test ride.</li>
+<li>Act 1: widescreen opening. The night-ride picture has black bars above and below, and the name rises on the lower bar. Scrolling starts the ride, the name fades out, and a line takes its place (not written yet).</li>
+<li>Device: mostly phones. Each act is designed for a phone in portrait first, then adapted for desktop.</li>
+<li>Style: A, dark cinematic. The whole page dark, text off-white, Chinese headings in a light Song serif, the English bike name in spaced capitals. Motion slow, no bouncing, one thing per screen. The brand colours are dark green and off-white. You didn't mention type, so I'll go with this.</li>
+</ol></details>
+<p>Not knowing the photo backgrounds is fine; I'll look when they arrive. A dark background goes straight in. A white one, and I'll come back to you; retouching can change it.</p>
+<p><strong>Question 7: where does the brand's dark green go?</strong></p>
+<p>Off-white is already the text colour in A, so that's settled. Dark green can go several ways.</p>
+<p>I suggest <strong>A. Dark green across the page</strong>: the page ground is dark green, all the text off-white, the booking button an off-white block with dark green type, and only these two colours on the page. The &quot;black bars&quot; around the opening video become dark green too. Dark green is deep enough to keep the cinema feel. If your green is on the bright side I'll push the ground darker so the video sits on something dark.<br />
+Why: every screen is Tulan's colour, and the page reads as yours at a glance. Dark green with off-white is retro in itself, which suits a retro street bike.</p>
+<p>Other ways:</p>
+<ul>
+<li><strong>B. Black opening, dark green from act 2</strong>: the opening keeps true black bars. When the title cards end and act 2 arrives, the ground moves from black to dark green within a second, and stays green with off-white type after that. The opening is the most film-like, and the change feels like &quot;the titles are over, the bike arrives&quot;. The cost is no green on the first screen.</li>
+<li><strong>C. Black page, dark green as an accent</strong>: green only on fine rules and small labels, the button off-white. The gain: if the studio photos are on black, the bike looks parked straight on the page, with almost no edge to the photo. The cost: green and black are close in value, so on a black ground the brand colour is hard to see.</li>
+</ul>
+<p>If you have the exact values for the green and the off-white (something like #1F3D2E), send them and I'll use them. If not, I'll take close ones; you can adjust after seeing the page.</p>
+<p>Reply &quot;yes&quot;, or pick B or C. Once the colour is set we go back to act 1 and that line.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>You decide, I can't really tell.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 8</span></p><div class="body"><details class="decided"><summary>Decided (8 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+<li>Material: the model name &quot;Tulan Wander 400&quot;; six studio photos, background colour to check when they arrive; a 30-second promo shot on a city night ride and a mountain road, a new shot every three or four seconds, to come later; a spec sheet with displacement, power, torque, seat height and weight; no user reviews.</li>
+<li>Direction: A &quot;ride along&quot;, 5 acts: opening night ride, good looking, easy to ride, not expensive, book a test ride.</li>
+<li>Act 1: widescreen opening. The night-ride picture has dark green bars above and below, and the name rises on the lower bar. Scrolling starts the ride, the name fades out, and a line takes its place (not written yet).</li>
+<li>Device: mostly phones. Each act is designed for a phone in portrait first, then adapted for desktop.</li>
+<li>Style: A, dark cinematic. The whole page dark, text off-white, Chinese headings in a light Song serif, the English bike name in spaced capitals. Motion slow, no bouncing, one thing per screen. You didn't mention type, so I'll go with this.</li>
+<li>Colours (my suggestion): the page on dark green with off-white type, the bars around the opening video dark green too. The booking button is an off-white block with dark green type, and the page uses only these two colours. The hex values are close ones for now; you can adjust them once the page exists.</li>
+</ol></details>
+<p><strong>Act 1 of 5: opening</strong></p>
+<p><strong>Question 8: once the name fades, which line takes its place?</strong></p>
+<p>The line is in the light Song serif, in the place the name was, like the first subtitle of a film. It has to fit one line on a phone, so about ten characters is best.</p>
+<p>I suggest <strong>A. &quot;After work, take the long way home.&quot;</strong><br />
+Why: the opening is a night ride through the city, and the line matches the picture. Wander means to roam, so the line says what the name means without repeating it. The ride home from work is something everyone 25 to 35 has every day. The tone is calm, no slogan, which fits the premium you asked for.</p>
+<p>Other lines:</p>
+<ul>
+<li><strong>B. &quot;From the street lights, to the mountain haze.&quot;</strong>: it puts the &quot;lan&quot; of Tulan into the sentence and brings in the mountain road of act 3 early. The most poetic, and the reader takes half a second longer to get it.</li>
+<li><strong>C. &quot;Your first big bike.&quot;</strong>: speaks straight to someone moving up, and a reader knows at once who the bike is for. The plainest, and the least film-like.</li>
+</ul>
+<p>Reply &quot;yes&quot;, or pick B or C, or change a few words, or write your own line.</p>
+<p>If you want to hand the later questions to me too, just say &quot;you decide the rest&quot;. I'll lay out each act on my suggestions and send it with the material list for you to confirm.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Yes, that line.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 9</span></p><div class="body"><details class="decided"><summary>Decided (8 items)</summary><ol>
+<li>Purpose and reader: an intro page for Tulan's new 400cc retro street bike, on sale next month, for readers aged 25 to 35 buying their first bigger bike.</li>
+<li>What to remember, what to do: easy to ride, good looking, not expensive (from ¥29,800); after reading, book a test ride.</li>
+<li>Material: the model name &quot;Tulan Wander 400&quot;; six studio photos, background colour to check when they arrive; a 30-second promo shot on a city night ride and a mountain road, a new shot every three or four seconds, to come later; a spec sheet with displacement, power, torque, seat height and weight; no user reviews.</li>
+<li>Direction: A &quot;ride along&quot;, 5 acts: opening night ride, good looking, easy to ride, not expensive, book a test ride.</li>
+<li>Act 1: widescreen opening. The night-ride picture has dark green bars above and below, and the name rises on the lower bar. Scrolling starts the ride, the name fades out, and &quot;After work, take the long way home.&quot; takes its place.</li>
+<li>Device: mostly phones. Each act is designed for a phone in portrait first, then adapted for desktop.</li>
+<li>Style: A, dark cinematic. The whole page dark, text off-white, Chinese headings in a light Song serif, the English bike name in spaced capitals. Motion slow, no bouncing, one thing per screen. You didn't mention type, so I'll go with this.</li>
+<li>Colours (my suggestion): the page on dark green with off-white type, the bars around the opening video dark green too. The booking button is an off-white block with dark green type, and the page uses only these two colours. The hex values are close ones for now; you can adjust them once the page exists.</li>
+</ol></details>
+<p><strong>Act 1 of 5: opening</strong><br />
+One thing left in act 1. Scrolling inside this act holds the page still; the scroll only moves the video forward, about three screens to the end. After that the reader goes to the side-on shot in act 2.</p>
+<p><strong>Question 9: once the night ride ends, how does the page move to act 2?</strong></p>
+<p>I suggest <strong>A. Close the screen</strong>: at the end of the video the dark green bars above and below close towards the middle. The picture narrows until it is a thin line and is gone, like the end of a film's titles. Only dark green is left; scroll on and the side-on shot rises from below. Scroll back and the screen opens again.<br />
+Why: the opening is the titles, and closing the screen tells the reader the titles are over and the bike is about to arrive. The close is one slow move and the screen stays clean, which fits the premium you asked for. The cost is about half a screen more of opening scroll.</p>
+<p>Other ways:</p>
+<ul>
+<li><strong>B. Just scroll away</strong>: the opening slides up like an ordinary page and act 2 follows from below. The simplest and the smoothest to scroll. The cost is no transition between the opening and act 2, so less film.</li>
+<li><strong>C. Cover it</strong>: the video holds on its last frame and act 2 slides up over it like a sheet of paper, the covered picture dimming. That page-turn feeling is more like a catalogue than a film opening.</li>
+</ul>
+<p>Reply &quot;yes&quot;, or pick B or C.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Yes. You decide the rest; send it with the material list when it's laid out.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 10</span></p><div class="body"><p>Act 1's transition is A, close the screen. I've laid out the rest on my suggestions. Act 1, the style and the colours stay as settled; everything else is my call, so say where it doesn't fit.</p>
+<p><strong>Tulan Wander 400 intro page</strong><br />
+For readers aged 25 to 35 buying their first bigger bike. They should leave remembering easy to ride, good looking, from ¥29,800, and then book a test ride.</p>
+<p><strong>Storyboard</strong></p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Act</th>
+<th>What it says</th>
+<th>What the reader sees on a phone</th>
+<th>How it scrolls</th>
+<th>Material</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 Opening</td>
+<td>The name, and the wish to ride</td>
+<td>A landscape night-ride strip across the middle, dark green above and below. &quot;Tulan Wander 400&quot; rises below it; scrolling starts the ride and the name gives way to &quot;After work, take the long way home.&quot; Then the green closes, and the picture narrows to a line and is gone</td>
+<td>The page holds, the scroll plays the video, about 3 screens</td>
+<td>The city night ride from the promo, about 8 seconds</td>
+</tr>
+<tr>
+<td>2 Good looking</td>
+<td>The finish stands up to a close look</td>
+<td>The side-on shot rises from below, with &quot;Looks just as good standing still.&quot; under it. Then four close-ups, front to back: instruments, tank, seat, exhaust. One per screen, focusing from soft to sharp, each with a line under it</td>
+<td>Ordinary scroll</td>
+<td>The side-on shot and four close-ups. Missing: the four lines</td>
+</tr>
+<tr>
+<td>3 Easy to ride</td>
+<td>A first bigger bike is still manageable</td>
+<td>A line opens in the green, up and down, into a mountain road; scrolling rides the bike along it. &quot;Easier to ride than you think.&quot; comes first, then four numbers in turn like subtitles: seat height, wet weight, peak power, peak torque. The screen closes again at the end</td>
+<td>The page holds, the scroll plays the video, about 3 screens</td>
+<td>The mountain road from the promo, about 8 seconds; the spec sheet</td>
+</tr>
+<tr>
+<td>4 Not expensive</td>
+<td>From ¥29,800</td>
+<td>The front 45° photo fills the width and pushes in slightly with the scroll. A small line under it, &quot;Your first big bike&quot;, and then large type: &quot;From ¥29,800&quot;</td>
+<td>Ordinary scroll</td>
+<td>The front 45° photo</td>
+</tr>
+<tr>
+<td>5 Book a test ride</td>
+<td>Come and ride it</td>
+<td>On dark green, the Tulan logo, then the title &quot;Come for a ride.&quot; and the line &quot;You'll know once you're in the saddle.&quot;, and an off-white &quot;Book a test ride&quot; button at the bottom</td>
+<td>Ordinary scroll</td>
+<td>Missing: the button link, the logo</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Why this order</strong></p>
+<ul>
+<li>Act 3 repeats the opening's screen: open, play, close, which ties it back to the opening. A stretch of ordinary scrolling photos sits between the two videos, so the page isn't held still the whole way.</li>
+<li>Only four numbers. Seat height and weight answer &quot;can I handle it&quot;; power and torque are the numbers everyone compares when buying. Displacement is already in the name, so it isn't repeated.</li>
+</ul>
+<p><strong>Page settings</strong></p>
+<ul>
+<li>Style: dark cinematic. Dark green ground, off-white type, the button off-white with dark green type, and only these two colours. Motion slow, no bouncing.</li>
+<li>Type: Chinese in a light Source Han Serif, free for commercial use. The English bike name in spaced capitals, serif.</li>
+<li>Device: phone in portrait first. On desktop the two videos are cropped to a wider cinematic frame, the photos sit in the middle, and dark green stays around them.</li>
+<li>Language and sound: Chinese only, silent throughout.</li>
+<li>Testing: I'll test in simulated iPhone and Android browsers first, then send you the link. Video that plays with the scroll is the thing most likely to break inside WeChat, so that one needs a real phone in WeChat; I'll ask you to check it.</li>
+</ul>
+<p><strong>Material list</strong></p>
+<p>What you have but haven't sent: send the original files. Sending through WeChat compresses them; tick &quot;original&quot; for images, send video as a file, or use a cloud drive.</p>
+<ul>
+<li><strong>The promo</strong>: the 30-second original, sound not needed. I'll pick the seconds for the night ride and for the road and send them to you first. The cut, the transcoding into a format that plays smoothly with the scroll, and the poster frame are mine to do.</li>
+<li><strong>The six studio photos</strong>: originals, no cropping. I'll check the background first and come back to you if it's white.</li>
+<li><strong>The spec sheet</strong>: send the original. For weight, say whether it is wet or dry; for power and torque, include the rpm. The numbers and units on the page follow the sheet.</li>
+</ul>
+<p>Still missing:</p>
+<ul>
+<li><strong>The four close-up lines</strong>: I'll write four from the photos, about ten characters each. Where they touch on material or finish you'll need to confirm. If there's a product handbook or selling-point document, send it and I'll use its wording. Without one, I'll only describe what the photos show.</li>
+<li><strong>Where the test ride goes</strong>: where the button leads. Your existing booking page or an online form is fine; send the link. If there isn't one yet, a booking phone number that dials on tap.</li>
+<li><strong>The logo</strong>: SVG is best; AI, EPS or PDF will do. Without one, the word &quot;Tulan&quot; set in type for now.</li>
+<li><strong>Brand colour values</strong>: one each for the green and the off-white, for example #1F3D2E. Without them I'll take close ones.</li>
+<li><strong>The footer</strong>: the company's full name, under the last act. If the page sits on your own domain, the footer also carries the registration number.</li>
+<li><strong>The launch date</strong>: tell me when it's fixed; the page has to be ready before it. If the price isn't public when the page goes up, I'll put a small line under it: &quot;final price on launch&quot;.</li>
+</ul>
+<p>Reply &quot;yes&quot; and I'll start building. Where material is missing I'll put marked placeholders and swap them in when it arrives. To change an act, tell me the number and the idea.</p></div></div>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Overall it's good, let's go with this. One thing only: there should be an English version, Chinese first. I'll send the material in the next couple of days.</p></div></div>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Round 11</span></p><div class="body"><p><strong>Decided</strong>: the storyboard and the material list stand as above, plus an English version, Chinese first.</p>
+<p>The page settings said &quot;Chinese only&quot;; they now read as follows. These are my calls; say where they don't fit.</p>
+<p><strong>How the English version works</strong></p>
+<ul>
+<li>Switching: Chinese and English are separate, one shown at a time. It opens in Chinese, with a small &quot;EN&quot; in the top right; tap it for English, tap &quot;中文&quot; to go back. It remembers the last choice. The English version also has its own link, for friends or press abroad: it opens in English.</li>
+<li>Readers: I'll write for people in China who read English more easily, for example foreign riders. The price stays in renminbi and booking goes to the same place. If the English is mainly for people abroad, tell me; act 4's price and act 5's booking both change.</li>
+<li>Type: English in Cormorant Garamond, a light serif close in feel to the light Source Han Serif, also free for commercial use. The spaced capitals of the bike name use it too.</li>
+<li>Line breaks: English runs longer than Chinese, so some lines take two lines on a phone. I'll break by meaning, for example the opening line after &quot;After work,&quot;. I'll check both languages screen by screen at phone width.</li>
+</ul>
+<p><strong>English copy</strong><br />
+The English is written for English readers, not translated word for word.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Act</th>
+<th>Chinese</th>
+<th>English</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>途岚 Wander 400</td>
+<td>Tulan Wander 400</td>
+</tr>
+<tr>
+<td>1</td>
+<td>下班以后，绕远一点回家。</td>
+<td>After work, take the long way home.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>停下来，也好看。</td>
+<td>Looks just as good standing still.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>比你想的好骑。</td>
+<td>Easier to ride than you think.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>座高、整备质量、最大马力、最大扭矩</td>
+<td>Seat height, Curb weight, Max power, Max torque</td>
+</tr>
+<tr>
+<td>4</td>
+<td>你的第一台大排量</td>
+<td>Your first big bike</td>
+</tr>
+<tr>
+<td>4</td>
+<td>2.98 万起</td>
+<td>From ¥29,800</td>
+</tr>
+<tr>
+<td>5</td>
+<td>来骑一程。</td>
+<td>Come for a ride.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>好不好骑，坐上去就知道。</td>
+<td>You'll know once you're in the saddle.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>预约试驾</td>
+<td>Book a test ride</td>
+</tr>
+</tbody>
+</table></div>
+<p>I'll write the four close-up lines in Chinese, then the English, and send both for you to confirm. Before launch, have a native English speaker read the English once.</p>
+<p><strong>More material</strong></p>
+<ul>
+<li><strong>Tulan's English name</strong>: if the logo has one, follow the logo. If not, tell me how the brand should read in English; until then I'll use the pinyin, Tulan.</li>
+<li><strong>The English booking entry</strong>: if the booking page or form has an English version, send the link. If not, the English button leads to the Chinese form too, with a small line under it saying the form is in Chinese.</li>
+<li><strong>The English spec sheet</strong>: send it if there is one. If not, I'll use the usual industry English for the labels and follow the Chinese sheet for numbers and units.</li>
+</ul>
+<p>Send the material in the next couple of days; that's fine. Tell me any time you want the English copy changed; it doesn't hold up the build. I'll start now: five acts in phone portrait with the language switch, marked placeholders where material is missing, swapped in when it arrives. When the first version is up I'll send you the link, and it opens straight on a phone.</p></div></div>
+<p class="divider">Building the page</p>
+<div class="msg user"><p class="who"><b>User (AI role-play)</b></p><div class="body"><p>Yes, start building. The promo isn't cut yet, so use these two placeholder videos for now: site/public/skill-moto/material/standin-city.mp4 (city night ride, 5 seconds) and standin-road.mp4 (mountain road, 5 seconds), both landscape 540x304 with every frame a keyframe; swap in the real footage when it arrives. For the studio photos, the logo, the booking link and the four close-up lines, put marked placeholders too.</p></div></div>
+<p class="note">In the same message the coordinating AI added production instructions, and these are not the user’s words: put the page in site/public/skill-moto/ and load the framework from the site’s /v2/; when done, go through the skill’s checks.md at 400x860, 1280x710 and 1920x1080 in Chinese and English, checking for errors, overflow, motion, reloads and frame rate; finish in about 50 minutes and report back in under 300 words.</p>
+<div class="msg ai"><p class="who"><b>Opus</b><span>Final report</span></p><div class="body"><p>Page: http://127.0.0.1:4380/skill-moto/index.html</p>
+<p>Self-check: Chinese and English at three sizes each, plus WebKit and reduced motion. No errors, no horizontal overflow, no flash on first paint. The video and captions follow the scroll and reverse when scrolling back. Reloading mid-page stays where it was. Frame interval P95 16.8ms. Fixed: the rise(normal) error; image height not capped to the screen, which left act 2 blank at the top at 1280x710 and pushed the price off the first screen at 1920; the last word of the English title stranded on its own line; a 1px line left after act 3 closed. Not tested on a real device or in WeChat.</p>
+<p>Placeholders: two videos, six studio photos, four close-up lines, the spec values, the logo, the booking link, the brand colour values, the footer, the English brand name (Tulan for now). Fonts load from Google Fonts now; they need to be self-hosted before launch.</p>
+<p>Skill issues:</p>
+<ol>
+<li>framework.md said rise(normal), which actually errors. Corrected now.</li>
+<li>It only said enter needs the whole block on screen before it plays, without warning that a large image can be slow to appear because of it.</li>
+<li>When a zone reaches its last pixel, exit only gets to 99.99%; a clip ending at exactly 50% leaves a line, so write 51%.</li>
+<li>It doesn't say how to load fonts. Google Fonts can't be reached from mainland China, and Chinese fonts need subsetting.</li>
+</ol></div></div>
+<p class="note">The page later went to <a href="/cases/moto/">/cases/moto/</a>.</p>
+</div>
+</section>
+</main>
+<footer class="foot">
+<a href="/">Cineview</a>
+<a href="/docs">Docs</a>
+<a href="https://github.com/AlienMu/cineview">GitHub</a>
+</footer>
+</div>
+<div data-page="zh" hidden>
 <main>
 <section class="intro">
 <p class="eyebrow">Cineview 案例</p>
@@ -36,14 +573,14 @@
 <p class="lead">两个 AI 都读过 Cineview 的<a href="https://github.com/AlienMu/cineview/tree/main/skills/cineview-design">设计技能</a>，然后和用户对话、做落地页。婚礼邀请页这段是 DeepSeek 写的，摩托车介绍页这段是 Claude Opus 写的。</p>
 <p class="how">对话按原文整理。灰色小字是整理时加的，写的是 AI 在两条消息之间用工具做了什么，或者对话以外的背景。DeepSeek 用选择题提问，这里按它发出的样子列出选项，用户选的那项有标记。摩托车那段每轮开头的「已定」清单默认收起，点开能看全文。</p>
 <div class="cards">
-<a class="card ds" href="#wedding"><span class="tag">DeepSeek 写的</span><strong>婚礼邀请页</strong><span>deepseek-v4.1-flash · 2026-10-28</span><span>用户是真人，开场只发了仓库链接和一句「帮我做一份落地页」</span></a>
-<a class="card op" href="#moto"><span class="tag">Opus 写的</span><strong>摩托车介绍页</strong><span>claude-opus-5.5 · 2026-10-27</span><span>用户由 AI 按事先定好的设定扮演</span></a>
+<a class="card ds" href="#wedding-zh" data-jump="wedding"><span class="tag">DeepSeek 写的</span><strong>婚礼邀请页</strong><span>deepseek-v4.1-flash · 2026-10-28</span><span>用户是真人，开场只发了仓库链接和一句「帮我做一份落地页」</span></a>
+<a class="card op" href="#moto-zh" data-jump="moto"><span class="tag">Opus 写的</span><strong>摩托车介绍页</strong><span>claude-opus-5.5 · 2026-10-27</span><span>用户由 AI 按事先定好的设定扮演</span></a>
 </div>
 </section>
-<section class="conv ds" id="wedding" aria-labelledby="wedding-title">
+<section class="conv ds" id="wedding-zh" aria-labelledby="wedding-zh-title">
 <header class="conv-head">
 <p class="tag">DeepSeek 写的</p>
-<h2 id="wedding-title">婚礼邀请页</h2>
+<h2 id="wedding-zh-title">婚礼邀请页</h2>
 <dl class="facts"><div><dt>AI</dt><dd>DeepSeek，模型 ID 是 deepseek-v4.1-flash，推理强度 high，在 DeepSeek Harness 网页版里运行。</dd></div><div><dt>用户</dt><dd>真人直接对话，没有事先定好的设定。开场只发了仓库链接和一句「帮我做一份落地页」，没有要求按技能走。</dd></div><div><dt>技能</dt><dd>这个 harness 的技能列表里没有 cineview-design。AI 自己克隆了仓库，用 sed 把技能文件当普通文件读。</dd></div><div><dt>全局规则</dt><dd>用户给 DeepSeek Harness 设过一份全局规则，其中要求动手前先写一行【目标】和【我准备读的最小文件清单】，信息够了就停，用最少的步骤，删除一律改成移到废纸篓（规则 A2）。DeepSeek 消息里的【目标】和「按 A2」都来自这份规则。</dd></div><div><dt>时间</dt><dd>2026 年 10 月 28 日 14:22 到 14:59</dd></div><div><dt>做出的页面</dt><dd><a href="/cases/wedding/">/cases/wedding/</a></dd></div></dl>
 </header>
 <div class="thread">
@@ -205,10 +742,10 @@ Failed to load resource: net::ERR_FAILED
 <p class="note">这个页面后来放到了 <a href="/cases/wedding/">/cases/wedding/</a>。</p>
 </div>
 </section>
-<section class="conv op" id="moto" aria-labelledby="moto-title">
+<section class="conv op" id="moto-zh" aria-labelledby="moto-zh-title">
 <header class="conv-head">
 <p class="tag">Opus 写的</p>
-<h2 id="moto-title">摩托车介绍页</h2>
+<h2 id="moto-zh-title">摩托车介绍页</h2>
 <dl class="facts"><div><dt>AI</dt><dd>Claude Opus，模型 ID 是 claude-opus-5.5，在 Claude Code 里作为子 agent 运行。</dd></div><div><dt>用户</dt><dd>由协调测试的 AI（同样是 Claude Opus）按事先定好的设定扮演，只回答被问到的内容，回答简短。</dd></div><div><dt>用户设定</dt><dd>小摩托车品牌「途岚」的市场负责人。新车是一台 400cc 复古街车，下个月上市，2.98 万起。读者是 25 到 35 岁、第一次换大排量的年轻人，想让他们记住好骑、好看、不贵。素材有 6 张棚拍图、1 段 30 秒宣传片和一份参数表，没有用户评价。品牌色墨绿配米白，中文为主，也要英文，手机为主。偶尔给含糊的回答，偶尔说「你定」。</dd></div><div><dt>技能</dt><dd>测试要求 AI 只读 skills/cineview-design/ 里的技能，按技能和用户对话，不看首页源码、之前的测试页面和评审记录。分镜和素材清单定下来之前不写文件。</dd></div><div><dt>时间</dt><dd>2026 年 10 月 27 日</dd></div><div><dt>做出的页面</dt><dd><a href="/cases/moto/">/cases/moto/</a></dd></div></dl>
 </header>
 <div class="thread">
@@ -559,5 +1096,29 @@ Failed to load resource: net::ERR_FAILED
 <a href="/docs">文档</a>
 <a href="https://github.com/AlienMu/cineview">GitHub</a>
 </footer>
+</div>
+<script>
+(function () {
+  var KEY = 'cineview-conversations-lang';
+  var titles = { en: "Two landing-page conversations · Cineview", zh: "两段做落地页的对话 · Cineview" };
+  function set(lang) {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    document.title = titles[lang];
+    document.querySelectorAll('[data-page]').forEach(function (el) { el.hidden = el.dataset.page !== lang; });
+    document.querySelectorAll('[data-set-lang]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.setLang === lang)); });
+    document.querySelectorAll('[data-en]').forEach(function (el) { el.textContent = el.dataset[lang]; });
+    document.querySelectorAll('[data-jump]').forEach(function (a) { a.href = '#' + a.dataset.jump + (lang === 'zh' ? '-zh' : ''); });
+    try { localStorage.setItem(KEY, lang); } catch (e) {}
+  }
+  var q = new URLSearchParams(location.search).get('lang');
+  var stored = null;
+  try { stored = localStorage.getItem(KEY); } catch (e) {}
+  set(q === 'zh' || q === 'en' ? q : stored === 'zh' || stored === 'en' ? stored : 'en');
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-set-lang]');
+    if (b) set(b.dataset.setLang);
+  });
+})();
+</script>
 </body>
 </html>

@@ -164,3 +164,38 @@ th { background: #faf3ea; white-space: nowrap; }
   .facts div { grid-template-columns: 1fr; gap: 0; }
   .jump a { padding: 6px 10px; }
 }
+
+/* Language switch */
+[hidden] { display: none !important; }
+.langs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+.langs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 13px/1 var(--font-zh);
+  cursor: pointer;
+}
+.langs button:hover { color: var(--ink); }
+.langs button[aria-pressed="true"] { background: var(--paper-deep); color: var(--ink); }
+.jump a span:first-child { font-size: 14px; opacity: 1; }
+@media (max-width: 520px) {
+  .bar { gap: 8px; }
+  .jump { gap: 6px; }
+  .jump a { padding: 6px 10px; }
+  .jump a span + span { display: none; }
+  .langs button { min-width: 40px; padding: 0 8px; }
+}
