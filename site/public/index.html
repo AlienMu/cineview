@@ -21,11 +21,10 @@
     <script>
       // 2.0 head snippet (dist/head.js): `.cv-js` when the browser meets the baseline.
       (function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);
-      document.documentElement.classList.add('pre-entry');
     </script>
     <script>
       // Reload or back/forward: start in the act the reader left, in its colours, and keep the
-      // content hidden until hero.js has put the page back there (no flash of Act 1).
+      // content hidden until the position is restored. The deadline also works if the runtime fails.
       (function () {
         try {
           if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -36,19 +35,45 @@
             var root = document.documentElement;
             root.classList.add('restoring');
             if (saved.theme) root.setAttribute('data-boot-theme', saved.theme);
-            if (saved.ground) root.style.setProperty('--scroll-ground', saved.ground);
+            if (saved.ground && !['night', 'type', 'pair'].includes(saved.theme)) root.style.setProperty('--scroll-ground', saved.ground);
+            function reveal() {
+              root.classList.remove('restoring');
+              root.removeAttribute('data-boot-theme');
+              root.style.removeProperty('--scroll-ground');
+            }
+            function restore() {
+              var scene = document.getElementById(saved.id);
+              if (scene) scrollTo(0, scene.offsetTop + saved.offset);
+              // Let the stage read the restored position before revealing its theme.
+              requestAnimationFrame(function () { requestAnimationFrame(reveal); });
+            }
+            var fallbackY = null;
+            function onReady(event) {
+              if (event.target.id !== 'home') return;
+              clearTimeout(deadline);
+              document.removeEventListener('cv-ready', onReady);
+              // Upgrading scroll zones can move the saved scene. Follow it unless the reader moved on.
+              if (fallbackY === null || Math.abs(scrollY - fallbackY) <= 1) restore();
+            }
+            var deadline = setTimeout(function () {
+              restore();
+              fallbackY = scrollY;
+            }, 2500);
+            document.addEventListener('cv-ready', onReady);
           }
         } catch (e) {}
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Inter:wght@400..600&family=Noto+Serif+SC:wght@300..600&display=swap" />
+    <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Inter:wght@400..600&family=Noto+Serif+SC:wght@300..600&display=swap" />
     <link rel="stylesheet" href="/v2/cineview.css" />
     <link rel="stylesheet" href="/home.css" />
+    <link rel="modulepreload" href="/v2/cineview.js" />
     <script type="module" src="/home.js"></script>
   </head>
   <body>
+    <div id="home-ground" aria-hidden="true"></div>
     <header class="bar">
       <a class="brand" href="/">Cineview</a>
       <nav class="nav" aria-label="主导航" data-i18n-label="nav">
@@ -61,10 +86,10 @@
       </div>
     </header>
 
-    <cv-stage id="home" input="scroll" design-width="1920" paused>
+    <cv-stage id="home" input="scroll" design-width="1920">
       <!-- Act 1. A plain scene: the entry plays once; the highlight and ink run on the page clock. -->
       <cv-scene id="open" class="act-open" theme="open">
-        <section class="hero" id="hero" aria-labelledby="hero-title">
+        <section class="hero is-playing" id="hero" aria-labelledby="hero-title">
           <div class="stage">
             <p class="kicker"><span class="kicker-line"><span class="kicker-name">Cineview</span><span class="kicker-what" data-i18n="kicker">影院式框架</span></span><span class="kicker-rule" aria-hidden="true"></span></p>
             <!-- No whitespace between the spans: it would become spaces in the heading's accessible name. -->

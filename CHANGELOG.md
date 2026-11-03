@@ -2,6 +2,29 @@
 
 All notable changes to Cineview are documented here.
 
+## 2.0.2
+
+### Fixed
+
+- Scroll animations driven by JavaScript skip time layers whose entrance and exit progress
+  have not changed.
+- Drag stops requesting frames when a held gesture is still and its motion has settled.
+  Moving or releasing the pointer wakes it again. Loops outside the active scenes stay stopped.
+
+### Website
+
+- The homepage updates its scrolling colour on the surfaces that paint it. The title and reel
+  start with the page CSS while web fonts load. Reloading a saved scene shows its content even
+  when the homepage module fails to load.
+
+### Release checks
+
+- Physical iPhone and Android checks were skipped for this patch.
+- Production dependency audits for the package and website reported no advisories. The
+  development audit reported one low-severity issue in Jest's dependency on
+  `deepmerge@4.3.1`. There was no patched version at release time.
+  [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)
+
 ## 2.0.1
 
 ### Fixed

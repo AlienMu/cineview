@@ -30,9 +30,12 @@
     margin: 0;
   }
 
-  /* The current act's ground and the surfaces made from it. A registered colour transitions, so a
-     scene change recolours the page in one move (lexicon #41: about .7 s); every surface reads the
-     same variable, so none of them changes ahead of the ground. */
+  /* Only the elements painting the scroll color receive it. Theme colors still inherit. */
+  @property --scroll-ground {
+    syntax: "*";
+    inherits: false;
+  }
+
   @property --ground {
     syntax: "<color>";
     inherits: true;
@@ -64,9 +67,7 @@
   }
 
   :root {
-    --ground: var(--scroll-ground, var(--ground-open));
-    --surface: color-mix(in srgb, var(--ground) 40%, var(--paper));
-    --surface-deep: color-mix(in srgb, var(--ground), var(--brass) 25%);
+    --ground: var(--ground-open);
     transition:
       --ground 0.7s ease,
       --ink 0.7s ease,
@@ -114,11 +115,15 @@
      the page is back in place, then a short fade in. */
   :root.restoring {
     transition: none;
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   :root.restoring body > * {
     opacity: 0;
+  }
+
+  :root.restoring body {
+    background: transparent;
   }
 
   body > * {
@@ -138,6 +143,7 @@
   }
 
   body {
+    isolation: isolate;
     background: var(--ground);
     color: var(--ink);
     font-family: var(--font-ui);
@@ -163,6 +169,14 @@
     white-space: nowrap;
   }
 
+  #home-ground {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--scroll-ground, var(--ground));
+  }
+
   /* ---------- Hero ---------- */
 
   /* The bridge between Act 1 and Act 2: the reel's centre sits on the boundary (the bridge's top
@@ -171,17 +185,13 @@
   .act-bridge {
     position: relative;
     z-index: 0;
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   /* The opening stays above the bridge, so the reel's upper half sits under its text and buttons. */
   .act-open {
     position: relative;
     z-index: 1;
-  }
-
-  :root:has(.act-open) body {
-    background: var(--ground);
   }
 
   .bridge {
@@ -211,14 +221,14 @@
     overflow: visible;
   }
 
-  /* Drawn once with the headline (is-drawn), then the colours, then it turns while on screen. */
+  /* The reel draws with the headline; its rotation runs only while it is on screen. */
   .reel-spin {
     transform-origin: 50% 50%;
     animation: reel-turn 20s linear infinite;
     animation-play-state: paused;
   }
 
-  .reel.in-view.is-drawn .reel-spin {
+  .reel.in-view .reel-spin {
     animation-play-state: running;
   }
 
@@ -228,40 +238,30 @@
 
   .reel-lines * {
     stroke-dasharray: 1 2;
-    stroke-dashoffset: 1.001;
   }
 
-  .reel.is-drawn .reel-lines * {
-    stroke-dashoffset: 0;
-    transition: stroke-dashoffset 1.6s linear;
+  @keyframes reel-draw {
+    from { stroke-dashoffset: 1.001; }
+    to { stroke-dashoffset: 0; }
   }
 
-  .reel .reel-fills {
-    opacity: 0;
+  @keyframes reel-fill {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
-  .reel.is-drawn .reel-fills {
-    opacity: 1;
-    transition: opacity 0.64s linear 0.96s;
+  @media (prefers-reduced-motion: no-preference) {
+    .cv-js .reel-lines * { animation: reel-draw 1.6s linear both; }
+    .cv-js .reel-fills { animation: reel-fill 0.64s linear 0.96s both; }
   }
 
-  :root:not(.cv-js) .reel .reel-lines *,
-  .is-static .reel .reel-lines * {
-    stroke-dashoffset: 0;
-  }
-
-  :root:not(.cv-js) .reel .reel-fills,
-  .is-static .reel .reel-fills {
-    opacity: 1;
-  }
-
-  .reel-flange { fill: color-mix(in srgb, var(--ground), var(--brass) 14%); }
-  .reel-rim { fill: color-mix(in srgb, var(--ground), var(--brass) 30%); }
-  .reel-film { fill: color-mix(in srgb, var(--ground), var(--clay) 18%); }
-  .reel-hub { fill: color-mix(in srgb, var(--ground), var(--brass) 24%); }
+  .reel-flange { fill: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 14%); }
+  .reel-rim { fill: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 30%); }
+  .reel-film { fill: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--clay) 18%); }
+  .reel-hub { fill: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 24%); }
   .reel-bolt,
   .reel-spindle { fill: var(--clay); }
-  .reel-hole { fill: var(--ground); }
+  .reel-hole { fill: var(--scroll-ground, var(--ground)); }
 
   .reel-lines {
     fill: none;
@@ -276,7 +276,7 @@
   }
 
   .reel-wound {
-    stroke: color-mix(in srgb, var(--ground), var(--clay) 34%);
+    stroke: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--clay) 34%);
     stroke-width: 1.4;
   }
 
@@ -325,7 +325,7 @@
 
   :root.is-scrolled .bar {
     padding-block: calc(24 * var(--u));
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
     box-shadow: 0 1px 0 var(--line-soft);
   }
 
@@ -385,7 +385,7 @@
   }
 
   .langs button[aria-pressed="true"] {
-    background: var(--surface-deep);
+    background: var(--surface-deep, color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 25%));
     color: var(--ink);
   }
 
@@ -757,20 +757,6 @@
     to { transform: scaleX(1); }
   }
 
-  @keyframes failsafe {
-    to { transform: none; opacity: 1; stroke-dashoffset: 0; }
-  }
-
-  .pre-entry .hero .words {
-    transform: translateY(105%) rotate(2.5deg);
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
-  .pre-entry .hero .ext-draw {
-    transform: scaleX(0);
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
   .hero.is-playing .row-1 .words {
     animation: rise-line 950ms cubic-bezier(0.19, 0.8, 0.22, 1) 0ms both;
   }
@@ -860,39 +846,6 @@
     animation: label-in 350ms ease 2400ms both;
   }
 
-  /* Before the entry starts (fonts loading) the row already shows its first frame, so nothing flashes. */
-  .pre-entry .hero .kicker {
-    opacity: 0;
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
-  .pre-entry .hero .desc .line-in {
-    transform: translateY(105%);
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
-  .pre-entry .hero .primary {
-    opacity: 0;
-    transform: translateY(calc(14 * var(--u)));
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
-  .pre-entry .hero .primary .arrow {
-    transform: scale(0);
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
-  .pre-entry .hero .primary .arrow svg,
-  .pre-entry .hero .secondary > span {
-    opacity: 0;
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
-  .pre-entry .hero .secondary .outline rect {
-    stroke-dashoffset: 1;
-    animation: failsafe 0.01s linear 3s forwards;
-  }
-
   /* After the entry the rows rest without animations, so switching views never replays it. */
   .hero.is-playing.entry-done .row .words,
   .hero.is-playing.entry-done .row .ext-draw,
@@ -971,7 +924,7 @@
      copy starts on the page margin (the brand's edge), the drawing's frame and its timeline end on
      the other margin (the language switch's edge), and the copy is centred on the figure. */
   .act-time {
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   .time {
@@ -1066,7 +1019,7 @@
   /* The scene: the frame and its title bar are there from the start; the parts are sketched
      where they will enter, and each part covers its sketch as it does. */
   .plate-base .frame {
-    fill: var(--surface);
+    fill: var(--surface, color-mix(in srgb, var(--scroll-ground, var(--ground)) 40%, var(--paper)));
     stroke: var(--brass);
     stroke-width: 1.6;
   }
@@ -1087,7 +1040,7 @@
 
   .plate .fill-paper { fill: var(--paper); }
   .plate .fill-warm { fill: var(--paper-deep); }
-  .plate .fill-chrome { fill: var(--surface-deep); }
+  .plate .fill-chrome { fill: var(--surface-deep, color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 25%)); }
   .plate .fill-ink { fill: var(--ink); }
   .plate .fill-soft { fill: var(--brass-soft); }
   .plate .fill-clay { fill: var(--clay); }
@@ -1307,7 +1260,7 @@
   /* ---------- Act 4: work out the design with your AI ---------- */
 
   .act-method {
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   .method {
@@ -1337,7 +1290,7 @@
     width: 100%;
     height: 100%;
     fill: none;
-    stroke: color-mix(in srgb, var(--ground), var(--brass) 45%);
+    stroke: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 45%);
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -1389,7 +1342,7 @@
     padding: calc(28 * var(--u)) calc(32 * var(--u));
     border: max(1px, calc(1.4 * var(--u))) solid var(--line-soft);
     border-radius: calc(20 * var(--u));
-    background: var(--surface);
+    background: var(--surface, color-mix(in srgb, var(--scroll-ground, var(--ground)) 40%, var(--paper)));
   }
 
   .brief-label {
@@ -1500,7 +1453,7 @@
     padding: calc(24 * var(--u)) calc(28 * var(--u));
     border: max(1px, calc(1.4 * var(--u))) solid var(--line-soft);
     border-radius: calc(18 * var(--u));
-    background: var(--surface);
+    background: var(--surface, color-mix(in srgb, var(--scroll-ground, var(--ground)) 40%, var(--paper)));
     box-shadow: 0 calc(18 * var(--u)) calc(40 * var(--u)) calc(-24 * var(--u)) rgb(53 40 32 / 22%);
   }
 
@@ -1538,7 +1491,7 @@
 
   .act-cards,
   .act-row {
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   /* The held deck fills more of its screen: this act's design unit is 8% larger (margins keep the
@@ -1607,7 +1560,7 @@
     padding: calc(24 * var(--u)) calc(36 * var(--u)) calc(26 * var(--u));
     border: max(1px, calc(1.4 * var(--u))) solid var(--line-soft);
     border-radius: calc(22 * var(--u));
-    background: var(--surface);
+    background: var(--surface, color-mix(in srgb, var(--scroll-ground, var(--ground)) 40%, var(--paper)));
     box-shadow: 0 calc(20 * var(--u)) calc(44 * var(--u)) calc(-26 * var(--u)) rgb(53 40 32 / 24%);
   }
 
@@ -1663,7 +1616,7 @@
     place-items: center;
     padding: calc(16 * var(--u));
     border-radius: calc(14 * var(--u));
-    background: color-mix(in srgb, var(--ground), var(--brass) 14%);
+    background: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 14%);
   }
 
   /* Each step's example: a line of the brief, the scene plan as a table, a line of the build. */
@@ -1673,7 +1626,7 @@
     margin-top: calc(4 * var(--u));
     padding: calc(14 * var(--u)) calc(18 * var(--u));
     border-radius: calc(12 * var(--u));
-    background: color-mix(in srgb, var(--ground), var(--brass) 12%);
+    background: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 12%);
   }
 
   .deck-sample-label {
@@ -1832,7 +1785,7 @@
   .deck-art {
     width: 100%;
     height: auto;
-    fill: var(--surface-deep);
+    fill: var(--surface-deep, color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 25%));
     stroke: var(--clay);
     stroke-width: 1.4;
     stroke-linecap: round;
@@ -1871,7 +1824,7 @@
     padding: calc(40 * var(--u));
     border: max(1px, calc(1.4 * var(--u))) solid var(--line-soft);
     border-radius: calc(24 * var(--u));
-    background: var(--surface);
+    background: var(--surface, color-mix(in srgb, var(--scroll-ground, var(--ground)) 40%, var(--paper)));
   }
 
   .row-panel:last-child {
@@ -1881,7 +1834,7 @@
   .row-icon {
     width: 100%;
     height: auto;
-    fill: var(--surface-deep);
+    fill: var(--surface-deep, color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 25%));
     stroke: var(--brass);
     stroke-width: 1.4;
   }
@@ -1917,8 +1870,8 @@
     aspect-ratio: 4 / 3;
     padding: calc(6 * var(--u));
     border-radius: calc(10 * var(--u));
-    background: color-mix(in srgb, var(--ground), var(--brass) 16%);
-    fill: color-mix(in srgb, var(--ground), var(--clay) 30%);
+    background: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--brass) 16%);
+    fill: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--clay) 30%);
     stroke: var(--clay);
     stroke-width: 1.4;
     stroke-linecap: round;
@@ -1964,7 +1917,7 @@
 
   .rp-pace i {
     border-radius: 999px;
-    background: color-mix(in srgb, var(--ground), var(--clay) 45%);
+    background: color-mix(in srgb, var(--scroll-ground, var(--ground)), var(--clay) 45%);
   }
 
   .rp-pace i:nth-child(2) {
@@ -2033,7 +1986,7 @@
   /* ---------- Act 6: the same frames, three treatments ---------- */
 
   .act-material {
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   .material {
@@ -2102,7 +2055,7 @@
     left: 0;
     right: 0;
     height: calc(14 * var(--u));
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='14'%3E%3Crect x='8' y='1' width='18' height='12' rx='3' fill='white'/%3E%3C/svg%3E") 0 0 / calc(34 * var(--u)) 100% space no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='14'%3E%3Crect x='8' y='1' width='18' height='12' rx='3' fill='white'/%3E%3C/svg%3E") 0 0 / calc(34 * var(--u)) 100% space no-repeat;
     pointer-events: none;
@@ -2258,7 +2211,7 @@
   /* ---------- Act 8: your own animation, on the same timeline ---------- */
 
   .act-extend {
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   .extend {
@@ -2316,7 +2269,7 @@
     padding: calc(26 * var(--u)) calc(30 * var(--u));
     border: max(1px, calc(1.4 * var(--u))) solid var(--line-soft);
     border-radius: calc(18 * var(--u));
-    background: var(--surface);
+    background: var(--surface, color-mix(in srgb, var(--scroll-ground, var(--ground)) 40%, var(--paper)));
     color: var(--ink);
     font: 400 max(13px, calc(18 * var(--u)))/1.75 var(--font-code);
     white-space: pre-wrap;
@@ -2398,7 +2351,7 @@
   /* ---------- Act 9: lights down, the film begins ---------- */
 
   .act-cinema {
-    background: var(--ground);
+    background: var(--scroll-ground, var(--ground));
   }
 
   /* One big phone in the middle; when the drag reaches its last scene it shrinks to the left and

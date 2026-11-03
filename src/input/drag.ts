@@ -601,7 +601,6 @@ class DragInput implements DragEngine {
     if (p.base !== 0 && incoming >= 0 && incoming < this.scenes.length) {
       p.baseline = { scene: incoming, time: this.times[incoming] ?? 0, ratio: Math.abs(p.base) };
     }
-    this.loop();
   }
 
   /** While dragging: page follows the finger; the incoming scene's element time follows too. */
@@ -613,6 +612,13 @@ class DragInput implements DragEngine {
       this.scenes[this.index + side]?.getAttribute('drag') === 'off';
     if ((r > 0 && blocked(1)) || (r < 0 && blocked(-1))) r = 0;
     r = Math.max(-1, Math.min(1, r));
+    // A resting frame loop wakes on movement. Measure velocity from the held position,
+    // without counting the whole stationary interval as part of the first movement.
+    if (this.hasSignals && !this.raf) {
+      const now = performance.now();
+      this.signals.sample(this.pos * this.vh, now);
+      this.signals.step(now);
+    }
     this.pos = this.index + r;
     for (const side of [1, -1] as const) {
       const k = this.index + side;
@@ -744,7 +750,9 @@ class DragInput implements DragEngine {
     const now = performance.now();
     // What drove time in this frame, before a landing lane or a finished playhead is cleared.
     this.tickSource = this.source();
-    let busy = this.press?.owning ?? false;
+    // follow() and release() schedule their own frames. Only moving playheads and
+    // unsettled signals need another tick without fresh pointer input.
+    let busy = false;
     const lane = this.lane;
     if (lane && !lane.frozen) {
       this.pos = tweenAt(lane.page, now);
@@ -902,6 +910,8 @@ class DragInput implements DragEngine {
       s.toggleAttribute('data-cv-stuck', held && this.pos < i + 1);
       this.cover(s, held && this.pos >= i + 1);
       this.coverLook(s, held ? Math.min(1, this.pos - i) : 0);
+      // Park the host background even when its contents are outside the activation window.
+      if (!this.inWindow[i]) continue;
       const t = this.times[i] ?? 0;
       // `track="x"`: the row moves on scene time, as the finger and then the clock advance it.
       if (s.isTrack) s.writeTrack(t);
@@ -1033,7 +1043,10 @@ class DragInput implements DragEngine {
           p *= 1 - Math.min(1, departure / exitDuration);
         }
       }
+      if (p === layer.lastTimeProgress && px === layer.lastExitProgress) continue;
       writeLayer(layer, p, px);
+      layer.lastTimeProgress = p;
+      layer.lastExitProgress = px;
     }
   }
 }

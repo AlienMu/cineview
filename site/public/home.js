@@ -1,12 +1,25 @@
 // Cineview homepage (/). Loads the runtime from /v2/, then runs the page-owned
 // parts: Act 1's highlight and ink (measured paths the v2 loop cannot express) and the language
 // switch. Act 2's timing is declared in the markup; the script only translates its labels.
-import '/v2/cineview.js';
 import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-language.js';
 
 {
   const root = document.documentElement;
   const hero = document.getElementById('hero');
+  // Upgrading the stage and scene inserts shadow slots. Resume CSS animations on
+  // the same timeline if slotting replaces animations that have already been painted.
+  const reel = document.querySelector('.reel');
+  const title = hero.querySelector('.row-1 .words');
+  const firstRise = title.getAnimations().find(a => a.animationName === 'rise-line');
+  const firstStart = firstRise?.ready.then(a => a.startTime, () => null);
+  await import('/v2/cineview.js');
+  const start = await firstStart;
+  if (start != null && !title.getAnimations().includes(firstRise)) {
+    const opening = [...hero.getAnimations({ subtree: true }), ...reel.getAnimations({ subtree: true })];
+    for (const animation of opening) {
+      if (animation.animationName && animation.animationName !== 'reel-turn') animation.startTime = start;
+    }
+  }
   const langButtons = [...document.querySelectorAll('[data-set-lang]')];
   const rows = [1, 2].map((n) => {
     const row = hero.querySelector('.row-' + n);
@@ -470,7 +483,6 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
   const isStatic = () => reducedQuery.matches;
 
   // The reel turns only while it is on screen.
-  const reel = document.querySelector('.reel');
   if (reel) new IntersectionObserver(([e]) => reel.classList.toggle('in-view', e.isIntersecting)).observe(reel);
 
   // The ink already on the line keeps drying after the stroke has gone.
@@ -599,33 +611,15 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
     });
   }
 
-  // The stage starts paused (index.html) so its clock-played motion, the reel, waits for the entry.
-  const stage = document.getElementById('home');
-
-  function playEntry() {
-    stage.removeAttribute('paused');
-    clearTimeout(entryTimer);
-    hideSignal();
-    clearInk();
-    entryDone = false;
-    signalTime = 0;
-    lastForward = -1;
-    signalAt = Infinity;
-    hero.classList.remove('is-playing', 'entry-done');
-    void hero.offsetWidth;
-    root.classList.remove('pre-entry');
-    if (isStatic()) {
-      entryDone = true;
-      return;
-    }
-    hero.classList.add('is-playing');
-    // The reel (on the Act 1/2 boundary) is drawn once, with the headline; it never redraws.
-    reel?.classList.add('is-drawn');
+  // The HTML starts the CSS entrance. Keep the ink on the same clock if the module arrives late.
+  function scheduleInk() {
+    const rise = rows[0].words.getAnimations().find(a => a.animationName === 'rise-line');
+    const elapsed = rise?.startTime == null ? 0 : document.timeline.currentTime - rise.startTime;
     entryTimer = setTimeout(() => {
       entryDone = true;
       hero.classList.add('entry-done');
       signalAt = performance.now() + SIGNAL_DELAY_MS;
-    }, ENTRY_MS);
+    }, Math.max(0, ENTRY_MS - elapsed));
   }
 
   let scrollQueued = false;
@@ -645,33 +639,15 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
   function applyStatic() {
     root.classList.toggle('is-static', isStatic());
     if (isStatic()) {
+      clearTimeout(entryTimer);
       hideSignal();
       clearInk();
       entryDone = true;
       hero.classList.add('entry-done');
-    } else if (!hero.classList.contains('is-playing')) {
-      playEntry();
     } else if (entryDone && signalAt === Infinity) {
       signalAt = performance.now() + SIGNAL_DELAY_MS;
     }
     onScroll();
-  }
-
-  // Google Fonts serves Chinese in slices: ask for every glyph the copy uses.
-  function loadFonts() {
-    if (!document.fonts || !document.fonts.load) return Promise.resolve();
-    const zhTitle = COPY.zh.rows.join('') + COPY.zh.t2title;
-    const zhBody = Object.values(COPY.zh).join('');
-    const enTitle = COPY.en.rows.join(' ') + ' ' + COPY.en.t2title;
-    const enBody = Object.values(COPY.en).join(' ');
-    const loads = Promise.all([
-      document.fonts.load('300 200px "Noto Serif SC"', zhTitle),
-      document.fonts.load('400 24px "Noto Serif SC"', zhBody),
-      document.fonts.load('300 188px "Fraunces"', enTitle),
-      document.fonts.load('400 24px "Fraunces"', enBody),
-      document.fonts.load('500 34px "Fraunces"', 'Cineview'),
-    ]).catch(() => {});
-    return Promise.race([loads, new Promise((resolve) => setTimeout(resolve, 1800))]);
   }
 
   // Text changes in place: the v2 text watcher re-measures split lines, so nothing replays.
@@ -704,7 +680,6 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
       button.setAttribute('aria-pressed', String(button.dataset.setLang === lang));
     });
     measure();
-    loadFonts().then(measure);
   }
 
   function syncDragLanguage() {
@@ -1157,6 +1132,8 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
     }, { threshold: [0, 0.35, 0.6] }).observe(method);
   }
 
+  let scrollGround = '';
+
   // Where the reader is: the scene at the eye line, the offset into it, and the act's theme, kept
   // for this tab so a reload (or back/forward) can come back to the same place (index.html head).
   {
@@ -1174,37 +1151,15 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
     };
     let pending = 0;
     const save = () => {
-      pending = 0;
+      clearTimeout(pending);
       if (root.classList.contains('restoring')) return;
       const p = place();
       try {
-        if (p) sessionStorage.setItem('hero-place', JSON.stringify({ ...p, ground: getComputedStyle(document.documentElement).getPropertyValue('--scroll-ground').trim() }));
+        if (p) sessionStorage.setItem('hero-place', JSON.stringify({ ...p, ground: scrollGround }));
       } catch {}
     };
-    addEventListener('scroll', () => { if (!pending) pending = requestAnimationFrame(save); }, { passive: true });
+    addEventListener('scroll', () => { clearTimeout(pending); pending = setTimeout(save, 150); }, { passive: true });
     addEventListener('pagehide', save);
-    if (root.classList.contains('restoring')) {
-      let saved = null;
-      try { saved = JSON.parse(sessionStorage.getItem('hero-place') || 'null'); } catch {}
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        root.classList.remove('restoring');
-        root.removeAttribute('data-boot-theme');
-      };
-      const go = () => {
-        const s = saved && document.getElementById(saved.id);
-        if (s) scrollTo(0, s.offsetTop + saved.offset);
-        // Two frames: the stage reads the new position, sets the act's theme and frames.
-        requestAnimationFrame(() => requestAnimationFrame(finish));
-      };
-      let went = false;
-      const once = () => { if (!went) { went = true; go(); } };
-      customElements.whenDefined('cv-stage').then(() => (home.ready ? home.ready.then(once) : once()));
-      home.addEventListener('cv-ready', once, { once: true });
-      setTimeout(() => { once(); finish(); }, 2500);
-    }
   }
 
   // The ground follows the scroll: a few colour stops over the page's light part (cream to apricot
@@ -1214,8 +1169,22 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
     const STOPS = [[0, [251, 239, 221]], [0.3, [249, 230, 207]], [0.55, [246, 223, 198]], [0.8, [248, 231, 210]], [1, [251, 239, 221]]];
     const rootEl = document.documentElement;
     const cinemaAct = document.getElementById('cinema');
-    let lastColour = '';
+    const stage = document.getElementById('home');
+    const surfaces = document.querySelectorAll([
+      '#home-ground, .bar, .act-bridge, .act-time, .act-method, .act-cards, .act-row, .act-material, .act-extend, .act-cinema',
+      '.reel-flange, .reel-rim, .reel-film, .reel-hub, .reel-hole, .reel-wound, .langs button',
+      '.plate-base .frame, .plate .fill-chrome, .method-sketch-svg, .brief, .card-body, .deck-card',
+      '.deck-thumb, .deck-sample, .deck-art, .row-panel, .row-icon, .rp-shot svg, .rp-pace i',
+      '.strip-holes, .extend-code',
+    ].join(', '));
+    scrollGround = rootEl.style.getPropertyValue('--scroll-ground');
+    if (scrollGround) {
+      for (const surface of surfaces) surface.style.setProperty('--scroll-ground', scrollGround);
+    }
+    let surfaceGround = scrollGround;
     let queuedGround = false;
+    let wasFixed = false;
+    let groundFade = null;
     const paint = () => {
       // While a reload is restoring the reader's place, keep the colour the head script set.
       if (rootEl.classList.contains('restoring')) {
@@ -1231,12 +1200,32 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
       const [b, cb] = STOPS[i];
       const t = (f - a) / Math.max(b - a, 1e-6);
       const col = ca.map((v, k) => Math.round(v + (cb[k] - v) * t));
-      const css = `rgb(${col[0]} ${col[1]} ${col[2]})`;
-      if (css === lastColour) return;
-      lastColour = css;
-      rootEl.style.setProperty('--scroll-ground', css);
+      const fixed = ['night', 'pair', 'type'].includes(stage.dataset.cvTheme);
+      const warm = `rgb(${col[0]} ${col[1]} ${col[2]})`;
+      if (wasFixed && !fixed) {
+        // Let the theme's CSS transition carry every surface from dark to its new warm tint.
+        rootEl.style.setProperty('--ground-open', warm);
+        const fade = rootEl.getAnimations().find(a => a.transitionProperty === '--ground');
+        groundFade = fade;
+        if (fade) {
+          const resume = () => {
+            if (groundFade !== fade) return;
+            groundFade = null;
+            queue();
+          };
+          fade.finished.then(resume, resume);
+        }
+      }
+      wasFixed = fixed;
+      scrollGround = fixed ? '' : warm;
+      const css = groundFade ? '' : scrollGround;
+      if (css === surfaceGround) return;
+      surfaceGround = css;
+      for (const surface of surfaces) surface.style.setProperty('--scroll-ground', css);
     };
     const queue = () => { if (!queuedGround) { queuedGround = true; requestAnimationFrame(paint); } };
+    stage.addEventListener('cv-enter', queue);
+    stage.addEventListener('cv-ready', queue);
     addEventListener('scroll', queue, { passive: true });
     addEventListener('resize', queue);
     paint();
@@ -1267,14 +1256,11 @@ import { LANGUAGE_STORAGE_KEY, resolveLanguage, saveLanguage } from '/site-langu
     }
   }
 
-  // Apply the selected copy before the entrance without creating a saved preference.
+  // Measure with the visible typeface, then refit if a web font changes the title metrics.
   if (lang !== 'zh') applyCopy();
-
-  root.classList.toggle('is-static', isStatic());
-  loadFonts().then(() => {
-    measure();
-    playEntry();
-    onScroll();
-    requestAnimationFrame(frame);
-  });
+  else measure();
+  document.fonts?.addEventListener('loadingdone', measure);
+  applyStatic();
+  if (!isStatic()) scheduleInk();
+  requestAnimationFrame(frame);
 }

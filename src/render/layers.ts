@@ -152,6 +152,9 @@ export interface Layer {
   scratch: Frame;
   /** Last written value per CSS property, to skip redundant writes and to undo them. */
   last: Map<string, string>;
+  /** Time-layer progress last written by drag or the scroll fallback; NaN forces the next write. */
+  lastTimeProgress: number;
+  lastExitProgress: number;
   /** Live native animation, when this layer runs off the main thread. */
   native: Animation | null;
   /** A keyframes layer: the page's rule as keyframes over the layer's progress. */
@@ -267,6 +270,8 @@ function makeLayer(
     frame: identityFrame(),
     scratch: identityFrame(),
     last: new Map(),
+    lastTimeProgress: Number.NaN,
+    lastExitProgress: Number.NaN,
     native: null,
     rule: null,
     seek: null,
@@ -542,6 +547,7 @@ export function writeFrame(layer: Layer, frame: Frame): void {
 
 /** Remove what writeLayer wrote (before a clock animation takes over, or when the layer goes away). */
 export function clearLayer(layer: Layer): void {
+  layer.lastTimeProgress = layer.lastExitProgress = Number.NaN;
   layer.seek?.cancel();
   layer.seek = null;
   const style = layer.el.style;

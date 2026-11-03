@@ -6,6 +6,7 @@ import { CvFixed } from './fixed';
 import { CvPause } from './pause';
 import { defineEffect } from '../core/fx';
 import { platform } from '../platform';
+import * as layers from '../render/layers';
 
 class Observer {
   static all: Observer[] = [];
@@ -142,6 +143,39 @@ describe('stage rebuild identity', () => {
 describe('scroll input lifetime', () => {
   const view =
     '<cv-scene><cv-animate fx="fade" on="view(self)" ease="linear">Content</cv-animate></cv-scene>';
+
+  it('only evaluates a fallback scene layer when its entrance or exit progress changes', async () => {
+    const position = jest.replaceProperty(window, 'scrollY', 0);
+    const stage = await stageWith(
+      'scroll',
+      '<cv-scene zone><cv-animate fx="fade" delay="100" duration="100" exit="opacity:0" exit-duration="100" ease="linear">Content</cv-animate></cv-scene>'
+    );
+    const layer = stage.ordered[0]!.ordered[0]!.layers[0]!;
+    const write = jest.spyOn(layers, 'writeLayer');
+    const scroll = async (y: number) => {
+      write.mockClear();
+      position.replaceValue(y);
+      window.dispatchEvent(new Event('scroll'));
+      await settle();
+    };
+
+    expect(layer.el.style.opacity).toBe('0');
+    await scroll(50);
+    expect(write).not.toHaveBeenCalled();
+    await scroll(150);
+    expect(layer.el.style.opacity).toBe('0.5');
+    await scroll(400);
+    expect(layer.el.style.opacity).toBe('0');
+    await scroll(410);
+    expect(write).not.toHaveBeenCalled();
+    await scroll(250);
+    expect(layer.el.style.opacity).toBe('0.5');
+    layers.clearLayer(layer);
+    await scroll(250);
+    expect(layer.el.style.opacity).toBe('0.5');
+    await scroll(0);
+    expect(write).toHaveBeenCalledWith(layer, 0, 0);
+  });
 
   it('projects a direct fixed child outside the moving row and restores its original slot on removal', async () => {
     const stage = await stageWith(
@@ -529,6 +563,49 @@ describe('operation boundaries', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
   afterEach(() => document.body.removeEventListener('cv-error', record));
+
+  it('sleeps during a stationary drag and wakes on movement and release', async () => {
+    const stage = await stageWith(
+      'drag',
+      '<cv-scene><div id="surface">Drag</div></cv-scene><cv-scene><cv-animate fx="fade" duration="1000" ease="linear">Next</cv-animate></cv-scene>'
+    );
+    const surface = stage.querySelector('#surface')!;
+    const layer = stage.ordered[1]!.ordered[0]!.layers[0]!;
+    pointer(surface, 'pointerdown', 600);
+    pointer(surface, 'pointermove', 500);
+    await settle();
+    const held = Number(layer.el.style.opacity);
+    expect(held).toBeGreaterThan(0);
+    const frames = jest.spyOn(window, 'requestAnimationFrame');
+    await settle();
+    expect(frames).not.toHaveBeenCalled();
+    pointer(surface, 'pointermove', 430);
+    await settle();
+    expect(Number(layer.el.style.opacity)).toBeGreaterThan(held);
+    pointer(surface, 'pointercancel', 430);
+    await jest.advanceTimersByTimeAsync(500);
+    expect(layer.el.style.opacity).toBe('0');
+  });
+
+  it('skips held time layers and keeps loops outside the drag window stopped', async () => {
+    const stage = await stageWith(
+      'drag',
+      '<cv-scene><div id="surface">Drag</div></cv-scene><cv-scene><cv-animate fx="fade" delay="700">Late</cv-animate></cv-scene><cv-scene><cv-animate loop="sway">Far</cv-animate></cv-scene>'
+    );
+    const surface = stage.querySelector('#surface')!;
+    const late = stage.ordered[1]!.ordered[0]!.layers[0]!;
+    const far = stage.ordered[2]!.ordered[0]!;
+    const write = jest.spyOn(layers, 'writeLayer');
+    pointer(surface, 'pointerdown', 600);
+    pointer(surface, 'pointermove', 500);
+    await settle();
+    expect(late.el.style.opacity).toBe('0');
+    expect(write.mock.calls.some(([layer]) => layer === late)).toBe(false);
+    expect(far.looping).toBe(false);
+    pointer(surface, 'pointerup', 500);
+    stage.goTo(1, { animated: false });
+    expect(far.looping).toBe(true);
+  });
 
   it.each([
     ['', 'bad-at'],

@@ -410,11 +410,11 @@ export class ScrollInput implements InputEngine {
           if (layer.source === 'scene') {
             const w = layer.window;
             if (!w) continue;
-            work.push({
-              layer,
-              p: progressIn(t, w.start, w.end),
-              px: layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : 0,
-            });
+            const p = progressIn(t, w.start, w.end);
+            const px = layer.exitEffects.length ? progressIn(t, w.exitStart, w.exitEnd) : 0;
+            if (!this.native && p === layer.lastTimeProgress && px === layer.lastExitProgress)
+              continue;
+            work.push({ layer, p, px });
           } else if (layer.source === 'view') {
             const subject = a.viewSubject(layer);
             let top = s.docTop - y;
@@ -455,7 +455,13 @@ export class ScrollInput implements InputEngine {
       if (native || !isNear(s) || s.covered) continue;
       rows.push({ s, t: Math.min(Math.max(y - s.docTop, 0), s.solution.total) });
     }
-    for (const w of work) writeLayer(w.layer, w.p, w.px);
+    for (const { layer, p, px } of work) {
+      writeLayer(layer, p, px);
+      if (!this.native && layer.source === 'scene') {
+        layer.lastTimeProgress = p;
+        layer.lastExitProgress = px;
+      }
+    }
     // Signal layers leaving the neighbourhood keep their last frame, like other direct layers.
     this.signalWork = signalWork;
     this.signals.step(performance.now());
