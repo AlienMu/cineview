@@ -15,7 +15,9 @@ try {
   // Check the title has risen into its clip while the entry module and font stylesheet are pending.
   await page.waitForFunction(() => {
     const title = document.querySelector('.row-1 .words');
-    if (!title || Number(getComputedStyle(document.querySelector('.kicker')).opacity) < 0.25) return false;
+    const rise = title?.getAnimations().find(effect => effect.animationName === 'rise-line');
+    if (typeof rise?.startTime !== 'number' ||
+        Number(getComputedStyle(document.querySelector('.kicker')).opacity) < 0.25) return false;
     const visible = title.closest('.clip').getBoundingClientRect().bottom - title.getBoundingClientRect().top;
     return visible > title.offsetHeight / 2;
   }, undefined, { timeout: 5000 });
