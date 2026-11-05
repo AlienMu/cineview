@@ -2,6 +2,75 @@
 
 All notable changes to Cineview are documented here.
 
+## 2.0.3
+
+### Fixed
+
+- A drag that starts while the current scene's entrance is still playing, and ends without a
+  switch, now lets that entrance play on from where it stopped. Before, the entrance stayed
+  frozen part-way.
+- A drag during the first scene's `preload` wait now ends the wait. `on="clock"` elements start at
+  once, and if the drag ends without a switch, the scene's entrance plays even if its assets are
+  still loading. Before, neither ever played.
+- A drag page opened at `#scene`, or reloaded there, shows that scene. Before, the browser could
+  scroll the stage to the scene's starting position, so another scene or an empty screen showed.
+- A drag that takes over the slide of a `goTo` across several scenes, and springs back, now marks
+  and announces the scene it leaves the reader on. Before, the stage still marked the scene the
+  `goTo` started from.
+- Text on drag pages is no longer selectable in Safari and other WebKit browsers, as in Chromium.
+
+### Changed
+
+- Pausing the stage (`paused`, `stage.pause()`, `cv-pause`) now also holds drag scene time:
+  entrances on load, after a release, from the keys or `goTo` wait until the stage plays. The page
+  slide and the spring-back still finish.
+- Under reduced motion, a drag scene reached without the finger (on load, keys, links, `goTo`)
+  shows its entrances as an opacity change of at most 200 ms, and time played on after a release
+  ends within 200 ms. Motion under the finger stays.
+- `replay="false"` now works on drag pages: after one complete entrance the element stays entered
+  when its scene returns, also when it is dragged away backwards.
+- An `input` set after the stage's first build but before anything was shown (for example at
+  `DOMContentLoaded`) opens the page in that mode, with its first entrance, hash entry and
+  `preload` wait. Set later, the current scene stays at its end, and development builds warn.
+
+### Documentation
+
+- Drag mode: dragging back plays the previous scene's entrance again from the start. Only
+  elements with an `exit` run their entrance backwards. The mouse wheel and trackpad do not
+  switch scenes, and the keys work once the stage has focus. `on="clock"` elements in the next
+  scene start when the page lands. Pausing, reduced motion and `replay="false"` on drag pages are
+  described.
+- The first-screen page says that a drag ends the `preload` wait. The input-modes page says when a
+  script can choose `input` per device.
+- The drag example's number now has an exit, so its line about dragging back is accurate.
+
+### Design skill
+
+- `skills/cineview-design` was rewritten. It has one strict rule: no page files until the user
+  confirms the storyboard. The first question asks which devices the page is for. Drag is
+  offered for phones only; pages for both devices are one scroll page, or the same scenes paged
+  by the finger on phones and scrolled on desktops.
+- Drag pages get a question per scene on how the page changes into it. New files cover drag,
+  phones, scene handovers, how words and pictures relate, what the 41 references express, style
+  pairings, common ranges and questions that draw a look from the product.
+- Templates taken from the Cineview homepage were removed (numbered layouts, page structures by
+  type, the homepage's motifs and numbers). References are written as options with reasons.
+
+### Release checks
+
+- Chromium and WebKit browser checks, unit tests, documentation checks and the package dry run
+  passed on the release commit.
+- Performance was compared with 2.0.2 on the same machine. Chrome drag capacity and mix stay at
+  256 per scene. The Chrome native scroll mix cell at 256 failed in both versions on this run
+  (median 53.4 and 53.2 Hz over seven runs each), so it is not a change in this release. In
+  WebKit the heavy drag fixture passes every run with the same P95 (18-19 ms), but shows two
+  frames over 50 ms per run with mouse input where 2.0.2 shows none; they come from
+  `-webkit-user-select: none` on the drag stage.
+- Physical iPhone and Android checks were not run for this release.
+- The production dependency audits for the package and the website report no advisories. The
+  development audit still reports the low-severity Jest dependency on `deepmerge@4.3.1`
+  ([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)).
+
 ## 2.0.2
 
 ### Fixed
