@@ -128,7 +128,7 @@ it.each([false, true])(
   }
 );
 
-it('preemption abandons the entrance callback and its timeout', async () => {
+it('preemption ends the wait at once: the entrance callbacks run once, the timeout never fires', async () => {
   const { stage, scene } = screen('<img>'),
     pending = deferred();
   scene.querySelector('img')!.decode = () => pending.promise;
@@ -138,13 +138,30 @@ it('preemption abandons the entrance callback and its timeout', async () => {
     released = jest.fn();
   gate.whenReleased(released);
   gate.preempt();
+  expect(gate.held).toBe(false);
+  expect(released).toHaveBeenCalledTimes(1);
+  pending.resolve();
+  await flush();
+  jest.advanceTimersByTime(100);
+  gate.preempt();
+  expect(released).toHaveBeenCalledTimes(1);
+  expect(timeout).not.toHaveBeenCalled();
+  gate.dispose();
+});
+
+it('disposal drops the entrance callbacks without running them', async () => {
+  const { stage, scene } = screen('<img>'),
+    pending = deferred();
+  scene.querySelector('img')!.decode = () => pending.promise;
+  const gate = new FirstScreenGate(stage, scene, 100),
+    released = jest.fn();
+  gate.whenReleased(released);
+  gate.dispose();
   pending.resolve();
   await flush();
   jest.advanceTimersByTime(100);
   expect(gate.held).toBe(false);
   expect(released).not.toHaveBeenCalled();
-  expect(timeout).not.toHaveBeenCalled();
-  gate.dispose();
 });
 
 it.each(['loadeddata', 'error'])(

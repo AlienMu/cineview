@@ -33,7 +33,7 @@ Each scene fills the screen. While the finger moves, the next scene's entrance f
 
 - Long content, text to read, or readers who expect an ordinary web page: scroll.
 - One picture per screen, mostly on phones, like flipping through photos or watching a short film: drag.
-- Both for the same content: two pages can share the same scene markup and differ only in `input`.
+- Both for the same content: two pages can share the same scene markup and differ only in `input`. One page can also choose per device with a script that sets `input` (and `design-width`), for example drag on phones and scroll on desktops. Set before anything is shown, by a script right after the stage or at `DOMContentLoaded`, the page opens in that mode with its first entrance. Set after the page has been shown, the current scene stays at its end.
 
 ## Jump to a scene
 

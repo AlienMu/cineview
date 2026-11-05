@@ -108,7 +108,10 @@ finger and settles on release; the incoming scene's element time follows the fin
 (`unit`/`scale`) and continues on time after release. Release rules are pure functions in
 `input/drag-rules.ts`. One time base per frame: the tick reads `performance.now()` once, because
 tweens start from it and a rAF timestamp can lag it by seconds in a lazily loaded iframe. Only the
-current scene and its neighbours are rendered.
+current scene and its neighbours are rendered. Element time played on its own (on load, after a
+release, from keys or `goTo`) runs on scene time, which stops while the stage is paused; page travel
+and a neighbour's time running back with the spring-back run on page time and finish. An `input`
+set after the first build but before `cv-ready` makes the next build the opening one.
 
 ## Time
 
@@ -145,8 +148,9 @@ keyframes are separate chunks loaded before a build that uses them.
 
 Content stays real, selectable text. Reduced motion keeps only the opacity change of entrances
 played on time (at most 200 ms), stops loops and rate effects, and leaves motion that follows the
-reader's own scroll or finger. `cv-pause` and `stage.pause()` hold everything played on time (WCAG
-2.2.2). Drag scenes outside the current one are `inert`; scene changes are announced in a polite
+reader's own scroll or finger. On drag pages, a scene whose time starts without the finger shows
+its entrances as that fade, and time played on after a release ends within 200 ms. `cv-pause` and
+`stage.pause()` hold everything played on time, drag scene time included (WCAG 2.2.2). Drag scenes outside the current one are `inert`; scene changes are announced in a polite
 live region.
 
 ## Errors

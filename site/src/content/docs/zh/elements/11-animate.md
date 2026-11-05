@@ -76,7 +76,7 @@ eyebrow: ELEMENTS / ANIMATE
 | --- | --- |
 | 不写 | 按来源原来的规则：普通滚动里入场只播一次，`on="clock"` 的元素每次回到场景都重播 |
 | `replay` 或 `replay="true"` | 每次回来都重播；普通滚动里，元素离开视口后重新布防 |
-| `replay="false"` | 完整播过一次之后，再次触发时直接显示结束的样子；接在它后面的元素照原来的时间播放 |
+| `replay="false"` | 完整播过一次之后，再次触发时直接显示结束的样子；接在它后面的元素照原来的时间播放。在拖动页里，场景再次被拖进来或往回拖离开时，它也保持入场完成的样子 |
 
 ```html
 <cv-animate name="title" on="clock" fx="rise(soft)" replay="false"><h2>只在第一次进入时升起</h2></cv-animate>

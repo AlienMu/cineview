@@ -5,6 +5,7 @@ import { CvStack } from './stack';
 import { CvFixed } from './fixed';
 import { CvPause } from './pause';
 import { defineEffect } from '../core/fx';
+import * as platformModule from '../platform';
 import { platform } from '../platform';
 import * as layers from '../render/layers';
 
@@ -605,6 +606,193 @@ describe('operation boundaries', () => {
     pointer(surface, 'pointerup', 500);
     stage.goTo(1, { animated: false });
     expect(far.looping).toBe(true);
+  });
+
+  it('plays the rest of the current entrance after a drag that does not switch', async () => {
+    const stage = await stageWith(
+      'drag',
+      '<cv-scene><div id="surface">Drag</div><cv-animate fx="fade" duration="1000" ease="linear">Title</cv-animate></cv-scene><cv-scene>Next</cv-scene>'
+    );
+    const surface = stage.querySelector('#surface')!;
+    const layer = stage.ordered[0]!.ordered[0]!.layers[0]!;
+    await jest.advanceTimersByTimeAsync(200);
+    const playing = Number(layer.el.style.opacity);
+    expect(playing).toBeGreaterThan(0);
+    expect(playing).toBeLessThan(1);
+    pointer(surface, 'pointerdown', 600);
+    pointer(surface, 'pointermove', 560);
+    await settle();
+    const held = Number(layer.el.style.opacity);
+    expect(held).toBeLessThan(1);
+    await jest.advanceTimersByTimeAsync(500);
+    expect(Number(layer.el.style.opacity)).toBe(held);
+    pointer(surface, 'pointercancel', 560);
+    // It plays on from where the drag stopped it: neither restarted nor shown at its end.
+    await jest.advanceTimersByTimeAsync(100);
+    const after = Number(layer.el.style.opacity);
+    expect(after).toBeGreaterThan(held);
+    expect(after).toBeLessThan(held + 0.2);
+    await jest.advanceTimersByTimeAsync(1500);
+    expect(stage.currentIndex()).toBe(0);
+    expect(layer.el.style.opacity).toBe('1');
+  });
+
+  it('holds drag scene time while the stage is paused; the page slide still lands', async () => {
+    const stage = await stageWith(
+      'drag',
+      '<cv-scene>Zero</cv-scene><cv-scene><cv-animate fx="fade" duration="1000" ease="linear">Next</cv-animate></cv-scene>'
+    );
+    const layer = stage.ordered[1]!.ordered[0]!.layers[0]!;
+    stage.pause();
+    stage.goTo(1);
+    await jest.advanceTimersByTimeAsync(1500);
+    expect(stage.currentIndex()).toBe(1);
+    expect(Number(layer.el.style.opacity)).toBe(0);
+    stage.play();
+    await jest.advanceTimersByTimeAsync(300);
+    const playing = Number(layer.el.style.opacity);
+    expect(playing).toBeGreaterThan(0.2);
+    expect(playing).toBeLessThan(0.5);
+    stage.pause();
+    // The frame after the pause shows the time it stopped at; from then on nothing moves.
+    await jest.advanceTimersByTimeAsync(50);
+    const held = Number(layer.el.style.opacity);
+    expect(held - playing).toBeLessThan(0.05);
+    await jest.advanceTimersByTimeAsync(600);
+    expect(Number(layer.el.style.opacity)).toBe(held);
+    stage.play();
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(layer.el.style.opacity).toBe('1');
+  });
+
+  it('holds the first scene entrance of a stage built paused until it plays', async () => {
+    const stage = document.createElement('cv-stage') as CvStage;
+    stage.input = 'drag';
+    stage.setAttribute('paused', '');
+    stage.innerHTML =
+      '<cv-scene><cv-animate fx="fade" duration="600" ease="linear">Title</cv-animate></cv-scene><cv-scene>Next</cv-scene>';
+    document.body.append(stage);
+    // Small steps: the drag module loads first, then a second of paused time passes.
+    for (let i = 0; i < 50; i++) await jest.advanceTimersByTimeAsync(20);
+    const layer = stage.ordered[0]!.ordered[0]!.layers[0]!;
+    expect(stage.currentIndex()).toBe(0);
+    expect(Number(layer.el.style.opacity)).toBe(0);
+    stage.play();
+    await jest.advanceTimersByTimeAsync(800);
+    expect(layer.el.style.opacity).toBe('1');
+  });
+
+  it('replay="false": after one complete entrance the element stays entered, also dragging back', async () => {
+    const stage = await stageWith(
+      'drag',
+      '<cv-scene><div id="zero">Zero</div></cv-scene><cv-scene><div id="one">One</div>' +
+        '<cv-animate replay="false" fx="fade" duration="400" exit="opacity:0" exit-duration="300" ease="linear">Once</cv-animate>' +
+        '<cv-animate fx="fade" duration="400" exit="opacity:0" exit-duration="300" ease="linear">Again</cv-animate></cv-scene>'
+    );
+    const [once, again] = stage.ordered[1]!.ordered.map((a) => a.layers[0]!);
+    stage.goTo(1, { animated: false });
+    await settle();
+    expect(once!.el.style.opacity).toBe('1');
+    // Dragging back from scene one: the element that may play again runs its entrance backwards.
+    const one = stage.querySelector('#one')!;
+    pointer(one, 'pointerdown', 300);
+    pointer(one, 'pointermove', 420);
+    await settle();
+    expect(Number(again!.el.style.opacity)).toBeLessThan(1);
+    expect(once!.el.style.opacity).toBe('1');
+    pointer(one, 'pointercancel', 420);
+    await jest.advanceTimersByTimeAsync(600);
+    // Back on scene zero, scene one dragged in a little: only the other element starts again.
+    stage.goTo(0, { animated: false });
+    await settle();
+    const zero = stage.querySelector('#zero')!;
+    pointer(zero, 'pointerdown', 600);
+    pointer(zero, 'pointermove', 560);
+    await settle();
+    expect(Number(again!.el.style.opacity)).toBeLessThan(0.5);
+    expect(once!.el.style.opacity).toBe('1');
+    expect(stage.ordered[1]!.ordered[0]!.getAttribute('data-cv-phase')).toBe('entered');
+    pointer(zero, 'pointercancel', 560);
+    await jest.advanceTimersByTimeAsync(600);
+  });
+
+  it('reduced motion: a scene started without the finger fades in, briefly; the finger keeps its motion', async () => {
+    jest.spyOn(platformModule, 'prefersReducedMotion').mockReturnValue(true);
+    const stage = document.createElement('cv-stage') as CvStage;
+    stage.input = 'drag';
+    stage.innerHTML =
+      '<cv-scene><div id="surface">Zero</div><cv-animate fx="rise(100px)" duration="1000" ease="linear">Title</cv-animate></cv-scene>' +
+      '<cv-scene><cv-animate fx="rise(100px)" duration="1000" ease="linear">Next</cv-animate></cv-scene>';
+    document.body.append(stage);
+    // The drag module loads first; step until the opening entrance has begun.
+    const opacityNow = () => Number(stage.ordered[0]?.ordered[0]?.layers[0]?.el.style.opacity || 0);
+    for (let i = 0; i < 30 && opacityNow() === 0; i++) await jest.advanceTimersByTimeAsync(10);
+    const first = stage.ordered[0]!.ordered[0]!.layers[0]!;
+    // On load: a fade with no movement, over at most 200 ms.
+    const opening = Number(first.el.style.opacity);
+    expect(opening).toBeGreaterThan(0);
+    expect(opening).toBeLessThan(1);
+    expect(first.el.style.translate).toMatch(/^0px( 0px)?$/);
+    await jest.advanceTimersByTimeAsync(300);
+    expect(first.el.style.opacity).toBe('1');
+    // Under the finger the next scene moves as written; after release it finishes within 200 ms.
+    const next = stage.ordered[1]!.ordered[0]!.layers[0]!;
+    const surface = stage.querySelector('#surface')!;
+    pointer(surface, 'pointerdown', 600);
+    pointer(surface, 'pointermove', 400);
+    await jest.advanceTimersByTimeAsync(20);
+    expect(next.el.style.translate).not.toMatch(/^0px( 0px)?$/);
+    pointer(surface, 'pointerup', 400);
+    await jest.advanceTimersByTimeAsync(260);
+    expect(next.el.style.opacity).toBe('1');
+    expect(next.el.style.translate).toMatch(/^0px( 0px)?$/);
+  });
+
+  it('an input set after the first build, before anything was shown, opens the page in that mode', async () => {
+    const open = async (early: boolean) => {
+      const stage = document.createElement('cv-stage') as CvStage;
+      // One scene, so the scroll build's current scene is the first one without layout.
+      stage.innerHTML =
+        '<cv-scene><cv-animate fx="fade" duration="1000" ease="linear">Title</cv-animate></cv-scene>';
+      document.body.append(stage);
+      await jest.advanceTimersByTimeAsync(0);
+      expect(stage.querySelector('[data-cv-live]')).not.toBeNull();
+      if (!early) await settle();
+      expect(stage.readyAt > 0).toBe(!early);
+      stage.input = 'drag';
+      await settle();
+      const opacity = Number(stage.ordered[0]!.ordered[0]!.layers[0]!.el.style.opacity);
+      stage.remove();
+      return opacity;
+    };
+    const early = await open(true);
+    expect(early).toBeGreaterThan(0);
+    expect(early).toBeLessThan(1);
+    // Switched once the page was shown, the scene keeps its place at its end.
+    expect(await open(false)).toBe(1);
+  });
+
+  it('places the stage on the scene a cancelled drag leaves, after a goTo across scenes', async () => {
+    const stage = await stageWith(
+      'drag',
+      '<cv-scene id="z0"><div id="surface">Zero</div></cv-scene><cv-scene id="z1">One</cv-scene><cv-scene id="z2"><div id="grab">Two</div></cv-scene><cv-scene id="z3">Three</cv-scene>'
+    );
+    stage.setAttribute('transition-duration', '1000');
+    await settle();
+    const entered: string[] = [];
+    stage.addEventListener('cv-enter', (e) => entered.push((e.target as Element).id));
+    stage.goTo(3);
+    await jest.advanceTimersByTimeAsync(200);
+    expect(stage.current).toBe(0);
+    const grab = stage.querySelector('#grab')!;
+    pointer(grab, 'pointerdown', 400);
+    pointer(grab, 'pointermove', 420);
+    pointer(grab, 'pointercancel', 420);
+    await jest.advanceTimersByTimeAsync(1500);
+    expect(stage.currentIndex()).toBe(2);
+    expect(stage.current).toBe(2);
+    expect(stage.querySelector('cv-scene[data-cv-current]')?.id).toBe('z2');
+    expect(entered).toEqual(['z2']);
   });
 
   it.each([

@@ -13,14 +13,16 @@
 </style></head>
 <body>
 <script type="module">
-  // ?case=boot|mixed|preload|drag-boot|drag-preload, ?delay=ms before the module loads, ?timeout=ms
+  // ?case=boot|mixed|preload|drag-boot|drag-preload, ?delay=ms before the module loads, ?timeout=ms,
+  // ?both adds an on="clock" element (#b) to a preload scene
   const q = new URLSearchParams(location.search);
   const c = q.get('case') ?? 'boot';
   const input = c.startsWith('drag') ? ' input="drag"' : '';
   const timeout = q.has('timeout') ? ` first-scene-timeout="${q.get('timeout')}"` : '';
+  const clockB = q.has('both') ? '<cv-animate id="b" on="clock" fx="fade"><div class="box"></div></cv-animate>' : '';
   const scene0 =
     c.endsWith('preload')
-      ? `<cv-scene id="s0" preload><img id="img" src="/slow.png?${Date.now()}" width="10" height="10"><cv-animate id="a" fx="rise"><div class="box"></div></cv-animate></cv-scene>`
+      ? `<cv-scene id="s0" preload><img id="img" src="/slow.png?${Date.now()}" width="10" height="10"><cv-animate id="a" fx="rise"><div class="box"></div></cv-animate>${clockB}</cv-scene>`
       : c === 'mixed'
         ? `<cv-scene id="s0"><cv-animate id="a" fx="rise"><div class="box"></div></cv-animate><cv-animate id="b" fx="rise" delay="100"><div class="box"></div></cv-animate></cv-scene>`
         : `<cv-scene id="s0"><cv-animate id="a" fx="rise"><div class="box"></div></cv-animate><cv-animate id="b" fx="fade"><div class="box"></div></cv-animate><div id="unit" class="unit"></div></cv-scene>`;

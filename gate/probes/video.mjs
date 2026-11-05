@@ -61,7 +61,8 @@ try {
   check(near(m.t, 4, 0.1) && m.paused, 'continuation scrubs to the end after release', JSON.stringify(m));
   await page.close();
 
-  // Cancelling a partial entrance keeps its decoded video node, including at a boundary.
+  // A drag that interrupts the current entrance and ends without a switch keeps the decoded video
+  // node and plays the entrance on from where it stopped, through the range end into the tail.
   page = await open('mode=drag&range=0,1');
   await page.evaluate(() => {
     document.getElementById('s').goTo(1);
@@ -72,13 +73,16 @@ try {
     return window.partialNode.currentTime;
   });
   await press(page, 400, 80, { hold: 150 });
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(60);
+  const justReleased = await page.evaluate(() => document.getElementById('v').video.currentTime);
+  await page.waitForTimeout(740);
   const cancelledPartial = await page.evaluate(() => {
     const host = document.getElementById('v');
     return { sameNode: host.video === window.partialNode, time: host.video.currentTime, ready: host.video.readyState, frame: host.timeline.frame };
   });
-  check(cancelledPartial.sameNode && cancelledPartial.ready >= 2 && near(cancelledPartial.time, partialNodeTime, 0.08),
-    'partial entrance cancellation preserves the decoded node and departure frame', JSON.stringify({ partialNodeTime, cancelledPartial }));
+  check(cancelledPartial.sameNode && cancelledPartial.ready >= 2 && justReleased >= partialNodeTime - 0.08 && justReleased < 0.9 &&
+    cancelledPartial.time > partialNodeTime && cancelledPartial.frame.progress === 1 && cancelledPartial.frame.phase === 'entered',
+    'a cancelled drag keeps the decoded node and plays the interrupted entrance on from where it stopped', JSON.stringify({ partialNodeTime, justReleased, cancelledPartial }));
   await page.evaluate(() => document.getElementById('s').goTo(0));
   await page.waitForFunction(() => document.getElementById('s').current === 0);
   await page.evaluate(() => document.getElementById('s').goTo(1));
@@ -147,24 +151,26 @@ try {
   await page.waitForTimeout(80);
   await page.setViewportSize({ width: 401, height: H });
   await page.waitForTimeout(80);
-  check((await media(page)).ready === 0, 'real media stays pending until the partial entrance is idle');
+  check((await media(page)).ready === 0, 'real media stays pending while its response is held, through the cancel and a resize');
   releaseMetadata();
   // Seeking after loadeddata can temporarily return readyState to HAVE_METADATA.
   // Wait for the restored frame to decode and capture media/timeline in the same task.
+  // The cancelled entrance played on to its end while the media was pending: once the media
+  // arrives, the video catches up to the finished entrance and the browser plays the tail.
   const restored = await page.waitForFunction(() => {
     const host = document.getElementById('v');
     const m = window.media();
     const partial = host.timeline.frame;
-    return m.ready >= 2 && !host.video.seeking && Math.abs(m.t - partial.progress) < 0.05
+    return m.ready >= 2 && !host.video.seeking && m.t >= partial.progress - 0.05
       ? { m, partial } : false;
   }, {}, { timeout: 10000 });
   const restoredFrame = await restored.jsonValue();
   m = restoredFrame.m;
   const partial = restoredFrame.partial;
-  check(partial.phase === 'entering' && partial.source === 'idle' && partial.progress > 0.2,
-    'cancelled partial entrance stays at its idle timeline frame', JSON.stringify(partial));
-  check(m.ready >= 2 && m.paused && near(m.t, partial.progress, 0.05),
-    'late metadata restores a partial entrance after cancellation and resize', JSON.stringify({ m, partial }));
+  check(partial.phase === 'entered' && partial.progress === 1,
+    'a cancelled drag plays the interrupted entrance to its end while the media is pending', JSON.stringify(partial));
+  check(m.ready >= 2 && m.t >= 0.95 && !m.paused,
+    'late metadata catches the video up to the finished entrance, then the browser plays on', JSON.stringify({ m, partial }));
   await page.close();
 
   // ---- zone ----------------------------------------------------------------------------

@@ -44,3 +44,4 @@ With the system's reduced-motion setting on:
 - Entrances played on time (`enter`, `eye`, `clock`) keep only their opacity change, and last at most 200 ms.
 - Loops stop; `count`, `drift` and `skew` do not run, and a count shows its final number.
 - Motion that follows the reader's scroll or finger stays, because it is the reader's own action.
+- On a drag page, a scene reached without the finger (on load, from the keys, a link or `goTo`) shows its entrances as an opacity change of at most 200 ms. After a release, the rest of the entrance ends within 200 ms.

@@ -16,7 +16,7 @@ A page with `input="drag"` shows one scene per screen, switched by dragging up a
 | `time` | Each 1% of a screen dragged moves `scale` ms | `10`: a full screen moves 1000 ms |
 | `percent` | The share of a screen dragged, times `scale`, times the scene's length | `1`: a full screen plays the whole scene |
 
-On `cv-stage` they apply to every scene; on `cv-scene`, to that scene only. After a release that switches, the rest of the entrance plays at normal speed while the page slides into place over `transition-duration` (800 ms by default).
+On `cv-stage` they apply to every scene; on `cv-scene`, to that scene only. After a release that switches, the rest of the entrance plays at normal speed while the page slides into place over `transition-duration` (800 ms by default). Elements with `on="clock"` in the next scene wait until the page has landed on it.
 
 ## When a release switches
 
@@ -30,13 +30,17 @@ With `threshold`, three numbers set the rule (slow share, fast share, speed), as
 
 ## Dragging back and leaving
 
-- Dragging back plays the previous scene's entrance in reverse.
-- Elements of the current scene with an `exit` play it while the page moves away, timed by `transition-duration`.
+- Dragging back plays the previous scene's entrance again from the start, following the finger.
+- Elements of the current scene with an `exit` play it while the page moves on to the next scene, timed by `transition-duration`. Dragged back, they run their entrance backwards instead. Elements without an `exit` move with the page as they are.
+- Released without a switch, the current scene stays as it was, and an entrance the drag interrupted plays on to its end.
+- An element with `replay="false"` stays entered after one complete entrance, also when its scene is dragged in again or dragged away backwards.
+- While the stage is paused (`paused`, `stage.pause()` or `cv-pause`), each scene's time stands still. Dragging and the keys still change scenes, and the entrance plays once the stage plays again.
 - A scene with `drag="off"` cannot be dragged into: dragging toward it dispatches `cv-dragblocked`, and a link or `stage.goTo()` still reaches it.
 
 ## Other input
 
-- The Up and Down arrow keys, Page Up and Page Down go to the previous or next scene; Home and End go to the first and last. Nothing happens while focus is in a text field.
+- Once the stage has focus (after a click or Tab), the Up and Down arrow keys, Page Up and Page Down go to the previous or next scene; Home and End go to the first and last. Nothing happens while focus is in a text field.
+- The mouse wheel and the trackpad do not switch scenes.
 - Links to a scene's id and an `#id` in the address go to that scene; opening an address with `#id` starts there.
 - A press that starts on a button, a link, a text field, `cv-pause` or an element with `data-cv-ignore-drag` does not drag the page.
 - An area of the scene that scrolls keeps the gesture while it can still scroll that way.

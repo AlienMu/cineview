@@ -76,7 +76,7 @@ The children of `cv-animate` stay where they are, slotted into blocks in its sha
 | --- | --- |
 | Omitted | The source's own rule: in ordinary scroll an entrance plays once, and an `on="clock"` element plays again each time its scene becomes current |
 | `replay` or `replay="true"` | Plays again on every return; in ordinary scroll the element re-arms once it leaves the viewport |
-| `replay="false"` | After one complete entrance, later triggers show its final state; elements that follow it keep their own timing |
+| `replay="false"` | After one complete entrance, later triggers show its final state; elements that follow it keep their own timing. On a drag page the element also stays entered when its scene is dragged in again or dragged away backwards |
 
 ```html
 <cv-animate name="title" on="clock" fx="rise(soft)" replay="false"><h2>Rises only on the first visit</h2></cv-animate>

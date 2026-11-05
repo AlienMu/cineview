@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>drag modes fixture</title>
+<style>
+  html,body{margin:0} *{box-sizing:border-box}
+  cv-scene{padding:20px;background:#23314c;color:#fff;font:20px system-ui}
+  .box{display:block;height:80px;width:200px;background:#b3ded6}
+</style></head>
+<body>
+<!--
+  Static markup. ?late: the page has no input until the first build has run, then a script sets
+  input="drag" before anything was shown (as a DOMContentLoaded handler can).
+-->
+<cv-stage id="s" transition-duration="400">
+  <cv-scene id="m0" aria-label="Zero">
+    <cv-animate id="t0" fx="fade" duration="800" ease="linear"><p>Opening</p></cv-animate>
+    <p id="sel">Plain words on a drag page</p>
+    <div id="surface" class="box"></div>
+  </cv-scene>
+  <cv-scene id="m1" aria-label="One">
+    <cv-animate id="r1" fx="rise(100px)" duration="1000" ease="linear"><div class="box"></div></cv-animate>
+    <cv-animate id="o1" replay="false" fx="fade" duration="400" ease="linear"><div class="box"></div></cv-animate>
+  </cv-scene>
+  <cv-scene id="m2" aria-label="Two"><div class="box"></div></cv-scene>
+</cv-stage>
+<script>
+  (function () {
+    var stage = document.getElementById('s');
+    var late = new URLSearchParams(location.search).has('late');
+    if (!late) { stage.setAttribute('input', 'drag'); return; }
+    // The first build marks elements live; switch in the same microtask turn, before any frame.
+    new MutationObserver(function (records, observer) {
+      if (!document.querySelector('cv-animate[data-cv-live]')) return;
+      observer.disconnect();
+      window.switchedBeforeReady = !(stage.readyAt > 0);
+      stage.setAttribute('input', 'drag');
+    }).observe(stage, { subtree: true, attributes: true, attributeFilter: ['data-cv-live'] });
+  })();
+</script>
+<script type="module">
+  window.cvErrors = [];
+  document.addEventListener('cv-error', (e) => window.cvErrors.push(e.detail.message));
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  window.progress = (id) => document.getElementById(id).timeline.frame.progress;
+  window.layer = (id) => {
+    const l = document.getElementById(id).layers[0].el;
+    return { opacity: Number(getComputedStyle(l).opacity), translate: l.style.translate };
+  };
+  await import('@v2');
+</script>
+</body></html>

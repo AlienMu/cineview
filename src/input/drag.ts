@@ -13,15 +13,17 @@
  * (plan v3 §6: no native scroll timeline here, no seek-then-resume).
  */
 import { cubicBezier } from '../core/ease';
-import type { CvAnimate } from '../elements/animate';
+import type { Effect } from '../core/fx';
+import { entranceDefinition, isDone, markDone, parseReplay } from '../core/replay';
+import { opacityOnly, type CvAnimate } from '../elements/animate';
 import type { CvScene } from '../elements/scene';
 import type { CvStack } from '../elements/stack';
 import type { CvStage } from '../elements/stage';
 import type { TimelineFrame, TimelinePhase, TimelineSource } from '../core/timeline';
 import { viewProgress } from '../core/view';
-import { blink } from '../platform';
+import { blink, prefersReducedMotion } from '../platform';
 import { clearCover, writeCover } from '../render/covered';
-import { progressIn, writeLayer } from '../render/layers';
+import { progressIn, writeLayer, type Layer } from '../render/layers';
 import {
   cancelDuration,
   DEFAULT_THRESHOLD,
@@ -45,6 +47,8 @@ const VELOCITY_WINDOW_MS = 100;
 /** Motion's easeOut, as 1.x settled the page. */
 const easeOut = cubicBezier(0, 0, 0.58, 1);
 const linear = (t: number): number => t;
+/** Reduced motion: scene time that plays on its own lasts at most this long (as clock entrances). */
+const REDUCED_MS = 200;
 
 type Side = 1 | -1;
 
@@ -54,6 +58,11 @@ interface Tween {
   t0: number;
   duration: number;
   ease: (t: number) => number;
+  /**
+   * Runs on page time, beside the spring-back (a neighbour's time running back to 0). Other
+   * playheads run on scene time, which stops while the stage is paused.
+   */
+  onPage?: boolean;
 }
 const tweenAt = (tw: Tween, now: number): number => {
   if (tw.duration <= 0) return tw.to;
@@ -158,6 +167,16 @@ class DragInput implements DragEngine {
   /** Some element follows velocity or direction: frames continue until the signals rest. */
   private hasSignals: boolean;
   private restoreScenes: Array<() => void> = [];
+  /** Scene time stops while the stage is paused (WCAG 2.2.2); page travel finishes. */
+  private pausedAt: number | null = null;
+  private pausedFor = 0;
+  /** Reduced motion, read at build (a change rebuilds the stage). */
+  private reduced = prefersReducedMotion();
+  /** Reduced motion: scenes whose time started at 0 on its own show their entrances as a fade. */
+  private faded: boolean[];
+  private fades = new WeakMap<Layer, readonly Effect[]>();
+  /** `replay="false"` elements and the entrance definition they are recorded under. */
+  private once = new Map<CvAnimate, string>();
 
   constructor(
     private stage: CvStage,
@@ -170,6 +189,12 @@ class DragInput implements DragEngine {
     );
     this.times = this.scenes.map(() => 0);
     this.heads = this.scenes.map(() => null);
+    this.faded = this.scenes.map(() => false);
+    for (const s of this.scenes)
+      for (const a of s.ordered)
+        if (a.timed && parseReplay(a.getAttribute('replay')) === 'once')
+          this.once.set(a, entranceDefinition(a, s.id));
+    if (stage.paused) this.pausedAt = performance.now();
     this.transition = Math.max(0, Number(stage.getAttribute('transition-duration') ?? 800) || 0);
     this.threshold = parseThreshold(stage.getAttribute('threshold'), DEFAULT_THRESHOLD, (m) =>
       stage.report(m, stage)
@@ -250,6 +275,8 @@ class DragInput implements DragEngine {
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onCancel);
     window.addEventListener('resize', this.onResize, { passive: true });
+    stage.addEventListener('cv-pause', this.onPause);
+    stage.addEventListener('cv-play', this.onPlay);
     // First screen (1.x cold start): its entrance plays on the clock, from where a CSS-first
     // entrance got to, once its assets are ready (plan v3 §10). A rebuild resumes at the end.
     const first = this.index;
@@ -316,6 +343,8 @@ class DragInput implements DragEngine {
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onCancel);
     window.removeEventListener('resize', this.onResize);
+    this.stage.removeEventListener('cv-pause', this.onPause);
+    this.stage.removeEventListener('cv-play', this.onPlay);
     for (const s of this.scenes) {
       for (const a of s.ordered) {
         a.stopLoops();
@@ -348,7 +377,7 @@ class DragInput implements DragEngine {
       this.heads = this.heads.map(() => null);
       this.times = this.times.map((_, i) => (i === target ? this.total(i) : 0));
       this.pos = this.reported = target;
-      this.switchTo(target, from);
+      this.switchTo(target);
       this.write();
       return;
     }
@@ -360,6 +389,7 @@ class DragInput implements DragEngine {
         this.departed.set(i, side);
         this.times[i] = this.total(i);
         this.heads[i] = null;
+        this.fade(i, false);
       }
       this.index = target - side;
       this.pos = this.reported = this.index;
@@ -386,6 +416,28 @@ class DragInput implements DragEngine {
   // ---- pointer -------------------------------------------------------------------------------------
 
   private onResize = (): void => this.refresh();
+
+  private onPause = (e: Event): void => {
+    if (e.target !== this.stage || this.pausedAt !== null) return;
+    this.pausedAt = performance.now();
+  };
+
+  private onPlay = (e: Event): void => {
+    if (e.target !== this.stage || this.pausedAt === null) return;
+    this.pausedFor += performance.now() - this.pausedAt;
+    this.pausedAt = null;
+    this.loop();
+  };
+
+  /** Scene time: real time less the time the stage spent paused. */
+  private sceneNow(now: number): number {
+    return (this.pausedAt ?? now) - this.pausedFor;
+  }
+
+  /** The clock a playhead runs on at `now` (real time). */
+  private headNow(h: Tween, now: number): number {
+    return h.onPage ? now : this.sceneNow(now);
+  }
 
   private onDown = (e: PointerEvent): void => {
     if (e.button !== 0 || e.isPrimary === false || e.defaultPrevented) return;
@@ -562,7 +614,7 @@ class DragInput implements DragEngine {
     }
     if (this.heads.some(Boolean) && !this.frozenHeads) {
       this.heads.forEach((h, i) => {
-        if (h) this.times[i] = tweenAt(h, now);
+        if (h) this.times[i] = tweenAt(h, this.headNow(h, now));
       });
       this.frozenHeads = true;
       froze = true;
@@ -580,14 +632,19 @@ class DragInput implements DragEngine {
     }
     if (this.frozenHeads) {
       this.frozenHeads = false;
+      // Entrances resume at their own rate (or their shortened one under reduced motion); a
+      // neighbour's time running back keeps its share of the spring-back.
       this.heads = this.heads.map((h, i) =>
-        h ? resumed(h, this.times[i] ?? 0, now, h.ease === linear) : null
+        h ? resumed(h, this.times[i] ?? 0, this.headNow(h, now), !h.onPage && !this.reduced) : null
       );
     }
     this.loop();
   }
 
-  /** Ownership: the frozen transition becomes the finger's, in place (never flush-committed). */
+  /**
+   * Ownership: the frozen transition becomes the finger's, in place (never flush-committed). The
+   * current scene's own time stays frozen until release: a switch resets it, a cancel plays it on.
+   */
   private takeOver(p: Press): void {
     // Grabbing the first screen while it waits for assets ends the wait (1.x preemption).
     this.stage.firstScreen?.preempt();
@@ -625,6 +682,7 @@ class DragInput implements DragEngine {
       if (k < 0 || k > last) continue;
       const fraction = Math.sign(r) === side ? Math.abs(r) : 0;
       const b = p.baseline?.scene === k ? p.baseline : null;
+      this.fade(k, false);
       const mapping = this.mappingFor(k);
       const total = this.total(k);
       this.times[k] = b
@@ -703,8 +761,14 @@ class DragInput implements DragEngine {
       for (const side of [1, -1] as const) {
         const k = this.index + side;
         const time = this.times[k] ?? 0;
-        if (time > 0) this.heads[k] = { from: time, to: 0, t0: now, duration, ease: easeOut };
+        if (time > 0)
+          this.heads[k] = { from: time, to: 0, t0: now, duration, ease: easeOut, onPage: true };
       }
+      // The scene stays: an entrance the drag interrupted (or a first screen whose asset wait it
+      // ended) plays on from where it stopped.
+      const reached = this.times[this.index] ?? 0;
+      const end = this.total(this.index);
+      if (reached < end) this.play(this.index, reached, end);
     }
     this.loop();
   }
@@ -721,15 +785,44 @@ class DragInput implements DragEngine {
     return parseMapping(s.getAttribute('unit'), s.getAttribute('scale'), this.mapping).mapping;
   }
 
-  /** Real-time playhead for a scene's element time. */
+  /**
+   * Playhead for a scene's element time, on scene time (held while the stage is paused). Under
+   * reduced motion it reaches its end within REDUCED_MS, and a scene started at 0 with no finger
+   * involved (on load, keys, links, goTo) shows its entrances as a fade (plan v3 §13).
+   */
   private play(i: number, from: number, to: number): void {
+    const span = Math.abs(to - from);
+    if (this.reduced && from === 0) this.fade(i, true);
     this.heads[i] = {
       from,
       to,
-      t0: performance.now(),
-      duration: Math.abs(to - from),
+      t0: this.sceneNow(performance.now()),
+      duration: this.reduced ? Math.min(span, REDUCED_MS) : span,
       ease: linear,
     };
+  }
+
+  /** Reduced motion: show scene i's entrances as their opacity alone (or as written again). */
+  private fade(i: number, on: boolean): void {
+    if (this.faded[i] === on) return;
+    this.faded[i] = on;
+    for (const a of this.scenes[i]?.ordered ?? [])
+      for (const l of a.layers) l.lastTimeProgress = Number.NaN;
+  }
+
+  private fadeEffects(layer: Layer): readonly Effect[] {
+    let fx = this.fades.get(layer);
+    if (!fx) {
+      fx = layer.effects.map(opacityOnly).filter((e): e is Effect => e !== null);
+      this.fades.set(layer, fx);
+    }
+    return fx;
+  }
+
+  /** `replay="false"` after one complete entrance: the element shows its end state. */
+  private settled(a: CvAnimate): boolean {
+    const key = this.once.get(a);
+    return key !== undefined && isDone(a, key);
   }
 
   private sceneFor(id: string): number | null {
@@ -773,9 +866,11 @@ class DragInput implements DragEngine {
       for (let i = 0; i < this.heads.length; i++) {
         const h = this.heads[i];
         if (!h) continue;
-        this.times[i] = tweenAt(h, now);
-        if (tweenDone(h, now)) this.heads[i] = null;
-        else busy = true;
+        const at = this.headNow(h, now);
+        this.times[i] = tweenAt(h, at);
+        if (tweenDone(h, at)) this.heads[i] = null;
+        // Paused, scene time stands still: no frames until the stage plays again.
+        else if (h.onPage || this.pausedAt === null) busy = true;
       }
     }
     if (this.signals.sample(this.pos * this.vh, now)) {
@@ -790,27 +885,33 @@ class DragInput implements DragEngine {
   /** A lane landed: commit the switch (commit, goTo) or close the session (cancel). */
   private land(lane: Lane): void {
     if (lane.kind === 'cancel') {
+      // The page springs back to `index`. That is not always the scene the stage placed last: a
+      // goTo across several scenes waits beside its target, and a drag can take its slide over.
+      if (this.stage.current !== this.index) this.switchTo(this.index);
       this.endSession('cancel', lane.detail);
       return;
     }
-    this.switchTo(lane.target, lane.from);
+    this.switchTo(lane.target);
     if (lane.kind === 'commit') {
       this.endSession('end', lane.detail && { ...lane.detail, from: lane.from, to: lane.target });
     }
   }
 
-  private switchTo(target: number, from: number): void {
+  private switchTo(target: number): void {
     const previous = this.index;
     this.index = target;
     // The scene left behind returns to its start: dragging back to it plays its entrance again.
     if (previous !== target) {
       this.times[previous] = 0;
       this.heads[previous] = null;
+      this.fade(previous, false);
       this.departed.set(previous, target > previous ? 1 : -1);
     }
     this.departed.delete(target);
     this.applyWindow();
-    if (from !== target) {
+    // Compared with the stage, not with where the transaction began: a goTo across several
+    // scenes moves `index` beside its target before the stage hears of any change.
+    if (this.stage.current !== target) {
       this.stage.setCurrent(target);
       this.stage.announceCurrent();
     }
@@ -874,6 +975,7 @@ class DragInput implements DragEngine {
         for (const a of s.ordered) a.stopLoops();
         this.times[i] = 0;
         this.heads[i] = null;
+        this.fade(i, false);
       }
       if (this.inWindow[i] !== inWindow) {
         this.inWindow[i] = inWindow;
@@ -921,7 +1023,9 @@ class DragInput implements DragEngine {
       const side: Side = travel >= 0 ? 1 : -1;
       if (t > 0) this.departed.delete(i);
       for (const a of s.ordered) {
-        this.writeAnimate(a, t, offset, departure, side);
+        const key = this.once.get(a);
+        if (key !== undefined && a.solved && t >= a.solved.end && !isDone(a, key)) markDone(a, key);
+        this.writeAnimate(a, t, offset, departure, side, this.faded[i]!);
         if (isDeck(a)) a.writeTime(t);
         if (a.timed) {
           if (a.subscribed) a.sendFrame(this.frameFor(a, i, t, travel));
@@ -931,7 +1035,7 @@ class DragInput implements DragEngine {
           if (
             !s.covered &&
             (!a.clocked || (a.timed && a.clockComplete)) &&
-            (!a.solved || t >= a.solved.end)
+            (!a.solved || t >= a.solved.end || this.settled(a))
           )
             a.startLoops(this.stage.clock);
           else a.stopLoops();
@@ -976,8 +1080,7 @@ class DragInput implements DragEngine {
     if (phase === 'exited') {
       return { progress: 1, signedProgress: this.departed.get(i)!, phase, source };
     }
-    const w = a.solved;
-    const p = w ? progressIn(t, w.start, w.end) : t > 0 ? 1 : 0;
+    const p = this.progressOf(a, t);
     return { progress: p, signedProgress: p, phase, source };
   }
 
@@ -985,11 +1088,17 @@ class DragInput implements DragEngine {
   private phaseFor(a: CvAnimate, i: number, t: number, travel: number): TimelinePhase {
     if (i === this.index && travel !== 0) return 'exiting';
     if (t === 0 && this.departed.has(i)) return 'exited';
-    const w = a.solved;
-    const p = w ? progressIn(t, w.start, w.end) : t > 0 ? 1 : 0;
+    const p = this.progressOf(a, t);
     if (p >= 1) return 'entered';
     // Incoming during a page travel, or the current scene before its time starts.
     return p > 0 || i === this.index || Math.abs(this.pos - i) < 1 ? 'entering' : 'idle';
+  }
+
+  /** The element's entrance progress at scene time t. */
+  private progressOf(a: CvAnimate, t: number): number {
+    if (this.settled(a)) return 1;
+    const w = a.solved;
+    return w ? progressIn(t, w.start, w.end) : t > 0 ? 1 : 0;
   }
 
   /** el.timeline read: frames are sent only to subscribed elements. */
@@ -1004,10 +1113,13 @@ class DragInput implements DragEngine {
     t: number,
     offset: number,
     departure: number,
-    side: Side
+    side: Side,
+    faded: boolean
   ): void {
     const base = a.solved;
     const exitDuration = base?.exitDuration ?? 0;
+    // replay="false": after one complete entrance it stays entered, also on the way back.
+    const settled = this.settled(a);
     for (const layer of a.layers) {
       if (layer.source === 'clock') continue;
       if (isSignal(layer.source)) {
@@ -1030,7 +1142,7 @@ class DragInput implements DragEngine {
       }
       const w = layer.window;
       if (!w || !base) continue;
-      let p = progressIn(t, w.start, w.end);
+      let p = settled ? 1 : progressIn(t, w.start, w.end);
       let px = 0;
       if (departure > 0 && exitDuration > 0) {
         if (side === 1) {
@@ -1038,13 +1150,16 @@ class DragInput implements DragEngine {
           px = layer.exitEffects.length
             ? progressIn(departure, w.exitStart - base.exitStart, w.exitEnd - base.exitStart)
             : 0;
-        } else {
+        } else if (!settled) {
           // Backward: elements that declare an exit reverse their entrance instead (1.x).
           p *= 1 - Math.min(1, departure / exitDuration);
         }
       }
+      // Reduced motion, a scene started by time alone: a keyframes rule shows its end at once.
+      if (faded && layer.rule && p > 0) p = 1;
       if (p === layer.lastTimeProgress && px === layer.lastExitProgress) continue;
-      writeLayer(layer, p, px);
+      if (faded) writeLayer(layer, p, px, false, this.fadeEffects(layer));
+      else writeLayer(layer, p, px);
       layer.lastTimeProgress = p;
       layer.lastExitProgress = px;
     }

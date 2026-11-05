@@ -95,7 +95,7 @@ const SHAPES = 'path, line, polyline, polygon, circle, ellipse, rect';
  * element shows its final state at once). Font axes move the text: they hold their end value.
  * Duotone inks stay inks.
  */
-function opacityOnly(e: Effect): Effect | null {
+export function opacityOnly(e: Effect): Effect | null {
   const opacity = e.tracks.opacity;
   if (!opacity && !e.vars.length) return null;
   const vars = e.vars.map((v) =>

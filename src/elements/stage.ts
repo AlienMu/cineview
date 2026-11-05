@@ -8,6 +8,7 @@ import { adoptBoot, shownBeforeRuntime } from '../boot';
 import type { CvErrorDetail, ErrorCode } from '../core/errors';
 import { onEffectDefined, type Source } from '../core/fx';
 import { checkDragScene, checkStage } from '../dev/craft';
+import { warn } from '../dev/warn';
 import type { InputEngine } from '../input/engine';
 import { ScrollInput } from '../input/scroll';
 import { loadStills, stillsModule, usesStills } from '../media/load-stills';
@@ -121,6 +122,17 @@ export class CvStage extends ElementBase implements CvStageElement {
       );
       return;
     }
+    if (name === 'input' && this.booted) {
+      // Set before anything was shown (a script at DOMContentLoaded, after the module built the
+      // stage): the next build opens the page, with its first-screen entrance, hash entry and
+      // preload wait, rather than resuming the scene at its end.
+      if (!this.readyAt) this.booted = false;
+      else if (__DEV__)
+        warn(
+          this,
+          `input changed after the page was shown: the current scene stays at its end. Set input before the stage builds (in the markup, or a classic script right after the stage).`
+        );
+    }
     if (this.isConnected) this.invalidate();
   }
 
@@ -130,6 +142,7 @@ export class CvStage extends ElementBase implements CvStageElement {
     this.firstScreen?.dispose();
     this.firstScreen = null;
     this.booted = false;
+    this.boot = null;
     this.readySent = false;
     if (!this.settleReady) this.readyPromise = this.pendingReady();
     this.current = -1;
@@ -151,10 +164,14 @@ export class CvStage extends ElementBase implements CvStageElement {
       ':host{display:block;overflow-x:clip}' +
       // Vertical paging is ours; horizontal pans and pinch zoom stay native (1.x).
       // A gesture that reaches the end stays with the stage (lexicon #24).
-      ':host([input=drag]){position:fixed;inset:0;overflow:hidden;overscroll-behavior:contain;touch-action:pan-x pinch-zoom;user-select:none}' +
+      ':host([input=drag]){position:fixed;inset:0;overflow:hidden;overscroll-behavior:contain;touch-action:pan-x pinch-zoom;-webkit-user-select:none;user-select:none}' +
       '.frame{position:relative;width:100%;max-width:calc(var(--cv-dw,750) * 1px);margin-inline:auto}' +
       '.sized{container-type:inline-size}' +
-      ':host([input=drag]) .frame{height:100%}' +
+      // Scenes are paged by translation inside the frame. Clipping the frame keeps them out of the
+      // stage's scrollable overflow, so the stage has nothing to scroll: opening the page at
+      // `#scene`, restoring a reload or scrollIntoView cannot offset the scenes. The stage stays a
+      // scroll container (overflow: hidden above), which keeps overscroll contained.
+      ':host([input=drag]) .frame{height:100%;overflow:clip}' +
       '.live{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}';
     const frame = document.createElement('div');
     frame.className = 'frame';
@@ -379,7 +396,9 @@ export class CvStage extends ElementBase implements CvStageElement {
   }
 
   private async build(): Promise<void> {
-    let resumeAt = this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
+    // A build that opens the page (booted is false) starts fresh, even if an engine ran briefly.
+    let resumeAt =
+      this.booted && this.engine && this.input === 'drag' ? this.engine.currentIndex() : undefined;
     const previous = this.ordered;
     const current = resumeAt === undefined ? null : previous[resumeAt];
     const clockResume = this.autonomous?.snapshot();
@@ -561,12 +580,19 @@ export class CvStage extends ElementBase implements CvStageElement {
     return true;
   }
 
+  /** Where the CSS-first entrance stood when the first build adopted it, and when. */
+  private boot: { offset: number; at: number } | null = null;
+
   /** Gate the opening scene on its assets and adopt a CSS-first entrance running on it. */
   private startFirstScreen(index: number): void {
     const scene = this.ordered[index] ?? null;
     const timeout = Number(this.getAttribute('first-scene-timeout') ?? 3000);
+    this.firstScreen?.dispose();
     this.firstScreen = new FirstScreenGate(this, scene, Number.isFinite(timeout) ? timeout : 3000);
-    const offset = adoptBoot();
+    // Opening again after an early input change: the entrance goes on from where it has got to.
+    const now = performance.now();
+    const offset = this.boot ? this.boot.offset + (now - this.boot.at) : adoptBoot();
+    this.boot = { offset, at: now };
     this.bootOffset = index === 0 ? offset : 0;
   }
 

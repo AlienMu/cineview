@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>drag hash fixture</title>
+<script>
+  // The <head> snippet (src/boot.ts HEAD_SNIPPET), inlined as a page would.
+  (function(s){if(s&&s('selector(:has(*))')&&s('width:1lh')&&s('color:color-mix(in srgb,red,red)'))document.documentElement.classList.add('cv-js')})(window.CSS&&CSS.supports);
+</script>
+<link rel="stylesheet" href="/boot.css">
+<style>
+  html,body{margin:0}
+  cv-scene{display:grid;place-items:center;font:20px system-ui}
+  #h0{background:#23314c;color:#fff} #h1{background:#2f6b4f;color:#fff} #h2{background:#6b2f4f;color:#fff}
+</style></head>
+<body>
+<!-- Static markup: the browser looks for the #fragment while it parses, before the runtime runs. -->
+<cv-stage id="s" input="drag" transition-duration="300">
+  <cv-scene id="h0"><p>Zero</p></cv-scene>
+  <cv-scene id="h1"><p>One</p></cv-scene>
+  <cv-scene id="h2"><p>Two</p></cv-scene>
+</cv-stage>
+<script type="module">
+  window.ready = new Promise((r) => document.addEventListener('cv-ready', r, { once: true }));
+  await import('@v2');
+</script>
+</body></html>

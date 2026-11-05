@@ -236,6 +236,41 @@ try {
   await rebuilt(page);
   await state(page);
 
+  // A drag that starts while the current scene's entrance is still playing, released without a
+  // switch, lets that entrance finish (it used to stop where the drag began).
+  await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+  await page.evaluate(() => document.getElementById('s').goTo(1));
+  await page.waitForTimeout(550);
+  const interrupted = await page.evaluate(() => document.getElementById('a1').timeline.frame.progress);
+  await drag(page, { x: plain.x, y: 600 }, -40, { steps: 4, hold: 250 });
+  await page.waitForTimeout(100);
+  const continuing = await page.evaluate(() => document.getElementById('a1').timeline.frame.progress);
+  await settle(page, 1800);
+  const resumed = await page.evaluate(() => {
+    const a = document.getElementById('a1');
+    return { progress: a.timeline.frame.progress, phase: a.getAttribute('data-cv-phase') };
+  });
+  st = await state(page);
+  check(interrupted > 0 && interrupted < 1 && continuing > interrupted && continuing < interrupted + 0.4 && st.index === 1 && resumed.progress === 1 && resumed.phase === 'entered', 'a drag during the current entrance that does not switch lets the entrance play on from where it stopped', JSON.stringify({ interrupted, continuing, resumed, index: st.index }));
+
+  // A drag that takes over the slide of a goTo across several scenes, and springs back, leaves the
+  // reader on the scene beside the target: the stage marks and announces that scene.
+  await page.evaluate(() => document.getElementById('s').setAttribute('transition-duration', '1500'));
+  await rebuilt(page);
+  await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
+  await settle(page, 200);
+  await state(page);
+  await page.evaluate(() => document.getElementById('s').goTo(3));
+  await page.waitForTimeout(150);
+  await drag(page, { x: plain.x, y: 300 }, 40, { steps: 4, hold: 250 });
+  await settle(page, 1800);
+  st = await state(page);
+  const placed = await page.evaluate(() => ({ stage: document.getElementById('s').current, marked: document.querySelector('cv-scene[data-cv-current]')?.id }));
+  check(st.index === 2 && placed.stage === 2 && placed.marked === 's2' && st.events.includes('cv-enter:s2') && st.events.at(-1) === 'cv-dragcancel:s', 'a drag that springs back during a goTo across scenes leaves the stage on the scene it shows', JSON.stringify({ ...st, placed }));
+  await page.evaluate(() => document.getElementById('s').setAttribute('transition-duration', '400'));
+  await rebuilt(page);
+  await state(page);
+
   // Hash link → goTo.
   await page.evaluate(() => document.getElementById('s').goTo(0, { animated: false }));
   await state(page);
@@ -268,6 +303,94 @@ try {
   page = await open('', '#s2');
   st = await state(page);
   check(st.index === 2, 'hash entry starts at its scene', JSON.stringify(st));
+  await page.close();
+
+  // ---- drag-modes.html: pause, replay="false", reduced motion, a late input, text selection ----
+  const openModes = async (query = '', hash = '', options = {}) => {
+    const p = await browser.newPage({ viewport: { width: 400, height: H }, ...options });
+    await p.goto(`${base}/drag-modes.html?x${query}${hash}`);
+    await p.evaluate(() => window.ready);
+    await p.waitForTimeout(100);
+    return p;
+  };
+  const yOf = (translate) => Math.abs(Number(String(translate || '0px 0px').split(' ')[1]?.replace('px', '') || 0));
+
+  // `paused` holds scene time; the page slide still lands; playing again finishes the entrance.
+  page = await openModes();
+  await page.evaluate(() => document.getElementById('s').goTo('m1'));
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.getElementById('s').setAttribute('paused', ''));
+  await page.waitForTimeout(80);
+  const pausedAt = await page.evaluate(() => window.progress('r1'));
+  await page.waitForTimeout(700);
+  const stillPaused = await page.evaluate(() => window.progress('r1'));
+  await page.evaluate(() => document.getElementById('s').removeAttribute('paused'));
+  await page.waitForTimeout(1300);
+  const played = await page.evaluate(() => window.progress('r1'));
+  check(pausedAt > 0 && pausedAt < 1 && stillPaused === pausedAt && played === 1, 'paused holds a drag entrance in place; playing again finishes it', JSON.stringify({ pausedAt, stillPaused, played }));
+  await page.evaluate(() => { const s = document.getElementById('s'); s.goTo('m0', { animated: false }); s.setAttribute('paused', ''); s.goTo('m1'); });
+  await page.waitForTimeout(900);
+  const whilePaused = await page.evaluate(() => ({ index: document.getElementById('s').currentIndex(), p: window.progress('r1') }));
+  await page.evaluate(() => document.getElementById('s').removeAttribute('paused'));
+  check(whilePaused.index === 1 && whilePaused.p === 0, 'a goTo while paused lands the page and leaves the entrance waiting', JSON.stringify(whilePaused));
+  await page.close();
+
+  // replay="false": after one complete entrance it stays entered when its scene is dragged in again.
+  page = await openModes();
+  await page.evaluate(() => document.getElementById('s').goTo('m1', { animated: false }));
+  await page.waitForTimeout(300);
+  await page.evaluate(() => document.getElementById('s').goTo('m0', { animated: false }));
+  await page.waitForTimeout(200);
+  await drag(page, await center(page, 'surface'), -0.15 * H, { hold: 200, release: false });
+  const again = await page.evaluate(() => ({ once: window.progress('o1'), other: window.progress('r1'), phase: document.getElementById('o1').getAttribute('data-cv-phase') }));
+  await page.mouse.up();
+  await settle(page);
+  check(again.once === 1 && again.phase === 'entered' && again.other > 0 && again.other < 1, 'replay="false" stays entered when its scene is dragged in again; other elements play again', JSON.stringify(again));
+  await page.close();
+
+  // Reduced motion: a scene changed into by goTo fades in within 200 ms without moving; under the
+  // finger the entrance still moves, and after release it finishes within 200 ms.
+  page = await openModes('', '', { reducedMotion: 'reduce' });
+  await page.evaluate(() => document.getElementById('s').goTo('m1'));
+  await page.waitForTimeout(60);
+  const fading = await page.evaluate(() => window.layer('r1'));
+  await page.waitForTimeout(400);
+  const faded = await page.evaluate(() => ({ ...window.layer('r1'), p: window.progress('r1') }));
+  check(fading.opacity > 0 && fading.opacity < 1 && yOf(fading.translate) === 0 && faded.p === 1 && faded.opacity === 1, 'reduced motion: a scene reached without the finger fades in briefly, without moving', JSON.stringify({ fading, faded }));
+  await page.evaluate(() => document.getElementById('s').goTo('m0', { animated: false }));
+  await page.waitForTimeout(200);
+  // One held drag to read the frame under the finger (released short of the threshold)...
+  await drag(page, await center(page, 'surface'), -0.25 * H, { steps: 4, gap: 16, hold: 150, release: false });
+  const underFinger = await page.evaluate(() => window.layer('r1'));
+  await page.mouse.up();
+  await settle(page);
+  // ...and one quick swipe that switches.
+  await drag(page, await center(page, 'surface'), -0.25 * H, { steps: 4, gap: 16 });
+  await page.waitForTimeout(260);
+  const released = await page.evaluate(() => ({ index: document.getElementById('s').currentIndex(), p: window.progress('r1') }));
+  check(yOf(underFinger.translate) > 10 && released.index === 1 && released.p === 1, 'reduced motion: the finger keeps the motion; after release the entrance ends within about 200 ms', JSON.stringify({ underFinger, released }));
+  await page.close();
+
+  // input set after the first build, before anything was shown: the page opens as a drag page, with
+  // its opening entrance and its hash entry.
+  page = await openModes('&late');
+  const lateOpen = await page.evaluate(() => ({ before: window.switchedBeforeReady, input: document.getElementById('s').getAttribute('input'), current: document.querySelector('cv-scene[data-cv-current]')?.id, p: window.progress('t0') }));
+  await page.waitForTimeout(1000);
+  const lateDone = await page.evaluate(() => window.progress('t0'));
+  check(lateOpen.before === true && lateOpen.input === 'drag' && lateOpen.current === 'm0' && lateOpen.p < 1 && lateDone === 1, 'an input set before anything was shown opens the page with its first entrance', JSON.stringify({ lateOpen, lateDone }));
+  await page.close();
+  page = await openModes('&late', '#m1');
+  const lateHash = await page.evaluate(() => ({ current: document.querySelector('cv-scene[data-cv-current]')?.id, p: window.progress('r1') }));
+  check(lateHash.current === 'm1' && lateHash.p < 1, 'an input set before anything was shown keeps the hash entry', JSON.stringify(lateHash));
+  await page.close();
+
+  // Text on a drag page is not selected by a double click (WebKit reads -webkit-user-select).
+  page = await openModes();
+  await page.dblclick('#sel');
+  const selected = await page.evaluate(() => ({ text: getSelection().toString(), webkit: getComputedStyle(document.getElementById('sel')).webkitUserSelect ?? null }));
+  check(selected.text.trim() === '', 'text on a drag page is not selected by a double click', JSON.stringify(selected));
+  const modeErrors = await page.evaluate(() => window.cvErrors);
+  check(modeErrors.length === 0, 'drag-modes: no cv-error', JSON.stringify(modeErrors));
   await page.close();
 } catch (e) {
   failed++;

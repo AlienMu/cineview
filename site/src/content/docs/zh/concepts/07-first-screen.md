@@ -34,6 +34,7 @@ eyebrow: CONCEPTS / FIRST SCREEN
 - 每准备好一个，舞台会派发一次 `cv-progress`，`detail` 是 `{ kind: 'load', progress, loaded, total }`，可以用来做加载进度。
 - 最多等 `first-scene-timeout` 毫秒，默认 3000。超时会派发可取消的 `cv-timeout`；不取消就开始入场，取消后继续等，直到素材到齐。
 - 加载失败的素材也算完成，同时派发 `asset-failed` 的 `cv-error`。
+- 在拖动页里，等待期间开始的拖动会结束等待：`on="clock"` 的元素立即开始；拖动没有切换场景时，这一场的入场照常播放，即使素材还在加载。
 
 ## 刷新在页面中间
 

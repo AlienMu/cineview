@@ -467,7 +467,8 @@ export function assignWindows(
 
 /**
  * Evaluate a layer at entrance progress p and exit progress px (0 = no exit in play); `mirror`
- * reverses the result (a velocity layer while the reader moves backward).
+ * reverses the result (a velocity layer while the reader moves backward). `effects` stands in for
+ * the layer's entrance effects (drag under reduced motion: their opacity alone).
  */
 export function evaluateLayer(
   layer: Layer,
@@ -475,9 +476,10 @@ export function evaluateLayer(
   px: number,
   mirror = false,
   beforeP = false,
-  beforePx = false
+  beforePx = false,
+  effects: readonly Effect[] = layer.effects
 ): Frame {
-  evaluate(layer.effects, p, layer.frame, layer.select, beforeP);
+  evaluate(effects, p, layer.frame, layer.select, beforeP);
   if (px > 0 && layer.exitEffects.length) {
     evaluate(layer.exitEffects, px, layer.scratch, layer.select, beforePx);
     combine(layer.frame, layer.scratch);
@@ -511,7 +513,13 @@ export function layerCss(layer: Layer, frame: Frame): Record<string, string> {
 const SEEK = 1000;
 
 /** Direct style write (drag input and the scroll main-thread path). Skips unchanged values. */
-export function writeLayer(layer: Layer, p: number, px: number, mirror = false): void {
+export function writeLayer(
+  layer: Layer,
+  p: number,
+  px: number,
+  mirror = false,
+  effects: readonly Effect[] = layer.effects
+): void {
   layer.watch?.(p);
   if (layer.rule) {
     // A keyframes layer has no exits; the rule's values are the browser's to interpolate.
@@ -523,7 +531,7 @@ export function writeLayer(layer: Layer, p: number, px: number, mirror = false):
     if (layer.seek.currentTime !== t) layer.seek.currentTime = t;
     return;
   }
-  const frame = evaluateLayer(layer, p, px, mirror);
+  const frame = evaluateLayer(layer, p, px, mirror, false, false, effects);
   if (layer.shared) {
     const group = layer.shared;
     resetFrame(group.frame);

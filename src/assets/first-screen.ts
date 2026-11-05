@@ -68,16 +68,20 @@ export class FirstScreenGate {
     else this.listeners.push(fn);
   }
 
-  /** A gesture took over the first screen (drag): stop holding without playing. */
+  /**
+   * A gesture took over the first screen (drag): the wait ends now, as if the assets were ready.
+   * Clock entrances start; the drag input declines while the press owns the scene's time and
+   * plays it on if the drag ends without a switch.
+   */
   preempt(): void {
-    clearTimeout(this.timer);
-    this.held = false;
-    this.listeners = [];
+    this.release();
   }
 
   dispose(): void {
     this.cancellation.abort();
-    this.preempt();
+    clearTimeout(this.timer);
+    this.held = false;
+    this.listeners = [];
   }
 
   private release(): void {

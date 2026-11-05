@@ -28,8 +28,8 @@
   <cv-scene id="two">
     <div class="screen">
       <cv-animate name="title" fx="rise(soft)" duration="600" exit="opacity:0; y:-40" exit-duration="300" ease="linear"><h2 data-zh="数字跟着手指滚动">The number follows the finger</h2></cv-animate>
-      <cv-animate fx="count" duration="900" ease="linear"><span class="big">1200</span></cv-animate>
-      <p data-zh="往回拖，入场会倒回去。">Drag back down and the entrance runs backwards.</p>
+      <cv-animate fx="count" duration="900" exit="opacity:0" exit-duration="300" ease="linear"><span class="big">1200</span></cv-animate>
+      <p data-zh="往回拖，写了 exit 的标题和数字会倒着播回去。">Drag back down: the title and the number have an exit, so their entrance runs backwards.</p>
     </div>
   </cv-scene>
   <cv-scene id="three">

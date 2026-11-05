@@ -171,6 +171,53 @@ try {
   const dragPlayed = await page.evaluate(() => window.seen('a'));
   check(dragHeld === 0 && dragPlayed === 1, 'drag: preload holds the first scene until the image is ready', JSON.stringify({ dragHeld, dragPlayed }));
   await page.close();
+
+  // A drag during the preload wait ends the wait. Released without a switch, the scene plays:
+  // its scene-time entrance and its clock entrance, while the image is still loading.
+  page = await open('case=drag-preload&both&timeout=8000', { imageDelay: 6000 });
+  await page.evaluate(() => window.ready);
+  await page.waitForTimeout(300);
+  await page.mouse.move(187, 500);
+  await page.mouse.down();
+  for (let i = 1; i <= 4; i++) {
+    await page.mouse.move(187, 500 - i * 10);
+    await page.waitForTimeout(16);
+  }
+  await page.waitForTimeout(250);
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  const playing = await page.evaluate(() => window.seen('a'));
+  await page.waitForTimeout(1400);
+  const preempted = await page.evaluate(() => ({
+    a: window.seen('a'),
+    b: window.seen('b'),
+    index: document.getElementById('s').currentIndex(),
+  }));
+  check(playing > 0 && playing < 1 && preempted.index === 0 && preempted.a === 1 && preempted.b === 1, 'drag: a drag during the preload wait that does not switch still plays the first scene (time and clock)', JSON.stringify({ playing, ...preempted }));
+  await page.close();
+
+  // Opening a drag page at #scene: static markup, so the browser looks for the fragment before the
+  // runtime runs. The reader sees that scene (the stage is no scroll container), after a reload too.
+  for (const id of ['h1', 'h2']) {
+    page = await browser.newPage({ viewport: { width: 375, height: 700 } });
+    await page.route('**/boot.css', (r) => r.fulfill({ contentType: 'text/css', body: css }));
+    const seen = async () => {
+      await page.evaluate(() => window.ready);
+      await page.waitForTimeout(600);
+      return page.evaluate(() => ({
+        current: document.querySelector('cv-scene[data-cv-current]')?.id,
+        painted: document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('cv-scene')?.id ?? null,
+        scrollTop: document.getElementById('s').scrollTop,
+      }));
+    };
+    await page.goto(`${base}/drag-hash.html#${id}`, { waitUntil: 'domcontentloaded' });
+    const opened = await seen();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const reloaded = await seen();
+    const ok = (s) => s.current === id && s.painted === id && s.scrollTop === 0;
+    check(ok(opened) && ok(reloaded), `drag: opening at #${id} shows that scene, and so does a reload`, JSON.stringify({ opened, reloaded }));
+    await page.close();
+  }
 } catch (e) {
   failed++;
   console.log(`FAIL ${e.stack}`);

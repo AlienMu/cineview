@@ -34,6 +34,7 @@ With `preload` on the first scene, its entrances wait until the scene's images a
 - Each finished asset dispatches `cv-progress` on the stage with `detail` `{ kind: 'load', progress, loaded, total }`, for a loading indicator.
 - The wait lasts at most `first-scene-timeout` ms, 3000 by default. On timeout the stage dispatches a cancelable `cv-timeout`. Unless a listener calls `preventDefault()`, the entrances start; with it, the wait goes on until the assets arrive.
 - An asset that fails counts as finished and dispatches an `asset-failed` `cv-error`.
+- On a drag page, a drag that starts during the wait ends it: `on="clock"` elements start at once, and a drag that does not switch scenes lets the scene's entrance play, even if the assets are still loading.
 
 ## Reload in the middle of a page
 
