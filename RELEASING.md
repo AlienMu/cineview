@@ -9,6 +9,7 @@
 | 2.0.0 | 2026-10-28 | The custom elements in this repository. Tag `v2.0.0`. |
 | 2.0.1 | 2026-10-28 | Tag `v2.0.1`. Fixes to entrances, the first clock activation, clock-driven video, stack masks and first-screen assets. |
 | 2.0.2 | 2026-11-03 | Tag `v2.0.2`. Reduces repeated work in JavaScript scroll animations and drag. |
+| 2.0.3 | 2026-11-06 | Tag `v2.0.3` (`bf664fd`). Drag fixes (interrupted entrances, preload wait, `#scene` entry, `goTo` takeover, WebKit selection); pause, reduced motion, `replay="false"` and an early `input` on drag pages. Physical devices were not checked. |
 
 The 1.x source is no longer in this repository's working tree; it stays in the Git history before
 the 2.0 move. A published version cannot be replaced: a change to the library needs a new version.
