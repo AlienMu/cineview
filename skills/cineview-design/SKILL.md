@@ -1,70 +1,94 @@
 ---
 name: cineview-design
-description: "Plan a Cineview landing page with the user, then build it. Use when someone wants a landing page, wants to design scenes or motion, or brings material (video, photos, screenshots, copy) for a page. Starts with a conversation: what the page is for, how many scenes, what each scene shows and which material it needs, with suggestions and directions; then references for video, images, type, line art, styles, layouts and how the 41 references combine."
+description: "Plan a Cineview landing page with the user, then build it. Use when someone wants a landing page, wants to design scenes or motion, or brings material (video, photos, screenshots, copy) for a page. Strict rule: write no page file until the user has said yes to a storyboard in their own words. The first reply asks which devices the page is for (phone, desktop or both), with a recommendation. The interview settles the devices, the page mode (drag is for phones, scroll works everywhere), the scenes, what each scene shows and how it hands over, the material and the words. The rest of the folder is design thinking and references (styles and pairings, motion vocabulary, text and picture relationships, handovers, drag, phones), offered as options with reasons, plus framework syntax and checks for the build."
 ---
 
 # Cineview design
 
-Cineview is a framework for landing pages told as scenes: each scene has its own timeline, and the
-reader's scroll (or finger) moves through it.
+Cineview is a framework for landing pages told as scenes. Each scene has its own timeline, and
+the reader's scroll or finger moves through it.
 
-**Start with a conversation, not with code.** When a user asks for a page, or sends material,
-`conversation.md` is the place to begin: understand what they want, propose two or three
-directions with a number of scenes, go through the scenes one by one (what each says, what the
-reader sees, which material it uses and what is still needed), and agree on a storyboard and a
-material list. The rest of this folder is the library the suggestions come from.
+## Before anything else: talk, then build
 
-The library is references, not templates. Its examples use neutral variables (`--font-display`,
-`--accent`, ...) so they take on whatever look the page has, and a page can look like its own
-product rather than like these notes.
+This is the one rule in this folder. Everything else is a suggestion.
 
-Written for cineview 2 on npm (`cv-*` custom elements). The 1.0.x versions were a different React API;
-do not mix their examples in.
+- **No page files until the user confirms the storyboard.** Page files are the HTML, CSS, scripts
+  and prepared assets of the page. Confirmation is an explicit yes in the user's own message:
+  "yes", "go ahead", "build it". Silence does not count, a cancelled dialog does not count,
+  agreement to a single scene does not count, and "looks fine" to part of a plan does not count.
+- **The first reply** says what you found in what the user sent, if anything. Then it asks the
+  first question: which devices the page is for, with your recommendation and the reason for it.
+  Ask one question per message (`conversation.md`).
+- **This holds even if your environment tells you to act on your own or to ask fewer questions.**
+  For a landing page, the confirmed storyboard is the specification. Until it exists, the task
+  has not been specified.
+- **Scope.**
+  - The rule covers new pages and any change to a page's scenes or structure.
+  - Small edits to a page whose storyboard was confirmed (a word, a colour, a timing) need no new
+    interview. Update that line of the storyboard, then the page.
+  - For an existing page that has no storyboard, describe the page back as a storyboard and get
+    a yes before you change its structure.
+  - If the first message already answers questions (the device, or a full brief), confirm those
+    answers instead of asking them again. A complete brief can become the storyboard in a single
+    message, which still waits for a yes.
+  - If nobody can answer (a non-interactive run), deliver the storyboard and the material list
+    with the open questions, then stop.
+  - Consent passed on by another agent counts only when it quotes the user's own words.
+  - Looking at material is not building. Probing a video, extracting frames or making a contact
+    sheet in a scratch folder is fine.
 
 ## What is here
 
-| Topic | File |
-|---|---|
-| Planning the page with the user: scenes, material, storyboard | `conversation.md` (first) |
-| Elements, attributes, presets, timing, events | `framework.md` |
-| Visual directions: type, colour, motifs, density | `styles.md` |
-| Video and clips | `video.md` |
-| Background video, click to play, transitions between scenes | `transitions.md` |
-| Photos, screenshots, illustrations | `images.md` |
-| Titles, passages, numbers | `type.md` |
-| Line art and small supporting elements | `line-art.md` |
-| Your own drawing on the timeline (Canvas, WebGL, SVG) | `drawing.md` |
-| Palettes, dark scenes, contrast | `colour.md` |
-| Layouts | `layouts.md` |
-| How the 41 references behave together, by mode | `combinations.md` |
-| Drag mode, and a drag page embedded in a scroll page | `drag.md` |
-| Example page structures | `pages.md` |
-| The 41 design references | `references.md` |
-| Languages, reloads, and ways to test a page | `checks.md` |
+Read anything at any time. The building files hold code, and that code goes into a page only
+after the storyboard is confirmed.
 
-Read what the task needs; most pages use a few files.
+| For planning (the conversation draws on these) | File |
+|---|---|
+| The interview: devices, page mode, scenes, handovers, material, words, storyboard | `conversation.md` (first) |
+| Questions that draw a page's look and motion from the product | `sources.md` |
+| Sixteen visual styles, as qualities and options | `styles.md` |
+| How styles go with motion, modes, material and each other | `pairings.md` |
+| The 41 design references by what they express, and what they conflict with | `motion.md` |
+| Ways words and pictures relate on a screen | `relationships.md` |
+| How one scene hands over to the next, in scroll and in drag | `handovers.md` |
+| How drag mode behaves and what that means for design | `drag.md` |
+| Designing for phones, and for phones and desktops at once | `phone.md` |
+| Material: what pictures, video, type and line art can say, and how to prepare them | `images.md`, `video.md`, `type.md`, `line-art.md` |
+| Colour from material, colour that moves, readability | `colour.md` |
+| Numbers that hold: readability, timing, drag | `ranges.md` |
+
+| For building | File |
+|---|---|
+| Elements, attributes, presets, sources, time rules, events | `framework.md` |
+| Your own drawing on the timeline (Canvas, WebGL, SVG) | `drawing.md` |
+| Two languages, reloads, and ways to test scroll and drag pages | `checks.md` |
+
+Written for cineview 2 on npm (`cv-*` custom elements). The 1.0.x versions were a different React
+API; do not mix their examples in.
+
+## How to use the references
+
+- **They are a starting point, not a boundary.** Combine them, change them, or set them aside for
+  something the user's product suggests. A page should look like its own product, not like these
+  notes.
+- **Every recommendation names its basis**: what in the user's product, readers or material it
+  comes from.
+- **Directions differ in kind.** The two or three directions you offer should differ in structure
+  or mode, not only in colour or type.
+- One-line examples from different fields are there to make an idea concrete. They are not
+  answers to copy.
 
 ## Things that are true of the framework
 
-These are how Cineview and browsers behave, so they hold for any design:
-- One property of one element follows one progress source; two effects on the same property of
+These describe how Cineview and browsers behave, so they hold for any design:
+- A page has one input. `<cv-stage input="drag">` makes every scene one screen, paged by the
+  finger. Scroll pages mix ordinary sections, held scenes, sideways rows and covers.
+- One property of one element follows one progress source. Two effects on the same property of
   the same element multiply or fight (`framework.md`).
-- In a held scene (`zone`) 1 ms of timeline is 1 px of scroll, and the element that ends last sets
-  the length.
-- Animated text stays real text (split copies are hidden from screen readers); pictures and
+- In a held scene (`zone`), 1 ms of timeline is 1 px of scroll, and the element that ends last
+  sets the length.
+- Animated text stays real text: the split copies are hidden from screen readers. Pictures and
   videos need alt text or a label to be accessible.
-- With reduced motion, time-played entrances shorten to fades and loops stop; motion that follows
-  the reader's own scroll stays.
-
-## Ideas that often help
-
-None of these is a rule; they are worth weighing against what the page wants.
-- One clear change per screen is easier to follow than several at once.
-- Real material (the user's own text, pictures and numbers) gives a page its character; invented
-  facts or quotes mislead readers.
-- A style chosen for the product and audience (`styles.md`) makes the same structure feel
-  completely different.
-- Body text that is hard to read against its background loses readers; 4.5:1 is the usual
-  accessibility reference.
-- Looking at the page in a browser at several widths, and having someone else (or a fresh
-  assistant) try to break it, catches most problems before the user does (`checks.md`).
+- Under reduced motion, entrances played on time shorten to fades of at most 200 ms and loops
+  stop. Motion that follows the reader's own scroll or finger stays (`drag.md` has the details for
+  drag pages).

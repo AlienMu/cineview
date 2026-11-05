@@ -1,4 +1,7 @@
-# Two languages, and checking the page
+# Two languages, reloads, and checking the page
+
+> Reading this while planning is fine. Code from it goes into a page only after the user has
+> confirmed the storyboard (`SKILL.md`).
 
 ## K1 A language switch
 
@@ -7,15 +10,15 @@ applies the language before the Cineview module runs, so the first frame is alre
 
 ```html
 <button data-set-lang="en">EN</button><button data-set-lang="zh">中文</button>
-<h2 class="title"><span class="nb" data-i18n="film.t1">The night's photos,</span> <span class="nb" data-i18n="film.t2">cut into a film</span></h2>
-<img data-i18n-alt="diary.alt" alt="A diary page with three photos">
+<h2 class="title"><span class="nb" data-i18n="title.1">Fresh bread,</span> <span class="nb" data-i18n="title.2">every morning</span></h2>
+<img data-i18n-alt="oven.alt" alt="Loaves coming out of the oven">
 <script src="lang.js"></script>          <!-- classic script, before the module boots -->
 <!-- in <head>: the head snippet, cineview.css and the module (framework.md, Load) -->
 ```
 
 ```js
-const TEXT = { en: { 'film.t1': "The night's photos,", 'film.t2': 'cut into a film', 'diary.alt': 'A diary page with three photos' },
-               zh: { 'film.t1': '当晚的照片，', 'film.t2': '自动剪成短片', 'diary.alt': '一页日记，夹着三张照片' } };
+const TEXT = { en: { 'title.1': 'Fresh bread,', 'title.2': 'every morning', 'oven.alt': 'Loaves coming out of the oven' },
+               zh: { 'title.1': '新鲜面包，', 'title.2': '每天早上出炉', 'oven.alt': '刚出炉的面包' } };
 const KEY = 'site-lang';
 function pick() {
   const asked = new URLSearchParams(location.search).get('lang');
@@ -45,7 +48,7 @@ for (const b of document.querySelectorAll('[data-set-lang]')) b.addEventListener
 - Write each language for its readers; check every title's break in both.
 - Elements with `split` measure their lines from the text they had when the page started: after a
   language change, reload the page (or keep `split` off titles whose text changes).
-- An embedded page (a drag demo in an iframe) needs the language too: reload it after a change.
+- An embedded page in an iframe needs the language too: reload it after a change.
 
 ## K3 Reload in the middle of the page without flashing the opening
 
@@ -67,8 +70,8 @@ In `<head>`, before any stylesheet:
         root.classList.add('restoring');
         if (saved.theme) root.setAttribute('data-boot-theme', saved.theme);
       } else if (location.hash) {
-        // a link straight to a scene (#film): start in that scene's palette too
-        var THEMES = { film: 'night', closing: 'night' };   // scene id -> its theme, from the page
+        // a link straight to a scene (#menu): start in that scene's palette too
+        var THEMES = { menu: 'sage', visit: 'sage' };  // scene id -> its theme, from the page
         var theme = THEMES[location.hash.slice(1)];
         if (theme) root.setAttribute('data-boot-theme', theme);
       }
@@ -81,7 +84,7 @@ In `<head>`, before any stylesheet:
 :root.restoring body > * { opacity: 0; }
 :root:not(.restoring) body > * { transition: opacity .2s; }
 /* the saved act's palette, until the stage sets data-cv-theme itself */
-:root[data-boot-theme="night"] { --ground: #15100d; --ink: #f3e6d6; /* ...the night tokens... */ }
+:root[data-boot-theme="sage"] { --ground: #e6efe6; --ink: #1d2b22; /* ...the rest of that palette... */ }
 ```
 
 In the page script, wait for the custom element to be defined before reading `stage.ready`. Install
@@ -115,7 +118,7 @@ if (!root.classList.contains('restoring') && root.hasAttribute('data-boot-theme'
 ```
 
 Offsets use `offsetTop` (the scene's place in the document), not its box, which a held zone pins.
-A link to a scene (`#film`) is a fresh navigation, not a reload: the `THEMES` map gives it the
+A link to a scene (`#menu`) is a fresh navigation, not a reload: the `THEMES` map gives it the
 scene's palette from the first frame; the page script removes `data-boot-theme` once
 `stage.ready` has set `data-cv-theme` (as in the reload branch). Check it: open the page with each
 `#id` you link to.
@@ -124,9 +127,12 @@ Optional, so the first frame is already in place: give each zone its height in C
 module runs, the same height the stage will set (`#film { height: calc(3000px + 100svh) }` for a
 zone of 3000), and `cv-stage, cv-scene { display: block }`. The document is then full height at
 the first paint and the browser can restore the scroll itself. Keep the number in step with the
-zone's anchor `duration`.
+held scene's anchor `duration`.
 
-## K2 Probes for "Check before handing over"
+This restores scroll pages. A drag page restores its scene from the address instead: write the
+scene's id into the hash on each change (`drag.md`, "Remembering the scene across a reload").
+
+## K2 Probes for scroll pages
 
 Playwright, Chrome (`chromium.launch({ channel: 'chrome' })` if Playwright's own browser is
 missing). Each probe under about 90 seconds.
@@ -153,3 +159,47 @@ await page.evaluate(async () => { await customElements.whenDefined('cv-stage'); 
 - Reload: scroll into a scene, reload, and check the scroll position and palette from the first
   sampled frame (with K3 the page is hidden until both are right).
 - Contrast: compute text colour against the pixels behind it (hide the text, screenshot its box).
+
+## K4 Probes for drag pages
+
+Open drag pages at a phone size, such as 390×844, with touch where the tool allows it
+(`hasTouch`, `isMobile`). A drag with the mouse goes through the same pointer events:
+
+```js
+async function drag(page, x, y, dy, { steps = 10, gap = 16, hold = 0 } = {}) {
+  await page.mouse.move(x, y); await page.mouse.down();
+  for (let i = 1; i <= steps; i++) { await page.mouse.move(x, y + (dy * i) / steps); await page.waitForTimeout(gap); }
+  if (hold) await page.waitForTimeout(hold);   // a still finger before release: no fling
+  await page.mouse.up();
+}
+const current = (page) => page.evaluate(() => document.querySelector('cv-scene[data-cv-current]')?.id);
+```
+
+- **Rest points.** For each scene, `stage.goTo(i, { animated: false })`, wait about 1.5 s, take a
+  screenshot, and check that nothing crosses the screen edge.
+- **Switch and spring back.** A drag of about 60% of the screen switches. A held drag of 20% springs
+  back, and the current scene keeps its finished state.
+- **Quick swipe.** About 15% of the screen in under 300 ms switches. With a `threshold`, test its
+  own numbers instead.
+- **Dragging back.** The previous scene's entrance plays again under the finger, and elements with
+  an `exit` on the current scene run their entrance backwards.
+- **Interrupting an entrance.** Start a drag while the current scene's entrance is still playing,
+  and release short of the threshold. The entrance finishes.
+- **The first scene.** It plays its entrance on load. With `preload`, a drag during the wait ends
+  the wait.
+- **Opening at a scene.** Open the page at each `#id` you link to, and reload there: that scene is
+  the one on screen (check with `elementFromPoint`, not only `data-cv-current`).
+- **Keys.** Click the stage, then press ArrowDown and ArrowUp.
+- **Reduced motion and pause.** With reduced motion on (Playwright `reducedMotion: 'reduce'`), a
+  scene reached by `goTo` fades in within about 200 ms without moving. With the stage paused,
+  entrances stand still and continue when it plays.
+- **On a desktop size.** Dragging with the mouse works, and the wheel does nothing. If desktop
+  readers matter, check the previous and next buttons.
+- **Frame intervals.** Record `requestAnimationFrame` deltas during a drag gesture with the CPU
+  throttled; P95 under 25 ms. Scroll pages can be tested on the scripted path with
+  `<cv-stage fallback>`.
+- **Pages for both devices (B).** At phone size with touch, the stage builds as drag; at desktop
+  size, as scroll. The first scene plays its entrance in both.
+- **By hand, on a real phone:** the chat apps the link will be shared in; a drag starting near the
+  screen edges; turning the phone sideways; copying an address.
+

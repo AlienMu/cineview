@@ -94,7 +94,7 @@ Cineview is written so that an AI assistant can plan and build pages with it. St
 
 ### Design skill for your AI
 
-[`skills/cineview-design`](./skills/cineview-design/SKILL.md) has an AI assistant plan the page with you before building it (what it is for, two or three directions, how many scenes, what each scene shows and which material it needs, a storyboard and a material list), with references behind its suggestions: ways to treat video and images, line art and supporting elements, visual directions, how the 41 design references behave together in each mode, 32 layouts and example page structures. It offers options, not a template. Copy the folder into your project's `.claude/skills/` for Claude Code, or point any other assistant at `SKILL.md`.
+[`skills/cineview-design`](./skills/cineview-design/SKILL.md) has an AI assistant plan the page with you before building it. It asks first which devices the page is for, then what it is for, the page mode (drag on phones, scroll anywhere), two or three directions, the scenes and how each one hands over, and the material. It writes no page files until you confirm the storyboard. Its suggestions draw on design thinking offered as options with reasons: visual styles and pairings, what the 41 design references express, how words and pictures relate, handovers between scenes, drag pages and phones. Copy the folder into your project's `.claude/skills/` for Claude Code, or point any other assistant at `SKILL.md` and `conversation.md`.
 
 ## Docs and examples
 

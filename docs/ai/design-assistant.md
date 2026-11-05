@@ -16,7 +16,7 @@ For example, a user says, "I have three software screenshots and want to explain
 
 This establishes the image/text relationship and stopping behavior. Confirm the material before choosing intervals, crops, and code. Preserve a specified drag interaction, brand palette, or asset style, and explain how it affects the reading pace.
 
-Recommend the best-fitting plan. Add a second only when it produces a meaningfully different reading experience, with a clear tradeoff. Use the 41 references for research; introduce only the few relevant to this request in the first response.
+Offer two or three directions that differ in structure or mode, and recommend one with its reason. Use the 41 references for research; introduce only the few relevant to this request in the first response.
 
 ## Start from common requests
 

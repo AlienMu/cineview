@@ -1,5 +1,8 @@
 # Framework quick reference (cineview 2, cv-* HTML)
 
+> Reading this while planning is fine. Code from it goes into a page only after the user has
+> confirmed the storyboard (`SKILL.md`).
+
 Checked against `src` (types in `src/jsx.ts`, presets in `src/core/fx.ts`). Full conventions:
 `docs/ai/declarative-design.md`. When this file and the source disagree, the source wins.
 
@@ -25,18 +28,22 @@ start state when the module runs (a flash on every load). Browsers that fail the
 the static, readable page. Under a Content-Security-Policy, allow the snippet by its hash (the first
 line of `head.js`).
 
-## Units used by every recipe
+## Units
 
-```css
-:root {
-  --u: calc(min(100vw, 177.78vh) / 1920);   /* 1 design px at 1920 wide, scaled to the screen */
-  --m: calc(120 * var(--u));                 /* page margin */
-}
-```
+`design-width` on `<cv-stage>` caps the stage's frame width and sets the framework's own unit,
+`--cv-unit`: one design pixel, which is the scene's width divided by the design width and never
+more than 1 CSS px. The default is 750, a phone.
 
-Sizes in the recipes are `calc(N * var(--u))`. `design-width` on `<cv-stage>` caps the stage's
-frame width and sets the framework's own unit `--cv-unit` (default 750, a phone): a scroll page
-designed with `--u` can set `design-width="1920"`; a drag page designed for phones keeps 750.
+Choose sizes that suit the devices the page is for:
+- **Phone pages** (drag, or scroll on phones): `design-width="750"` and sizes in
+  `calc(N * var(--cv-unit))`, or plain CSS (`rem`, `clamp()`). See `phone.md`.
+- **Desktop pages**: a larger `design-width` (such as `1920`) with `--cv-unit`, or a page unit of
+  your own, for example `--u: calc(min(100vw, 177.78vh) / 1920)` for a 1920-wide design. A unit like
+  that shrinks to about 0.2 CSS px on a phone, so the narrow version needs its own sizes. The
+  startup styles assume 750 until the module runs: set `--cv-dw` to the same number on the stage
+  (`<cv-stage design-width="1920" style="--cv-dw: 1920">`) so sizes do not jump at that moment.
+- **Pages for both devices**: one scroll page with responsive CSS, or the B setup in `phone.md`,
+  which sets `input` and `design-width` per device before the stage builds.
 
 ## Elements
 
@@ -54,9 +61,9 @@ designed with `--u` can set `design-width="1920"`; a drag page designed for phon
 
 | Attribute | Values | Meaning |
 |---|---|---|
-| `input` | `scroll` (default), `drag` | Reader scrolls the page, or drags scene by scene. |
+| `input` | `scroll` (default), `drag` | Reader scrolls the page, or drags scene by scene (`drag.md`). One input per page. |
 | `design-width` | px, e.g. `1920` | Width the authored px refer to. |
-| `paused` | flag | Time-played motion waits (remove it to start). |
+| `paused` | flag | Motion played on time waits: entrances, loops, and each drag scene's time. Remove it to start. The reader's scroll and drag keep working. |
 | `transition-duration` | ms | Drag: duration of one scene change. |
 | `threshold` | `"slow fast speed"` e.g. `"0.32 0.15 1200"` | Drag: release ratios and fling speed (px/s). |
 | `unit`, `scale` | `time`/`percent`, number | Drag: how finger travel maps to time. |
@@ -73,7 +80,8 @@ designed with `--u` can set `design-width="1920"`; a drag page designed for phon
 | `theme` | name | At eye level the stage gets `data-cv-theme="name"`; style your palette from it. |
 | `preload` | flag or URL list | Wait for first-screen images/videos before starting. |
 | `drag` | `off` | This scene is not draggable (drag input). |
-| `threshold`, `unit`, `scale`, `sequence` | | Per-scene drag overrides; scene order. |
+| `threshold`, `unit`, `scale` | | Per-scene drag overrides. |
+| `sequence` | ms | Elements without `after` follow the previous one, this far apart (negative overlaps). |
 
 ### cv-animate
 
@@ -88,13 +96,13 @@ designed with `--u` can set `design-width="1920"`; a drag page designed for phon
 | `name` | `title` | The name `after` refers to. |
 | `at` | `20% 60%`, `20%`, `auto 80%` | Place the window as a share of the scene's length; every value carries `%`. |
 | `on` | `scene`, `enter`, `enter(partial)`, `eye`, `view(self)`, `view(#id)`, `page`, `clock`, `velocity`, `direction` | Progress source (see below). |
-| `ease` | `linear`, `ease-in-out`, `cubic-bezier(...)` | Easing. |
+| `ease` | `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`, `settle`, `pan`, `cubic-bezier(...)` | Easing, applied to progress whatever drives it. `settle` starts fast and settles long; `pan` is a gentle in-out. |
 | `split` | `lines`, `words` | Animate each line/word (real text stays, copies are aria-hidden). |
 | `stagger` | ms | Delay between split pieces or targets. |
 | `target` | `.lines *` | Apply the effect to matching descendants (e.g. strokes for `draw`). |
 | `loop` | `float`, `sway`, `pulse`, `breathe`, `spin`, any fx preset (played there and back), raw lists `opacity: 1 .45 1`, `--name: 0 1 0` | A loop after the entrance (on screen only). Several, comma separated. |
 | `loop-duration` | ms | Loop period. |
-| `replay` | omitted, flag / `true`, `false` | Omitted keeps the source's rule; flag / `true` plays on return; `false` shows the end after one complete entrance. Each follower keeps its own window and replay setting. |
+| `replay` | omitted, flag / `true`, `false` | Omitted keeps the source's rule; flag / `true` plays on return; `false` shows the end after one complete entrance. Each follower keeps its own window and replay setting. On drag pages it also stays entered when dragged away backwards. |
 | `margin` | px | Visibility gate margin. |
 
 How `cv-animate` wraps its content: the children stay in the light DOM, but they are slotted into
@@ -203,8 +211,9 @@ blur is a crossfade, not a live filter.
 - In ordinary scroll an entrance plays when its gate opens (`enter`: fully in view); with `exit`
   it plays its exit when it leaves; with `replay` it plays again on return.
 - A `loop` starts after its element's entrance has finished, and only while it is on screen.
-- Reduced motion: time-played entrances become short fades and loops stop; scroll- and
-  drag-following motion stays (it is the reader's own).
+- Reduced motion: entrances played on time become short fades and loops stop; scroll- and
+  drag-following motion stays (it is the reader's own). On drag pages, a scene reached without the
+  finger fades in within 200 ms, and the part after a release ends within 200 ms.
 
 ## State on the page (style from these)
 
@@ -215,8 +224,10 @@ blur is a crossfade, not a live filter.
 ## Events (all bubble)
 
 `cv-ready`, `cv-enter`, `cv-leave`, `cv-progress` (detail: `kind`, `progress`), `cv-play`,
-`cv-pause`, `cv-dragstart`, `cv-dragend`, `cv-dragcancel`, `cv-dragblocked`, `cv-error` (detail:
-`code`, `message`; listen during development and fix every one).
+`cv-pause`, `cv-activate` and `cv-deactivate` (a scene entering or leaving the rendered range),
+`cv-timeout` (the first screen's asset wait timed out; cancelable), `cv-dragstart`, `cv-dragend`,
+`cv-dragcancel`, `cv-dragblocked`, `cv-error` (detail: `code`, `message`; listen during
+development and fix every one).
 
 ## Script interface
 

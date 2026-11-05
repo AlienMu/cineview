@@ -1,11 +1,30 @@
 # Colour
 
-Palettes for different directions are in `styles.md`. This file covers how colour can move with
-a page, and how to keep text readable.
+> Reading this while planning is fine. Code from it goes into a page only after the user has
+> confirmed the storyboard (`SKILL.md`).
+
+`styles.md` describes palettes for each visual style. This file covers taking colours from the
+user's material, colour that moves with the page, and keeping text readable.
+
+## Colours from the material
+
+A palette taken from the user's own photos, footage or brand makes the page belong to them.
+1. **Ground.** Find the lightest calm area of the main pictures (paper, sky, a wall) for a light
+   page, or the darkest for a dark one.
+2. **Ink.** Find the darkest area for a light page, or the lightest for a dark one. Check it
+   against the ground: 4.5:1 for body text.
+3. **Accent.** Pick the most saturated colour that matters to the product: the logo, the drink,
+   the product's paint, the interface's main colour. Use it sparingly: for actions, highlights
+   and one figure.
+4. **Surfaces and lines.** Derive them from the ground and the ink (C1), so they follow any later
+   change.
+5. **Check every pair the page uses** (text on ground, text on surface, button label on accent) in
+   every palette the page switches between.
 
 ## C1 Tokens that everything derives from
 
-Deriving surfaces from a few tokens means one change of `--ground` moves the whole page together:
+When surfaces are derived from a few tokens, a single change to `--ground` moves the whole page
+together:
 
 ```css
 :root {
@@ -16,7 +35,7 @@ Deriving surfaces from a few tokens means one change of `--ground` moves the who
 body { background: var(--ground); color: var(--ink); }
 ```
 
-To animate a token (for example `--ground` between scenes), register it so the browser can
+To animate a token, for example `--ground` between scenes, register it so the browser can
 interpolate it:
 
 ```css
@@ -24,30 +43,31 @@ interpolate it:
 :root.tokens-live { transition: --ground .7s ease, --ink .7s ease; }
 ```
 
-Turning the transition on only after `stage.ready` keeps a reload inside a dark scene from fading
-in from the light palette:
+Turn the transition on only after `stage.ready`. Otherwise a reload inside a dark scene fades in
+from the light palette:
 
 ```js
 document.querySelector('cv-stage').ready.then(() =>
   requestAnimationFrame(() => document.documentElement.classList.add('tokens-live')));
 ```
 
-## C2 A palette per scene (threshold flip)
+## C2 A palette per scene
 
-`<cv-scene theme="night">` sets `data-cv-theme="night"` on the stage while that scene is at eye
-level; page CSS maps it to tokens:
+`<cv-scene theme="sage">` sets `data-cv-theme="sage"` on the stage while that scene is current.
+On scroll pages that means at eye level; on drag pages, once the page passes the middle of a
+drag. Page CSS maps the theme to tokens:
 
 ```css
-:root:has(cv-stage[data-cv-theme="night"]) { --ground: #0b0e1a; --ink: #eef1ff; --ink-soft: #a9b0cc; --accent: #ff5a7a; }
+:root:has(cv-stage[data-cv-theme="sage"]) { --ground: #e6efe6; --ink: #1d2b22; --ink-soft: #46584b; --accent: #3f7d5a; }
 ```
 
-Used for one deliberate change (lights down for a finale), for alternating chapters, or for a
-different palette on every scene; the more often it changes, the more each change has to mean.
+It can be one deliberate change for one chapter, alternating chapters, or a different palette
+for every scene. The more often it changes, the more each change has to mean.
 
 ## C3 A ground that follows the scroll
 
-Instead of steps, the ground can glide continuously with the scroll position: a few colour stops,
-mixed for the current position, written only when the colour changes.
+Instead of changing in steps, the ground can glide with the scroll position. Take a few colour
+stops, mix them for the current position, and write the result only when it changes:
 
 ```js
 const STOPS = [[0, [255, 255, 255]], [0.5, [238, 244, 255]], [1, [255, 255, 255]]]; // any colours
@@ -62,19 +82,22 @@ function paint() {
 addEventListener('scroll', () => requestAnimationFrame(paint), { passive: true }); paint();
 ```
 
-Close stops read as one atmosphere that shifts; far-apart stops read as distinct chapters.
+Close stops read as one atmosphere that shifts. Far-apart stops read as distinct chapters. A
+ground that follows the scroll and a theme change on the same scenes both write the ground, so
+where they meet, one of them wins.
 
-## C4 Hue that turns (token interpolation)
+## C4 Hue that turns
 
-`fx="hue(0deg, 120deg)"` turns `--cv-hue` over an element's progress; colours written as
-`oklch(.6 .15 calc(250deg + var(--cv-hue)))` follow it. Scoping it to one figure (reference 38)
-keeps the rest of the page stable.
+`fx="hue(0deg, 120deg)"` turns `--cv-hue` over an element's progress. Colours written as
+`oklch(.6 .15 calc(250deg + var(--cv-hue)))` follow it. Scoping it to one figure keeps the rest of
+the page stable.
 
 ## C5 Readability
 
-- Body text: 4.5:1 against what is behind it is the usual accessibility reference (WCAG AA); large
-  titles 3:1.
-- Text over photos or video: a gradient, a progressive blur (reference 28) or a panel behind the
-  text keeps it readable as the picture changes.
-- Small labels set in a lighter colour rather than with `opacity` keep their contrast predictable.
-- A button label on its fill, in every palette the page uses.
+- Body text: 4.5:1 against what is behind it is the usual accessibility reference (WCAG AA). Large
+  titles: 3:1.
+- Text over photos or video stays readable as the picture changes with a gradient, a progressive
+  blur or a panel behind it.
+- Small labels set in a lighter colour, rather than with `opacity`, keep their contrast
+  predictable.
+- Check the button label on its fill in every palette the page uses.
