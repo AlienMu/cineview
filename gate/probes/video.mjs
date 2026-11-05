@@ -152,25 +152,23 @@ try {
   await page.setViewportSize({ width: 401, height: H });
   await page.waitForTimeout(80);
   check((await media(page)).ready === 0, 'real media stays pending while its response is held, through the cancel and a resize');
+  // The cancelled entrance plays on to its end while the response is still held.
+  await page.waitForFunction(() => document.getElementById('v').timeline.frame.progress === 1, {}, { timeout: 10000 });
+  const partial = await page.evaluate(() => document.getElementById('v').timeline.frame);
+  check(partial.phase === 'entered' && (await media(page)).ready === 0,
+    'a cancelled drag plays the interrupted entrance to its end while the media is pending', JSON.stringify(partial));
   releaseMetadata();
-  // Seeking after loadeddata can temporarily return readyState to HAVE_METADATA.
-  // Wait for the restored frame to decode and capture media/timeline in the same task.
-  // The cancelled entrance played on to its end while the media was pending: once the media
-  // arrives, the video catches up to the finished entrance and the browser plays the tail.
+  // Once the media arrives, the video catches up to the finished entrance and the browser plays
+  // the tail. Seeking after loadeddata can briefly return readyState to HAVE_METADATA: wait for
+  // the decoded frame and read the media in the same task.
   const restored = await page.waitForFunction(() => {
     const host = document.getElementById('v');
     const m = window.media();
-    const partial = host.timeline.frame;
-    return m.ready >= 2 && !host.video.seeking && m.t >= partial.progress - 0.05
-      ? { m, partial } : false;
+    return m.ready >= 2 && !host.video.seeking && m.t >= 0.95 ? m : false;
   }, {}, { timeout: 10000 });
-  const restoredFrame = await restored.jsonValue();
-  m = restoredFrame.m;
-  const partial = restoredFrame.partial;
-  check(partial.phase === 'entered' && partial.progress === 1,
-    'a cancelled drag plays the interrupted entrance to its end while the media is pending', JSON.stringify(partial));
+  m = await restored.jsonValue();
   check(m.ready >= 2 && m.t >= 0.95 && !m.paused,
-    'late metadata catches the video up to the finished entrance, then the browser plays on', JSON.stringify({ m, partial }));
+    'late metadata catches the video up to the finished entrance, then the browser plays on', JSON.stringify(m));
   await page.close();
 
   // ---- zone ----------------------------------------------------------------------------
